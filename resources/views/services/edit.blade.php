@@ -1,0 +1,114 @@
+<x-app-layout>
+    <div class="max-w-3xl mx-auto px-4 py-8">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Modifier le service</h1>
+
+        @if($errors->any())
+        <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
+            <ul class="list-disc ml-4">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+        </div>
+        @endif
+
+        <form method="POST" action="{{ route('services.update', $service) }}"
+              x-data="{
+                selectedCategory: '{{ old('category_id', $service->category_id) }}',
+                tags: '{{ old('tags', $service->tags->pluck('name')->join(',')) }}',
+                tagList: [],
+                tagInput: '',
+                addTag() { if (!this.tagInput.trim() || this.tagList.length >= 5) return; this.tagList.push(this.tagInput.trim()); this.tags = this.tagList.join(','); this.tagInput = ''; },
+                removeTag(i) { this.tagList.splice(i,1); this.tags = this.tagList.join(','); },
+                init() { if(this.tags) this.tagList = this.tags.split(',').filter(t=>t); }
+              }">
+            @csrf @method('PUT')
+
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre *</label>
+                <input type="text" name="title" value="{{ old('title', $service->title) }}" required maxlength="255"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description *</label>
+                <textarea name="description" rows="5" required
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">{{ old('description', $service->description) }}</textarea>
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégorie *</label>
+                <select name="category_id" required x-model="selectedCategory"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                    @foreach($categories as $cat)
+                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="mb-5" x-show="selectedCategory">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Compétences</label>
+                @foreach($categories as $cat)
+                <div x-show="selectedCategory === '{{ $cat->id }}'">
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($cat->skills as $skill)
+                        <label class="flex items-center gap-2 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 text-sm dark:text-gray-300">
+                            <input type="checkbox" name="skills[]" value="{{ $skill->id }}"
+                                {{ $service->skills->contains($skill->id) || in_array($skill->id, old('skills', [])) ? 'checked' : '' }}
+                                class="text-indigo-600">
+                            {{ $skill->name }}
+                        </label>
+                        @endforeach
+                    </div>
+                </div>
+                @endforeach
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tags <span class="text-gray-400">(max 5)</span></label>
+                <input type="hidden" name="tags" x-bind:value="tags">
+                <div class="flex flex-wrap gap-2 mb-2">
+                    <template x-for="(tag, i) in tagList" :key="i">
+                        <span class="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded text-sm">
+                            <span x-text="tag"></span>
+                            <button type="button" @click="removeTag(i)" class="ml-1 text-indigo-400 hover:text-indigo-700">×</button>
+                        </span>
+                    </template>
+                </div>
+                <div class="flex gap-2" x-show="tagList.length < 5">
+                    <input type="text" x-model="tagInput" @keydown.enter.prevent="addTag" placeholder="Ajouter un tag..."
+                        class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
+                    <button type="button" @click="addTag" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300">Ajouter</button>
+                </div>
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mode de prestation *</label>
+                <div class="flex gap-3">
+                    @foreach(['remote' => '🌐 À distance', 'onsite' => '📍 Sur site', 'both' => '🌐📍 Les deux'] as $val => $label)
+                    <label class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer text-sm font-medium hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 dark:text-gray-300 border-gray-200 dark:border-gray-600 transition">
+                        <input type="radio" name="delivery_mode" value="{{ $val }}" {{ (old('delivery_mode', $service->delivery_mode) === $val) ? 'checked' : '' }} required class="sr-only">
+                        {{ $label }}
+                    </label>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Statut</label>
+                <select name="status"
+                    class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                    <option value="active" {{ old('status', $service->status) === 'active' ? 'selected' : '' }}>Actif (visible)</option>
+                    <option value="paused" {{ old('status', $service->status) === 'paused' ? 'selected' : '' }}>Pause (masqué)</option>
+                </select>
+            </div>
+
+            <div class="mb-8">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Points demandés *</label>
+                <input type="number" name="points_cost" value="{{ old('points_cost', $service->points_cost) }}" min="1" required
+                    class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div class="flex gap-3">
+                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Enregistrer</button>
+                <a href="{{ route('dashboard') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</a>
+            </div>
+        </form>
+    </div>
+</x-app-layout>
