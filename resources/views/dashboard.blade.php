@@ -68,9 +68,18 @@
                         </div>
                         <div class="flex gap-3 ml-3 flex-shrink-0">
                             <a href="{{ route('services.edit', $service) }}" class="text-xs text-gray-500 hover:text-indigo-600">Modifier</a>
-                            <form method="POST" action="{{ route('services.destroy', $service) }}" onsubmit="return confirm('Supprimer ce service ?')">
+                            <form method="POST" action="{{ route('services.destroy', $service) }}" x-data="{ asked: false }">
                                 @csrf @method('DELETE')
-                                <button class="text-xs text-red-500 hover:text-red-700">Supprimer</button>
+                                <template x-if="!asked">
+                                    <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700">Supprimer</button>
+                                </template>
+                                <template x-if="asked">
+                                    <span class="flex gap-1 items-center text-xs">
+                                        <span class="text-gray-500">Sûr ?</span>
+                                        <button type="submit" class="text-red-600 font-semibold hover:underline">Oui</button>
+                                        <button type="button" @click="asked = false" class="text-gray-400 hover:underline">Non</button>
+                                    </span>
+                                </template>
                             </form>
                         </div>
                     </div>
@@ -93,9 +102,18 @@
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $req->title }}</p>
                             <p class="text-xs text-gray-500">{{ $req->budget_min }}{{ $req->budget_max ? '–'.$req->budget_max : '+' }} pts</p>
                         </div>
-                        <form method="POST" action="{{ route('requests.destroy', $req) }}" onsubmit="return confirm('Fermer cette demande ?')" class="ml-3">
+                        <form method="POST" action="{{ route('requests.destroy', $req) }}" class="ml-3" x-data="{ asked: false }">
                             @csrf @method('DELETE')
-                            <button class="text-xs text-red-500 hover:text-red-700">Fermer</button>
+                            <template x-if="!asked">
+                                <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700">Fermer</button>
+                            </template>
+                            <template x-if="asked">
+                                <span class="flex gap-1 items-center text-xs">
+                                    <span class="text-gray-500">Sûr ?</span>
+                                    <button type="submit" class="text-red-600 font-semibold hover:underline">Oui</button>
+                                    <button type="button" @click="asked = false" class="text-gray-400 hover:underline">Non</button>
+                                </span>
+                            </template>
                         </form>
                     </div>
                     @empty

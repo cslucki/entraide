@@ -1,6 +1,10 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\PointController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\HomeController;
@@ -51,11 +55,32 @@ Route::middleware('auth')->group(function () {
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
     Route::get('/messages/{transaction}', [MessageController::class, 'show'])->name('messages.show');
 
+    // Points history
+    Route::get('/points', [PointController::class, 'index'])->name('points.index');
+
+    // Favorites
+    Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
+    Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->name('favorites.toggle');
+
+    // Reports
+    Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->name('reports.service');
+    Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->name('reports.user');
+
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+// Admin routes
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+    Route::get('/users', [AdminController::class, 'users'])->name('users');
+    Route::get('/reports', [AdminController::class, 'reports'])->name('reports');
+    Route::patch('/reports/{report}/dismiss', [AdminController::class, 'dismissReport'])->name('reports.dismiss');
+    Route::patch('/reports/{report}/review', [AdminController::class, 'reviewReport'])->name('reports.review');
+    Route::patch('/users/{user}/toggle-availability', [AdminController::class, 'toggleUserAvailability'])->name('users.toggle-availability');
 });
 
 require __DIR__.'/auth.php';

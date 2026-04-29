@@ -5,7 +5,15 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'Laravel') }}</title>
+        <title>{{ isset($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
+        <meta name="description" content="{{ isset($description) ? $description : 'Plateforme de troc de services entre professionnels — échangez vos compétences sans argent.' }}">
+
+        @isset($ogTitle)
+        <meta property="og:title" content="{{ $ogTitle }}">
+        <meta property="og:description" content="{{ $ogDescription ?? '' }}">
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="{{ url()->current() }}">
+        @endisset
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -32,5 +40,17 @@
                 {{ $slot }}
             </main>
         </div>
+        <!-- Alpine store global pour les modals de confirmation -->
+        <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('modal', {
+                active: null,
+                _form: null,
+                open(id, form) { this.active = id; this._form = form; },
+                close() { this.active = null; this._form = null; },
+                confirm() { if (this._form) this._form.submit(); this.close(); }
+            });
+        });
+        </script>
     </body>
 </html>

@@ -18,6 +18,7 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'points_balance' => 100,
                 'is_available' => true,
+                'is_admin' => true,
                 'email_verified_at' => now(),
             ]
         );

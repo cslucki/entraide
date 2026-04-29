@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Service extends Model
@@ -53,6 +54,16 @@ class Service extends Model
         return $this->transactions()
             ->whereIn('status', ['pending', 'accepted'])
             ->exists();
+    }
+
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    public function reports(): MorphMany
+    {
+        return $this->morphMany(Report::class, 'reportable');
     }
 
     public function scopeActive($query)

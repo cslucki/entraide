@@ -20,6 +20,7 @@ class User extends Authenticatable
         'avatar',
         'points_balance',
         'is_available',
+        'is_admin',
         'rating',
     ];
 
@@ -34,6 +35,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_available' => 'boolean',
+            'is_admin' => 'boolean',
             'points_balance' => 'integer',
             'rating' => 'decimal:2',
         ];
@@ -78,6 +80,27 @@ class User extends Authenticatable
     {
         $avg = $this->reviewsReceived()->avg('rating');
         $this->update(['rating' => $avg ? round($avg, 2) : null]);
+    }
+
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    public function hasFavorited(string $serviceId): bool
+    {
+        return $this->favorites()->where('service_id', $serviceId)->exists();
+    }
+
+    public function unreadMessagesCount(): int
+    {
+        return \App\Models\Message::whereHas('transaction', function ($q) {
+                $q->where('buyer_id', $this->id)->orWhere('seller_id', $this->id);
+            })
+            ->where('sender_id', '!=', $this->id)
+            ->whereNull('read_at')
+            ->where('type', 'user')
+            ->count();
     }
 
     public function getAvatarUrlAttribute(): string
