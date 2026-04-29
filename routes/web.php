@@ -64,6 +64,7 @@ Route::middleware('auth')->group(function () {
 
     // Reports
     Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->name('reports.service');
+    Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->name('reports.request');
     Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->name('reports.user');
 
     // Profile

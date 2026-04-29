@@ -47,12 +47,17 @@
             @endif
         </div>
 
-        <div>
+        <div x-data="{ preview: null }">
             <x-input-label for="avatar" value="Avatar" />
-            <div class="mt-1 flex items-center gap-4">
-                <img src="{{ $user->avatar_url }}" class="w-12 h-12 rounded-full" alt="">
-                <input id="avatar" name="avatar" type="file" accept="image/*"
-                    class="text-sm text-gray-600 dark:text-gray-400">
+            <div class="mt-2 flex items-center gap-4">
+                <img :src="preview ?? '{{ $user->avatar_url }}'"
+                     class="w-14 h-14 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600" alt="">
+                <div class="flex-1">
+                    <input id="avatar" name="avatar" type="file" accept="image/*"
+                        @change="preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null"
+                        class="block w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-300 hover:file:bg-indigo-100">
+                    <p class="text-xs text-gray-400 mt-1">JPG, PNG ou GIF — max 2 Mo</p>
+                </div>
             </div>
             <x-input-error class="mt-2" :messages="$errors->get('avatar')" />
         </div>

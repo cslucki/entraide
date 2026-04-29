@@ -14,9 +14,24 @@
                         </span>
                         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ $service->title }}</h1>
                     </div>
-                    <div class="text-right ml-4">
-                        <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ $service->points_cost }}</p>
-                        <p class="text-xs text-gray-500">points</p>
+                    <div class="flex items-start gap-3 ml-4">
+                        @auth
+                        @if(auth()->id() !== $service->user_id)
+                        <form method="POST" action="{{ route('favorites.toggle', $service) }}" class="flex-shrink-0 mt-1">
+                            @csrf
+                            <button type="submit" title="{{ $isFavorited ? 'Retirer des favoris' : 'Ajouter aux favoris' }}"
+                                class="p-2 rounded-lg border {{ $isFavorited ? 'border-red-300 bg-red-50 dark:bg-red-900/20 text-red-500' : 'border-gray-200 dark:border-gray-600 text-gray-400 hover:text-red-400 hover:border-red-300' }} transition">
+                                <svg class="w-5 h-5" fill="{{ $isFavorited ? 'currentColor' : 'none' }}" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                </svg>
+                            </button>
+                        </form>
+                        @endif
+                        @endauth
+                        <div class="text-right">
+                            <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ $service->points_cost }}</p>
+                            <p class="text-xs text-gray-500">points</p>
+                        </div>
                     </div>
                 </div>
 

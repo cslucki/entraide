@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Category;
+use App\Models\Favorite;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Tag;
@@ -112,6 +113,14 @@ class Explorer extends Component
 
             $items = $query->paginate($this->perPage);
             $hasMore = $items->hasMorePages();
+
+            // Charger les favoris en une seule requête
+            $favoritedIds = auth()->check()
+                ? Favorite::where('user_id', auth()->id())
+                    ->whereIn('service_id', $items->pluck('id'))
+                    ->pluck('service_id')
+                    ->flip()
+                : collect();
         } else {
             $query = ServiceRequest::with(['user', 'category'])->where('status', 'open');
 
@@ -136,8 +145,9 @@ class Explorer extends Component
 
             $items = $query->paginate($this->perPage);
             $hasMore = $items->hasMorePages();
+            $favoritedIds = collect();
         }
 
-        return view('livewire.explorer', compact('categories', 'items', 'hasMore'));
+        return view('livewire.explorer', compact('categories', 'items', 'hasMore', 'favoritedIds'));
     }
 }

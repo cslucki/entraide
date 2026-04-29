@@ -16,7 +16,8 @@ class ServiceController extends Controller
     public function show(Service $service): View
     {
         $service->load(['user', 'category', 'skills.category', 'tags']);
-        return view('services.show', compact('service'));
+        $isFavorited = auth()->check() && auth()->user()->hasFavorited($service->id);
+        return view('services.show', compact('service', 'isFavorited'));
     }
 
     public function create(): View
