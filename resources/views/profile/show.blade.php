@@ -1,7 +1,7 @@
 <x-app-layout>
     <div class="max-w-4xl mx-auto px-4 py-8">
         <!-- Profile header -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6 relative">
             <div class="flex items-start gap-5">
                 <img src="{{ $user->avatar_url }}" class="w-20 h-20 rounded-full" alt="">
                 <div class="flex-1">
@@ -21,6 +21,32 @@
                         <span>{{ $user->points_balance }} pts</span>
                     </div>
                 </div>
+                @auth
+                @if(auth()->id() !== $user->id)
+                <div x-data="{ open: false }" class="flex-shrink-0">
+                    <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler</button>
+                    <div x-show="open" x-cloak class="absolute right-6 mt-2 w-72 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 shadow-lg z-10">
+                        <form method="POST" action="{{ route('reports.user', $user) }}">
+                            @csrf
+                            <p class="text-xs font-semibold text-red-700 dark:text-red-300 mb-2">Signaler cet utilisateur</p>
+                            <select name="reason" required class="w-full mb-2 px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                                <option value="">Motif...</option>
+                                <option value="Comportement abusif">Comportement abusif</option>
+                                <option value="Arnaque ou fraude">Arnaque ou fraude</option>
+                                <option value="Faux profil">Faux profil</option>
+                                <option value="Autre">Autre</option>
+                            </select>
+                            <textarea name="details" rows="2" placeholder="Détails (optionnel)..."
+                                class="w-full px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm mb-2 resize-none"></textarea>
+                            <div class="flex gap-2">
+                                <button type="submit" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700">Envoyer</button>
+                                <button type="button" @click="open = false" class="px-3 py-1.5 border border-red-200 text-red-600 text-xs rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30">Annuler</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                @endif
+                @endauth
             </div>
         </div>
 

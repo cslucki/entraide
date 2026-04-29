@@ -57,9 +57,22 @@
                         <x-dropdown-link :href="route('profile.show', Auth::user())">
                             Mon profil public
                         </x-dropdown-link>
+                        <x-dropdown-link :href="route('points.index')">
+                            Historique des points
+                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('favorites.index')">
+                            Mes favoris
+                        </x-dropdown-link>
                         <x-dropdown-link :href="route('profile.edit')">
                             Paramètres
                         </x-dropdown-link>
+                        @if(Auth::user()->is_admin)
+                        <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
+                        <x-dropdown-link :href="route('admin.dashboard')">
+                            <span class="text-purple-600 dark:text-purple-400 font-medium">Administration</span>
+                        </x-dropdown-link>
+                        @endif
+                        <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
                             <x-dropdown-link :href="route('logout')"
@@ -110,7 +123,13 @@
                 <div class="font-medium text-sm text-gray-500">{{ Auth::user()->points_balance }} pts</div>
             </div>
             <div class="mt-3 space-y-1">
+                <x-responsive-nav-link :href="route('profile.show', Auth::user())">Mon profil</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('points.index')">Historique des points</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('favorites.index')">Mes favoris</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.edit')">Paramètres</x-responsive-nav-link>
+                @if(Auth::user()->is_admin)
+                <x-responsive-nav-link :href="route('admin.dashboard')">Administration</x-responsive-nav-link>
+                @endif
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <x-responsive-nav-link :href="route('logout')"

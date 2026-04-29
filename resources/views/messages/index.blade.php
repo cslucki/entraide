@@ -11,14 +11,22 @@
                         $other = auth()->id() === $conv->buyer_id ? $conv->seller : $conv->buyer;
                         $lastMsg = $conv->messages->first();
                         $isActive = isset($transaction) && $transaction->id === $conv->id;
+                        $unread = $unreadCounts[$conv->id] ?? 0;
                     @endphp
                     <a href="{{ route('messages.show', $conv) }}"
                         class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
-                        <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full flex-shrink-0" alt="">
+                        <div class="relative flex-shrink-0">
+                            <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
+                            @if($unread > 0 && !$isActive)
+                            <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {{ $unread > 9 ? '9+' : $unread }}
+                            </span>
+                            @endif
+                        </div>
                         <div class="min-w-0 flex-1">
-                            <div class="flex items-center justify-between">
-                                <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ $other->name }}</p>
-                                <span class="text-xs px-1.5 py-0.5 rounded-full
+                            <div class="flex items-center justify-between gap-1">
+                                <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other->name }}</p>
+                                <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
                                     {{ match($conv->status) {
                                         'pending' => 'bg-orange-100 text-orange-700',
                                         'accepted' => 'bg-blue-100 text-blue-700',
@@ -31,7 +39,9 @@
                             </div>
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $conv->subject }}</p>
                             @if($lastMsg)
-                            <p class="text-xs text-gray-400 truncate mt-0.5">{{ Str::limit($lastMsg->body, 40) }}</p>
+                            <p class="text-xs {{ $unread > 0 && !$isActive ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400' }} truncate mt-0.5">
+                                {{ Str::limit($lastMsg->body, 40) }}
+                            </p>
                             @endif
                         </div>
                     </a>

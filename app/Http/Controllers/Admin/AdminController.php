@@ -67,4 +67,13 @@ class AdminController extends Controller
         $user->update(['is_available' => !$user->is_available]);
         return back()->with('success', 'Disponibilité modifiée.');
     }
+
+    public function toggleUserAdmin(User $user): RedirectResponse
+    {
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'Vous ne pouvez pas modifier vos propres droits admin.');
+        }
+        $user->update(['is_admin' => !$user->is_admin]);
+        return back()->with('success', 'Droits admin modifiés.');
+    }
 }

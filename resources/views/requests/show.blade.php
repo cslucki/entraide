@@ -39,7 +39,28 @@
                 </div>
 
                 @auth
-                @if(auth()->id() !== $request->user_id && $request->status === 'open')
+                @if(auth()->id() !== $request->user_id)
+                <!-- Signalement -->
+                <div class="mb-4" x-data="{ open: false }">
+                    <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler cette demande</button>
+                    <div x-show="open" x-cloak class="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <form method="POST" action="{{ route('reports.service', $request->id) }}">
+                            @csrf
+                            <select name="reason" required class="w-full mb-2 px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                                <option value="">Motif du signalement...</option>
+                                <option value="Contenu inapproprié">Contenu inapproprié</option>
+                                <option value="Arnaque ou fraude">Arnaque ou fraude</option>
+                                <option value="Spam">Spam</option>
+                                <option value="Autre">Autre</option>
+                            </select>
+                            <textarea name="details" rows="2" placeholder="Détails (optionnel)..."
+                                class="w-full px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm mb-2 resize-none"></textarea>
+                            <button type="submit" class="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700">Envoyer le signalement</button>
+                        </form>
+                    </div>
+                </div>
+
+                @if($request->status === 'open')
                 <div class="border-t border-gray-100 dark:border-gray-700 pt-6">
                     <form method="POST" action="{{ route('transactions.store') }}" class="flex items-center gap-4">
                         @csrf
@@ -51,7 +72,11 @@
                         </button>
                         <span class="text-xs text-gray-500">Votre solde : {{ auth()->user()->points_balance }} pts</span>
                     </form>
+                    @if($errors->any())
+                    <p class="text-red-500 text-sm mt-2">{{ $errors->first() }}</p>
+                    @endif
                 </div>
+                @endif
                 @endif
                 @endauth
             </div>
