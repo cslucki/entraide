@@ -102,6 +102,44 @@
         @endforeach
     </div>
 
+    <!-- Review form — visible after completion si pas encore noté -->
+    @if($transaction->status === 'completed' && !$transaction->hasReviewFrom(auth()->id()))
+    <div class="border-t-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-4"
+         x-data="{ rating: 0, hovered: 0 }">
+        <p class="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-3">
+            ⭐ Évaluez cet échange
+        </p>
+        <form method="POST" action="{{ route('reviews.store', $transaction) }}">
+            @csrf
+
+            <!-- Étoiles interactives -->
+            <div class="flex gap-1 mb-3">
+                @for($i = 1; $i <= 5; $i++)
+                <button type="button"
+                    @click="rating = {{ $i }}"
+                    @mouseenter="hovered = {{ $i }}"
+                    @mouseleave="hovered = 0"
+                    class="text-2xl transition-transform hover:scale-110 focus:outline-none">
+                    <span x-text="(hovered || rating) >= {{ $i }} ? '★' : '☆'"
+                          :class="(hovered || rating) >= {{ $i }} ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'"></span>
+                </button>
+                @endfor
+                <input type="hidden" name="rating" :value="rating">
+            </div>
+
+            <textarea name="comment" rows="2" placeholder="Commentaire (optionnel)..."
+                class="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 mb-3 resize-none"></textarea>
+
+            <button type="submit"
+                :disabled="rating === 0"
+                :class="rating === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-700'"
+                class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg font-medium transition">
+                Envoyer l'évaluation
+            </button>
+        </form>
+    </div>
+    @endif
+
     <!-- Input -->
     @if(!in_array($transaction->status, ['completed', 'refused', 'cancelled']))
     <div class="border-t border-gray-200 dark:border-gray-700 p-4">

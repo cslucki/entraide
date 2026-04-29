@@ -18,8 +18,9 @@ class ProfileController extends Controller
         $completedCount = Transaction::where(function ($q) use ($user) {
             $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id);
         })->where('status', 'completed')->count();
+        $reviews = $user->reviewsReceived()->with('reviewer')->latest('created_at')->get();
 
-        return view('profile.show', compact('user', 'services', 'completedCount'));
+        return view('profile.show', compact('user', 'services', 'completedCount', 'reviews'));
     }
 
     public function edit(Request $request): View

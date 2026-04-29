@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MessageController;
@@ -42,6 +43,9 @@ Route::middleware('auth')->group(function () {
     Route::patch('/transactions/{transaction}/complete', [TransactionController::class, 'complete'])->name('transactions.complete');
     Route::patch('/transactions/{transaction}/confirm', [TransactionController::class, 'confirm'])->name('transactions.confirm');
     Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'contest'])->name('transactions.contest');
+
+    // Reviews
+    Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->name('reviews.store');
 
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');

@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -63,6 +62,22 @@ class User extends Authenticatable
     public function pointLedger(): HasMany
     {
         return $this->hasMany(PointLedger::class);
+    }
+
+    public function reviewsReceived(): HasMany
+    {
+        return $this->hasMany(Review::class, 'reviewed_id');
+    }
+
+    public function reviewsGiven(): HasMany
+    {
+        return $this->hasMany(Review::class, 'reviewer_id');
+    }
+
+    public function recalculateRating(): void
+    {
+        $avg = $this->reviewsReceived()->avg('rating');
+        $this->update(['rating' => $avg ? round($avg, 2) : null]);
     }
 
     public function getAvatarUrlAttribute(): string

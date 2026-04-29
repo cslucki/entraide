@@ -24,6 +24,32 @@
             </div>
         </div>
 
+        <!-- Évaluations reçues -->
+        @if($reviews->isNotEmpty())
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Évaluations reçues</h2>
+        <div class="space-y-3 mb-8">
+            @foreach($reviews as $review)
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <img src="{{ $review->reviewer->avatar_url }}" class="w-7 h-7 rounded-full" alt="">
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $review->reviewer->name }}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        @for($i = 1; $i <= 5; $i++)
+                        <span class="text-lg {{ $i <= $review->rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600' }}">★</span>
+                        @endfor
+                        <span class="text-xs text-gray-500 ml-1">{{ $review->created_at->diffForHumans() }}</span>
+                    </div>
+                </div>
+                @if($review->comment)
+                <p class="text-sm text-gray-600 dark:text-gray-400 italic">"{{ $review->comment }}"</p>
+                @endif
+            </div>
+            @endforeach
+        </div>
+        @endif
+
         <!-- Services -->
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Services proposés</h2>
         @if($services->isEmpty())
