@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Report;
 use App\Models\Service;
+use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,25 @@ class ReportController extends Controller
         Report::firstOrCreate(
             ['reporter_id' => auth()->id(), 'reportable_type' => Service::class, 'reportable_id' => $service->id],
             array_merge($data, ['reporter_id' => auth()->id(), 'reportable_type' => Service::class, 'reportable_id' => $service->id])
+        );
+
+        return back()->with('success', 'Signalement envoyé. Merci !');
+    }
+
+    public function storeRequest(Request $httpRequest, ServiceRequest $serviceRequest): RedirectResponse
+    {
+        $data = $httpRequest->validate([
+            'reason' => 'required|string|max:255',
+            'details' => 'nullable|string|max:1000',
+        ]);
+
+        if (auth()->id() === $serviceRequest->user_id) {
+            return back()->with('error', 'Vous ne pouvez pas signaler votre propre demande.');
+        }
+
+        Report::firstOrCreate(
+            ['reporter_id' => auth()->id(), 'reportable_type' => ServiceRequest::class, 'reportable_id' => $serviceRequest->id],
+            array_merge($data, ['reporter_id' => auth()->id(), 'reportable_type' => ServiceRequest::class, 'reportable_id' => $serviceRequest->id])
         );
 
         return back()->with('success', 'Signalement envoyé. Merci !');

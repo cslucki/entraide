@@ -44,7 +44,7 @@
                 <div class="mb-4" x-data="{ open: false }">
                     <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler cette demande</button>
                     <div x-show="open" x-cloak class="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                        <form method="POST" action="{{ route('reports.service', $request->id) }}">
+                        <form method="POST" action="{{ route('reports.request', $request) }}">
                             @csrf
                             <select name="reason" required class="w-full mb-2 px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
                                 <option value="">Motif du signalement...</option>

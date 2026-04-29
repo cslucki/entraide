@@ -124,8 +124,9 @@
                             @if(auth()->id() !== $service->user_id)
                             <form method="POST" action="{{ route('favorites.toggle', $service) }}">
                                 @csrf
-                                <button type="submit" title="Favori"
-                                    class="{{ auth()->user()->hasFavorited($service->id) ? 'text-red-500' : 'text-gray-300 hover:text-red-400' }} transition">
+                                @php $faved = isset($favoritedIds[$service->id]); @endphp
+                                <button type="submit" title="{{ $faved ? 'Retirer des favoris' : 'Ajouter aux favoris' }}"
+                                    class="{{ $faved ? 'text-red-500' : 'text-gray-300 hover:text-red-400' }} transition">
                                     <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                                 </button>
                             </form>
