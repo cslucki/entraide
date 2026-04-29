@@ -19,7 +19,15 @@
                         Dashboard
                     </x-nav-link>
                     <x-nav-link :href="route('messages.index')" :active="request()->routeIs('messages*')">
-                        Messages
+                        <span class="relative inline-flex items-center">
+                            Messages
+                            @php $unread = auth()->user()->unreadMessagesCount(); @endphp
+                            @if($unread > 0)
+                            <span class="absolute -top-2 -right-4 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {{ $unread > 9 ? '9+' : $unread }}
+                            </span>
+                            @endif
+                        </span>
                     </x-nav-link>
                     @endauth
                 </div>
