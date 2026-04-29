@@ -13,11 +13,18 @@ use Illuminate\View\View;
 
 class ServiceController extends Controller
 {
-    public function show(Service $service): View
+    public function show(Service $service): View|RedirectResponse
     {
+        // Seul le propriétaire peut voir un service pausé
+        if ($service->status !== 'active' && auth()->id() !== $service->user_id) {
+            abort(404);
+        }
+
         $service->load(['user', 'category', 'skills.category', 'tags']);
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($service->id);
-        return view('services.show', compact('service', 'isFavorited'));
+
+        $isPaused = $service->status === 'paused';
+        return view('services.show', compact('service', 'isFavorited', 'isPaused'));
     }
 
     public function create(): View

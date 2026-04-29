@@ -39,7 +39,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
 
     // Transactions
-    Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
+    Route::post('/transactions', [TransactionController::class, 'store'])->middleware('throttle:10,1')->name('transactions.store');
     Route::patch('/transactions/{transaction}/approve', [TransactionController::class, 'approve'])->name('transactions.approve');
     Route::patch('/transactions/{transaction}/refuse', [TransactionController::class, 'refuse'])->name('transactions.refuse');
     Route::patch('/transactions/{transaction}/adjust', [TransactionController::class, 'adjust'])->name('transactions.adjust');
@@ -49,7 +49,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'contest'])->name('transactions.contest');
 
     // Reviews
-    Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->name('reviews.store');
+    Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
 
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
@@ -60,12 +60,12 @@ Route::middleware('auth')->group(function () {
 
     // Favorites
     Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
-    Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->name('favorites.toggle');
+    Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->name('favorites.toggle');
 
     // Reports
-    Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->name('reports.service');
-    Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->name('reports.request');
-    Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->name('reports.user');
+    Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
+    Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->middleware('throttle:5,1')->name('reports.request');
+    Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->middleware('throttle:5,1')->name('reports.user');
 
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
