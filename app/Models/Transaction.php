@@ -65,6 +65,16 @@ class Transaction extends Model
         return $this->hasMany(PointLedger::class);
     }
 
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    public function hasReviewFrom(string $userId): bool
+    {
+        return $this->reviews()->where('reviewer_id', $userId)->exists();
+    }
+
     public function getOtherParticipant(User $user): User
     {
         return $user->id === $this->buyer_id ? $this->seller : $this->buyer;
