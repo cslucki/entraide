@@ -122,6 +122,33 @@
                 </div>
             </div>
 
+            <!-- Mes propositions (buyer) -->
+            @if($myProposals->isNotEmpty())
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes propositions envoyées</h2>
+                </div>
+                <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @foreach($myProposals as $tx)
+                    <a href="{{ route('messages.show', $tx) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <img src="{{ $tx->seller->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
+                            <p class="text-xs text-gray-500">à {{ $tx->seller->name }} · {{ $tx->points_proposed }} pts</p>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0
+                            {{ match($tx->status) {
+                                'pending'    => 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300',
+                                'accepted'   => 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
+                                'buyer_done' => 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300',
+                                default      => 'bg-gray-100 text-gray-600',
+                            } }}">{{ $tx->status_label }}</span>
+                    </a>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
             <!-- Échanges en cours -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
@@ -167,6 +194,24 @@
                     @endforelse
                 </div>
             </div>
+        </div>
+
+        <!-- Raccourcis secondaires -->
+        <div class="mt-6 flex flex-wrap gap-3">
+            <a href="{{ route('points.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+                Historique des points
+            </a>
+            <a href="{{ route('favorites.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+                Mes favoris
+            </a>
+            <a href="{{ route('profile.show', $user) }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+                Mon profil public
+            </a>
+            @if($user->is_admin)
+            <a href="{{ route('admin.dashboard') }}" class="px-4 py-2 text-sm border border-purple-300 dark:border-purple-700 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition font-medium">
+                Tableau de bord admin
+            </a>
+            @endif
         </div>
     </div>
 </x-app-layout>

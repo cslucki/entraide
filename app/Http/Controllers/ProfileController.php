@@ -15,12 +15,13 @@ class ProfileController extends Controller
     public function show(User $user): View
     {
         $services = $user->services()->where('status', 'active')->with('category', 'skills')->latest()->get();
+        $openRequests = $user->serviceRequests()->where('status', 'open')->with('category')->latest()->get();
         $completedCount = Transaction::where(function ($q) use ($user) {
             $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id);
         })->where('status', 'completed')->count();
         $reviews = $user->reviewsReceived()->with('reviewer')->latest('created_at')->get();
 
-        return view('profile.show', compact('user', 'services', 'completedCount', 'reviews'));
+        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews'));
     }
 
     public function edit(Request $request): View
