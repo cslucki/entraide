@@ -9,11 +9,11 @@ class ServicePolicy
 {
     public function update(User $user, Service $service): bool
     {
-        return $user->id === $service->user_id && !$service->hasActiveTransaction();
+        return $user->id === $service->user_id;
     }
 
     public function delete(User $user, Service $service): bool
     {
-        return $user->id === $service->user_id && !$service->hasActiveTransaction();
+        return $user->id === $service->user_id;
     }
 }

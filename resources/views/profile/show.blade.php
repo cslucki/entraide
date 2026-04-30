@@ -19,7 +19,15 @@
                         @endif
                         <span>{{ $completedCount }} échange(s) complété(s)</span>
                         <span>{{ $user->points_balance }} pts</span>
+                        @if($user->location)
+                        <span>📍 {{ $user->location }}</span>
+                        @endif
                     </div>
+                    @if($user->bio)
+                    <div class="mt-4 text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm leading-relaxed max-w-2xl">
+                        {{ $user->bio }}
+                    </div>
+                    @endif
                 </div>
                 @auth
                 @if(auth()->id() !== $user->id)
