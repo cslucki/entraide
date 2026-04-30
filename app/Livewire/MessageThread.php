@@ -22,19 +22,11 @@ class MessageThread extends Component
     {
         $this->validate(['newMessage' => 'required|string|max:5000']);
 
-        $user = auth()->user();
-
-        if (!in_array($user->id, [$this->transaction->buyer_id, $this->transaction->seller_id])) {
-            return;
-        }
-
-        if (in_array($this->transaction->status, ['completed', 'refused', 'cancelled'])) {
-            return;
-        }
+        $this->authorize('create', [Message::class, $this->transaction]);
 
         Message::create([
             'transaction_id' => $this->transaction->id,
-            'sender_id' => $user->id,
+            'sender_id' => auth()->id(),
             'body' => $this->newMessage,
             'type' => 'user',
         ]);

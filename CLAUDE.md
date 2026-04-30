@@ -21,15 +21,19 @@ app/
 ├── Http/
 │   ├── Controllers/
 │   │   ├── Admin/AdminController.php   ← full back-office
+│   │   ├── Auth/                       ← Breeze authentication controllers
 │   │   ├── DashboardController.php
-│   │   ├── ServiceController.php
-│   │   ├── RequestController.php
-│   │   ├── TransactionController.php
-│   │   ├── MessageController.php
+│   │   ├── ExplorerController.php      ← landing page / search wrapper
 │   │   ├── FavoriteController.php
+│   │   ├── HomeController.php          ← simple landing redirect
+│   │   ├── MessageController.php
 │   │   ├── PointController.php
+│   │   ├── ProfileController.php       ← user profile management
 │   │   ├── ReportController.php
-│   │   └── ReviewController.php
+│   │   ├── RequestController.php
+│   │   ├── ReviewController.php
+│   │   ├── ServiceController.php
+│   │   └── TransactionController.php
 │   └── Middleware/AdminMiddleware.php  ← is_admin gate
 ├── Livewire/
 │   ├── Explorer.php                    ← search/filter with #[Url]

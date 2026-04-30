@@ -7,6 +7,9 @@ use App\Models\User;
 
 class ReviewPolicy
 {
+    /**
+     * Détermine si l'utilisateur peut créer un avis pour une transaction.
+     */
     public function create(User $user, Transaction $transaction): bool
     {
         // Doit être participant de la transaction complétée

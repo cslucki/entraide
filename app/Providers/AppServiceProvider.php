@@ -27,11 +27,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Service::class, ServicePolicy::class);
         Gate::policy(ServiceRequest::class, ServiceRequestPolicy::class);
         Gate::policy(Transaction::class, TransactionPolicy::class);
-
-        // Message policy is keyed on Transaction since messages live in a transaction context
-        Gate::define('view-transaction', [MessagePolicy::class, 'view']);
-        Gate::define('store-message', [MessagePolicy::class, 'store']);
-        Gate::define('create-review', [ReviewPolicy::class, 'create']);
+        Gate::policy(\App\Models\Message::class, MessagePolicy::class);
+        Gate::policy(\App\Models\Review::class, ReviewPolicy::class);
 
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
