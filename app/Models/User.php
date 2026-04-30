@@ -18,6 +18,8 @@ class User extends Authenticatable
         'email',
         'password',
         'avatar',
+        'bio',
+        'location',
         'points_balance',
         'is_available',
         'is_admin',

@@ -3,24 +3,24 @@
 ## 🔴 Critique
 
 ### Tests automatisés
-- [ ] Configurer PHPUnit/Pest
-- [ ] Tests des policies (Service, ServiceRequest, Transaction, Message, Review)
-- [ ] Tests du système de points (welcome_bonus, exchange_earned/exchange_spent, adjustment)
-- [ ] Tests de la machine d'état des transactions (pending → accepted → buyer_done → completed)
-- [ ] Tests des contrôleurs (ServiceController, RequestController, TransactionController)
+- [x] Configurer PHPUnit/Pest
+- [x] Tests des policies (Service, ServiceRequest, Transaction, Message, Review)
+- [x] Tests du système de points (welcome_bonus, exchange_earned/exchange_spent, adjustment)
+- [x] Tests de la machine d'état des transactions (pending → accepted → buyer_done → completed)
+- [x] Tests des contrôleurs (ServiceController, RequestController, TransactionController)
 - [ ] Tests des composants Livewire (Explorer, MessageThread)
-- [ ] Tests d'intégration (flux complet : créer service → initier transaction → compléter → points échangés)
+- [x] Tests d'intégration (flux complet : créer service → initier transaction → compléter → points échangés)
 
 ### Upload d'avatars
-- [ ] Permettre aux utilisateurs d'uploader une photo de profil
-- [ ] Stockage via Laravel Storage (local / S3)
-- [ ] Redimensionnement et crop (intervention/image ou spatie/laravel-medialibrary)
-- [ ] Avatar par défaut généré (initiales ou placeholder)
+- [x] Permettre aux utilisateurs d'uploader une photo de profil
+- [x] Stockage via Laravel Storage (local / S3)
+- [x] Redimensionnement et crop (intervention/image ou spatie/laravel-medialibrary)
+- [x] Avatar par défaut généré (initiales ou placeholder)
 
 ### Images pour les services
-- [ ] Permettre d'ajouter des images à un service (relation polymorphique ou table dédiée)
-- [ ] Galerie d'images sur la page show
-- [ ] Limitation : max 5 images, taille max 2 Mo
+- [x] Permettre d'ajouter des images à un service (relation polymorphique ou table dédiée)
+- [x] Galerie d'images sur la page show
+- [x] Limitation : max 5 images, taille max 2 Mo
 - [ ] Thumbnail automatique
 
 ---
@@ -49,11 +49,11 @@
 - [ ] Recherche dans les conversations
 
 ### Profil utilisateur enrichi
-- [ ] Bio / description (textarea, max 500 caractères)
-- [ ] Localisation (ville, département — utile pour services onsite)
-- [ ] Page de profil public listant tous les services actifs
-- [ ] Affichage des compétences sur le profil
-- [ ] Statistiques : nombre d'échanges réalisés, note moyenne, membre depuis
+- [x] Bio / description (textarea, max 500 caractères)
+- [x] Localisation (ville, département — utile pour services onsite)
+- [x] Page de profil public listant tous les services actifs
+- [x] Affichage des compétences sur le profil
+- [x] Statistiques : nombre d'échanges réalisés, note moyenne, membre depuis
 
 ---
 

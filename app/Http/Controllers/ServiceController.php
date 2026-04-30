@@ -6,10 +6,13 @@ use App\Models\Category;
 use App\Models\Service;
 use App\Models\Skill;
 use App\Models\Tag;
+use App\Models\ServiceImage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Intervention\Image\Laravel\Facades\Image;
 
 class ServiceController extends Controller
 {
@@ -20,7 +23,7 @@ class ServiceController extends Controller
             abort(404);
         }
 
-        $service->load(['user', 'category', 'skills.category', 'tags']);
+        $service->load(['user', 'category', 'skills.category', 'tags', 'images']);
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($service->id);
 
         $isPaused = $service->status === 'paused';
@@ -45,6 +48,8 @@ class ServiceController extends Controller
             'skills' => 'nullable|array',
             'skills.*' => 'uuid|exists:skills,id',
             'tags' => 'nullable|string',
+            'images' => 'nullable|array|max:5',
+            'images.*' => 'image|max:2048',
         ]);
 
         $service = Service::create([
@@ -73,6 +78,21 @@ class ServiceController extends Controller
             $service->tags()->sync($tagIds);
         }
 
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $index => $file) {
+                $filename = time() . '_' . $index . '_' . $file->getClientOriginalName();
+                $img = Image::read($file);
+                $img->scale(width: 1200, height: 800, upscale: false);
+
+                Storage::disk('public')->put('services/' . $filename, (string) $img->encodeByExtension());
+
+                $service->images()->create([
+                    'path' => 'services/' . $filename,
+                    'order' => $index,
+                ]);
+            }
+        }
+
         return redirect()->route('dashboard')->with('success', 'Service publié avec succès.');
     }
 
@@ -99,6 +119,10 @@ class ServiceController extends Controller
             'skills' => 'nullable|array',
             'skills.*' => 'uuid|exists:skills,id',
             'tags' => 'nullable|string',
+            'images' => 'nullable|array|max:5',
+            'images.*' => 'image|max:2048',
+            'delete_images' => 'nullable|array',
+            'delete_images.*' => 'uuid|exists:service_images,id',
         ]);
 
         $service->update([
@@ -124,6 +148,32 @@ class ServiceController extends Controller
             $service->tags()->sync($tagIds);
         }
 
+        if (!empty($data['delete_images'])) {
+            $imagesToDelete = ServiceImage::whereIn('id', $data['delete_images'])->where('service_id', $service->id)->get();
+            foreach ($imagesToDelete as $img) {
+                Storage::disk('public')->delete($img->path);
+                $img->delete();
+            }
+        }
+
+        if ($request->hasFile('images')) {
+            $currentCount = $service->images()->count();
+            foreach ($request->file('images') as $index => $file) {
+                if ($currentCount + $index >= 5) break;
+
+                $filename = time() . '_' . $index . '_' . $file->getClientOriginalName();
+                $img = Image::read($file);
+                $img->scale(width: 1200, height: 800, upscale: false);
+
+                Storage::disk('public')->put('services/' . $filename, (string) $img->encodeByExtension());
+
+                $service->images()->create([
+                    'path' => 'services/' . $filename,
+                    'order' => $currentCount + $index,
+                ]);
+            }
+        }
+
         return redirect()->route('dashboard')->with('success', 'Service mis à jour.');
     }
 
@@ -132,7 +182,7 @@ class ServiceController extends Controller
         $this->authorize('delete', $service);
 
         if ($service->hasActiveTransaction()) {
-            return back()->with('error', 'Impossible de supprimer un service avec des transactions en cours.');
+            return redirect()->route('dashboard')->with('error', 'Impossible de supprimer un service avec des transactions en cours.');
         }
 
         $service->update(['status' => 'deleted']);

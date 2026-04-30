@@ -8,7 +8,7 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ route('services.store') }}"
+        <form method="POST" action="{{ route('services.store') }}" enctype="multipart/form-data"
               x-data="{
                 selectedCategory: '{{ old('category_id', '') }}',
                 guidelines: @js($categories->keyBy('id')->map(fn($c) => $c->pointGuidelines)),
@@ -69,6 +69,22 @@
                     </div>
                 </div>
                 @endforeach
+            </div>
+
+            <!-- Images -->
+            <div class="mb-5" x-data="{ images: [] }">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Images (max 5)</label>
+                <input type="file" name="images[]" multiple accept="image/*"
+                    @change="images = Array.from($event.target.files).slice(0, 5)"
+                    class="block w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-300 hover:file:bg-indigo-100">
+                <p class="text-xs text-gray-400 mt-1">JPG, PNG ou WebP — max 2 Mo par image</p>
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <template x-for="(img, i) in images" :key="i">
+                        <div class="relative w-20 h-20 border rounded overflow-hidden bg-gray-100 dark:bg-gray-700">
+                            <img :src="URL.createObjectURL(img)" class="w-full h-full object-cover">
+                        </div>
+                    </template>
+                </div>
             </div>
 
             <!-- Tags -->
