@@ -21,6 +21,7 @@ class User extends Authenticatable
         'points_balance',
         'is_available',
         'is_admin',
+        'banned_at',
         'rating',
     ];
 
@@ -36,6 +37,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_available' => 'boolean',
             'is_admin' => 'boolean',
+            'banned_at' => 'datetime',
             'points_balance' => 'integer',
             'rating' => 'decimal:2',
         ];

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -11,6 +12,7 @@ use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 
@@ -30,5 +32,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('view-transaction', [MessagePolicy::class, 'view']);
         Gate::define('store-message', [MessagePolicy::class, 'store']);
         Gate::define('create-review', [ReviewPolicy::class, 'create']);
+
+        View::composer('layouts.admin', function ($view) {
+            $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
+        });
     }
 }

@@ -77,12 +77,39 @@ Route::middleware('auth')->group(function () {
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    // Users
     Route::get('/users', [AdminController::class, 'users'])->name('users');
+    Route::patch('/users/{user}/toggle-availability', [AdminController::class, 'toggleUserAvailability'])->name('users.toggle-availability');
+    Route::patch('/users/{user}/toggle-admin', [AdminController::class, 'toggleUserAdmin'])->name('users.toggle-admin');
+    Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
+    Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
+    Route::post('/users/{user}/adjust-points', [AdminController::class, 'adjustPoints'])->name('users.adjust-points');
+
+    // Services
+    Route::get('/services', [AdminController::class, 'services'])->name('services');
+    Route::delete('/services/{id}/force', [AdminController::class, 'forceDeleteService'])->name('services.force-delete');
+    Route::patch('/services/{id}/restore', [AdminController::class, 'restoreService'])->name('services.restore');
+
+    // Transactions
+    Route::get('/transactions', [AdminController::class, 'transactions'])->name('transactions');
+
+    // Requests
+    Route::get('/requests', [AdminController::class, 'requests'])->name('requests');
+    Route::patch('/requests/{serviceRequest}/close', [AdminController::class, 'closeRequest'])->name('requests.close');
+
+    // Categories & Skills
+    Route::get('/categories', [AdminController::class, 'categories'])->name('categories');
+    Route::post('/categories', [AdminController::class, 'storeCategory'])->name('categories.store');
+    Route::patch('/categories/{category}', [AdminController::class, 'updateCategory'])->name('categories.update');
+    Route::delete('/categories/{category}', [AdminController::class, 'destroyCategory'])->name('categories.destroy');
+    Route::post('/categories/{category}/skills', [AdminController::class, 'storeSkill'])->name('categories.skills.store');
+    Route::delete('/skills/{skill}', [AdminController::class, 'destroySkill'])->name('skills.destroy');
+
+    // Reports
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports');
     Route::patch('/reports/{report}/dismiss', [AdminController::class, 'dismissReport'])->name('reports.dismiss');
     Route::patch('/reports/{report}/review', [AdminController::class, 'reviewReport'])->name('reports.review');
-    Route::patch('/users/{user}/toggle-availability', [AdminController::class, 'toggleUserAvailability'])->name('users.toggle-availability');
-    Route::patch('/users/{user}/toggle-admin', [AdminController::class, 'toggleUserAdmin'])->name('users.toggle-admin');
 });
 
 require __DIR__.'/auth.php';
