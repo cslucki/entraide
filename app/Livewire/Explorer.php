@@ -7,7 +7,6 @@ use App\Models\Favorite;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Tag;
-use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -73,7 +72,7 @@ class Explorer extends Component
 
     public function render()
     {
-        $categories = Cache::remember('categories_all', 3600, fn() => Category::all());
+        $categories = Category::all();
 
         if ($this->tab === 'services') {
             $query = Service::with(['user', 'category', 'skills', 'tags'])
