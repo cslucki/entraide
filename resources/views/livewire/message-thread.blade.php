@@ -1,4 +1,4 @@
-<div class="flex flex-col h-full" wire:poll.3000ms>
+<div class="flex flex-col h-full" wire:poll.3s>
     <!-- Status banner -->
     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <div class="flex items-center justify-between flex-wrap gap-2">
