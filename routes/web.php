@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\Route;
 // Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
-Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
 
 // Authenticated routes
 Route::middleware('auth')->group(function () {
@@ -74,6 +73,7 @@ Route::middleware('auth')->group(function () {
 
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
 Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
+Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
 
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
