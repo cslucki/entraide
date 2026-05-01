@@ -75,9 +75,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-001 — Vérification du bannissement à la connexion
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-001`
 - **Priorité** : 🔴 Critique
 - **Domaine** : Backend
 - **Fichiers** :
@@ -104,9 +104,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-003 — Tests des composants Livewire
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-003`
 - **Priorité** : 🔴 Critique
 - **Domaine** : Tests
 - **Fichiers** :
@@ -157,9 +157,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-006 — SEO : meta tags dynamiques
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Jules
+- **Branche** : `jules/TASK-006`
 - **Priorité** : 🟡 Important
 - **Domaine** : Frontend
 - **Fichiers** :
@@ -222,9 +222,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-010 — Dark mode toggle persistant
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Jules
+- **Branche** : `jules/TASK-010`
 - **Priorité** : 🟢 Confort
 - **Domaine** : Frontend
 - **Fichiers** :
@@ -251,9 +251,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-012 — Graphique historique des points
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Jules
+- **Branche** : `jules/TASK-012`
 - **Priorité** : 🟢 Confort
 - **Domaine** : Frontend
 - **Fichiers** :
