@@ -138,9 +138,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-005 — Notifications email (infrastructure)
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-005`
 - **Priorité** : 🟡 Important
 - **Domaine** : Backend + Config
 - **Fichiers** :
