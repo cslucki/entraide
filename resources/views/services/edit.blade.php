@@ -8,7 +8,7 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ route('services.update', $service) }}"
+        <form method="POST" action="{{ route('services.update', $service) }}" enctype="multipart/form-data"
               x-data="{
                 selectedCategory: '{{ old('category_id', $service->category_id) }}',
                 tags: '{{ old('tags', $service->tags->pluck('name')->join(',')) }}',
@@ -58,6 +58,39 @@
                     </div>
                 </div>
                 @endforeach
+            </div>
+
+            <!-- Images -->
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Images (max 5)</label>
+
+                @if($service->images->isNotEmpty())
+                <div class="flex flex-wrap gap-3 mb-4">
+                    @foreach($service->images as $img)
+                    <div class="relative group">
+                        <img src="{{ $img->url }}" class="w-24 h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700">
+                        <label class="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition">
+                            <input type="checkbox" name="delete_images[]" value="{{ $img->id }}" class="hidden">
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </label>
+                    </div>
+                    @endforeach
+                </div>
+                @endif
+
+                <div x-data="{ newImages: [] }">
+                    <input type="file" name="images[]" multiple accept="image/*"
+                        @change="newImages = Array.from($event.target.files)"
+                        class="block w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-300 hover:file:bg-indigo-100">
+                    <p class="text-xs text-gray-400 mt-1">Ajouter des images (JPG, PNG, WebP — max 2 Mo)</p>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <template x-for="(img, i) in newImages" :key="i">
+                            <div class="relative w-20 h-20 border rounded overflow-hidden bg-gray-100 dark:bg-gray-700">
+                                <img :src="URL.createObjectURL(img)" class="w-full h-full object-cover">
+                            </div>
+                        </template>
+                    </div>
+                </div>
             </div>
 
             <div class="mb-5">

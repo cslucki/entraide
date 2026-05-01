@@ -13,6 +13,34 @@
         @endif
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            @if($service->images->isNotEmpty())
+            <div class="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50" x-data="{ active: 0 }">
+                <div class="relative aspect-video">
+                    @foreach($service->images as $index => $img)
+                    <img x-show="active === {{ $index }}" src="{{ $img->url }}" class="w-full h-full object-cover">
+                    @endforeach
+
+                    @if($service->images->count() > 1)
+                    <button @click="active = (active > 0) ? active - 1 : {{ $service->images->count() - 1 }}" class="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full backdrop-blur-sm transition">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                    </button>
+                    <button @click="active = (active < {{ $service->images->count() - 1 }}) ? active + 1 : 0" class="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full backdrop-blur-sm transition">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                    @endif
+                </div>
+                @if($service->images->count() > 1)
+                <div class="flex gap-2 p-4 overflow-x-auto">
+                    @foreach($service->images as $index => $img)
+                    <button @click="active = {{ $index }}" class="flex-shrink-0 w-20 aspect-video rounded-lg border-2 transition overflow-hidden" :class="active === {{ $index }} ? 'border-indigo-500' : 'border-transparent'">
+                        <img src="{{ $img->url }}" class="w-full h-full object-cover">
+                    </button>
+                    @endforeach
+                </div>
+                @endif
+            </div>
+            @endif
+
             <div class="p-6">
                 <!-- Header -->
                 <div class="flex items-start justify-between mb-4">

@@ -47,6 +47,19 @@
             @endif
         </div>
 
+        <div>
+            <x-input-label for="location" value="Localisation (Ville, Département)" />
+            <x-text-input id="location" name="location" type="text" class="mt-1 block w-full" :value="old('location', $user->location)" placeholder="Ex: Lyon, Rhône" />
+            <x-input-error class="mt-2" :messages="$errors->get('location')" />
+        </div>
+
+        <div>
+            <x-input-label for="bio" value="Bio / Description" />
+            <textarea id="bio" name="bio" rows="4" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" maxlength="500">{{ old('bio', $user->bio) }}</textarea>
+            <p class="mt-1 text-xs text-gray-500">Max 500 caractères.</p>
+            <x-input-error class="mt-2" :messages="$errors->get('bio')" />
+        </div>
+
         <div x-data="{ preview: null }">
             <x-input-label for="avatar" value="Avatar" />
             <div class="mt-2 flex items-center gap-4">
