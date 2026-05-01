@@ -22,8 +22,9 @@ class ProfileController extends Controller
             $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id);
         })->where('status', 'completed')->count();
         $reviews = $user->reviewsReceived()->with('reviewer')->latest('created_at')->get();
+        $badges = $user->badges()->get();
 
-        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews'));
+        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges'));
     }
 
     public function edit(Request $request): View

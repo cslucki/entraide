@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             SkillSeeder::class,
             PointGuidelineSeeder::class,
             UserSeeder::class,
+            BadgeSeeder::class,
         ]);
     }
 }

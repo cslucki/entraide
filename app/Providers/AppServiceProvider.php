@@ -6,6 +6,8 @@ use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Observers\ServiceObserver;
+use App\Observers\TransactionObserver;
 use App\Policies\MessagePolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
@@ -26,6 +28,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Paginator::useTailwind();
+
+        Transaction::observe(TransactionObserver::class);
+        Service::observe(ServiceObserver::class);
 
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
