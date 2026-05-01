@@ -118,9 +118,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-004 — Tests du panneau admin
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-004`
+- **Branche** : `claude/TASK-004` → [PR #5](https://github.com/cslucki/entraide/pull/5)
 - **Priorité** : 🔴 Critique
 - **Domaine** : Tests
 - **Fichiers** :
@@ -173,9 +173,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-007 — SEO : Sitemap XML + Robots.txt
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-007`
 - **Priorité** : 🟡 Important
 - **Domaine** : Backend + Config
 - **Fichiers** :
