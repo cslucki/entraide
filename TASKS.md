@@ -173,7 +173,7 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-007 — SEO : Sitemap XML + Robots.txt
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
 - **Branche** : `claude/TASK-007`
 - **Priorité** : 🟡 Important
