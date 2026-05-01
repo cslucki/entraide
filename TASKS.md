@@ -236,9 +236,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-011 — Recherche globale dans la navbar
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-011`
 - **Priorité** : 🟢 Confort
 - **Domaine** : Backend + Frontend
 - **Fichiers** :
