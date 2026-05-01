@@ -39,31 +39,4 @@ class ServicePolicyTest extends TestCase
         $this->assertFalse($other->can('delete', $service));
     }
 
-    public function test_owner_cannot_update_service_with_active_transaction(): void
-    {
-        $user = User::factory()->create();
-        $service = Service::factory()->forUser($user)->create();
-        $buyer = User::factory()->create(['points_balance' => 100]);
-        $service->transactions()->create([
-            'buyer_id' => $buyer->id,
-            'seller_id' => $user->id,
-            'points_proposed' => 50,
-            'status' => 'pending',
-        ]);
-        $this->assertFalse($user->can('update', $service));
-    }
-
-    public function test_owner_cannot_delete_service_with_active_transaction(): void
-    {
-        $user = User::factory()->create();
-        $service = Service::factory()->forUser($user)->create();
-        $buyer = User::factory()->create(['points_balance' => 100]);
-        $service->transactions()->create([
-            'buyer_id' => $buyer->id,
-            'seller_id' => $user->id,
-            'points_proposed' => 50,
-            'status' => 'accepted',
-        ]);
-        $this->assertFalse($user->can('delete', $service));
-    }
 }

@@ -19,7 +19,7 @@ class PointsSystemTest extends TestCase
         $this->actingAs($user);
         $service = Service::factory()->forUser($user)->forCategory($category)->create();
 
-        $user->transactions()->create([
+        $user->buyerTransactions()->create([
             'buyer_id' => $user->id,
             'seller_id' => $user->id,
             'points_proposed' => 100,
@@ -32,7 +32,7 @@ class PointsSystemTest extends TestCase
 
         PointLedger::create([
             'user_id' => $user->id,
-            'transaction_id' => $user->transactions()->first()->id,
+            'transaction_id' => $user->buyerTransactions()->first()->id,
             'delta' => 100,
             'reason' => 'welcome_bonus',
         ]);

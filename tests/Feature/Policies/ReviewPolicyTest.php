@@ -14,7 +14,7 @@ class ReviewPolicyTest extends TestCase
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
         $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create();
-        $this->assertTrue($buyer->can('create', $transaction));
+        $this->assertTrue($buyer->can('create-review', $transaction));
     }
 
     public function test_seller_can_review_completed_transaction(): void
@@ -22,7 +22,7 @@ class ReviewPolicyTest extends TestCase
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
         $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create();
-        $this->assertTrue($seller->can('create', $transaction));
+        $this->assertTrue($seller->can('create-review', $transaction));
     }
 
     public function test_cannot_review_non_completed_transaction(): void
@@ -30,7 +30,7 @@ class ReviewPolicyTest extends TestCase
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
         $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create();
-        $this->assertFalse($buyer->can('create', $transaction));
+        $this->assertFalse($buyer->can('create-review', $transaction));
     }
 
     public function test_non_participant_cannot_review(): void
@@ -39,7 +39,7 @@ class ReviewPolicyTest extends TestCase
         $seller = User::factory()->create();
         $other = User::factory()->create();
         $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create();
-        $this->assertFalse($other->can('create', $transaction));
+        $this->assertFalse($other->can('create-review', $transaction));
     }
 
     public function test_cannot_review_twice(): void

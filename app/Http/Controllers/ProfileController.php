@@ -8,7 +8,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Intervention\Image\Laravel\Facades\Image;
 
 class ProfileController extends Controller
 {
@@ -37,11 +39,19 @@ class ProfileController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,' . $request->user()->id],
             'avatar' => ['nullable', 'image', 'max:2048'],
+            'bio' => ['nullable', 'string', 'max:500'],
+            'location' => ['nullable', 'string', 'max:255'],
         ]);
 
         if ($request->hasFile('avatar')) {
-            $path = $request->file('avatar')->store('avatars', 'public');
-            $data['avatar'] = $path;
+            $file = $request->file('avatar');
+            $filename = time() . '_' . $file->getClientOriginalName();
+
+            $img = Image::read($file);
+            $img->cover(300, 300);
+
+            Storage::disk('public')->put('avatars/' . $filename, (string) $img->encodeByExtension());
+            $data['avatar'] = 'avatars/' . $filename;
         }
 
         $request->user()->fill($data);
