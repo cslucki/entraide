@@ -92,7 +92,7 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ### TASK-002 — Thumbnail automatique des images de service
 - **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-002`
+- **Branche** : `claude/TASK-002` → [PR #4](https://github.com/cslucki/entraide/pull/4)
 - **Priorité** : 🔴 Critique
 - **Domaine** : Backend
 - **Fichiers** :
@@ -118,9 +118,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-004 — Tests du panneau admin
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_REVIEW`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-004` → [PR #5](https://github.com/cslucki/entraide/pull/5)
 - **Priorité** : 🔴 Critique
 - **Domaine** : Tests
 - **Fichiers** :
@@ -138,9 +138,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-005 — Notifications email (infrastructure)
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_REVIEW`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-005` → [PR #10](https://github.com/cslucki/entraide/pull/10)
 - **Priorité** : 🟡 Important
 - **Domaine** : Backend + Config
 - **Fichiers** :
@@ -173,9 +173,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-007 — SEO : Sitemap XML + Robots.txt
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_REVIEW`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-007` → [PR #6](https://github.com/cslucki/entraide/pull/6)
 - **Priorité** : 🟡 Important
 - **Domaine** : Backend + Config
 - **Fichiers** :
@@ -188,9 +188,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-008 — Messagerie : marquer comme lu
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_REVIEW`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-008` → [PR #7](https://github.com/cslucki/entraide/pull/7)
 - **Priorité** : 🟡 Important
 - **Domaine** : Backend + Frontend
 - **Fichiers** :
@@ -208,9 +208,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-009 — Explorateur : filtre par note minimum
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-009`
 - **Priorité** : 🟢 Confort
 - **Domaine** : Backend + Frontend (Livewire)
 - **Fichiers** :
@@ -236,9 +236,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-011 — Recherche globale dans la navbar
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-011`
 - **Priorité** : 🟢 Confort
 - **Domaine** : Backend + Frontend
 - **Fichiers** :
@@ -270,9 +270,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-013 — API REST (Sanctum)
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_REVIEW`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-013` → PR à ouvrir
 - **Priorité** : 🔵 Long terme
 - **Domaine** : Backend
 - **Fichiers** :
@@ -298,9 +298,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-015 — Gamification (badges)
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_REVIEW`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-015` → PR à ouvrir
 - **Priorité** : 🔵 Long terme
 - **Domaine** : Backend + Frontend
 - **Fichiers** :
