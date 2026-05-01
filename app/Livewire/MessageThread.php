@@ -56,11 +56,15 @@ class MessageThread extends Component
     public function render()
     {
         $this->transaction->refresh();
+        $this->markRead();
+
         $messages = $this->transaction->messages()
             ->with('sender')
             ->orderBy('created_at')
             ->get();
 
-        return view('livewire.message-thread', compact('messages'));
+        $unreadCount = auth()->user()->unreadMessagesCount();
+
+        return view('livewire.message-thread', compact('messages', 'unreadCount'));
     }
 }
