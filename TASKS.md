@@ -188,7 +188,7 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-008 — Messagerie : marquer comme lu
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
 - **Branche** : `claude/TASK-008`
 - **Priorité** : 🟡 Important
