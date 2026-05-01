@@ -118,7 +118,7 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-004 — Tests du panneau admin
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
 - **Branche** : `claude/TASK-004`
 - **Priorité** : 🔴 Critique
