@@ -138,7 +138,7 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-005 — Notifications email (infrastructure)
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
 - **Branche** : `claude/TASK-005`
 - **Priorité** : 🟡 Important
