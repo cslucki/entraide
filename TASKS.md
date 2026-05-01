@@ -173,9 +173,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-007 — SEO : Sitemap XML + Robots.txt
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-007`
+- **Branche** : `claude/TASK-007` → [PR #6](https://github.com/cslucki/entraide/pull/6)
 - **Priorité** : 🟡 Important
 - **Domaine** : Backend + Config
 - **Fichiers** :
@@ -188,9 +188,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-008 — Messagerie : marquer comme lu
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-008`
 - **Priorité** : 🟡 Important
 - **Domaine** : Backend + Frontend
 - **Fichiers** :
