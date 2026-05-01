@@ -1,4 +1,4 @@
-# Entraide — Codex Guide
+# Entraide — Codex / Jules Guide
 
 ## Project Overview
 
@@ -13,6 +13,7 @@
 | Frontend | Blade · Alpine.js · Tailwind CSS v4 |
 | Reactive UI | Livewire 3 |
 | Auth | Laravel Breeze (Blade + dark mode) |
+| Image processing | `intervention/image` (avatar resize 300×300) |
 
 ## Architecture
 
@@ -22,7 +23,7 @@ app/
 │   ├── Controllers/
 │   │   ├── Admin/AdminController.php   ← full back-office
 │   │   ├── DashboardController.php
-│   │   ├── ServiceController.php
+│   │   ├── ServiceController.php       ← handles service images upload
 │   │   ├── RequestController.php
 │   │   ├── TransactionController.php
 │   │   ├── MessageController.php
@@ -36,7 +37,7 @@ app/
 │   └── MessageThread.php              ← polling every 3 s
 ├── Models/                             ← all use HasUuids (UUID PKs)
 │   ├── User, Category, Skill, Tag, PointGuideline
-│   ├── Service, ServiceRequest
+│   ├── Service, ServiceImage, ServiceRequest
 │   ├── Transaction, PointLedger, Message
 │   ├── Review, Favorite, Report
 └── Policies/
@@ -45,13 +46,19 @@ app/
 resources/views/
 ├── layouts/
 │   ├── app.blade.php          ← main layout (global toast notifications)
+│   ├── admin.blade.php        ← admin sidebar layout
 │   └── navigation.blade.php   ← navbar with points pill + unread badge
-├── components/
-│   └── admin-layout.blade.php ← admin sidebar layout (x-admin-layout)
-├── admin/                     ← back-office views
+├── admin/                     ← back-office views (x-admin-layout)
 ├── livewire/                  ← explorer, message-thread
 ├── services/, requests/, messages/, favorites/, points/
 └── profile/
+tests/
+├── Feature/
+│   ├── Policies/              ← Service, ServiceRequest, Transaction, Message, Review
+│   ├── FullExchangeFlowTest   ← end-to-end: create service → transaction → complete
+│   ├── PointsSystemTest, TransactionStateMachineTest
+│   └── ServiceControllerTest, TransactionControllerTest, FavoriteControllerTest
+└── database/factories/        ← all models have factories
 ```
 
 ## Database Key Points
@@ -60,6 +67,8 @@ resources/views/
 - **Point ledger** is append-only; balance is maintained on `users.points_balance` for reads
 - **Soft-deleted** models: `Service` (deleted_at)
 - **Banned users**: `users.banned_at` timestamp (null = active)
+- **Service images**: `service_images` table — max 5 per service, 2 MB each, stored in `storage/`
+- **User profile**: `users.bio` (500 chars), `users.location` (city/dept)
 
 ## Points System
 
@@ -71,28 +80,34 @@ resources/views/
 
 ```
 pending → accepted → buyer_done → completed
-        ↘ refused
+        ↘ refused              ↘ accepted (contest)
 pending/accepted → cancelled
 ```
 
 ## Models Note
 
-`ServiceRequest` (not `Request`) is used to avoid collision with `Illuminate\Http\Request`.  
+`ServiceRequest` (not `Request`) is used to avoid collision with `Illuminate\Http\Request`.
 Routes still use `/requests` prefix.
+
+The base `Controller` uses `AuthorizesRequests` trait — call `$this->authorize()` for all policy checks.
+
+## Routes Note
+
+`services.show` uses `->whereUuid('service')` to prevent `/services/create` from being captured by the wildcard parameter. This constraint is critical — do not remove it.
 
 ## Admin Panel
 
-Access: users with `is_admin = true`, guarded by `AdminMiddleware`.  
+Access: users with `is_admin = true`, guarded by `AdminMiddleware`.
 URL prefix: `/admin` · route name prefix: `admin.`
 
 Admin can:
-- View platform stats (users, services, transactions, points in circulation, pending reports)
+- View platform stats (users, services, transactions, points in circulation, pending reports, banned users)
 - List / search users, toggle availability, toggle admin, ban / unban
 - Adjust user points (writes to point_ledger with reason `adjustment`)
-- List all services, force-delete a service
-- List all transactions
-- List all service requests
-- Manage categories (CRUD) and see associated skills
+- List all services (including soft-deleted), force-delete, restore
+- List all transactions with status filter
+- List all service requests, force-close
+- Manage categories (CRUD) and skills
 - Review / dismiss reports
 
 ## Common Commands
@@ -108,7 +123,7 @@ php artisan migrate:fresh --seed
 npm run dev          # watch mode
 npm run build        # production build
 
-# Run tests (if added)
+# Run tests (74 tests, ~2.5s)
 php artisan test
 ```
 
@@ -119,6 +134,7 @@ php artisan test
 - Tags: max 5, slug-normalized, created on the fly via `Tag::firstOrCreate()`
 - Services with active transactions (pending/accepted) cannot be edited or deleted
 - Admin actions never affect the currently authenticated admin (e.g. cannot remove own admin rights)
+- All model factories exist in `database/factories/` — use them in tests
 
 ## Environment
 

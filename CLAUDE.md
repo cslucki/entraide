@@ -61,6 +61,43 @@ tests/
 └── database/factories/        ← all models have factories
 ```
 
+## What Is Already Built
+
+### Core MVP
+- **Services CRUD** — title, description, category, skills, tags (max 5), delivery mode, points cost, status (active/paused), soft-delete
+- **Service images** — up to 5 images per service, 2 MB max, stored in `storage/`, gallery on show page
+- **Requests CRUD** — service requests with budget range, deadline, status (open/in_progress/closed)
+- **Transactions** — full lifecycle (pending → accepted → buyer_done → completed), point ledger written atomically on completion
+- **Messaging** — Livewire split-view, polling every 3s, system messages on state changes, unread badge
+- **Explorer** — Livewire search + category filter + delivery mode + sort (date/price/rating) + tag filter + load more
+- **Dashboard** — metrics (points earned/spent, active services, ongoing exchanges, recent messages)
+- **Reviews/Ratings** — 1–5 stars after completed transaction, auto-recalculates `users.rating`
+- **Favorites** — toggle + dedicated page `/favorites`
+- **Points history** — append-only ledger, page `/points`
+- **Reports** — inline form to report services, requests, or users (polymorphic)
+
+### User Profiles
+- Avatar upload with resize to 300×300 via `intervention/image`, fallback to ui-avatars.com
+- Bio (500 chars) and location (city/dept) fields
+- Public profile page with active services, open requests, reviews received, stats
+
+### Admin Back Office
+- Sidebar layout (`x-admin-layout`) at `/admin`
+- Dashboard: 7 platform stats including banned user count
+- Users: search, filter (available/banned/admin), ban/unban, toggle admin, **adjust points** (ledger-backed)
+- Services: list all including soft-deleted, filter by status, force-delete, restore
+- Transactions: list with status filter
+- Requests: list with status filter, force-close
+- Categories: full CRUD + add/remove skills inline
+- Reports: review or dismiss
+
+### Tests (74 passing, ~2.5s)
+- Policies: Service, ServiceRequest, Transaction, Message, Review
+- Points system: welcome bonus, exchange earned/spent, adjustment
+- Transaction state machine: all transitions + terminal states
+- Controllers: Service, Transaction, Favorite
+- Full exchange flow (end-to-end)
+
 ## Database Key Points
 
 - **All PKs are UUIDs** via `HasUuids` trait — never use `->id()`, always `->uuid('id')->primary()`
@@ -86,29 +123,19 @@ pending/accepted → cancelled
 
 ## Models Note
 
-`ServiceRequest` (not `Request`) is used to avoid collision with `Illuminate\Http\Request`.  
+`ServiceRequest` (not `Request`) is used to avoid collision with `Illuminate\Http\Request`.
 Routes still use `/requests` prefix.
 
 The base `Controller` uses `AuthorizesRequests` trait — call `$this->authorize()` for all policy checks.
 
 ## Routes Note
 
-`services.show` uses `->whereUuid('service')` to prevent `/services/create` from being captured by the wildcard parameter.
+`services.show` uses `->whereUuid('service')` to prevent `/services/create` from being captured by the wildcard parameter. This constraint is critical — do not remove it.
 
 ## Admin Panel
 
-Access: users with `is_admin = true`, guarded by `AdminMiddleware`.  
+Access: users with `is_admin = true`, guarded by `AdminMiddleware`.
 URL prefix: `/admin` · route name prefix: `admin.`
-
-Admin can:
-- View platform stats (users, services, transactions, points in circulation, pending reports)
-- List / search users, toggle availability, toggle admin, ban / unban
-- Adjust user points (writes to point_ledger with reason `adjustment`)
-- List all services (including soft-deleted), force-delete, restore
-- List all transactions with status filter
-- List all service requests, force-close
-- Manage categories (CRUD) and skills
-- Review / dismiss reports
 
 ## Common Commands
 
