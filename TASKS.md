@@ -188,9 +188,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-008 — Messagerie : marquer comme lu
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-008`
+- **Branche** : `claude/TASK-008` → [PR #7](https://github.com/cslucki/entraide/pull/7)
 - **Priorité** : 🟡 Important
 - **Domaine** : Backend + Frontend
 - **Fichiers** :
@@ -208,9 +208,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-009 — Explorateur : filtre par note minimum
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-009`
 - **Priorité** : 🟢 Confort
 - **Domaine** : Backend + Frontend (Livewire)
 - **Fichiers** :
