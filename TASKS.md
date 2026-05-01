@@ -104,9 +104,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-003 — Tests des composants Livewire
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-003` (en cours)
+- **Branche** : `claude/TASK-003` → [PR #3](https://github.com/cslucki/entraide/pull/3)
 - **Priorité** : 🔴 Critique
 - **Domaine** : Tests
 - **Fichiers** :
