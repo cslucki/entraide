@@ -298,9 +298,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-015 — Gamification (badges)
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-015`
+- **Branche** : `claude/TASK-015` → PR à ouvrir
 - **Priorité** : 🔵 Long terme
 - **Domaine** : Backend + Frontend
 - **Fichiers** :
