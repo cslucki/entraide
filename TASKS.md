@@ -138,9 +138,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-005 — Notifications email (infrastructure)
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-005`
+- **Branche** : `claude/TASK-005` → [PR #10](https://github.com/cslucki/entraide/pull/10)
 - **Priorité** : 🟡 Important
 - **Domaine** : Backend + Config
 - **Fichiers** :
@@ -270,9 +270,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-013 — API REST (Sanctum)
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-013`
 - **Priorité** : 🔵 Long terme
 - **Domaine** : Backend
 - **Fichiers** :
