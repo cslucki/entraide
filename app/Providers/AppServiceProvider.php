@@ -6,6 +6,8 @@ use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Observers\ServiceObserver;
+use App\Observers\TransactionObserver;
 use App\Policies\MessagePolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
@@ -23,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Paginator::useTailwind();
+
+        Transaction::observe(TransactionObserver::class);
+        Service::observe(ServiceObserver::class);
 
         Gate::policy(Service::class, ServicePolicy::class);
         Gate::policy(ServiceRequest::class, ServiceRequestPolicy::class);

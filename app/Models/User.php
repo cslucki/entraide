@@ -5,9 +5,11 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -105,6 +107,13 @@ class User extends Authenticatable
             ->whereNull('read_at')
             ->where('type', 'user')
             ->count();
+    }
+
+    public function badges(): BelongsToMany
+    {
+        return $this->belongsToMany(Badge::class, 'badge_user', 'user_id', 'badge_id')
+            ->withPivot('earned_at')
+            ->orderBy('badge_user.earned_at');
     }
 
     public function getAvatarUrlAttribute(): string
