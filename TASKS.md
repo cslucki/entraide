@@ -270,9 +270,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-013 — API REST (Sanctum)
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-013`
+- **Branche** : `claude/TASK-013` → PR à ouvrir
 - **Priorité** : 🔵 Long terme
 - **Domaine** : Backend
 - **Fichiers** :
@@ -298,9 +298,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-015 — Gamification (badges)
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-015`
 - **Priorité** : 🔵 Long terme
 - **Domaine** : Backend + Frontend
 - **Fichiers** :
