@@ -75,9 +75,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-001 — Vérification du bannissement à la connexion
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-001`
+- **Branche** : `claude/TASK-001` → [PR #2](https://github.com/cslucki/entraide/pull/2)
 - **Priorité** : 🔴 Critique
 - **Domaine** : Backend
 - **Fichiers** :
@@ -106,7 +106,7 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ### TASK-003 — Tests des composants Livewire
 - **Statut** : `IN_PROGRESS`
 - **Agent** : Claude Code
-- **Branche** : `claude/TASK-003`
+- **Branche** : `claude/TASK-003` (en cours)
 - **Priorité** : 🔴 Critique
 - **Domaine** : Tests
 - **Fichiers** :
