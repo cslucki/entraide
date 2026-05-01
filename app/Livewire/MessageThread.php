@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Message;
 use App\Models\Transaction;
+use App\Notifications\NewMessageReceived;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -32,7 +33,7 @@ class MessageThread extends Component
             return;
         }
 
-        Message::create([
+        $msg = Message::create([
             'transaction_id' => $this->transaction->id,
             'sender_id' => $user->id,
             'body' => $this->newMessage,
@@ -42,6 +43,12 @@ class MessageThread extends Component
         $this->newMessage = '';
         $this->transaction->touch();
         $this->markRead();
+
+        $recipient = $this->transaction->buyer_id === $user->id
+            ? $this->transaction->seller
+            : $this->transaction->buyer;
+
+        $recipient->notify(new NewMessageReceived($this->transaction, $msg));
     }
 
     public function markRead(): void
