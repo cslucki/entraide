@@ -90,9 +90,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-002 — Thumbnail automatique des images de service
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_REVIEW`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-002` → [PR #4](https://github.com/cslucki/entraide/pull/4)
 - **Priorité** : 🔴 Critique
 - **Domaine** : Backend
 - **Fichiers** :
@@ -118,9 +118,9 @@ Pour minimiser les conflits, chaque tâche est associée à un **domaine** :
 ---
 
 ### TASK-004 — Tests du panneau admin
-- **Statut** : `TODO`
-- **Agent** : —
-- **Branche** : —
+- **Statut** : `IN_PROGRESS`
+- **Agent** : Claude Code
+- **Branche** : `claude/TASK-004`
 - **Priorité** : 🔴 Critique
 - **Domaine** : Tests
 - **Fichiers** :
