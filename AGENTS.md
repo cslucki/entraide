@@ -136,6 +136,22 @@ php artisan test
 - Admin actions never affect the currently authenticated admin (e.g. cannot remove own admin rights)
 - All model factories exist in `database/factories/` — use them in tests
 
+## Multi-Agent Workflow
+
+Ce projet est développé par plusieurs IA en parallèle (Claude Code, Google Jules, etc.).
+
+### Règles obligatoires
+1. **Lire `TASKS.md`** avant de commencer — réclamer une tâche libre (`TODO`)
+2. **Mettre à jour `TASKS.md`** : passer la tâche en `IN_PROGRESS`, noter son nom et la branche
+3. **Créer une branche dédiée** : `jules/TASK-XXX` depuis un `main` à jour
+4. **Toucher uniquement les fichiers listés** dans la tâche
+5. **Ouvrir une PR** vers `main` quand c'est terminé — ne jamais pousser directement sur `main`
+6. **Passer le statut en `IN_REVIEW`** dans `TASKS.md` après la PR
+
+### Pourquoi
+- Deux IA modifiant le même fichier en même temps → conflit de merge insoluble
+- La branche par tâche isole les changements et permet une revue claire
+
 ## Environment
 
 Copy `.env.example` to `.env`, set `DB_CONNECTION=sqlite`, then:
