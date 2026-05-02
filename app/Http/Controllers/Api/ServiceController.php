@@ -48,7 +48,7 @@ class ServiceController extends Controller
             'skills:id,name',
             'tags:id,name',
             'images:id,service_id,path,order',
-        ])->active()->whereUuid('id')->findOrFail($id);
+        ])->active()->findOrFail($id);
 
         return response()->json($service);
     }
