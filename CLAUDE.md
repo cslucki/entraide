@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-**Entraide** is a peer-to-peer service exchange platform (troc de services) built with Laravel 11. Users earn points by providing services and spend them to receive help from others. The platform is entirely in French.
+**Entraide** is a peer-to-peer service exchange platform (troc de services) built with Laravel 13.7. Users earn points by providing services and spend them to receive help from others. The platform is entirely in French.
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Backend | Laravel 11 · PHP 8.4 |
+| Backend | Laravel 13.7 · PHP 8.4 |
 | Database | SQLite (dev) / MySQL (prod) |
 | Frontend | Blade · Alpine.js · Tailwind CSS v4 |
 | Reactive UI | Livewire 3 |
