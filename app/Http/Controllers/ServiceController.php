@@ -26,9 +26,26 @@ class ServiceController extends Controller
 
         $service->load(['user', 'category', 'skills.category', 'tags', 'images']);
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($service->id);
-
         $isPaused = $service->status === 'paused';
-        return view('services.show', compact('service', 'isFavorited', 'isPaused'));
+
+        $ogTitle       = $service->title;
+        $ogDescription = Str::limit(strip_tags($service->description), 160);
+        $ogImage       = $service->images->first()
+            ? asset('storage/' . $service->images->first()->path)
+            : null;
+        $jsonLd = json_encode([
+            '@context'    => 'https://schema.org',
+            '@type'       => 'Service',
+            'name'        => $service->title,
+            'description' => Str::limit(strip_tags($service->description), 160),
+            'provider'    => [
+                '@type' => 'Person',
+                'name'  => $service->user->name,
+                'url'   => route('profile.show', $service->user),
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        return view('services.show', compact('service', 'isFavorited', 'isPaused', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
     }
 
     public function create(): View
