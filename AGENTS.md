@@ -1,8 +1,12 @@
-# Entraide — Codex / Jules Guide
+# Entraide — AGENTS.md
 
 ## Project Overview
 
-**Entraide** is a peer-to-peer service exchange platform (troc de services) built with Laravel 13.7. Users earn points by providing services and spend them to receive help from others. The platform is entirely in French.
+**Entraide** is a peer-to-peer service exchange platform (troc de services) built with Laravel 13.7.
+Users earn points by providing services and spend them to receive help from others.
+The platform is entirely in French.
+
+---
 
 ## Tech Stack
 
@@ -14,6 +18,8 @@
 | Reactive UI | Livewire 3 |
 | Auth | Laravel Breeze (Blade + dark mode) |
 | Image processing | `intervention/image` (avatar resize 300×300) |
+
+---
 
 ## Architecture
 
@@ -39,7 +45,7 @@ app/
 │   ├── User, Category, Skill, Tag, PointGuideline
 │   ├── Service, ServiceImage, ServiceRequest
 │   ├── Transaction, PointLedger, Message
-│   ├── Review, Favorite, Report
+│   ├── Review, Favorite, Report, Badge
 └── Policies/
     ├── ServicePolicy, ServiceRequestPolicy
     ├── TransactionPolicy, MessagePolicy, ReviewPolicy
@@ -55,11 +61,16 @@ resources/views/
 tests/
 ├── Feature/
 │   ├── Policies/              ← Service, ServiceRequest, Transaction, Message, Review
-│   ├── FullExchangeFlowTest   ← end-to-end: create service → transaction → complete
+│   ├── Admin/                 ← AdminUsersTest, AdminCategoriesTest
+│   ├── Api/                   ← API REST tests
+│   ├── Livewire/              ← ExplorerTest, MessageThreadTest
+│   ├── FullExchangeFlowTest   ← end-to-end
 │   ├── PointsSystemTest, TransactionStateMachineTest
 │   └── ServiceControllerTest, TransactionControllerTest, FavoriteControllerTest
 └── database/factories/        ← all models have factories
 ```
+
+---
 
 ## Database Key Points
 
@@ -70,11 +81,15 @@ tests/
 - **Service images**: `service_images` table — max 5 per service, 2 MB each, stored in `storage/`
 - **User profile**: `users.bio` (500 chars), `users.location` (city/dept)
 
+---
+
 ## Points System
 
 - New user: **+100 pts** (welcome_bonus) written atomically to `point_ledger` + `users.points_balance`
 - Exchange completion: buyer decremented, seller incremented inside a single `DB::transaction()`
 - Reason enum: `welcome_bonus | exchange_earned | exchange_spent | adjustment`
+
+---
 
 ## Transaction State Machine
 
@@ -83,6 +98,8 @@ pending → accepted → buyer_done → completed
         ↘ refused              ↘ accepted (contest)
 pending/accepted → cancelled
 ```
+
+---
 
 ## Models Note
 
@@ -93,64 +110,110 @@ The base `Controller` uses `AuthorizesRequests` trait — call `$this->authorize
 
 ## Routes Note
 
-`services.show` uses `->whereUuid('service')` to prevent `/services/create` from being captured by the wildcard parameter. This constraint is critical — do not remove it.
+`services.show` uses `->whereUuid('service')` to prevent `/services/create` from being captured by
+the wildcard parameter. This constraint is critical — do not remove it.
+
+---
 
 ## Admin Panel
 
 Access: users with `is_admin = true`, guarded by `AdminMiddleware`.
 URL prefix: `/admin` · route name prefix: `admin.`
 
-Admin can:
-- View platform stats (users, services, transactions, points in circulation, pending reports, banned users)
-- List / search users, toggle availability, toggle admin, ban / unban
-- Adjust user points (writes to point_ledger with reason `adjustment`)
-- List all services (including soft-deleted), force-delete, restore
-- List all transactions with status filter
-- List all service requests, force-close
-- Manage categories (CRUD) and skills
-- Review / dismiss reports
+Admin can: view stats, manage users (ban/unban, points adjustment), manage services/transactions/
+requests, manage categories & skills, review reports.
+
+---
 
 ## Common Commands
 
 ```bash
-# Development server
-php artisan serve
-
-# Fresh database with seed data
-php artisan migrate:fresh --seed
-
-# Build assets (requires Node 20+)
-npm run dev          # watch mode
-npm run build        # production build
-
-# Run tests (74 tests, ~2.5s)
-php artisan test
+php artisan serve                        # dev server
+php artisan migrate:fresh --seed         # reset DB
+npm run dev                              # watch assets
+npm run build                            # prod build
+php artisan test                         # 169 tests, ~4s
 ```
+
+---
 
 ## Coding Conventions
 
 - Controller methods return `View|RedirectResponse` type hints
-- Validation happens inside controllers (no separate FormRequest classes yet)
-- Tags: max 5, slug-normalized, created on the fly via `Tag::firstOrCreate()`
+- Validation inside controllers (no separate FormRequest classes yet)
+- Tags: max 5, slug-normalized, `Tag::firstOrCreate()`
 - Services with active transactions (pending/accepted) cannot be edited or deleted
-- Admin actions never affect the currently authenticated admin (e.g. cannot remove own admin rights)
+- Admin actions never affect the currently authenticated admin
 - All model factories exist in `database/factories/` — use them in tests
+
+---
 
 ## Multi-Agent Workflow
 
-Ce projet est développé par plusieurs IA en parallèle (Claude Code, Google Jules, etc.).
+Ce projet est développé par plusieurs IA en parallèle. Chaque agent a son propre fichier TODO.
 
-### Règles obligatoires
-1. **Lire `TASKS.md`** avant de commencer — réclamer une tâche libre (`TODO`)
-2. **Mettre à jour `TASKS.md`** : passer la tâche en `IN_PROGRESS`, noter son nom et la branche
-3. **Créer une branche dédiée** : `jules/TASK-XXX` depuis un `main` à jour
-4. **Toucher uniquement les fichiers listés** dans la tâche
-5. **Ouvrir une PR** vers `main` quand c'est terminé — ne jamais pousser directement sur `main`
-6. **Passer le statut en `IN_REVIEW`** dans `TASKS.md` après la PR
+### Fichiers de référence
 
-### Pourquoi
-- Deux IA modifiant le même fichier en même temps → conflit de merge insoluble
-- La branche par tâche isole les changements et permet une revue claire
+| Fichier | Rôle | Qui écrit |
+|---|---|---|
+| `CLAUDE.md` | Description projet, archi, conventions | Orchestrateur / humain uniquement |
+| `AGENTS.md` | Ce fichier — rôles et règles | Orchestrateur / humain uniquement |
+| `TASKS.md` | Tableau de bord global (statuts, PRs) | Orchestrateur uniquement |
+| `TODO_Jules.md` | Backlog Jules (frontend) | **Jules uniquement** |
+| `TODO_WSL.md` | Backlog Claude Code WSL (backend) | **Claude Code WSL uniquement** |
+| `TODO_ClaudeOnline.md` | Backlog Claude Code en ligne (rare) | **Claude Code en ligne uniquement** |
+| `TODO_OpenCode.md` | Backlog OpenCode (futur) | **OpenCode uniquement** |
+
+**Règle absolue : chaque agent ne modifie QUE son propre fichier TODO.**
+Cela élimine tous les conflits de merge.
+
+---
+
+### Rôles par agent
+
+| Agent | Domaine | Fichier TODO |
+|---|---|---|
+| **Jules** | Frontend, vues Blade, Alpine.js, CSS, Chart.js, SEO vues | `TODO_Jules.md` |
+| **Claude Code WSL** | Backend PHP/Laravel, controllers, migrations, tests, routes | `TODO_WSL.md` |
+| **Claude Code en ligne** | Architecture, backup (rarement utilisé) | `TODO_ClaudeOnline.md` |
+| **OpenCode** | Futur | `TODO_OpenCode.md` |
+| **Claude Cowork** | Orchestration, merge PRs, validation, mise à jour TASKS.md | — |
+
+---
+
+### Workflow obligatoire pour chaque agent
+
+#### Avant de commencer
+1. Lire **son fichier TODO** (ex : `TODO_Jules.md` pour Jules)
+2. Lire `CLAUDE.md` pour les conventions techniques
+3. Prendre une tâche en statut `TODO`
+4. Mettre la tâche en `IN_PROGRESS` dans **son fichier TODO** (noter la branche)
+5. Créer la branche : `git checkout -b <agent>/TASK-XXX` depuis un `main` à jour
+
+#### Pendant le travail
+- Toucher **uniquement les fichiers listés** dans la tâche
+- Si d'autres fichiers sont nécessaires → noter l'écart dans le PR body
+
+#### Quand la tâche est terminée
+1. Mettre la tâche en `IN_REVIEW` dans **son fichier TODO**
+2. Ouvrir une PR vers `main` avec un titre clair
+3. Ne jamais pusher directement sur `main`
+
+#### Conventions de branches
+| Agent | Préfixe |
+|---|---|
+| Claude Code WSL | `claude/TASK-XXX` |
+| Jules | `jules/TASK-XXX` |
+| OpenCode | `opencode/TASK-XXX` |
+
+---
+
+### Pourquoi des fichiers TODO séparés ?
+- Un seul fichier partagé + deux agents = conflit de merge garanti
+- Chaque agent écrit uniquement dans son fichier → zéro conflit
+- L'orchestrateur (Claude Cowork) maintient `TASKS.md` comme vue globale
+
+---
 
 ## Environment
 
