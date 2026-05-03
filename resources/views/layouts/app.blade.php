@@ -13,6 +13,12 @@
         <meta property="og:description" content="{{ $ogDescription ?? '' }}">
         <meta property="og:type" content="website">
         <meta property="og:url" content="{{ url()->current() }}">
+        @if(!empty($ogImage))
+        <meta property="og:image" content="{{ $ogImage }}">
+        @endif
+        @endisset
+        @isset($jsonLd)
+        <script type="application/ld+json">{!! $jsonLd !!}</script>
         @endisset
 
         <!-- Fonts -->

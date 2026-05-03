@@ -40,6 +40,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
 
     // Transactions
+    Route::get('/transactions/export', [TransactionController::class, 'exportCsv'])->name('transactions.export');
     Route::post('/transactions', [TransactionController::class, 'store'])->middleware('throttle:10,1')->name('transactions.store');
     Route::patch('/transactions/{transaction}/approve', [TransactionController::class, 'approve'])->name('transactions.approve');
     Route::patch('/transactions/{transaction}/refuse', [TransactionController::class, 'refuse'])->name('transactions.refuse');
