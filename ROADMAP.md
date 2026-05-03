@@ -1,5 +1,5 @@
 # ROADMAP.md — Cahier des charges global Entraide
-
+Date de mise à jour : 2026-05-03
 > Vision : plateforme d'échange de services entre particuliers, sans argent, via un système de points.
 > Stack : Laravel 13.7 · PHP 8.4 · Blade · Alpine.js · Livewire 3 · Tailwind CSS v4 · SQLite/MySQL
 >

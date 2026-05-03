@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Report;
 use App\Models\Service;
+use App\Models\Setting;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Observers\ServiceObserver;
@@ -51,6 +52,25 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
+        });
+
+        View::composer('*', function ($view) {
+            static $settings;
+            if (!isset($settings)) {
+                try {
+                    $settings = [
+                        'platformName'    => Setting::get('platform_name', config('app.name')),
+                        'platformTagline' => Setting::get('platform_tagline', 'Échangez vos talents'),
+                    ];
+                } catch (\Exception) {
+                    // Table absente (avant migration) : on utilise les valeurs par défaut
+                    $settings = [
+                        'platformName'    => config('app.name'),
+                        'platformTagline' => 'Échangez vos talents',
+                    ];
+                }
+            }
+            $view->with($settings);
         });
     }
 }

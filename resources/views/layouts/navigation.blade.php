@@ -5,7 +5,7 @@
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     <a href="{{ route('home') }}" class="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-                        Entraide
+                        IAEntraide
                     </a>
                 </div>
 

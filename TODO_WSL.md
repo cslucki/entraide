@@ -53,7 +53,7 @@
   `gh pr create --title "feat(TASK-016+019): SEO avancé (OG+JSON-LD) + export CSV transactions"`
 
 ### TASK-020 — Admin étendu : configuration plateforme + gestion complète utilisateurs
-- **Statut** : `TODO`
+- **Statut** : `IN_REVIEW`
 - **Branche** : `claude/TASK-020`
 - **Fichiers** :
   - `database/migrations/xxx_create_settings_table.php` (à créer)

@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             PointGuidelineSeeder::class,
             UserSeeder::class,
             BadgeSeeder::class,
+            SettingSeeder::class,
         ]);
     }
 }
