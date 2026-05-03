@@ -21,6 +21,9 @@ use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/home-v1', [HomeController::class, 'homeV1'])->name('home.v1');
+Route::get('/home-v2', [HomeController::class, 'homeV2'])->name('home.v2');
+Route::get('/home-v3', [HomeController::class, 'homeV3'])->name('home.v3');
 Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
