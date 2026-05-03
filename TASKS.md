@@ -3,14 +3,16 @@
 > **Ce fichier est maintenu par l'orchestrateur (Claude Cowork) uniquement.**
 > Les agents ne modifient pas ce fichier — ils mettent à jour leur propre `TODO_[Agent].md`.
 > Pour les détails de chaque tâche : voir `TODO_Jules.md`, `TODO_WSL.md`.
+>
+> **Dernière mise à jour : 2026-05-03**
 
 ---
 
-## 📋 À faire
+## 🔄 En cours
 
 | ID | Tâche | Agent | Branche | Statut |
 |---|---|---|---|---|
-| TASK-021 | Admin : modération et suppression des messages | Claude Code WSL | `claude/TASK-021` | `TODO` |
+| TASK-021 | Admin : modération et suppression des messages | Claude Code WSL | `claude/TASK-021` | `IN_PROGRESS` |
 
 ---
 
