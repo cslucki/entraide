@@ -57,10 +57,18 @@ class AppServiceProvider extends ServiceProvider
         View::composer('*', function ($view) {
             static $settings;
             if (!isset($settings)) {
-                $settings = [
-                    'platformName'    => Setting::get('platform_name', config('app.name')),
-                    'platformTagline' => Setting::get('platform_tagline', 'Échangez vos talents'),
-                ];
+                try {
+                    $settings = [
+                        'platformName'    => Setting::get('platform_name', config('app.name')),
+                        'platformTagline' => Setting::get('platform_tagline', 'Échangez vos talents'),
+                    ];
+                } catch (\Exception) {
+                    // Table absente (avant migration) : on utilise les valeurs par défaut
+                    $settings = [
+                        'platformName'    => config('app.name'),
+                        'platformTagline' => 'Échangez vos talents',
+                    ];
+                }
             }
             $view->with($settings);
         });
