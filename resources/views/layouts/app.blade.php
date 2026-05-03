@@ -74,6 +74,8 @@
         </div>
         @endif
 
+        @stack('scripts')
+
         <!-- Alpine store global pour les modals de confirmation -->
         <script>
         document.addEventListener('alpine:init', () => {

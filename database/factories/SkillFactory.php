@@ -16,7 +16,7 @@ class SkillFactory extends Factory
 
     public function definition(): array
     {
-        $name = fake()->unique()->words(2);
+        $name = fake()->unique()->words(2, true);
         return [
             'category_id' => Category::factory(),
             'name' => $name,

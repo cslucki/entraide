@@ -6,12 +6,17 @@ use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Observers\ServiceObserver;
+use App\Observers\TransactionObserver;
 use App\Policies\MessagePolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
@@ -24,11 +29,25 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useTailwind();
 
+        Transaction::observe(TransactionObserver::class);
+        Service::observe(ServiceObserver::class);
+
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('api-auth', function (Request $request) {
+            return Limit::perMinute(10)->by($request->ip());
+        });
+
         Gate::policy(Service::class, ServicePolicy::class);
         Gate::policy(ServiceRequest::class, ServiceRequestPolicy::class);
         Gate::policy(Transaction::class, TransactionPolicy::class);
-        Gate::policy(\App\Models\Message::class, MessagePolicy::class);
-        Gate::policy(\App\Models\Review::class, ReviewPolicy::class);
+
+        // Message policy is keyed on Transaction since messages live in a transaction context
+        Gate::define('view-transaction', [MessagePolicy::class, 'view']);
+        Gate::define('store-message', [MessagePolicy::class, 'store']);
+        Gate::define('create-review', [ReviewPolicy::class, 'create']);
 
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());

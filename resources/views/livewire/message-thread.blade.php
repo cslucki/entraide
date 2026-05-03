@@ -1,4 +1,4 @@
-<div class="flex flex-col h-full" wire:poll.3s>
+<div class="flex flex-col h-full" wire:poll.3000ms>
     <!-- Status banner -->
     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <div class="flex items-center justify-between flex-wrap gap-2">
@@ -162,12 +162,33 @@
 </div>
 
 <script>
+    function scrollMessages() {
+        const container = document.getElementById('messages-container');
+        if (container) container.scrollTop = container.scrollHeight;
+    }
+
+    function syncUnreadBadge(count) {
+        const link = document.querySelector('a[href="{{ route('messages.index') }}"]');
+        if (!link) return;
+        const existing = link.querySelector('.bg-red-500');
+        if (count > 0) {
+            const label = count > 9 ? '9+' : count;
+            if (existing) {
+                existing.textContent = label;
+            } else {
+                const badge = document.createElement('span');
+                badge.className = 'absolute -top-2 -right-4 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center';
+                badge.textContent = label;
+                link.querySelector('.relative')?.appendChild(badge);
+            }
+        } else if (existing) {
+            existing.remove();
+        }
+    }
+
+    document.addEventListener('livewire:initialized', () => scrollMessages());
     document.addEventListener('livewire:updated', () => {
-        const container = document.getElementById('messages-container');
-        if (container) container.scrollTop = container.scrollHeight;
-    });
-    window.addEventListener('load', () => {
-        const container = document.getElementById('messages-container');
-        if (container) container.scrollTop = container.scrollHeight;
+        scrollMessages();
+        syncUnreadBadge({{ $unreadCount }});
     });
 </script>

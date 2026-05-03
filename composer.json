@@ -11,11 +11,13 @@
         "intervention/image-laravel": "^4.0",
         "laravel/breeze": "^2.4",
         "laravel/framework": "^13.0",
+        "laravel/sanctum": "^4.3",
         "laravel/tinker": "^3.0",
         "livewire/livewire": "^4.2"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "laravel/boost": "^2.4",
         "laravel/pail": "^1.2.5",
         "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
