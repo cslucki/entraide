@@ -9,17 +9,19 @@ function screenshot(page, name) {
     return page.screenshot({ path: path.join(SCREENSHOT_DIR, `${name}.png`) });
 }
 
+async function login(page) {
+    await page.goto('/login');
+    await page.fill('input[name="email"]', 'test@example.com');
+    await page.fill('input[name="password"]', 'password');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('**/dashboard');
+}
+
 test.describe('Smoke', () => {
     test('login and dashboard', async ({ page }) => {
-        await page.goto('/login');
-        await page.fill('input[name="email"]', 'test@example.com');
-        await page.fill('input[name="password"]', 'password');
-        await page.click('button[type="submit"]');
+        await login(page);
 
-        await page.waitForURL('**/dashboard');
         await expect(page).toHaveURL(/\/dashboard/);
-
-        // Titre de page et éléments clés
         await expect(page.locator('h1, h2').first()).toBeVisible();
         await expect(page.locator('nav')).toBeVisible();
 
@@ -27,18 +29,27 @@ test.describe('Smoke', () => {
     });
 
     test('admin dashboard', async ({ page }) => {
-        // Connexion
-        await page.goto('/login');
-        await page.fill('input[name="email"]', 'test@example.com');
-        await page.fill('input[name="password"]', 'password');
-        await page.click('button[type="submit"]');
-        await page.waitForURL('**/dashboard');
+        await login(page);
 
-        // Admin dashboard
         await page.goto('/admin/dashboard');
         await expect(page).toHaveURL(/\/admin\/dashboard/);
         await expect(page.locator('main, [class*="content"], h1, h2').first()).toBeVisible();
 
         await screenshot(page, 'admin-dashboard');
+    });
+
+    test('admin messages list', async ({ page }) => {
+        await login(page);
+
+        await page.goto('/admin/messages');
+        await expect(page).toHaveURL(/\/admin\/messages/);
+
+        // La page charge sans erreur
+        await expect(page.locator('main')).toBeVisible();
+
+        // Présence du tableau
+        await expect(page.locator('table')).toBeVisible();
+
+        await screenshot(page, 'admin-messages');
     });
 });
