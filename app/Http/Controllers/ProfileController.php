@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -24,7 +25,20 @@ class ProfileController extends Controller
         $reviews = $user->reviewsReceived()->with('reviewer')->latest('created_at')->get();
         $badges = $user->badges()->get();
 
-        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges'));
+        $ogTitle       = $user->name;
+        $ogDescription = $user->bio
+            ? Str::limit($user->bio, 160)
+            : "Profil de {$user->name} sur Entraide";
+        $ogImage       = $user->avatar ? asset('storage/' . $user->avatar) : null;
+        $jsonLd = json_encode([
+            '@context'    => 'https://schema.org',
+            '@type'       => 'Person',
+            'name'        => $user->name,
+            'url'         => route('profile.show', $user),
+            'description' => $user->bio,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
     }
 
     public function edit(Request $request): View

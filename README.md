@@ -2,7 +2,15 @@
 
 Plateforme permettant à des professionnels indépendants d'échanger leurs compétences sans argent, via un système de points.
 
-**Stack :** Laravel 11 · PHP 8.3+ · MySQL ou SQLite · Blade · Livewire 3 · Alpine.js · Tailwind CSS
+**Stack :** 
+
+Backend | Laravel 13.7 · PHP 8.4 |
+Database | SQLite (dev) / MySQL (prod) |
+Frontend | Blade · Alpine.js · Tailwind CSS v4 |
+Reactive UI | Livewire 3 |
+Auth | Laravel Breeze (Blade + dark mode) |
+Image processing | `intervention/image` (avatar resize 300×300) |
+
 
 ---
 

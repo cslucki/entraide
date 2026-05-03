@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\ServiceRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class RequestController extends Controller
@@ -13,7 +14,12 @@ class RequestController extends Controller
     public function show(ServiceRequest $request): View
     {
         $request->load(['user', 'category']);
-        return view('requests.show', compact('request'));
+
+        $ogTitle       = $request->title;
+        $ogDescription = Str::limit(strip_tags($request->description), 160);
+        $ogImage       = null;
+
+        return view('requests.show', compact('request', 'ogTitle', 'ogDescription', 'ogImage'));
     }
 
     public function create(): View

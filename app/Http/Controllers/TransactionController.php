@@ -217,6 +217,42 @@ class TransactionController extends Controller
         return redirect()->route('messages.show', $transaction)->with('success', 'Prestation contestée, échange relancé.');
     }
 
+    public function exportCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $user = auth()->user();
+
+        $transactions = Transaction::where('buyer_id', $user->id)
+            ->orWhere('seller_id', $user->id)
+            ->with(['service', 'serviceRequest', 'buyer', 'seller'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        $filename = 'entraide-transactions-' . now()->format('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($transactions, $user) {
+            $handle = fopen('php://output', 'w');
+            fwrite($handle, "\xEF\xBB\xBF"); // BOM UTF-8 pour Excel
+            fputcsv($handle, ['Date', 'Type', 'Service', 'Contrepartie', 'Points', 'Statut'], ';');
+
+            foreach ($transactions as $transaction) {
+                $isBuyer      = $transaction->buyer_id === $user->id;
+                $contrepartie = $isBuyer ? $transaction->seller->name : $transaction->buyer->name;
+                $points       = $transaction->points_agreed ?? $transaction->points_proposed;
+
+                fputcsv($handle, [
+                    $transaction->created_at->format('d/m/Y'),
+                    $isBuyer ? 'Achat' : 'Vente',
+                    $transaction->subject,
+                    $contrepartie,
+                    $points,
+                    $transaction->status_label,
+                ], ';');
+            }
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     private function addSystemMessage(Transaction $transaction, string $body): void
     {
         Message::create([
