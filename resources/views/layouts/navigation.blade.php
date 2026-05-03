@@ -35,6 +35,16 @@
 
             <!-- Right side -->
             <div class="hidden sm:flex sm:items-center sm:ms-6 space-x-4">
+                <!-- Dark Mode Toggle -->
+                <button @click="$store.darkMode.toggle()" class="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition ease-in-out duration-150">
+                    <template x-if="!$store.darkMode.on">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                    </template>
+                    <template x-if="$store.darkMode.on">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    </template>
+                </button>
+
                 @auth
                 <!-- Points balance -->
                 <a href="{{ route('points.index') }}" class="flex items-center gap-1 px-3 py-1 bg-indigo-50 dark:bg-indigo-900 rounded-full text-sm font-semibold text-indigo-700 dark:text-indigo-300">
@@ -103,6 +113,23 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
+            <div class="flex items-center px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                <span class="text-sm font-medium text-gray-500 dark:text-gray-400 mr-4">Apparence</span>
+                <button @click="$store.darkMode.toggle()" class="flex items-center gap-2 p-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                    <template x-if="!$store.darkMode.on">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                            <span class="text-xs">Sombre</span>
+                        </div>
+                    </template>
+                    <template x-if="$store.darkMode.on">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                            <span class="text-xs">Clair</span>
+                        </div>
+                    </template>
+                </button>
+            </div>
             <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">
                 Explorateur
             </x-responsive-nav-link>
