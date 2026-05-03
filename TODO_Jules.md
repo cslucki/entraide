@@ -34,7 +34,7 @@
 ---
 
 ### TASK-018 — Graphique historique du solde de points
-- **Statut** : `TODO`
+- **Statut** : `IN_REVIEW`
 - **Branche** : `jules/TASK-018`
 - **Fichiers** :
   - `resources/views/points/index.blade.php`
