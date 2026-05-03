@@ -86,6 +86,51 @@
 - **Quand terminé** : mettre `IN_REVIEW` → `gh pr create --title "feat(TASK-020): admin étendu — settings plateforme + créer user + changer mdp"`
 
 
+### TASK-021 — Admin : modération des messages
+- **Statut** : `TODO`
+- **Branche** : `claude/TASK-021`
+- **Fichiers** :
+  - `app/Http/Controllers/Admin/AdminMessageController.php` (à créer)
+  - `resources/views/admin/messages/index.blade.php` (à créer)
+  - `resources/views/admin/messages/show.blade.php` (à créer)
+  - `routes/web.php` (ajouter routes admin messages)
+  - `tests/Feature/Admin/AdminMessagesTest.php` (à créer)
+  - `tests/e2e/smoke.spec.js` (ajouter tests Playwright)
+
+- **Description** :
+
+  **A. Liste des messages (`GET /admin/messages`) :**
+  - Afficher les 50 derniers messages tous utilisateurs confondus, paginés (50/page)
+  - Colonnes : date, expéditeur, destinataire (via la transaction liée), contenu (tronqué à 100 chars), actions
+  - Filtres (GET params) : `user` (nom ou email, expéditeur OU destinataire), `date_from`, `date_to`, `search` (mot-clé dans le contenu)
+  - Tri par date décroissante par défaut
+
+  **B. Détail d'un message (`GET /admin/messages/{message}`) :**
+  - Afficher le message dans son contexte : 5 messages précédents et suivants dans la même transaction
+  - Afficher expéditeur, destinataire, date, contenu complet
+  - Lien vers la transaction liée
+
+  **C. Suppression (`DELETE /admin/messages/{message}`) :**
+  - Hard delete — suppression définitive en base
+  - Redirection vers la liste avec message flash de confirmation
+  - Formulaire avec token CSRF + method DELETE dans les vues
+
+- **Tests Laravel** (`tests/Feature/Admin/AdminMessagesTest.php`) :
+  - Admin peut voir la liste des messages
+  - Les filtres fonctionnent (par user, par date, par mot-clé)
+  - Admin peut supprimer un message (vérifie qu'il n'existe plus en base)
+  - Non-admin ne peut pas accéder aux routes (403)
+  - `php artisan test` — 0 échec
+
+- **Tests Playwright** (ajouter dans `tests/e2e/smoke.spec.js`) :
+  - Naviguer vers `/admin/messages` et vérifier que la page charge
+  - Vérifier la présence du tableau et de la pagination
+  - Screenshot `admin-messages.png`
+
+- **Quand terminé** : mettre `IN_REVIEW` dans ce fichier, puis :
+  `gh pr create --title "feat(TASK-021): admin — modération et suppression des messages"`
+
+
 ---
 
 ## 🟡 Backlog à venir
