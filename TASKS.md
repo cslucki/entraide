@@ -12,8 +12,8 @@
 
 | ID | Tâche | Agent | Branche | Statut |
 |---|---|---|---|---|
-| TASK-016 | SEO avancé : OG meta tags + JSON-LD schema.org | Claude Code WSL | `claude/TASK-016` | `TODO` |
-| TASK-019 | Export CSV historique transactions | Claude Code WSL | `claude/TASK-016` (même branche) | `TODO` |
+| TASK-016 | SEO avancé : OG meta tags + JSON-LD schema.org | Claude Code WSL | `claude/TASK-016` | `DONE` |
+| TASK-019 | Export CSV historique transactions | Claude Code WSL | `claude/TASK-016` (même branche) | `DONE` |
 | TASK-017 | Dark mode toggle persistant | Jules | `jules/TASK-017` | `TODO` |
 | TASK-018 | Graphique historique du solde de points | Jules | `jules/TASK-018` | `TODO` |
 
