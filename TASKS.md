@@ -8,11 +8,9 @@
 
 ---
 
-## 🔄 En cours
+## 📋 À faire
 
-| ID | Tâche | Agent | Branche | Statut |
-|---|---|---|---|---|
-| TASK-021 | Admin : modération et suppression des messages | Claude Code WSL | `claude/TASK-021` | `IN_PROGRESS` |
+*Aucune tâche en cours — toutes mergées dans main.*
 
 ---
 
@@ -46,7 +44,8 @@
 | TASK-018 | Graphique historique du solde de points | Jules | PR #18 | 2026-05-03 |
 | TASK-019 | Export CSV historique transactions | Claude Code WSL | PR #16 | 2026-05-03 |
 | TASK-020 | Admin étendu : settings plateforme + créer user + changer mdp | Claude Code WSL | PR #19 | 2026-05-03 |
+| TASK-021 | Admin : modération et suppression des messages | Claude Code WSL | PR #20 | 2026-05-03 |
 
 ---
 
-> **État actuel :** 191 tests passent · 0 échec · `main` propre · tests E2E Playwright opérationnels
+> **État actuel :** 204 tests passent · 0 échec · `main` propre · 3 tests Playwright opérationnels
