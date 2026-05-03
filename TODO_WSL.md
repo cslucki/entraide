@@ -87,7 +87,7 @@
 
 
 ### TASK-021 — Admin : modération des messages
-- **Statut** : `IN_PROGRESS`
+- **Statut** : `IN_REVIEW`
 - **Branche** : `claude/TASK-021`
 - **Fichiers** :
   - `app/Http/Controllers/Admin/AdminMessageController.php` (à créer)
