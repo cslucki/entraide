@@ -21,7 +21,7 @@
 ## 🟢 Prêt à lancer
 
 ### TASK-016 + TASK-019 — SEO avancé + Export CSV (même branche)
-- **Statut** : `TODO`
+- **Statut** : `IN_REVIEW`
 - **Branche** : `claude/TASK-016`
 - **Fichiers** :
   - `app/Http/Controllers/ServiceController.php` (méthode `show`)
