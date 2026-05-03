@@ -52,6 +52,40 @@
 - **PR** : une seule PR pour les deux :
   `gh pr create --title "feat(TASK-016+019): SEO avancé (OG+JSON-LD) + export CSV transactions"`
 
+### TASK-020 — Admin étendu : configuration plateforme + gestion complète utilisateurs
+- **Statut** : `TODO`
+- **Branche** : `claude/TASK-020`
+- **Fichiers** :
+  - `database/migrations/xxx_create_settings_table.php` (à créer)
+  - `app/Models/Setting.php` (à créer)
+  - `app/Http/Controllers/Admin/AdminSettingController.php` (à créer)
+  - `app/Http/Controllers/Admin/AdminController.php` (ajouter createUser, storeUser, changePassword)
+  - `resources/views/admin/settings/index.blade.php` (à créer)
+  - `resources/views/admin/users/create.blade.php` (à créer)
+  - `routes/web.php` (routes admin settings + user create)
+- **Description** :
+  **A. Table settings (clé/valeur) :**
+  - Migration : `settings` avec colonnes `key` (string, unique), `value` (text nullable)
+  - Seeder : `platform_name = "Entraide"`, `platform_tagline = "Échangez vos talents"`, `maintenance_mode = "0"`
+  - Model `Setting` avec méthode statique `Setting::get('platform_name')` et `Setting::set('platform_name', 'valeur')`
+  - Passer `platform_name` et `platform_tagline` à toutes les vues via un View Composer ou middleware (config/app.php)
+
+  **B. Page admin "Configuration" :**
+  - Route `GET /admin/settings` → formulaire avec les paramètres modifiables
+  - Route `POST /admin/settings` → sauvegarde
+  - Champs : nom plateforme, tagline, mode maintenance (toggle)
+
+  **C. Créer un utilisateur depuis l'admin :**
+  - Route `GET /admin/users/create` → formulaire (nom, email, mot de passe, is_admin, points de départ)
+  - Route `POST /admin/users` → création + écriture welcome_bonus dans point_ledger si points > 0
+
+  **D. Changer le mot de passe d'un utilisateur :**
+  - Route `POST /admin/users/{user}/password` → formulaire simple (nouveau mot de passe, confirmation)
+  - Hash bcrypt, pas de validation de l'ancien mot de passe (c'est l'admin)
+- **Tests** : `php artisan test` — 0 échec
+- **Quand terminé** : mettre `IN_REVIEW` → `gh pr create --title "feat(TASK-020): admin étendu — settings plateforme + créer user + changer mdp"`
+
+
 ---
 
 ## 🟡 Backlog à venir
