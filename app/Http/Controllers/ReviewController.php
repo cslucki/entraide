@@ -11,7 +11,7 @@ class ReviewController extends Controller
 {
     public function store(Request $request, Transaction $transaction): RedirectResponse
     {
-        $this->authorize('create', [Review::class, $transaction]);
+        $this->authorize('create-review', $transaction);
 
         $data = $request->validate([
             'rating' => 'required|integer|min:1|max:5',

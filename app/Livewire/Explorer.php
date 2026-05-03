@@ -33,13 +33,17 @@ class Explorer extends Component
     #[Url]
     public string $tagFilter = '';
 
+    #[Url]
+    public int $minRating = 0;
+
     public int $perPage = 15;
 
-    public function updatedSearch(): void     { $this->resetPage(); }
+    public function updatedSearch(): void          { $this->resetPage(); }
     public function updatedSelectedCategories(): void { $this->resetPage(); }
-    public function updatedDeliveryMode(): void { $this->resetPage(); }
-    public function updatedSortBy(): void      { $this->resetPage(); }
-    public function updatedTagFilter(): void   { $this->resetPage(); }
+    public function updatedDeliveryMode(): void    { $this->resetPage(); }
+    public function updatedSortBy(): void          { $this->resetPage(); }
+    public function updatedTagFilter(): void       { $this->resetPage(); }
+    public function updatedMinRating(): void       { $this->resetPage(); }
 
     public function switchTab(string $tab): void
     {
@@ -99,6 +103,10 @@ class Explorer extends Component
 
             if ($this->tagFilter) {
                 $query->whereHas('tags', fn($t) => $t->where('slug', $this->tagFilter));
+            }
+
+            if ($this->minRating > 0) {
+                $query->whereHas('user', fn($u) => $u->where('rating', '>=', $this->minRating));
             }
 
             $query = match ($this->sortBy) {

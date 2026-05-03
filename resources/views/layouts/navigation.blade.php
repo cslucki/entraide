@@ -33,6 +33,18 @@
                 </div>
             </div>
 
+            <!-- Recherche globale -->
+            <div class="hidden sm:flex sm:items-center flex-1 max-w-xs mx-4">
+                <form action="{{ route('search') }}" method="GET" class="relative w-full">
+                    <input type="text" name="q" value="{{ request('q') }}"
+                        placeholder="Rechercher..."
+                        class="w-full pl-9 pr-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    <svg class="absolute left-3 top-2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </form>
+            </div>
+
             <!-- Right side -->
             <div class="hidden sm:flex sm:items-center sm:ms-6 space-x-4">
                 @auth

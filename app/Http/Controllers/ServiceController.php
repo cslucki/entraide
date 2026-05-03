@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateServiceThumbnail;
 use App\Models\Category;
 use App\Models\Service;
 use App\Models\Skill;
@@ -86,10 +87,12 @@ class ServiceController extends Controller
 
                 Storage::disk('public')->put('services/' . $filename, (string) $img->encodeByExtension());
 
-                $service->images()->create([
+                $serviceImage = $service->images()->create([
                     'path' => 'services/' . $filename,
                     'order' => $index,
                 ]);
+
+                GenerateServiceThumbnail::dispatch($serviceImage);
             }
         }
 
@@ -167,10 +170,12 @@ class ServiceController extends Controller
 
                 Storage::disk('public')->put('services/' . $filename, (string) $img->encodeByExtension());
 
-                $service->images()->create([
+                $serviceImage = $service->images()->create([
                     'path' => 'services/' . $filename,
                     'order' => $currentCount + $index,
                 ]);
+
+                GenerateServiceThumbnail::dispatch($serviceImage);
             }
         }
 

@@ -22,4 +22,9 @@ class ServiceImage extends Model
     {
         return asset('storage/' . $this->path);
     }
+
+    public function getThumbnailUrlAttribute(): string
+    {
+        return asset('storage/thumbnails/' . $this->path);
+    }
 }

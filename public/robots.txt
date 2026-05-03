@@ -1,2 +1,11 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard
+Disallow: /profile/edit
+Disallow: /messages/
+Disallow: /favorites
+Disallow: /points
+Disallow: /reports/
+
+Sitemap: /sitemap.xml

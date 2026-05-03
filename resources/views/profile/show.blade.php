@@ -28,6 +28,16 @@
                         {{ $user->bio }}
                     </div>
                     @endif
+                    @if($badges->isNotEmpty())
+                    <div class="flex flex-wrap gap-2 mt-4">
+                        @foreach($badges as $badge)
+                        <span title="{{ $badge->description }}" class="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-white cursor-default"
+                              style="background-color: {{ $badge->color }}">
+                            {{ $badge->icon }} {{ $badge->name }}
+                        </span>
+                        @endforeach
+                    </div>
+                    @endif
                 </div>
                 @auth
                 @if(auth()->id() !== $user->id)

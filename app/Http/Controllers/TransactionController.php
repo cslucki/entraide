@@ -7,6 +7,7 @@ use App\Models\PointLedger;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Notifications\TransactionStatusChanged;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -89,6 +90,8 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'Proposition acceptée. L\'échange est en cours.');
 
+        $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh()));
+
         return redirect()->route('messages.show', $transaction)->with('success', 'Proposition acceptée.');
     }
 
@@ -99,6 +102,8 @@ class TransactionController extends Controller
         $transaction->update(['status' => 'refused']);
 
         $this->addSystemMessage($transaction, 'Proposition refusée.');
+
+        $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh()));
 
         if ($transaction->request_id) {
             ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
@@ -152,6 +157,8 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'L\'acheteur a déclaré la prestation terminée. En attente de confirmation du vendeur.');
 
+        $transaction->seller->notify(new TransactionStatusChanged($transaction->fresh()));
+
         return redirect()->route('messages.show', $transaction)->with('success', 'Prestation déclarée terminée.');
     }
 
@@ -191,6 +198,10 @@ class TransactionController extends Controller
         });
 
         $this->addSystemMessage($transaction, 'Échange complété ! Les points ont été transférés.');
+
+        $fresh = $transaction->fresh();
+        $fresh->buyer->notify(new TransactionStatusChanged($fresh));
+        $fresh->seller->notify(new TransactionStatusChanged($fresh));
 
         return redirect()->route('messages.show', $transaction)->with('success', 'Échange complété avec succès !');
     }
