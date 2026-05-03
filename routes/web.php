@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\PointController;
@@ -40,6 +41,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
 
     // Transactions
+    Route::get('/transactions/export', [TransactionController::class, 'exportCsv'])->name('transactions.export');
     Route::post('/transactions', [TransactionController::class, 'store'])->middleware('throttle:10,1')->name('transactions.store');
     Route::patch('/transactions/{transaction}/approve', [TransactionController::class, 'approve'])->name('transactions.approve');
     Route::patch('/transactions/{transaction}/refuse', [TransactionController::class, 'refuse'])->name('transactions.refuse');
@@ -85,11 +87,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Users
     Route::get('/users', [AdminController::class, 'users'])->name('users');
+    Route::get('/users/create', [AdminController::class, 'createUser'])->name('users.create');
+    Route::post('/users', [AdminController::class, 'storeUser'])->name('users.store');
     Route::patch('/users/{user}/toggle-availability', [AdminController::class, 'toggleUserAvailability'])->name('users.toggle-availability');
     Route::patch('/users/{user}/toggle-admin', [AdminController::class, 'toggleUserAdmin'])->name('users.toggle-admin');
     Route::patch('/users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
     Route::post('/users/{user}/adjust-points', [AdminController::class, 'adjustPoints'])->name('users.adjust-points');
+    Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
 
     // Services
     Route::get('/services', [AdminController::class, 'services'])->name('services');
@@ -115,6 +120,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports');
     Route::patch('/reports/{report}/dismiss', [AdminController::class, 'dismissReport'])->name('reports.dismiss');
     Route::patch('/reports/{report}/review', [AdminController::class, 'reviewReport'])->name('reports.review');
+
+    // Settings
+    Route::get('/settings', [AdminSettingController::class, 'index'])->name('settings');
+    Route::post('/settings', [AdminSettingController::class, 'update'])->name('settings.update');
 });
 
 require __DIR__.'/auth.php';
