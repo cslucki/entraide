@@ -14,6 +14,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -112,6 +113,51 @@ class AdminController extends Controller
 
         $sign = $data['delta'] > 0 ? '+' : '';
         return back()->with('success', "Solde ajusté de {$sign}{$data['delta']} pts pour {$user->name}.");
+    }
+
+    public function createUser(): View
+    {
+        return view('admin.users.create');
+    }
+
+    public function storeUser(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|max:255|unique:users,email',
+            'password' => 'required|string|min:8|confirmed',
+            'is_admin' => 'boolean',
+            'points'   => 'required|integer|min:0',
+        ]);
+
+        $user = User::create([
+            'name'           => $data['name'],
+            'email'          => $data['email'],
+            'password'       => Hash::make($data['password']),
+            'is_admin'       => $data['is_admin'] ?? false,
+            'points_balance' => $data['points'],
+        ]);
+
+        if ($data['points'] > 0) {
+            PointLedger::create([
+                'user_id' => $user->id,
+                'delta'   => $data['points'],
+                'reason'  => 'welcome_bonus',
+            ]);
+        }
+
+        return redirect()->route('admin.users')->with('success', "Utilisateur {$user->name} créé avec succès.");
+    }
+
+    public function changePassword(Request $request, User $user): RedirectResponse
+    {
+        $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user->update(['password' => Hash::make($request->password)]);
+
+        return back()->with('success', "Mot de passe de {$user->name} modifié.");
     }
 
     // ── Services ─────────────────────────────────────────────────────────────
