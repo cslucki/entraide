@@ -25,3 +25,8 @@ Homestead.yaml
 Thumbs.db
 ADMIN.md
 ADMIN_HOWTO.md
+
+# Playwright
+playwright-report/
+test-results/
+playwright/.auth/
