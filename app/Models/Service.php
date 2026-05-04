@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Community;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ class Service extends Model
     use HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
+        'community_id',
         'user_id',
         'title',
         'description',
@@ -24,6 +26,11 @@ class Service extends Model
         'points_cost',
         'status',
     ];
+
+    public function community(): BelongsTo
+    {
+        return $this->belongsTo(Community::class);
+    }
 
     public function user(): BelongsTo
     {

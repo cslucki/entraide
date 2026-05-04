@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Community;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,7 @@ class Transaction extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'community_id',
         'service_id',
         'request_id',
         'buyer_id',
@@ -34,6 +36,11 @@ class Transaction extends Model
             'points_proposed' => 'integer',
             'points_agreed' => 'integer',
         ];
+    }
+
+    public function community(): BelongsTo
+    {
+        return $this->belongsTo(Community::class);
     }
 
     public function service(): BelongsTo
