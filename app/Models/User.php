@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Models\Community;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -17,6 +19,7 @@ class User extends Authenticatable
     use HasFactory, HasUuids, HasApiTokens, Notifiable;
 
     protected $fillable = [
+        'community_id',
         'name',
         'email',
         'password',
@@ -46,6 +49,11 @@ class User extends Authenticatable
             'points_balance' => 'integer',
             'rating' => 'decimal:2',
         ];
+    }
+
+    public function community(): BelongsTo
+    {
+        return $this->belongsTo(Community::class);
     }
 
     public function services(): HasMany
