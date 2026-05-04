@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Community;
+use App\Models\Scopes\BelongsToTenantScope;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Service extends Model
 {
     use HasFactory, HasUuids, SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new BelongsToTenantScope());
+    }
 
     protected $fillable = [
         'community_id',

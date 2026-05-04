@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Community;
+use App\Models\Scopes\BelongsToTenantScope;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,6 +15,11 @@ class ServiceRequest extends Model
     use HasFactory, HasUuids;
 
     protected $table = 'service_requests';
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new BelongsToTenantScope());
+    }
 
     protected $fillable = [
         'community_id',
