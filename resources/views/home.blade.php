@@ -5,7 +5,7 @@
             <h1 class="text-4xl md:text-5xl font-bold mb-4">Plateforme d'entraide</h1>
             <p class="text-xl text-indigo-100 mb-10">Proposez vos {{ $T['services'] }}, trouvez ce dont vous avez besoin, et échangez avec des points.</p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-                <a href="{{ route('explorer') }}" class="px-8 py-3 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition">Explorer les {{ $T['services'] }}</a>
+                <a href="{{ route('explorer') }}" class="px-8 py-3 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition">Voir les {{ $T['services'] }}</a>
                 @auth
                 <a href="{{ route('explorer') }}#demandes" class="px-8 py-3 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-400 border border-indigo-400 transition">Voir les demandes</a>
                 @else

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Community;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -39,6 +40,15 @@ class HomeController extends Controller
             ->paginate(16);
 
         return view('members.index', compact('members'));
+    }
+
+    public function boucles(): View
+    {
+        $communities = Community::where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        return view('boucles.index', compact('communities'));
     }
 
     public function exchanges(): View
