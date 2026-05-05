@@ -1,9 +1,18 @@
 <x-app-layout>
     <div class="max-w-5xl mx-auto px-4 py-10">
 
-        <div class="mb-8">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Les Boucles</h1>
-            <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Communautés thématiques ou professionnelles qui utilisent la plateforme</p>
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Les Boucles</h1>
+                <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Communautés thématiques ou professionnelles qui utilisent la plateforme</p>
+            </div>
+            <a href="{{ route('boucles.request.create') }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Créer ma boucle
+            </a>
         </div>
 
         @if($communities->isEmpty())
