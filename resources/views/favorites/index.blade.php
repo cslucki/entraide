@@ -40,10 +40,11 @@
                         <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-xs">{{ $skill->name }}</span>
                         @endforeach
                     </div>
-                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <a href="{{ route('profile.show', $service->user) }}"
+                       class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                         <img src="{{ $service->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
                         {{ $service->user->name }}
-                    </div>
+                    </a>
                 </div>
             </div>
             @endif

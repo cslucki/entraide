@@ -2,6 +2,15 @@
     <div class="max-w-4xl mx-auto px-4 py-8">
         <!-- Profile header -->
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6 relative">
+            @if(auth()->check() && auth()->id() === $user->id)
+            <div class="absolute top-4 right-4">
+                <a href="{{ route('profile.edit') }}"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    Modifier mon profil
+                </a>
+            </div>
+            @endif
             <div class="flex items-start gap-5">
                 <div class="relative flex-shrink-0">
                     <img src="{{ $user->avatar_url }}" class="w-20 h-20 rounded-full" alt="">
