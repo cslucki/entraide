@@ -80,7 +80,7 @@
         @auth
         <div class="flex justify-end">
             @if($tab === 'services')
-            <a href="{{ route('services.create') }}" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">+ Publier un service</a>
+            <a href="{{ route('services.create') }}" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">+ Publier un {{ $T['service'] }}</a>
             @else
             <a href="{{ route('requests.create') }}" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">+ Publier une demande</a>
             @endif

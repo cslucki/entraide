@@ -23,7 +23,7 @@
                     </a>
                     <a href="{{ route('community.explorer', ['community' => $community->slug]) }}"
                        class="px-6 py-3 bg-white/20 text-white font-semibold rounded-lg hover:bg-white/30 transition shadow-lg border border-white/30">
-                        Explorer les services
+                        Explorer les {{ $T['services'] }}
                     </a>
                 @else
                     <a href="{{ route('community.register', ['community' => $community->slug]) }}"
@@ -49,7 +49,7 @@
                 </div>
                 <div>
                     <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ $serviceCount }}</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Services actifs</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $T['Services'] }}</p>
                 </div>
                 <div>
                     <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ $transactionCount }}</p>

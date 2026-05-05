@@ -122,7 +122,7 @@
         @endif
 
         <!-- Services -->
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Services proposés</h2>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $T['Services'] }} proposés</h2>
         @if($services->isEmpty())
         <p class="text-gray-400 text-sm">Aucun service actif.</p>
         @else

@@ -54,6 +54,8 @@ class AppServiceProvider extends ServiceProvider
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
         });
 
+        View::share('T', config('terms'));
+
         View::composer('*', function ($view) {
             static $settings;
             if (!isset($settings)) {
