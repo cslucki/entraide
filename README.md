@@ -2,76 +2,44 @@
 
 Plateforme permettant à des professionnels indépendants d'échanger leurs compétences sans argent, via un système de points.
 
-**Stack :** 
+Un projet porté par l'association **AMT** (RNA W133002043).
 
-Backend | Laravel 13.7 · PHP 8.4 |
-Database | SQLite (dev) / MySQL (prod) |
-Frontend | Blade · Alpine.js · Tailwind CSS v4 |
-Reactive UI | Livewire 3 |
-Auth | Laravel Breeze (Blade + dark mode) |
-Image processing | `intervention/image` (avatar resize 300×300) |
+**Stack :**
 
+| Couche | Technologie |
+|--------|-------------|
+| Backend | Laravel 13.7 · PHP 8.4 |
+| Base de données | SQLite (dev) · PostgreSQL (prod via Laravel Cloud) |
+| Frontend | Blade · Alpine.js · Tailwind CSS v4 |
+| UI réactive | Livewire 3 |
+| Auth | Laravel Breeze (Blade + dark mode) |
+| Traitement image | `intervention/image` v4 (avatar 300×300, miniatures services) |
+| Déploiement | Laravel Cloud (auto-deploy sur `main`) |
 
 ---
 
-## Installation rapide (WAMP / XAMPP / Windows)
+## Installation (dev)
 
 ### Prérequis
 
-- PHP 8.3+ (inclus dans WAMP)
-- [Composer](https://getcomposer.org/) installé et dans le PATH
-- MySQL (inclus dans WAMP) **ou** SQLite (aucun serveur requis)
+- PHP 8.4+
+- Composer
+- Node.js + npm
 
-### Option A — Script automatique (recommandé)
-
-1. Copiez le dossier du projet dans `C:\wamp64\www\entraide\`
-2. Double-cliquez sur **`install.bat`**
-3. Ouvrez `http://localhost/entraide/public`
-
-### Option B — Installation manuelle
+### Étapes
 
 ```bash
-# 1. Installer les dépendances PHP
 composer install
-
-# 2. Créer le fichier de configuration
-copy .env.example .env
-
-# 3. Générer la clé de l'application
+npm install && npm run build
+cp .env.example .env
 php artisan key:generate
-
-# 4. (SQLite uniquement) Créer le fichier de base de données
-echo.> database\database.sqlite
-
-# 5. Lancer les migrations et peupler la base
+touch database/database.sqlite   # SQLite uniquement
 php artisan migrate --seed
-
-# 6. Créer le lien de stockage des fichiers
 php artisan storage:link
+php artisan serve
 ```
 
----
-
-## Configuration de la base de données
-
-Ouvrez `.env` et choisissez :
-
-**MySQL (WAMP) :**
-```env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=entraide
-DB_USERNAME=root
-DB_PASSWORD=
-```
-Créez la base `entraide` dans phpMyAdmin avant de lancer les migrations.
-
-**SQLite (plus simple, aucun serveur) :**
-```env
-DB_CONNECTION=sqlite
-```
-Le fichier `database/database.sqlite` est créé automatiquement.
+Ouvrir `http://localhost:8000`.
 
 ---
 
@@ -79,32 +47,78 @@ Le fichier `database/database.sqlite` est créé automatiquement.
 
 Après `php artisan migrate --seed` :
 
-| Email | Mot de passe |
-|---|---|
-| test@example.com | password |
-| alice@example.com | password |
+| Email | Mot de passe | Rôle |
+|-------|-------------|------|
+| test@example.com | password | Utilisateur |
+| alice@example.com | password | Utilisateur |
+| admin@example.com | password | Super-admin |
 
 Chaque compte démarre avec **100 points**.
 
 ---
 
-## Fonctionnalités MVP
+## Fonctionnalités
 
-- Inscription / Connexion (Laravel Breeze) + bonus 100 pts à l'inscription
-- Publication et gestion de **services** (skills, tags, mode de prestation, points)
-- Publication et gestion de **demandes** avec fourchettes indicatives
-- **Explorateur** avec recherche full-text, filtres catégorie (multiselect) et mode
-- **Transactions** : cycle de vie complet (pending → accepted → buyer_done → completed)
+### Utilisateurs
+- Inscription / Connexion + bonus 100 pts à l'inscription
+- Profil public : bio, localisation, site web, LinkedIn, badges, note, disponibilité
+- Upload avatar (redimensionné 300×300)
+- Obligation de renseigner une présentation avant de publier (middleware)
+
+### Services
+- Publication avec compétences, tags, mode de prestation (remote / présentiel / les deux)
+- Barème de points unifié : **Essentiel 40–60 pts** · **Standard 60–80 pts** · **Complet 80–100 pts**
+- Miniatures générées en tâche de fond (queue)
+- Mise en pause / suppression (bloquée si transaction active)
+
+### Demandes
+- Budget min/max, délai, pièces jointes (images, PDF, Word, Excel)
+- Statuts : open / closed
+
+### Transactions
+- Cycle complet : pending → accepted → buyer_done → completed
 - Transfert de points atomique via `point_ledger`
-- **Messagerie** contextuelle par transaction (Livewire, polling 3s, messages système)
-- **Dashboard** : 5 métriques, mes annonces, échanges en cours, messages récents
-- **Profil public** avec services actifs, note et disponibilité
+- Évaluations (note + commentaire) à la clôture
+
+### Messagerie
+- Messagerie contextuelle par transaction (Livewire, polling 3 s)
+- Messages système automatiques à chaque changement de statut
+
+### Explorateur
+- Recherche full-text, filtres catégorie (multiselect) et mode de prestation
+
+### Communautés (multi-tenant)
+- Espaces dédiés via `/{community}` avec landing publique ou privée
+- Portail d'auth propre à chaque communauté
+- Données isolées par `community_id` (global scope)
+
+### Administration
+- Gestion utilisateurs, services, demandes, communautés
+- Édition services : super-admin (tous) ou admin de communauté (les siens)
+- Signalements, badges, paramètres
 
 ---
 
-## Démarrage rapide (dev)
+## Structure des points
 
-```bash
-php artisan serve
-# Ouvrir http://localhost:8000
-```
+Un service coûte entre **40 et 100 points** :
+
+| Niveau | Points | Durée estimée |
+|--------|--------|---------------|
+| Essentiel | 40 – 60 pts | 20 à 30 min |
+| Standard | 60 – 80 pts | 30 à 45 min |
+| Complet | 80 – 100 pts | 45 à 60 min |
+
+---
+
+## Déploiement (prod)
+
+Le déploiement est automatique via **Laravel Cloud** sur chaque push sur `main`. Les migrations sont exécutées automatiquement (`migrate --force`). Les seeders ne tournent pas en prod — les données de référence (catégories, fourchettes de points) sont embarquées dans les migrations elles-mêmes.
+
+---
+
+## Liens
+
+- Production : [bouclepro.com](https://bouclepro.com)
+- Code source : [github.com/cslucki/entraide](https://github.com/cslucki/entraide)
+- Mentions légales : `/mentions-legales`
