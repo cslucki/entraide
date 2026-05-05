@@ -12,25 +12,18 @@
                     @endisset
                 </div>
 
-                <!-- Navigation Links -->
+                <!-- Navigation Links (desktop) -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">
-                        Propositions
-                    </x-nav-link>
-                    <x-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">
-                        Annuaire
-                    </x-nav-link>
-                    <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">
-                        Boucles
-                    </x-nav-link>
+                    <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Propositions</x-nav-link>
+                    <x-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-nav-link>
+                    <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-nav-link>
                 </div>
             </div>
 
-            <!-- Recherche globale -->
+            <!-- Recherche globale (desktop) -->
             <div class="hidden sm:flex sm:items-center flex-1 max-w-xs mx-4">
                 <form action="{{ route('search') }}" method="GET" class="relative w-full">
-                    <input type="text" name="q" value="{{ request('q') }}"
-                        placeholder="Rechercher..."
+                    <input type="text" name="q" value="{{ request('q') }}" placeholder="Rechercher..."
                         class="w-full pl-9 pr-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                     <svg class="absolute left-3 top-2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -38,7 +31,7 @@
                 </form>
             </div>
 
-            <!-- Right side -->
+            <!-- Right side (desktop) -->
             <div class="hidden sm:flex sm:items-center sm:ms-6 space-x-3">
                 @auth
                 <!-- Bouton Publier -->
@@ -53,20 +46,18 @@
                             <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
                         </svg>
                     </button>
-                    <div x-show="pubOpen" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+                    <div x-show="pubOpen"
+                         x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-75" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
                          class="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50" style="display:none">
                         <a href="{{ route('requests.create') }}"
                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                            <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
+                            <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             Faire une demande
                         </a>
                         <a href="{{ route('services.create') }}"
                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                            <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                            </svg>
+                            <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                             Proposer un {{ $T['service'] }}
                         </a>
                     </div>
@@ -78,16 +69,12 @@
                     {{ Auth::user()->points_balance }} pts
                 </a>
 
-                <!-- Messages icon avec badge -->
+                <!-- Messages -->
                 @php $unread = auth()->user()->unreadMessagesCount(); @endphp
                 <a href="{{ route('messages.index') }}" class="relative p-2 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition" title="Messages">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/>
-                    </svg>
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/></svg>
                     @if($unread > 0)
-                    <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                        {{ $unread > 9 ? '9+' : $unread }}
-                    </span>
+                    <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{{ $unread > 9 ? '9+' : $unread }}</span>
                     @endif
                 </a>
 
@@ -96,48 +83,27 @@
                         <button class="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                             <img src="{{ Auth::user()->avatar_url }}" class="w-7 h-7 rounded-full" alt="">
                             <span class="text-sm text-gray-700 dark:text-gray-300 font-medium">{{ Auth::user()->name }}</span>
-                            <svg class="fill-current h-4 w-4 text-gray-400" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                            </svg>
+                            <svg class="fill-current h-4 w-4 text-gray-400" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                         </button>
                     </x-slot>
                     <x-slot name="content">
-                        <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                            <span class="font-medium">Tableau de bord</span>
-                        </x-dropdown-link>
-                        <x-dropdown-link :href="route('profile.show', Auth::user())">
-                            Mon profil public
-                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')"><span class="font-medium">Tableau de bord</span></x-dropdown-link>
+                        <x-dropdown-link :href="route('profile.show', Auth::user())">Mon profil public</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
-                        <x-dropdown-link :href="route('services.create')">
-                            Proposer un {{ $T['service'] }}
-                        </x-dropdown-link>
-                        <x-dropdown-link :href="route('requests.create')">
-                            Faire une demande
-                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('requests.create')">Faire une demande</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
-                        <x-dropdown-link :href="route('points.index')">
-                            Historique des points
-                        </x-dropdown-link>
-                        <x-dropdown-link :href="route('favorites.index')">
-                            Mes favoris
-                        </x-dropdown-link>
-                        <x-dropdown-link :href="route('profile.edit')">
-                            Paramètres
-                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('points.index')">Historique des points</x-dropdown-link>
+                        <x-dropdown-link :href="route('favorites.index')">Mes favoris</x-dropdown-link>
+                        <x-dropdown-link :href="route('profile.edit')">Paramètres</x-dropdown-link>
                         @if(Auth::user()->is_admin)
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
-                        <x-dropdown-link :href="route('admin.dashboard')">
-                            <span class="text-purple-600 dark:text-purple-400 font-medium">Administration</span>
-                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">Administration</span></x-dropdown-link>
                         @endif
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-                            <x-dropdown-link :href="route('logout')"
-                                    onclick="event.preventDefault(); this.closest('form').submit();">
-                                Déconnexion
-                            </x-dropdown-link>
+                            <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">Déconnexion</x-dropdown-link>
                         </form>
                     </x-slot>
                 </x-dropdown>
@@ -147,19 +113,23 @@
                 @endauth
             </div>
 
-            <!-- Hamburger -->
-            <div class="-me-2 flex items-center sm:hidden">
+            <!-- Mobile right : messages (auth) + Se connecter (guest) + hamburger -->
+            <div class="flex items-center gap-2 sm:hidden">
                 @auth
                 @php $unread = auth()->user()->unreadMessagesCount(); @endphp
-                <a href="{{ route('messages.index') }}" class="relative p-2 mr-1 text-gray-500 hover:text-indigo-600 transition">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/>
-                    </svg>
+                <a href="{{ route('messages.index') }}" class="relative p-2 text-gray-500 hover:text-indigo-600 transition">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/></svg>
                     @if($unread > 0)
-                    <span class="absolute top-0 right-0 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{{ $unread > 9 ? '9+' : $unread }}</span>
+                    <span class="absolute top-0 right-0 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{{ $unread > 9 ? '9+' : $unread }}</span>
                     @endif
                 </a>
+                @else
+                <a href="{{ route('login') }}"
+                   class="px-3 py-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
+                    Se connecter
+                </a>
                 @endauth
+
                 <button @click="open = ! open" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900 focus:outline-none transition duration-150 ease-in-out">
                     <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
                         <path :class="{'hidden': open, 'inline-flex': ! open }" class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -173,15 +143,9 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">
-                Propositions
-            </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">
-                Annuaire
-            </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">
-                Boucles
-            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Propositions</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-responsive-nav-link>
         </div>
 
         @auth
@@ -206,12 +170,14 @@
                 @endif
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <x-responsive-nav-link :href="route('logout')"
-                            onclick="event.preventDefault(); this.closest('form').submit();">
-                        Déconnexion
-                    </x-responsive-nav-link>
+                    <x-responsive-nav-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">Déconnexion</x-responsive-nav-link>
                 </form>
             </div>
+        </div>
+        @else
+        <div class="pt-4 pb-3 border-t border-gray-200 dark:border-gray-600 px-4 space-y-2">
+            <a href="{{ route('login') }}" class="block text-center py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">Se connecter</a>
+            <a href="{{ route('register') }}" class="block text-center py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">Créer un compte</a>
         </div>
         @endauth
     </div>
