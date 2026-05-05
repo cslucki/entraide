@@ -4,17 +4,21 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\Community;
 use App\Models\PointLedger;
 use App\Models\Report;
+use App\Models\RequestAttachment;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Skill;
+use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -42,7 +46,7 @@ class AdminController extends Controller
 
     public function users(Request $request): View
     {
-        $query = User::withCount(['services', 'buyerTransactions', 'sellerTransactions', 'reviewsReceived']);
+        $query = User::with(['community'])->withCount(['services', 'buyerTransactions', 'sellerTransactions', 'reviewsReceived']);
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
@@ -160,6 +164,29 @@ class AdminController extends Controller
         return back()->with('success', "Mot de passe de {$user->name} modifié.");
     }
 
+    public function assignCommunity(Request $request, User $user): RedirectResponse
+    {
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'Vous ne pouvez pas vous affecter vous-même.');
+        }
+
+        $data = $request->validate([
+            'community_id' => ['nullable', 'uuid', 'exists:communities,id'],
+        ]);
+
+        $community = $data['community_id']
+            ? Community::withTrashed()->find($data['community_id'])
+            : null;
+
+        $user->update(['community_id' => $data['community_id']]);
+
+        if ($community) {
+            return back()->with('success', "{$user->name} affecté à la communauté {$community->name}.");
+        }
+
+        return back()->with('success', "{$user->name} retiré de sa communauté (retour communauté globale).");
+    }
+
     // ── Services ─────────────────────────────────────────────────────────────
 
     public function services(Request $request): View
@@ -182,6 +209,71 @@ class AdminController extends Controller
         $services = $query->latest()->paginate(25)->withQueryString();
 
         return view('admin.services', compact('services'));
+    }
+
+    public function editService(Service $service): View
+    {
+        $this->authorizeServiceEdit($service);
+
+        $service->load(['category', 'skills', 'tags']);
+        $categories = Category::orderBy('name')->get();
+        $skills = Skill::with('category')->orderBy('name')->get();
+
+        return view('admin.services.edit', compact('service', 'categories', 'skills'));
+    }
+
+    public function updateService(Request $request, Service $service): RedirectResponse
+    {
+        $this->authorizeServiceEdit($service);
+
+        $data = $request->validate([
+            'title'         => 'required|string|max:255',
+            'description'   => 'required|string',
+            'category_id'   => 'required|uuid|exists:categories,id',
+            'delivery_mode' => 'required|in:remote,onsite,both',
+            'points_cost'   => 'required|integer|min:1',
+            'status'        => 'required|in:active,paused',
+            'skills'        => 'nullable|array',
+            'skills.*'      => 'uuid|exists:skills,id',
+            'tags'          => 'nullable|string',
+        ]);
+
+        $service->update([
+            'title'         => $data['title'],
+            'description'   => $data['description'],
+            'category_id'   => $data['category_id'],
+            'delivery_mode' => $data['delivery_mode'],
+            'points_cost'   => $data['points_cost'],
+            'status'        => $data['status'],
+        ]);
+
+        $service->skills()->sync($data['skills'] ?? []);
+
+        if (isset($data['tags'])) {
+            $tagIds = [];
+            foreach (array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 5) as $name) {
+                $slug = Str::slug($name);
+                if ($slug) {
+                    $tagIds[] = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug])->id;
+                }
+            }
+            $service->tags()->sync($tagIds);
+        }
+
+        return redirect()->route('admin.services')->with('success', "Service « {$service->title} » modifié.");
+    }
+
+    private function authorizeServiceEdit(Service $service): void
+    {
+        $user = auth()->user();
+        if ($user->is_admin) {
+            return; // super-admin : accès total
+        }
+        // admin d'une communauté : seulement les services de sa communauté
+        $community = Community::where('admin_id', $user->id)->first();
+        if (! $community || $service->community_id !== $community->id) {
+            abort(403);
+        }
     }
 
     public function forceDeleteService(string $id): RedirectResponse
@@ -238,6 +330,84 @@ class AdminController extends Controller
         $requests = $query->latest()->paginate(25)->withQueryString();
 
         return view('admin.requests', compact('requests'));
+    }
+
+    public function editRequest(ServiceRequest $serviceRequest): View
+    {
+        $this->authorizeRequestEdit($serviceRequest);
+
+        $serviceRequest->load('attachments');
+        $categories = Category::orderBy('name')->get();
+
+        return view('admin.requests.edit', compact('serviceRequest', 'categories'));
+    }
+
+    public function updateRequest(Request $request, ServiceRequest $serviceRequest): RedirectResponse
+    {
+        $this->authorizeRequestEdit($serviceRequest);
+
+        $data = $request->validate([
+            'title'         => 'required|string|max:255',
+            'description'   => 'required|string',
+            'category_id'   => 'required|uuid|exists:categories,id',
+            'delivery_mode' => 'required|in:remote,onsite,both',
+            'budget_min'    => 'required|integer|min:1',
+            'budget_max'    => 'nullable|integer|gte:budget_min',
+            'deadline'      => 'nullable|date',
+            'status'        => 'required|in:open,in_progress,closed',
+            'attachments'   => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
+            'delete_attachments'   => 'nullable|array',
+            'delete_attachments.*' => 'uuid|exists:request_attachments,id',
+        ]);
+
+        $serviceRequest->update([
+            'title'         => $data['title'],
+            'description'   => $data['description'],
+            'category_id'   => $data['category_id'],
+            'delivery_mode' => $data['delivery_mode'],
+            'budget_min'    => $data['budget_min'],
+            'budget_max'    => $data['budget_max'] ?? null,
+            'deadline'      => $data['deadline'] ?? null,
+            'status'        => $data['status'],
+        ]);
+
+        if (! empty($data['delete_attachments'])) {
+            $toDelete = RequestAttachment::whereIn('id', $data['delete_attachments'])
+                ->where('service_request_id', $serviceRequest->id)
+                ->get();
+            foreach ($toDelete as $att) {
+                Storage::disk('public')->delete($att->path);
+                $att->delete();
+            }
+        }
+
+        if ($request->hasFile('attachments')) {
+            $currentCount = $serviceRequest->attachments()->count();
+            foreach ($request->file('attachments') as $index => $file) {
+                $path = $file->store('request-attachments', 'public');
+                $serviceRequest->attachments()->create([
+                    'path'          => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type'     => $file->getMimeType(),
+                    'order'         => $currentCount + $index,
+                ]);
+            }
+        }
+
+        return redirect()->route('admin.requests')->with('success', "Demande « {$serviceRequest->title} » modifiée.");
+    }
+
+    private function authorizeRequestEdit(ServiceRequest $serviceRequest): void
+    {
+        $user = auth()->user();
+        if ($user->is_admin) {
+            return;
+        }
+        $community = Community::where('admin_id', $user->id)->first();
+        if (! $community || $serviceRequest->community_id !== $community->id) {
+            abort(403);
+        }
     }
 
     public function closeRequest(ServiceRequest $serviceRequest): RedirectResponse

@@ -51,21 +51,23 @@ class ProfileController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,' . $request->user()->id],
-            'avatar' => ['nullable', 'image', 'max:2048'],
-            'bio' => ['nullable', 'string', 'max:500'],
-            'location' => ['nullable', 'string', 'max:255'],
+            'name'         => ['required', 'string', 'max:255'],
+            'email'        => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,' . $request->user()->id],
+            'avatar'       => ['nullable', 'image', 'max:2048'],
+            'bio'          => ['nullable', 'string', 'max:500'],
+            'location'     => ['nullable', 'string', 'max:255'],
+            'website'      => ['nullable', 'url', 'max:255'],
+            'linkedin_url' => ['nullable', 'url', 'max:255'],
         ]);
 
         if ($request->hasFile('avatar')) {
             $file = $request->file('avatar');
             $filename = time() . '_' . $file->getClientOriginalName();
 
-            $img = Image::read($file);
+            $img = Image::decode($file);
             $img->cover(300, 300);
 
-            Storage::disk('public')->put('avatars/' . $filename, (string) $img->encodeByExtension());
+            Storage::disk('public')->put('avatars/' . $filename, (string) $img->encode());
             $data['avatar'] = 'avatars/' . $filename;
         }
 
