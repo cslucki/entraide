@@ -4,7 +4,7 @@
         <div class="flex">
             <button wire:click="switchTab('requests')"
                 class="px-6 py-3 text-sm font-medium transition {{ $tab === 'requests' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
-                Demandes
+                {{ $T['Requests'] }}
             </button>
             <button wire:click="switchTab('services')"
                 class="px-6 py-3 text-sm font-medium transition {{ $tab === 'services' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
@@ -21,7 +21,7 @@
             @else
             <a href="{{ route('requests.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Faire une demande
+                Faire une {{ $T['request'] }}
             </a>
             @endif
         </div>
@@ -74,13 +74,29 @@
                 {{ $cat->name }}
             </button>
             @endforeach
-            @if(!empty($selectedCategories) || $tagFilter || $deliveryMode || $search || $minRating)
-            <button wire:click="$set('selectedCategories', []); $set('tagFilter', ''); $set('deliveryMode', ''); $set('search', ''); $set('minRating', 0)"
+            @if(!empty($selectedCategories) || $tagFilter || $deliveryMode || $search || $minRating || !empty($selectedSkills))
+            <button wire:click="$set('selectedCategories', []); $set('tagFilter', ''); $set('deliveryMode', ''); $set('search', ''); $set('minRating', 0); $set('selectedSkills', [])"
                 class="px-3 py-1 rounded-full text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
                 Réinitialiser
             </button>
             @endif
         </div>
+
+        <!-- Compétences (sous-filtre quand une catégorie est sélectionnée) -->
+        @if(!empty($selectedCategories))
+        @php $visibleSkills = $categories->whereIn('id', $selectedCategories)->flatMap(fn($c) => $c->skills); @endphp
+        @if($visibleSkills->isNotEmpty())
+        <div class="flex flex-wrap gap-2 pl-3 border-l-2 border-indigo-200 dark:border-indigo-700">
+            <span class="self-center text-xs text-gray-400 dark:text-gray-500 mr-1">Compétences :</span>
+            @foreach($visibleSkills as $skill)
+            <button wire:click="toggleSkill('{{ $skill->id }}')"
+                class="px-2.5 py-1 rounded-full text-xs font-medium border transition {{ in_array($skill->id, $selectedSkills) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-indigo-400' }}">
+                {{ $skill->name }}
+            </button>
+            @endforeach
+        </div>
+        @endif
+        @endif
 
         <!-- Tag actif -->
         @if($tagFilter)
@@ -169,7 +185,7 @@
             @endif
         @else
             @if($items->isEmpty())
-                <p class="text-center text-gray-500 dark:text-gray-400 py-16">Aucune demande trouvée.</p>
+                <p class="text-center text-gray-500 dark:text-gray-400 py-16">Aucune {{ $T['request'] }} trouvée.</p>
             @else
                 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     @foreach($items as $request)

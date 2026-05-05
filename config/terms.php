@@ -15,4 +15,9 @@ return [
     'services' => 'micro-services',
     'Service'  => 'Micro-service',
     'Services' => 'Micro-services',
+
+    'request'  => 'demande d\'aide',
+    'requests' => 'demandes d\'aide',
+    'Request'  => 'Demande d\'aide',
+    'Requests' => 'Demandes d\'aide',
 ];

@@ -9,7 +9,7 @@
             </svg>
             <div>
                 <p class="font-semibold mb-1">Un {{ $T['service'] }}, c'est une compétence que vous proposez en échange de points.</p>
-                <p class="opacity-80">Décrivez précisément ce que vous faites, comment, et ce que le membre obtiendra. Ce n'est pas une annonce de recherche d'emploi — si vous cherchez une mission, utilisez plutôt "Faire une demande".</p>
+                <p class="opacity-80">Décrivez précisément ce que vous faites, comment, et ce que le membre obtiendra. Ce n'est pas une annonce de recherche d'emploi — faites une demande d'aide et choisissez la catégorie "Trouver du travail" pour ce type de besoin.</p>
             </div>
         </div>
 

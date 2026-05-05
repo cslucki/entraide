@@ -8,7 +8,7 @@
             <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
                 <a href="{{ route('explorer') }}" class="px-8 py-3 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition">Voir les {{ $T['services'] }}</a>
                 @auth
-                <a href="{{ route('explorer') }}#demandes" class="px-8 py-3 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-400 border border-indigo-400 transition">Voir les demandes</a>
+                <a href="{{ route('explorer') }}#demandes" class="px-8 py-3 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-400 border border-indigo-400 transition">Voir les {{ $T['requests'] }}</a>
                 @else
                 <a href="{{ route('register') }}" class="px-8 py-3 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-400 border border-indigo-400 transition">Rejoindre gratuitement</a>
                 @endauth
@@ -28,7 +28,7 @@
                 <div class="w-px h-10 bg-white/30"></div>
                 <a href="{{ route('explorer') }}#demandes" class="text-center px-6 hover:bg-white/10 rounded-xl py-2 transition group">
                     <p class="text-3xl font-bold group-hover:scale-110 transition-transform">{{ $stats['requests'] }}</p>
-                    <p class="text-indigo-200 text-sm">Demandes</p>
+                    <p class="text-indigo-200 text-sm">{{ $T['Requests'] }}</p>
                 </a>
                 <div class="w-px h-10 bg-white/30"></div>
                 <a href="{{ route('exchanges.index') }}" class="text-center px-6 hover:bg-white/10 rounded-xl py-2 transition group">
@@ -106,7 +106,7 @@
                     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
                         <div class="flex items-center gap-3 mb-2">
                             <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">BNI</div>
-                            <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">BNI Lyon Est</span>
+                            <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">Alumnis Ecole de Design</span>
                         </div>
                         <p class="text-xs text-gray-500 dark:text-gray-400">32 membres · 120 échanges</p>
                     </div>

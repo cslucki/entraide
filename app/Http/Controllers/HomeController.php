@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\Community;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -26,7 +27,9 @@ class HomeController extends Controller
             ->limit(6)
             ->get();
 
-        return view('home', compact('stats', 'featuredServices'));
+        $categories = Category::orderBy('name')->get();
+
+        return view('home', compact('stats', 'featuredServices', 'categories'));
     }
 
     public function members(): View
