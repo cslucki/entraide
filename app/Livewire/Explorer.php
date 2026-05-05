@@ -16,7 +16,7 @@ class Explorer extends Component
     use WithPagination;
 
     #[Url]
-    public string $tab = 'services';
+    public string $tab = 'requests';
 
     #[Url]
     public string $search = '';

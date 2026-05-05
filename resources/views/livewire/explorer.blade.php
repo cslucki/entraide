@@ -1,13 +1,13 @@
 <div>
     <!-- Tabs -->
     <div class="flex border-b border-gray-200 dark:border-gray-700 mb-6">
-        <button wire:click="switchTab('services')"
-            class="px-6 py-3 text-sm font-medium transition {{ $tab === 'services' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
-            Services
-        </button>
         <button wire:click="switchTab('requests')"
             class="px-6 py-3 text-sm font-medium transition {{ $tab === 'requests' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
             Demandes
+        </button>
+        <button wire:click="switchTab('services')"
+            class="px-6 py-3 text-sm font-medium transition {{ $tab === 'services' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
+            {{ $T['Services'] }}
         </button>
     </div>
 
