@@ -8,7 +8,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <div>
-                <p class="font-semibold mb-1">Un {{ $T['micro-service'] }}, c'est une compétence que vous proposez en échange de points.</p>
+                <p class="font-semibold mb-1">Un {{ $T['service'] }}, c'est une compétence que vous proposez en échange de points.</p>
                 <p class="opacity-80">Décrivez précisément ce que vous faites, comment, et ce que le membre obtiendra. Ce n'est pas une annonce de recherche d'emploi — si vous cherchez une mission, utilisez plutôt "Faire une demande".</p>
             </div>
         </div>
