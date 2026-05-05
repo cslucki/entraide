@@ -69,6 +69,48 @@ class AdminController extends Controller
         return view('admin.users', compact('users'));
     }
 
+    public function editUser(User $user): View
+    {
+        $communities = Community::where('is_active', true)->orderBy('name')->get();
+        return view('admin.users.edit', compact('user', 'communities'));
+    }
+
+    public function updateUser(Request $request, User $user): RedirectResponse
+    {
+        $data = $request->validate([
+            'name'         => 'required|string|max:255',
+            'email'        => 'required|email|max:255|unique:users,email,'.$user->id,
+            'bio'          => 'nullable|string|max:500',
+            'location'     => 'nullable|string|max:100',
+            'website'      => 'nullable|url|max:255',
+            'linkedin_url' => 'nullable|url|max:255',
+            'community_id' => 'nullable|uuid|exists:communities,id',
+            'is_available' => 'boolean',
+            'is_admin'     => 'boolean',
+            'banned'       => 'boolean',
+        ]);
+
+        $update = [
+            'name'         => $data['name'],
+            'email'        => $data['email'],
+            'bio'          => $data['bio'] ?? null,
+            'location'     => $data['location'] ?? null,
+            'website'      => $data['website'] ?? null,
+            'linkedin_url' => $data['linkedin_url'] ?? null,
+            'community_id' => $data['community_id'] ?? null,
+            'is_available' => $request->boolean('is_available'),
+        ];
+
+        if ($user->id !== auth()->id()) {
+            $update['is_admin']  = $request->boolean('is_admin');
+            $update['banned_at'] = $request->boolean('banned') ? ($user->banned_at ?? now()) : null;
+        }
+
+        $user->update($update);
+
+        return back()->with('success', "Profil de {$user->name} mis à jour.");
+    }
+
     public function banUser(User $user): RedirectResponse
     {
         if ($user->id === auth()->id()) {
