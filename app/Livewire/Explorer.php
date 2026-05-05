@@ -15,6 +15,8 @@ class Explorer extends Component
 {
     use WithPagination;
 
+    public ?string $communityId = null;
+
     #[Url]
     public string $tab = 'requests';
 
@@ -44,6 +46,16 @@ class Explorer extends Component
     public function updatedSortBy(): void          { $this->resetPage(); }
     public function updatedTagFilter(): void       { $this->resetPage(); }
     public function updatedMinRating(): void       { $this->resetPage(); }
+
+    public function mount(): void
+    {
+        try {
+            $community = app('current_community');
+            $this->communityId = $community?->id;
+        } catch (\Exception) {
+            $this->communityId = null;
+        }
+    }
 
     public function switchTab(string $tab): void
     {
@@ -79,8 +91,10 @@ class Explorer extends Component
         $categories = Category::all();
 
         if ($this->tab === 'services') {
-            $query = Service::with(['user', 'category', 'skills', 'tags'])
-                ->where('status', 'active');
+            $query = Service::withoutGlobalScopes()
+                ->with(['user', 'category', 'skills', 'tags'])
+                ->where('status', 'active')
+                ->where('community_id', $this->communityId);
 
             if ($this->search) {
                 $search = '%' . $this->search . '%';
@@ -129,7 +143,10 @@ class Explorer extends Component
                     ->flip()
                 : collect();
         } else {
-            $query = ServiceRequest::with(['user', 'category'])->where('status', 'open');
+            $query = ServiceRequest::withoutGlobalScopes()
+                ->with(['user', 'category'])
+                ->where('status', 'open')
+                ->where('community_id', $this->communityId);
 
             if ($this->search) {
                 $search = '%' . $this->search . '%';

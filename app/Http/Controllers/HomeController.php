@@ -31,11 +31,14 @@ class HomeController extends Controller
 
     public function members(): View
     {
-        $members = User::withCount([
-                'services as active_services_count'         => fn($q) => $q->where('status', 'active'),
-                'serviceRequests as open_requests_count'    => fn($q) => $q->where('status', 'open'),
+        $communityId = $this->currentCommunityId();
+
+        $members = User::when($communityId, fn($q) => $q->where('community_id', $communityId))
+            ->withCount([
+                'services as active_services_count'      => fn($q) => $q->withoutGlobalScopes()->where('status', 'active')->where('community_id', $communityId),
+                'serviceRequests as open_requests_count' => fn($q) => $q->withoutGlobalScopes()->where('status', 'open')->where('community_id', $communityId),
             ])
-            ->with(['services' => fn($q) => $q->where('status', 'active')->with('skills', 'category')])
+            ->with(['services' => fn($q) => $q->withoutGlobalScopes()->where('status', 'active')->where('community_id', $communityId)->with('skills', 'category')])
             ->orderByDesc('created_at')
             ->paginate(16);
 
@@ -53,11 +56,24 @@ class HomeController extends Controller
 
     public function exchanges(): View
     {
-        $exchanges = Transaction::where('status', 'completed')
+        $communityId = $this->currentCommunityId();
+
+        $exchanges = Transaction::withoutGlobalScopes()
+            ->where('status', 'completed')
+            ->where('community_id', $communityId)
             ->with(['buyer', 'seller', 'service.category', 'serviceRequest', 'reviews'])
             ->latest('updated_at')
             ->paginate(20);
 
         return view('exchanges.index', compact('exchanges'));
+    }
+
+    private function currentCommunityId(): ?string
+    {
+        try {
+            return app('current_community')?->id;
+        } catch (\Exception) {
+            return null;
+        }
     }
 }
