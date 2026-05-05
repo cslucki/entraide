@@ -1,6 +1,17 @@
 <x-app-layout>
     <div class="max-w-3xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Publier un {{ $T['service'] }}</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Proposer un {{ $T['service'] }}</h1>
+
+        <!-- Note pédagogique -->
+        <div class="mb-6 flex gap-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-4 text-sm text-indigo-700 dark:text-indigo-300">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <p class="font-semibold mb-1">Un {{ $T['micro-service'] }}, c'est une compétence que vous proposez en échange de points.</p>
+                <p class="opacity-80">Décrivez précisément ce que vous faites, comment, et ce que le membre obtiendra. Ce n'est pas une annonce de recherche d'emploi — si vous cherchez une mission, utilisez plutôt "Faire une demande".</p>
+            </div>
+        </div>
 
         @if($errors->any())
         <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
@@ -31,15 +42,20 @@
 
             <!-- Titre -->
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre *</label>
-                <input type="text" name="title" value="{{ old('title') }}" required maxlength="255"
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre <span class="text-red-500">*</span></label>
+                <input type="text" name="title" value="{{ old('title') }}" required minlength="10" maxlength="255"
+                    placeholder="Ex : Création de logo professionnel, Traduction FR→EN, Conseil comptable 1h…"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
             </div>
 
             <!-- Description -->
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description *</label>
-                <textarea name="description" rows="5" required
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Description <span class="text-red-500">*</span>
+                    <span class="text-gray-400 font-normal">(100 caractères minimum)</span>
+                </label>
+                <textarea name="description" rows="6" required minlength="100"
+                    placeholder="Décrivez ce que vous proposez concrètement :&#10;- Ce que le membre reçoit exactement&#10;- Comment vous travaillez&#10;- Vos conditions (délai, format de livraison…)&#10;&#10;Exemple : Je réalise votre logo professionnel en 3 propositions avec retouches illimitées sous 5 jours. Formats livrés : PNG, SVG, PDF. Je travaille sur Figma et Illustrator."
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">{{ old('description') }}</textarea>
             </div>
 
