@@ -1,14 +1,31 @@
 <div>
-    <!-- Tabs -->
-    <div class="flex border-b border-gray-200 dark:border-gray-700 mb-6">
-        <button wire:click="switchTab('requests')"
-            class="px-6 py-3 text-sm font-medium transition {{ $tab === 'requests' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
-            Demandes
-        </button>
-        <button wire:click="switchTab('services')"
-            class="px-6 py-3 text-sm font-medium transition {{ $tab === 'services' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
-            {{ $T['Services'] }}
-        </button>
+    <!-- Tabs + bouton publier -->
+    <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
+        <div class="flex">
+            <button wire:click="switchTab('requests')"
+                class="px-6 py-3 text-sm font-medium transition {{ $tab === 'requests' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
+                Demandes
+            </button>
+            <button wire:click="switchTab('services')"
+                class="px-6 py-3 text-sm font-medium transition {{ $tab === 'services' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
+                {{ $T['Services'] }}
+            </button>
+        </div>
+        @auth
+        <div class="pb-1">
+            @if($tab === 'services')
+            <a href="{{ route('services.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Publier un {{ $T['service'] }}
+            </a>
+            @else
+            <a href="{{ route('requests.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Publier une demande
+            </a>
+            @endif
+        </div>
+        @endauth
     </div>
 
     <!-- Filtres -->
@@ -76,16 +93,7 @@
         </div>
         @endif
 
-        <!-- Bouton publier -->
-        @auth
-        <div class="flex justify-end">
-            @if($tab === 'services')
-            <a href="{{ route('services.create') }}" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">+ Publier un {{ $T['service'] }}</a>
-            @else
-            <a href="{{ route('requests.create') }}" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">+ Publier une demande</a>
-            @endif
-        </div>
-        @endauth
+
     </div>
 
     <!-- Résultats -->
