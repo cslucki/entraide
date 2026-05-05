@@ -14,11 +14,7 @@ class CommunityLandingController extends Controller
         $community = Community::findBySlug($community);
         abort_if(!$community || !$community->is_active, 404);
 
-        if (auth()->check()) {
-            return redirect()->route('community.dashboard', ['community' => $community->slug]);
-        }
-
-        if (! $community->is_public) {
+        if (! $community->is_public && ! auth()->check()) {
             return redirect()->route('community.login', ['community' => $community->slug]);
         }
 
