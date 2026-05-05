@@ -1,0 +1,27 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class CommunityRequest extends Model
+{
+    use HasUuids;
+
+    protected $fillable = [
+        'boucle_name',
+        'contact_name',
+        'contact_email',
+        'description',
+        'context',
+        'status',
+        'user_id',
+    ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}

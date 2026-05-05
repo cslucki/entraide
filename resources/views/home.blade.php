@@ -2,8 +2,9 @@
     <!-- Hero -->
     <div class="bg-gradient-to-br from-indigo-600 to-purple-700 text-white py-20">
         <div class="max-w-4xl mx-auto px-4 text-center">
-            <h1 class="text-4xl md:text-5xl font-bold mb-4">Plateforme d'entraide</h1>
-            <p class="text-xl text-indigo-100 mb-10">Proposez vos {{ $T['services'] }}, trouvez ce dont vous avez besoin, et échangez avec des points.</p>
+            <h1 class="text-4xl md:text-5xl font-bold mb-4">BouclePro</h1>
+            <p class="text-xl text-indigo-100 mb-3">Proposez vos {{ $T['services'] }}, trouvez ce dont vous avez besoin, et échangez avec des points.</p>
+            <p class="text-indigo-200 mb-10 text-base">Au sein de votre réseau professionnel — votre <span class="font-semibold text-white">boucle</span>.</p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
                 <a href="{{ route('explorer') }}" class="px-8 py-3 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition">Voir les {{ $T['services'] }}</a>
                 @auth
@@ -63,6 +64,67 @@
                     </div>
                     <h3 class="font-semibold text-lg mb-2 dark:text-gray-100">Accumulez des points</h3>
                     <p class="text-gray-500 dark:text-gray-400">Les points se transfèrent automatiquement à la validation mutuelle.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create your boucle CTA -->
+    <div class="py-16 bg-indigo-50 dark:bg-indigo-950/40">
+        <div class="max-w-5xl mx-auto px-4">
+            <div class="flex flex-col md:flex-row items-center gap-10">
+                <div class="flex-1">
+                    <span class="inline-block text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-3">Créateurs de réseau</span>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Créez votre propre boucle</h2>
+                    <p class="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+                        Vous animez un réseau professionnel, une association ou un groupe de co-travailleurs ?
+                        Créez votre espace privé sur BouclePro et invitez vos membres à échanger leurs compétences.
+                    </p>
+                    <div class="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400 mb-8">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Espace privé personnalisé
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Gratuit
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Accompagnement à la mise en place
+                        </div>
+                    </div>
+                    <a href="{{ route('boucles.request.create') }}"
+                       class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Créer ma boucle
+                    </a>
+                </div>
+                <div class="hidden md:flex flex-col gap-3 w-56">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">BNI</div>
+                            <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">BNI Lyon Est</span>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">32 membres · 120 échanges</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center text-white text-xs font-bold">AMT</div>
+                            <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">AMT Télétravail</span>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">18 membres · 45 échanges</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-indigo-200 dark:border-indigo-700 p-4 shadow-sm border-dashed opacity-60">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg border-2 border-dashed border-indigo-300 dark:border-indigo-600 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            </div>
+                            <span class="text-sm text-indigo-500 dark:text-indigo-400">Votre boucle ici</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

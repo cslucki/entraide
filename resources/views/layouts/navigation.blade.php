@@ -4,8 +4,8 @@
             <div class="flex">
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
-                    <a href="{{ route('home') }}" class="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-                        BouclePro.com
+                    <a href="{{ route('home') }}" class="flex items-center">
+                        <img src="/favicon.svg" alt="BouclePro" class="h-8 w-8">
                     </a>
                     @isset($currentCommunity)
                     <span class="ml-2 text-xs text-gray-500 dark:text-gray-400 border-l border-gray-300 dark:border-gray-600 pl-2">{{ $currentCommunity->name }}</span>
