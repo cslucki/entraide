@@ -28,6 +28,15 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        $user = $request->user();
+
+        if ($user->community_id) {
+            $community = $user->community;
+            if ($community && $community->is_active) {
+                return redirect()->intended(route('community.home', ['community' => $community->slug]));
+            }
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

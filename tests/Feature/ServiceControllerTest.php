@@ -37,7 +37,7 @@ class ServiceControllerTest extends TestCase
 
     public function test_owner_can_create_service(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['bio' => 'Développeur web freelance.']);
         $category = Category::factory()->create();
 
         $response = $this->actingAs($user)->post(route('services.store'), [
@@ -63,7 +63,7 @@ class ServiceControllerTest extends TestCase
             'description' => 'Updated description.',
             'category_id' => $category->id,
             'delivery_mode' => 'both',
-            'points_cost' => 200,
+            'points_cost' => 80,
             'status' => 'paused',
         ]);
 
@@ -83,7 +83,7 @@ class ServiceControllerTest extends TestCase
             'description' => 'Hacked.',
             'category_id' => $category->id,
             'delivery_mode' => 'remote',
-            'points_cost' => 999,
+            'points_cost' => 90,
             'status' => 'active',
         ]);
 
@@ -123,7 +123,7 @@ class ServiceControllerTest extends TestCase
 
     public function test_service_creation_with_tags(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['bio' => 'Développeur web freelance.']);
         $category = Category::factory()->create();
 
         $response = $this->actingAs($user)->post(route('services.store'), [

@@ -62,7 +62,7 @@ class ServiceController extends Controller
             'description' => 'required|string',
             'category_id' => 'required|uuid|exists:categories,id',
             'delivery_mode' => 'required|in:remote,onsite,both',
-            'points_cost' => 'required|integer|min:1',
+            'points_cost' => 'required|integer|min:40|max:100',
             'skills' => 'nullable|array',
             'skills.*' => 'uuid|exists:skills,id',
             'tags' => 'nullable|string',
@@ -72,6 +72,7 @@ class ServiceController extends Controller
 
         $service = Service::create([
             'user_id' => auth()->id(),
+            'community_id' => $request->input('community_id'),
             'title' => $data['title'],
             'description' => $data['description'],
             'category_id' => $data['category_id'],
@@ -99,10 +100,10 @@ class ServiceController extends Controller
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $index => $file) {
                 $filename = time() . '_' . $index . '_' . $file->getClientOriginalName();
-                $img = Image::read($file);
-                $img->scale(width: 1200, height: 800, upscale: false);
+                $img = Image::decode($file);
+                $img->scaleDown(1200, 800);
 
-                Storage::disk('public')->put('services/' . $filename, (string) $img->encodeByExtension());
+                Storage::disk('public')->put('services/' . $filename, (string) $img->encode());
 
                 $serviceImage = $service->images()->create([
                     'path' => 'services/' . $filename,
@@ -134,7 +135,7 @@ class ServiceController extends Controller
             'description' => 'required|string',
             'category_id' => 'required|uuid|exists:categories,id',
             'delivery_mode' => 'required|in:remote,onsite,both',
-            'points_cost' => 'required|integer|min:1',
+            'points_cost' => 'required|integer|min:40|max:100',
             'status' => 'required|in:active,paused',
             'skills' => 'nullable|array',
             'skills.*' => 'uuid|exists:skills,id',
@@ -182,10 +183,10 @@ class ServiceController extends Controller
                 if ($currentCount + $index >= 5) break;
 
                 $filename = time() . '_' . $index . '_' . $file->getClientOriginalName();
-                $img = Image::read($file);
-                $img->scale(width: 1200, height: 800, upscale: false);
+                $img = Image::decode($file);
+                $img->scaleDown(1200, 800);
 
-                Storage::disk('public')->put('services/' . $filename, (string) $img->encodeByExtension());
+                Storage::disk('public')->put('services/' . $filename, (string) $img->encode());
 
                 $serviceImage = $service->images()->create([
                     'path' => 'services/' . $filename,

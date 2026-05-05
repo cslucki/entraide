@@ -62,15 +62,16 @@
                         <span class="px-2 py-0.5 rounded text-xs {{ $sc[$req->status] ?? '' }}">{{ $sl[$req->status] ?? $req->status }}</span>
                     </td>
                     <td class="px-4 py-3">
-                        @if($req->status !== 'closed')
-                        <form method="POST" action="{{ route('admin.requests.close', $req) }}"
-                              onsubmit="return confirm('Clôturer cette demande ?')">
-                            @csrf @method('PATCH')
-                            <button class="text-xs text-orange-500 hover:underline">Clôturer</button>
-                        </form>
-                        @else
-                        <span class="text-xs text-gray-400">—</span>
-                        @endif
+                        <div class="flex gap-2 items-center">
+                            <a href="{{ route('admin.requests.edit', $req) }}" class="text-xs text-amber-600 dark:text-amber-400 hover:underline">Modifier</a>
+                            @if($req->status !== 'closed')
+                            <form method="POST" action="{{ route('admin.requests.close', $req) }}"
+                                  onsubmit="return confirm('Clôturer cette demande ?')">
+                                @csrf @method('PATCH')
+                                <button class="text-xs text-orange-500 hover:underline">Clôturer</button>
+                            </form>
+                            @endif
+                        </div>
                     </td>
                 </tr>
                 @empty

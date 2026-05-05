@@ -24,16 +24,19 @@ class TransactionController extends Controller
 
         $buyer = auth()->user();
 
-        // Determine seller
+        // Determine seller and community_id
+        $communityId = null;
         if (!empty($data['service_id'])) {
-            $service = Service::findOrFail($data['service_id']);
+            $service = Service::withoutGlobalScope(\App\Models\Scopes\BelongsToTenantScope::class)->findOrFail($data['service_id']);
             $seller = $service->user;
             $sellerId = $seller->id;
+            $communityId = $service->community_id;
         } else {
-            $serviceReq = ServiceRequest::findOrFail($data['request_id']);
+            $serviceReq = ServiceRequest::withoutGlobalScope(\App\Models\Scopes\BelongsToTenantScope::class)->findOrFail($data['request_id']);
             $seller = $buyer;
             $sellerId = $buyer->id;
             $buyer = $serviceReq->user;
+            $communityId = $serviceReq->community_id;
         }
 
         // Prevent self-transaction
@@ -65,6 +68,7 @@ class TransactionController extends Controller
             'request_id' => $data['request_id'] ?? null,
             'buyer_id' => $buyer->id,
             'seller_id' => $sellerId,
+            'community_id' => $communityId,
             'points_proposed' => $data['points_proposed'],
             'status' => 'pending',
         ]);

@@ -54,10 +54,33 @@
         </div>
 
         <div>
-            <x-input-label for="bio" value="Bio / Description" />
-            <textarea id="bio" name="bio" rows="4" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" maxlength="500">{{ old('bio', $user->bio) }}</textarea>
-            <p class="mt-1 text-xs text-gray-500">Max 500 caractères.</p>
+            <x-input-label for="bio" value="Présentation" />
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Décrivez qui vous êtes, vos expertises, votre parcours. Cette présentation apparaît sur votre profil public et rassure les membres avant de vous contacter.</p>
+            <textarea id="bio" name="bio" rows="5" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" maxlength="500" placeholder="Ex : Consultante RH indépendante depuis 2015, je m'occupe de recrutement, de formation et d'accompagnement managérial pour les PME...">{{ old('bio', $user->bio) }}</textarea>
+            <p class="mt-1 text-xs text-gray-400">Max 500 caractères — <span x-data x-text="500 - ($refs.bio?.value?.length ?? 0)" x-ref="bioCount">500</span> restants</p>
             <x-input-error class="mt-2" :messages="$errors->get('bio')" />
+        </div>
+
+        <div>
+            <x-input-label for="website" value="Site web" />
+            <div class="mt-1 flex rounded-md shadow-sm">
+                <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 text-sm">🌐</span>
+                <x-text-input id="website" name="website" type="url" class="rounded-l-none block w-full"
+                    :value="old('website', $user->website)"
+                    placeholder="https://monsite.fr" />
+            </div>
+            <x-input-error class="mt-2" :messages="$errors->get('website')" />
+        </div>
+
+        <div>
+            <x-input-label for="linkedin_url" value="Profil LinkedIn" />
+            <div class="mt-1 flex rounded-md shadow-sm">
+                <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 text-sm">in</span>
+                <x-text-input id="linkedin_url" name="linkedin_url" type="url" class="rounded-l-none block w-full"
+                    :value="old('linkedin_url', $user->linkedin_url)"
+                    placeholder="https://linkedin.com/in/votre-profil" />
+            </div>
+            <x-input-error class="mt-2" :messages="$errors->get('linkedin_url')" />
         </div>
 
         <div x-data="{ preview: null }">

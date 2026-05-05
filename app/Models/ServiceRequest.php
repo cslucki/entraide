@@ -63,6 +63,11 @@ class ServiceRequest extends Model
         return $this->hasMany(Transaction::class, 'request_id');
     }
 
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(RequestAttachment::class)->orderBy('order');
+    }
+
     public function scopeOpen($query)
     {
         return $query->where('status', 'open');

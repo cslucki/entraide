@@ -3,7 +3,16 @@
         <!-- Profile header -->
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6 relative">
             <div class="flex items-start gap-5">
-                <img src="{{ $user->avatar_url }}" class="w-20 h-20 rounded-full" alt="">
+                <div class="relative flex-shrink-0">
+                    <img src="{{ $user->avatar_url }}" class="w-20 h-20 rounded-full" alt="">
+                    @if(auth()->check() && auth()->id() === $user->id)
+                    <a href="{{ route('profile.edit') }}"
+                       class="absolute bottom-0 right-0 w-6 h-6 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center shadow-md transition"
+                       title="Modifier mon profil">
+                        <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </a>
+                    @endif
+                </div>
                 <div class="flex-1">
                     <div class="flex items-center gap-3 flex-wrap">
                         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $user->name }}</h1>
@@ -26,6 +35,24 @@
                     @if($user->bio)
                     <div class="mt-4 text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm leading-relaxed max-w-2xl">
                         {{ $user->bio }}
+                    </div>
+                    @endif
+                    @if($user->website || $user->linkedin_url)
+                    <div class="flex flex-wrap gap-3 mt-3">
+                        @if($user->website)
+                        <a href="{{ $user->website }}" target="_blank" rel="noopener noreferrer"
+                           class="inline-flex items-center gap-1.5 text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+                            {{ parse_url($user->website, PHP_URL_HOST) ?: $user->website }}
+                        </a>
+                        @endif
+                        @if($user->linkedin_url)
+                        <a href="{{ $user->linkedin_url }}" target="_blank" rel="noopener noreferrer"
+                           class="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            LinkedIn
+                        </a>
+                        @endif
                     </div>
                     @endif
                     @if($badges->isNotEmpty())
