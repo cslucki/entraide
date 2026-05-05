@@ -41,6 +41,37 @@
             <!-- Right side -->
             <div class="hidden sm:flex sm:items-center sm:ms-6 space-x-3">
                 @auth
+                <!-- Bouton Publier -->
+                <div x-data="{ pubOpen: false }" class="relative" @click.outside="pubOpen = false">
+                    <button @click="pubOpen = !pubOpen"
+                            class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Publier
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                        </svg>
+                    </button>
+                    <div x-show="pubOpen" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+                         class="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50" style="display:none">
+                        <a href="{{ route('requests.create') }}"
+                           class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                            <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Faire une demande
+                        </a>
+                        <a href="{{ route('services.create') }}"
+                           class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                            <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                            </svg>
+                            Proposer un {{ $T['service'] }}
+                        </a>
+                    </div>
+                </div>
+
                 <!-- Points balance -->
                 <a href="{{ route('points.index') }}" class="flex items-center gap-1 px-3 py-1 bg-indigo-50 dark:bg-indigo-900 rounded-full text-sm font-semibold text-indigo-700 dark:text-indigo-300">
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm1 11H9V9h2v4zm0-6H9V5h2v2z"/></svg>
@@ -79,10 +110,10 @@
                         </x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('services.create')">
-                            + Publier un {{ $T['service'] }}
+                            Proposer un {{ $T['service'] }}
                         </x-dropdown-link>
                         <x-dropdown-link :href="route('requests.create')">
-                            + Publier une demande
+                            Faire une demande
                         </x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('points.index')">
@@ -165,8 +196,8 @@
             <div class="mt-1 space-y-1">
                 <x-responsive-nav-link :href="route('dashboard')">Tableau de bord</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.show', Auth::user())">Mon profil public</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('services.create')">+ Publier un {{ $T['service'] }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('requests.create')">+ Publier une demande</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('requests.create')">Faire une demande</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('points.index')">Historique des points</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">Mes favoris</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.edit')">Paramètres</x-responsive-nav-link>
