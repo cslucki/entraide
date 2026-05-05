@@ -1,5 +1,6 @@
 *.log
 .DS_Store
+/@DOCS/
 .env
 .env.backup
 .env.production
@@ -25,8 +26,13 @@ Homestead.yaml
 Thumbs.db
 ADMIN.md
 ADMIN_HOWTO.md
+TODO_*.md
+TASKS.md
 
 # Playwright
 playwright-report/
 test-results/
 playwright/.auth/
+
+# Screenshots
+/_screenshots
