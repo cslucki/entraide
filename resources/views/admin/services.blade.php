@@ -65,6 +65,7 @@
                         <div class="flex gap-2 items-center">
                             @if(!$service->deleted_at)
                             <a href="{{ route('services.show', $service) }}" class="text-xs text-indigo-600 hover:underline">Voir</a>
+                            <a href="{{ route('admin.services.edit', $service) }}" class="text-xs text-amber-600 dark:text-amber-400 hover:underline">Modifier</a>
                             <form method="POST" action="{{ route('admin.services.force-delete', $service->id) }}"
                                   onsubmit="return confirm('Supprimer définitivement ce service ?')">
                                 @csrf @method('DELETE')

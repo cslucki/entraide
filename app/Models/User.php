@@ -26,6 +26,8 @@ class User extends Authenticatable
         'avatar',
         'bio',
         'location',
+        'website',
+        'linkedin_url',
         'points_balance',
         'is_available',
         'is_admin',

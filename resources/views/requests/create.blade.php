@@ -8,9 +8,12 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ route('requests.store') }}"
-              x-data="{ selectedCategory: '{{ old('category_id', '') }}' }">
+        <form method="POST" action="{{ route('requests.store') }}" enctype="multipart/form-data"
+              x-data="{ selectedCategory: '{{ old('category_id', '') }}', files: [] }">
             @csrf
+            @isset($currentCommunity)
+            <input type="hidden" name="community_id" value="{{ $currentCommunity->id }}">
+            @endisset
 
             <div class="mb-5">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre *</label>
@@ -72,6 +75,56 @@
                     @endforeach
                 </div>
                 @endforeach
+            </div>
+
+            {{-- Pièces jointes --}}
+            <div class="mb-5"
+                 x-data="{
+                    files: [],
+                    addFiles(e) {
+                        const max = 5;
+                        const newFiles = Array.from(e.target.files);
+                        this.files = [...this.files, ...newFiles].slice(0, max);
+                        // rebuild the file input with a DataTransfer
+                        const dt = new DataTransfer();
+                        this.files.forEach(f => dt.items.add(f));
+                        e.target.files = dt.files;
+                    },
+                    remove(index) {
+                        this.files.splice(index, 1);
+                        const dt = new DataTransfer();
+                        this.files.forEach(f => dt.items.add(f));
+                        document.getElementById('attachments-input').files = dt.files;
+                    },
+                    icon(file) {
+                        if (file.type.startsWith('image/')) return '🖼️';
+                        if (file.type === 'application/pdf') return '📄';
+                        if (file.type.includes('word')) return '📝';
+                        if (file.type.includes('excel') || file.type.includes('spreadsheet')) return '📊';
+                        return '📎';
+                    }
+                 }">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Pièces jointes <span class="text-gray-400">optionnelles — max 5 fichiers · 10 Mo chacun</span>
+                </label>
+                <label class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors bg-gray-50 dark:bg-gray-800/50">
+                    <svg class="w-6 h-6 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    <span class="text-sm text-gray-500 dark:text-gray-400">Cliquer pour ajouter des images ou documents</span>
+                    <span class="text-xs text-gray-400 mt-0.5">JPG · PNG · PDF · Word · Excel</span>
+                    <input id="attachments-input" type="file" name="attachments[]" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                        class="hidden" @change="addFiles($event)">
+                </label>
+                <ul x-show="files.length > 0" class="mt-2 space-y-1">
+                    <template x-for="(file, i) in files" :key="i">
+                        <li class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 px-3 py-1.5 rounded-lg">
+                            <span x-text="icon(file)" class="text-base"></span>
+                            <span class="flex-1 truncate" x-text="file.name"></span>
+                            <span class="text-xs text-gray-400" x-text="(file.size/1024/1024).toFixed(1) + ' Mo'"></span>
+                            <button type="button" @click="remove(i)" class="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+                        </li>
+                    </template>
+                </ul>
+                @error('attachments.*')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
             </div>
 
             <div class="mb-8">
