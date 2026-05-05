@@ -99,7 +99,8 @@
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex gap-2 items-center flex-wrap">
-                            <a href="{{ route('profile.show', $u) }}" class="text-xs text-indigo-600 hover:underline">Profil</a>
+                            <a href="{{ route('admin.users.edit', $u) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
+                            <a href="{{ route('profile.show', $u) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
 
                             <form method="POST" action="{{ route('admin.users.toggle-availability', $u) }}">
                                 @csrf @method('PATCH')
