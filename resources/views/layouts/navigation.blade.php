@@ -7,6 +7,9 @@
                     <a href="{{ route('home') }}" class="text-xl font-bold text-indigo-600 dark:text-indigo-400">
                         BouclePro.com
                     </a>
+                    @isset($currentCommunity)
+                    <span class="ml-2 text-xs text-gray-500 dark:text-gray-400 border-l border-gray-300 dark:border-gray-600 pl-2">{{ $currentCommunity->name }}</span>
+                    @endisset
                 </div>
 
                 <!-- Navigation Links -->

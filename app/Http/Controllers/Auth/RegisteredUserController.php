@@ -38,11 +38,14 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
+        $community = app('current_community', null);
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'points_balance' => 100,
+            'community_id' => $community?->id,
         ]);
 
         PointLedger::create([
@@ -57,6 +60,13 @@ class RegisteredUserController extends Controller
         $user->notify(new WelcomeNotification());
 
         Auth::login($user);
+
+        if ($user->community_id) {
+            $community = $user->community;
+            if ($community && $community->is_active) {
+                return redirect()->intended(route('community.home', ['community' => $community->slug]));
+            }
+        }
 
         return redirect(route('dashboard', absolute: false));
     }

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Community;
 use App\Models\PointLedger;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -11,6 +12,8 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        $community = Community::where('slug', 'cpme')->first();
+
         $user = User::firstOrCreate(
             ['email' => 'test@example.com'],
             [
@@ -20,6 +23,7 @@ class UserSeeder extends Seeder
                 'is_available' => true,
                 'is_admin' => true,
                 'email_verified_at' => now(),
+                'community_id' => $community?->id,
             ]
         );
 
@@ -40,6 +44,7 @@ class UserSeeder extends Seeder
                 'points_balance' => 100,
                 'is_available' => true,
                 'email_verified_at' => now(),
+                'community_id' => $community?->id,
             ]
         );
 

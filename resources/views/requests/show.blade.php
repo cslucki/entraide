@@ -38,6 +38,34 @@
                     <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ $request->description }}</p>
                 </div>
 
+                @if($request->attachments->isNotEmpty())
+                <div class="mb-6 border-t border-gray-100 dark:border-gray-700 pt-5">
+                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Pièces jointes</h3>
+                    <div class="flex flex-wrap gap-3">
+                        @foreach($request->attachments as $att)
+                            @if($att->isImage())
+                            <a href="{{ $att->url }}" target="_blank" rel="noopener noreferrer"
+                               class="block w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 hover:opacity-80 transition">
+                                <img src="{{ $att->url }}" alt="{{ $att->original_name }}" class="w-full h-full object-cover">
+                            </a>
+                            @else
+                            <a href="{{ $att->url }}" target="_blank" rel="noopener noreferrer"
+                               class="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-indigo-400 transition text-sm text-gray-700 dark:text-gray-300">
+                                @if($att->iconClass() === 'pdf')
+                                    <span class="text-red-500 text-lg">📄</span>
+                                @elseif($att->iconClass() === 'word')
+                                    <span class="text-blue-500 text-lg">📝</span>
+                                @elseif($att->iconClass() === 'excel')
+                                    <span class="text-green-500 text-lg">📊</span>
+                                @endif
+                                <span class="max-w-[160px] truncate">{{ $att->original_name }}</span>
+                            </a>
+                            @endif
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
                 @auth
                 @if(auth()->id() !== $request->user_id)
                 <!-- Signalement -->

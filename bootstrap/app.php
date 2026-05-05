@@ -13,8 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'admin' => \App\Http\Middleware\AdminMiddleware::class,
-            'community' => \App\Http\Middleware\ResolveCommunity::class,
+            'admin'            => \App\Http\Middleware\AdminMiddleware::class,
+            'community'        => \App\Http\Middleware\ResolveCommunity::class,
+            'profile.complete' => \App\Http\Middleware\EnsureProfileComplete::class,
         ]);
         $middleware->appendToGroup('web', [
             \App\Http\Middleware\EnsureUserIsNotBanned::class,

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Community;
 use App\Models\PointLedger;
 use App\Models\User;
 use Tests\TestCase;
@@ -165,5 +166,72 @@ class AdminUsersTest extends TestCase
             ->assertRedirect();
 
         $this->assertFalse($user->fresh()->is_available);
+    }
+
+    // ── Assign community ──────────────────────────────────────────────────────
+
+    public function test_admin_can_assign_user_to_community(): void
+    {
+        $admin     = $this->makeAdmin();
+        $user      = User::factory()->create(['community_id' => null]);
+        $community = Community::factory()->create(['is_active' => true]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.assign-community', $user), ['community_id' => $community->id])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertEquals($community->id, $user->fresh()->community_id);
+    }
+
+    public function test_admin_can_remove_user_from_community(): void
+    {
+        $admin     = $this->makeAdmin();
+        $community = Community::factory()->create(['is_active' => true]);
+        $user      = User::factory()->create(['community_id' => $community->id]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.assign-community', $user), ['community_id' => null])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertNull($user->fresh()->community_id);
+    }
+
+    public function test_admin_cannot_assign_themselves_to_community(): void
+    {
+        $admin     = $this->makeAdmin();
+        $community = Community::factory()->create(['is_active' => true]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.assign-community', $admin), ['community_id' => $community->id])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertNull($admin->fresh()->community_id);
+    }
+
+    public function test_assign_community_rejects_invalid_community_id(): void
+    {
+        $admin = $this->makeAdmin();
+        $user  = User::factory()->create(['community_id' => null]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.assign-community', $user), ['community_id' => 'nonexistent-uuid'])
+            ->assertSessionHasErrors('community_id');
+
+        $this->assertNull($user->fresh()->community_id);
+    }
+
+    public function test_admin_users_list_shows_community_column(): void
+    {
+        $admin     = $this->makeAdmin();
+        $community = Community::factory()->create(['is_active' => true, 'name' => 'Test Communauté']);
+        $user      = User::factory()->create(['community_id' => $community->id]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.users'))
+            ->assertSee('Test Communauté')
+            ->assertSee('Communauté');
     }
 }
