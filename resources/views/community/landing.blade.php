@@ -19,7 +19,7 @@
                 @auth
                     <a href="{{ route('community.dashboard', ['community' => $community->slug]) }}"
                        class="px-6 py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition shadow-lg">
-                        Accéder au dashboard
+                        Accéder au tableau de bord
                     </a>
                     <a href="{{ route('community.explorer', ['community' => $community->slug]) }}"
                        class="px-6 py-3 bg-white/20 text-white font-semibold rounded-lg hover:bg-white/30 transition shadow-lg border border-white/30">
