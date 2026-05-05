@@ -132,13 +132,14 @@
                             @endif
                         </a>
                         <div class="px-5 pb-4 flex items-center justify-between">
-                            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <a href="{{ route('profile.show', $service->user) }}"
+                               class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                 <img src="{{ $service->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
                                 {{ $service->user->name }}
                                 @if($service->user->rating)
                                 <span class="text-yellow-500">★ {{ number_format($service->user->rating, 1) }}</span>
                                 @endif
-                            </div>
+                            </a>
                             @auth
                             @if(auth()->id() !== $service->user_id)
                             <form method="POST" action="{{ route('favorites.toggle', $service) }}">
@@ -187,8 +188,11 @@
                             </a>
                             <p class="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 mb-3">{{ $request->description }}</p>
                             <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
-                                <img src="{{ $request->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
-                                {{ $request->user->name }}
+                                <a href="{{ route('profile.show', $request->user) }}"
+                                   class="flex items-center gap-2 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
+                                    <img src="{{ $request->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
+                                    {{ $request->user->name }}
+                                </a>
                                 @if($request->deadline)
                                 <span class="ml-auto">⏰ {{ $request->deadline->format('d/m/Y') }}</span>
                                 @endif
