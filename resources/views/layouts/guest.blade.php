@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="{{ ($globalColorMode ?? 'dark') === 'dark' ? 'dark' : '' }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,7 +17,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased">
-        <div class="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
+        <div class="min-h-screen flex flex-col bg-gray-950">
 
             <!-- Header avec logo -->
             <div class="flex justify-center pt-10 pb-6">
