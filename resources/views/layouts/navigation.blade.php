@@ -53,7 +53,7 @@
                         <a href="{{ route('requests.create') }}"
                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                             <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            Faire une demande
+                            Faire une {{ $T['request'] }}
                         </a>
                         <a href="{{ route('services.create') }}"
                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
@@ -91,7 +91,7 @@
                         <x-dropdown-link :href="route('profile.show', Auth::user())">Mon profil public</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-dropdown-link>
-                        <x-dropdown-link :href="route('requests.create')">Faire une demande</x-dropdown-link>
+                        <x-dropdown-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('points.index')">Historique des points</x-dropdown-link>
                         <x-dropdown-link :href="route('favorites.index')">Mes favoris</x-dropdown-link>
@@ -161,7 +161,7 @@
                 <x-responsive-nav-link :href="route('dashboard')">Tableau de bord</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.show', Auth::user())">Mon profil public</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('requests.create')">Faire une demande</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('points.index')">Historique des points</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">Mes favoris</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.edit')">Paramètres</x-responsive-nav-link>

@@ -38,6 +38,9 @@ class Explorer extends Component
     #[Url]
     public int $minRating = 0;
 
+    #[Url]
+    public array $selectedSkills = [];
+
     public int $perPage = 15;
 
     public function updatedSearch(): void          { $this->resetPage(); }
@@ -46,6 +49,7 @@ class Explorer extends Component
     public function updatedSortBy(): void          { $this->resetPage(); }
     public function updatedTagFilter(): void       { $this->resetPage(); }
     public function updatedMinRating(): void       { $this->resetPage(); }
+    public function updatedSelectedSkills(): void  { $this->resetPage(); }
 
     public function mount(): void
     {
@@ -61,6 +65,7 @@ class Explorer extends Component
     {
         $this->tab = $tab;
         $this->tagFilter = '';
+        $this->selectedSkills = [];
         $this->resetPage();
     }
 
@@ -70,6 +75,17 @@ class Explorer extends Component
             $this->selectedCategories = array_values(array_filter($this->selectedCategories, fn($c) => $c !== $id));
         } else {
             $this->selectedCategories[] = $id;
+        }
+        $this->selectedSkills = [];
+        $this->resetPage();
+    }
+
+    public function toggleSkill(string $id): void
+    {
+        if (in_array($id, $this->selectedSkills)) {
+            $this->selectedSkills = array_values(array_filter($this->selectedSkills, fn($s) => $s !== $id));
+        } else {
+            $this->selectedSkills[] = $id;
         }
         $this->resetPage();
     }
@@ -88,7 +104,7 @@ class Explorer extends Component
 
     public function render()
     {
-        $categories = Category::all();
+        $categories = Category::with('skills')->get();
 
         if ($this->tab === 'services') {
             $query = Service::withoutGlobalScopes()
@@ -117,6 +133,10 @@ class Explorer extends Component
 
             if ($this->tagFilter) {
                 $query->whereHas('tags', fn($t) => $t->where('slug', $this->tagFilter));
+            }
+
+            if (!empty($this->selectedSkills)) {
+                $query->whereHas('skills', fn($q) => $q->whereIn('skills.id', $this->selectedSkills));
             }
 
             if ($this->minRating > 0) {

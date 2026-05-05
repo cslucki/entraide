@@ -1,6 +1,17 @@
 <x-app-layout>
     <div class="max-w-3xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Publier une demande</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Faire une {{ $T['request'] }}</h1>
+
+        <!-- Note pédagogique -->
+        <div class="mb-6 flex gap-3 bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-sm text-green-700 dark:text-green-300">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <p class="font-semibold mb-1">Une {{ $T['request'] }}, c'est un besoin que vous publiez pour trouver de l'aide parmi les membres.</p>
+                <p class="opacity-80">Décrivez précisément ce dont vous avez besoin, le résultat attendu, et votre budget en points. Les membres intéressés vous feront une proposition.</p>
+            </div>
+        </div>
 
         @if($errors->any())
         <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
@@ -22,7 +33,7 @@
             </div>
 
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description *</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description de votre {{ $T['request'] }} *</label>
                 <textarea name="description" rows="5" required
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">{{ old('description') }}</textarea>
             </div>
@@ -134,7 +145,7 @@
             </div>
 
             <div class="flex gap-3">
-                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Publier la demande</button>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Publier la {{ $T['request'] }}</button>
                 <a href="{{ route('dashboard') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</a>
             </div>
         </form>

@@ -12,12 +12,7 @@ The platform is entirely in French.
 
 | Layer | Technology |
 |---|---|
-| Backend | Laravel 13.7 · PHP 8.4 |
-| Database | SQLite (dev) / MySQL (prod) |
-| Frontend | Blade · Alpine.js · Tailwind CSS v4 |
-| Reactive UI | Livewire 3 |
-| Auth | Laravel Breeze (Blade + dark mode) |
-| Image processing | `intervention/image` (avatar resize 300×300) |
+qu'
 
 ---
 
