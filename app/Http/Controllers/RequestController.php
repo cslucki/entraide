@@ -33,8 +33,8 @@ class RequestController extends Controller
     public function store(Request $httpRequest): RedirectResponse
     {
         $data = $httpRequest->validate([
-            'title'         => 'required|string|max:255',
-            'description'   => 'required|string',
+            'title'         => 'required|string|min:10|max:255',
+            'description'   => 'required|string|min:100',
             'category_id'   => 'required|uuid|exists:categories,id',
             'delivery_mode' => 'required|in:remote,onsite,both',
             'budget_min'    => 'required|integer|min:1',

@@ -58,8 +58,8 @@ class ServiceController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
+            'title' => 'required|string|min:10|max:255',
+            'description' => 'required|string|min:100',
             'category_id' => 'required|uuid|exists:categories,id',
             'delivery_mode' => 'required|in:remote,onsite,both',
             'points_cost' => 'required|integer|min:40|max:100',
@@ -131,8 +131,8 @@ class ServiceController extends Controller
         $this->authorize('update', $service);
 
         $data = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
+            'title' => 'required|string|min:10|max:255',
+            'description' => 'required|string|min:100',
             'category_id' => 'required|uuid|exists:categories,id',
             'delivery_mode' => 'required|in:remote,onsite,both',
             'points_cost' => 'required|integer|min:40|max:100',
