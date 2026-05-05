@@ -1,27 +1,31 @@
 <x-guest-layout>
-    <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-        {{ __('This is a secure area of the application. Please confirm your password before continuing.') }}
+    <div class="px-8 pt-8 pb-2 border-b border-gray-100 dark:border-gray-700">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Confirmation requise</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Cette zone est sécurisée. Veuillez confirmer votre mot de passe avant de continuer.
+        </p>
     </div>
 
-    <form method="POST" action="{{ route('password.confirm') }}">
-        @csrf
+    <div class="px-8 py-6">
+        <form method="POST" action="{{ route('password.confirm') }}">
+            @csrf
 
-        <!-- Password -->
-        <div>
-            <x-input-label for="password" :value="__('Password')" />
+            <div class="space-y-5">
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Mot de passe
+                    </label>
+                    <input id="password" type="password" name="password"
+                           required autocomplete="current-password"
+                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                    <x-input-error :messages="$errors->get('password')" class="mt-1.5" />
+                </div>
 
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="current-password" />
-
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
-        </div>
-
-        <div class="flex justify-end mt-4">
-            <x-primary-button>
-                {{ __('Confirm') }}
-            </x-primary-button>
-        </div>
-    </form>
+                <button type="submit"
+                        class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Confirmer
+                </button>
+            </div>
+        </form>
+    </div>
 </x-guest-layout>
