@@ -2,7 +2,7 @@
 
 Plateforme permettant à des professionnels indépendants d'échanger leurs compétences sans argent, via un système de points.
 
-Un projet porté par l'association **AMT** (RNA W133002043).
+Un projet porté par l'association **[AMT](https://amteletravail.fr)** (RNA W133002043), initié par **Cyril Slucki**.
 
 **Stack :**
 
@@ -120,5 +120,6 @@ Le déploiement est automatique via **Laravel Cloud** sur chaque push sur `main`
 ## Liens
 
 - Production : [bouclepro.com](https://bouclepro.com)
+- Association AMT : [amteletravail.fr](https://amteletravail.fr)
 - Code source : [github.com/cslucki/entraide](https://github.com/cslucki/entraide)
 - Mentions légales : `/mentions-legales`
