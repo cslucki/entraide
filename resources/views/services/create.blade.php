@@ -1,6 +1,6 @@
 <x-app-layout>
     <div class="max-w-3xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Publier un service</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Publier un {{ $T['service'] }}</h1>
 
         @if($errors->any())
         <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">

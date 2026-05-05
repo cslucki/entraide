@@ -27,6 +27,8 @@ require __DIR__.'/auth.php';
 // Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
+Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
+Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
@@ -158,7 +160,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
 // Community landing page (with or without trailing slash)
 // Negative lookahead excludes reserved global slugs so /login, /register, /admin etc. are never captured.
-$communityConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password)[a-z][a-z0-9\-]*';
+$communityConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges)[a-z][a-z0-9\-]*';
 
 Route::get('/{community}', function ($community) {
     return redirect("/{$community}/");
@@ -248,4 +250,6 @@ Route::prefix('/{community}')
         Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
         Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
         Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
+        Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
+        Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
     });

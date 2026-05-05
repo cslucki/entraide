@@ -56,10 +56,10 @@
         @endif
 
         <div class="grid md:grid-cols-2 gap-6">
-            <!-- Mes services -->
+            <!-- Mes micro-services -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes services</h2>
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes {{ $T['services'] }}</h2>
                     <a href="{{ route('services.create') }}" class="text-xs text-indigo-600 hover:underline">+ Nouveau</a>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -87,7 +87,7 @@
                         </div>
                     </div>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">Aucun service actif.<br><a href="{{ route('services.create') }}" class="text-indigo-600 hover:underline">Créer un service</a></p>
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">Aucun {{ $T['service'] }} actif.<br><a href="{{ route('services.create') }}" class="text-indigo-600 hover:underline">Créer un {{ $T['service'] }}</a></p>
                     @endforelse
                 </div>
             </div>
