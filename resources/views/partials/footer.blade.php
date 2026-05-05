@@ -16,6 +16,8 @@
                    class="hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
                     Mentions légales
                 </a>
+                <span class="hidden sm:inline text-gray-300 dark:text-gray-600">·</span>
+                <span class="text-xs opacity-60">{{ config('app.version') }}</span>
             </div>
 
             {{-- GitHub --}}

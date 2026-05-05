@@ -1,4 +1,4 @@
-# Entraide — Plateforme de troc de services
+# Entraide — Plateforme de troc de services `v0.1-alpha`
 
 Plateforme permettant à des professionnels indépendants d'échanger leurs compétences sans argent, via un système de points.
 
