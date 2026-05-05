@@ -30,8 +30,7 @@ class HomeController extends Controller
 
     public function members(): View
     {
-        $members = User::whereNotNull('bio')
-            ->withCount([
+        $members = User::withCount([
                 'services as active_services_count'         => fn($q) => $q->where('status', 'active'),
                 'serviceRequests as open_requests_count'    => fn($q) => $q->where('status', 'open'),
             ])
