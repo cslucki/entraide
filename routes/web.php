@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminCommunityController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminMessageController;
+use App\Http\Controllers\Admin\AdminMetaCommunityController;
 use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\CommunityLandingController;
 use App\Http\Controllers\DashboardController;
@@ -160,6 +161,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Settings
     Route::get('/settings', [AdminSettingController::class, 'index'])->name('settings');
     Route::post('/settings', [AdminSettingController::class, 'update'])->name('settings.update');
+
+    // Meta-communauté (site global)
+    Route::get('/meta_community', [AdminMetaCommunityController::class, 'index'])->name('meta-community');
+    Route::post('/meta_community', [AdminMetaCommunityController::class, 'update'])->name('meta-community.update');
 });
 
 // Community landing page (with or without trailing slash)

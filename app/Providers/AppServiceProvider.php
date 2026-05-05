@@ -63,12 +63,14 @@ class AppServiceProvider extends ServiceProvider
                     $settings = [
                         'platformName'    => Setting::get('platform_name', config('app.name')),
                         'platformTagline' => Setting::get('platform_tagline', 'Échangez vos talents'),
+                        'globalColorMode' => Setting::get('global_color_mode', 'dark'),
                     ];
                 } catch (\Exception) {
                     // Table absente (avant migration) : on utilise les valeurs par défaut
                     $settings = [
                         'platformName'    => config('app.name'),
                         'platformTagline' => 'Échangez vos talents',
+                        'globalColorMode' => 'dark',
                     ];
                 }
             }
