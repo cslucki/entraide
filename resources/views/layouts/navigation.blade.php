@@ -72,7 +72,7 @@
                     </x-slot>
                     <x-slot name="content">
                         <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                            <span class="font-medium">Dashboard</span>
+                            <span class="font-medium">Tableau de bord</span>
                         </x-dropdown-link>
                         <x-dropdown-link :href="route('profile.show', Auth::user())">
                             Mon profil public
@@ -163,7 +163,7 @@
                 </div>
             </div>
             <div class="mt-1 space-y-1">
-                <x-responsive-nav-link :href="route('dashboard')">Dashboard</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('dashboard')">Tableau de bord</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.show', Auth::user())">Mon profil public</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('services.create')">+ Publier un {{ $T['service'] }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('requests.create')">+ Publier une demande</x-responsive-nav-link>
