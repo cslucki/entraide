@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminCommunityController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminMessageController;
+use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminMetaCommunityController;
 use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\CommunityLandingController;
@@ -165,6 +166,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Meta-communauté (site global)
     Route::get('/meta_community', [AdminMetaCommunityController::class, 'index'])->name('meta-community');
     Route::post('/meta_community', [AdminMetaCommunityController::class, 'update'])->name('meta-community.update');
+
+    Route::get('/email-test', [AdminEmailController::class, 'index'])->name('email-test');
+    Route::post('/email-test', [AdminEmailController::class, 'send'])->name('email-test.send');
 });
 
 // Community landing page (with or without trailing slash)
