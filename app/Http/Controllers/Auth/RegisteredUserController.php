@@ -38,7 +38,7 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $community = app('current_community', null);
+        $community = app()->has('current_community') ? app('current_community') : null;
 
         $user = User::create([
             'name' => $request->name,
