@@ -1,2 +1,4 @@
 # GEMINI.md
-See CLAUDE.md for full project context, architecture, and coding conventions.
+Lis CLAUDE.md et AGENTS.md avant toute tâche.
+Utilise rg, bat et fzf plutôt que grep/cat.
+Respecte le workflow multi-agent.
