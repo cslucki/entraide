@@ -16,7 +16,7 @@ class EnsureProfileComplete
     public function handle(Request $request, Closure $next): Response
     {
         $user = auth()->user();
-        if ($user && (! $user->bio || ! $user->location)) {
+        if ($user && (! $user->bio || ! $user->location || ! $user->phone)) {
             session()->put('url.intended', $request->fullUrl());
             return redirect()->route('profile.edit')
                 ->with('profile_required', true);

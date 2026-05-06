@@ -23,28 +23,55 @@
             <x-input-error class="mt-2" :messages="$errors->get('name')" />
         </div>
 
-        <div>
-            <x-input-label for="email" value="Adresse e-mail" />
-            <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
-            <x-input-error class="mt-2" :messages="$errors->get('email')" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <x-input-label for="email" value="Adresse e-mail" />
+                <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
+                <x-input-error class="mt-2" :messages="$errors->get('email')" />
 
-            @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())
-                <div>
-                    <p class="text-sm mt-2 text-gray-800 dark:text-gray-200">
-                        {{ __('Your email address is unverified.') }}
+                @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())
+                    <div>
+                        <p class="text-sm mt-2 text-gray-800 dark:text-gray-200">
+                            {{ __('Your email address is unverified.') }}
 
-                        <button form="send-verification" class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800">
-                            {{ __('Click here to re-send the verification email.') }}
-                        </button>
-                    </p>
-
-                    @if (session('status') === 'verification-link-sent')
-                        <p class="mt-2 font-medium text-sm text-green-600 dark:text-green-400">
-                            {{ __('A new verification link has been sent to your email address.') }}
+                            <button form="send-verification" class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800">
+                                {{ __('Click here to re-send the verification email.') }}
+                            </button>
                         </p>
-                    @endif
-                </div>
-            @endif
+
+                        @if (session('status') === 'verification-link-sent')
+                            <p class="mt-2 font-medium text-sm text-green-600 dark:text-green-400">
+                                {{ __('A new verification link has been sent to your email address.') }}
+                            </p>
+                        @endif
+                    </div>
+                @endif
+            </div>
+
+            <div>
+                <x-input-label for="phone" value="Numéro de téléphone *" />
+                <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" :value="old('phone', $user->phone)" required placeholder="Ex: 06 12 34 56 78" />
+                <p class="mt-1 text-xs text-gray-500">Obligatoire pour pouvoir publier des services ou demandes.</p>
+                <x-input-error class="mt-2" :messages="$errors->get('phone')" />
+            </div>
+        </div>
+
+        <div class="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-xl space-y-3 border border-gray-100 dark:border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">Confidentialité</h3>
+            
+            <div class="flex items-center gap-3">
+                <input id="show_email" name="show_email" type="checkbox" value="1"
+                    {{ old('show_email', $user->show_email) ? 'checked' : '' }}
+                    class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                <x-input-label for="show_email" value="Afficher mon adresse e-mail sur mon profil public et dans l'annuaire" class="font-normal" />
+            </div>
+
+            <div class="flex items-center gap-3">
+                <input id="show_phone" name="show_phone" type="checkbox" value="1"
+                    {{ old('show_phone', $user->show_phone) ? 'checked' : '' }}
+                    class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                <x-input-label for="show_phone" value="Afficher mon numéro de téléphone sur mon profil public et dans l'annuaire" class="font-normal" />
+            </div>
         </div>
 
         <div>
@@ -61,26 +88,28 @@
             <x-input-error class="mt-2" :messages="$errors->get('bio')" />
         </div>
 
-        <div>
-            <x-input-label for="website" value="Site web" />
-            <div class="mt-1 flex rounded-md shadow-sm">
-                <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 text-sm">🌐</span>
-                <x-text-input id="website" name="website" type="url" class="rounded-l-none block w-full"
-                    :value="old('website', $user->website)"
-                    placeholder="https://monsite.fr" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <x-input-label for="website" value="Site web" />
+                <div class="mt-1 flex rounded-md shadow-sm">
+                    <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 text-sm">🌐</span>
+                    <x-text-input id="website" name="website" type="url" class="rounded-l-none block w-full"
+                        :value="old('website', $user->website)"
+                        placeholder="https://monsite.fr" />
+                </div>
+                <x-input-error class="mt-2" :messages="$errors->get('website')" />
             </div>
-            <x-input-error class="mt-2" :messages="$errors->get('website')" />
-        </div>
 
-        <div>
-            <x-input-label for="linkedin_url" value="Profil LinkedIn" />
-            <div class="mt-1 flex rounded-md shadow-sm">
-                <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 text-sm">in</span>
-                <x-text-input id="linkedin_url" name="linkedin_url" type="url" class="rounded-l-none block w-full"
-                    :value="old('linkedin_url', $user->linkedin_url)"
-                    placeholder="https://linkedin.com/in/votre-profil" />
+            <div>
+                <x-input-label for="linkedin_url" value="Profil LinkedIn" />
+                <div class="mt-1 flex rounded-md shadow-sm">
+                    <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 text-sm">in</span>
+                    <x-text-input id="linkedin_url" name="linkedin_url" type="url" class="rounded-l-none block w-full"
+                        :value="old('linkedin_url', $user->linkedin_url)"
+                        placeholder="https://linkedin.com/in/votre-profil" />
+                </div>
+                <x-input-error class="mt-2" :messages="$errors->get('linkedin_url')" />
             </div>
-            <x-input-error class="mt-2" :messages="$errors->get('linkedin_url')" />
         </div>
 
         <div x-data="{ preview: null }">
