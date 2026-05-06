@@ -56,21 +56,21 @@
             </div>
         </div>
 
-        <div class="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-xl space-y-3 border border-gray-100 dark:border-gray-700">
+        <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl space-y-3 border border-gray-200 dark:border-gray-700">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">Confidentialité</h3>
-            
+
             <div class="flex items-center gap-3">
                 <input id="show_email" name="show_email" type="checkbox" value="1"
                     {{ old('show_email', $user->show_email) ? 'checked' : '' }}
-                    class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                <x-input-label for="show_email" value="Afficher mon adresse e-mail sur mon profil public et dans l'annuaire" class="font-normal" />
+                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
+                <x-input-label for="show_email" value="Afficher mon adresse e-mail sur mon profil public et dans l'annuaire" class="font-normal text-gray-700 dark:text-gray-300" />
             </div>
 
             <div class="flex items-center gap-3">
                 <input id="show_phone" name="show_phone" type="checkbox" value="1"
                     {{ old('show_phone', $user->show_phone) ? 'checked' : '' }}
-                    class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                <x-input-label for="show_phone" value="Afficher mon numéro de téléphone sur mon profil public et dans l'annuaire" class="font-normal" />
+                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:bg-gray-800">
+                <x-input-label for="show_phone" value="Afficher mon numéro de téléphone sur mon profil public et dans l'annuaire" class="font-normal text-gray-700 dark:text-gray-300" />
             </div>
         </div>
 
