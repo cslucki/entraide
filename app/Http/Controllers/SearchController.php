@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BlogPost;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -20,6 +21,7 @@ class SearchController extends Controller
                 'services' => collect(),
                 'requests' => collect(),
                 'users'    => collect(),
+                'posts'    => collect(),
             ]);
         }
 
@@ -53,6 +55,18 @@ class SearchController extends Controller
             ->limit(5)
             ->get();
 
-        return view('search', compact('q', 'services', 'requests', 'users'));
+        $posts = BlogPost::published()
+            ->with(['user', 'categories', 'tags'])
+            ->where(fn($query) =>
+                $query->where('title', 'like', $like)
+                      ->orWhere('content', 'like', $like)
+                      ->orWhereHas('tags', fn($q) => $q->where('name', 'like', $like))
+                      ->orWhereHas('categories', fn($q) => $q->where('name', 'like', $like))
+            )
+            ->latest('published_at')
+            ->limit(5)
+            ->get();
+
+        return view('search', compact('q', 'services', 'requests', 'users', 'posts'));
     }
 }

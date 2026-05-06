@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminCommunityController;
+use App\Http\Controllers\Admin\AdminBlogController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminEmailController;
@@ -194,6 +195,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::get('/email-test', [AdminEmailController::class, 'index'])->name('email-test');
     Route::post('/email-test', [AdminEmailController::class, 'send'])->name('email-test.send');
+
+    // Blog moderation
+    Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
+    Route::patch('/blog/{post}/status', [AdminBlogController::class, 'updateStatus'])->name('blog.status');
+    Route::delete('/blog/{post}', [AdminBlogController::class, 'destroy'])->name('blog.destroy');
 });
 
 // Community landing page (with or without trailing slash)
