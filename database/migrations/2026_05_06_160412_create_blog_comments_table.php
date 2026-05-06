@@ -15,11 +15,17 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('blog_post_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignUuid('parent_id')->nullable()->references('id')->on('blog_comments')->nullOnDelete();
+            $table->uuid('parent_id')->nullable();
             $table->text('content');
             $table->boolean('is_approved')->default(true);
             $table->timestamps();
             $table->softDeletes();
+        });
+
+        // FK auto-référentielle en ALTER TABLE séparé : PostgreSQL exige que la PK
+        // soit déjà commitée avant de pouvoir la référencer dans une contrainte.
+        Schema::table('blog_comments', function (Blueprint $table) {
+            $table->foreign('parent_id')->references('id')->on('blog_comments')->nullOnDelete();
         });
     }
 
@@ -28,6 +34,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::table('blog_comments', function (Blueprint $table) {
+            $table->dropForeign(['parent_id']);
+        });
         Schema::dropIfExists('blog_comments');
     }
 };
