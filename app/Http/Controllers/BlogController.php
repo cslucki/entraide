@@ -183,6 +183,16 @@ class BlogController extends Controller
         return redirect()->route('blog.show', $post)->with('success', 'Article mis à jour.');
     }
 
+    public function publish(BlogPost $post): RedirectResponse
+    {
+        $this->authorize('update', $post);
+        $post->update([
+            'status'       => 'published',
+            'published_at' => $post->published_at ?? now(),
+        ]);
+        return back()->with('success', 'Article publié.');
+    }
+
     public function destroy(BlogPost $post): RedirectResponse
     {
         $this->authorize('delete', $post);
