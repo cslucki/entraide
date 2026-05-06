@@ -53,6 +53,9 @@ class ProfileController extends Controller
         $data = $request->validate([
             'name'         => ['required', 'string', 'max:255'],
             'email'        => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,' . $request->user()->id],
+            'phone'        => ['required', 'string', 'max:30'],
+            'show_email'   => ['nullable', 'boolean'],
+            'show_phone'   => ['nullable', 'boolean'],
             'avatar'       => ['nullable', 'image', 'max:2048'],
             'bio'          => ['nullable', 'string', 'max:500'],
             'location'     => ['nullable', 'string', 'max:255'],
@@ -70,6 +73,10 @@ class ProfileController extends Controller
             Storage::disk('public')->put('avatars/' . $filename, (string) $img->encode());
             $data['avatar'] = 'avatars/' . $filename;
         }
+
+        // Handle booleans (checkboxes are not sent if unchecked)
+        $data['show_email'] = $request->has('show_email');
+        $data['show_phone'] = $request->has('show_phone');
 
         $request->user()->fill($data);
 
