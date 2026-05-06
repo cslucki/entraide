@@ -99,15 +99,19 @@
                     <a href="{{ route('blog.show', $post) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         Annuler
                     </a>
-                    <form action="{{ route('blog.destroy', $post) }}" method="POST" class="ml-auto"
-                          onsubmit="return confirm('Supprimer cet article définitivement ?')">
-                        @csrf @method('DELETE')
-                        <button type="submit" class="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
-                            Supprimer
-                        </button>
-                    </form>
                 </div>
             </form>
+
+            {{-- Formulaire de suppression EN DEHORS du formulaire principal --}}
+            <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                <form action="{{ route('blog.destroy', $post) }}" method="POST"
+                      onsubmit="return confirm('Supprimer cet article définitivement ?')">
+                    @csrf @method('DELETE')
+                    <button type="submit" class="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
+                        Supprimer l'article
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 </x-app-layout>
