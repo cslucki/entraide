@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\EmailLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -36,9 +37,24 @@ class AdminEmailController extends Controller
                 }
             );
 
+            EmailLog::create([
+                'to_email' => $data['to'],
+                'subject'  => $data['subject'],
+                'status'   => 'sent',
+                'data'     => ['source' => 'admin-test', 'driver' => config('mail.default')],
+            ]);
+
             $driver = config('mail.default');
             return back()->with('success', "Email envoyé à {$data['to']} via le driver « {$driver} ».");
         } catch (\Exception $e) {
+            EmailLog::create([
+                'to_email'      => $data['to'],
+                'subject'       => $data['subject'],
+                'status'        => 'failed',
+                'error_message' => $e->getMessage(),
+                'data'          => ['source' => 'admin-test', 'driver' => config('mail.default')],
+            ]);
+
             return back()->with('error', 'Erreur lors de l\'envoi : ' . $e->getMessage())->withInput();
         }
     }

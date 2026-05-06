@@ -5,6 +5,8 @@ use App\Http\Controllers\Admin\AdminBlogController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminEmailController;
+use App\Http\Controllers\Admin\AdminEmailTemplatesController;
+use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminMetaCommunityController;
 use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\CommunityLandingController;
@@ -198,6 +200,20 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::get('/email-test', [AdminEmailController::class, 'index'])->name('email-test');
     Route::post('/email-test', [AdminEmailController::class, 'send'])->name('email-test.send');
+
+    // Email templates
+    Route::get('/email-templates', [AdminEmailTemplatesController::class, 'index'])->name('email-templates');
+    Route::get('/email-templates/create', [AdminEmailTemplatesController::class, 'create'])->name('email-templates.create');
+    Route::post('/email-templates', [AdminEmailTemplatesController::class, 'store'])->name('email-templates.store');
+    Route::get('/email-templates/{emailTemplate}', [AdminEmailTemplatesController::class, 'show'])->name('email-templates.show');
+    Route::get('/email-templates/{emailTemplate}/edit', [AdminEmailTemplatesController::class, 'edit'])->name('email-templates.edit');
+    Route::put('/email-templates/{emailTemplate}', [AdminEmailTemplatesController::class, 'update'])->name('email-templates.update');
+    Route::delete('/email-templates/{emailTemplate}', [AdminEmailTemplatesController::class, 'destroy'])->name('email-templates.destroy');
+    Route::post('/email-templates/preview', [AdminEmailTemplatesController::class, 'preview'])->name('email-templates.preview');
+
+    // Email logs
+    Route::get('/email-logs', [AdminEmailLogsController::class, 'index'])->name('email-logs');
+    Route::get('/email-logs/{emailLog}', [AdminEmailLogsController::class, 'show'])->name('email-logs.show');
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
