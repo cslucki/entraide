@@ -46,7 +46,7 @@ class TransactionController extends Controller
 
         // Check buyer balance
         if ($buyer->points_balance < $data['points_proposed']) {
-            return back()->with('error', 'Solde insuffisant pour cette proposition.');
+            return back()->with('error', 'Solde insuffisant pour cette échange.');
         }
 
         // Check for existing pending/accepted transaction
@@ -73,14 +73,14 @@ class TransactionController extends Controller
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvelle proposition envoyée : ' . $data['points_proposed'] . ' points.');
+        $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : ' . $data['points_proposed'] . ' points.');
 
         // Update service_request status if applicable
         if (!empty($data['request_id'])) {
             ServiceRequest::where('id', $data['request_id'])->update(['status' => 'in_progress']);
         }
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Proposition envoyée !');
+        return redirect()->route('messages.show', $transaction)->with('success', 'Échange envoyée !');
     }
 
     public function approve(Transaction $transaction): RedirectResponse
@@ -92,11 +92,11 @@ class TransactionController extends Controller
             'points_agreed' => $transaction->points_proposed,
         ]);
 
-        $this->addSystemMessage($transaction, 'Proposition acceptée. L\'échange est en cours.');
+        $this->addSystemMessage($transaction, 'Échange acceptée. L\'échange est en cours.');
 
         $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh()));
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Proposition acceptée.');
+        return redirect()->route('messages.show', $transaction)->with('success', 'Échange acceptée.');
     }
 
     public function refuse(Transaction $transaction): RedirectResponse
@@ -105,7 +105,7 @@ class TransactionController extends Controller
 
         $transaction->update(['status' => 'refused']);
 
-        $this->addSystemMessage($transaction, 'Proposition refusée.');
+        $this->addSystemMessage($transaction, 'Échange refusée.');
 
         $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh()));
 
@@ -113,7 +113,7 @@ class TransactionController extends Controller
             ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
         }
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Proposition refusée.');
+        return redirect()->route('messages.show', $transaction)->with('success', 'Échange refusée.');
     }
 
     public function adjust(Request $request, Transaction $transaction): RedirectResponse

@@ -78,7 +78,7 @@
                 <div x-show="selectedCategory === '{{ $cat->id }}'">
                     <div class="flex flex-wrap gap-2">
                         @foreach($cat->skills as $skill)
-                        <label class="flex items-center gap-2 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 text-sm">
+                        <label class="flex items-center gap-2 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 text-sm dark:text-gray-300">
                             <input type="checkbox" name="skills[]" value="{{ $skill->id }}"
                                 {{ in_array($skill->id, old('skills', [])) ? 'checked' : '' }}
                                 class="text-indigo-600">
@@ -140,13 +140,34 @@
 
             <!-- Points -->
             <div class="mb-8">
+                <!-- Explication du système de points -->
+                <div class="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-sm text-amber-800 dark:text-amber-200">
+                    <p class="font-semibold mb-1">💡 Comment fonctionne le barème de points ?</p>
+                    <p class="mb-2 opacity-90">BouclePro est une plateforme de <strong>troc de compétences</strong> — les points ne sont pas de l'argent, mais une unité d'échange pour évaluer la valeur d'un micro-service et faciliter les échanges entre membres.</p>
+                    <p class="mb-2 opacity-90">Fourchettes indicatives (tout est négociable) :</p>
+                    <ul class="space-y-0.5 mb-2 ml-2 opacity-90">
+                        <li><span class="font-medium">Essentiel</span> — 40 à 60 pts <span class="opacity-70">(20 à 30 min)</span></li>
+                        <li><span class="font-medium">Standard</span> — 60 à 80 pts <span class="opacity-70">(30 à 45 min)</span></li>
+                        <li><span class="font-medium">Complet</span> — 80 à 100 pts <span class="opacity-70">(45 à 60 min)</span></li>
+                    </ul>
+                    <p class="opacity-90 mb-3">Le minimum est de <span class="font-semibold">40 pts</span> et le maximum de <span class="font-semibold">100 pts</span> par service. Chacun est libre de proposer ce qu'il souhaite dans ce cadre, ces fourchettes sont là pour vous aider à vous repérer.</p>
+                    
+                    <hr class="border-amber-200 dark:border-amber-700/50 my-3">
+                    
+                    <p class="opacity-90 text-xs">
+                        ✨ N'oubliez pas que vous pouvez présenter votre activité plus largement (liens site web, LinkedIn) sur votre 
+                        <a href="{{ route('profile.edit') }}" class="font-semibold underline decoration-2 underline-offset-2 hover:text-amber-900 dark:hover:text-amber-100">profil public</a> 
+                        pour qu'ils apparaissent dans l'annuaire.
+                    </p>
+                </div>
+
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Points demandés *</label>
                 <input type="number" name="points_cost" value="{{ old('points_cost') }}" min="40" max="100" required
                     class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
 
-                <!-- Guidelines -->
+                <!-- Guidelines par catégorie -->
                 <div x-show="selectedCategory" class="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                    <p class="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">Fourchettes recommandées :</p>
+                    <p class="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">Fourchettes recommandées pour cette catégorie :</p>
                     @foreach($categories as $cat)
                     <div x-show="selectedCategory === '{{ $cat->id }}'" class="flex gap-4">
                         @foreach($cat->pointGuidelines as $g)

@@ -77,7 +77,7 @@ class TransactionController extends Controller
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvelle proposition envoyée : ' . $data['points_proposed'] . ' points.');
+        $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : ' . $data['points_proposed'] . ' points.');
 
         if (!empty($data['request_id'])) {
             ServiceRequest::where('id', $data['request_id'])->update(['status' => 'in_progress']);
@@ -110,7 +110,7 @@ class TransactionController extends Controller
             'points_agreed' => $transaction->points_proposed,
         ]);
 
-        $this->addSystemMessage($transaction, "Proposition acceptée. L'échange est en cours.");
+        $this->addSystemMessage($transaction, "Échange acceptée. L'échange est en cours.");
 
         return response()->json($transaction->fresh());
     }
@@ -124,7 +124,7 @@ class TransactionController extends Controller
         }
 
         $transaction->update(['status' => 'refused']);
-        $this->addSystemMessage($transaction, 'Proposition refusée.');
+        $this->addSystemMessage($transaction, 'Échange refusée.');
 
         if ($transaction->request_id) {
             ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);

@@ -4,7 +4,7 @@
         <div class="max-w-4xl mx-auto px-4 text-center">
             <h1 class="text-4xl md:text-5xl font-bold mb-4">BouclePro</h1>
             <p class="text-xl text-indigo-100 mb-3">Proposez vos {{ $T['services'] }}, trouvez ce dont vous avez besoin, et échangez avec des points.</p>
-            <p class="text-indigo-200 mb-10 text-base">Au sein de votre réseau professionnel — votre <span class="font-semibold text-white">boucle</span>.</p>
+            <p class="text-indigo-200 mb-10 text-base">Créez votre réseau professionnel local — votre <span class="font-semibold text-white">boucle</span>.</p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
                 <a href="{{ route('explorer') }}" class="px-8 py-3 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition">Voir les {{ $T['services'] }}</a>
                 @auth
@@ -106,14 +106,14 @@
                     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
                         <div class="flex items-center gap-3 mb-2">
                             <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">BNI</div>
-                            <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">Alumnis Ecole de Design</span>
+                            <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">Quartier Longchamp</span>
                         </div>
                         <p class="text-xs text-gray-500 dark:text-gray-400">32 membres · 120 échanges</p>
                     </div>
                     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
                         <div class="flex items-center gap-3 mb-2">
                             <div class="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center text-white text-xs font-bold">AMT</div>
-                            <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">AMT Télétravail</span>
+                            <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">Asso AMT</span>
                         </div>
                         <p class="text-xs text-gray-500 dark:text-gray-400">18 membres · 45 échanges</p>
                     </div>

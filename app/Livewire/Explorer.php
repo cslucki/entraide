@@ -18,7 +18,7 @@ class Explorer extends Component
     public ?string $communityId = null;
 
     #[Url]
-    public string $tab = 'requests';
+    public string $tab = 'services';
 
     #[Url]
     public string $search = '';

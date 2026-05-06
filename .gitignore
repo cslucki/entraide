@@ -28,11 +28,18 @@ ADMIN.md
 ADMIN_HOWTO.md
 TODO_*.md
 TASKS.md
-
+TALK_Open_Code.md
+TASKSvOLD.md
 # Playwright
 playwright-report/
 test-results/
 playwright/.auth/
+HOWTO_PROMPT.md
+HOWTO_ADMIN.md
 
 # Screenshots
 /_screenshots
+
+# Fichiers parasites
+/index.html
+/nul

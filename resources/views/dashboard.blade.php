@@ -125,11 +125,11 @@
                 </div>
             </div>
 
-            <!-- Mes propositions (buyer) -->
+            <!-- Mes échanges (buyer) -->
             @if($myProposals->isNotEmpty())
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes propositions envoyées</h2>
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes échanges en cours</h2>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @foreach($myProposals as $tx)

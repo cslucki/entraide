@@ -19,10 +19,10 @@ Voir la conversation
 
 @switch($transaction->status)
 @case('accepted')
-La proposition a été acceptée. L'échange est maintenant en cours.
+La échange a été acceptée. L'échange est maintenant en cours.
 @break
 @case('refused')
-La proposition a été refusée.
+La échange a été refusée.
 @break
 @case('buyer_done')
 L'acheteur a déclaré la prestation terminée. En attente de votre confirmation.
