@@ -10,7 +10,7 @@
 
             @if($q === '')
             <p class="text-gray-500 dark:text-gray-400 text-center py-16">Saisissez un terme pour lancer la recherche.</p>
-            @elseif($services->isEmpty() && $requests->isEmpty() && $users->isEmpty())
+            @elseif($services->isEmpty() && $requests->isEmpty() && $users->isEmpty() && $posts->isEmpty())
             <p class="text-gray-500 dark:text-gray-400 text-center py-16">Aucun résultat pour « {{ $q }} ».</p>
             @else
 
@@ -80,6 +80,35 @@
                                 @endif
                             </p>
                         </div>
+                    </a>
+                    @endforeach
+                </div>
+            </section>
+            @endif
+
+            {{-- Articles de blog --}}
+            @if($posts->isNotEmpty())
+            <section>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-purple-500 inline-block"></span> Articles de blog
+                </h3>
+                <div class="space-y-3">
+                    @foreach($posts as $post)
+                    <a href="{{ route('blog.show', $post) }}"
+                       class="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition">
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ $post->title }}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ $post->user->name }}
+                                @if($post->categories->isNotEmpty())
+                                · {{ $post->categories->first()->name }}
+                                @endif
+                                @if($post->read_time)
+                                · {{ $post->read_time }} min
+                                @endif
+                            </p>
+                        </div>
+                        <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     </a>
                     @endforeach
                 </div>
