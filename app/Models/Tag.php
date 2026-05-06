@@ -17,4 +17,9 @@ class Tag extends Model
     {
         return $this->belongsToMany(Service::class, 'service_tag');
     }
+
+    public function blogPosts(): BelongsToMany
+    {
+        return $this->belongsToMany(BlogPost::class, 'blog_post_tag');
+    }
 }

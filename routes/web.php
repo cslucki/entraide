@@ -19,6 +19,9 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\CommunityRequestController;
+use App\Http\Controllers\BlogCommentController;
+use App\Http\Controllers\BlogController;
+use App\Http\Controllers\LikeController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
@@ -35,6 +38,26 @@ Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.i
 Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index');
 Route::get('/boucles/creer', [CommunityRequestController::class, 'create'])->name('boucles.request.create');
 Route::post('/boucles/creer', [CommunityRequestController::class, 'store'])->name('boucles.request.store');
+
+// Blog — public
+Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
+Route::get('/blog/categorie/{slug}', [BlogController::class, 'byCategory'])->name('blog.category');
+Route::get('/blog/tag/{slug}', [BlogController::class, 'byTag'])->name('blog.tag');
+Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
+
+// Blog — authentifié
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->name('blog.create');
+    Route::post('/blog', [BlogController::class, 'store'])->name('blog.store');
+    Route::get('/blog/rediger/{post:slug}/modifier', [BlogController::class, 'edit'])->name('blog.edit');
+    Route::put('/blog/{post:slug}', [BlogController::class, 'update'])->name('blog.update');
+    Route::delete('/blog/{post:slug}', [BlogController::class, 'destroy'])->name('blog.destroy');
+    Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
+    Route::post('/blog/{post:slug}/commentaires', [BlogCommentController::class, 'store'])->name('blog.comment.store');
+    Route::delete('/commentaires/{comment}', [BlogCommentController::class, 'destroy'])->name('blog.comment.destroy');
+    Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
+});
+
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');

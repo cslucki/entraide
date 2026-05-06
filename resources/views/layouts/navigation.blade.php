@@ -16,6 +16,7 @@
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Échanges</x-nav-link>
                     <x-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-nav-link>
+                    <x-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">Blog</x-nav-link>
                     <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-nav-link>
                 </div>
             </div>
@@ -60,6 +61,11 @@
                             <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                             Proposer un {{ $T['service'] }}
                         </a>
+                        <a href="{{ route('blog.create') }}"
+                           class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                            <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            Écrire un article
+                        </a>
                     </div>
                 </div>
 
@@ -95,6 +101,7 @@
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('points.index')">Historique des points</x-dropdown-link>
                         <x-dropdown-link :href="route('favorites.index')">Mes favoris</x-dropdown-link>
+                        <x-dropdown-link :href="route('blog.my-posts')">Mes articles</x-dropdown-link>
                         <x-dropdown-link :href="route('profile.edit')">Profil et paramètres</x-dropdown-link>
                         @if(Auth::user()->is_admin)
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
@@ -145,6 +152,7 @@
         <div class="pt-2 pb-3 space-y-1">
             <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Échanges</x-responsive-nav-link>
             <x-responsive-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">Blog</x-responsive-nav-link>
             <x-responsive-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-responsive-nav-link>
         </div>
 
@@ -164,6 +172,7 @@
                 <x-responsive-nav-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('points.index')">Historique des points</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">Mes favoris</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('blog.my-posts')">Mes articles</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.edit')">Profil et paramètres</x-responsive-nav-link>
                 @if(Auth::user()->is_admin)
                 <x-responsive-nav-link :href="route('admin.dashboard')">Administration</x-responsive-nav-link>
