@@ -60,7 +60,7 @@
                             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">{{ $post->summary }}</p>
                             @endif
 
-                            <div class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
+                            <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                                 <div class="flex items-center gap-2">
                                     <img src="{{ $post->user->avatar_url }}" alt="" class="w-5 h-5 rounded-full">
                                     <span>{{ $post->user->name }}</span>

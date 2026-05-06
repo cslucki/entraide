@@ -40,24 +40,27 @@ Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index'
 Route::get('/boucles/creer', [CommunityRequestController::class, 'create'])->name('boucles.request.create');
 Route::post('/boucles/creer', [CommunityRequestController::class, 'store'])->name('boucles.request.store');
 
-// Blog — public
+// Blog — public (routes fixes avant le wildcard)
 Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
 Route::get('/blog/categorie/{slug}', [BlogController::class, 'byCategory'])->name('blog.category');
 Route::get('/blog/tag/{slug}', [BlogController::class, 'byTag'])->name('blog.tag');
-Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
 
-// Blog — authentifié
+// Blog — authentifié (chemins fixes AVANT le wildcard /blog/{slug})
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->name('blog.create');
+    Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
     Route::post('/blog', [BlogController::class, 'store'])->name('blog.store');
     Route::get('/blog/rediger/{post:slug}/modifier', [BlogController::class, 'edit'])->name('blog.edit');
     Route::put('/blog/{post:slug}', [BlogController::class, 'update'])->name('blog.update');
+    Route::patch('/blog/{post:slug}/publier', [BlogController::class, 'publish'])->name('blog.publish');
     Route::delete('/blog/{post:slug}', [BlogController::class, 'destroy'])->name('blog.destroy');
-    Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
     Route::post('/blog/{post:slug}/commentaires', [BlogCommentController::class, 'store'])->name('blog.comment.store');
     Route::delete('/commentaires/{comment}', [BlogCommentController::class, 'destroy'])->name('blog.comment.destroy');
     Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
 });
+
+// Blog — wildcard slug EN DERNIER
+Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');

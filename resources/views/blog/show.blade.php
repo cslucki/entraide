@@ -41,7 +41,7 @@
                 <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4 leading-tight">{{ $post->title }}</h1>
 
                 <!-- Auteur + méta -->
-                <div class="flex items-center justify-between mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                     <a href="{{ route('profile.show', $post->user) }}" class="flex items-center gap-3 group">
                         <img src="{{ $post->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full">
                         <div>
@@ -49,7 +49,7 @@
                             <p class="text-xs text-gray-400">{{ $post->published_at?->translatedFormat('d F Y') }}</p>
                         </div>
                     </a>
-                    <div class="flex items-center gap-4 text-sm text-gray-400">
+                    <div class="flex items-center gap-4 text-sm text-gray-400 dark:text-gray-500">
                         @if($post->read_time)
                         <span class="flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -60,16 +60,37 @@
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                             {{ number_format($post->views_count) }}
                         </span>
-                        @auth
-                        @if(auth()->id() === $post->user_id || auth()->user()->is_admin)
-                        <a href="{{ route('blog.edit', $post) }}" class="text-xs text-gray-400 hover:text-indigo-500 transition">Modifier</a>
-                        @endif
-                        @endauth
                     </div>
                 </div>
 
+                <!-- Boutons auteur / admin -->
+                @auth
+                @if(auth()->id() === $post->user_id || auth()->user()->is_admin)
+                <div class="flex items-center gap-3 mb-6">
+                    @if($post->status !== 'published')
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
+                        {{ ['draft' => 'Brouillon', 'pending' => 'En attente', 'archived' => 'Archivé'][$post->status] ?? $post->status }}
+                    </span>
+                    <form action="{{ route('blog.publish', $post) }}" method="POST">
+                        @csrf @method('PATCH')
+                        <button type="submit"
+                            class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Publier
+                        </button>
+                    </form>
+                    @endif
+                    <a href="{{ route('blog.edit', $post) }}"
+                       class="inline-flex items-center gap-1.5 px-4 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium rounded-lg transition">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        Modifier
+                    </a>
+                </div>
+                @endif
+                @endauth
+
                 <!-- Contenu -->
-                <div class="prose prose-gray dark:prose-invert max-w-none mb-8">
+                <div class="max-w-none mb-8 text-gray-800 dark:text-gray-200 leading-relaxed text-base space-y-4">
                     {!! nl2br(e($post->content)) !!}
                 </div>
 
