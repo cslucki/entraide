@@ -35,6 +35,9 @@ class UserFactory extends Factory
             'is_admin' => false,
             'banned_at' => null,
             'rating' => null,
+            'bio' => fake()->sentence(6),
+            'location' => fake()->city(),
+            'phone' => fake()->phoneNumber(),
         ];
     }
 
@@ -45,6 +48,18 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
+        ]);
+    }
+
+    /**
+     * Indicate that the profile is complete (bio, location, phone required by EnsureProfileComplete middleware).
+     */
+    public function complete(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'bio' => $attributes['bio'] ?? fake()->sentence(6),
+            'location' => $attributes['location'] ?? fake()->city(),
+            'phone' => $attributes['phone'] ?? fake()->phoneNumber(),
         ]);
     }
 }

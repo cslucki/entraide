@@ -48,7 +48,7 @@
                 <div x-show="selectedCategory === '{{ $cat->id }}'">
                     <div class="flex flex-wrap gap-2">
                         @foreach($cat->skills as $skill)
-                        <label class="flex items-center gap-2 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 text-sm dark:text-gray-300">
+                        <label class="flex items-center gap-2 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 text-sm dark:text-gray-300 dark:text-gray-300">
                             <input type="checkbox" name="skills[]" value="{{ $skill->id }}"
                                 {{ $service->skills->contains($skill->id) || in_array($skill->id, old('skills', [])) ? 'checked' : '' }}
                                 class="text-indigo-600">

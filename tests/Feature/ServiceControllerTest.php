@@ -42,7 +42,7 @@ class ServiceControllerTest extends TestCase
 
         $response = $this->actingAs($user)->post(route('services.store'), [
             'title' => 'Test Service',
-            'description' => 'A test service description.',
+            'description' => 'A test service description that is long enough to pass the minimum length validation requirement of one hundred characters.',
             'category_id' => $category->id,
             'delivery_mode' => 'remote',
             'points_cost' => 100,
@@ -60,7 +60,7 @@ class ServiceControllerTest extends TestCase
 
         $response = $this->actingAs($user)->put(route('services.update', $service), [
             'title' => 'Updated Title',
-            'description' => 'Updated description.',
+            'description' => 'Updated description that is long enough to pass the minimum length validation requirement of one hundred characters.',
             'category_id' => $category->id,
             'delivery_mode' => 'both',
             'points_cost' => 80,
@@ -123,12 +123,16 @@ class ServiceControllerTest extends TestCase
 
     public function test_service_creation_with_tags(): void
     {
-        $user = User::factory()->create(['bio' => 'Développeur web freelance.']);
+        $user = User::factory()->create([
+            'bio' => 'Développeur web freelance.',
+            'location' => 'Paris',
+            'phone' => '0123456789',
+        ]);
         $category = Category::factory()->create();
 
         $response = $this->actingAs($user)->post(route('services.store'), [
             'title' => 'Service with tags',
-            'description' => 'Description.',
+            'description' => 'Description that is long enough to pass the minimum length validation requirement of one hundred characters here.',
             'category_id' => $category->id,
             'delivery_mode' => 'remote',
             'points_cost' => 50,

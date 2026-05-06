@@ -9,7 +9,7 @@
             </svg>
             <div>
                 <p class="font-semibold mb-1">Une {{ $T['request'] }}, c'est un besoin que vous publiez pour trouver de l'aide parmi les membres.</p>
-                <p class="opacity-80">Décrivez précisément ce dont vous avez besoin, le résultat attendu, et votre budget en points. Les membres intéressés vous feront une proposition.</p>
+                <p class="opacity-80">Décrivez précisément ce dont vous avez besoin, le résultat attendu, et votre budget en points. Les membres intéressés vous proposeront un échange.</p>
             </div>
         </div>
 
@@ -59,6 +59,27 @@
                     </label>
                     @endforeach
                 </div>
+            </div>
+
+            <!-- Explication du système de points -->
+            <div class="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-sm text-amber-800 dark:text-amber-200">
+                <p class="font-semibold mb-1">💡 Comment fonctionne le barème de points ?</p>
+                <p class="mb-2 opacity-90">BouclePro est une plateforme de <strong>troc de compétences</strong> — les points ne sont pas de l'argent, mais une unité d'échange pour évaluer la valeur d'une demande d'aide et faciliter les échanges entre membres.</p>
+                <p class="mb-2 opacity-90">Fourchettes indicatives (tout est négociable) :</p>
+                <ul class="space-y-0.5 mb-2 ml-2 opacity-90">
+                    <li><span class="font-medium">Essentiel</span> — 40 à 60 pts <span class="opacity-70">(20 à 30 min)</span></li>
+                    <li><span class="font-medium">Standard</span> — 60 à 80 pts <span class="opacity-70">(30 à 45 min)</span></li>
+                    <li><span class="font-medium">Complet</span> — 80 à 100 pts <span class="opacity-70">(45 à 60 min)</span></li>
+                </ul>
+                <p class="opacity-90 mb-3">Ces fourchettes sont indicatives — vous pouvez proposer le budget qui vous convient, les membres pourront négocier.</p>
+
+                <hr class="border-amber-200 dark:border-amber-700/50 my-3">
+                
+                <p class="opacity-90 text-xs">
+                    ✨ N'oubliez pas que vous pouvez présenter votre activité plus largement (liens site web, LinkedIn) sur votre 
+                    <a href="{{ route('profile.edit') }}" class="font-semibold underline decoration-2 underline-offset-2 hover:text-amber-900 dark:hover:text-amber-100">profil public</a> 
+                    pour qu'ils apparaissent dans l'annuaire.
+                </p>
             </div>
 
             <div class="mb-5 grid grid-cols-2 gap-4">

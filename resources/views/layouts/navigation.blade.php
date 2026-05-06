@@ -14,7 +14,7 @@
 
                 <!-- Navigation Links (desktop) -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Propositions</x-nav-link>
+                    <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Échanges</x-nav-link>
                     <x-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-nav-link>
                     <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-nav-link>
                 </div>
@@ -95,7 +95,7 @@
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('points.index')">Historique des points</x-dropdown-link>
                         <x-dropdown-link :href="route('favorites.index')">Mes favoris</x-dropdown-link>
-                        <x-dropdown-link :href="route('profile.edit')">Paramètres</x-dropdown-link>
+                        <x-dropdown-link :href="route('profile.edit')">Profil et paramètres</x-dropdown-link>
                         @if(Auth::user()->is_admin)
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">Administration</span></x-dropdown-link>
@@ -143,7 +143,7 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Propositions</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Échanges</x-responsive-nav-link>
             <x-responsive-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-responsive-nav-link>
             <x-responsive-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-responsive-nav-link>
         </div>
@@ -164,7 +164,7 @@
                 <x-responsive-nav-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('points.index')">Historique des points</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">Mes favoris</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('profile.edit')">Paramètres</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('profile.edit')">Profil et paramètres</x-responsive-nav-link>
                 @if(Auth::user()->is_admin)
                 <x-responsive-nav-link :href="route('admin.dashboard')">Administration</x-responsive-nav-link>
                 @endif
