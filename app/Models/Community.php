@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Community extends Model
 {
@@ -44,7 +45,7 @@ class Community extends Model
     public function getHeroImageUrl(): string
     {
         if ($this->hero_image) {
-            return asset('storage/' . $this->hero_image);
+            return Storage::disk('public')->url($this->hero_image);
         }
 
         return asset('images/default-hero.jpg');

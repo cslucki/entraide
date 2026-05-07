@@ -17,7 +17,7 @@
             @foreach($posts as $post)
             <article class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition">
                 @if($post->image)
-                <a href="{{ route('blog.show', $post) }}"><img src="{{ asset('storage/' . $post->image) }}" alt="{{ $post->title }}" class="w-full h-40 object-cover"></a>
+                <a href="{{ route('blog.show', $post) }}"><img src="{{ $post->image_url }}" alt="{{ $post->title }}" class="w-full h-40 object-cover"></a>
                 @endif
                 <div class="p-5">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">

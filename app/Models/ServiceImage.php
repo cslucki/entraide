@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class ServiceImage extends Model
 {
@@ -20,11 +21,11 @@ class ServiceImage extends Model
 
     public function getUrlAttribute(): string
     {
-        return asset('storage/' . $this->path);
+        return Storage::disk('public')->url($this->path);
     }
 
     public function getThumbnailUrlAttribute(): string
     {
-        return asset('storage/thumbnails/' . $this->path);
+        return Storage::disk('public')->url('thumbnails/' . $this->path);
     }
 }

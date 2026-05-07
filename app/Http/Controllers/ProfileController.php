@@ -29,7 +29,7 @@ class ProfileController extends Controller
         $ogDescription = $user->bio
             ? Str::limit($user->bio, 160)
             : "Profil de {$user->name} sur Entraide";
-        $ogImage       = $user->avatar ? asset('storage/' . $user->avatar) : null;
+        $ogImage       = $user->avatar_url;
         $jsonLd = json_encode([
             '@context'    => 'https://schema.org',
             '@type'       => 'Person',

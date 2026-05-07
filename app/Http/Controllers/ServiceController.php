@@ -31,7 +31,7 @@ class ServiceController extends Controller
         $ogTitle       = $service->title;
         $ogDescription = Str::limit(strip_tags($service->description), 160);
         $ogImage       = $service->images->first()
-            ? asset('storage/' . $service->images->first()->path)
+            ? $service->images->first()->url
             : null;
         $jsonLd = json_encode([
             '@context'    => 'https://schema.org',

@@ -36,7 +36,7 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Image de couverture</label>
                     @if($post->image)
                     <div class="mb-2">
-                        <img src="{{ asset('storage/' . $post->image) }}" alt="" class="h-24 rounded-lg object-cover">
+                        <img src="{{ $post->image_url }}" alt="" class="h-24 rounded-lg object-cover">
                     </div>
                     @endif
                     <input type="file" name="image" accept="image/*"
