@@ -80,7 +80,7 @@ class CommunityModelTest extends TestCase
         $community = Community::factory()->create(['hero_image' => 'communities/my-hero.jpg']);
 
         $url = $community->getHeroImageUrl();
-        $this->assertStringContainsString('/storage/communities/my-hero.jpg', $url);
+        $this->assertStringContainsString('communities/my-hero.jpg', $url);
     }
 
     public function test_get_hero_image_url_returns_default_when_not_set(): void
