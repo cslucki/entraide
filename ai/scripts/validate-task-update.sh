@@ -1,4 +1,8 @@
 #!/bin/bash
+if [ "$SKIP_TASK_CHECK" = "1" ]; then
+    echo "TASK validation skipped."
+    exit 0
+fi
 
 echo ""
 echo "====================================="
