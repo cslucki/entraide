@@ -26,6 +26,21 @@ The task is the source of truth, not the agent.
 
 ---
 
+# Mandatory Task Discipline
+
+MANDATORY TASK UPDATE BEFORE COMMIT
+
+Before ANY commit or push, agents MUST:
+- update the task file
+- update progress log
+- update tests section
+- update review notes
+- update handoff if ownership changed
+
+Commits without task updates are considered invalid workflow.
+
+---
+
 # What Is An Agent
 
 An agent is an AI system capable of:

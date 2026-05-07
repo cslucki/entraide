@@ -38,6 +38,21 @@ Critical systems must remain stable:
 
 ---
 
+# Mandatory Task Discipline
+
+MANDATORY TASK UPDATE BEFORE COMMIT
+
+Before ANY commit or push, agents MUST:
+- update the task file
+- update progress log
+- update tests section
+- update review notes
+- update handoff if ownership changed
+
+Commits without task updates are considered invalid workflow.
+
+---
+
 # AI Operating System
 
 This repository uses a multi-agent orchestration system.

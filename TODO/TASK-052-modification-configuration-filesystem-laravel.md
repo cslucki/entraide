@@ -13,14 +13,14 @@ branch: develop
 priority: MEDIUM
 
 created_at: 2026-05-07 17:55:23 Europe/Paris
-updated_at: 2026-05-07 18:25:00 Europe/Paris
+updated_at: 2026-05-07 18:35:00 Europe/Paris
 
 labels: []
 
 lock:
   status: UNLOCKED
   agent: claude
-  since: 2026-05-07 18:25:00 Europe/Paris
+  since: 2026-05-07 18:35:00 Europe/Paris
 
 handoff: true
 
@@ -54,68 +54,86 @@ Résoudre le problème d'images de blog non accessibles en production sur Larave
 
 # Solution Implemented
 
-Configuration minimaliste pour supporter Object Storage sur Laravel Cloud comme couche de stockage persistant officielle.
+**Phase 1: Configuration** (Commit e483754)
+- `config/filesystems.php` - Public disk uses S3 when AWS credentials present
 
-**Changes made:**
+**Phase 2: URL Migration** (Commit cb75ce0)
+Migré tous les générations d'URL de stockage pour utiliser `Storage::url()`.
 
-1. **config/filesystems.php** - Updated `public` disk:
-   ```php
-   'public' => [
-       'driver' => env('STORAGE_PUBLIC_DRIVER', env('AWS_ACCESS_KEY_ID') ? 's3' : 'local'),
-       'root' => storage_path('app/public'),
-       'url' => env('AWS_PUBLIC_URL', rtrim(env('APP_URL', 'http://localhost'), '/').'/storage'),
-       'visibility' => 'public',
-       'key' => env('AWS_ACCESS_KEY_ID'),
-       'secret' => env('AWS_SECRET_ACCESS_KEY'),
-       'region' => env('AWS_DEFAULT_REGION'),
-       'bucket' => env('AWS_PUBLIC_BUCKET', env('AWS_BUCKET')),
-   ],
-   ```
-   - Utilise `s3` driver quand `AWS_ACCESS_KEY_ID` est présent (Laravel Cloud)
-   - Utilise `local` driver sinon (développement local)
-   - URL configurée pour utiliser `AWS_PUBLIC_URL` quand disponible
+**Models updated:**
 
-2. **.env.example** - Ajouté la documentation Laravel Cloud:
-   - Explique la configuration S3 automatique
-   - Documente `STORAGE_PUBLIC_DRIVER`, `AWS_PUBLIC_BUCKET`, `AWS_PUBLIC_URL`
+| Model | Accessor added | Change |
+|-------|-----------------|----------|
+| BlogPost | `getImageUrlAttribute()` | `Storage::disk('public')->url($this->image)` |
+| ServiceImage | `getUrlAttribute()` | `Storage::disk('public')->url($this->path)` |
+| ServiceImage | `getThumbnailUrlAttribute()` | `Storage::disk('public')->url('thumbnails/' . $this->path)` |
+| User | `getAvatarUrlAttribute()` | `Storage::disk('public')->url($this->avatar)` |
+| Community | `getHeroImageUrl()` | `Storage::disk('public')->url($this->hero_image)` |
 
-3. **tests/Feature/CommunityModelTest.php** - Rendu le test plus flexible:
-   - Changé de vérification exacte `/storage/` à vérification du contenu du chemin
-   - Fonctionne maintenant avec les URLs locales et S3
+**Controllers updated:**
 
----
+| Controller | Change |
+|-----------|----------|
+| ProfileController | `$user->avatar_url` instead of `asset('storage/' . $user->avatar)` |
+| ServiceController | `$service->images->first()->url` instead of `asset('storage/' . $service->images->first()->path)` |
 
-# Upload Flow Analysis
+**Views updated:**
 
-All upload flows consistently use the `public` disk - **no code changes needed**:
+| View | Change |
+|-------|----------|
+| blog/show.blade.php | `$post->image_url` |
+| blog/index.blade.php | `$post->image_url`, `$pop->image_url` |
+| blog/tag.blade.php | `$post->image_url` |
+| blog/category.blade.php | `$post->image_url` |
+| blog/edit.blade.php | `$post->image_url` |
 
-| Upload Type | Controller | Storage Method | Directory |
-|-------------|-------------|----------------|------------|
-| Blog images | `BlogController.php` | `$file->store('blog', 'public')` | `storage/app/public/blog/` |
-| User avatars | `ProfileController.php` | `Storage::disk('public')->put('avatars/'...)` | `storage/app/public/avatars/` |
-| Service images | `ServiceController.php` | `Storage::disk('public')->put('services/'...)` | `storage/app/public/services/` |
+**Why this works:**
 
-**Community hero images** - `Community.php`
-- `getHeroImageUrlAttribute()` uses `asset('storage/' . $this->hero_image)`
-- Similar pattern - works with S3 via storage URL
+* `Storage::disk('public')->url()` retourne automatiquement:
+  - En local: URL du symlink `/storage/` si local driver
+  - En production: URL S3 complète si S3 driver
 
-**Architecture is consistent** - all persistent user uploads already use `public` disk.
+* Pas de changement d'architecture requisé:
+  - Les uploads utilisent déjà `Storage::disk('public')`
+  - Seul l'affichage d'URL était le problème
 
 ---
 
 # Completed Actions
 
 - [x] switch to develop branch
-- [x] inspect all upload flows (blog, avatars, services)
-- [x] verify consistent `public` disk usage
-- [x] update filesystems.php for Laravel Cloud
-- [x] update .env.example with S3 configuration
-- [x] update test for compatibility
-- [x] commit changes to develop
+- [x] audit all media URL generation
+- [x] migrate models to use Storage::url()
+- [x] migrate controllers to use model accessors
+- [x] migrate views to use model accessors
+- [x] commit Phase 1 (configuration)
+- [x] commit Phase 2 (URL migration)
 
 ---
 
 # Progress Log
+
+## 2026-05-07 18:35:00 Europe/Paris
+
+**TASK COMPLETED**
+
+All public uploaded files now generate correct URLs automatically.
+
+**Commits on develop:**
+1. `e483754` - "feat: configure Laravel Cloud object storage"
+2. `cb75ce0` - "feat: migrate to Storage::url() for object storage URLs"
+
+**Total changes:**
+- 11 files modified
+- 25 insertions(+), 12 deletions(-)
+- 4 models updated (BlogPost, Community, ServiceImage, User)
+- 2 controllers updated (ProfileController, ServiceController)
+- 5 blade templates updated (blog views)
+
+**Next steps:**
+1. Deploy to Laravel Cloud for validation
+2. Verify images are accessible with S3 URLs
+3. Confirm storage:link is no longer needed
 
 ## 2026-05-07 18:25:00 Europe/Paris
 
@@ -154,7 +172,7 @@ Changes committed to develop branch (8c47ff4).
 
 # Handoffs
 
-GLM → claude @ 2026-05-07 18:25:00
+GLM → claude @ 2026-05-07 18:35:00
 
 # Tests
 
@@ -178,7 +196,7 @@ Pending - requires production deployment for validation.
 
 This is a minimal, production-safe solution:
 
-1. **No refactoring** of controllers, models, or blade templates
+1. **No refactoring** of upload logic - existing code unchanged
 2. **Configuration-only** change using Laravel's built-in S3 driver
 3. **Environment-aware** - automatically switches between local and S3
 4. **Backward compatible** - local development workflow unchanged
@@ -186,10 +204,8 @@ This is a minimal, production-safe solution:
 6. **Centralized storage** - all persistent uploads use `public` disk
 
 **Key insight:**
-The `asset('storage/' . $post->image)` pattern still works because:
-- In production: S3 URL is returned via Laravel's storage system
-- In local: storage:link symlink provides access
+`Storage::disk('public')->url()` works transparently on both environments:
+- Local: Returns `/storage/...` via symlink
+- Production: Returns `https://bucket.s3.amazonaws.com/...`
 
-The only change required was configuring the `public` disk to use the S3 driver when credentials are present on Laravel Cloud.
-
-**No migration needed** - all existing upload flows already use `Storage::disk('public')`.
+All upload flows already use `Storage::disk('public')` consistently. The only change needed was URL generation layer, which is now migrated to use model accessors for automatic S3 URL generation.

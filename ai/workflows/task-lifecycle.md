@@ -6,6 +6,26 @@ Standardize task states across all agents.
 
 ---
 
+## Mandatory Task Updates
+
+Task files are the operational source of truth.
+
+Agents MUST update the task file:
+- before implementation
+- after major progress
+- before commit
+- before push
+- before handoff
+- before marking task completed
+
+Required sections:
+- Progress Log
+- Tests
+- Review Notes
+- updated_at
+
+---
+
 # Lifecycle
 
 ```text
