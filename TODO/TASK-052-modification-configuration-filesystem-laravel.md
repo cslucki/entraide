@@ -209,3 +209,7 @@ This is a minimal, production-safe solution:
 - Production: Returns `https://bucket.s3.amazonaws.com/...`
 
 All upload flows already use `Storage::disk('public')` consistently. The only change needed was URL generation layer, which is now migrated to use model accessors for automatic S3 URL generation.
+
+## 2026-05-07
+
+Added mandatory task lifecycle validation hooks and workflow enforcement.
