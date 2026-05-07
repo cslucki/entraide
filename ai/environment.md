@@ -145,6 +145,18 @@ TASK-051-navbar-livewire-fix
 
 ---
 
+
+# HTTPS Local Development
+
+Local development uses HTTPS with a local development certificate.
+
+Playwright/browser automation must use:
+
+```javascript
+ignoreHTTPSErrors: true
+
+---
+
 # Important Rules
 
 Before modifying frontend behavior:

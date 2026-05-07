@@ -44,22 +44,9 @@ Describe the objective.
 - [ ] validate UI
 
 ---
-
 # Progress Log
 
-## Example
-
-2026-05-07 15:42:11 Europe/Paris
-
-Task created.
-
----
-
 # Handoffs
-
-No handoff yet.
-
----
 
 # Tests
 

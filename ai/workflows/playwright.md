@@ -91,6 +91,32 @@ Useful for:
 
 ---
 
+
+# Browser Tooling Compatibility
+
+Different AI agents may use different browser automation systems.
+
+Examples:
+- Playwright npm
+- embedded Chromium
+- MCP browser tools
+- sandbox browsers
+- proprietary visual tooling
+
+The important requirement is the workflow:
+
+1. inspect UI
+2. inspect console
+3. inspect network
+4. capture screenshots
+5. validate responsive behavior
+6. validate fixes visually
+
+The exact tooling may vary depending on the agent.
+
+---
+
+
 # Important Rules
 
 Never assume:
