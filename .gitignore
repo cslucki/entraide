@@ -42,3 +42,6 @@ HOWTO_ADMIN.md
 # Fichiers parasites
 /index.html
 /nul
+ai/scripts/*.txt
+_temp/
+ai/scripts/*.txt
