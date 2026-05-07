@@ -21,7 +21,7 @@
                 <!-- Image de couverture -->
                 @if($post->image)
                 <div class="mb-8 rounded-xl overflow-hidden">
-                    <img src="{{ asset('storage/' . $post->image) }}" alt="{{ $post->title }}" class="w-full max-h-72 object-cover">
+                    <img src="{{ $post->image_url }}" alt="{{ $post->title }}" class="w-full max-h-72 object-cover">
                 </div>
                 @endif
 

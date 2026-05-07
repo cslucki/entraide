@@ -33,7 +33,7 @@
                     <article class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition group">
                         @if($post->image)
                         <a href="{{ route('blog.show', $post) }}">
-                            <img src="{{ asset('storage/' . $post->image) }}" alt="{{ $post->title }}"
+                            <img src="{{ $post->image_url }}" alt="{{ $post->title }}"
                                  class="w-full h-44 object-cover group-hover:opacity-90 transition">
                         </a>
                         @endif
@@ -101,7 +101,7 @@
                         @foreach($popularPosts as $pop)
                         <a href="{{ route('blog.show', $pop) }}" class="flex gap-3 group">
                             @if($pop->image)
-                            <img src="{{ asset('storage/' . $pop->image) }}" alt="" class="w-14 h-14 rounded-lg object-cover flex-shrink-0">
+                            <img src="{{ $pop->image_url }}" alt="" class="w-14 h-14 rounded-lg object-cover flex-shrink-0">
                             @else
                             <div class="w-14 h-14 rounded-lg bg-gray-100 dark:bg-gray-700 flex-shrink-0"></div>
                             @endif
