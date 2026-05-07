@@ -48,6 +48,14 @@ class ProfileController extends Controller
         ]);
     }
 
+    public function referrals(Request $request): View
+    {
+        $user = $request->user();
+        $referrals = $user->referrals()->with('referee')->latest()->get();
+
+        return view('profile.referrals', compact('user', 'referrals'));
+    }
+
     public function update(Request $request): RedirectResponse
     {
         $data = $request->validate([

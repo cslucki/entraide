@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Community;
+use App\Models\Referral;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -22,6 +24,8 @@ class User extends Authenticatable
         'community_id',
         'name',
         'email',
+        'referral_code',
+        'referrer_id',
         'password',
         'avatar',
         'bio',
@@ -56,6 +60,24 @@ class User extends Authenticatable
             'points_balance' => 'integer',
             'rating' => 'decimal:2',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function ($user) {
+            if (!$user->referral_code) {
+                $user->referral_code = static::generateUniqueReferralCode();
+            }
+        });
+    }
+
+    public static function generateUniqueReferralCode(): string
+    {
+        do {
+            $code = strtoupper(Str::random(8));
+        } while (static::where('referral_code', $code)->exists());
+
+        return $code;
     }
 
     public function community(): BelongsTo
@@ -130,6 +152,16 @@ class User extends Authenticatable
         return $this->belongsToMany(Badge::class, 'badge_user', 'user_id', 'badge_id')
             ->withPivot('earned_at')
             ->orderBy('badge_user.earned_at');
+    }
+
+    public function referrer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'referrer_id');
+    }
+
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(Referral::class, 'referrer_id');
     }
 
     public function getAvatarUrlAttribute(): string

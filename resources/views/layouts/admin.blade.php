@@ -28,6 +28,7 @@
                             ['route' => 'admin.users', 'label' => 'Utilisateurs', 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
                             ['route' => 'admin.services', 'label' => 'Services', 'icon' => 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
                             ['route' => 'admin.transactions', 'label' => 'Transactions', 'icon' => 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
+                            ['route' => 'admin.referrals', 'label' => 'Parrainages', 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
                             ['route' => 'admin.requests', 'label' => 'Demandes', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'],
                             ['route' => 'admin.categories', 'label' => 'Catégories', 'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'],
                             ['route' => 'admin.communities', 'label' => 'Communautés', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857A17.983 17.983 0 0112 16c-2.071 0-4.065.332-5.932.943A3 3 0 001 20h5v2a3 3 0 005.356 1.857A17.983 17.983 0 0112 18c2.071 0 4.065.332 5.932.943A3 3 0 0017 20z'],

@@ -100,6 +100,7 @@
                         <x-dropdown-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('points.index')">Historique des points</x-dropdown-link>
+                        <x-dropdown-link :href="route('profile.referrals')">Mes parrainages</x-dropdown-link>
                         <x-dropdown-link :href="route('favorites.index')">Mes favoris</x-dropdown-link>
                         <x-dropdown-link :href="route('blog.my-posts')">Mes articles</x-dropdown-link>
                         <x-dropdown-link :href="route('profile.edit')">Profil et paramètres</x-dropdown-link>
@@ -171,6 +172,7 @@
                 <x-responsive-nav-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('points.index')">Historique des points</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('profile.referrals')">Mes parrainages</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">Mes favoris</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('blog.my-posts')">Mes articles</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.edit')">Profil et paramètres</x-responsive-nav-link>
