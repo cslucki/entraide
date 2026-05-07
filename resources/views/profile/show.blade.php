@@ -58,6 +58,18 @@
                         {{ $user->bio }}
                     </div>
                     @endif
+
+                    @if(auth()->check() && auth()->id() === $user->id)
+                    <div class="mt-6 p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">Votre code de parrainage</p>
+                            <p class="text-lg font-mono font-bold text-gray-900 dark:text-gray-100 tracking-widest">{{ $user->referral_code }}</p>
+                        </div>
+                        <a href="{{ route('profile.referrals') }}" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
+                            Voir mes filleuls
+                        </a>
+                    </div>
+                    @endif
                     @if($user->website || $user->linkedin_url)
                     <div class="flex flex-wrap gap-3 mt-3">
                         @if($user->website)

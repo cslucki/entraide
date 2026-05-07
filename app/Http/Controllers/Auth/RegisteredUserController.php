@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\PointLedger;
+use App\Models\Referral;
+use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
 use Illuminate\Auth\Events\Registered;
@@ -36,9 +38,19 @@ class RegisteredUserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'referral_code' => ['nullable', 'string', 'exists:users,referral_code'],
         ]);
 
         $community = app()->has('current_community') ? app('current_community') : null;
+
+        $referrer = null;
+        if ($request->referral_code) {
+            $referrer = User::where('referral_code', $request->referral_code)->first();
+
+            if ($referrer && $referrer->email === $request->email) {
+                return back()->withInput()->withErrors(['referral_code' => 'Vous ne pouvez pas vous parrainer vous-même.']);
+            }
+        }
 
         $user = User::create([
             'name' => $request->name,
@@ -46,6 +58,7 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
             'points_balance' => 100,
             'community_id' => $community?->id,
+            'referrer_id' => $referrer?->id,
         ]);
 
         PointLedger::create([
@@ -54,6 +67,32 @@ class RegisteredUserController extends Controller
             'delta' => 100,
             'reason' => 'welcome_bonus',
         ]);
+
+        if ($referrer && $referrer->id !== $user->id) {
+            $bonus = (int) Setting::get('referral_reward_registration', 50);
+
+            Referral::create([
+                'referrer_id' => $referrer->id,
+                'referee_id' => $user->id,
+                'registration_reward_paid' => true,
+            ]);
+
+            // Give bonus to referrer
+            $referrer->increment('points_balance', $bonus);
+            PointLedger::create([
+                'user_id' => $referrer->id,
+                'delta' => $bonus,
+                'reason' => 'referral_bonus',
+            ]);
+
+            // Give bonus to referee
+            $user->increment('points_balance', $bonus);
+            PointLedger::create([
+                'user_id' => $user->id,
+                'delta' => $bonus,
+                'reason' => 'referral_bonus',
+            ]);
+        }
 
         event(new Registered($user));
 

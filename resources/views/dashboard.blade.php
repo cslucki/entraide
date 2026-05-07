@@ -210,6 +210,9 @@
             <a href="{{ route('profile.show', $user) }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
                 Mon profil public
             </a>
+            <a href="{{ route('profile.referrals') }}" class="px-4 py-2 text-sm border border-indigo-200 dark:border-indigo-800 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition font-medium">
+                Mes parrainages
+            </a>
             @if($user->is_admin)
             <a href="{{ route('admin.dashboard') }}" class="px-4 py-2 text-sm border border-purple-300 dark:border-purple-700 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition font-medium">
                 Tableau de bord admin

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminCommunityController;
 use App\Http\Controllers\Admin\AdminBlogController;
+use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminEmailController;
@@ -118,6 +119,7 @@ Route::middleware('auth')->group(function () {
 
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::get('/profile/referrals', [ProfileController::class, 'referrals'])->name('profile.referrals');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -154,6 +156,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Transactions
     Route::get('/transactions', [AdminController::class, 'transactions'])->name('transactions');
+
+    // Referrals
+    Route::get('/referrals', [AdminReferralController::class, 'index'])->name('referrals');
 
     // Requests
     Route::get('/requests', [AdminController::class, 'requests'])->name('requests');
@@ -287,6 +292,7 @@ Route::prefix('/{community}')
 
             // Profile
             Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+            Route::get('/profile/referrals', [ProfileController::class, 'referrals'])->name('profile.referrals');
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\PointLedger;
+use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Notifications\TransactionStatusChanged;
 use Illuminate\Http\RedirectResponse;
@@ -199,6 +201,9 @@ class TransactionController extends Controller
             if ($transaction->request_id) {
                 ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'closed']);
             }
+
+            // Check for referral "Double Parrainage" bonus
+            $this->processReferralFirstTransactionBonus($transaction);
         });
 
         $this->addSystemMessage($transaction, 'Échange complété ! Les points ont été transférés.');
@@ -255,6 +260,53 @@ class TransactionController extends Controller
 
             fclose($handle);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    private function processReferralFirstTransactionBonus(Transaction $transaction): void
+    {
+        // We check if either the buyer or the seller is a referee completing their first transaction
+        $participants = [$transaction->buyer, $transaction->seller];
+
+        foreach ($participants as $user) {
+            if ($user->referrer_id) {
+                $referral = Referral::where('referee_id', $user->id)
+                    ->where('first_transaction_reward_paid', false)
+                    ->first();
+
+                if ($referral) {
+                    // Count completed transactions for this user
+                    $completedCount = Transaction::where(function ($q) use ($user) {
+                        $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id);
+                    })->where('status', 'completed')->count();
+
+                    // Since we are inside the transaction where it just became 'completed',
+                    // count will be 1 if it's the first one.
+                    if ($completedCount === 1) {
+                        $bonus = (int) Setting::get('referral_reward_first_transaction', 100);
+                        $referrer = $user->referrer;
+
+                        if ($referrer) {
+                            $referrer->increment('points_balance', $bonus);
+                            PointLedger::create([
+                                'user_id' => $referrer->id,
+                                'delta' => $bonus,
+                                'reason' => 'referral_first_transaction_bonus',
+                            ]);
+                        }
+
+                        // Also give bonus to the referee
+                        $user->increment('points_balance', $bonus);
+                        PointLedger::create([
+                            'user_id' => $user->id,
+                            'delta' => $bonus,
+                            'reason' => 'referral_first_transaction_bonus',
+                        ]);
+
+                        $referral->update(['first_transaction_reward_paid' => true]);
+                    }
+                }
+            }
+        }
     }
 
     private function addSystemMessage(Transaction $transaction, string $body): void
