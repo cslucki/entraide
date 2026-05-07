@@ -6,7 +6,7 @@ export default defineConfig({
     retries: 0,
     reporter: 'list',
     use: {
-        baseURL: 'https://test.laravel',
+        baseURL: 'http://localhost:8000',
         ignoreHTTPSErrors: true,
         screenshot: 'only-on-failure',
         video: 'off',

@@ -194,6 +194,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/settings', [AdminSettingController::class, 'index'])->name('settings');
     Route::post('/settings', [AdminSettingController::class, 'update'])->name('settings.update');
 
+    // AI Orchestration
+    Route::get('/ai', [\App\Http\Controllers\Admin\AdminAIController::class, 'index'])->name('ai');
+    Route::post('/ai', [\App\Http\Controllers\Admin\AdminAIController::class, 'update'])->name('ai.update');
+
     // Meta-communauté (site global)
     Route::get('/meta_community', [AdminMetaCommunityController::class, 'index'])->name('meta-community');
     Route::post('/meta_community', [AdminMetaCommunityController::class, 'update'])->name('meta-community.update');
