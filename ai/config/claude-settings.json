@@ -1,0 +1,15 @@
+{
+  "extraKnownMarketplaces": {
+    "zai-coding-plugins": {
+      "source": {
+        "source": "directory",
+        "path": "/home/cyril/.npm/_npx/2f024689b4d0d3b0/node_modules/@z_ai/coding-helper/zai-coding-plugins"
+      }
+    }
+  },
+  "theme": "dark",
+  "verbose": true,
+  "enabledPlugins": {
+    "glm-plan-usage@zai-coding-plugins": true
+  }
+}

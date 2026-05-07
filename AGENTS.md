@@ -9,7 +9,6 @@
 
 | Fichier | Rôle | Qui écrit |
 |---|---|---|
-| `TODO_GLM.md` | Peut tout faire | Orchestrateur / humain uniquement |
 | `CLAUDE.md` | Stack, archi, conventions, commandes | Orchestrateur / humain uniquement |
 | `AGENTS.md` | Ce fichier — rôles et workflow multi-agent | Orchestrateur / humain uniquement |
 | `TASKS.md` | Tableau de bord global (statuts, PRs) | Orchestrateur uniquement |
@@ -17,7 +16,7 @@
 | `TODO_WSL.md` | Backlog Claude Code WSL (backend) | **Claude Code WSL uniquement** |
 | `TODO_ClaudeOnline.md` | Backlog Claude Code en ligne (rare) | **Claude Code en ligne uniquement** |
 | `TODO_OpenCode.md` | Backlog OpenCode (futur) | **OpenCode uniquement** |
-
+| `TODO_GLM.md` | Backlog GLM (fixes UI/vues) | **GLM uniquement** |
 
 **Règle absolue : chaque agent ne modifie QUE son propre fichier TODO.**
 Cela élimine tous les conflits de merge.
@@ -28,11 +27,11 @@ Cela élimine tous les conflits de merge.
 
 | Agent | Domaine | Fichier TODO |
 |---|---|---|
-| **GLM** | Rôle principal | `TODO_GLM.md` |
 | **Jules** | Frontend, vues Blade, Alpine.js, CSS, Chart.js, SEO vues | `TODO_Jules.md` |
 | **Claude Code WSL** | Backend PHP/Laravel, controllers, migrations, tests, routes, API | `TODO_WSL.md` |
 | **Claude Code en ligne** | Architecture, backup (rarement utilisé) | `TODO_ClaudeOnline.md` |
-| **OpenCode** | Fixes UI/vues, corrections visuelles | `TODO_OpenCode.md` |
+| **OpenCode** | Futur | `TODO_OpenCode.md` |
+| **GLM** | Fixes UI/vues, corrections visuelles | `TODO_GLM.md` |
 | **Claude Cowork** | Orchestration, merge PRs, validation, mise à jour TASKS.md | — |
 
 ---
