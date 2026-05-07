@@ -5,7 +5,7 @@
             {{-- AMT + Mentions légales --}}
             <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-left">
                 <span>
-                    Un projet porté par
+                    BouclePro est un projet porté par
                     <a href="https://www.amteletravail.fr" target="_blank" rel="noopener noreferrer"
                        class="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
                         l'association AMT
