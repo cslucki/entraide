@@ -1,6 +1,7 @@
 *.log
 .DS_Store
 /@DOCS/
+/_scripts_cyril/
 .env
 .env.backup
 .env.production
@@ -49,3 +50,5 @@ public/build/
 public/build/
 public/build/
 public/build/
+ai/screenshots/*
+!ai/screenshots/.gitkeep
