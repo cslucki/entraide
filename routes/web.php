@@ -16,6 +16,7 @@ use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ServiceController;
@@ -272,6 +273,11 @@ Route::prefix('/{community}')
             // Messages
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
             Route::get('/messages/{transaction}', [MessageController::class, 'show'])->name('messages.show');
+
+            // Notifications
+            Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+            Route::post('/notifications/{id}/mark-read', [NotificationController::class, 'markAsRead'])->name('notifications.mark-read');
+            Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
 
             // Points history
             Route::get('/points', [PointController::class, 'index'])->name('points.index');

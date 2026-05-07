@@ -14,6 +14,7 @@ use App\Models\Skill;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Notifications\ReportTreated;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -526,12 +527,14 @@ class AdminController extends Controller
     public function dismissReport(Report $report): RedirectResponse
     {
         $report->update(['status' => 'dismissed']);
+        $report->reporter?->notify(new ReportTreated($report));
         return back()->with('success', 'Signalement classé.');
     }
 
     public function reviewReport(Report $report): RedirectResponse
     {
         $report->update(['status' => 'reviewed']);
+        $report->reporter?->notify(new ReportTreated($report));
         return back()->with('success', 'Signalement marqué comme traité.');
     }
 }

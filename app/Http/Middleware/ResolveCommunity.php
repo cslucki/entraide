@@ -21,6 +21,12 @@ class ResolveCommunity
             }
             app()->instance('current_community', $community);
             View::share('currentCommunity', $community);
+
+            // Persist context in session for Livewire/background tasks
+            session([
+                'community_id' => $community->id,
+                'community_slug' => $community->slug
+            ]);
         } else {
             View::share('currentCommunity', null);
         }

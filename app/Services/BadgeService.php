@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Badge;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Notifications\BadgeEarned;
 
 class BadgeService
 {
@@ -41,6 +42,7 @@ class BadgeService
         $badge = Badge::where('key', $key)->first();
         if ($badge) {
             $user->badges()->attach($badge->id, ['earned_at' => now()]);
+            $user->notify(new BadgeEarned($badge));
         }
     }
 }
