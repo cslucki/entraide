@@ -16,7 +16,7 @@ class NewMessageReceived extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -28,5 +28,17 @@ class NewMessageReceived extends Notification
                 'transaction' => $this->transaction,
                 'message'     => $this->message,
             ]);
+    }
+
+    public function toDatabase(object $notifiable): array
+    {
+        return [
+            'type' => 'message',
+            'title' => 'Nouveau message',
+            'message' => 'Vous avez reçu un nouveau message de ' . ($this->message->sender?->name ?? 'Système'),
+            'action_url' => route('messages.show', $this->transaction),
+            'transaction_id' => $this->transaction->id,
+            'community_id' => $this->transaction->community_id,
+        ];
     }
 }

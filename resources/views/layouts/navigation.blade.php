@@ -76,13 +76,16 @@
                 </a>
 
                 <!-- Messages -->
-                @php $unread = auth()->user()->unreadMessagesCount(); @endphp
+                @php $unreadMessages = auth()->user()->unreadMessagesCount(); @endphp
                 <a href="{{ route('messages.index') }}" class="relative p-2 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition" title="Messages">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/></svg>
-                    @if($unread > 0)
-                    <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{{ $unread > 9 ? '9+' : $unread }}</span>
+                    @if($unreadMessages > 0)
+                    <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{{ $unreadMessages > 99 ? '99+' : $unreadMessages }}</span>
                     @endif
                 </a>
+
+                <!-- Notifications -->
+                @livewire('notification-center')
 
                 <x-dropdown align="right" width="56">
                     <x-slot name="trigger">
@@ -123,13 +126,16 @@
             <!-- Mobile right : messages (auth) + Se connecter (guest) + hamburger -->
             <div class="flex items-center gap-2 sm:hidden">
                 @auth
-                @php $unread = auth()->user()->unreadMessagesCount(); @endphp
+                @php $unreadMessages = auth()->user()->unreadMessagesCount(); @endphp
                 <a href="{{ route('messages.index') }}" class="relative p-2 text-gray-500 hover:text-indigo-600 transition">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/></svg>
-                    @if($unread > 0)
-                    <span class="absolute top-0 right-0 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{{ $unread > 9 ? '9+' : $unread }}</span>
+                    @if($unreadMessages > 0)
+                    <span class="absolute top-0 right-0 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{{ $unreadMessages > 99 ? '99+' : $unreadMessages }}</span>
                     @endif
                 </a>
+
+                <!-- Notifications (Mobile) -->
+                @livewire('notification-center')
                 @else
                 <a href="{{ route('login') }}"
                    class="px-3 py-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
