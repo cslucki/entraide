@@ -19,11 +19,15 @@ class BadgeEarned extends Notification
 
     public function toDatabase(object $notifiable): array
     {
+        $communitySlug = $notifiable->community?->slug ?? session('community_slug');
+
         return [
             'type' => 'badge',
             'title' => 'Nouveau badge gagné !',
             'message' => 'Félicitations, vous avez débloqué le badge : ' . $this->badge->name,
-            'action_url' => route('profile.show', $notifiable),
+            'action_url' => $communitySlug
+                ? route('community.profile.show', ['community' => $communitySlug, 'user' => $notifiable])
+                : route('profile.show', $notifiable),
             'badge_id' => $this->badge->id,
             'badge_key' => $this->badge->key,
             'community_id' => $notifiable->community_id,

@@ -19,6 +19,10 @@ class NotificationCenter extends Component
     public function markAllAsRead()
     {
         $communityId = session('community_id');
+        if (!$communityId) {
+            return;
+        }
+
         Auth::user()->unreadNotifications()
             ->where('data->community_id', $communityId)
             ->get()
@@ -28,6 +32,12 @@ class NotificationCenter extends Component
     public function render()
     {
         $communityId = session('community_id');
+
+        if (!$communityId) {
+            return <<<'HTML'
+                <div></div>
+            HTML;
+        }
 
         $query = Auth::user()->notifications()
             ->where('data->community_id', $communityId);

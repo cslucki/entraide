@@ -85,12 +85,12 @@
 
         @if($notifications->hasPages())
             <div class="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                {{ $notifications->links('livewire::simple-bootstrap') }}
+                {{ $notifications->links('livewire::simple-tailwind') }}
             </div>
         @endif
 
         <div class="border-t border-gray-100 dark:border-gray-700">
-            <a href="{{ route('community.notifications.index', session('community_slug')) }}" class="block p-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+            <a href="{{ route('community.notifications.index', ['community' => session('community_slug')]) }}" class="block p-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                 Voir toutes les notifications
             </a>
         </div>

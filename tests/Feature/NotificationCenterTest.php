@@ -109,7 +109,7 @@ class NotificationCenterTest extends TestCase
             ->get(route('community.notifications.index', $community->slug));
 
         $response->assertStatus(200);
-        $response->assertSee('Mes Notifications');
+        $response->assertSee('Notifications');
     }
 
     public function test_user_can_mark_notification_as_read()

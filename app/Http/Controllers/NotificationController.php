@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Community;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
 {
-    public function index(): View
+    public function index(string $community): View
     {
-        $communityId = session('community_id');
+        $communityModel = Community::findBySlug($community);
+        $communityId = $communityModel ? $communityModel->id : session('community_id');
 
         $notifications = Auth::user()->notifications()
             ->where('data->community_id', $communityId)
@@ -31,7 +33,9 @@ class NotificationController extends Controller
 
     public function markAllAsRead(string $community)
     {
-        $communityId = session('community_id');
+        $communityModel = Community::findBySlug($community);
+        $communityId = $communityModel ? $communityModel->id : session('community_id');
+
         Auth::user()->unreadNotifications()
             ->where('data->community_id', $communityId)
             ->get()

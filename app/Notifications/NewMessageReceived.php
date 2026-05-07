@@ -32,11 +32,16 @@ class NewMessageReceived extends Notification
 
     public function toDatabase(object $notifiable): array
     {
+        // Use the community relationship from transaction if loaded, otherwise fallback to session/user
+        $communitySlug = $this->transaction->community?->slug ?? session('community_slug');
+
         return [
             'type' => 'message',
             'title' => 'Nouveau message',
             'message' => 'Vous avez reçu un nouveau message de ' . ($this->message->sender?->name ?? 'Système'),
-            'action_url' => route('messages.show', $this->transaction),
+            'action_url' => $communitySlug
+                ? route('community.messages.show', ['community' => $communitySlug, 'transaction' => $this->transaction])
+                : route('messages.show', $this->transaction),
             'transaction_id' => $this->transaction->id,
             'community_id' => $this->transaction->community_id,
         ];
