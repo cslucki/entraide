@@ -1,81 +1,274 @@
-# Entraide — AGENTS.md
+# Entraide — Multi-Agent Operating System
 
-> **Contexte technique complet : voir `CLAUDE.md`.**
-> Ce fichier décrit uniquement le workflow multi-agent et les règles de coordination.
+This file defines the global multi-agent workflow used by all AI agents working on the project.
 
----
+Technical architecture, environment and Laravel conventions are documented inside:
 
-## Fichiers de référence
-
-| Fichier | Rôle | Qui écrit |
-|---|---|---|
-| `CLAUDE.md` | Stack, archi, conventions, commandes | Orchestrateur / humain uniquement |
-| `AGENTS.md` | Ce fichier — rôles et workflow multi-agent | Orchestrateur / humain uniquement |
-| `TASKS.md` | Tableau de bord global (statuts, PRs) | Orchestrateur uniquement |
-| `TODO_Jules.md` | Backlog Jules (frontend) | **Jules uniquement** |
-| `TODO_WSL.md` | Backlog Claude Code WSL (backend) | **Claude Code WSL uniquement** |
-| `TODO_ClaudeOnline.md` | Backlog Claude Code en ligne (rare) | **Claude Code en ligne uniquement** |
-| `TODO_OpenCode.md` | Backlog OpenCode (futur) | **OpenCode uniquement** |
-| `TODO_GLM.md` | Backlog GLM (fixes UI/vues) | **GLM uniquement** |
-
-**Règle absolue : chaque agent ne modifie QUE son propre fichier TODO.**
-Cela élimine tous les conflits de merge.
+- `CLAUDE.md`
+- `ai/environment.md`
+- `ai/context/*`
+- `ai/workflows/*`
+- `ai/tooling/*`
 
 ---
 
-## Rôles par agent
+# Core Philosophy
 
-| Agent | Domaine | Fichier TODO |
-|---|---|---|
-| **Jules** | Frontend, vues Blade, Alpine.js, CSS, Chart.js, SEO vues | `TODO_Jules.md` |
-| **Claude Code WSL** | Backend PHP/Laravel, controllers, migrations, tests, routes, API | `TODO_WSL.md` |
-| **Claude Code en ligne** | Architecture, backup (rarement utilisé) | `TODO_ClaudeOnline.md` |
-| **OpenCode** | Futur | `TODO_OpenCode.md` |
-| **GLM** | Fixes UI/vues, corrections visuelles | `TODO_GLM.md` |
-| **Claude Cowork** | Orchestration, merge PRs, validation, mise à jour TASKS.md | — |
+The system is:
 
----
+- task-centric
+- multi-agent
+- persistent
+- auditable
+- handoff-friendly
 
-## Workflow obligatoire pour chaque agent
-
-### Avant de commencer
-1. Lire **son fichier TODO** (ex : `TODO_Jules.md` pour Jules)
-2. Lire `CLAUDE.md` pour les conventions techniques
-3. Prendre une tâche en statut `TODO`
-4. Mettre la tâche en `IN_PROGRESS` dans **son fichier TODO** (noter la branche)
-5. Créer la branche : `git checkout -b <agent>/TASK-XXX` depuis un `main` à jour
-
-### Pendant le travail
-- Toucher **uniquement les fichiers listés** dans la tâche
-- Si d'autres fichiers sont nécessaires → noter l'écart dans le corps de la PR
-
-### Quand la tâche est terminée
-1. Mettre la tâche en `IN_REVIEW` dans **son fichier TODO**
-2. Ouvrir une PR vers `main` avec un titre clair
-3. **Ne jamais pousser directement sur `main`**
+The task is the source of truth, not the agent.
 
 ---
 
-## Conventions de branches
+# What Is An Agent
 
-| Agent | Préfixe de branche |
-|---|---|
-| Claude Code WSL | `claude/TASK-XXX` |
-| Jules | `jules/TASK-XXX` |
-| GLM | `glm/TASK-XXX` |
-| OpenCode | `opencode/TASK-XXX` |
+An agent is an AI system capable of:
+
+- reading tasks
+- modifying code
+- running tests
+- updating task logs
+- coordinating through handoffs
+- respecting architectural rules
+
+Agents may include:
+
+- GLM
+- JULES
+- CLAUDE
+- GEMINI
+- CODEX
+- OPENCODE
+- DEEPSEEK
 
 ---
 
-## Pourquoi des fichiers TODO séparés ?
+# Source Of Truth
 
-- Un seul fichier partagé + deux agents = conflit de merge garanti
-- Chaque agent écrit uniquement dans son fichier → zéro conflit
-- L'orchestrateur (Claude Cowork) maintient `TASKS.md` comme vue globale
+Each task is represented by a single markdown file inside:
+
+```text
+TODO/
+```
+
+Example:
+
+```text
+TODO/TASK-051-navbar-livewire-fix.md
+```
+
+This file is the single source of truth for:
+
+- status
+- ownership
+- progress
+- handoffs
+- tests
+- reviews
+- timestamps
 
 ---
 
-## Pour Gemini CLI
+# One Task = One Branch
 
-Lire `CLAUDE.md` pour le contexte technique complet.
-Ce fichier (`AGENTS.md`) couvre uniquement les règles de coordination.
+Each task uses exactly one git branch.
+
+Example:
+
+```text
+TASK-051-navbar-livewire-fix
+```
+
+Do not create one branch per agent.
+
+The task owns the branch.
+
+---
+
+# Task Lifecycle
+
+Tasks follow this lifecycle:
+
+```text
+TODO
+IN_PROGRESS
+BLOCKED
+TESTING
+IN_REVIEW
+DONE
+MERGED
+ARCHIVED
+```
+
+---
+
+# Task Ownership
+
+Each task may contain:
+
+- one owner
+- multiple contributors
+
+Example:
+
+```yaml
+owner: GLM
+
+contributors:
+  - JULES
+  - CLAUDE
+```
+
+---
+
+# Lock System
+
+Before modifying a task:
+
+1. lock the task
+2. update task status
+3. update timestamps
+4. document intended actions
+
+Example:
+
+```yaml
+lock:
+  status: LOCKED
+  agent: GLM
+  since: 2026-05-07 16:42:11 Europe/Paris
+```
+
+Agents must not work simultaneously on the same files without coordination.
+
+---
+
+# Handoff System
+
+When an agent stops working:
+
+- update task log
+- describe current state
+- list modified files
+- list pending actions
+- unlock the task
+
+This allows another agent to continue safely.
+
+---
+
+# Mandatory Logging
+
+Agents must continuously update:
+
+- progress logs
+- tests
+- handoffs
+- blockers
+- review notes
+
+All operations must include timestamps.
+
+Example:
+
+```text
+2026-05-07 16:42:11 Europe/Paris
+```
+
+---
+
+# Machine-Readable Format
+
+Each task begins with YAML metadata.
+
+Example:
+
+```yaml
+---
+task_id: TASK-051
+status: IN_PROGRESS
+owner: GLM
+contributors:
+  - JULES
+branch: TASK-051-navbar-livewire-fix
+---
+```
+
+This format allows future orchestration and automation.
+
+---
+
+# Testing Rules
+
+Before review:
+
+- run relevant tests
+- inspect browser behavior
+- inspect console errors
+- validate responsive behavior
+- validate tenant safety
+- verify architectural consistency
+
+---
+
+# Browser & Playwright Rules
+
+Agents are encouraged to use browser tooling for:
+
+- screenshots
+- responsive testing
+- DOM inspection
+- Livewire debugging
+- Alpine.js validation
+- console inspection
+
+Do not assume frontend behavior without browser validation.
+
+---
+
+# Forbidden Actions
+
+Agents must never:
+
+- push directly to main
+- bypass tenant isolation
+- remove protections without justification
+- overwrite another agent's work
+- ignore task logging
+- modify unrelated systems
+- bypass architectural rules
+
+---
+
+# Review Philosophy
+
+Prefer:
+
+- small safe changes
+- explicit logic
+- maintainability
+- predictable behavior
+- incremental refactors
+
+Avoid:
+
+- architecture drift
+- hidden side effects
+- uncontrolled rewrites
+- premature abstractions
+
+---
+
+# Important Rule
+
+The task file must always reflect the real current state of the work.
+
+The task log is mandatory.
+
+No hidden work.

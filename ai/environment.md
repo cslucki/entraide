@@ -31,7 +31,11 @@ Do not use localhost from Windows browser tooling.
 
 # Production Environment
 
-Production runs on Laravel Cloud.
+Production product:
+- BouclePro.com
+
+Production infrastructure:
+- Laravel Cloud
 
 Production URL:
 https://bouclepro.com
