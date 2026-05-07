@@ -1,7 +1,5 @@
 *.log
 .DS_Store
-/@DOCS/
-/_scripts_cyril/
 .env
 .env.backup
 .env.production
