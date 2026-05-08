@@ -25,14 +25,20 @@ class ReportTreated extends Notification
             default => $this->report->status,
         };
 
+        // Fallback to notifiable community if report community is null
+        $communitySlug = $this->report->community?->slug ?? ($notifiable->community?->slug ?? session('community_slug'));
+        $communityId = $this->report->community_id ?? ($notifiable->community_id ?? session('community_id'));
+
         return [
             'type' => 'report',
             'title' => 'Signalement traité',
             'message' => 'Votre signalement a été ' . $statusLabel . ' par la modération.',
-            'action_url' => '#',
+            'action_url' => $communitySlug
+                ? route('community.dashboard', ['community' => $communitySlug])
+                : route('dashboard'),
             'report_id' => $this->report->id,
             'status' => $this->report->status,
-            'community_id' => $notifiable->community_id,
+            'community_id' => $communityId,
         ];
     }
 }
