@@ -30,28 +30,27 @@ class HomeAiInput extends Component
 
         $result = $aiService->classify($this->prompt);
 
-        \Illuminate\Support\Facades\Log::info('AI Submit', [
-            'prompt' => $this->prompt,
-            'debug_mode' => $settings->isDebugMode(),
-            'is_admin' => auth()->user()?->is_admin
-        ]);
-
         if ($settings->isDebugMode()) {
             $this->debugResult = $result;
             $this->loading = false;
             return;
         }
 
-        $this->handleRedirection($result);
+        return $this->handleRedirection($result);
     }
 
-    public function setPrompt(string $value)
+    public function selectSuggestion(string $value, AIIntentService $aiService, AISettingsService $settings)
     {
         $this->prompt = $value;
+        return $this->submit($aiService, $settings);
     }
 
     protected function handleRedirection(array $result)
     {
+        $community = app()->bound('current_community') ? app('current_community') : null;
+        $routePrefix = $community ? 'community.' : '';
+        $routeParams = $community ? ['community' => $community->slug] : [];
+
         $intent = $result['intent'] ?? 'unknown';
         $categorySlug = $result['category'] ?? null;
         $categoryId = null;
@@ -62,22 +61,32 @@ class HomeAiInput extends Component
 
         switch ($intent) {
             case 'service_offer':
-                return redirect()->route('services.create', array_filter(['category_id' => $categoryId]));
+                $params = array_merge($routeParams, array_filter([
+                    'category_id' => $categoryId,
+                    'title' => $this->prompt
+                ]));
+                return redirect()->route($routePrefix . 'services.create', $params);
 
             case 'service_request':
-                return redirect()->route('requests.create', array_filter(['category_id' => $categoryId]));
+                $params = array_merge($routeParams, array_filter([
+                    'category_id' => $categoryId,
+                    'title' => $this->prompt
+                ]));
+                return redirect()->route($routePrefix . 'requests.create', $params);
 
             case 'search':
-                return redirect()->route('explorer', array_filter([
+                $params = array_merge($routeParams, array_filter([
                     'search' => $this->prompt,
                     'selectedCategories' => $categoryId ? [$categoryId] : null
                 ]));
+                return redirect()->route($routePrefix . 'explorer', $params);
 
             case 'profile':
-                return redirect()->route('profile.edit');
+                return redirect()->route($routePrefix . 'profile.edit', $routeParams);
 
             default:
-                return redirect()->route('explorer', ['search' => $this->prompt]);
+                $params = array_merge($routeParams, ['search' => $this->prompt]);
+                return redirect()->route($routePrefix . 'explorer', $params);
         }
     }
 

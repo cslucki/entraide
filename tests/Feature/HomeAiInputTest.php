@@ -18,13 +18,13 @@ class HomeAiInputTest extends TestCase
     {
         Livewire::test(HomeAiInput::class)
             ->assertStatus(200)
-            ->assertSee('How can Entraide help you today?');
+            ->assertSee('Comment pouvons-nous vous aider ?');
     }
 
     public function test_it_sets_prompt_from_suggestion()
     {
         Livewire::test(HomeAiInput::class)
-            ->call('setPrompt', 'I need help')
+            ->call('selectSuggestion', 'I need help')
             ->assertSet('prompt', 'I need help');
     }
 
@@ -46,6 +46,9 @@ class HomeAiInputTest extends TestCase
         Livewire::test(HomeAiInput::class)
             ->set('prompt', 'I want to teach Excel')
             ->call('submit')
-            ->assertRedirect(route('services.create', ['category_id' => $category->id]));
+            ->assertRedirect(route('services.create', [
+                'category_id' => $category->id,
+                'title' => 'I want to teach Excel'
+            ]));
     }
 }
