@@ -46,7 +46,9 @@ class AdminAITest extends TestCase
 
         $response->assertRedirect(route('admin.ai'));
         $this->assertEquals('openai', \App\Models\Setting::get('ai_provider'));
-        $this->assertEquals('New Master Prompt', \App\Models\Setting::get('ai_master_prompt'));
+
+        $latestPrompt = \App\Models\AIPrompt::getLatest('master');
+        $this->assertEquals('New Master Prompt', $latestPrompt->content);
     }
 
     public function test_fake_provider_logic()

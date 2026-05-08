@@ -23,9 +23,13 @@ class AdminAIController extends Controller
             'ai_classification_prompt'=> $this->settings->getClassificationPrompt(),
             'ai_examples_json'       => json_encode($this->settings->getFewShotExamples(), JSON_PRETTY_PRINT),
             'ai_enabled'             => $this->settings->isAIEnabled(),
+            'ai_debug_mode'          => $this->settings->isDebugMode(),
         ];
 
-        return view('admin.ai.index', compact('config'));
+        $recentLogs = \App\Models\AIInteractionLog::with('user')->latest()->limit(10)->get();
+        $promptHistory = \App\Models\AIPrompt::with('creator')->latest()->limit(20)->get();
+
+        return view('admin.ai.index', compact('config', 'recentLogs', 'promptHistory'));
     }
 
     public function update(Request $request): RedirectResponse
@@ -36,7 +40,6 @@ class AdminAIController extends Controller
             'ai_master_prompt'        => 'required|string',
             'ai_classification_prompt' => 'required|string',
             'ai_examples_json'        => 'required|json',
-            'ai_enabled'              => 'boolean',
         ]);
 
         $this->settings->setMany([
@@ -46,6 +49,7 @@ class AdminAIController extends Controller
             'ai_classification_prompt' => $data['ai_classification_prompt'],
             'ai_examples_json'        => $data['ai_examples_json'],
             'ai_enabled'              => $request->has('ai_enabled') ? '1' : '0',
+            'ai_debug_mode'           => $request->has('ai_debug_mode') ? '1' : '0',
         ]);
 
         return redirect()->route('admin.ai')->with('success', 'AI Configuration updated successfully.');

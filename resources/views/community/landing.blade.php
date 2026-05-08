@@ -13,8 +13,13 @@
                 {{ $community->hero_title ?: $community->name }}
             </h1>
             @if($community->hero_description)
-            <p class="text-xl text-white/90 max-w-2xl mx-auto mb-8">{{ $community->hero_description }}</p>
+            <p class="text-xl text-white/90 max-w-2xl mx-auto mb-10">{{ $community->hero_description }}</p>
             @endif
+
+            <div class="mb-12 max-w-2xl mx-auto">
+                <livewire:home-ai-input />
+            </div>
+
             <div class="flex flex-wrap justify-center gap-3">
                 @auth
                     <a href="{{ route('community.dashboard', ['community' => $community->slug]) }}"
