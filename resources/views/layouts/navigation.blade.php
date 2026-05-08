@@ -34,15 +34,15 @@
                 <!-- Navigation Links (Desktop) -->
                 <div class="hidden sm:-my-px sm:ml-10 sm:flex sm:space-x-8">
                     <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')"
-                                :class="!scrolled && {{ $isHome ? 'true' : 'false' }} ? 'text-indigo-100 hover:text-white border-transparent' : ''">
+                                x-bind:class="!scrolled && {{ $isHome ? 'true' : 'false' }} ? 'text-indigo-100 hover:text-white border-transparent' : ''">
                         Échanges
                     </x-nav-link>
                     <x-nav-link :href="route('members.index')" :active="request()->routeIs('members*')"
-                                :class="!scrolled && {{ $isHome ? 'true' : 'false' }} ? 'text-indigo-100 hover:text-white border-transparent' : ''">
+                                x-bind:class="!scrolled && {{ $isHome ? 'true' : 'false' }} ? 'text-indigo-100 hover:text-white border-transparent' : ''">
                         Annuaire
                     </x-nav-link>
                     <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')"
-                                :class="!scrolled && {{ $isHome ? 'true' : 'false' }} ? 'text-indigo-100 hover:text-white border-transparent' : ''">
+                                x-bind:class="!scrolled && {{ $isHome ? 'true' : 'false' }} ? 'text-indigo-100 hover:text-white border-transparent' : ''">
                         Boucles
                     </x-nav-link>
                 </div>
