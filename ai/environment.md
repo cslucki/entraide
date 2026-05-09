@@ -107,6 +107,47 @@ Preferred workflow:
 4. capture screenshots
 5. only then modify code
 
+## Playwright QA System
+
+**Documentation:** `ai/playwright/README.md`
+
+**Run tests:**
+```bash
+npx playwright test                    # All tests
+npx playwright test --ui             # UI mode
+npx playwright test --headed           # Watch browser
+npx playwright show-report ai/playwright/reports/html
+```
+
+**Browser projects configured:**
+- Chromium (Desktop Chrome)
+- Firefox
+- WebKit (Safari)
+- Mobile Chrome
+
+**WebKit is intentionally enabled in Playwright projects to improve cross-browser frontend quality and Safari compatibility.**
+
+**Strict Account Separation:**
+- `loginAsAdmin()` → TEST_ADMIN_* (for /admin/* routes ONLY)
+- `loginAsMember()` → TEST_MEMBER1_* (for global platform tests, OUTSIDE CPME)
+- CPME accounts reserved for future tenant-isolation testing
+
+**Test users:**
+See `.env` and `ai/playwright/README.md` for complete account details.
+
+**Environment variables (required in .env):**
+- TEST_ADMIN_* - Admin user for admin routes
+- TEST_MEMBER1_* - Global member (Alice, OUTSIDE CPME)
+- TEST_MEMBER2_* - Global member (Cyril, OUTSIDE CPME)
+- TEST_MEMBER_OF_CPME1_* - CPME member (reserved for future)
+- TEST_MEMBER_OF_CPME2_* - CPME member (reserved for future)
+
+**Device profiles available:**
+- Desktop: 1280x720, 1920x1080
+- Tablet: 768x1024, 1024x768
+- Mobile: 375x667, 414x896
+
+
 ---
 
 # Standard Commands

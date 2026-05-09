@@ -25,6 +25,22 @@ The system is:
 The task is the source of truth, not the agent.
 
 ---
+# MANDATORY TASK LIFECYCLE
+
+TASK files are the operational memory of the project.
+
+Agents MUST:
+- read the TASK file before any implementation
+- continuously update the TASK file during execution
+- append progress after each major step
+- document architecture decisions
+- document discoveries
+- document executed tests
+- document blockers/errors
+- update TASK before commit
+
+A TASK file is NOT optional documentation.
+---
 
 # Mandatory Task Discipline
 
@@ -39,6 +55,15 @@ Before ANY commit or push, agents MUST:
 
 Commits without task updates are considered invalid workflow.
 
+---
+# The project AI tooling is part of the architecture itself.
+
+Agents should not bypass project tooling unless:
+- debugging tooling itself
+- no equivalent tooling exists
+- emergency diagnosis is required
+
+Do not use raw git status/diff commands when ai/tooling equivalents exist.
 ---
 
 # What Is An Agent
@@ -187,6 +212,7 @@ Agents must continuously update:
 - handoffs
 - blockers
 - review notes
+- modified files
 
 All operations must include timestamps.
 

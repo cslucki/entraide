@@ -1,45 +1,54 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
+import { loginAsMember, loginAsAdmin } from '../../ai/playwright/helpers/auth.js';
+import { captureScreenshot } from '../../ai/playwright/helpers/screenshot.js';
+import { setupConsoleLogging, getConsoleErrors, getPageErrors } from '../../ai/playwright/helpers/console.js';
+import '../setup.js';
 
-const SCREENSHOT_DIR = 'test-results';
+const SCREENSHOT_DIR = 'ai/playwright/screenshots';
 
-function screenshot(page, name) {
-    fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
-    return page.screenshot({ path: path.join(SCREENSHOT_DIR, `${name}.png`) });
-}
+test.describe('Global Platform Smoke Tests', () => {
+    test.beforeEach(async ({ page }) => {
+        setupConsoleLogging(page);
+    });
 
-async function login(page) {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', 'test@example.com');
-    await page.fill('input[name="password"]', 'password');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('**/dashboard');
-}
+    test.afterEach(async ({ page }, testInfo) => {
+        const consoleErrors = getConsoleErrors();
+        const pageErrors = getPageErrors();
 
-test.describe('Smoke', () => {
-    test('login and dashboard', async ({ page }) => {
-        await login(page);
+        if (consoleErrors.length > 0 || pageErrors.length > 0) {
+            console.log('Test completed with errors:');
+            console.log('Console errors:', consoleErrors);
+            console.log('Page errors:', pageErrors);
+        }
+    });
+
+    test('global member login and dashboard', async ({ page }) => {
+        // Uses TEST_MEMBER1 (Alice) - global platform member
+        await loginAsMember(page);
 
         await expect(page).toHaveURL(/\/dashboard/);
         await expect(page.locator('h1, h2').first()).toBeVisible();
         await expect(page.locator('nav')).toBeVisible();
 
-        await screenshot(page, 'dashboard');
+        await captureScreenshot(page, 'global-member-dashboard');
     });
 
-    test('admin dashboard', async ({ page }) => {
-        await login(page);
+    test('admin dashboard access', async ({ page }) => {
+        // Uses TEST_ADMIN - admin user only for admin routes
+        await loginAsAdmin(page);
 
         await page.goto('/admin/dashboard');
         await expect(page).toHaveURL(/\/admin\/dashboard/);
         await expect(page.locator('main, [class*="content"], h1, h2').first()).toBeVisible();
 
-        await screenshot(page, 'admin-dashboard');
+        await captureScreenshot(page, 'admin-dashboard');
     });
 
     test('admin messages list', async ({ page }) => {
-        await login(page);
+        // Uses TEST_ADMIN - admin user only for admin routes
+        await loginAsAdmin(page);
 
         await page.goto('/admin/messages');
         await expect(page).toHaveURL(/\/admin\/messages/);
@@ -50,6 +59,6 @@ test.describe('Smoke', () => {
         // Présence du tableau
         await expect(page.locator('table')).toBeVisible();
 
-        await screenshot(page, 'admin-messages');
+        await captureScreenshot(page, 'admin-messages');
     });
 });

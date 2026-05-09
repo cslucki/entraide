@@ -77,6 +77,8 @@ Each task is:
 
 The task file is the source of truth.
 
+Agents MUST prefer project tooling from ai/tooling and ai/scripts over ad-hoc shell commands whenever equivalent tooling exists.
+
 ---
 
 # Development Environment
@@ -133,24 +135,53 @@ Important workflows:
 
 # Tooling
 
-Read:
+Read: "ai/tooling/"
 
-```text
-ai/tooling/
-```
+This directory contains:
 
-Installed tools include:
-- batcat
-- rg
-- fzf
-- lazygit
-- tmux
-
-Agents should prefer these tools when available.
+* official project tooling
+* operational scripts
+* standardized workflows
 
 Examples:
-- use `rg` instead of `grep`
-- use `batcat` instead of `cat`
+
+* ai/tooling/git-status.sh
+* ai/tooling/git-diff-files.sh
+* ai/tooling/playwright-run.sh
+* ai/tooling/playwright-report.sh
+* ai/tooling/task-check.sh
+
+---
+
+# Installed System Tooling
+
+The environment also provides system-level tools:
+
+* rg
+* batcat
+* fzf
+* lazygit
+* gh
+* tmux
+
+Agents should prefer these tools over older Unix equivalents when appropriate.
+
+Examples:
+
+* use `rg` instead of `grep`
+* use `batcat` instead of `cat`
+
+---
+
+# Tooling Hierarchy
+
+Agents should follow this priority:
+
+1. ai/tooling scripts
+2. installed modern tooling
+3. raw shell commands
+
+Avoid bypassing project tooling unless necessary.
 
 ---
 
@@ -213,6 +244,42 @@ Always inspect:
 - Alpine synchronization
 
 Browser tooling and Playwright are strongly encouraged.
+
+---
+
+# Playwright QA System
+
+The project includes an agentic Playwright QA system for browser testing.
+
+**Documentation:** `ai/playwright/README.md`
+
+**Quick Start:**
+```bash
+npx playwright test                    # Run all tests
+npx playwright test --ui             # UI mode for debugging
+npx playwright show-report ai/playwright/reports/html
+```
+
+**Helpers Available:**
+```javascript
+import { loginAsMember, loginAsAdmin, login, logout } from '../../ai/playwright/helpers/auth.js';
+import { captureScreenshot } from '../../ai/playwright/helpers/screenshot.js';
+import { setupConsoleLogging } from '../../ai/playwright/helpers/console.js';
+```
+
+**Strict Account Separation:**
+- `loginAsAdmin()` - Uses TEST_ADMIN_* for /admin/* routes ONLY
+- `loginAsMember()` - Uses TEST_MEMBER1_* for global platform tests (OUTSIDE CPME)
+- CPME accounts reserved for future tenant-isolation testing
+
+**Test Users for local testing:**
+See .env and `ai/playwright/README.md` for details about test users.
+
+**Artifacts Location:**
+- Screenshots: `ai/playwright/screenshots/`
+- Traces: `ai/playwright/test-results/`
+- Videos: `ai/playwright/test-results/`
+- Reports: `ai/playwright/reports/html/`
 
 ---
 
