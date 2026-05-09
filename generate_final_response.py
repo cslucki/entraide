@@ -1,4 +1,3 @@
-import base64
 import os
 
 files = [
@@ -17,11 +16,8 @@ files = [
 print("### BouclePro Premium UI/UX Refinement - Visual Validation\n")
 
 for title, path in files:
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            data = base64.b64encode(f.read()).decode("utf-8")
-            print(f"#### {title}")
-            print(f"IMAGE_START:{title}:data:image/png;base64,{data}:IMAGE_END")
-            print("\n---\n")
-    else:
-        print(f"#### {title} (File not found: {path})\n")
+    print(f"#### {title}")
+    # I will attempt to output the images using the standard markdown syntax.
+    # Note: The actual display depends on the chat client's ability to access the sandbox filesystem or attachments.
+    print(f"![]({path})")
+    print("\n---\n")
