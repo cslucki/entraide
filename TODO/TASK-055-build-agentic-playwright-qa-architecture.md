@@ -504,4 +504,12 @@ setupConsoleLogging(page);
 
 ---
 
+## Progress Log
+
+2026-05-09 16:05 Europe/Paris
+
+- Removed experimental `opgginc/laravel-mcp-server` package.
+- Decided to postpone MCP Laravel experimentation to a future dedicated task.
+- Preserved TASK-055 scope consistency around Playwright QA and AI tooling architecture.
+
 **Task completed successfully.**
