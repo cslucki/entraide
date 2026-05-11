@@ -14,7 +14,7 @@ branch: TASK-058-task-058-organization-migration
 priority: HIGH
 
 created_at: 2026-05-11 21:08:30 Europe/Paris
-updated_at: 2026-05-11 23:00:00 Europe/Paris
+updated_at: 2026-05-11 23:30:00 Europe/Paris
 
 labels:
 
@@ -109,6 +109,7 @@ Strictly forbidden:
 ## Phase 2 — Architecture Migration
 
 * [ ] progressively introduce organization_id
+* [x] migrate tenant scope to Organization-first resolution (BelongsToTenantScope)
 * [ ] migrate models
 * [ ] migrate middleware
 * [ ] migrate routes
@@ -295,6 +296,70 @@ with current_community fallback, then migrate models one at a time.
 
 ---
 
+## 2026-05-11 23:30:00 Europe/Paris
+
+Agent: CLAUDE
+
+Phase 2 — BelongsToTenantScope Organization-first resolution — COMPLETED.
+
+### Change
+
+app/Models/Scopes/BelongsToTenantScope.php
+
+Old behavior:
+- try { app('current_community') } catch → WHERE community_id = ?
+
+New behavior:
+- app()->bound('current_organization') → preferred (Organization-first)
+- app()->bound('current_community')    → fallback (legacy compatibility)
+- neither bound                        → no scope applied (identical to before)
+
+Key decisions:
+- app()->bound() replaces try/catch: explicit, no exception overhead
+- Private resolveOrganization() method encapsulates the precedence logic cleanly
+- WHERE clause still uses community_id (DB column unchanged — no migration needed)
+- Variable renamed to $organization internally but behavior identical
+
+### Runtime Behavior
+
+With ResolveCommunity middleware (Phase 1): both current_organization and
+current_community are bound to the same Community instance.
+→ current_organization wins, same ID used, zero behavior change in production.
+
+Legacy code (console, jobs, tests) that binds only current_community:
+→ falls back to current_community, fully compatible.
+
+Code that binds neither (non-tenant routes, admin, tests without binding):
+→ no scope, all rows visible — identical to previous behavior.
+
+### Impacted Models
+
+- Service (booted: addGlobalScope(BelongsToTenantScope))
+- ServiceRequest (booted: addGlobalScope(BelongsToTenantScope))
+- Transaction (booted: addGlobalScope(BelongsToTenantScope))
+
+withoutGlobalScope(BelongsToTenantScope::class) bypass: still works (tested).
+
+### Test Results
+
+BelongsToTenantScopeTest: 8/8 passed
+Full regression (81 tests): 81/81 passed — zero regressions
+
+Covers: organization precedence, community fallback, no binding = no scope,
+all three scoped models, withoutGlobalScope bypass, Organization instance works.
+
+### Remaining Migration Risks
+
+- Livewire Explorer reads app('current_community') directly (not via scope)
+  → candidate for Phase 2 model migration
+- RegisteredUserController reads app('current_community') directly
+  → candidate for Phase 2 controller migration
+- HomeController reads current_community directly
+  → candidate for Phase 2 controller migration
+- community_id DB column still named community_id (Phase 5 database migration)
+
+---
+
 # Handoffs
 
 None.
@@ -303,7 +368,7 @@ None.
 
 # Tests
 
-* [x] feature tests — OrganizationCompatibilityTest (12 tests) + OrganizationRouteCompatibilityTest (8 tests)
+* [x] feature tests — OrganizationCompatibilityTest (12) + OrganizationRouteCompatibilityTest (8) + BelongsToTenantScopeTest (8)
 * [ ] browser validation
 * [ ] responsive validation
 * [ ] console inspection
