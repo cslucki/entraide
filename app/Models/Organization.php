@@ -12,4 +12,13 @@ namespace App\Models;
 class Organization extends Community
 {
     protected $table = 'communities';
+
+    /**
+     * Organizations are identified by slug in URLs, not primary key.
+     * Enables implicit Eloquent route model binding for {organization} params.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
+    }
 }
