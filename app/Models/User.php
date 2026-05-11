@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Community;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +16,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasUuids, HasApiTokens, Notifiable;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
     protected $fillable = [
         'community_id',
@@ -62,6 +61,11 @@ class User extends Authenticatable
     public function community(): BelongsTo
     {
         return $this->belongsTo(Community::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'community_id');
     }
 
     public function services(): HasMany
@@ -117,9 +121,9 @@ class User extends Authenticatable
 
     public function unreadMessagesCount(): int
     {
-        return \App\Models\Message::whereHas('transaction', function ($q) {
-                $q->where('buyer_id', $this->id)->orWhere('seller_id', $this->id);
-            })
+        return Message::whereHas('transaction', function ($q) {
+            $q->where('buyer_id', $this->id)->orWhere('seller_id', $this->id);
+        })
             ->where('sender_id', '!=', $this->id)
             ->whereNull('read_at')
             ->where('type', 'user')
@@ -138,6 +142,7 @@ class User extends Authenticatable
         if ($this->avatar) {
             return Storage::disk('public')->url($this->avatar);
         }
-        return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&background=6366f1&color=fff';
+
+        return 'https://ui-avatars.com/api/?name='.urlencode($this->name).'&background=6366f1&color=fff';
     }
 }

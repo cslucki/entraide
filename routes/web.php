@@ -225,6 +225,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 // Negative lookahead excludes reserved global slugs so /login, /register, /admin etc. are never captured.
 $communityConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges|boucles)[a-z0-9][a-z0-9\-]*';
 
+// Organization route constraint — same slug format as community, reserved for future /org/{organization} routes.
+// Usage: Route::prefix('/org/{organization}')->middleware(['web', 'organization'])->where(['organization' => $organizationConstraint])->group(...)
+$organizationConstraint = $communityConstraint;
+
 Route::get('/{community}', function ($community) {
     return redirect("/{$community}/");
 })->where('community', $communityConstraint)->name('community.redirect');

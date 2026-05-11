@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Community;
 use App\Models\Scopes\BelongsToTenantScope;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,7 +17,7 @@ class ServiceRequest extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new BelongsToTenantScope());
+        static::addGlobalScope(new BelongsToTenantScope);
     }
 
     protected $fillable = [
@@ -46,6 +45,11 @@ class ServiceRequest extends Model
     public function community(): BelongsTo
     {
         return $this->belongsTo(Community::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'community_id');
     }
 
     public function user(): BelongsTo
