@@ -113,7 +113,8 @@ Strictly forbidden:
 * [ ] migrate models
 * [ ] migrate middleware
 * [ ] migrate routes
-* [ ] migrate controllers
+* [x] migrate direct current_community runtime usages (HomeController, RegisteredUserController, Explorer)
+* [ ] migrate remaining controllers
 * [ ] migrate policies
 * [ ] migrate Livewire components
 * [ ] migrate UI terminology
@@ -357,6 +358,67 @@ all three scoped models, withoutGlobalScope bypass, Organization instance works.
 - HomeController reads current_community directly
   → candidate for Phase 2 controller migration
 - community_id DB column still named community_id (Phase 5 database migration)
+
+---
+
+## 2026-05-11 23:45:00 Europe/Paris
+
+Agent: CLAUDE
+
+Phase 2 — Direct current_community runtime migration — COMPLETED.
+
+### Files Changed
+
+1. app/Livewire/Explorer.php
+   - mount(): replaced try/catch on app('current_community') with Organization-first bound() check
+   - $this->communityId unchanged (Livewire state property — Playwright-safe)
+
+2. app/Http/Controllers/Auth/RegisteredUserController.php
+   - store(): replaced app()->has('current_community') guard with Organization-first bound() pattern
+   - $community?->id → $organization?->id (local variable rename only)
+   - community_id DB column assignment: unchanged
+
+3. app/Http/Controllers/HomeController.php
+   - currentCommunityId(): replaced try/catch with Organization-first bound() pattern
+   - method name unchanged (private, no external callers)
+   - returns same ?string signature
+
+### Pattern Applied (consistent with BelongsToTenantScope)
+
+$organization = app()->bound('current_organization')
+    ? app('current_organization')
+    : (app()->bound('current_community') ? app('current_community') : null);
+
+- No try/catch needed: bound() is safe and non-throwing
+- Organization-first: canonical runtime binding preferred
+- Community fallback: full legacy compatibility preserved
+- Null when neither bound: identical to previous behavior
+
+### Compatibility Guarantees
+
+- Phase 1 (both bound, same instance): zero behavior change
+- Legacy code (only current_community): fallback path, fully compatible
+- Non-tenant routes (neither bound): null result, behavior identical
+- DB column community_id: completely unchanged
+- Playwright: $this->communityId property name unchanged in Explorer
+
+### Remaining direct current_community reads
+
+rg "current_community" app/ --line-number →
+Only in: ResolveCommunity.php (the binder itself, correct)
+and as fallback arms in the three migrated files (correct).
+
+### Test Results
+
+ExplorerTest: 11/11 passed
+Full regression (89 tests): 89/89 passed — zero regressions
+
+### Remaining Migration Risks
+
+- community_id DB column (Phase 5 — database migration, deferred)
+- Playwright selectors (Phase 3 stabilization)
+- Admin controllers (not in scope yet)
+- remaining Livewire components (not in scope yet)
 
 ---
 
