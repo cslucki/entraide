@@ -267,3 +267,5 @@ Migration must remain:
 * MCP-assisted.
 
 Avoid architecture drift.
+...
+Fait

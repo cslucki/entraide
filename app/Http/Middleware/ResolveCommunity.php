@@ -12,7 +12,7 @@ class ResolveCommunity
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $slug = $request->route('community');
+        $slug = $request->route('community') ?? $request->route('organization');
 
         if ($slug) {
             $community = Community::findBySlug($slug);
