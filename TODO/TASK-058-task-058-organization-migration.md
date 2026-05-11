@@ -14,7 +14,7 @@ branch: TASK-058-task-058-organization-migration
 priority: HIGH
 
 created_at: 2026-05-11 21:08:30 Europe/Paris
-updated_at: 2026-05-11 22:30:00 Europe/Paris
+updated_at: 2026-05-11 23:00:00 Europe/Paris
 
 labels:
 
@@ -101,7 +101,7 @@ Strictly forbidden:
 * [x] create Organization compatibility model
 * [x] add organization middleware alias
 * [x] add current_organization compatibility context
-* [ ] prepare Organization route compatibility
+* [x] prepare Organization route compatibility
 * [x] add minimal PHPUnit coverage
 
 ---
@@ -230,6 +230,56 @@ Phase 2: progressively update BelongsToTenantScope to read app('current_organiza
 
 ---
 
+## 2026-05-11 23:00:00 Europe/Paris
+
+Agent: CLAUDE
+
+Phase 1 — Organization Route Compatibility — COMPLETED.
+
+### Changes Made
+
+1. app/Http/Middleware/ResolveCommunity.php (UPDATED)
+   - Reads {organization} param as fallback to {community}:
+     $slug = $request->route('community') ?? $request->route('organization');
+   - Existing /{community}/* routes: completely unchanged ({community} wins via ??)
+   - New /org/{organization} routes: middleware now resolves slug correctly
+
+2. app/Models/Organization.php (UPDATED)
+   - Added getRouteKeyName(): string returning 'slug'
+   - Prepares Organization for future Eloquent route model binding (later phase)
+   - Community::getRouteKeyName() untouched (still returns 'id')
+
+3. routes/web.php (UPDATED)
+   - Added $organizationConstraint = $communityConstraint (same slug regex)
+   - Added comment block showing future /org/{organization} route group pattern
+   - No actual routes added — Playwright is unaffected
+
+4. tests/Feature/OrganizationRouteCompatibilityTest.php (NEW)
+   - 8 tests / 12 assertions — all pass
+   - Covers: {organization} param middleware resolution, both current_* bindings,
+     404 for unknown/inactive, {community} precedence when both params present,
+     getRouteKeyName on Organization and Community
+
+### Test Results
+
+OrganizationRouteCompatibilityTest: 8/8 passed
+OrganizationCompatibilityTest: 12/12 passed (no regression)
+CommunityModelTest: 10/10 passed (no regression)
+
+### Deferred to Later Phase
+
+- Implicit Eloquent route model binding (type-hinted Organization in controllers)
+- URL generation via route() helper with Organization models
+- These belong to the phase where /org/{organization} routes are officially introduced
+
+### Next Recommended Step
+
+Phase 1 is now COMPLETE. All checkboxes ticked.
+Next: Phase 2 entry — update BelongsToTenantScope to prefer current_organization
+with current_community fallback, then migrate models one at a time.
+
+---
+
 # Handoffs
 
 None.
@@ -238,14 +288,14 @@ None.
 
 # Tests
 
-* [x] feature tests — OrganizationCompatibilityTest (12 tests, all pass)
+* [x] feature tests — OrganizationCompatibilityTest (12 tests) + OrganizationRouteCompatibilityTest (8 tests)
 * [ ] browser validation
 * [ ] responsive validation
 * [ ] console inspection
 * [ ] tenant validation
 * [ ] transaction validation
 * [ ] messaging validation
-* [x] middleware validation — alias registration + current_organization binding
+* [x] middleware validation — alias registration, current_organization binding, {organization} param resolution
 * [ ] Playwright validation
 
 ---
