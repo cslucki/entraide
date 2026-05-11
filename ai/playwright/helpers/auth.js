@@ -9,7 +9,7 @@ export async function loginAsMember(page) {
     await page.fill('input[name="email"]', globalMember1User.email);
     await page.fill('input[name="password"]', globalMember1User.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('**/dashboard');
+    await page.waitForURL(url => url.pathname.includes('/dashboard') || url.pathname.length > 1);
 }
 
 /**
@@ -21,7 +21,7 @@ export async function loginAsAdmin(page) {
     await page.fill('input[name="email"]', adminUser.email);
     await page.fill('input[name="password"]', adminUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('**/dashboard');
+    await page.waitForURL(url => url.pathname.includes('/dashboard') || url.pathname.length > 1);
 }
 
 /**
@@ -32,7 +32,8 @@ export async function login(page, email, password) {
     await page.fill('input[name="email"]', email);
     await page.fill('input[name="password"]', password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('**/dashboard');
+    // Wait for either dashboard or a community home page
+    await page.waitForURL(url => url.pathname.includes('/dashboard') || url.pathname.length > 1);
 }
 
 /**

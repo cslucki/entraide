@@ -102,7 +102,7 @@
                     @forelse($myRequests as $req)
                     <div class="px-5 py-3 flex items-center justify-between">
                         <div class="min-w-0">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $req->title }}</p>
+                            <a href="{{ route('requests.show', $req) }}" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600">{{ $req->title }}</a>
                             <p class="text-xs text-gray-500">{{ $req->budget_min }}{{ $req->budget_max ? '–'.$req->budget_max : '+' }} pts</p>
                         </div>
                         <form method="POST" action="{{ route('requests.destroy', $req) }}" class="ml-3" x-data="{ asked: false }">
