@@ -86,4 +86,4 @@ Pending.
 # Review Notes
 
 Pending.
-C'est bon
+C'est bon terminé.
