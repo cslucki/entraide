@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Community;
 use App\Models\Scopes\BelongsToTenantScope;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +15,7 @@ class Transaction extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new BelongsToTenantScope());
+        static::addGlobalScope(new BelongsToTenantScope);
     }
 
     protected $fillable = [
@@ -47,6 +46,11 @@ class Transaction extends Model
     public function community(): BelongsTo
     {
         return $this->belongsTo(Community::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'community_id');
     }
 
     public function service(): BelongsTo
@@ -102,7 +106,8 @@ class Transaction extends Model
         if ($this->serviceRequest) {
             return $this->serviceRequest->title;
         }
-        return 'Échange #' . substr($this->id, 0, 8);
+
+        return 'Échange #'.substr($this->id, 0, 8);
     }
 
     public function getStatusLabelAttribute(): string

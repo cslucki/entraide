@@ -110,16 +110,16 @@ Strictly forbidden:
 
 * [ ] progressively introduce organization_id
 * [x] migrate tenant scope to Organization-first resolution (BelongsToTenantScope)
-* [ ] migrate models
-* [ ] migrate middleware
-* [ ] migrate routes
+* [x] migrate models — organization() BelongsTo added to Service, ServiceRequest, Transaction, User, BlogPost
+* [x] migrate middleware — ResolveCommunity handles {organization} param + binds current_organization (Phase 1)
+* [ ] migrate routes — deferred (explicit /org/{organization} route groups)
 * [x] migrate direct current_community runtime usages (HomeController, RegisteredUserController, Explorer)
-* [ ] migrate remaining controllers
-* [ ] migrate policies
-* [ ] migrate Livewire components
-* [ ] migrate UI terminology
-* [ ] migrate tests
-* [ ] migrate Playwright selectors
+* [x] migrate remaining controllers — admin controllers have no direct current_community reads
+* [x] migrate policies — N/A (no policies directory exists)
+* [x] migrate Livewire components — Explorer migrated; MessageThread has no community references
+* [ ] migrate UI terminology — deferred to Phase 3 (views use $currentCommunity, middleware shares both)
+* [ ] migrate tests — deferred (existing tests test actual DB schema; Organization-specific tests added throughout)
+* [ ] migrate Playwright selectors — deferred to Phase 3
 
 ---
 
@@ -422,6 +422,84 @@ Full regression (89 tests): 89/89 passed — zero regressions
 
 ---
 
+## 2026-05-12 00:15:00 Europe/Paris
+
+Agent: CLAUDE
+
+Phase 2 — Model organization() relationship migration — COMPLETED.
+
+### Files Changed
+
+Service, ServiceRequest, Transaction, User, BlogPost:
+- Added organization(): BelongsTo pointing to Organization::class, 'community_id'
+- community(): BelongsTo preserved unchanged (backward compat)
+- explicit Community/Organization imports removed by Pint (same namespace, not needed)
+
+### Why community_id as explicit FK
+
+Without it, Eloquent derives 'organization_id' from method name — wrong column.
+Explicit 'community_id' bridges the semantic gap until Phase 5 DB migration.
+
+### Compatibility Guarantees
+
+- $model->community still works (unchanged)
+- $model->organization returns Organization instance (extends Community)
+- Both return same underlying row — same id
+- $model->organization is null when community_id is null
+- No DB changes, no fillable changes
+
+### Test Results
+
+OrganizationRelationshipsTest: 9/9 passed
+Full feature suite: 294/294 passed — zero regressions
+
+---
+
+## 2026-05-12 01:00:00 Europe/Paris
+
+Agent: CLAUDE
+
+Phase 2 — Audit and completion checkpoint.
+
+### Findings
+
+Full audit of remaining current_community direct reads in PHP:
+- ResolveCommunity.php: the binder itself (correct, unchanged)
+- RegisteredUserController.php: fallback arm only (already migrated)
+- HomeController.php: fallback arm only (already migrated)
+- BelongsToTenantScope.php: fallback arm only (already migrated)
+- Explorer.php: fallback arm only (already migrated)
+
+Admin controllers: zero current_community reads found.
+Livewire components: only Explorer had reads (migrated); MessageThread has none.
+Policies: no policies directory exists.
+
+All PHP runtime direct reads are fully migrated to Organization-first pattern.
+Remaining current_community references are all legitimate fallback arms.
+
+### Phase 2 Status
+
+Substantively complete for the PHP layer:
+- middleware alias + Organization binding — done (Phase 1)
+- BelongsToTenantScope Organization-first — done
+- All 5 models: organization() BelongsTo — done
+- HomeController, RegisteredUserController, Explorer — done
+- Admin controllers — N/A (no reads)
+- Remaining Livewire (MessageThread) — N/A (no reads)
+- Policies — N/A (no directory)
+
+Deferred items:
+- migrate routes (/org/{organization} route groups) — later phase
+- migrate UI terminology ($currentCommunity in views) — Phase 3
+- migrate Playwright selectors — Phase 3
+- progressively introduce organization_id — Phase 5
+
+### Test Results
+
+Full feature suite: 294/294 passed — zero regressions
+
+---
+
 # Handoffs
 
 None.
@@ -430,7 +508,7 @@ None.
 
 # Tests
 
-* [x] feature tests — OrganizationCompatibilityTest (12) + OrganizationRouteCompatibilityTest (8) + BelongsToTenantScopeTest (8)
+* [x] feature tests — OrganizationCompatibilityTest (12) + OrganizationRouteCompatibilityTest (8) + BelongsToTenantScopeTest (8) + OrganizationRelationshipsTest (9)
 * [ ] browser validation
 * [ ] responsive validation
 * [ ] console inspection
