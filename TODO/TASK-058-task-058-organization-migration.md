@@ -272,6 +272,21 @@ CommunityModelTest: 10/10 passed (no regression)
 - URL generation via route() helper with Organization models
 - These belong to the phase where /org/{organization} routes are officially introduced
 
+
+### Route compatibility findings
+
+Implicit Organization route model binding was intentionally deferred.
+
+Reason:
+- current architecture still relies on Community-native route resolution
+- forcing implicit Organization binding now would increase migration complexity and risk
+- compatibility layer remains middleware-driven for Phase 1
+
+Future phases may introduce:
+- explicit Organization route bindings
+- RouteServiceProvider bindings
+- Organization-native route groups
+
 ### Next Recommended Step
 
 Phase 1 is now COMPLETE. All checkboxes ticked.
@@ -317,5 +332,3 @@ Migration must remain:
 * MCP-assisted.
 
 Avoid architecture drift.
-...
-Fait
