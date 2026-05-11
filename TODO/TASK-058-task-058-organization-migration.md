@@ -3,18 +3,21 @@
 task_id: TASK-058
 title: TASK-058-organization-migration
 
-status: IN_PROGRESS
+status: COMPLETED
 
-owner: GLM
+owner: OPENCODE
 
-contributors: []
+contributors:
+  - GLM
+  - CLAUDE
+  - OPENCODE
 
 branch: TASK-058-task-058-organization-migration
 
 priority: HIGH
 
 created_at: 2026-05-11 21:08:30 Europe/Paris
-updated_at: 2026-05-11 23:30:00 Europe/Paris
+updated_at: 2026-05-12 03:00:00 Europe/Paris
 
 labels:
 
@@ -25,11 +28,12 @@ labels:
 * laravel
 * mcp
 * playwright
+* freeze
 
 lock:
-status: LOCKED
-agent: CLAUDE
-since: 2026-05-11 22:30:00 Europe/Paris
+status: UNLOCKED
+agent: OPENCODE
+since: 2026-05-12 03:00:00 Europe/Paris
 
 handoff: false
 
@@ -129,7 +133,7 @@ Strictly forbidden:
 * [x] validate messaging flows
 * [x] validate transaction flows
 * [x] validate admin flows
-* [ ] validate responsive behavior — deferred (requires browser)
+* [ ] validate responsive behavior — deferred to TASK-064 (requires browser)
 * [x] inspect browser console — no JS changes found
 * [x] inspect Livewire hydration
 * [x] validate SQLite compatibility — SQLite :memory: test DB passes 294/294
@@ -793,6 +797,7 @@ Full feature suite: 294/294 passed — zero regressions
 | Feature suite | 2026-05-12 01:00 | 294/294 | PASS |
 | Feature suite (re-validation) | 2026-05-12 02:00 | 294/294 | PASS |
 | Feature suite (Phase 3b) | 2026-05-12 02:30 | 294/294 | PASS |
+| Feature suite (freeze audit) | 2026-05-12 03:00 | 294/294 | PASS |
 
 - OrganizationCompatibilityTest: 12/12
 - OrganizationRouteCompatibilityTest: 8/8
@@ -814,3 +819,302 @@ Migration must remain:
 * MCP-assisted.
 
 Avoid architecture drift.
+
+---
+
+# Migration Freeze and Future Roadmap
+
+## 2026-05-12 03:00:00 Europe/Paris
+
+Agent: OPENCODE
+
+### Final Architecture Audit — Stabilized State
+
+This section documents the complete stabilized state of TASK-058 after all three phases.
+
+#### What Is Fully Stabilized
+
+| Layer | Status | Evidence |
+|-------|--------|----------|
+| Organization model | STABLE | `Organization extends Community`, same `communities` table, explicit `$table`, `getRouteKeyName()` returns `'slug'` |
+| OrganizationFactory | STABLE | Extends `CommunityFactory`, `$model = Organization::class` |
+| Middleware — `'organization'` alias | STABLE | `bootstrap/app.php` registers `'organization' => ResolveCommunity::class` |
+| Middleware — dual binding | STABLE | `ResolveCommunity` binds both `current_community` and `current_organization` to same instance |
+| Middleware — param resolution | STABLE | `$slug = $request->route('community') ?? $request->route('organization')` |
+| View sharing | STABLE | Both `currentCommunity` and `currentOrganization` shared via `View::share` |
+| Blade tenant resolution | STABLE | 4 views use `$tenant = $currentCommunity ?? $currentOrganization ?? null`; `app.blade.php` checks `!isset($currentOrganization)` |
+| BelongsToTenantScope | STABLE | Organization-first (`current_organization` → `current_community` → null) |
+| Model `organization()` relationships | STABLE | 5 models: Service, ServiceRequest, Transaction, User, BlogPost |
+| Livewire Explorer | STABLE | Migrated to `app()->bound('current_organization')` with community fallback |
+| Livewire MessageThread | STABLE | Zero community references — relies on Eloquent route binding |
+| HomeController | STABLE | `currentCommunityId()` uses Organization-first bound pattern |
+| RegisteredUserController | STABLE | `store()` uses Organization-first bound pattern for community_id assignment |
+| Route constraint | STABLE | `$organizationConstraint` defined in `routes/web.php` (matching `$communityConstraint`) |
+| Route middleware | STABLE | `'community'` alias preserved; `'organization'` alias added |
+| Feature tests — Organization layer | STABLE | 4 dedicated test files: OrganizationCompatibilityTest (12), OrganizationRouteCompatibilityTest (8), BelongsToTenantScopeTest (8), OrganizationRelationshipsTest (9) |
+| Full feature suite | STABLE | 294/294 passing, 597 assertions, zero regressions across all runs |
+| SQLite compatibility | STABLE | Confirmed via `:memory:` test database |
+| Pint code style | STABLE | Applied consistently, no formatting drift |
+
+#### What Remains Intentionally Deferred
+
+| Item | Reason | Target Phase |
+|------|--------|-------------|
+| `organization_id` DB column | Would require migration, model fillable updates, controller updates, Playwright selector updates. High risk of regression. | TASK-059 |
+| `/org/{organization}` route groups | Would add URL namespace divergence. Must be coordinated with Playwright selectors. Medium risk. | TASK-060 |
+| Playwright dual-route coverage | Requires organization-specific routes to exist first. Low risk but blocked by routing. | TASK-061 |
+| Playwright selector terminology migration | Would rename `community` → `organization` in test helpers. Low risk but premature until routes exist. | TASK-061 |
+| UI terminology migration | End-user visible changes ("Communauté" → "Organisation"). Requires UX validation. Low code risk, high communication risk. | TASK-062 |
+| Legacy compatibility layer removal | Removing `current_community` binding, `community()` relationships, `community_id` column aliasing. HIGH risk if done before all consumers migrated. | TASK-063 |
+| `Community` model deprecation | Cannot deprecate while `communities` table exists and `community_id` is canonical. | TASK-063 |
+| Responsive browser validation | Requires manual browser testing. Not a code change. | TASK-064 |
+
+#### What Would Become Dangerous If Attempted Too Early
+
+| Dangerous Action | Why |
+|-----------------|-----|
+| Renaming `community_id` to `organization_id` | Would break every controller, model scope, form submission, API response, Livewire component, and Playwright test in the codebase. Requires coordinated multi-layer migration. |
+| Removing `$currentCommunity` View::share | Would silently break any Blade partial, component, or layout that references the variable. Current audit found 8 references in 5 files but third-party or future packages may also depend on it. |
+| Removing `community` middleware alias | All existing route groups depend on `'community'` middleware. Removing it would 500 every community-scoped page. |
+| Deleting `Community` model | The `communities` table and all `community_id` foreign keys still reference this model. The `Organization` model extends it. Deleting Community would collapse the inheritance chain. |
+| Forcing `/org/{organization}` as replacement for `/{community}` | Would break every bookmark, shared link, and Playwright test. Both route schemes must coexist during a transition window. |
+| Removing `community()` relationship from models | While `organization()` exists, `community()` is still the canonical relationship for Eloquent eager loading and model events. Removing it before `organization_id` column migration would break `$model->community` calls. |
+| Bulk search/replace `community` → `organization` | Uncontrolled string replacement would corrupt comments, DB column references, route definitions, middleware parameters, and JavaScript strings. |
+
+#### Recommended Future Tasks
+
+The following tasks should be split out of TASK-058 and executed as independent work items:
+
+---
+
+### TASK-059 — Database Migration: Add `organization_id` Column
+
+**Risk: MEDIUM**
+
+**Objective:** Add an `organization_id` nullable UUID column to all tables that currently have `community_id`, initially as an alias.
+
+**Implementation steps:**
+1. Create migrations adding `organization_id AFTER community_id` to: `users`, `services`, `service_requests`, `transactions`, `blog_posts`
+2. In each migration, copy existing `community_id` values to `organization_id` via raw SQL UPDATE
+3. DO NOT remove `community_id` yet
+4. Update models to populate both columns on create (e.g., set both in `booted` or accessors)
+5. Update `BelongsToTenantScope` to prefer `organization_id` with `community_id` fallback in the WHERE clause
+6. Run full test suite
+7. This step is reversible: rolling back the migration restores the previous state
+
+**Safety constraints:**
+- Must be a single deployment with zero-downtime migration pattern
+- Must not break any existing form submissions (forms still submit `community_id`)
+- Both columns must be kept in sync during the transition window
+- Must remain SQLite-compatible (no `AFTER` clause — do full column list instead)
+
+**Reversal condition:** If any test fails, rollback migration immediately.
+
+---
+
+### TASK-060 — Route Migration: Add `/org/{organization}` Route Groups
+
+**Risk: MEDIUM**
+
+**Objective:** Add parallel `/org/{organization}` route groups mirroring existing `/{community}` routes.
+
+**Implementation steps:**
+1. Add a new route group in `routes/web.php` using the `'organization'` middleware alias and `{organization}` param
+2. First deploy with ZERO routes inside the group — just the prefix and middleware structure
+3. Verify that `/org/{org-slug}` returns 404 (no routes match) — proves middleware fires correctly
+4. Progressively mirror routes from `/{community}` group to `/org/{organization}` group
+5. Each mirrored route must be tested individually
+6. Both route schemes coexist: `/{community}/dashboard` and `/org/{organization}/dashboard` resolve to the same controller with the same data
+
+**Safety constraints:**
+- The `$organizationConstraint` already exists in `routes/web.php` (line 229-230)
+- The middleware already handles `{organization}` param (Phase 1)
+- The `Blade Views` already resolve `$tenant` from `$currentOrganization` (Phase 3b)
+- Existing `/{community}` routes must remain untouched
+- Route naming convention: `community.*` for community routes, `org.*` for organization routes (or use aliased names)
+
+**Playwright impact:** All existing Playwright tests still use `/{community}` routes. New tests needed for `/{organization}` routes.
+
+**Reversal condition:** If any Playwright test fails, rollback the route group.
+
+---
+
+### TASK-061 — Playwright Dual-Route Coverage
+
+**Risk: LOW**
+
+**Objective:** Add Playwright coverage for `/org/{organization}` routes alongside existing `/{community}` tests.
+
+**Implementation steps:**
+1. Add `goToOrganization()` helper functions alongside existing `goToCommunity()` helpers
+2. Create new test spec files mirroring existing community specs but targeting org routes
+3. Update cross-community tests (QA-MT01, QA-MT02) to also test org route variants
+4. Add helper assertions that verify org route middleware sets both `current_organization` and `current_community` bindings
+
+**Safety constraints:**
+- Must not modify existing community route Playwright tests
+- Must not change existing helper function signatures
+- New helpers should be additive only
+
+---
+
+### TASK-062 — UI Terminology Migration
+
+**Risk: LOW (code) / MEDIUM (communication)**
+
+**Objective:** Update end-user visible terminology from "Communauté" to "Organisation" in UI labels, navigation, and documentation.
+
+**Implementation steps:**
+1. Audit all user-visible strings containing "Communauté" or "community" in Blade views, JavaScript, and translations
+2. Migrate admin panel terminology (admin routes use explicit "Communauté" labels)
+3. Update documentation and help text
+4. Coordinate with product/UX team for messaging
+
+**Safety constraints:**
+- This is primarily a content/UX task, not an architectural one
+- Must not change any variable names, route names, or DB column references
+- Should be done as a separate task because it involves non-technical stakeholders
+
+---
+
+### TASK-063 — Legacy Compatibility Layer Removal
+
+**Risk: HIGH**
+
+**Objective:** Remove deprecated compatibility aliases after all consumers are migrated.
+
+**Prerequisites (ALL must be complete before starting):**
+- TASK-059: `organization_id` column exists and is populated
+- TASK-060: `/org/{organization}` routes exist and work
+- TASK-062: UI terminology migrated
+- All controllers, Livewire components, and Blade views use `$currentOrganization` (not `$currentCommunity`)
+- No code references `current_community` outside of compatibility shims
+
+**Implementation steps:**
+1. Remove `current_community` binding from `ResolveCommunity` middleware
+2. Remove `community()` relationships from all models
+3. Remove `$currentCommunity` View::share
+4. Remove `BelongsToTenantScope` community fallback
+5. Drop `community_id` column (or keep as read-only for audit trail)
+6. Remove "community" middleware alias
+7. Rename `Community` model if appropriate (or keep as deprecated base class)
+
+**WARNING:** This is the final step of the entire migration. It should not be attempted until all intermediate phases are complete and stable for at least one release cycle.
+
+---
+
+### TASK-064 — Responsive Browser Validation
+
+**Risk: LOW**
+
+**Objective:** Manual browser-based responsive testing of all tenant flows.
+
+**Implementation steps:**
+1. Manually test all tenant flows at desktop, tablet, and mobile viewports
+2. Verify no layout regression in community-scoped pages
+3. Verify no Livewire hydration issues on mobile
+4. Document any visual issues found
+
+**Safety constraints:** Manual testing only. No code changes expected from this task.
+
+---
+
+### TASK-065 — Model Cleanup: Rename `$communityId` to `$organizationId` in Explorer
+
+**Risk: LOW**
+
+**Objective:** Rename Livewire Explorer's `$communityId` public property to `$organizationId`.
+
+**Prerequisites:**
+- Phase 3b Blade compatibility complete (done)
+- All tenant resolution in Explorer uses Organization-native patterns (done)
+
+**Implementation steps:**
+1. Rename `public ?string $communityId = null` → `public ?string $organizationId = null` in `app/Livewire/Explorer.php`
+2. Update all internal references in the component
+3. Verify Livewire hydration still works (property name changes are transparent to Livewire's wire:model)
+4. Run full test suite
+5. Update Playwright tests if any reference the old property name
+
+**Warning:** This is a minor cleanup. It is independent of the DB migration and can be done safely at any time. However, it introduces a git conflict risk if done concurrently with other Explorer changes.
+
+---
+
+### Risk Summary for Future Tasks
+
+| Task | Risk Level | Why |
+|------|-----------|-----|
+| TASK-059 — DB migration (`organization_id`) | MEDIUM | Schema change with dual-column sync requirement. Reversible. |
+| TASK-060 — `/org/{organization}` routes | MEDIUM | URL namespace expansion. Must coexist with existing routes. Playwright-gated. |
+| TASK-061 — Playwright dual-coverage | LOW | Additive test coverage only. No production code changes. |
+| TASK-062 — UI terminology | LOW/MEDIUM | Code changes are simple string replacements. Communication/UX coordination adds medium risk. |
+| TASK-063 — Legacy layer removal | HIGH | Destructive removal of compatibility shims. Must be last. All other tasks must complete first. |
+| TASK-064 — Responsive validation | LOW | Manual testing only. No code changes. |
+| TASK-065 — Explorer property rename | LOW | Isolated to single file. Transparent to Livewire. |
+
+---
+
+### Freeze Recommendation
+
+**TASK-058 should now be considered SEMI-FROZEN.**
+
+#### Why Freeze Now
+
+The migration has achieved its design objective: **Organization-native PHP runtime with zero behavioral regression.** The compatibility layer is complete, tested, and production-safe.
+
+Continuing aggressive migration now would introduce unnecessary risk:
+
+1. **The next logical step is a DB migration** (adding `organization_id`). DB migrations are the highest-risk operation in any application. They require careful coordination, rollback planning, and cannot be safely done alongside other architectural changes.
+
+2. **Without the `organization_id` column, route migration is blocked.** `/org/{organization}` routes would correctly resolve the tenant, but all underlying DB queries still use `community_id`. The naming mismatch would create confusion.
+
+3. **Without routes, Playwright coverage is blocked.** Adding Playwright tests for organization routes requires the routes to exist first. Adding Playwright tests early would create test files that cannot run.
+
+4. **Without the DB column, the legacy layer cannot be removed.** Every safety guarantee in Phase 1-3b relies on `community_id` remaining canonical. Removing legacy code before the DB migration would collapse the compatibility bridge.
+
+5. **The current hybrid state is production-safe.** Both `current_community` and `current_organization` point to the same Community instance. Every code path has a fallback. Every test passes. There is no urgent reason to continue.
+
+#### What "Semi-Frozen" Means
+
+- **No new migration work on TASK-058.** The task is architecture-complete for its scope.
+- **Bug fixes only.** If a bug is found in the compatibility layer, fix it on this branch.
+- **New tasks spawned.** Future migration steps (TASK-059 through TASK-065) should be separate tasks.
+- **TASK-058 branch should be merged or closed.** The branch `TASK-058-task-058-organization-migration` should be merged to main once review is complete.
+- **Rollback capability preserved.** Every change in TASK-058 is reversible: removing the `'organization'` middleware alias, reverting `ResolveCommunity.php`, removing `Organization.php`, and removing the `organization()` relationships would restore the pre-migration state.
+
+#### Architecture Is Production-Safe
+
+The hybrid state is safe because:
+
+1. **No production behavior change.** Every Organization-first code path has a `current_community` fallback. In production, both bindings are always set to the same instance.
+2. **No dead code paths.** Every Organization reference is actively used (middleware binding, scope resolution, relationship, Blade resolution).
+3. **No orphaned code.** The `Organization` model is tested (12 tests), `OrganizationRouteCompatibilityTest` validates param resolution (8 tests), `BelongsToTenantScopeTest` validates scope precedence (8 tests).
+4. **No dangling references.** All 5 models with `organization()` relationships also have `community()` relationships preserved.
+5. **No schema drift.** The `communities` table is unchanged. All foreign keys still reference `community_id`.
+6. **No performance regression.** The `app()->bound()` pattern is O(1) with no exception overhead. View::share is evaluated once per request.
+
+The migration is complete for its architectural phase. The remaining work (DB column, routes, Playwright, UI, cleanup) belongs in future, independent tasks.
+
+---
+
+# Recommended Execution Order
+
+```mermaid
+flowchart LR
+    T058[TASK-058<br/>Compatibility Layer<br/>STABILIZED] --> T059[TASK-059<br/>DB: organization_id]
+    T059 --> T060[TASK-060<br/>Routes: /org/{organization}]
+    T060 --> T061[TASK-061<br/>Playwright: dual coverage]
+    T061 --> T062[TASK-062<br/>UI: terminology]
+    T062 --> T063[TASK-063<br/>Remove legacy layer]
+    T065[TASK-065<br/>Explorer property rename] --> T063
+    T064[TASK-064<br/>Responsive validation]
+    T064 --> T063
+```
+
+**Critical path:** TASK-059 → TASK-060 → TASK-061 → TASK-062 → TASK-063
+
+**Parallelizable:** TASK-064 (responsive), TASK-065 (Explorer rename)
+
+**Gate:** TASK-059 (DB migration) is the only hard prerequisite for TASK-060 and TASK-061.
+
+---
