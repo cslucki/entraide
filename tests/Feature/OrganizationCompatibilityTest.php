@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveCommunity;
+use App\Http\Middleware\ResolveOrganization;
 use App\Models\Community;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -134,7 +135,7 @@ class OrganizationCompatibilityTest extends TestCase
         $aliases = app('router')->getMiddleware();
 
         $this->assertArrayHasKey('organization', $aliases);
-        $this->assertEquals(ResolveCommunity::class, $aliases['organization']);
+        $this->assertEquals(ResolveOrganization::class, $aliases['organization']);
     }
 
     public function test_community_middleware_alias_remains_unchanged(): void
@@ -143,5 +144,102 @@ class OrganizationCompatibilityTest extends TestCase
 
         $this->assertArrayHasKey('community', $aliases);
         $this->assertEquals(ResolveCommunity::class, $aliases['community']);
+    }
+
+    // -------------------------------------------------------------------------
+    // ResolveOrganization middleware compatibility
+    // -------------------------------------------------------------------------
+
+    public function test_resolve_organization_extends_resolve_community(): void
+    {
+        $this->assertInstanceOf(ResolveCommunity::class, new ResolveOrganization);
+    }
+
+    public function test_organization_middleware_alias_points_to_resolve_organization(): void
+    {
+        $aliases = app('router')->getMiddleware();
+
+        $this->assertArrayHasKey('organization', $aliases);
+        $this->assertEquals(ResolveOrganization::class, $aliases['organization']);
+    }
+
+    public function test_resolve_organization_binds_both_current_keys(): void
+    {
+        $community = Community::factory()->create(['slug' => 'resolve-org', 'is_active' => true]);
+
+        Route::get('/resolve-org-test/{community}', function () {
+            return response()->json([
+                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_organization')->id,
+            ]);
+        })->middleware(ResolveOrganization::class);
+
+        $response = $this->get('/resolve-org-test/resolve-org');
+
+        $response->assertOk();
+        $response->assertJson([
+            'community_id' => $community->id,
+            'organization_id' => $community->id,
+        ]);
+    }
+
+    public function test_resolve_organization_middleware_returns_404_for_unknown_slug(): void
+    {
+        Route::get('/resolve-org-404/{community}', fn () => response('ok'))
+            ->middleware(ResolveOrganization::class);
+
+        $response = $this->get('/resolve-org-404/no-such-slug');
+
+        $response->assertNotFound();
+    }
+
+    public function test_resolve_community_no_regression_legacy_behavior_unchanged(): void
+    {
+        $community = Community::factory()->create(['slug' => 'legacy-bind', 'is_active' => true]);
+
+        Route::get('/legacy-bind-check/{community}', function () {
+            return response()->json([
+                'community_bound' => app()->bound('current_community'),
+                'organization_bound' => app()->bound('current_organization'),
+                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_organization')->id,
+                'same_instance' => app('current_community') === app('current_organization'),
+                'view_community' => view()->shared('currentCommunity')?->slug,
+                'view_organization' => view()->shared('currentOrganization')?->slug,
+            ]);
+        })->middleware(ResolveCommunity::class);
+
+        $response = $this->get('/legacy-bind-check/legacy-bind');
+
+        $response->assertOk();
+        $response->assertJson([
+            'community_bound' => true,
+            'organization_bound' => true,
+            'community_id' => $community->id,
+            'organization_id' => $community->id,
+            'same_instance' => true,
+            'view_community' => 'legacy-bind',
+            'view_organization' => 'legacy-bind',
+        ]);
+    }
+
+    public function test_resolve_organization_shares_view_variables(): void
+    {
+        $community = Community::factory()->create(['slug' => 'view-share', 'is_active' => true]);
+
+        Route::get('/resolve-org-view/{community}', function () {
+            return response()->json([
+                'currentCommunity' => view()->shared('currentCommunity')?->slug,
+                'currentOrganization' => view()->shared('currentOrganization')?->slug,
+            ]);
+        })->middleware(ResolveOrganization::class);
+
+        $response = $this->get('/resolve-org-view/view-share');
+
+        $response->assertOk();
+        $response->assertJson([
+            'currentCommunity' => 'view-share',
+            'currentOrganization' => 'view-share',
+        ]);
     }
 }
