@@ -2,7 +2,7 @@
 task_id: TASK-060
 title: PostgreSQL local validation
 
-status: IN_REVIEW
+status: TESTING
 
 owner: OpenCode
 
@@ -13,7 +13,7 @@ branch: TASK-060-postgresql-local-validation
 priority: MEDIUM
 
 created_at: 2026-05-12 11:53:33 Europe/Paris
-updated_at: 2026-05-12 12:25:00 Europe/Paris
+updated_at: 2026-05-12 13:00:00 Europe/Paris
 
 labels: []
 
@@ -98,13 +98,28 @@ Added storage/app/dumps/ to .gitignore.
 Updated .env.example with APP_KEY (was empty).
 Verified tests on both SQLite and PostgreSQL (294/294 pass).
 
+## 2026-05-12 13:00:00 Europe/Paris
+
+Architecture correction: introduced .env.sqlite as official SQLite runtime.
+
+Rationale:
+- .env.example was being used implicitly as SQLite runtime
+- This is not the intended architecture
+- Official runtime sources are now .env.sqlite and .env.pgsql
+- .env.example is restored as onboarding-only template (no APP_KEY, no runtime config)
+
+Changes:
+- Created .env.sqlite from current SQLite runtime config (APP_KEY, Playwright creds, mail)
+- Updated switch-db.sh to switch ONLY between .env.sqlite ↔ .env.pgsql
+- Restored .env.example as clean onboarding template (no APP_KEY, log mailer)
+- Updated ai/environment.md to reflect dual-runtime architecture
+- .env.sqlite added to .gitignore (already present)
+
 Modified files:
-- .env.pgsql (enriched for prod-aligned local dev, fixed APP_KEY)
-- .env.example (added APP_KEY)
-- .gitignore (added storage/app/dumps/)
-- ai/environment.md (added DB workflow, switch, dump, prod-sync docs)
-- ai/scripts/switch-db.sh (new)
-- ai/scripts/pg-dump.sh (new)
+- .env.sqlite (new — official SQLite runtime)
+- .env.example (restored as onboarding-only template)
+- ai/scripts/switch-db.sh (refactored for .env.sqlite/ .env.pgsql only)
+- ai/environment.md (docs updated for .env.sqlite runtime)
 
 # Handoffs
 

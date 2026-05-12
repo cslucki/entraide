@@ -44,46 +44,50 @@ https://bouclepro.com
 
 # Database
 
-## Dual Database Strategy
+## Dual Runtime Strategy
 
-This project supports both SQLite (local development) and PostgreSQL (Laravel Cloud production).
+This project supports two official runtime environments:
+
+| Runtime    | File            | Engine      | Use Case                              |
+|------------|-----------------|-------------|---------------------------------------|
+| SQLite     | `.env.sqlite`   | SQLite      | Default lightweight dev & Playwright  |
+| PostgreSQL | `.env.pgsql`    | PostgreSQL  | Production parity validation          |
+
+### Environment file roles
+
+- `.env` — active runtime (copied from one of the above, gitignored)
+- `.env.sqlite` — full SQLite runtime config (APP_KEY, test creds, mail)
+- `.env.pgsql` — full PostgreSQL runtime config (same APP_KEY, same creds)
+- `.env.example` — onboarding template only (no real keys, no runtime assumptions)
 
 ### SQLite (default for local development)
 
-- Used by default in `.env`
 - Fast, zero-config, no server required
 - Ideal for quick dev and Playwright testing
+- Activate via: `cp .env.sqlite .env`
 
 ### PostgreSQL (production parity)
 
 - Same engine as Laravel Cloud (PostgreSQL 18)
 - Required before merging migration changes
 - Use to validate PostgreSQL-specific features
+- Activate via: `cp .env.pgsql .env`
 
 ## Switching Between Databases
 
 Use the helper script:
 
 ```bash
-# Switch to PostgreSQL
-./ai/scripts/switch-db.sh pgsql
-
-# Switch back to SQLite
-./ai/scripts/switch-db.sh sqlite
-
-# Check current connection
-./ai/scripts/switch-db.sh status
+./ai/scripts/switch-db.sh sqlite   # switch to SQLite (.env.sqlite → .env)
+./ai/scripts/switch-db.sh pgsql    # switch to PostgreSQL (.env.pgsql → .env)
+./ai/scripts/switch-db.sh status   # show current DB connection
 ```
 
 Or manually:
 
 ```bash
-# PostgreSQL
-cp .env.pgsql .env
-
-# SQLite
-cp .env.bak .env      # if you saved a backup
-cp .env.example .env  # fresh copy (no test credentials)
+cp .env.sqlite .env   # SQLite
+cp .env.pgsql .env    # PostgreSQL
 ```
 
 After switching, run migrations and seeders:

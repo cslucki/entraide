@@ -3,8 +3,8 @@
 # SWITCH DATABASE ENVIRONMENT
 # =========================================================
 # Usage:
+#   ./switch-db.sh sqlite  → switch to SQLite (.env.sqlite → .env)
 #   ./switch-db.sh pgsql   → switch to PostgreSQL (.env.pgsql → .env)
-#   ./switch-db.sh sqlite  → switch to SQLite (.env.example → .env)
 #   ./switch-db.sh status  → show current DB connection
 # =========================================================
 
@@ -13,17 +13,17 @@ set -e
 BASE_DIR="/home/cyril/claude-code/sites/test.laravel"
 
 case "${1:-}" in
+  sqlite)
+    echo "→ Switching to SQLite..."
+    cp "$BASE_DIR/.env.sqlite" "$BASE_DIR/.env"
+    echo "✓ .env updated from .env.sqlite"
+    echo "→ Run: php artisan migrate:fresh --seed"
+    ;;
+
   pgsql)
     echo "→ Switching to PostgreSQL..."
     cp "$BASE_DIR/.env.pgsql" "$BASE_DIR/.env"
     echo "✓ .env updated from .env.pgsql"
-    echo "→ Run: php artisan migrate:fresh --seed"
-    ;;
-
-  sqlite)
-    echo "→ Switching to SQLite..."
-    cp "$BASE_DIR/.env.example" "$BASE_DIR/.env"
-    echo "✓ .env updated from .env.example"
     echo "→ Run: php artisan migrate:fresh --seed"
     ;;
 
@@ -36,10 +36,10 @@ case "${1:-}" in
     ;;
 
   *)
-    echo "Usage: $0 {pgsql|sqlite|status}"
+    echo "Usage: $0 {sqlite|pgsql|status}"
     echo ""
+    echo "  sqlite  Switch to SQLite (.env.sqlite → .env)"
     echo "  pgsql   Switch to PostgreSQL (.env.pgsql → .env)"
-    echo "  sqlite  Switch to SQLite (.env.example → .env)"
     echo "  status  Show current DB connection"
     exit 1
     ;;
