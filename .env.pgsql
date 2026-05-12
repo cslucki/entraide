@@ -6,7 +6,7 @@
 
 APP_NAME=Entraide
 APP_ENV=local
-APP_KEY=base64:2Ne8LY/rCJMaQJNeWA6C51B/8bgdl2XIfeAHBfjRwHk=
+APP_KEY=base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI=
 APP_DEBUG=true
 APP_URL=https://test.laravel
 

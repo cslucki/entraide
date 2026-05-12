@@ -90,8 +90,18 @@ All objectives completed.
 8. Validated tests: 294 tests pass on BOTH SQLite and PostgreSQL
 9. Updated ai/environment.md: comprehensive PostgreSQL workflow documentation
 
+## 2026-05-12 12:45:00 Europe/Paris
+
+Fixed APP_KEY consistency between .env, .env.pgsql, .env.example.
+All three files now share the same key for seamless switching.
+Added storage/app/dumps/ to .gitignore.
+Updated .env.example with APP_KEY (was empty).
+Verified tests on both SQLite and PostgreSQL (294/294 pass).
+
 Modified files:
-- .env.pgsql (enriched for prod-aligned local dev)
+- .env.pgsql (enriched for prod-aligned local dev, fixed APP_KEY)
+- .env.example (added APP_KEY)
+- .gitignore (added storage/app/dumps/)
 - ai/environment.md (added DB workflow, switch, dump, prod-sync docs)
 - ai/scripts/switch-db.sh (new)
 - ai/scripts/pg-dump.sh (new)
