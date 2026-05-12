@@ -116,10 +116,14 @@ Changes:
 - .env.sqlite added to .gitignore (already present)
 
 Modified files:
-- .env.sqlite (new — official SQLite runtime)
+- .env.sqlite (new — official SQLite runtime, force-tracked for distribution)
 - .env.example (restored as onboarding-only template)
 - ai/scripts/switch-db.sh (refactored for .env.sqlite/ .env.pgsql only)
 - ai/environment.md (docs updated for .env.sqlite runtime)
+
+## 2026-05-12 13:05:00 Europe/Paris
+
+Tracked .env.sqlite in git for distribution consistency (same pattern as .env.pgsql).
 
 # Handoffs
 
