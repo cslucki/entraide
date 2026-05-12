@@ -73,10 +73,6 @@ class HomeController extends Controller
 
     private function currentCommunityId(): ?string
     {
-        $organization = app()->bound('current_organization')
-            ? app('current_organization')
-            : (app()->bound('current_community') ? app('current_community') : null);
-
-        return $organization?->id;
+        return currentOrganization()?->id;
     }
 }
