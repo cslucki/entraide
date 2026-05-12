@@ -96,6 +96,24 @@ Before ANY commit or push, agents MUST:
 
 Commits without task updates are invalid workflow.
 
+The pre-commit hook validates this automatically:
+
+```bash
+ai/scripts/validate-task-update.sh
+```
+
+It blocks any commit without a staged TASK file change.
+
+The hook is installed via:
+
+```bash
+ai/scripts/install-hooks.sh
+```
+
+All agents MUST install hooks in their environment.
+
+Emergency bypass: `SKIP_TASK_CHECK=1` (use only when hook infrastructure is unavailable).
+
 ---
 
 # Source Of Truth
@@ -140,7 +158,15 @@ Rules:
 
 * do NOT create one branch per agent
 * do NOT mix unrelated work
+* one task = one primary objective
 * the TASK owns the branch
+
+Avoid:
+
+* mixed migrations
+* opportunistic refactors
+* unrelated fixes
+* architecture rewrites during feature work
 
 ---
 
@@ -217,6 +243,36 @@ The handoff system enables safe continuation by another AI system.
 
 ---
 
+# Mandatory Workflow Sequence
+
+Complete lifecycle from task creation to merge:
+
+1. CREATE — `ai/scripts/create-task.sh "<title>" <owner>`
+   generates TASK file, creates branch, locks to owner, status IN_PROGRESS
+
+2. IMPLEMENT — agent works
+   read TASK first, update progress continuously, document decisions
+
+3. HANDOFF (if needed) — `ai/scripts/handoff-task.sh <TASK_ID> <new_owner>`
+   transfers ownership, updates lock, documents current state
+
+4. CHECK — `ai/scripts/check-task.sh [TASK_ID]`
+   verify status==DONE, lock==UNLOCKED, not on main/develop, report uncommitted changes
+
+5. FINALIZE — `ai/scripts/finalize-task.sh [TASK_ID]`
+   gate: runs check-task.sh first, commit TASK updates, push, optional CI check
+
+6. MERGE — `ai/scripts/merge-task.sh [TASK_ID]`
+   gate: requires clean status, --no-ff into develop, confirmation before push
+
+7. CLOSE — update TASK status to MERGED, delete branch
+
+Each stage gate prevents proceeding without satisfying preconditions.
+
+The TASK file and git state must remain synchronized at every stage.
+
+---
+
 # Mandatory Logging
 
 Agents MUST continuously update:
@@ -235,6 +291,35 @@ Example:
 ```text
 2026-05-11 20:41:11 Europe/Paris
 ```
+
+---
+
+# Task State & Git State
+
+The TASK file and git state are dual sources of truth that must remain synchronized.
+
+```text
+TODO        — branch exists, no implementation changes
+IN_PROGRESS — branch with active work (staged/unstaged/untracked)
+BLOCKED     — branch, work paused, blockers documented
+TESTING     — branch, implementation complete, validation ongoing
+IN_REVIEW   — branch, commits pushed, awaiting review
+DONE        — branch, all commits pushed, ready to merge
+MERGED      — merged into develop, branch may be deleted
+ARCHIVED    — task closed, branch deleted
+```
+
+Rules:
+
+- TASK status must always reflect actual work state
+- DONE requires all changes committed and pushed
+- DONE also requires green CI (GitHub Actions passing, PostgreSQL CI stable, runtime parity preserved)
+- MERGED requires successful merge into develop via merge-task.sh
+- never mark DONE without check-task.sh passing
+- never merge without finalize-task.sh completing
+- never set MERGED without merge-task.sh succeeding
+
+Scripts enforce this synchronization automatically.
 
 ---
 
@@ -504,6 +589,94 @@ Avoid bypassing project tooling unless necessary.
 
 ---
 
+# Official Tooling Workflow
+
+The project provides official scripts for every stage of the task lifecycle.
+
+## Task Creation
+
+`ai/scripts/create-task.sh "<title>" <owner>`
+
+Generates TASK file, sets status IN_PROGRESS, locks to owner, creates git branch.
+
+## Handoff
+
+`ai/scripts/handoff-task.sh <TASK_ID> <new_owner>`
+
+Transfers ownership, updates contributors, re-locks to new owner, documents transition.
+
+## Pre-Commit Validation
+
+`ai/scripts/validate-task-update.sh`
+
+Git hook: blocks commits without a staged TASK file change.
+
+Install via `ai/scripts/install-hooks.sh`.
+
+## Task Check
+
+`ai/scripts/check-task.sh [TASK_ID]`
+
+Gate for finalization. Verifies:
+
+- on a task branch (not main/develop)
+- TASK file exists (auto-detected from branch or argument)
+- status == DONE
+- lock == UNLOCKED
+- reports uncommitted changes
+
+Exit codes: 0 = pass, 1 = fail.
+
+## Task Finalization
+
+`ai/scripts/finalize-task.sh [TASK_ID]`
+
+Completes the task branch lifecycle:
+
+1. runs check-task.sh — must pass
+2. optional commit (TASK + script changes only, explicit paths)
+3. optional push to origin
+4. optional CI status inspection via gh CLI
+5. prints next steps
+
+Expectations:
+
+- run only after implementation is fully validated
+- TASK must be DONE and UNLOCKED
+- commit message format: `task: <summary>` or `finalize(task): <summary>`
+- finalize-task.sh CI check is advisory (prepares finalization, not a CI gate)
+- does NOT merge — use merge-task.sh
+
+CI model:
+
+- finalize-task.sh prepares finalization
+- GitHub Actions provides external distributed validation
+- green CI required before merge (merge discipline)
+
+## Task Merge
+
+`ai/scripts/merge-task.sh [TASK_ID]`
+
+Safely merges into develop:
+
+- blocks on main/develop source branch
+- requires clean git status
+- fetches and pulls latest develop
+- --no-ff merge (explicit merge commit)
+- conflicts halt the script
+- confirmation before push
+- verifies post-merge status
+
+Discipline:
+
+- never merge without passing check-task.sh
+- never merge with uncommitted changes
+- green CI required before merge
+- never use --ff-only or squash — requires explicit merge commits
+- update TASK to MERGED after merge succeeds
+
+---
+
 # Preferred MCP Tools
 
 Preferred Laravel Boost tools:
@@ -546,6 +719,25 @@ Never:
 * create giant mixed commits
 * modify unrelated systems
 * commit without updating TASK
+* switch branches with dirty git status
+
+Protected branches:
+
+* main = production protected branch (never push directly)
+* develop = integration branch (merge via merge-task.sh only)
+
+Dirty branch switching:
+
+Never switch branches with dirty git status.
+
+Always commit, stash intentionally, or clean up before checkout.
+
+Commit discipline:
+
+* prefer small focused commits
+* push frequently
+* make CI visible early
+* avoid local-only hidden state
 
 Always:
 
@@ -857,6 +1049,22 @@ Prefer:
 * integration tests
 * business-flow tests
 * Playwright validation
+
+---
+
+# Runtime Stabilization Rules
+
+Current runtime state:
+
+* SQLite runtime = stable
+* PostgreSQL runtime = stable
+* PostgreSQL CI = stable
+
+All future work MUST preserve:
+
+* dual runtime compatibility
+* CI parity between SQLite and PostgreSQL
+* Playwright stability across runtime environments
 
 ---
 

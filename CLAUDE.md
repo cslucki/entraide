@@ -162,6 +162,35 @@ The TASK file is the operational source of truth.
 
 ---
 
+# Deterministic Orchestration
+
+This project uses script-driven tooling for consistent multi-agent task orchestration.
+
+Why:
+
+- AI agents are interchangeable — workflow must not depend on agent memory
+- Scripts enforce deterministic preconditions at each lifecycle stage
+- Shared tooling eliminates agent-specific workflow paths
+- CI-aware finalization prevents state drift between TASK and git
+
+The core pipeline:
+
+```text
+check-task.sh → finalize-task.sh → merge-task.sh
+```
+
+Each stage gates on verifiable state:
+
+- CHECK requires status DONE + lock UNLOCKED + task branch
+- FINALIZE requires passing CHECK before commit/push/CI check
+- MERGE requires clean git + passing CHECK + explicit confirmation
+
+This is not optional ceremony. It is the backbone of multi-agent coordination.
+
+Without it, agents cannot reliably determine task state, ownership, or completeness.
+
+---
+
 # Mandatory Task Discipline
 
 MANDATORY TASK UPDATE BEFORE COMMIT
@@ -324,10 +353,38 @@ batcat instead of cat
 
 ---
 
+# Tooling Philosophy
+
+Scripts exist to eliminate ambiguity across agent boundaries.
+
+Rules:
+
+- prefer ai/scripts/*.sh over ad-hoc commands
+- prefer explicit validation over assumed state
+- prefer gated workflows over free-form processes
+- never bypass check-task.sh before finalize
+- never bypass finalize-task.sh before merge
+
+The scripts are intentionally:
+
+- explicit — no hidden behavior
+- safe — confirmation prompts before destructive actions
+- verifiable — exit codes, status checks
+- minimal — no unnecessary abstraction
+
+This philosophy extends to all project tooling: raw commands are the last resort.
+
+---
+
 # Git Rules
 
 * never push directly to main
+* main = production protected branch
+* develop = integration branch
 * use one branch per task
+* never switch branches with dirty git status
+* prefer small focused commits
+* push frequently for early CI visibility
 * keep commits focused
 * inspect git diff before commit
 * avoid unrelated modifications
@@ -526,6 +583,18 @@ Prefer:
 * integration tests
 * business-flow tests
 * Playwright validation
+
+---
+
+# Runtime Stability
+
+All runtimes are stable:
+
+* SQLite
+* PostgreSQL
+* PostgreSQL CI
+
+Future changes must preserve dual runtime compatibility and CI parity.
 
 ---
 
