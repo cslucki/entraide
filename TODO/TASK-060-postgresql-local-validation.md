@@ -2,7 +2,7 @@
 task_id: TASK-060
 title: PostgreSQL local validation
 
-status: IN_REVIEW
+status: DONE
 
 owner: OpenCode
 
@@ -173,6 +173,17 @@ Tracked .env.sqlite in git for distribution consistency (same pattern as .env.pg
 - [ ] responsive validation (not needed - no UI changes)
 - [ ] console inspection (not needed - no UI changes)
 - [ ] tenant validation (migrations run with seeders, no scope changes)
+
+## 2026-05-12 14:50 Europe/Paris
+
+Task finalized.
+
+Status:
+DONE
+
+Branch pushed to GitHub.
+
+Ready for merge/archive.
 
 ---
 
@@ -382,3 +393,4 @@ No functional issue as application always provides values. Just a schema complet
 5. **MVCC and serialization** — PostgreSQL uses READ COMMITTED by default. Without explicit locking, concurrent transactions can see stale data
 6. **Self-referencing FK must be deferred** — The `blog_comments.parent_id` pattern (separate Schema::table()) is required for PostgreSQL and should be used in future self-ref FK migrations
 7. **groupBy requires all non-aggregate columns** — If a future query adds GROUP BY without aggregates, PostgreSQL will reject it. SQLite silently accepts it (picks first row)
+---
