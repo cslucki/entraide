@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\PointLedger;
+use App\Models\Scopes\BelongsToTenantScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -11,6 +12,7 @@ use App\Notifications\TransactionStatusChanged;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TransactionController extends Controller
 {
@@ -26,13 +28,13 @@ class TransactionController extends Controller
 
         // Determine seller and community_id
         $communityId = null;
-        if (!empty($data['service_id'])) {
-            $service = Service::withoutGlobalScope(\App\Models\Scopes\BelongsToTenantScope::class)->findOrFail($data['service_id']);
+        if (! empty($data['service_id'])) {
+            $service = Service::withoutGlobalScope(BelongsToTenantScope::class)->findOrFail($data['service_id']);
             $seller = $service->user;
             $sellerId = $seller->id;
             $communityId = $service->community_id;
         } else {
-            $serviceReq = ServiceRequest::withoutGlobalScope(\App\Models\Scopes\BelongsToTenantScope::class)->findOrFail($data['request_id']);
+            $serviceReq = ServiceRequest::withoutGlobalScope(BelongsToTenantScope::class)->findOrFail($data['request_id']);
             $seller = $buyer;
             $sellerId = $buyer->id;
             $buyer = $serviceReq->user;
@@ -53,7 +55,7 @@ class TransactionController extends Controller
         $existingQuery = Transaction::where('buyer_id', $buyer->id)
             ->whereIn('status', ['pending', 'accepted']);
 
-        if (!empty($data['service_id'])) {
+        if (! empty($data['service_id'])) {
             $existingQuery->where('service_id', $data['service_id']);
         } else {
             $existingQuery->where('request_id', $data['request_id']);
@@ -73,10 +75,10 @@ class TransactionController extends Controller
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : ' . $data['points_proposed'] . ' points.');
+        $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : '.$data['points_proposed'].' points.');
 
         // Update service_request status if applicable
-        if (!empty($data['request_id'])) {
+        if (! empty($data['request_id'])) {
             ServiceRequest::where('id', $data['request_id'])->update(['status' => 'in_progress']);
         }
 
@@ -130,7 +132,7 @@ class TransactionController extends Controller
 
         $transaction->update(['points_proposed' => $data['points_proposed']]);
 
-        $this->addSystemMessage($transaction, 'Points ajustés à ' . $data['points_proposed'] . ' points.');
+        $this->addSystemMessage($transaction, 'Points ajustés à '.$data['points_proposed'].' points.');
 
         return redirect()->route('messages.show', $transaction)->with('success', 'Points ajustés.');
     }
@@ -171,39 +173,51 @@ class TransactionController extends Controller
         $this->authorize('confirm', $transaction);
 
         DB::transaction(function () use ($transaction) {
-            $points = $transaction->points_agreed;
+            $tx = Transaction::where('id', $transaction->id)->lockForUpdate()->first();
+
+            if ($tx->status !== 'buyer_done') {
+                return;
+            }
+
+            $points = $tx->points_agreed;
 
             PointLedger::create([
-                'user_id' => $transaction->buyer_id,
-                'transaction_id' => $transaction->id,
+                'user_id' => $tx->buyer_id,
+                'transaction_id' => $tx->id,
                 'delta' => -$points,
                 'reason' => 'exchange_spent',
             ]);
 
             PointLedger::create([
-                'user_id' => $transaction->seller_id,
-                'transaction_id' => $transaction->id,
+                'user_id' => $tx->seller_id,
+                'transaction_id' => $tx->id,
                 'delta' => $points,
                 'reason' => 'exchange_earned',
             ]);
 
-            $transaction->buyer()->update(['points_balance' => DB::raw('points_balance - ' . $points)]);
-            $transaction->seller()->update(['points_balance' => DB::raw('points_balance + ' . $points)]);
+            $tx->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
+            $tx->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
 
-            $transaction->update([
+            $tx->update([
                 'status' => 'completed',
                 'seller_confirmed_at' => now(),
                 'completed_at' => now(),
             ]);
 
-            if ($transaction->request_id) {
-                ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'closed']);
+            if ($tx->request_id) {
+                ServiceRequest::where('id', $tx->request_id)->update(['status' => 'closed']);
             }
         });
 
+        $fresh = $transaction->fresh();
+
+        if ($fresh->status !== 'completed') {
+            return redirect()->route('messages.show', $transaction)
+                ->with('error', 'Cette transaction a déjà été traitée.');
+        }
+
         $this->addSystemMessage($transaction, 'Échange complété ! Les points ont été transférés.');
 
-        $fresh = $transaction->fresh();
         $fresh->buyer->notify(new TransactionStatusChanged($fresh));
         $fresh->seller->notify(new TransactionStatusChanged($fresh));
 
@@ -214,14 +228,29 @@ class TransactionController extends Controller
     {
         $this->authorize('contest', $transaction);
 
-        $transaction->update(['status' => 'accepted']);
+        DB::transaction(function () use ($transaction) {
+            $tx = Transaction::where('id', $transaction->id)->lockForUpdate()->first();
+
+            if ($tx->status !== 'buyer_done') {
+                return;
+            }
+
+            $tx->update(['status' => 'accepted']);
+        });
+
+        $fresh = $transaction->fresh();
+
+        if ($fresh->status !== 'accepted') {
+            return redirect()->route('messages.show', $transaction)
+                ->with('error', 'Impossible de contester cette transaction.');
+        }
 
         $this->addSystemMessage($transaction, 'La prestation est contestée. L\'échange est remis en cours.');
 
         return redirect()->route('messages.show', $transaction)->with('success', 'Prestation contestée, échange relancé.');
     }
 
-    public function exportCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportCsv(): StreamedResponse
     {
         $user = auth()->user();
 
@@ -231,7 +260,7 @@ class TransactionController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        $filename = 'entraide-transactions-' . now()->format('Y-m-d') . '.csv';
+        $filename = 'entraide-transactions-'.now()->format('Y-m-d').'.csv';
 
         return response()->streamDownload(function () use ($transactions, $user) {
             $handle = fopen('php://output', 'w');
@@ -239,9 +268,9 @@ class TransactionController extends Controller
             fputcsv($handle, ['Date', 'Type', 'Service', 'Contrepartie', 'Points', 'Statut'], ';');
 
             foreach ($transactions as $transaction) {
-                $isBuyer      = $transaction->buyer_id === $user->id;
+                $isBuyer = $transaction->buyer_id === $user->id;
                 $contrepartie = $isBuyer ? $transaction->seller->name : $transaction->buyer->name;
-                $points       = $transaction->points_agreed ?? $transaction->points_proposed;
+                $points = $transaction->points_agreed ?? $transaction->points_proposed;
 
                 fputcsv($handle, [
                     $transaction->created_at->format('d/m/Y'),
