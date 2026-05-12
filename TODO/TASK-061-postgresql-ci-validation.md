@@ -2,7 +2,7 @@
 task_id: TASK-061
 title: PostgreSQL CI validation
 
-status: IN_REVIEW
+status: DONE
 
 owner: OpenCode
 
@@ -184,3 +184,4 @@ Migration fix applied:
 - Job-level `env` block provides DB connection vars; phpunit.pgsql.xml provides test-appropriate defaults (CACHE_STORE=array, etc.)
 - PostgreSQL service container uses `postgres:17` image with health check
 - Database `bouclepro_test` created automatically by the service container via `POSTGRES_DB`
+---
