@@ -2,7 +2,7 @@
 task_id: TASK-064
 title: production-sync-workflow
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -18,7 +18,7 @@ updated_at: 2026-05-12 17:26:08 Europe/Paris
 labels: []
 
 lock:
-  status: LOCKED
+  status: UNLOCKED
   agent: OPENCODE
   since: 2026-05-12 17:26:08 Europe/Paris
 
