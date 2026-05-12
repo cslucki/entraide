@@ -1,6 +1,3 @@
-# Étape 2 — Nouveau contenu complet pour `ai/context/multi-tenant.md`
-
-````md id="obm9rd"
 # Multi-Tenant Architecture
 
 ## Core Principle
@@ -468,6 +465,3 @@ The goal is:
 * operational stability
 * long-term maintainability
 * AI-native organizational architecture
-
-```
-```

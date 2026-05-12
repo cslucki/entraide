@@ -1,6 +1,3 @@
-# Étape 1 — Nouveau contenu complet pour `ai/context/architecture.md`
-
-````md
 # Architecture Overview
 
 ## Project Type
@@ -490,6 +487,3 @@ The architecture must remain:
 * modular
 * maintainable
 * organization-native
-
-```
-```
