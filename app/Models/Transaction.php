@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Transaction extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasOrganizationId, HasUuids;
 
     protected static function booted(): void
     {
@@ -20,6 +21,7 @@ class Transaction extends Model
 
     protected $fillable = [
         'community_id',
+        'organization_id',
         'service_id',
         'request_id',
         'buyer_id',
@@ -50,7 +52,7 @@ class Transaction extends Model
 
     public function organization(): BelongsTo
     {
-        return $this->belongsTo(Organization::class, 'community_id');
+        return $this->belongsTo(Organization::class, 'organization_id');
     }
 
     public function service(): BelongsTo

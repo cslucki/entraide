@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,11 +16,12 @@ use Illuminate\Support\Str;
 
 class BlogPost extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasOrganizationId, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'user_id',
         'community_id',
+        'organization_id',
         'title',
         'slug',
         'summary',
@@ -63,7 +65,7 @@ class BlogPost extends Model
 
     public function organization(): BelongsTo
     {
-        return $this->belongsTo(Organization::class, 'community_id');
+        return $this->belongsTo(Organization::class, 'organization_id');
     }
 
     public function categories(): BelongsToMany

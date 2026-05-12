@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ServiceRequest extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasOrganizationId, HasUuids;
 
     protected $table = 'service_requests';
 
@@ -22,6 +23,7 @@ class ServiceRequest extends Model
 
     protected $fillable = [
         'community_id',
+        'organization_id',
         'user_id',
         'title',
         'description',
@@ -49,7 +51,7 @@ class ServiceRequest extends Model
 
     public function organization(): BelongsTo
     {
-        return $this->belongsTo(Organization::class, 'community_id');
+        return $this->belongsTo(Organization::class, 'organization_id');
     }
 
     public function user(): BelongsTo

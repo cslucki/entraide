@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasOrganizationId;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,10 +17,11 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, HasUuids, Notifiable;
+    use HasApiTokens, HasFactory, HasOrganizationId, HasUuids, Notifiable;
 
     protected $fillable = [
         'community_id',
+        'organization_id',
         'name',
         'email',
         'password',
@@ -65,7 +67,7 @@ class User extends Authenticatable
 
     public function organization(): BelongsTo
     {
-        return $this->belongsTo(Organization::class, 'community_id');
+        return $this->belongsTo(Organization::class, 'organization_id');
     }
 
     public function services(): HasMany

@@ -220,7 +220,10 @@ class AdminController extends Controller
             ? Community::withTrashed()->find($data['community_id'])
             : null;
 
-        $user->update(['community_id' => $data['community_id']]);
+        $user->update([
+            'community_id' => $data['community_id'],
+            'organization_id' => $data['community_id'],
+        ]);
 
         if ($community) {
             return back()->with('success', "{$user->name} affecté à la communauté {$community->name}.");
