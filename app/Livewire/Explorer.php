@@ -79,10 +79,7 @@ class Explorer extends Component
 
     public function mount(): void
     {
-        $organization = app()->bound('current_organization')
-            ? app('current_organization')
-            : (app()->bound('current_community') ? app('current_community') : null);
-        $this->communityId = $organization?->id;
+        $this->communityId = currentOrganization()?->id;
     }
 
     public function switchTab(string $tab): void
