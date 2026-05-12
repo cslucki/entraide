@@ -99,10 +99,10 @@ class AdminCommunityController extends Controller
 
     public function destroy(Community $community): RedirectResponse
     {
-        $community->users()->update(['community_id' => null]);
-        $community->services()->update(['community_id' => null]);
-        $community->serviceRequests()->update(['community_id' => null]);
-        $community->transactions()->update(['community_id' => null]);
+        $community->users()->update(['community_id' => null, 'organization_id' => null]);
+        $community->services()->update(['community_id' => null, 'organization_id' => null]);
+        $community->serviceRequests()->update(['community_id' => null, 'organization_id' => null]);
+        $community->transactions()->update(['community_id' => null, 'organization_id' => null]);
 
         $community->delete();
 

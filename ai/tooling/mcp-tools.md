@@ -1,5 +1,32 @@
 # MCP Tooling
 
+### Laravel Exploration Strategy
+
+When MCP Laravel / Laravel Boost is available:
+
+1. ALWAYS use MCP introspection FIRST
+2. Use rg ONLY for targeted searches
+3. Avoid filesystem crawling
+4. Avoid full file reads unless necessary
+5. Prefer architecture-aware tools over shell exploration
+6. Prefer:
+
+   * routes introspection
+   * models introspection
+   * policies introspection
+   * container introspection
+   * migrations introspection
+
+Only fallback to:
+
+* rg
+* find
+* cat
+* grep
+
+when MCP cannot answer the question.
+
+
 ## Browser & Visual Tools
 
 Use browser/visual MCP tools for:
@@ -26,3 +53,4 @@ Use SQLite MCP for:
 - transaction inspection
 - relationship validation
 - debugging business rules
+
