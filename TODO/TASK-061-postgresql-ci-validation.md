@@ -2,7 +2,7 @@
 task_id: TASK-061
 title: PostgreSQL CI validation
 
-status: DONE
+status: BLOCKED
 
 owner: OpenCode
 
@@ -143,6 +143,10 @@ Migration fix applied:
 ### Known Issues
 - 2 LIKE sensitivity failures on PostgreSQL (tracked for T063)
 - `phpunit.pgsql.xml` requires PostgreSQL accessible at 127.0.0.1:5432 with `.env` providing credentials
+
+---
+Blocked pending TASK-062 search portability fixes
+(PostgreSQL LIKE/ILIKE compatibility).
 
 ---
 
