@@ -80,14 +80,19 @@ Use the helper script:
 ```bash
 ./ai/scripts/switch-db.sh sqlite   # switch to SQLite (.env.sqlite → .env)
 ./ai/scripts/switch-db.sh pgsql    # switch to PostgreSQL (.env.pgsql → .env)
-./ai/scripts/switch-db.sh status   # show current DB connection
+./ai/scripts/switch-db.sh status   # show current DB connection & connectivity
 ```
+
+The script automatically:
+- validates the source `.env.*` file exists
+- backs up the current `.env` to `.env.bak`
+- clears the application cache after switching
 
 Or manually:
 
 ```bash
-cp .env.sqlite .env   # SQLite
-cp .env.pgsql .env    # PostgreSQL
+cp .env.pgsql .env    # PostgreSQL (or .env.sqlite for SQLite)
+php artisan optimize:clear
 ```
 
 After switching, run migrations and seeders:
@@ -97,6 +102,16 @@ php artisan migrate:fresh --seed
 ```
 
 ## Production Dump & Sync Workflow
+
+### Safety notes
+
+- All dump/import operations require PostgreSQL to be running locally
+- The script validates prerequisites (`pg_dump`, `pg_restore`, `psql`) before proceeding
+- The script checks that `.env` is configured for PostgreSQL before dump/import
+- Destructive imports (restore / reset) require interactive confirmation
+- Dumps directory (`storage/app/dumps/`) is gitignored — see `.gitignore`
+- PostgreSQL password is read from `.env.pgsql` (single source of truth)
+- After import, the script automatically runs `php artisan migrate --force` and clears the cache
 
 ### Export local PostgreSQL
 
@@ -111,6 +126,15 @@ php artisan migrate:fresh --seed
 ```bash
 ./ai/scripts/pg-dump.sh import storage/app/dumps/bouclepro_2026-05-12_*.sql
 ```
+
+### Full reset from latest dump (import + migrate + cache clear)
+
+```bash
+./ai/scripts/pg-dump.sh reset
+```
+
+This uses the most recent dump in `storage/app/dumps/` and runs the full workflow:
+import → `migrate --force` → `optimize:clear`.
 
 ### Production dump (Laravel Cloud)
 
@@ -127,8 +151,8 @@ pg_dump --host=<prod-host> --port=5432 \
 # Import into local PostgreSQL
 ./ai/scripts/pg-dump.sh import storage/app/dumps/production_<file>.sql
 
-# Run pending migrations
-php artisan migrate
+# Or full reset from latest dump
+./ai/scripts/pg-dump.sh reset
 ```
 
 ### List available dumps
