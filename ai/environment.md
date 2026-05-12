@@ -44,17 +44,117 @@ https://bouclepro.com
 
 # Database
 
-Local:
-- SQLite
+## Dual Runtime Strategy
 
-Production:
-- PostgreSQL
+This project supports two official runtime environments:
+
+| Runtime    | File            | Engine      | Use Case                              |
+|------------|-----------------|-------------|---------------------------------------|
+| SQLite     | `.env.sqlite`   | SQLite      | Default lightweight dev & Playwright  |
+| PostgreSQL | `.env.pgsql`    | PostgreSQL  | Production parity validation          |
+
+### Environment file roles
+
+- `.env` — active runtime (copied from one of the above, gitignored)
+- `.env.sqlite` — full SQLite runtime config (APP_KEY, test creds, mail)
+- `.env.pgsql` — full PostgreSQL runtime config (same APP_KEY, same creds)
+- `.env.example` — onboarding template only (no real keys, no runtime assumptions)
+
+### SQLite (default for local development)
+
+- Fast, zero-config, no server required
+- Ideal for quick dev and Playwright testing
+- Activate via: `cp .env.sqlite .env`
+
+### PostgreSQL (production parity)
+
+- Same engine as Laravel Cloud (PostgreSQL 18)
+- Required before merging migration changes
+- Use to validate PostgreSQL-specific features
+- Activate via: `cp .env.pgsql .env`
+
+## Switching Between Databases
+
+Use the helper script:
+
+```bash
+./ai/scripts/switch-db.sh sqlite   # switch to SQLite (.env.sqlite → .env)
+./ai/scripts/switch-db.sh pgsql    # switch to PostgreSQL (.env.pgsql → .env)
+./ai/scripts/switch-db.sh status   # show current DB connection
+```
+
+Or manually:
+
+```bash
+cp .env.sqlite .env   # SQLite
+cp .env.pgsql .env    # PostgreSQL
+```
+
+After switching, run migrations and seeders:
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+## Production Dump & Sync Workflow
+
+### Export local PostgreSQL
+
+```bash
+./ai/scripts/pg-dump.sh dump                   # full dump
+./ai/scripts/pg-dump.sh schema-only            # schema only
+./ai/scripts/pg-dump.sh data-only              # data only
+```
+
+### Import a dump
+
+```bash
+./ai/scripts/pg-dump.sh import storage/app/dumps/bouclepro_2026-05-12_*.sql
+```
+
+### Production dump (Laravel Cloud)
+
+```bash
+# Get production connection details
+php artisan cloud:db:show
+
+# Dump production database
+pg_dump --host=<prod-host> --port=5432 \
+  --username=<prod-user> --dbname=<prod-db> \
+  --format=custom --no-owner \
+  --file=storage/app/dumps/production_$(date +%Y-%m-%d_%H-%M-%S).sql
+
+# Import into local PostgreSQL
+./ai/scripts/pg-dump.sh import storage/app/dumps/production_<file>.sql
+
+# Run pending migrations
+php artisan migrate
+```
+
+### List available dumps
+
+```bash
+./ai/scripts/pg-dump.sh list
+```
+
+## PostgreSQL Local Setup
+
+The local PostgreSQL instance runs PostgreSQL 18 with:
+- Database: `bouclepro`
+- User: `bouclepro`
+- Password: stored in `.env.pgsql`
+
+## PostgreSQL Compatibility Rules
+
+All migrations must be tested on BOTH SQLite and PostgreSQL before merge.
 
 Agents must always verify SQL compatibility.
 
 Avoid:
-- SQLite-only queries
+- SQLite-only queries (e.g., `json` without `jsonb`)
 - PostgreSQL-incompatible syntax
+- Native enum type accumulation (use `->default()` correctly)
+- Skipping PostgreSQL validation before migration PRs
 
 ---
 

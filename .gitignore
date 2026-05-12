@@ -2,6 +2,8 @@
 .DS_Store
 .env
 .env.backup
+.env.pgsql
+.env.sqlite
 .env.production
 .phpactor.json
 .phpunit.result.cache
@@ -47,6 +49,7 @@ PROJECT_DOCUMENTATION_DUMP.md
 ai/scripts/*.txt
 _temp/
 ai/scripts/*.txt
+storage/app/dumps/
 public/build/
 public/build/
 public/build/
