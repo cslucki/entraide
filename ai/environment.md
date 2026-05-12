@@ -44,17 +44,113 @@ https://bouclepro.com
 
 # Database
 
-Local:
-- SQLite
+## Dual Database Strategy
 
-Production:
-- PostgreSQL
+This project supports both SQLite (local development) and PostgreSQL (Laravel Cloud production).
+
+### SQLite (default for local development)
+
+- Used by default in `.env`
+- Fast, zero-config, no server required
+- Ideal for quick dev and Playwright testing
+
+### PostgreSQL (production parity)
+
+- Same engine as Laravel Cloud (PostgreSQL 18)
+- Required before merging migration changes
+- Use to validate PostgreSQL-specific features
+
+## Switching Between Databases
+
+Use the helper script:
+
+```bash
+# Switch to PostgreSQL
+./ai/scripts/switch-db.sh pgsql
+
+# Switch back to SQLite
+./ai/scripts/switch-db.sh sqlite
+
+# Check current connection
+./ai/scripts/switch-db.sh status
+```
+
+Or manually:
+
+```bash
+# PostgreSQL
+cp .env.pgsql .env
+
+# SQLite
+cp .env.bak .env      # if you saved a backup
+cp .env.example .env  # fresh copy (no test credentials)
+```
+
+After switching, run migrations and seeders:
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+## Production Dump & Sync Workflow
+
+### Export local PostgreSQL
+
+```bash
+./ai/scripts/pg-dump.sh dump                   # full dump
+./ai/scripts/pg-dump.sh schema-only            # schema only
+./ai/scripts/pg-dump.sh data-only              # data only
+```
+
+### Import a dump
+
+```bash
+./ai/scripts/pg-dump.sh import storage/app/dumps/bouclepro_2026-05-12_*.sql
+```
+
+### Production dump (Laravel Cloud)
+
+```bash
+# Get production connection details
+php artisan cloud:db:show
+
+# Dump production database
+pg_dump --host=<prod-host> --port=5432 \
+  --username=<prod-user> --dbname=<prod-db> \
+  --format=custom --no-owner \
+  --file=storage/app/dumps/production_$(date +%Y-%m-%d_%H-%M-%S).sql
+
+# Import into local PostgreSQL
+./ai/scripts/pg-dump.sh import storage/app/dumps/production_<file>.sql
+
+# Run pending migrations
+php artisan migrate
+```
+
+### List available dumps
+
+```bash
+./ai/scripts/pg-dump.sh list
+```
+
+## PostgreSQL Local Setup
+
+The local PostgreSQL instance runs PostgreSQL 18 with:
+- Database: `bouclepro`
+- User: `bouclepro`
+- Password: stored in `.env.pgsql`
+
+## PostgreSQL Compatibility Rules
+
+All migrations must be tested on BOTH SQLite and PostgreSQL before merge.
 
 Agents must always verify SQL compatibility.
 
 Avoid:
-- SQLite-only queries
+- SQLite-only queries (e.g., `json` without `jsonb`)
 - PostgreSQL-incompatible syntax
+- Native enum type accumulation (use `->default()` correctly)
+- Skipping PostgreSQL validation before migration PRs
 
 ---
 
