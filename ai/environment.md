@@ -156,6 +156,24 @@ Avoid:
 - Native enum type accumulation (use `->default()` correctly)
 - Skipping PostgreSQL validation before migration PRs
 
+## PostgreSQL CI Validation (GitHub Actions)
+
+A dedicated CI workflow validates PostgreSQL compatibility on every push/PR to `main` or `develop`:
+
+- **Workflow file:** `.github/workflows/ci-postgresql.yml`
+- **PHPUnit config:** `phpunit.pgsql.xml`
+- **Service:** PostgreSQL 17 container with `bouclepro_test` database
+- **PHP:** 8.4 with `pdo_pgsql` extension
+- **Steps:** migrate → seed → test (all 294 tests)
+
+### Run PostgreSQL tests locally
+
+```bash
+php artisan test --configuration phpunit.pgsql.xml
+```
+
+Prerequisites: a PostgreSQL server running on `127.0.0.1:5432` with a `bouclepro_test` database and `postgres`/`postgres` credentials.
+
 ---
 
 # Stack Versions
