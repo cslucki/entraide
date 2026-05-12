@@ -1,14 +1,16 @@
+````md
 # Entraide — Multi-Agent Operating System
 
-This file defines the global multi-agent workflow used by all AI agents working on the project.
+This file defines the global multi-agent operating workflow used by all AI agents working on the project.
 
-Technical architecture, environment and Laravel conventions are documented inside:
+Technical architecture, Laravel conventions, migration strategy and AI operational context are documented inside:
 
 - `CLAUDE.md`
 - `ai/environment.md`
 - `ai/context/*`
 - `ai/workflows/*`
 - `ai/tooling/*`
+- `docs/*`
 
 ---
 
@@ -21,25 +23,62 @@ The system is:
 - persistent
 - auditable
 - handoff-friendly
+- architecture-aware
+- migration-safe
 
-The task is the source of truth, not the agent.
+The TASK file is the operational source of truth.
+
+NOT the agent.
 
 ---
-# MANDATORY TASK LIFECYCLE
 
-TASK files are the operational memory of the project.
+# AI Operating Model
+
+This repository is designed for coordinated AI orchestration.
+
+Agents may include:
+
+- GLM
+- Claude
+- OpenCode
+- Codex
+- Gemini
+- Jules
+- DeepSeek
+
+Agents are interchangeable contributors.
+
+The workflow continuity is preserved through:
+
+- TASK files
+- progress logs
+- structured handoffs
+- timestamps
+- architectural rules
+- migration documentation
+
+---
+
+# Mandatory Task Lifecycle
+
+TASK files are mandatory operational memory.
 
 Agents MUST:
-- read the TASK file before any implementation
-- continuously update the TASK file during execution
+
+- read the TASK file before implementation
+- continuously update the TASK file
 - append progress after each major step
-- document architecture decisions
 - document discoveries
+- document architecture decisions
 - document executed tests
 - document blockers/errors
+- document modified files
 - update TASK before commit
 
 A TASK file is NOT optional documentation.
+
+No hidden work.
+
 ---
 
 # Mandatory Task Discipline
@@ -47,144 +86,67 @@ A TASK file is NOT optional documentation.
 MANDATORY TASK UPDATE BEFORE COMMIT
 
 Before ANY commit or push, agents MUST:
-- update the task file
+
+- update task status
 - update progress log
 - update tests section
 - update review notes
+- update blockers if needed
 - update handoff if ownership changed
 
-Commits without task updates are considered invalid workflow.
-
----
-
-# ORGANIZATION MIGRATION RULES
-
-The platform is actively migrating from:
-
-Community → Organization
-
-Official rules:
-
-- Organization is the official tenant concept.
-- Community is now legacy terminology.
-- New code should prefer Organization naming whenever possible.
-- Existing community_id structures may temporarily remain during migration.
-
-Migration constraints:
-
-- migration must remain incremental
-- migration must remain Playwright-safe
-- migration must preserve SQLite compatibility
-- migration must avoid giant refactors
-- migration must avoid uncontrolled search/replace operations
-
-Architectural rules:
-
-- Organization = tenant boundary
-- Loops = collaborative contexts
-- Loops are NOT security boundaries
-- Loops are NOT tenant scopes
-
-Agents must:
-- inspect architecture before modifying scopes
-- inspect Playwright impact before renaming routes
-- inspect middleware impact before modifying tenant logic
-- preserve tenant isolation at all times
-
-Preferred migration order:
-
-1. database
-2. models
-3. middleware
-4. routes
-5. controllers
-6. policies
-7. Livewire
-8. views
-9. tests
-10. Playwright
-
----
-
-
-# The project AI tooling is part of the architecture itself.
-
-Agents should not bypass project tooling unless:
-- debugging tooling itself
-- no equivalent tooling exists
-- emergency diagnosis is required
-
-Do not use raw git status/diff commands when ai/tooling equivalents exist.
----
-
-# What Is An Agent
-
-An agent is an AI system capable of:
-
-- reading tasks
-- modifying code
-- running tests
-- updating task logs
-- coordinating through handoffs
-- respecting architectural rules
-
-Agents may include:
-
-- GLM
-- JULES
-- CLAUDE
-- GEMINI
-- CODEX
-- OPENCODE
-- DEEPSEEK
+Commits without task updates are invalid workflow.
 
 ---
 
 # Source Of Truth
 
-Each task is represented by a single markdown file inside:
+Each task is represented by one markdown file inside:
 
 ```text
 TODO/
-```
+````
 
 Example:
 
 ```text
-TODO/TASK-051-navbar-livewire-fix.md
+TODO/TASK-058-organization-migration.md
 ```
 
-This file is the single source of truth for:
+This file is the source of truth for:
 
-- status
-- ownership
-- progress
-- handoffs
-- tests
-- reviews
-- timestamps
+* ownership
+* status
+* progress
+* architecture decisions
+* blockers
+* reviews
+* tests
+* handoffs
+* timestamps
 
 ---
 
 # One Task = One Branch
 
-Each task uses exactly one git branch.
+Each task uses ONE branch.
 
 Example:
 
 ```text
-TASK-051-navbar-livewire-fix
+TASK-058-organization-migration
 ```
 
-Do not create one branch per agent.
+Rules:
 
-The task owns the branch.
+* do NOT create one branch per agent
+* do NOT mix unrelated work
+* the TASK owns the branch
 
 ---
 
 # Task Lifecycle
 
-Tasks follow this lifecycle:
+Official lifecycle:
 
 ```text
 TODO
@@ -203,8 +165,8 @@ ARCHIVED
 
 Each task may contain:
 
-- one owner
-- multiple contributors
+* one owner
+* multiple contributors
 
 Example:
 
@@ -212,8 +174,8 @@ Example:
 owner: GLM
 
 contributors:
-  - JULES
   - CLAUDE
+  - JULES
 ```
 
 ---
@@ -223,9 +185,9 @@ contributors:
 Before modifying a task:
 
 1. lock the task
-2. update task status
-3. update timestamps
-4. document intended actions
+2. update timestamps
+3. document intended actions
+4. inspect current progress
 
 Example:
 
@@ -233,108 +195,684 @@ Example:
 lock:
   status: LOCKED
   agent: GLM
-  since: 2026-05-07 16:42:11 Europe/Paris
+  since: 2026-05-11 20:41:11 Europe/Paris
 ```
 
-Agents must not work simultaneously on the same files without coordination.
+Agents must not modify the same files simultaneously without coordination.
 
 ---
 
 # Handoff System
 
-When an agent stops working:
+When stopping work:
 
-- update task log
-- describe current state
-- list modified files
-- list pending actions
-- unlock the task
+* update progress
+* document current state
+* list modified files
+* list pending actions
+* list known risks
+* unlock task
 
-This allows another agent to continue safely.
+The handoff system enables safe continuation by another AI system.
 
 ---
 
 # Mandatory Logging
 
-Agents must continuously update:
+Agents MUST continuously update:
 
-- progress logs
-- tests
-- handoffs
-- blockers
-- review notes
-- modified files
+* progress logs
+* tests
+* blockers
+* handoffs
+* review notes
+* modified files
 
-All operations must include timestamps.
+All entries must contain timestamps.
 
 Example:
 
 ```text
-2026-05-07 16:42:11 Europe/Paris
+2026-05-11 20:41:11 Europe/Paris
 ```
 
 ---
 
 # Machine-Readable Format
 
-Each task begins with YAML metadata.
+Each TASK begins with YAML metadata.
 
 Example:
 
 ```yaml
 ---
-task_id: TASK-051
+task_id: TASK-058
 status: IN_PROGRESS
 owner: GLM
+
 contributors:
-  - JULES
-branch: TASK-051-navbar-livewire-fix
+  - CLAUDE
+
+branch: TASK-058-organization-migration
 ---
 ```
 
-This format allows future orchestration and automation.
+This structure enables:
+
+* orchestration
+* automation
+* AI interoperability
+* future tooling
+
+---
+
+# Organization Migration Rules
+
+The platform is actively migrating from:
+
+```text
+Community → Organization
+```
+
+Official architecture rules:
+
+```text
+Organization = Tenant
+Loop ≠ Tenant
+```
+
+This distinction is CRITICAL.
+
+---
+
+# Official Conceptual Rules
+
+## Organization
+
+Organization represents:
+
+* tenant boundary
+* security boundary
+* billing boundary
+* governance boundary
+
+---
+
+## Loop
+
+Loops are:
+
+* collaborative contexts
+* relational groups
+* operational spaces
+
+Loops are NOT:
+
+* tenants
+* security scopes
+* DB isolation layers
+
+---
+
+# Migration Constraints
+
+Migration MUST remain:
+
+* incremental
+* compatibility-first
+* Playwright-safe
+* SQLite-compatible
+* MCP-assisted
+* architecture-safe
+
+Migration MUST NOT:
+
+* use giant search/replace
+* perform uncontrolled rewrites
+* bypass tenant isolation
+* mix unrelated refactors
+* destabilize Livewire hydration
+
+---
+
+# Legacy Compatibility Rules
+
+Current Laravel implementation may still use:
+
+```text
+Community
+community_id
+ResolveCommunity
+current_community
+BelongsToTenantScope
+```
+
+This remains temporarily acceptable.
+
+Agents MUST:
+
+* prefer Organization terminology in new code
+* avoid introducing new Community terminology
+* preserve compatibility layers
+* preserve migration stability
+* avoid abrupt breaking changes
+
+---
+
+# Runtime Tenant Resolution
+
+Current canonical runtime resolution:
+
+```php
+$organization = app()->bound('current_organization')
+    ? app('current_organization')
+    : (app()->bound('current_community')
+        ? app('current_community')
+        : null);
+```
+
+Rules:
+
+* prefer `current_organization`
+* preserve `current_community`
+* never break compatibility abruptly
+
+---
+
+# Preferred Migration Order
+
+Mandatory migration order:
+
+1. database
+2. models
+3. middleware
+4. routes
+5. controllers
+6. policies
+7. Livewire
+8. views
+9. PHPUnit
+10. Playwright
+
+Do NOT skip layers.
+
+---
+
+# Documentation Hierarchy
+
+## Operational AI Documentation
+
+Read first:
+
+```text
+ai/context/
+ai/workflows/
+ai/tooling/
+```
+
+Critical files:
+
+```text
+ai/context/architecture.md
+ai/context/multi-tenant.md
+ai/workflows/review-process.md
+ai/workflows/tenant-safety.md
+```
+
+---
+
+## Product & Architecture Documentation
+
+Main references:
+
+```text
+docs/
+```
+
+Critical documents:
+
+```text
+01-UI_RULES.md
+02-PRODUCT_PRINCIPLES.md
+04-ENGINEERING_RULES.md
+06-DOMAIN_ARCHITECTURE_V2.md
+07-GLOSSARY.md
+08-COMMUNITY_MIGRATION_STRATEGY.md
+09-ORGANIZATION_MIGRATION_EXECUTION_PLAN.md
+```
+
+Rules:
+
+* docs/ = human source of truth
+* ai/context/ = operational AI summaries
+* avoid duplicated concepts
+* avoid terminology drift
+
+---
+
+# Vocabulary Stabilization Rules
+
+Canonical terminology:
+
+* Organization
+* Loop
+* Member
+* Platform
+* Module
+* Interaction
+* Workflow
+* Tenant
+
+Rules:
+
+* preserve conceptual clarity
+* avoid terminology drift
+* preserve vocabulary consistency across:
+
+  * code
+  * prompts
+  * UI
+  * documentation
+  * AI systems
+
+Forbidden conceptual confusion:
+
+```text
+Loop = Tenant
+```
+
+This is FALSE.
+
+Official rule:
+
+```text
+Organization = Tenant
+```
+
+---
+
+# Tooling Hierarchy
+
+Agents should follow this order:
+
+1. `ai/tooling`
+2. Laravel Boost MCP tools
+3. installed modern tooling
+4. raw shell commands
+
+Avoid bypassing project tooling unless necessary.
+
+---
+
+# Preferred MCP Tools
+
+Preferred Laravel Boost tools:
+
+* `search-docs`
+* `database-schema`
+* `database-query`
+* `browser-logs`
+* `get-absolute-url`
+
+Agents SHOULD prefer MCP tooling over blind shell exploration.
+
+---
+
+# Installed System Tooling
+
+Available tooling includes:
+
+* rg
+* batcat
+* fzf
+* lazygit
+* gh
+* tmux
+
+Preferred examples:
+
+```text
+rg instead of grep
+batcat instead of cat
+```
+
+---
+
+# Git Workflow Rules
+
+Never:
+
+* push directly to main
+* create giant mixed commits
+* modify unrelated systems
+* commit without updating TASK
+
+Always:
+
+* inspect git diff before commit
+* keep commits focused
+* preserve architectural clarity
+* validate migration impact
+
+Preferred commit examples:
+
+```text
+refactor(organization): migrate middleware runtime resolution
+fix(playwright): stabilize tenant isolation selectors
+feat(ai): add organization-aware prompt builder
+```
+
+---
+
+# Multi-Agent Coordination Rules
+
+This repository is actively modified by multiple AI systems.
+
+Therefore:
+
+* avoid touching unrelated files
+* avoid architectural drift
+* document important decisions
+* preserve compatibility layers
+* respect ownership boundaries
+
+Example:
+
+If working on:
+
+```text
+messaging
+```
+
+Do NOT refactor:
+
+```text
+transactions
+tenant scopes
+admin systems
+```
+
+unless explicitly required.
+
+---
+
+# Frontend Validation Rules
+
+Never assume frontend correctness without validation.
+
+Always inspect:
+
+* browser behavior
+* DOM state
+* console errors
+* responsive layouts
+* Livewire hydration
+* Alpine synchronization
+
+Playwright validation is strongly encouraged.
+
+---
+
+# Playwright QA Rules
+
+The project includes an agentic Playwright QA system.
+
+Documentation:
+
+```text
+ai/playwright/README.md
+```
+
+Quick start:
+
+```bash
+npx playwright test
+npx playwright test --ui
+npx playwright show-report ai/playwright/reports/html
+```
+
+Critical validation domains:
+
+* authentication
+* organization isolation
+* tenant isolation
+* messaging
+* transactions
+* admin flows
+* responsive behavior
+* console errors
+* Livewire stability
+
+Artifacts:
+
+```text
+ai/playwright/screenshots/
+ai/playwright/test-results/
+ai/playwright/reports/html/
+```
+
+Every visual feature SHOULD provide:
+
+* desktop screenshots
+* mobile screenshots
+* dark mode screenshots
+
+Real screenshots only.
+
+No mockups.
+
+---
+
+# Backend Safety Rules
+
+Before modifying:
+
+* transactions
+* points ledger
+* tenant scopes
+* policies
+* middleware
+* organization resolution
+* APIs
+
+Always:
+
+1. inspect architecture
+2. inspect related models
+3. inspect policies
+4. inspect routes
+5. inspect tests
+6. validate side effects
+
+Critical domains require extra caution:
+
+* transactions
+* messaging
+* reviews
+* admin permissions
+* organization isolation
+
+---
+
+# Multi-Tenant Safety Rules
+
+Tenant isolation is CRITICAL.
+
+Never:
+
+* bypass tenant scopes casually
+* expose cross-organization data
+* assume Loop isolation is sufficient
+* leak organization data through Livewire
+* bypass policies without validation
+
+Current compatibility layer may still expose:
+
+```text
+community_id
+ResolveCommunity
+current_community
+BelongsToTenantScope
+```
+
+This remains temporarily acceptable.
+
+---
+
+# Livewire Rules
+
+Prefer:
+
+* lightweight components
+* server-driven interactions
+* progressive enhancement
+* predictable hydration
+
+Avoid:
+
+* giant components
+* duplicated state handling
+* business logic inside Blade
+* excessive frontend complexity
+
+---
+
+# Alpine.js Rules
+
+Use Alpine only for:
+
+* dropdowns
+* toggles
+* lightweight UI interactions
+* local reactive behavior
+
+Avoid:
+
+* complex application state
+* business logic
+* nested reactive systems
+
+---
+
+# AI Architecture Rules
+
+AI systems must remain:
+
+* configurable
+* provider-agnostic
+* prompt-driven
+* organization-scoped
+
+Avoid:
+
+* hardcoded AI behavior
+* duplicated prompts
+* AI logic scattered everywhere
+
+Preferred architecture:
+
+* providers
+* factories
+* prompt builders
+* centralized settings
+
+---
+
+# UI & Product Philosophy
+
+BouclePro must feel:
+
+* calm
+* conversational
+* lightweight
+* trustworthy
+* intentional
+* human
+
+Avoid:
+
+* dashboard overload
+* noisy interfaces
+* futuristic gimmicks
+* fake chatbot experiences
+* unnecessary complexity
+
+AI should:
+
+* reduce friction
+* simplify workflows
+* accelerate action
+
+NOT:
+
+* simulate fake conversations
+* overwhelm users
+* create artificial complexity
+
+---
+
+# UI Engineering Rules
+
+Prefer:
+
+* clear hierarchy
+* whitespace
+* readable typography
+* lightweight interactions
+* responsive-first layouts
+
+Avoid:
+
+* dense dashboards
+* visual overload
+* excessive animations
+* giant forms
+* inconsistent spacing
+
+Minimum validations:
+
+* desktop
+* mobile
+* dark mode
+* Playwright screenshots
 
 ---
 
 # Testing Rules
 
-Before review:
+Critical systems require validation:
 
-- run relevant tests
-- inspect browser behavior
-- inspect console errors
-- validate responsive behavior
-- validate tenant safety
-- verify architectural consistency
+* tenant isolation
+* organization isolation
+* transactions
+* point ledger
+* policies
+* APIs
+* messaging
+* Livewire flows
 
----
+Prefer:
 
-# Browser & Playwright Rules
-
-Agents are encouraged to use browser tooling for:
-
-- screenshots
-- responsive testing
-- DOM inspection
-- Livewire debugging
-- Alpine.js validation
-- console inspection
-
-Do not assume frontend behavior without browser validation.
+* feature tests
+* integration tests
+* business-flow tests
+* Playwright validation
 
 ---
 
 # Forbidden Actions
 
-Agents must never:
+Agents must NEVER:
 
-- push directly to main
-- bypass tenant isolation
-- remove protections without justification
-- overwrite another agent's work
-- ignore task logging
-- modify unrelated systems
-- bypass architectural rules
+* push directly to main
+* bypass tenant isolation
+* remove protections without validation
+* overwrite another agent's work
+* ignore task logging
+* perform uncontrolled rewrites
+* modify unrelated systems
+* introduce terminology drift
+* mix Loop and Organization concepts
 
 ---
 
@@ -342,204 +880,57 @@ Agents must never:
 
 Prefer:
 
-- small safe changes
-- explicit logic
-- maintainability
-- predictable behavior
-- incremental refactors
+* small safe changes
+* explicit logic
+* maintainable code
+* compatibility layers
+* predictable behavior
+* incremental migration
 
 Avoid:
 
-- architecture drift
-- hidden side effects
-- uncontrolled rewrites
-- premature abstractions
+* architecture drift
+* hidden side effects
+* uncontrolled rewrites
+* premature abstractions
+* giant migration PRs
 
 ---
 
-# Important Rule
+# Strategic Principle
 
-The task file must always reflect the real current state of the work.
+Priority order:
 
-The task log is mandatory.
+```text
+conceptual clarity
+→ documentation alignment
+→ AI alignment
+→ architecture stabilization
+→ code migration
+```
 
-No hidden work.
+NOT the reverse.
 
-===
+---
 
-<laravel-boost-guidelines>
-=== foundation rules ===
+# Final Philosophy
 
-# Laravel Boost Guidelines
+Think before coding.
 
-The Laravel Boost guidelines are specifically curated by Laravel maintainers for this application. These guidelines should be followed closely to ensure the best experience when building Laravel applications.
+Inspect before modifying.
 
-## Foundational Context
+Validate before merging.
 
-This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
+Prefer:
 
-- php - 8.4
-- laravel/breeze (BREEZE) - v2
-- laravel/framework (LARAVEL) - v13
-- laravel/prompts (PROMPTS) - v0
-- laravel/sanctum (SANCTUM) - v4
-- livewire/livewire (LIVEWIRE) - v4
-- laravel/boost (BOOST) - v2
-- laravel/mcp (MCP) - v0
-- laravel/pail (PAIL) - v1
-- laravel/pint (PINT) - v1
-- phpunit/phpunit (PHPUNIT) - v12
-- alpinejs (ALPINEJS) - v3
-- tailwindcss (TAILWINDCSS) - v3
+* conceptual stability
+* maintainable Laravel patterns
+* organization-native architecture
+* incremental migration
+* compatibility-first refactors
 
-## Skills Activation
+The goal is:
 
-This project has domain-specific skills available in `**/skills/**`. You MUST activate the relevant skill whenever you work in that domain—don't wait until you're stuck.
-
-## Conventions
-
-- You must follow all existing code conventions used in this application. When creating or editing a file, check sibling files for the correct structure, approach, and naming.
-- Use descriptive names for variables and methods. For example, `isRegisteredForDiscounts`, not `discount()`.
-- Check for existing components to reuse before writing a new one.
-
-## Verification Scripts
-
-- Do not create verification scripts or tinker when tests cover that functionality and prove they work. Unit and feature tests are more important.
-
-## Application Structure & Architecture
-
-- Stick to existing directory structure; don't create new base folders without approval.
-- Do not change the application's dependencies without approval.
-
-## Frontend Bundling
-
-- If the user doesn't see a frontend change reflected in the UI, it could mean they need to run `npm run build`, `npm run dev`, or `composer run dev`. Ask them.
-
-## Documentation Files
-
-- You must only create documentation files if explicitly requested by the user.
-
-## Replies
-
-- Be concise in your explanations - focus on what's important rather than explaining obvious details.
-
-=== boost rules ===
-
-# Laravel Boost
-
-## Tools
-
-- Laravel Boost is an MCP server with tools designed specifically for this application. Prefer Boost tools over manual alternatives like shell commands or file reads.
-- Use `database-query` to run read-only queries against the database instead of writing raw SQL in tinker.
-- Use `database-schema` to inspect table structure before writing migrations or models.
-- Use `get-absolute-url` to resolve the correct scheme, domain, and port for project URLs. Always use this before sharing a URL with the user.
-- Use `browser-logs` to read browser logs, errors, and exceptions. Only recent logs are useful, ignore old entries.
-
-## Searching Documentation (IMPORTANT)
-
-- Always use `search-docs` before making code changes. Do not skip this step. It returns version-specific docs based on installed packages automatically.
-- Pass a `packages` array to scope results when you know which packages are relevant.
-- Use multiple broad, topic-based queries: `['rate limiting', 'routing rate limiting', 'routing']`. Expect the most relevant results first.
-- Do not add package names to queries because package info is already shared. Use `test resource table`, not `filament 4 test resource table`.
-
-### Search Syntax
-
-1. Use words for auto-stemmed AND logic: `rate limit` matches both "rate" AND "limit".
-2. Use `"quoted phrases"` for exact position matching: `"infinite scroll"` requires adjacent words in order.
-3. Combine words and phrases for mixed queries: `middleware "rate limit"`.
-4. Use multiple queries for OR logic: `queries=["authentication", "middleware"]`.
-
-## Artisan
-
-- Run Artisan commands directly via the command line (e.g., `php artisan route:list`). Use `php artisan list` to discover available commands and `php artisan [command] --help` to check parameters.
-- Inspect routes with `php artisan route:list`. Filter with: `--method=GET`, `--name=users`, `--path=api`, `--except-vendor`, `--only-vendor`.
-- Read configuration values using dot notation: `php artisan config:show app.name`, `php artisan config:show database.default`. Or read config files directly from the `config/` directory.
-- To check environment variables, read the `.env` file directly.
-
-## Tinker
-
-- Execute PHP in app context for debugging and testing code. Do not create models without user approval, prefer tests with factories instead. Prefer existing Artisan commands over custom tinker code.
-- Always use single quotes to prevent shell expansion: `php artisan tinker --execute 'Your::code();'`
-  - Double quotes for PHP strings inside: `php artisan tinker --execute 'User::where("active", true)->count();'`
-
-=== php rules ===
-
-# PHP
-
-- Always use curly braces for control structures, even for single-line bodies.
-- Use PHP 8 constructor property promotion: `public function __construct(public GitHub $github) { }`. Do not leave empty zero-parameter `__construct()` methods unless the constructor is private.
-- Use explicit return type declarations and type hints for all method parameters: `function isAccessible(User $user, ?string $path = null): bool`
-- Use TitleCase for Enum keys: `FavoritePerson`, `BestLake`, `Monthly`.
-- Prefer PHPDoc blocks over inline comments. Only add inline comments for exceptionally complex logic.
-- Use array shape type definitions in PHPDoc blocks.
-
-=== deployments rules ===
-
-# Deployment
-
-- Laravel can be deployed using [Laravel Cloud](https://cloud.laravel.com/), which is the fastest way to deploy and scale production Laravel applications.
-
-=== laravel/core rules ===
-
-# Do Things the Laravel Way
-
-- Use `php artisan make:` commands to create new files (i.e. migrations, controllers, models, etc.). You can list available Artisan commands using `php artisan list` and check their parameters with `php artisan [command] --help`.
-- If you're creating a generic PHP class, use `php artisan make:class`.
-- Pass `--no-interaction` to all Artisan commands to ensure they work without user input. You should also pass the correct `--options` to ensure correct behavior.
-
-### Model Creation
-
-- When creating new models, create useful factories and seeders for them too. Ask the user if they need any other things, using `php artisan make:model --help` to check the available options.
-
-## APIs & Eloquent Resources
-
-- For APIs, default to using Eloquent API Resources and API versioning unless existing API routes do not, then you should follow existing application convention.
-
-## URL Generation
-
-- When generating links to other pages, prefer named routes and the `route()` function.
-
-## Testing
-
-- When creating models for tests, use the factories for the models. Check if the factory has custom states that can be used before manually setting up the model.
-- Faker: Use methods such as `$this->faker->word()` or `fake()->randomDigit()`. Follow existing conventions whether to use `$this->faker` or `fake()`.
-- When creating tests, make use of `php artisan make:test [options] {name}` to create a feature test, and pass `--unit` to create a unit test. Most tests should be feature tests.
-
-## Vite Error
-
-- If you receive an "Illuminate\Foundation\ViteException: Unable to locate file in Vite manifest" error, you can run `npm run build` or ask the user to run `npm run dev` or `composer run dev`.
-
-=== livewire/core rules ===
-
-# Livewire
-
-- Livewire allow to build dynamic, reactive interfaces in PHP without writing JavaScript.
-- You can use Alpine.js for client-side interactions instead of JavaScript frameworks.
-- Keep state server-side so the UI reflects it. Validate and authorize in actions as you would in HTTP requests.
-
-=== pint/core rules ===
-
-# Laravel Pint Code Formatter
-
-- If you have modified any PHP files, you must run `vendor/bin/pint --dirty --format agent` before finalizing changes to ensure your code matches the project's expected style.
-- Do not run `vendor/bin/pint --test --format agent`, simply run `vendor/bin/pint --format agent` to fix any formatting issues.
-
-=== phpunit/core rules ===
-
-# PHPUnit
-
-- This application uses PHPUnit for testing. All tests must be written as PHPUnit classes. Use `php artisan make:test --phpunit {name}` to create a new test.
-- If you see a test using "Pest", convert it to PHPUnit.
-- Every time a test has been updated, run that singular test.
-- When the tests relating to your feature are passing, ask the user if they would like to also run the entire test suite to make sure everything is still passing.
-- Tests should cover all happy paths, failure paths, and edge cases.
-- You must not remove any tests or test files from the tests directory without approval. These are not temporary or helper files; these are core to the application.
-
-## Running Tests
-
-- Run the minimal number of tests, using an appropriate filter, before finalizing.
-- To run all tests: `php artisan test --compact`.
-- To run all tests in a file: `php artisan test --compact tests/Feature/ExampleTest.php`.
-- To filter on a particular test name: `php artisan test --compact --filter=testName` (recommended after making a change to a related file).
-
-</laravel-boost-guidelines>
+```text
+A stable, understandable, organization-native V1
+```
