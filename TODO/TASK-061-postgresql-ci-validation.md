@@ -2,7 +2,7 @@
 task_id: TASK-061
 title: PostgreSQL CI validation
 
-status: BLOCKED
+status: DONE
 
 owner: OpenCode
 
@@ -18,7 +18,7 @@ updated_at: 2026-05-12 15:50:00 Europe/Paris
 labels: []
 
 lock:
-  status: LOCKED
+  status: UNLOCKED
   agent: OpenCode
   since: 2026-05-12 15:08:20 Europe/Paris
 

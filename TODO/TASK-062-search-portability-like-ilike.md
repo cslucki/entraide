@@ -2,7 +2,7 @@
 task_id: TASK-062
 title: search-portability-like-ilike
 
-status: TESTING
+status: DONE
 
 owner: OPENCODE
 
@@ -23,7 +23,7 @@ labels:
   - ilike
 
 lock:
-  status: LOCKED
+  status: UNLOCKED
   agent: OPENCODE
   since: 2026-05-12 16:07:33 Europe/Paris
 
