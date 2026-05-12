@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveCommunity;
+use App\Http\Middleware\ResolveOrganization;
 use App\Models\Community;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -109,5 +110,56 @@ class OrganizationRouteCompatibilityTest extends TestCase
     {
         $community = new Community;
         $this->assertEquals('id', $community->getRouteKeyName());
+    }
+
+    // -------------------------------------------------------------------------
+    // Alias consistency: organization and community resolve the same tenant
+    // -------------------------------------------------------------------------
+
+    public function test_community_and_organization_aliases_resolve_same_tenant(): void
+    {
+        $community = Community::factory()->create(['slug' => 'same-tenant', 'is_active' => true]);
+
+        Route::get('/community-alias/{community}', function () {
+            return response()->json([
+                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_organization')->id,
+                'same_instance' => app('current_community') === app('current_organization'),
+            ]);
+        })->middleware('community');
+
+        Route::get('/organization-alias/{organization}', function () {
+            return response()->json([
+                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_organization')->id,
+                'same_instance' => app('current_community') === app('current_organization'),
+            ]);
+        })->middleware('organization');
+
+        // Both aliases must resolve the same tenant instance
+        $communityResponse = $this->get('/community-alias/same-tenant');
+        $organizationResponse = $this->get('/organization-alias/same-tenant');
+
+        $communityResponse->assertOk();
+        $organizationResponse->assertOk();
+
+        // Each individually binds identical instances
+        $communityResponse->assertJson([
+            'community_id' => $community->id,
+            'organization_id' => $community->id,
+            'same_instance' => true,
+        ]);
+        $organizationResponse->assertJson([
+            'community_id' => $community->id,
+            'organization_id' => $community->id,
+            'same_instance' => true,
+        ]);
+
+        // Both aliases resolve the exact same tenant (same slug)
+        $this->assertEquals(
+            $communityResponse->json('community_id'),
+            $organizationResponse->json('community_id'),
+            'community and organization aliases must resolve the same tenant'
+        );
     }
 }
