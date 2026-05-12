@@ -230,3 +230,4 @@ Resolution deferred to:
 - **TASK-061**: tenant-aware creation/runtime flows
 
 Scope expansion is explicitly forbidden in this task.
+--
