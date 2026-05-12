@@ -7,6 +7,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class SearchController extends Controller
@@ -17,21 +18,21 @@ class SearchController extends Controller
 
         if ($q === '') {
             return view('search', [
-                'q'        => '',
+                'q' => '',
                 'services' => collect(),
                 'requests' => collect(),
-                'users'    => collect(),
-                'posts'    => collect(),
+                'users' => collect(),
+                'posts' => collect(),
             ]);
         }
 
-        $like = '%' . $q . '%';
+        $like = '%'.$q.'%';
+        $likeOperator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
         $services = Service::with(['user', 'category'])
             ->where('status', 'active')
-            ->where(fn($query) =>
-                $query->where('title', 'like', $like)
-                      ->orWhere('description', 'like', $like)
+            ->where(fn ($query) => $query->where('title', $likeOperator, $like)
+                ->orWhere('description', $likeOperator, $like)
             )
             ->latest()
             ->limit(5)
@@ -39,29 +40,26 @@ class SearchController extends Controller
 
         $requests = ServiceRequest::with(['user', 'category'])
             ->where('status', 'open')
-            ->where(fn($query) =>
-                $query->where('title', 'like', $like)
-                      ->orWhere('description', 'like', $like)
+            ->where(fn ($query) => $query->where('title', $likeOperator, $like)
+                ->orWhere('description', $likeOperator, $like)
             )
             ->latest()
             ->limit(5)
             ->get();
 
         $users = User::whereNull('banned_at')
-            ->where(fn($query) =>
-                $query->where('name', 'like', $like)
-                      ->orWhere('location', 'like', $like)
+            ->where(fn ($query) => $query->where('name', $likeOperator, $like)
+                ->orWhere('location', $likeOperator, $like)
             )
             ->limit(5)
             ->get();
 
         $posts = BlogPost::published()
             ->with(['user', 'categories', 'tags'])
-            ->where(fn($query) =>
-                $query->where('title', 'like', $like)
-                      ->orWhere('content', 'like', $like)
-                      ->orWhereHas('tags', fn($q) => $q->where('name', 'like', $like))
-                      ->orWhereHas('categories', fn($q) => $q->where('name', 'like', $like))
+            ->where(fn ($query) => $query->where('title', $likeOperator, $like)
+                ->orWhere('content', $likeOperator, $like)
+                ->orWhereHas('tags', fn ($q) => $q->where('name', $likeOperator, $like))
+                ->orWhereHas('categories', fn ($q) => $q->where('name', $likeOperator, $like))
             )
             ->latest('published_at')
             ->limit(5)

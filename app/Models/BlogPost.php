@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,11 +16,12 @@ use Illuminate\Support\Str;
 
 class BlogPost extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasOrganizationId, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'user_id',
         'community_id',
+        'organization_id',
         'title',
         'slug',
         'summary',
@@ -35,8 +37,8 @@ class BlogPost extends Model
 
     protected $casts = [
         'published_at' => 'datetime',
-        'views_count'  => 'integer',
-        'read_time'    => 'integer',
+        'views_count' => 'integer',
+        'read_time' => 'integer',
     ];
 
     protected static function booted(): void
@@ -61,6 +63,11 @@ class BlogPost extends Model
         return $this->belongsTo(Community::class);
     }
 
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'organization_id');
+    }
+
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(Category::class, 'blog_post_category');
@@ -83,13 +90,16 @@ class BlogPost extends Model
 
     public function isLikedBy(?User $user): bool
     {
-        if (!$user) return false;
+        if (! $user) {
+            return false;
+        }
+
         return $this->likes()->where('user_id', $user->id)->exists();
     }
 
     public function getImageUrlAttribute(): ?string
     {
-        if (!$this->image) {
+        if (! $this->image) {
             return null;
         }
 

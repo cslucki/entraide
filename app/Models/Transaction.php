@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Models\Community;
 use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,15 +12,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Transaction extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasOrganizationId, HasUuids;
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new BelongsToTenantScope());
+        static::addGlobalScope(new BelongsToTenantScope);
     }
 
     protected $fillable = [
         'community_id',
+        'organization_id',
         'service_id',
         'request_id',
         'buyer_id',
@@ -47,6 +48,11 @@ class Transaction extends Model
     public function community(): BelongsTo
     {
         return $this->belongsTo(Community::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'organization_id');
     }
 
     public function service(): BelongsTo
@@ -102,7 +108,8 @@ class Transaction extends Model
         if ($this->serviceRequest) {
             return $this->serviceRequest->title;
         }
-        return 'Échange #' . substr($this->id, 0, 8);
+
+        return 'Échange #'.substr($this->id, 0, 8);
     }
 
     public function getStatusLabelAttribute(): string

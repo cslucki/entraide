@@ -1,125 +1,443 @@
-# Entraide — Plateforme de troc de services `v0.1-alpha`
+````md
+# BouclePro — Organizational Collaboration Platform
 
-Plateforme permettant à des professionnels indépendants d'échanger leurs compétences sans argent, via un système de points.
+BouclePro is a French multi-tenant organizational collaboration platform built with Laravel.
 
-Un projet porté par l'association **[AMT](https://amteletravail.fr)** (RNA W133002043), initié par **Cyril Slucki**.
+The platform enables organizations to:
 
-**Stack :**
+- structure collaborative ecosystems
+- publish and exchange services
+- organize internal loops
+- exchange value through a points system
+- communicate through contextual messaging
+- manage collaborative workflows
+- integrate AI-assisted systems
 
-| Couche | Technologie |
-|--------|-------------|
-| Backend | Laravel 13.7 · PHP 8.4 |
-| Base de données | SQLite (dev) · PostgreSQL (prod via Laravel Cloud) |
-| Frontend | Blade · Alpine.js · Tailwind CSS v4 |
-| UI réactive | Livewire 3 |
-| Auth | Laravel Breeze (Blade + dark mode) |
-| Traitement image | `intervention/image` v4 (avatar 300×300, miniatures services) |
-| Déploiement | Laravel Cloud (auto-deploy sur `main`) |
+BouclePro evolves toward an organization-native, AI-ready and modular architecture.
 
 ---
 
-## Installation (dev)
+# Vision
 
-### Prérequis
+BouclePro is designed to help organizations create calmer, more human and more collaborative digital environments.
+
+The platform focuses on:
+
+- collaboration
+- mutual aid
+- organizational workflows
+- knowledge sharing
+- professional networking
+- AI-assisted productivity
+
+Core philosophy:
+
+- calm
+- conversational
+- modular
+- lightweight
+- trustworthy
+- human-centered
+
+---
+
+# Current Architecture
+
+Official architectural rule:
+
+```text
+Organization = Tenant
+Loop ≠ Tenant
+```
+
+Current target architecture:
+
+```text
+Platform
+└── Organization
+    └── Loops
+        └── Members
+            └── Interactions
+```
+
+---
+
+# Technology Stack
+
+## Stack Technique
+
+| Couche                   | Technologie                                      |
+|--------------------------|--------------------------------------------------|
+| **Backend**              | Laravel 13 · PHP 8.4                             |
+| **Base de données**      | SQLite *(dev)* · PostgreSQL *(production)*       |
+| **Frontend**             | Blade · Alpine.js · Tailwind CSS                 |
+| **Interface réactive**   | Livewire 4                                       |
+| **Authentification**     | Laravel Breeze                                   |
+| **Outils IA**            | Laravel Boost MCP                                |
+| **Tests & QA**           | PHPUnit · Playwright                             |
+| **Déploiement**          | Laravel Cloud                                    |
+| **Environnement dev**    | WSL2 · Windows 11                                |
+
+---
+
+# Core Features
+
+## Organizations
+
+Organizations are the primary business and security boundary of the platform.
+
+An Organization owns:
+
+- members
+- loops
+- services
+- workflows
+- messaging
+- AI systems
+- permissions
+
+Organizations are isolated through multi-tenant architecture.
+
+---
+
+## Loops
+
+Loops are collaborative contexts inside Organizations.
+
+Examples:
+
+- Innovation IA
+- Graphistes Marseille
+- Recrutement
+- Support interne
+
+A Loop may contain:
+
+- conversations
+- services
+- workflows
+- resources
+- collaborative interactions
+
+Loops are NOT tenant boundaries.
+
+---
+
+## Members
+
+Members may:
+
+- join loops
+- publish services
+- exchange points
+- participate in transactions
+- communicate through messaging
+- interact with AI systems
+
+---
+
+## Services
+
+Members can publish services with:
+
+- title
+- description
+- categories
+- tags
+- delivery mode
+- points cost
+
+Services may be contextualized inside loops.
+
+---
+
+## Transactions
+
+Transactions follow a controlled state machine:
+
+```text
+pending → accepted → buyer_done → completed
+        ↘ refused
+pending/accepted → cancelled
+```
+
+Critical guarantees:
+
+- atomic point transfers
+- append-only ledger
+- tenant isolation
+- policy validation
+
+---
+
+## Messaging
+
+Messaging includes:
+
+- contextual discussions
+- transaction-linked conversations
+- unread tracking
+- system messages
+- Livewire real-time updates
+
+---
+
+## AI Architecture
+
+AI is a transversal layer across the platform.
+
+AI systems are designed to remain:
+
+- provider-agnostic
+- modular
+- organization-scoped
+- prompt-driven
+
+Future AI capabilities include:
+
+- assistants
+- automation
+- recommendations
+- moderation
+- semantic search
+- organizational memory systems
+
+---
+
+# Multi-Tenant Architecture
+
+BouclePro is transitioning from a legacy Community-based architecture toward an Organization-native architecture.
+
+Current compatibility layer may still expose:
+
+```text
+Community
+community_id
+ResolveCommunity
+current_community
+```
+
+This remains temporarily acceptable during migration phases.
+
+New developments should prefer:
+
+```text
+Organization
+organization_id
+ResolveOrganization
+```
+
+Migration strategy is:
+
+- incremental
+- compatibility-first
+- Playwright-safe
+- SQLite-compatible
+
+---
+
+# Installation (Development)
+
+## Requirements
 
 - PHP 8.4+
 - Composer
 - Node.js + npm
+- SQLite
+- Git
+- WSL2 recommended on Windows
 
-### Étapes
+---
+
+## Setup
 
 ```bash
 composer install
-npm install && npm run build
+
+npm install
+npm run build
+
 cp .env.example .env
+
 php artisan key:generate
-touch database/database.sqlite   # SQLite uniquement
+
+touch database/database.sqlite
+
 php artisan migrate --seed
+
 php artisan storage:link
+
 php artisan serve
 ```
 
-Ouvrir `http://localhost:8000`.
+Open:
+
+```text
+http://localhost:8000
+```
 
 ---
 
-## Comptes de test
+# Test Accounts
 
-Après `php artisan migrate --seed` :
+After:
 
-| Email | Mot de passe | Rôle |
-|-------|-------------|------|
-| test@example.com | password | Utilisateur |
-| alice@example.com | password | Utilisateur |
-| admin@example.com | password | Super-admin |
+```bash
+php artisan migrate --seed
+```
 
-Chaque compte démarre avec **100 points**.
+| Email | Password | Role |
+|---|---|---|
+| test@example.com | password | Member |
+| alice@example.com | password | Member |
+| admin@example.com | password | Super Admin |
 
----
+Each account starts with:
 
-## Fonctionnalités
-
-### Utilisateurs
-- Inscription / Connexion + bonus 100 pts à l'inscription
-- Profil public : bio, localisation, site web, LinkedIn, badges, note, disponibilité
-- Upload avatar (redimensionné 300×300)
-- Obligation de renseigner une présentation avant de publier (middleware)
-
-### Services
-- Publication avec compétences, tags, mode de prestation (remote / présentiel / les deux)
-- Barème de points unifié : **Essentiel 40–60 pts** · **Standard 60–80 pts** · **Complet 80–100 pts**
-- Miniatures générées en tâche de fond (queue)
-- Mise en pause / suppression (bloquée si transaction active)
-
-### Demandes
-- Budget min/max, délai, pièces jointes (images, PDF, Word, Excel)
-- Statuts : open / closed
-
-### Transactions
-- Cycle complet : pending → accepted → buyer_done → completed
-- Transfert de points atomique via `point_ledger`
-- Évaluations (note + commentaire) à la clôture
-
-### Messagerie
-- Messagerie contextuelle par transaction (Livewire, polling 3 s)
-- Messages système automatiques à chaque changement de statut
-
-### Explorateur
-- Recherche full-text, filtres catégorie (multiselect) et mode de prestation
-
-### Communautés (multi-tenant)
-- Espaces dédiés via `/{community}` avec landing publique ou privée
-- Portail d'auth propre à chaque communauté
-- Données isolées par `community_id` (global scope)
-
-### Administration
-- Gestion utilisateurs, services, demandes, communautés
-- Édition services : super-admin (tous) ou admin de communauté (les siens)
-- Signalements, badges, paramètres
+```text
+100 points
+```
 
 ---
 
-## Structure des points
+# Development Workflow
 
-Un service coûte entre **40 et 100 points** :
+The project follows a multi-agent AI workflow.
 
-| Niveau | Points | Durée estimée |
-|--------|--------|---------------|
-| Essentiel | 40 – 60 pts | 20 à 30 min |
-| Standard | 60 – 80 pts | 30 à 45 min |
-| Complet | 80 – 100 pts | 45 à 60 min |
+Main files:
+
+```text
+CLAUDE.md
+AGENTS.md
+```
+
+Important documentation:
+
+```text
+docs/
+ai/context/
+ai/workflows/
+```
 
 ---
 
-## Déploiement (prod)
+# Playwright QA
 
-Le déploiement est automatique via **Laravel Cloud** sur chaque push sur `main`. Les migrations sont exécutées automatiquement (`migrate --force`). Les seeders ne tournent pas en prod — les données de référence (catégories, fourchettes de points) sont embarquées dans les migrations elles-mêmes.
+Playwright validation is mandatory for critical flows.
+
+Examples:
+
+```bash
+npx playwright test
+
+npx playwright test --ui
+
+npx playwright show-report
+```
+
+Critical QA domains:
+
+- authentication
+- tenant isolation
+- organization isolation
+- messaging
+- responsive behavior
+- Livewire stability
+- console errors
 
 ---
 
-## Liens
+# Architecture Principles
 
-- Production : [bouclepro.com](https://bouclepro.com)
-- Association AMT : [amteletravail.fr](https://amteletravail.fr)
-- Code source : [github.com/cslucki/entraide](https://github.com/cslucki/entraide)
-- Mentions légales : `/mentions-legales`
+The platform prioritizes:
+
+- tenant isolation
+- business integrity
+- maintainability
+- conceptual clarity
+- explicit logic
+- stable migrations
+- modular architecture
+
+Avoid:
+
+- giant rewrites
+- architecture drift
+- terminology drift
+- premature over-engineering
+
+---
+
+# Product Philosophy
+
+BouclePro should feel:
+
+- calm
+- obvious
+- modern
+- lightweight
+- conversational
+- trustworthy
+
+The platform should reduce complexity,
+not increase it.
+
+AI should simplify action,
+not create artificial conversational noise.
+
+---
+
+# Deployment
+
+Production deployment uses Laravel Cloud.
+
+Deployment pipeline:
+
+- auto-deploy on `main`
+- automatic migrations
+- isolated environments
+- PostgreSQL production database
+
+---
+
+# Roadmap Direction
+
+BouclePro evolves toward:
+
+- AI-assisted organizations
+- modular collaboration
+- white-label deployments
+- federated collaboration
+- organizational automation
+- AI-native workflows
+- plugin architecture
+- enterprise-ready deployments
+
+---
+
+# Links
+
+- Production: https://bouclepro.com
+- Association AMT: https://amteletravail.fr
+- GitHub: https://github.com/cslucki/entraide
+
+---
+
+# Strategic Principle
+
+Priority order:
+
+```text
+conceptual clarity
+→ documentation alignment
+→ AI alignment
+→ architecture stabilization
+→ code migration
+```
+
+The goal is:
+
+```text
+A stable, understandable, organization-native V1
+```
+````

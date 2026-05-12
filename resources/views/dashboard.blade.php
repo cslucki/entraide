@@ -3,9 +3,10 @@
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
             <div>
+                @php $tenant = $currentCommunity ?? $currentOrganization ?? null; @endphp
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    @isset($currentCommunity)Tableau de bord — {{ $currentCommunity->name }}@elseBonjour, {{ $user->name }}@endisset
-                    @empty($currentCommunity) 👋@endempty
+                    @isset($tenant)Tableau de bord — {{ $tenant->name }}@elseBonjour, {{ $user->name }}@endisset
+                    @empty($tenant) 👋@endempty
                 </h1>
                 <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Voici un résumé de votre activité</p>
             </div>
@@ -102,7 +103,7 @@
                     @forelse($myRequests as $req)
                     <div class="px-5 py-3 flex items-center justify-between">
                         <div class="min-w-0">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $req->title }}</p>
+                            <a href="{{ route('requests.show', $req) }}" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600">{{ $req->title }}</a>
                             <p class="text-xs text-gray-500">{{ $req->budget_min }}{{ $req->budget_max ? '–'.$req->budget_max : '+' }} pts</p>
                         </div>
                         <form method="POST" action="{{ route('requests.destroy', $req) }}" class="ml-3" x-data="{ asked: false }">

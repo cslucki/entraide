@@ -2,6 +2,7 @@
 
 namespace App\Models\Scopes;
 
+use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
@@ -10,14 +11,15 @@ class BelongsToTenantScope implements Scope
 {
     public function apply(Builder $builder, Model $model): void
     {
-        try {
-            $community = app('current_community');
-        } catch (\Exception $e) {
-            return;
-        }
+        $organization = $this->resolveOrganization();
 
-        if ($community) {
-            $builder->where($model->getTable() . '.community_id', $community->id);
+        if ($organization) {
+            $builder->where($model->getTable().'.community_id', $organization->id);
         }
+    }
+
+    private function resolveOrganization(): mixed
+    {
+        return CurrentOrganization::get();
     }
 }
