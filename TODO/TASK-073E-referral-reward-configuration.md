@@ -2,7 +2,7 @@
 task_id: TASK-073E
 title: Referral Reward Configuration
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -195,6 +195,7 @@ Cette tâche (T-073E) couvre l'inspection + décision. La micro-séquence d'impl
 - `2026-05-13 22:15:00 Europe/Paris` — OPENCODE : inspection terminée. 19 fichiers inspectés. 5 constantes hardcodées trouvées dans `RewardDispatcher`. Décision retenue : **Option B** (config/referral.php). Aucune implémentation. TASK mis à jour avec découvertes, analyse des risques, et prochaine micro-séquence.
 - `2026-05-13 22:20:00 Europe/Paris` — OPENAI : `TODO/TASK-073-STATUS.md` corrigé pour refléter T073C/T073D MERGED. Aucune implémentation applicative effectuée.
 - `2026-05-13 22:30:00 Europe/Paris` — OPENCODE : implémentation Option B terminée. Fichiers modifiés : `config/referral.php` (créé), `app/Services/RewardDispatcher.php` (constantes → config()), `tests/Feature/RewardDispatcherTest.php` (constantes → config()). Pint exécuté. 5 suites de tests lancées : **84 passed, 0 failed, 196 assertions**. TASK mis à jour.
+- `2026-05-13 22:40:00 Europe/Paris` — OPENCODE : finalisation OPS. Commit `47c5ade` pushé. check-task PASSED. finalize-task exécuté. merge-task vers develop OK (merge commit `0f7a789`). develop pushé. TASK status → MERGED.
 
 ---
 
