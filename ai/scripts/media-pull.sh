@@ -18,7 +18,7 @@ STORAGE_DIR="$BASE_DIR/storage/app/public"
 
 check_prereqs() {
     if ! command -v curl &>/dev/null; then
-        echo "Error: 'curl' not found. Install it first."
+        echo "Error: 'curl' not found."
         exit 1
     fi
 }
@@ -27,17 +27,20 @@ check_storage_link() {
     if [ ! -L "$BASE_DIR/public/storage" ]; then
         echo "⚠️  Warning: storage symlink not found (public/storage)."
         echo "   Run: php artisan storage:link"
-        echo "   Downloaded files won't be publicly accessible."
         echo ""
+    fi
+}
+
+url_decode() {
+    if command -v python3 &>/dev/null; then
+        python3 -c "import urllib.parse, sys; print(urllib.parse.unquote(sys.argv[1]))" "$1"
+    else
+        echo "$1"
     fi
 }
 
 if [ $# -ne 1 ]; then
     echo "Usage: $0 <media-url>"
-    echo ""
-    echo "Examples:"
-    echo "  $0 https://bouclepro.com/avatars/foo.png"
-    echo "  $0 https://bouclepro.com/services/bar.jpg"
     exit 1
 fi
 
@@ -46,8 +49,8 @@ URL="$1"
 check_prereqs
 check_storage_link
 
-# Extract path after domain, strip query params
 MEDIA_PATH=$(echo "$URL" | sed -E 's|^https?://[^/]+/||' | sed 's/\?.*$//')
+MEDIA_PATH=$(url_decode "$MEDIA_PATH")
 
 if [ -z "$MEDIA_PATH" ]; then
     echo "Error: could not extract media path from URL."
@@ -59,12 +62,17 @@ TARGET_DIR=$(dirname "$TARGET_FILE")
 
 mkdir -p "$TARGET_DIR"
 
+if [ ! -w "$TARGET_DIR" ]; then
+    echo "✗ Error: cannot write to $TARGET_DIR"
+    echo "  Fix: sudo chown -R \$USER $STORAGE_DIR"
+    exit 1
+fi
+
 echo "→ Downloading: $URL"
-echo "→ Target:      $TARGET_FILE"
 
 if curl -fLo "$TARGET_FILE" "$URL" 2>/dev/null; then
     LOCAL_SIZE=$(du -h "$TARGET_FILE" | cut -f1)
-    echo "✓ Success: $TARGET_FILE ($LOCAL_SIZE)"
+    echo "✓ $MEDIA_PATH ($LOCAL_SIZE)"
 else
     echo "✗ Error: download failed"
     rm -f "$TARGET_FILE"

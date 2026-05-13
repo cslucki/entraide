@@ -13,7 +13,7 @@ branch: TASK-072-media-pull
 priority: MEDIUM
 
 created_at: 2026-05-13 12:14:52 Europe/Paris
-updated_at: 2026-05-13 12:55:00 Europe/Paris
+updated_at: 2026-05-13 13:50:00 Europe/Paris
 
 labels: []
 
