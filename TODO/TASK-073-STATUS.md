@@ -5,9 +5,9 @@
 - T073B — Referral Logic (events, listeners, rewards, anti-abuse) — MERGED
 - T073C — Referral Member UX (register ?ref=, dashboard invitation card, copy link, referral points label, tests + screenshots) — MERGED
 - T073D — Referral Admin UX (admin referrals route, controller, view, navigation, KPIs, recent invitations, recent activations, contributions, tests) — MERGED
+- T073E — Referral Reward Configuration (config/referral.php, RewardDispatcher → config(), tests) — MERGED
 
 ## Pending
-- T073E
 - T073F
 - T073G
 
@@ -84,13 +84,24 @@
 - Pas de leaderboard
 - Pas de gamification agressive
 - Pas de modification du système de rewards
-- Pas de “Community” côté utilisateur
+- Pas de "Community" côté utilisateur
 - UX sobre conforme Organization Admin
 - T073D mergée dans develop avec CI verte
 
-## T073E Initial Scope
-- Inspection + décision uniquement
-- Vérifier si les rewards referral sont hardcodées, en config, en base ou ailleurs
-- Ne pas implémenter avant décision A/B/C/D
-- Ne pas créer de formulaire admin sans justification forte
-- Ne pas modifier rétroactivement les rewards existantes
+## T073E Deliverables
+- `config/referral.php` — configuration centralisée des rewards
+- `app/Services/RewardDispatcher.php` — constantes de classe → `config('referral.rewards.*')`
+- `tests/Feature/RewardDispatcherTest.php` — constantes → config(), 28 tests
+- Option B implémentée et vérifiée
+- 84 passed / 196 assertions / 0 failed
+- Pint OK
+- OpenAI review OK
+- Déploiement nécessaire pour modifier les valeurs (config fichier, pas DB)
+
+## T073E Important Notes
+- Option B retenue : config fichier, pas de Setting::get(), pas d'UI admin
+- Pas de migration, pas de package, pas de Livewire
+- Rewards existantes non modifiées (append-only préservé)
+- Fallback values = anciennes constantes (comportement identique)
+- Risque résiduel nul
+- T073E mergée dans develop avec CI verte
