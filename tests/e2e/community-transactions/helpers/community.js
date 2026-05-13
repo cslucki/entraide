@@ -8,12 +8,25 @@
 import { API_BASE_URL } from './config.js';
 
 /**
- * Get current community slug from the page URL
+ * Extract community slug from a URL string
+ * Handles /{slug}, /{slug}/..., /dashboard, etc.
  */
-export async function getCommunitySlug(page) {
-    const url = page.url();
-    const match = url.match(/\/([a-z0-9-]+)\//);
-    return match ? match[1] : 'default';
+export function extractSlugFromUrl(url) {
+    const pathname = new URL(url).pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    const reserved = new Set(['dashboard', 'login', 'register', 'admin', 'logout', 'profile', 'blog', 'explorer', 'membres', 'echanges', 'boucles', 'search', 'sitemap']);
+    if (segments.length > 0 && !reserved.has(segments[0])) {
+        return segments[0];
+    }
+    return 'default';
+}
+
+/**
+ * Get current community slug from the page URL
+ * Handles both /{slug} and /{slug}/... patterns
+ */
+export function getCommunitySlug(page) {
+    return extractSlugFromUrl(page.url());
 }
 
 /**

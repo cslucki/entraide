@@ -17,9 +17,8 @@ const requiredGlobalMembers = [
     'TEST_MEMBER2_PASSWORD',
 ];
 
-// CPME community members - RESERVED for future tenant-isolation testing
-// NOT used in current global platform tests
-const optionalCpmeMembers = [
+// CPME community members - for tenant-isolation testing
+const requiredCpmeMembers = [
     'TEST_MEMBER_OF_CPME1_LOGIN',
     'TEST_MEMBER_OF_CPME1_PASSWORD',
     'TEST_MEMBER_OF_CPME2_LOGIN',
@@ -38,11 +37,16 @@ if (missingGlobal.length > 0) {
     throw new Error(`Missing required global member environment variables: ${missingGlobal.join(', ')}`);
 }
 
-// CPME vars are optional for now (reserved for future testing)
+// Check required CPME member vars
+const missingCpme = requiredCpmeMembers.filter(name => !process.env[name]);
+if (missingCpme.length > 0) {
+    throw new Error(`Missing required CPME member environment variables: ${missingCpme.join(', ')}`);
+}
+
 // Log available users
 console.log('Playwright test environment loaded:');
 console.log(`  TEST_ADMIN: ${process.env.TEST_ADMIN_LOGIN ? '✓' : '✗'}`);
 console.log(`  TEST_MEMBER1: ${process.env.TEST_MEMBER1_LOGIN ? '✓' : '✗'}`);
 console.log(`  TEST_MEMBER2: ${process.env.TEST_MEMBER2_LOGIN ? '✓' : '✗'}`);
-console.log(`  TEST_MEMBER_OF_CPME1: ${process.env.TEST_MEMBER_OF_CPME1_LOGIN ? '✓ (reserved)' : '✗'}`);
-console.log(`  TEST_MEMBER_OF_CPME2: ${process.env.TEST_MEMBER_OF_CPME2_LOGIN ? '✓ (reserved)' : '✗'}`);
+console.log(`  TEST_MEMBER_OF_CPME1: ${process.env.TEST_MEMBER_OF_CPME1_LOGIN ? '✓' : '✗'}`);
+console.log(`  TEST_MEMBER_OF_CPME2: ${process.env.TEST_MEMBER_OF_CPME2_LOGIN ? '✓' : '✗'}`);
