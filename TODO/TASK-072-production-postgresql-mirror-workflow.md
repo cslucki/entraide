@@ -2,7 +2,7 @@
 task_id: TASK-072
 title: production-postgresql-mirror-workflow
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
