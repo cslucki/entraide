@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             SkillSeeder::class,
             PointGuidelineSeeder::class,
             UserSeeder::class,
+            QaAccountsSeeder::class,
             BadgeSeeder::class,
             SettingSeeder::class,
             EmailTemplateSeeder::class,

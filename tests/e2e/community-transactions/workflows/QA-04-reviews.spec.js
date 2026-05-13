@@ -23,6 +23,7 @@ import {
     goToProfile,
 } from '../helpers/community.js';
 import { SELECTORS, TEST_VALUES } from '../helpers/config.js';
+import { extractSlugFromUrl } from '../helpers/community.js';
 import '../../../setup.js';
 
 // Test users from environment
@@ -61,8 +62,8 @@ test.describe('QA-04: Mutual Reviews After Transaction', () => {
 
         // Get community slug
         const url = page.url();
-        const slugMatch = url.match(/\/([a-z0-9-]+)\//);
-        communitySlug = slugMatch ? slugMatch[1] : 'default';
+
+        communitySlug = extractSlugFromUrl(page.url());
 
         console.log(`📍 Community slug: ${communitySlug}`);
 

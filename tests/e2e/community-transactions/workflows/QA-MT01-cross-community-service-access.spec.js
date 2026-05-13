@@ -19,6 +19,7 @@ import {
     goToServices,
 } from '../helpers/community.js';
 import { COMMUNITY_ROUTES } from '../helpers/config.js';
+import { extractSlugFromUrl } from '../helpers/community.js';
 import '../../../setup.js';
 
 // Test users from environment
@@ -40,9 +41,7 @@ test.describe('QA-MT01: Cross-Community Service Access Prevention', () => {
         await login(page, USER_EMAIL, USER_PASSWORD);
 
         // Get community slug from URL
-        const url = page.url();
-        const slugMatch = url.match(/\/([a-z0-9-]+)\//);
-        userCommunitySlug = slugMatch ? slugMatch[1] : 'default';
+        userCommunitySlug = new URL(page.url()).pathname.split('/').filter(Boolean)[0] || 'default';
 
         console.log(`📍 User's community: ${userCommunitySlug}`);
 

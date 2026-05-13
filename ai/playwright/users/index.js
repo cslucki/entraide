@@ -5,7 +5,6 @@ export { adminUser } from './admin.js';
 export { globalMember1User } from './global-member-1.js';
 export { globalMember2User } from './global-member-2.js';
 
-// CPME community members - RESERVED for future tenant-isolation testing
-// DO NOT USE in current global platform tests
+// CPME community members - for tenant-isolation testing
 export { cpmeMember1User } from './cpme-member-1.js';
 export { cpmeMember2User } from './cpme-member-2.js';

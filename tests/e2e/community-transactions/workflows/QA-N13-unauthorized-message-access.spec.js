@@ -20,6 +20,7 @@ import {
     goToMessageThread,
 } from '../helpers/community.js';
 import { TEST_VALUES } from '../helpers/config.js';
+import { extractSlugFromUrl } from '../helpers/community.js';
 import '../../../setup.js';
 
 // Test users from environment
@@ -43,8 +44,8 @@ test.describe('QA-N13: Unauthorized Message Access Prevention', () => {
 
         // Get community slug
         const url = page.url();
-        const slugMatch = url.match(/\/([a-z0-9-]+)\//);
-        communitySlug = slugMatch ? slugMatch[1] : 'default';
+
+        communitySlug = extractSlugFromUrl(page.url());
 
         console.log(`📍 Community slug: ${communitySlug}`);
 

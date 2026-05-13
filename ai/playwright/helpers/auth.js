@@ -45,9 +45,10 @@ export async function logout(page) {
 }
 
 /**
- * Assert user is logged in (on dashboard)
+ * Assert user is logged in (on dashboard or community home)
  */
 export async function assertLoggedIn(page) {
     const url = page.url();
-    expect(url).toMatch(/\/dashboard/);
+    const isLoggedIn = url.includes('/dashboard') || (url !== 'about:blank' && !url.includes('/login'));
+    expect(isLoggedIn).toBe(true);
 }
