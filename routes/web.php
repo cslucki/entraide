@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminCommunityController;
 use App\Http\Controllers\Admin\AdminBlogController;
+use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminEmailController;
@@ -189,6 +190,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports');
     Route::patch('/reports/{report}/dismiss', [AdminController::class, 'dismissReport'])->name('reports.dismiss');
     Route::patch('/reports/{report}/review', [AdminController::class, 'reviewReport'])->name('reports.review');
+
+    // Referral invitations
+    Route::get('/referrals', [AdminReferralController::class, 'index'])->name('referrals');
 
     // Settings
     Route::get('/settings', [AdminSettingController::class, 'index'])->name('settings');
