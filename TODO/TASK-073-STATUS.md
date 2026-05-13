@@ -7,9 +7,9 @@
 - T073D — Referral Admin UX (admin referrals route, controller, view, navigation, KPIs, recent invitations, recent activations, contributions, tests) — MERGED
 - T073E — Referral Reward Configuration (config/referral.php, RewardDispatcher → config(), tests) — MERGED
 - T073F — Referral Member Navigation & Invitation Page (dashboard card repositioned, /points invitation block, navigation links, tests 397 passed) — MERGED
+- T073G — Referral Future-Proofing / Contribution Architecture Notes (docs/10-REFERRAL_CONTRIBUTION_FUTURE_PROOFING.md) — MERGED
 
 ## Pending
-- T073G
 
 ## Constraints
 - Organization = Tenant

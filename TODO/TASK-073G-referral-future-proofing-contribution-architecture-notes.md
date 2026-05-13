@@ -2,7 +2,7 @@
 task_id: TASK-073G
 title: Referral Future-Proofing / Contribution Architecture Notes
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -15,7 +15,7 @@ branch: TASK-073G-referral-future-proofing-contribution-architecture-notes
 priority: MEDIUM
 
 created_at: 2026-05-13 22:40:55 Europe/Paris
-updated_at: 2026-05-13 22:42:00 Europe/Paris
+updated_at: 2026-05-13 22:42:30 Europe/Paris
 
 labels:
 
@@ -267,6 +267,28 @@ Validation:
 - No "Community" used as product concept (only legacy reference in section 10) ✓
 - No anti-drift rules violated ✓
 - No MLM, commission, passive income, or aggressive leaderboard introduced ✓
+
+---
+
+## 2026-05-13 22:42:30 Europe/Paris
+
+TASK-073G merged into develop by OPS.
+
+Actions:
+- check-task.sh PASSED
+- finalize-task.sh PASSED
+- merge-task.sh: --no-ff merge commit 357618a
+- origin develop pushed
+- CI develop: queued (PostgreSQL CI)
+- TASK status updated to MERGED
+- TASK-073-STATUS.md updated: T073G moved to Completed section
+
+Validation:
+- No application code modified ✓
+- No migration created ✓
+- No test created ✓
+- No runtime behavior changed ✓
+- YAML frontmatter indentation fixed ✓
 
 ---
 
