@@ -18,8 +18,11 @@ class RewardDispatcherTest extends TestCase
     use RefreshDatabase;
 
     private Community $org;
+
     private User $referrer;
+
     private User $referred;
+
     private RewardDispatcher $dispatcher;
 
     protected function setUp(): void
@@ -59,7 +62,7 @@ class RewardDispatcherTest extends TestCase
         $this->assertNotNull($reward);
         $this->assertEquals('member_invited', $reward->event_type);
         $this->assertEquals(1, $reward->level);
-        $this->assertEquals(RewardDispatcher::INVITE_L1_REFERRER, $reward->points);
+        $this->assertEquals(config('referral.rewards.invitation.level_1_referrer'), $reward->points);
         $this->assertEquals($this->referred->id, $reward->source_user_id);
         $this->assertEquals($this->org->id, $reward->community_id);
     }
@@ -76,7 +79,7 @@ class RewardDispatcherTest extends TestCase
         $this->assertNotNull($reward);
         $this->assertEquals('member_invited', $reward->event_type);
         $this->assertEquals(1, $reward->level);
-        $this->assertEquals(RewardDispatcher::INVITE_WELCOME, $reward->points);
+        $this->assertEquals(config('referral.rewards.invitation.welcome'), $reward->points);
         $this->assertEquals($this->referrer->id, $reward->source_user_id);
     }
 
@@ -101,8 +104,8 @@ class RewardDispatcherTest extends TestCase
         $this->referrer->refresh();
         $this->referred->refresh();
 
-        $this->assertEquals($initial + RewardDispatcher::INVITE_L1_REFERRER, $this->referrer->points_balance);
-        $this->assertEquals($initial + RewardDispatcher::INVITE_WELCOME, $this->referred->points_balance);
+        $this->assertEquals($initial + config('referral.rewards.invitation.level_1_referrer'), $this->referrer->points_balance);
+        $this->assertEquals($initial + config('referral.rewards.invitation.welcome'), $this->referred->points_balance);
     }
 
     public function test_handle_invited_returns_two_rewards(): void
@@ -211,7 +214,7 @@ class RewardDispatcherTest extends TestCase
 
         $this->assertNotNull($reward);
         $this->assertEquals(1, $reward->level);
-        $this->assertEquals(RewardDispatcher::ACTIVATE_L1_REFERRER, $reward->points);
+        $this->assertEquals(config('referral.rewards.activation.level_1_referrer'), $reward->points);
         $this->assertEquals($this->referred->id, $reward->source_user_id);
         $this->assertEquals($this->org->id, $reward->community_id);
     }
@@ -225,7 +228,7 @@ class RewardDispatcherTest extends TestCase
 
         $this->referrer->refresh();
         $this->assertEquals(
-            $initial + RewardDispatcher::INVITE_L1_REFERRER + RewardDispatcher::ACTIVATE_L1_REFERRER,
+            $initial + config('referral.rewards.invitation.level_1_referrer') + config('referral.rewards.activation.level_1_referrer'),
             $this->referrer->points_balance
         );
     }
@@ -315,7 +318,7 @@ class RewardDispatcherTest extends TestCase
             ->where('level', 2)
             ->first();
         $this->assertNotNull($l2Reward);
-        $this->assertEquals(RewardDispatcher::ACTIVATE_L2_REFERRER, $l2Reward->points);
+        $this->assertEquals(config('referral.rewards.activation.level_2_referrer'), $l2Reward->points);
         $this->assertEquals($child->id, $l2Reward->source_user_id);
 
         // Points verification
@@ -324,17 +327,17 @@ class RewardDispatcherTest extends TestCase
         $child->refresh();
 
         $this->assertEquals(
-            $initialGpa + RewardDispatcher::INVITE_L1_REFERRER + RewardDispatcher::ACTIVATE_L1_REFERRER
-                + RewardDispatcher::INVITE_L2_REFERRER + RewardDispatcher::ACTIVATE_L2_REFERRER,
+            $initialGpa + config('referral.rewards.invitation.level_1_referrer') + config('referral.rewards.activation.level_1_referrer')
+                + config('referral.rewards.invitation.level_2_referrer') + config('referral.rewards.activation.level_2_referrer'),
             $gpa->points_balance
         );
         $this->assertEquals(
-            $initialParent + RewardDispatcher::INVITE_WELCOME + RewardDispatcher::INVITE_L1_REFERRER
-                + RewardDispatcher::ACTIVATE_L1_REFERRER,
+            $initialParent + config('referral.rewards.invitation.welcome') + config('referral.rewards.invitation.level_1_referrer')
+                + config('referral.rewards.activation.level_1_referrer'),
             $parent->points_balance
         );
         $this->assertEquals(
-            $initialChild + RewardDispatcher::INVITE_WELCOME,
+            $initialChild + config('referral.rewards.invitation.welcome'),
             $child->points_balance
         );
     }
@@ -358,11 +361,11 @@ class RewardDispatcherTest extends TestCase
 
         // Both referrers received invite + activation reward
         $this->assertEquals(
-            $initialA + RewardDispatcher::INVITE_L1_REFERRER + RewardDispatcher::ACTIVATE_L1_REFERRER,
+            $initialA + config('referral.rewards.invitation.level_1_referrer') + config('referral.rewards.activation.level_1_referrer'),
             $referrerA->points_balance
         );
         $this->assertEquals(
-            $initialB + RewardDispatcher::INVITE_L1_REFERRER + RewardDispatcher::ACTIVATE_L1_REFERRER,
+            $initialB + config('referral.rewards.invitation.level_1_referrer') + config('referral.rewards.activation.level_1_referrer'),
             $referrerB->points_balance
         );
     }
@@ -404,18 +407,18 @@ class RewardDispatcherTest extends TestCase
 
         $referrerEntries = PointLedger::where('user_id', $this->referrer->id)->get();
         $this->assertCount(1, $referrerEntries);
-        $this->assertEquals(RewardDispatcher::INVITE_L1_REFERRER, $referrerEntries->first()->delta);
+        $this->assertEquals(config('referral.rewards.invitation.level_1_referrer'), $referrerEntries->first()->delta);
 
         $referredEntries = PointLedger::where('user_id', $this->referred->id)->get();
         $this->assertCount(1, $referredEntries);
-        $this->assertEquals(RewardDispatcher::INVITE_WELCOME, $referredEntries->first()->delta);
+        $this->assertEquals(config('referral.rewards.invitation.welcome'), $referredEntries->first()->delta);
 
         $this->dispatcher->handleActivated(new MemberActivated($this->referred));
 
         $referrerEntries = PointLedger::where('user_id', $this->referrer->id)->get();
         $this->assertCount(2, $referrerEntries);
         $this->assertEquals(
-            RewardDispatcher::INVITE_L1_REFERRER + RewardDispatcher::ACTIVATE_L1_REFERRER,
+            config('referral.rewards.invitation.level_1_referrer') + config('referral.rewards.activation.level_1_referrer'),
             $referrerEntries->sum('delta')
         );
     }
