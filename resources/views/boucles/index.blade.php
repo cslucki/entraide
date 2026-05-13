@@ -20,7 +20,7 @@
         @else
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             @foreach($communities as $community)
-            <a href="/{{ $community->slug }}/"
+            <a href="{{ route('community.home', ['community' => $community->slug]) }}"
                class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition group">
 
                 @if($community->hero_image_url)
