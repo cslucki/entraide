@@ -2,7 +2,7 @@
 task_id: TASK-073G
 title: Referral Future-Proofing / Contribution Architecture Notes
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -15,7 +15,7 @@ branch: TASK-073G-referral-future-proofing-contribution-architecture-notes
 priority: MEDIUM
 
 created_at: 2026-05-13 22:40:55 Europe/Paris
-updated_at: 2026-05-13 22:40:55 Europe/Paris
+updated_at: 2026-05-13 22:42:00 Europe/Paris
 
 labels:
 
@@ -27,9 +27,9 @@ labels:
 * anti-drift
 
 lock:
-status: LOCKED
-agent: OPENCODE
-since: 2026-05-13 22:40:55 Europe/Paris
+status: UNLOCKED
+agent: null
+since: null
 
 handoff: false
 
@@ -214,27 +214,114 @@ Documentation / architecture only. No application code.
 
 ---
 
+## 2026-05-13 22:41:00 Europe/Paris
+
+OPENCODE started.
+
+Actions:
+- Read TASK file
+- Read AGENTS.md, CLAUDE.md, ai/environment.md
+- Read docs/02-PRODUCT_PRINCIPLES.md
+- Read docs/06-DOMAIN_ARCHITECTURE_V2.md
+- Read docs/07-GLOSSARY.md
+- Inspected docs/ directory structure
+
+Findings:
+- docs/ contains 09 files: 01 through 09-ORGANIZATION_MIGRATION_EXECUTION_PLAN.md
+- Next available number: 10
+- Documentation style: sober, structured, English terminology, product/architecture oriented
+- Preferred vocabulary: Organization, Loop, Member, Contribution, Tenant
+
+Decision:
+- Location: docs/10-REFERRAL_CONTRIBUTION_FUTURE_PROOFING.md
+- Document type: Architecture Note — Future-Proofing
+- Scope: Referral & Contribution architecture boundaries, anti-drift rules, product intent
+
+---
+
+## 2026-05-13 22:41:30 Europe/Paris
+
+Document created: docs/10-REFERRAL_CONTRIBUTION_FUTURE_PROOFING.md
+
+Sections written:
+1. Purpose — establishes the document as a stabilization note, not a spec
+2. Current Referral MVP — describes existing functionality with assumed limitations
+3. Product Intent — frames referral as mutual aid, not acquisition
+4. Conceptual Boundaries — separates points, rewards, badges, contributions, reputation
+5. Anti-Drift Rules — explicitly forbids MLM, commissions, leaderboards, gamification
+6. Future Contribution Engine — conceptual shape only, no implementation
+7. Symbolic Recognition & Badges — Pioneer, Connector, Ambassador, Looper concepts
+8. Looper Definition — human facilitator, not commercial grade or hierarchy
+9. AI Future Extensions — possible capabilities with strict design rules
+10. Architecture Alignment — Organization=Tenant, Loop≠Tenant, Contribution scoping
+11. Implementation Boundaries — explicit out-of-scope list
+12. Future Decision Gates — validation gates for any future implementation
+Appendices — vocabulary reference, product philosophy alignment
+
+Validation:
+- No application code modified ✓
+- No migration created ✓
+- No test created ✓
+- No runtime behavior changed ✓
+- Vocabulary respects Organization/Loop/Member/Contribution canonical terms ✓
+- No "Community" used as product concept (only legacy reference in section 10) ✓
+- No anti-drift rules violated ✓
+- No MLM, commission, passive income, or aggressive leaderboard introduced ✓
+
+---
+
 # Handoffs
 
-Pending.
+No handoff. OpenCode completed the full task.
 
 ---
 
 # Tests
 
-* [ ] not applicable — documentation-only task
-* [ ] no application code modified
-* [ ] no migration created
-* [ ] no runtime behavior changed
+* [x] not applicable — documentation-only task
+* [x] no application code modified
+* [x] no migration created
+* [x] no runtime behavior changed
 
 ---
 
 # Test Results
 
-Pending.
+Documentation-only validation:
+
+- [x] No application file modified (verified: git diff shows only docs/ and TODO/)
+- [x] No migration created
+- [x] No test created
+- [x] No runtime behavior changed
+- [x] Document does not introduce contradictory concept: Loop = Tenant
+- [x] Document does not introduce MLM
+- [x] Document does not introduce commission
+- [x] Document does not introduce passive income
+- [x] Document does not introduce aggressive leaderboard
+- [x] Document respects canonical vocabulary: Organization, Loop, Member, Contribution, Tenant
+- [x] Document uses "Community" only for legacy technical reference (section 10)
 
 ---
 
 # Review Notes
 
-Pending.
+Document style matches existing docs/ conventions:
+- Sober, structured markdown
+- English terminology for system concepts
+- Architecture-oriented, not marketing
+- References existing architecture documents
+- Clear conceptual boundaries
+
+Vocabulary confirms:
+- Organization = Tenant (explicitly stated in section 10)
+- Loop ≠ Tenant (explicitly stated in section 10)
+- Member belongs to one Organization
+- Contributions stay Organization-scoped
+
+Anti-drift rules are explicit and comprehensive (section 5).
+
+Future directions are marked as NOT IMPLEMENTED consistently.
+
+Decision gates in section 12 provide clear validation requirements for future work.
+
+This document is stable for human and AI consumption.
