@@ -14,6 +14,8 @@ use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
+use App\Services\ReferralCodeGenerator;
+use App\Services\RewardDispatcher;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -24,7 +26,11 @@ use Illuminate\Pagination\Paginator;
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void {}
+    public function register(): void
+    {
+        $this->app->singleton(ReferralCodeGenerator::class);
+        $this->app->singleton(RewardDispatcher::class);
+    }
 
     public function boot(): void
     {
