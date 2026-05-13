@@ -7,6 +7,7 @@
     <div class="px-8 py-6">
         <form method="POST" action="{{ route('register') }}">
             @csrf
+            <input type="hidden" name="ref" value="{{ $ref ?? '' }}">
 
             <div class="space-y-5">
                 <!-- Nom -->
