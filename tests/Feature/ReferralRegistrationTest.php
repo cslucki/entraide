@@ -78,7 +78,7 @@ class ReferralRegistrationTest extends TestCase
         $response = $this->actingAs($user)->get("/{$this->org->slug}/dashboard");
 
         $response->assertStatus(200);
-        $response->assertSee('Inviter un membre');
+        $response->assertSee('Mes invitations');
         $response->assertSee('mylink');
         $response->assertSee("/{$this->org->slug}/register?ref=mylink");
     }
