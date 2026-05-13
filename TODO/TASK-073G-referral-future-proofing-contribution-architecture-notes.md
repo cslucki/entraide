@@ -27,15 +27,15 @@ labels:
 * anti-drift
 
 lock:
-status: UNLOCKED
-agent: null
-since: null
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
 pr:
-status: NOT_READY
-url: null
+  status: NOT_READY
+  url: null
 ---------
 
 # Objective
