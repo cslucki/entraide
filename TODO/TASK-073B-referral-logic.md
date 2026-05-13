@@ -2,7 +2,7 @@
 task_id: TASK-073B
 title: Referral Logic
 
-status: DONE
+status: MERGED
 
 owner: OPS
 
@@ -15,7 +15,7 @@ branch: TASK-073B-referral-logic
 priority: HIGH
 
 created_at: 2026-05-13 16:45:00 Europe/Paris
-updated_at: 2026-05-13 17:15:00 Europe/Paris
+updated_at: 2026-05-13 17:30:00 Europe/Paris
 
 labels:
   - referral
@@ -197,6 +197,16 @@ Test results:
 - Staging complet + commit
 - check-task.sh passé
 - finalize-task.sh exécuté
+
+## 2026-05-13 17:30:00 Europe/Paris — OPS
+
+- Merge --no-ff into develop (9cac8f6)
+- Push develop to origin (79cf404..9cac8f6)
+- GitHub Actions : pas de CI sur feature branch (normal, configuré sur main/develop)
+- CI develop : vert (5 derniers runs success)
+- TASK status → MERGED
+- Local branch à supprimer : `git branch -d TASK-073B-referral-logic`
+- Remote branch à supprimer : `git push origin --delete TASK-073B-referral-logic`
 
 ---
 
