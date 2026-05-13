@@ -3,9 +3,9 @@
 ## Completed
 - T073A — Referral Foundations (migrations, models, relations, tests SQLite+PG) — MERGED
 - T073B — Referral Logic (events, listeners, rewards, anti-abuse) — MERGED
+- T073C — Referral Member UX (register ?ref=, dashboard invitation card, copy link, referral points label, tests + screenshots) — DONE
 
 ## Pending
-- T073C
 - T073D
 - T073E
 - T073F

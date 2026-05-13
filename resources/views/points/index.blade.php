@@ -42,6 +42,7 @@
                                 'welcome_bonus'   => 'Bonus de bienvenue',
                                 'exchange_earned' => 'Échange — gain',
                                 'exchange_spent'  => 'Échange — dépense',
+                                'referral_reward' => 'Récompense invitation',
                                 'adjustment'      => 'Ajustement',
                                 default           => $entry->reason,
                             } }}
