@@ -6,9 +6,9 @@
 - T073C — Referral Member UX (register ?ref=, dashboard invitation card, copy link, referral points label, tests + screenshots) — MERGED
 - T073D — Referral Admin UX (admin referrals route, controller, view, navigation, KPIs, recent invitations, recent activations, contributions, tests) — MERGED
 - T073E — Referral Reward Configuration (config/referral.php, RewardDispatcher → config(), tests) — MERGED
+- T073F — Referral Member Navigation & Invitation Page (dashboard card repositioned, /points invitation block, navigation links, tests 397 passed) — MERGED
 
 ## Pending
-- T073F
 - T073G
 
 ## Constraints
