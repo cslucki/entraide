@@ -4,7 +4,7 @@
 - T073A — Referral Foundations (migrations, models, relations, tests SQLite+PG)
 
 ## Current
-- (none)
+- T073B — Referral Logic (events, listeners, rewards, anti-abuse)
 
 ## Pending
 - T073B
