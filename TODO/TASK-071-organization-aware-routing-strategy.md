@@ -2,7 +2,7 @@
 task_id: TASK-071
 title: organization-aware-routing-strategy
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-071-organization-aware-routing-strategy
 priority: MEDIUM
 
 created_at: 2026-05-13 07:49:22 Europe/Paris
-updated_at: 2026-05-13 07:49:22 Europe/Paris
+updated_at: 2026-05-13 09:30:00 Europe/Paris
 
 labels:
   - routing
@@ -30,7 +30,8 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
+  url: https://github.com/cslucki/entraide/pull/28
   url: null
 ---
 
@@ -649,6 +650,21 @@ return match ? match[1] : 'default';
 
 1. ✅ Aucun — tous les problèmes identifiés nécessitent soit une TASK dédiée, soit sont des trouvailles architecture à documenter
 2. La review est purement analytique et ne justifie PAS de modifications de code supplémentaires
+
+---
+
+## 2026-05-13 09:30:00 Europe/Paris
+
+OPS workflow complet :
+- check-task.sh TASK-071 ✅
+- route:cache / route:clear ✅
+- Commit + push branche ✅
+- PR #28 créée, CI PostgreSQL ✅ (run #13)
+- Merge --no-ff vers develop ✅
+- Push develop ✅
+- Cleanup branche locale + distante ✅
+- PR #28 fermée ✅
+- TASK status → MERGED ✅
 
 ---
 
