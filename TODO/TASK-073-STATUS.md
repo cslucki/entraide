@@ -2,10 +2,7 @@
 
 ## Completed
 - T073A — Referral Foundations (migrations, models, relations, tests SQLite+PG) — MERGED
-- T073B — Referral Logic (events, listeners, rewards, anti-abuse) — DONE / ready for finalize
-
-## Current
-- T073B — ready for merge
+- T073B — Referral Logic (events, listeners, rewards, anti-abuse) — MERGED
 
 ## Pending
 - T073C
