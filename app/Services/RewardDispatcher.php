@@ -12,12 +12,6 @@ use Illuminate\Support\Facades\DB;
 
 class RewardDispatcher
 {
-    const INVITE_L1_REFERRER = 10;
-    const INVITE_WELCOME = 10;
-    const INVITE_L2_REFERRER = 5;
-    const ACTIVATE_L1_REFERRER = 20;
-    const ACTIVATE_L2_REFERRER = 10;
-
     public function handleInvited(MemberInvited $event): Referral
     {
         if ($event->referrer->is($event->referred)) {
@@ -56,8 +50,8 @@ class RewardDispatcher
                 'status' => 'pending',
             ]);
 
-            $this->award($referral, $event->referrer, $event->referred, 'member_invited', 1, self::INVITE_L1_REFERRER, $event->metadata);
-            $this->award($referral, $event->referred, $event->referrer, 'member_invited', 1, self::INVITE_WELCOME, $event->metadata);
+            $this->award($referral, $event->referrer, $event->referred, 'member_invited', 1, (int) config('referral.rewards.invitation.level_1_referrer', 10), $event->metadata);
+            $this->award($referral, $event->referred, $event->referrer, 'member_invited', 1, (int) config('referral.rewards.invitation.welcome', 10), $event->metadata);
 
             $this->handleL2Invite($referral, $communityId, $event);
 
@@ -83,7 +77,7 @@ class RewardDispatcher
                     'activated_at' => now(),
                 ]);
 
-                $this->award($referral, $referral->referrer, $event->user, 'member_activated', 1, self::ACTIVATE_L1_REFERRER, $event->metadata);
+                $this->award($referral, $referral->referrer, $event->user, 'member_activated', 1, (int) config('referral.rewards.activation.level_1_referrer', 20), $event->metadata);
                 $this->handleL2Activation($referral, $event);
             }
         });
@@ -112,7 +106,7 @@ class RewardDispatcher
             'status' => 'pending',
         ]);
 
-        $this->award($l2, $l2->referrer, $event->referred, 'member_invited', 2, self::INVITE_L2_REFERRER, $event->metadata);
+        $this->award($l2, $l2->referrer, $event->referred, 'member_invited', 2, (int) config('referral.rewards.invitation.level_2_referrer', 5), $event->metadata);
     }
 
     private function handleL2Activation(Referral $referral, MemberActivated $event): void
@@ -130,7 +124,7 @@ class RewardDispatcher
             'activated_at' => now(),
         ]);
 
-        $this->award($l2, $l2->referrer, $event->user, 'member_activated', 2, self::ACTIVATE_L2_REFERRER, $event->metadata);
+        $this->award($l2, $l2->referrer, $event->user, 'member_activated', 2, (int) config('referral.rewards.activation.level_2_referrer', 10), $event->metadata);
     }
 
     private function award(Referral $referral, User $user, User $source, string $eventType, int $level, int $points, ?array $metadata = null): ReferralReward

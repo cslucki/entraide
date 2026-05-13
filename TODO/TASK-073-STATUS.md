@@ -3,10 +3,10 @@
 ## Completed
 - T073A — Referral Foundations (migrations, models, relations, tests SQLite+PG) — MERGED
 - T073B — Referral Logic (events, listeners, rewards, anti-abuse) — MERGED
-- T073C — Referral Member UX (register ?ref=, dashboard invitation card, copy link, referral points label, tests + screenshots) — DONE
+- T073C — Referral Member UX (register ?ref=, dashboard invitation card, copy link, referral points label, tests + screenshots) — MERGED
+- T073D — Referral Admin UX (admin referrals route, controller, view, navigation, KPIs, recent invitations, recent activations, contributions, tests) — MERGED
 
 ## Pending
-- T073D
 - T073E
 - T073F
 - T073G
@@ -50,6 +50,20 @@
 - `tests/Feature/RewardDispatcherTest.php` — 4 tests
 - `tests/Unit/ReferralCodeGeneratorTest.php` — 3 tests
 
+## T073D Deliverables
+- GET /admin/referrals
+- route admin.referrals
+- AdminReferralController dédié
+- resources/views/admin/referrals.blade.php
+- navigation admin “Invitations”
+- KPIs sobres
+- invitations récentes
+- activations récentes
+- contributions sans leaderboard
+- AdminReferralTest OK
+- Referral tests OK
+- OpenAI review OK
+
 ## T073A Important Constraints
 - UNIQUE(community_id, referrer_user_id, referred_user_id) — dupe prevention
 - `parent_referral_id` self-referential FK séparé pour PostgreSQL compat
@@ -64,3 +78,19 @@
 - Migration enum → string(50) validée SQLite + PostgreSQL
 - Risque concurrence double activation non durci, accepté MVP
 - Pas d'UX/admin/badges/WhatsApp dans T073B
+
+## T073D Important Notes
+- Admin UX minimale uniquement
+- Pas de leaderboard
+- Pas de gamification agressive
+- Pas de modification du système de rewards
+- Pas de “Community” côté utilisateur
+- UX sobre conforme Organization Admin
+- T073D mergée dans develop avec CI verte
+
+## T073E Initial Scope
+- Inspection + décision uniquement
+- Vérifier si les rewards referral sont hardcodées, en config, en base ou ailleurs
+- Ne pas implémenter avant décision A/B/C/D
+- Ne pas créer de formulaire admin sans justification forte
+- Ne pas modifier rétroactivement les rewards existantes
