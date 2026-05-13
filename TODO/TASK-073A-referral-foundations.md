@@ -1,6 +1,6 @@
 ---
 task_id: TASK-073A
-status: DONE
+status: MERGED
 owner: CODE
 
 contributors:
