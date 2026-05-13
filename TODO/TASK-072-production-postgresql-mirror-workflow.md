@@ -2,13 +2,13 @@
 task_id: TASK-072
 title: production-postgresql-mirror-workflow
 
-status: MERGED
+status: IN_PROGRESS
 
 owner: OPENCODE
 
 contributors: []
 
-branch: TASK-072-production-postgresql-mirror-workflow
+branch: TASK-072-media-pull
 
 priority: MEDIUM
 
@@ -50,6 +50,7 @@ Mirror = production Laravel Cloud PostgreSQL → local PostgreSQL instance.
 - [x] validate data integrity (14 users, 1 org, 3 services, 1 tx)
 - [x] confirm runtime compatibility (41/41 migrations, app boots)
 - [x] commit/push OPS phase
+- [x] add media-pull.sh utility (lightweight curl-based media fetcher)
 
 ---
 # Progress Log
@@ -137,6 +138,30 @@ IN_PROGRESS
 - Local pre-mirror backup preserved in `storage/app/dumps/`
 - Production credentials used ephemerally, never persisted
 - Dump file gitignored
+
+## 2026-05-13 12:55:00 Europe/Paris
+
+### OPS Phase — Media Pull Utility
+
+**Added:** `ai/scripts/media-pull.sh`
+
+Lightweight curl-based utility to pull production media files locally.
+
+**Usage:**
+```bash
+./ai/scripts/media-pull.sh https://bouclepro.com/avatars/foo.png
+```
+
+**Features:**
+- Auto-extracts media path from URL (avatars/foo.png)
+- Creates target directory under `storage/app/public/`
+- Downloads via curl with error handling
+- Checks for `public/storage` symlink presence
+- Minimal, additive-safe, no storage infra changes
+
+**Modified files:**
+- `ai/scripts/media-pull.sh` (new)
+- `TODO/TASK-072-production-postgresql-mirror-workflow.md`
 
 # Handoffs
 
