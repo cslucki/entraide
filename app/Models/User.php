@@ -19,6 +19,15 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasOrganizationId, HasUuids, Notifiable;
 
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            if (! $user->isDirty('referral_code')) {
+                $user->referral_code = app(\App\Services\ReferralCodeGenerator::class)->generate($user);
+            }
+        });
+    }
+
     protected $fillable = [
         'community_id',
         'organization_id',
