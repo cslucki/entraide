@@ -161,6 +161,15 @@
                             </div>
                             @endif
 
+                            <!-- Envoyer lien de réinitialisation -->
+                            <form method="POST" action="{{ route('admin.users.send-password-reset', $u) }}"
+                                  onsubmit="return confirm('Envoyer un lien de réinitialisation à ce membre ?')">
+                                @csrf
+                                <button class="text-xs text-gray-400 hover:text-indigo-500">
+                                    Lien de réinitialisation
+                                </button>
+                            </form>
+
                             <!-- Changer le mot de passe -->
                             <div x-data="{ pwOpen: false }" class="relative">
                                 <button @click="pwOpen = !pwOpen"
