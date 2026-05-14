@@ -18,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -204,6 +205,17 @@ class AdminController extends Controller
         $user->update(['password' => Hash::make($request->password)]);
 
         return back()->with('success', "Mot de passe de {$user->name} modifié.");
+    }
+
+    public function sendPasswordResetLink(User $user): RedirectResponse
+    {
+        $status = Password::broker()->sendResetLink(['email' => $user->email]);
+
+        return match ($status) {
+            Password::RESET_LINK_SENT => back()->with('success', 'Lien de réinitialisation envoyé.'),
+            Password::RESET_THROTTLED => back()->with('error', 'Un lien a déjà été envoyé récemment. Réessayez dans quelques instants.'),
+            default => back()->with('error', 'Impossible d\'envoyer le lien de réinitialisation.'),
+        };
     }
 
     public function assignCommunity(Request $request, User $user): RedirectResponse
