@@ -146,6 +146,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('/users/{user}/unban', [AdminController::class, 'unbanUser'])->name('users.unban');
     Route::post('/users/{user}/adjust-points', [AdminController::class, 'adjustPoints'])->name('users.adjust-points');
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
+    Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
     Route::patch('/users/{user}/assign-community', [AdminController::class, 'assignCommunity'])->name('users.assign-community');
 
     // Services
