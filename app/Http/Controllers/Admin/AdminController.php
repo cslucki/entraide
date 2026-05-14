@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Community;
+use App\Models\EmailLog;
 use App\Models\PointLedger;
 use App\Models\Report;
 use App\Models\RequestAttachment;
@@ -210,6 +211,21 @@ class AdminController extends Controller
     public function sendPasswordResetLink(User $user): RedirectResponse
     {
         $status = Password::broker()->sendResetLink(['email' => $user->email]);
+
+        if ($status === Password::RESET_LINK_SENT) {
+            EmailLog::create([
+                'template_id' => null,
+                'user_id' => $user->id,
+                'to_email' => $user->email,
+                'subject' => 'Réinitialisation de votre mot de passe',
+                'status' => 'sent',
+                'data' => [
+                    'source' => 'admin-password-reset',
+                    'broker' => 'users',
+                    'admin_id' => auth()->id(),
+                ],
+            ]);
+        }
 
         return match ($status) {
             Password::RESET_LINK_SENT => back()->with('success', 'Lien de réinitialisation envoyé.'),

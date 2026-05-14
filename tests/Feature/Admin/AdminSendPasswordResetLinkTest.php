@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\EmailLog;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Notification;
@@ -102,5 +103,78 @@ class AdminSendPasswordResetLinkTest extends TestCase
                 return in_array('mail', $channels);
             }
         );
+    }
+
+    // ── EmailLog ─────────────────────────────────────────────────────────────
+
+    public function test_email_log_is_created_on_successful_reset(): void
+    {
+        $admin = $this->makeAdmin();
+        $user = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.send-password-reset', $user))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('email_logs', [
+            'to_email' => $user->email,
+            'subject' => 'Réinitialisation de votre mot de passe',
+            'status' => 'sent',
+            'user_id' => $user->id,
+            'template_id' => null,
+        ]);
+    }
+
+    public function test_email_log_data_contains_source_broker_and_admin_id(): void
+    {
+        $admin = $this->makeAdmin();
+        $user = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.send-password-reset', $user))
+            ->assertRedirect();
+
+        $log = EmailLog::where('to_email', $user->email)->first();
+        $this->assertNotNull($log);
+
+        $data = $log->data;
+        $this->assertSame('admin-password-reset', $data['source']);
+        $this->assertSame('users', $data['broker']);
+        $this->assertSame($admin->id, $data['admin_id']);
+    }
+
+    public function test_email_log_data_does_not_contain_token_url_or_body(): void
+    {
+        $admin = $this->makeAdmin();
+        $user = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.send-password-reset', $user))
+            ->assertRedirect();
+
+        $log = EmailLog::where('to_email', $user->email)->first();
+        $this->assertNotNull($log);
+
+        $data = $log->data;
+        $dataJson = json_encode($data);
+        $this->assertArrayNotHasKey('token', $data);
+        $this->assertArrayNotHasKey('url', $data);
+        $this->assertArrayNotHasKey('body', $data);
+        $this->assertArrayNotHasKey('password', $data);
+        $this->assertStringNotContainsString('reset-password', $dataJson);
+    }
+
+    public function test_non_admin_does_not_create_email_log(): void
+    {
+        $user = User::factory()->create();
+        $target = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('admin.users.send-password-reset', $target))
+            ->assertStatus(403);
+
+        $this->assertDatabaseMissing('email_logs', [
+            'to_email' => $target->email,
+        ]);
     }
 }
