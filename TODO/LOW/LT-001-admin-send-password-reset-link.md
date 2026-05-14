@@ -241,6 +241,52 @@ if ($status === Password::RESET_LINK_SENT) {
 3. `email_log_data_does_not_contain_token_url_or_body` — vérifie l'absence de token/url/body/password
 4. `non_admin_does_not_create_email_log` — vérifie qu'aucun log n'est créé sur 403
 
+## Historique email public
+
+### Décision
+
+Les resets déclenchés depuis `/forgot-password` sont également loggés dans `email_logs`.
+Seuls les envois réussis (`RESET_LINK_SENT`) créent une entrée.
+Aucun token, URL reset-password, body email ou mot de passe loggé.
+
+### Implémentation
+
+Modification de `PasswordResetLinkController@store` — après `Password::sendResetLink()` :
+
+```php
+if ($status === Password::RESET_LINK_SENT) {
+    $user = User::where('email', $request->email)->first();
+
+    EmailLog::create([
+        'template_id' => null,
+        'user_id' => $user?->id,
+        'to_email' => $request->email,
+        'subject' => 'Réinitialisation de votre mot de passe',
+        'status' => 'sent',
+        'data' => [
+            'source' => 'public-password-reset',
+            'broker' => 'users',
+        ],
+    ]);
+}
+```
+
+Notes :
+- `data` ne contient pas `admin_id` sur ce flux
+- `user_id` est nullable si l'email n'est pas trouvé (sécurité)
+- Les routes community-prefixed `/{community}/forgot-password` utilisent le même controller → logging automatique sans modification supplémentaire
+
+### Tests ajoutés (4 nouveaux, 16 assertions)
+
+1. `forgot_password_with_existing_email_creates_email_log` — vérifie `to_email`, `subject`, `status`, `user_id`, `template_id`
+2. `forgot_password_log_data_contains_public_source_and_no_admin_id` — vérifie `source`, `broker`, absence `admin_id`
+3. `forgot_password_log_data_does_not_contain_token_url_or_body` — vérifie l'absence de token/url/body/password/admin_id
+4. `forgot_password_with_unknown_email_does_not_create_log` — vérifie qu'aucun log n'est créé pour email inconnu
+
+### Flux community-prefixed
+
+Les routes `/{community}/forgot-password` et `/forgot-password` utilisent le même contrôleur `PasswordResetLinkController@store`. Le logging est donc actif pour les deux flux sans modification supplémentaire. Réserve documentée, pas de refactor nécessaire.
+
 ### Points de vigilance
 
 - `/admin/email-templates` non touché
