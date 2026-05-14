@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\EmailLog;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
@@ -36,6 +38,22 @@ class PasswordResetLinkController extends Controller
         $status = Password::sendResetLink(
             $request->only('email')
         );
+
+        if ($status === Password::RESET_LINK_SENT) {
+            $user = User::where('email', $request->email)->first();
+
+            EmailLog::create([
+                'template_id' => null,
+                'user_id' => $user?->id,
+                'to_email' => $request->email,
+                'subject' => 'Réinitialisation de votre mot de passe',
+                'status' => 'sent',
+                'data' => [
+                    'source' => 'public-password-reset',
+                    'broker' => 'users',
+                ],
+            ]);
+        }
 
         return $status == Password::RESET_LINK_SENT
                     ? back()->with('status', __($status))
