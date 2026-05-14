@@ -2,7 +2,7 @@
 task_id: TASK-074
 title: T074.0 Technical Audit Current Messaging Mobile Issues Reverb Readiness
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-074-t074-0-technical-audit-current-messaging-mobile-issues-reverb-r
 priority: MEDIUM
 
 created_at: 2026-05-14 12:47:13 Europe/Paris
-updated_at: 2026-05-14 12:47:13 Europe/Paris
+updated_at: 2026-05-14 21:51:00 Europe/Paris
 
 labels: []
 
