@@ -19,6 +19,7 @@
 set -e
 
 BASE_DIR="/home/cyril/claude-code/sites/test.laravel"
+SCRIPTS_DIR="$BASE_DIR/ai/scripts"
 
 echo ""
 echo "====================================="
@@ -49,7 +50,30 @@ echo "Target branch: develop"
 echo ""
 
 # =========================================================
-# 2. REQUIRE CLEAN STATUS (porcelain detects ALL: staged, unstaged, untracked)
+# 2. RUN TASK CHECK (gate: requires DONE + UNLOCKED)
+# =========================================================
+
+echo "Running pre-merge task check..."
+echo ""
+
+if ! bash "$SCRIPTS_DIR/check-task.sh" "$@"; then
+  echo ""
+  echo "====================================="
+  echo "TASK CHECK FAILED"
+  echo "====================================="
+  echo ""
+  echo "Task must be DONE and UNLOCKED before merging."
+  echo "Resolve issues and re-run merge-task.sh."
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "Task check passed."
+echo ""
+
+# =========================================================
+# 3. REQUIRE CLEAN STATUS (porcelain detects ALL: staged, unstaged, untracked)
 # =========================================================
 
 PORCELAIN=$(git status --porcelain)
@@ -68,7 +92,7 @@ echo "Git status: CLEAN"
 echo ""
 
 # =========================================================
-# 3. CONFIRM
+# 4. CONFIRM
 # =========================================================
 
 read -p "Merge $CURRENT_BRANCH into develop? (y/n): " CONFIRM
@@ -81,7 +105,7 @@ if [ "$CONFIRM" != "y" ]; then
 fi
 
 # =========================================================
-# 4. FETCH DEVELOP
+# 5. FETCH DEVELOP
 # =========================================================
 
 echo ""
@@ -91,7 +115,7 @@ echo ""
 git fetch origin develop 2>&1 || echo "  Warning: could not fetch (remote may not be configured)."
 
 # =========================================================
-# 5. CHECKOUT DEVELOP
+# 6. CHECKOUT DEVELOP
 # =========================================================
 
 echo ""
@@ -107,7 +131,7 @@ echo ""
 git pull origin develop 2>&1 || echo "  Warning: could not pull (remote may not be configured)."
 
 # =========================================================
-# 6. MERGE
+# 7. MERGE
 # =========================================================
 
 echo ""
@@ -138,7 +162,7 @@ else
 fi
 
 # =========================================================
-# 7. PUSH DEVELOP (with confirmation)
+# 8. PUSH DEVELOP (with confirmation)
 # =========================================================
 
 echo ""
@@ -161,7 +185,7 @@ else
 fi
 
 # =========================================================
-# 8. VERIFY CLEAN
+# 9. VERIFY CLEAN
 # =========================================================
 
 echo ""
