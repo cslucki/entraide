@@ -2,7 +2,7 @@
 task_id: TASK-074.6
 title: Member UI Mobile-first ChatLoop MVP
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: T074.6-t074-6-member-ui-mobile-first-chatloop-mvp
 priority: MEDIUM
 
 created_at: 2026-05-15 20:52:11 Europe/Paris
-updated_at: 2026-05-15 21:45:00 Europe/Paris
+updated_at: 2026-05-15 21:50:00 Europe/Paris
 
 labels: []
 
