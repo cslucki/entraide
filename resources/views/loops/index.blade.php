@@ -1,13 +1,16 @@
 <x-app-layout>
-    <div class="max-w-7xl mx-auto px-4 py-8">
-        <div class="flex items-center justify-between mb-8">
+    <div class="max-w-7xl mx-auto px-4 py-6 md:py-8">
+        <div class="flex items-center justify-between mb-6 md:mb-8">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Mes boucles</h1>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Gérez vos boucles de collaboration</p>
+                <h1 class="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">Mes boucles</h1>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mt-0.5">Vos espaces de collaboration</p>
             </div>
             <a href="{{ route('loops.create') }}"
-               class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
-                + Nouvelle boucle
+               class="inline-flex items-center gap-1.5 px-4 py-2.5 md:py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl md:rounded-lg transition whitespace-nowrap">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span>Nouvelle</span>
             </a>
         </div>
 
@@ -19,22 +22,35 @@
         @endif
 
         @if($loops->isEmpty())
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 py-16 px-6 text-center">
+                <svg class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
                 <p class="text-gray-400 dark:text-gray-500 mb-4">Vous n'avez encore aucune boucle.</p>
                 <a href="{{ route('loops.create') }}"
-                   class="text-indigo-600 hover:underline font-medium">Créer votre première boucle</a>
+                   class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Créer votre première boucle
+                </a>
             </div>
         @else
-            <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div class="grid gap-3 md:gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach($loops as $item)
                     <a href="{{ route('loops.show', $item) }}"
-                       class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition block">
+                       class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition block active:scale-[0.98]">
                         <h3 class="font-semibold text-gray-900 dark:text-gray-100 truncate">{{ $item->name }}</h3>
                         @if($item->description)
                             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{{ $item->description }}</p>
                         @endif
                         <div class="flex items-center gap-4 mt-3 text-xs text-gray-400">
-                            <span>{{ $item->active_members_count }} membre(s)</span>
+                            <span class="flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                                </svg>
+                                {{ $item->active_members_count }}
+                            </span>
                             <span>{{ $item->type === 'system' ? 'Système' : 'Personnalisée' }}</span>
                         </div>
                     </a>
