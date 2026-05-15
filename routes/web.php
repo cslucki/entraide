@@ -133,6 +133,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
     Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
     Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
+    Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
 });
 
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
@@ -335,6 +336,7 @@ Route::prefix('/{community}')
             Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
             Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
             Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
+            Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
         });
 
         // Routes publiques communauté
