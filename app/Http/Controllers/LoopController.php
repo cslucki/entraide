@@ -113,9 +113,14 @@ class LoopController extends Controller
 
         $loop->load(['members.user']);
 
+        $messages = $loop->messages()
+            ->with('sender')
+            ->oldest()
+            ->get();
+
         $eligibleReferrals = $this->loopService->getEligibleReferrals($user, $loop);
 
-        return view('loops.show', compact('loop', 'eligibleReferrals', 'isMember'));
+        return view('loops.show', compact('loop', 'messages', 'eligibleReferrals', 'isMember'));
     }
 
     public function addMember(Request $request, Loop $loop): RedirectResponse
