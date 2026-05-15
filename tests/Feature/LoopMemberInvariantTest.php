@@ -68,7 +68,7 @@ class LoopMemberInvariantTest extends TestCase
         // userA tries to add crossUser to userA's own loop
         $response = $this->actingAs($this->userA)
             ->post(route('loops.members.add', $this->loop), [
-                'referral_id' => 'fake-id',
+                'referral_id' => '00000000-0000-0000-0000-000000000000',
             ]);
 
         // referral_id doesn't exist, so this should get validation error

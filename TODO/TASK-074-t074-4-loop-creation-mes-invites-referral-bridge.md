@@ -13,7 +13,7 @@ branch: T074.4-t074-4-loop-creation-mes-invites-referral-bridge
 priority: MEDIUM
 
 created_at: 2026-05-15 18:29:23 Europe/Paris
-updated_at: 2026-05-15 19:45:00 Europe/Paris
+updated_at: 2026-05-15 19:55:00 Europe/Paris
 
 labels:
   - loop
@@ -119,6 +119,14 @@ Review OPENAI : APPROVE WITH NOTES.
 - Note non bloquante : éventuel test HTTP réel sur les routes community.loops.*.
   → Reportée dans QA future (T074.11 — QA & Tenant Safety).
 
+## 2026-05-15 19:55:00 Europe/Paris
+
+PostgreSQL CI fix :
+- CI PostgreSQL failed sur test_cannot_add_member_from_different_community_via_web_route
+- Cause : 'fake-id' non compatible UUID pour PostgreSQL (SQLite accepte, Postgres rejette)
+- Fix : remplacer 'fake-id' par '00000000-0000-0000-0000-000000000000' (format UUID valide, n'existe pas en DB)
+- Full suite SQLite : 22 passed (40 assertions)
+
 Blocker corrections OPENAI — 3 blockers corrigés :
 
 ### Blocker 1 — Routes préfixées /{community}
@@ -161,6 +169,7 @@ Aucun.
 - [x] LoopMemberInvariantTest (16) — invariant sécurité, referral bridge
 - [x] Suite complète SQLite : 468 passed (1023 assertions)
 - [x] Aucune migration modifiée → pas besoin de PostgreSQL
+- [x] PostgreSQL CI fix : 'fake-id' → format UUID valide pour compatibilité Postgres
 
 ---
 
