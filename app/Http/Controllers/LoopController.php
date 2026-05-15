@@ -6,6 +6,7 @@ use App\Models\Community;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Referral;
+use App\Services\LoopMessageService;
 use App\Services\LoopService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ class LoopController extends Controller
 {
     public function __construct(
         private readonly LoopService $loopService,
+        private readonly LoopMessageService $loopMessageService,
     ) {}
 
     private function resolveCommunity(): Community
@@ -150,5 +152,32 @@ class LoopController extends Controller
 
         return redirect()->route('loops.show', $loop)
             ->with('success', 'Membre ajouté à la boucle.');
+    }
+
+    public function storeMessage(Request $request, Loop $loop): RedirectResponse
+    {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
+        if ($loop->community_id !== $community->id) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'body' => 'required|string|max:5000',
+        ]);
+
+        try {
+            $this->loopMessageService->sendUserMessage(
+                $loop,
+                $request->user(),
+                $data['body'],
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('loops.show', $loop)
+            ->with('success', 'Message envoyé.');
     }
 }
