@@ -2,7 +2,7 @@
 task_id: TASK-074.4
 title: Loop Creation Mes invites Referral Bridge
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
