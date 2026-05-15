@@ -2,7 +2,7 @@
 task_id: TASK-074.1
 title: UX Ergonomics ChatLoop mobile desktop admin
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
