@@ -2,7 +2,7 @@
 task_id: TASK-074.1A
 title: T074.1A — IA Solution Spike: ChatLoop assisted interactions
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
