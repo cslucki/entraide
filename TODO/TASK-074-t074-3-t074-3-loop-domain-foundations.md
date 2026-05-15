@@ -2,7 +2,7 @@
 task_id: TASK-074.3
 title: T074.3 Loop Domain Foundations
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
