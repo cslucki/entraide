@@ -2,7 +2,7 @@
 task_id: TASK-074.5
 title: LoopMessage Foundations + Reverb-ready Events
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
