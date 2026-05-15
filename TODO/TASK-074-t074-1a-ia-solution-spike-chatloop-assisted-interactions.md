@@ -15,7 +15,7 @@ branch: T074.1A-t074-1a-ia-solution-spike-chatloop-assisted-interactions
 priority: MEDIUM
 
 created_at: 2026-05-14 22:28:00 Europe/Paris
-updated_at: 2026-05-15 00:15:00 Europe/Paris
+updated_at: 2026-05-15 02:55:00 Europe/Paris
 
 labels: []
 
@@ -238,6 +238,24 @@ intention floue → demande clarifiée → Boucle conseillée → ton → valida
 Restent rangées dans `docs/audits/T074.1A-assets/`, pas dans `ai/playwright/screenshots/`.
 
 Aucun fichier applicatif modifié.
+
+## 2026-05-15 02:55:00 Europe/Paris
+
+### Assets UX additionnels restaurés
+
+6 fichiers de référence UX restaurés depuis backup local (`/tmp/bouclepro-assets-working/`) :
+
+| Fichier | Taille | Description |
+|---------|--------|-------------|
+| `000-Meboucles_White.png` | 1015K | Logo Mes Boucles — blanc |
+| `000-Mesboucles_Black.png` | 1.3M | Logo Mes Boucles — noir |
+| `00-reseautage-reference.png` | 1.1M | Interface réseautage / entraide |
+| `00-Interface app minimaliste et moderne.png` | 1.1M | Maquette desktop minimaliste |
+| `00-Interface mobile minimaliste et épurée.png` | 1.1M | Maquette mobile minimaliste |
+| `00-Modern mobile app UI design.png` | 1015K | Inspiration design mobile |
+
+README.md mis à jour avec la liste complète des fichiers.
+Tous sont des références UX T074.1A (pas des exports temporaires ni doublons).
 
 # Handoffs
 
