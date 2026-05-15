@@ -2,7 +2,7 @@
 task_id: TASK-074.2
 title: Product Spec ChatLoop Center IA assisted interactions
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
