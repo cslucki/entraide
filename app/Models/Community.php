@@ -75,4 +75,9 @@ class Community extends Model
     {
         return $this->hasMany(Transaction::class);
     }
+
+    public function loops(): HasMany
+    {
+        return $this->hasMany(Loop::class, 'community_id');
+    }
 }
