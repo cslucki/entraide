@@ -51,4 +51,9 @@ class Loop extends Model
     {
         return $this->hasMany(LoopMember::class)->where('status', 'active');
     }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(LoopMessage::class);
+    }
 }
