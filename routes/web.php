@@ -27,6 +27,7 @@ use App\Http\Controllers\CommunityRequestController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\LikeController;
+use App\Http\Controllers\LoopController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
@@ -125,6 +126,13 @@ Route::middleware('auth')->group(function () {
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Loops
+    Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
+    Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
+    Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
+    Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+    Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
 });
 
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
@@ -320,6 +328,13 @@ Route::prefix('/{community}')
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+            // Loops
+            Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
+            Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
+            Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
+            Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+            Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
         });
 
         // Routes publiques communauté
