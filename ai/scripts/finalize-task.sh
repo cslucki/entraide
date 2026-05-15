@@ -35,7 +35,7 @@ CURRENT_BRANCH=$(git branch --show-current)
 echo "Step 1: Running task check..."
 echo ""
 
-if ! bash "$SCRIPTS_DIR/check-task.sh" "$1"; then
+if ! bash "$SCRIPTS_DIR/check-task.sh" "$@"; then
   echo ""
   echo "====================================="
   echo "TASK CHECK FAILED"
