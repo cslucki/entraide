@@ -2,7 +2,7 @@
 task_id: TASK-075
 title: LT-003 — corriremos scripts sous-tâches T074.x
 
-status: DONE
+status: MERGED
 
 contributors:
   - OPENCODE
@@ -108,6 +108,16 @@ check-task.sh ne supportait que le pattern `TASK-XXX` dans les noms de branche (
 - `bash -n` syntax verified on all 3 scripts
 - 3 validation tests re-run (T074.1A, dry-run T074.0, dry-run TASK-074)
 - Commit + push: see git log
+
+## 2026-05-15 02:20:00 Europe/Paris
+
+### Merged into develop
+
+- merge-task.sh --no-ff into develop
+- commit 99f51a5 on develop
+- develop pushed to origin
+- CI develop in progress
+- TASK-075 status updated to MERGED
 
 # Handoffs
 
