@@ -2,7 +2,7 @@
 task_id: TASK-076
 title: LT-004 Tooling support for explicit subtask creation
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
