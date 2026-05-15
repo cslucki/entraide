@@ -13,7 +13,7 @@ branch: T074.4-t074-4-loop-creation-mes-invites-referral-bridge
 priority: MEDIUM
 
 created_at: 2026-05-15 18:29:23 Europe/Paris
-updated_at: 2026-05-15 19:25:00 Europe/Paris
+updated_at: 2026-05-15 19:45:00 Europe/Paris
 
 labels:
   - loop
@@ -108,6 +108,16 @@ E. Tests :
   - LoopMemberInvariantTest (16 tests) : same-community add, cross-community reject (service + web), duplicate reject, eligible referrals filtering, addReferralToLoop, web route referral add
 
 ## 2026-05-15 19:25:00 Europe/Paris
+
+Blocker corrections applied. All 3 blockers fixed, 6 new tests added.
+
+## 2026-05-15 19:45:00 Europe/Paris
+
+Review OPENAI : APPROVE WITH NOTES.
+- Aucun blocker.
+- Recommandation merge : oui.
+- Note non bloquante : éventuel test HTTP réel sur les routes community.loops.*.
+  → Reportée dans QA future (T074.11 — QA & Tenant Safety).
 
 Blocker corrections OPENAI — 3 blockers corrigés :
 
@@ -241,6 +251,11 @@ Dont :
 - Pas de community-prefixed routes pour les vues (seulement le show protège par community_id)
 - Pas de validation navigateur/Playwright (UI minimale, pas de comportement interactif critique)
 - Pas de validation PostgreSQL nécessaire (aucune migration modifiée)
+
+## QA Future — T074.11
+
+- [ ] Ajouter un test HTTP réel (feature test) sur les routes community.loops.* pour valider le contexte community de bout en bout
+  Source : note OPENAI review T074.4
 
 ## Hors scope confirmé
 
