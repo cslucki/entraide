@@ -70,8 +70,9 @@ class LoopService
 
         return Referral::where('referrer_user_id', $user->id)
             ->where('community_id', $loop->community_id)
-            ->whereHas('referred', function ($q) use ($existingMemberUserIds) {
-                $q->whereNotIn('id', $existingMemberUserIds);
+            ->whereHas('referred', function ($q) use ($loop, $existingMemberUserIds) {
+                $q->where('community_id', $loop->community_id)
+                    ->whereNotIn('id', $existingMemberUserIds);
             })
             ->with('referred')
             ->get();

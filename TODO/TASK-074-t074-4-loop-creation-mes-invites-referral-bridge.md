@@ -13,7 +13,7 @@ branch: T074.4-t074-4-loop-creation-mes-invites-referral-bridge
 priority: MEDIUM
 
 created_at: 2026-05-15 18:29:23 Europe/Paris
-updated_at: 2026-05-15 18:55:00 Europe/Paris
+updated_at: 2026-05-15 19:25:00 Europe/Paris
 
 labels:
   - loop
@@ -107,6 +107,37 @@ E. Tests :
   - LoopCreationTest (10 tests) : création service, auto-membership owner, slug auto, web route, validation, guest block
   - LoopMemberInvariantTest (16 tests) : same-community add, cross-community reject (service + web), duplicate reject, eligible referrals filtering, addReferralToLoop, web route referral add
 
+## 2026-05-15 19:25:00 Europe/Paris
+
+Blocker corrections OPENAI — 3 blockers corrigés :
+
+### Blocker 1 — Routes préfixées /{community}
+- Ajout de resolveCommunity() : utilise app('current_community') si disponible (résolu par ResolveCommunity middleware), sinon fallback auth()->user()->community
+- Ajout de assertUserBelongsToCommunity() : vérifie que l'utilisateur appartient à la communauté résolue
+- Toutes les méthodes du controller (index, create, store, show, addMember) vérifient maintenant la communauté
+- show/addMember valident en plus que loop.community_id === community->id
+
+### Blocker 2 — LoopMember comme autorisation applicative
+- show() exige que l'utilisateur soit LoopMember actif (status=active)
+- addMember() exige que l'utilisateur soit LoopMember avec role owner/moderator
+- Ces vérifications s'ajoutent aux vérifications de communauté existantes
+- Pas de RBAC complète documentée comme limite assumée
+
+### Blocker 3 — Referral filtrage incomplet
+- getEligibleReferrals() filtre maintenant explicitement referred_user.community_id === loop.community_id
+- Ajouté dans la whereHas('referred') closure
+
+### Décision 403/404
+- 404 utilisé systématiquement pour masquer l'existence des ressources (cohérent avec les conventions existantes du projet)
+
+### Tests ajoutés (6)
+1. test_cross_community_route_prefix_is_blocked — community context forcé, accès 404
+2. test_cross_community_creation_is_blocked — POST sous mauvais community context → 404
+3. test_same_community_non_member_cannot_view_loop_show — même community, pas membre → 404
+4. test_same_community_non_member_cannot_add_loop_member — même community, pas membre → 404
+5. test_non_owner_member_cannot_add_loop_member — membre avec role=member, pas owner/moderator → 404
+6. test_eligible_referrals_excludes_referred_user_from_wrong_community — referral.community_id match mais referred_user.community_id diffère → exclu
+
 ---
 
 # Handoffs
@@ -127,12 +158,21 @@ Aucun.
 
 ## SQLite (via `php artisan test`)
 
-468 passed (1023 assertions). Durée: 13.27s
+474 passed (1029 assertions). Durée: 13.65s
 
 Dont :
 - LoopModelTest: 19 tests (32 assertions) — inchangé, toujours vert
 - LoopCreationTest: 10 tests (20 assertions)
-- LoopMemberInvariantTest: 16 tests (40 assertions)
+- LoopMemberInvariantTest: 22 tests (50 assertions) — 6 nouveaux
+
+### Nouveaux tests LoopMemberInvariantTest (6)
+
+17. test_cross_community_route_prefix_is_blocked
+18. test_cross_community_creation_is_blocked
+19. test_same_community_non_member_cannot_view_loop_show
+20. test_same_community_non_member_cannot_add_loop_member
+21. test_non_owner_member_cannot_add_loop_member
+22. test_eligible_referrals_excludes_referred_user_from_wrong_community
 
 ## Tests LoopCreationTest
 

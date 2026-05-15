@@ -276,4 +276,104 @@ class LoopMemberInvariantTest extends TestCase
         $response->assertSee($referredA->name);
         $response->assertDontSee($referredB->name);
     }
+
+    // -------------------------------------------------------------------------
+    // Blocker 1: Community-prefixed route isolation
+    // -------------------------------------------------------------------------
+
+    public function test_cross_community_route_prefix_is_blocked(): void
+    {
+        // Simulate communityB context (as if accessed via /community-b/...)
+        app()->instance('current_community', $this->communityB);
+
+        $response = $this->actingAs($this->userA)
+            ->get(route('loops.show', $this->loop));
+
+        // userA belongs to communityA, but current_community is communityB → 404
+        $response->assertStatus(404);
+    }
+
+    public function test_cross_community_creation_is_blocked(): void
+    {
+        // Simulate communityB context (as if accessed via /community-b/...)
+        app()->instance('current_community', $this->communityB);
+
+        $response = $this->actingAs($this->userA)
+            ->post(route('loops.store'), [
+                'name' => 'Cross-community loop attempt',
+            ]);
+
+        // userA belongs to communityA, but current_community is communityB → 404
+        $response->assertStatus(404);
+    }
+
+    // -------------------------------------------------------------------------
+    // Blocker 2: LoopMember authorization
+    // -------------------------------------------------------------------------
+
+    public function test_same_community_non_member_cannot_view_loop_show(): void
+    {
+        $response = $this->actingAs($this->userB)
+            ->get(route('loops.show', $this->loop));
+
+        // userB is in same community but not a loop member → 404
+        $response->assertStatus(404);
+    }
+
+    public function test_same_community_non_member_cannot_add_loop_member(): void
+    {
+        $referred = User::factory()->create(['community_id' => $this->communityA->id]);
+        $referral = Referral::factory()->create([
+            'referrer_user_id' => $this->userB->id,
+            'referred_user_id' => $referred->id,
+            'community_id' => $this->communityA->id,
+        ]);
+
+        $response = $this->actingAs($this->userB)
+            ->post(route('loops.members.add', $this->loop), [
+                'referral_id' => $referral->id,
+            ]);
+
+        // userB is in same community but not a loop member → 404
+        $response->assertStatus(404);
+    }
+
+    public function test_non_owner_member_cannot_add_loop_member(): void
+    {
+        $this->service->addMember($this->loop, $this->userB, 'member');
+
+        $referred = User::factory()->create(['community_id' => $this->communityA->id]);
+        $referral = Referral::factory()->create([
+            'referrer_user_id' => $this->userB->id,
+            'referred_user_id' => $referred->id,
+            'community_id' => $this->communityA->id,
+        ]);
+
+        $response = $this->actingAs($this->userB)
+            ->post(route('loops.members.add', $this->loop), [
+                'referral_id' => $referral->id,
+            ]);
+
+        // userB is a member but role is 'member', not owner/moderator → 404
+        $response->assertStatus(404);
+    }
+
+    // -------------------------------------------------------------------------
+    // Referral: additional community_id filtering
+    // -------------------------------------------------------------------------
+
+    public function test_eligible_referrals_excludes_referred_user_from_wrong_community(): void
+    {
+        // Same referrals.community_id as loop, but referred_user is in different community
+        $referred = User::factory()->create(['community_id' => $this->communityB->id]);
+        Referral::factory()->create([
+            'referrer_user_id' => $this->userA->id,
+            'referred_user_id' => $referred->id,
+            'community_id' => $this->communityA->id,
+        ]);
+
+        $eligible = $this->service->getEligibleReferrals($this->userA, $this->loop);
+
+        $this->assertCount(0, $eligible);
+    }
 }
