@@ -1,4 +1,4 @@
-import { globalMember1User, adminUser } from '../users/index.js';
+import { globalMember1User, adminUser, cpmeMember1User } from '../users/index.js';
 
 /**
  * Login as a global platform member (TEST_MEMBER1)
@@ -20,6 +20,18 @@ export async function loginAsAdmin(page) {
     await page.goto('/login');
     await page.fill('input[name="email"]', adminUser.email);
     await page.fill('input[name="password"]', adminUser.password);
+    await page.click('button[type="submit"]');
+    await page.waitForURL(url => url.pathname.includes('/dashboard') || url.pathname.length > 1);
+}
+
+/**
+ * Login as a CPME community member (TEST_MEMBER_OF_CPME1)
+ * Use for community-scoped tests (loops, tenant-isolated features)
+ */
+export async function loginAsCpmeMember(page) {
+    await page.goto('/login');
+    await page.fill('input[name="email"]', cpmeMember1User.email);
+    await page.fill('input[name="password"]', cpmeMember1User.password);
     await page.click('button[type="submit"]');
     await page.waitForURL(url => url.pathname.includes('/dashboard') || url.pathname.length > 1);
 }

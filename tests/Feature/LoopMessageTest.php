@@ -256,6 +256,55 @@ class LoopMessageTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
+    // Message display on show page
+    // -------------------------------------------------------------------------
+
+    public function test_loop_show_displays_messages(): void
+    {
+        $this->messageService->sendUserMessage($this->loop, $this->member, 'First message');
+        $this->messageService->sendUserMessage($this->loop, $this->owner, 'Reply from owner');
+
+        $response = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop));
+
+        $response->assertStatus(200);
+        $response->assertSee('First message');
+        $response->assertSee('Reply from owner');
+    }
+
+    public function test_loop_show_displays_messages_in_chronological_order(): void
+    {
+        $msg1 = $this->messageService->sendUserMessage($this->loop, $this->member, 'First');
+        $msg2 = $this->messageService->sendUserMessage($this->loop, $this->member, 'Second');
+        $msg3 = $this->messageService->sendUserMessage($this->loop, $this->member, 'Third');
+
+        $response = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop));
+
+        $response->assertStatus(200);
+        $response->assertSeeInOrder(['First', 'Second', 'Third']);
+    }
+
+    public function test_loop_show_shows_empty_state_when_no_messages(): void
+    {
+        $response = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop));
+
+        $response->assertStatus(200);
+        $response->assertSee('Aucun message');
+    }
+
+    public function test_loop_show_loads_message_area(): void
+    {
+        $response = $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop));
+
+        $response->assertStatus(200);
+        $response->assertSee('Discussion');
+        $response->assertSee('Envoyer');
+    }
+
+    // -------------------------------------------------------------------------
     // Private channel authorization
     // -------------------------------------------------------------------------
 
