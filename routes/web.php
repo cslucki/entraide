@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminMetaCommunityController;
 use App\Http\Controllers\Admin\AdminSettingController;
+use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\CommunityLandingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FavoriteController;
@@ -219,6 +220,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Email logs
     Route::get('/email-logs', [AdminEmailLogsController::class, 'index'])->name('email-logs');
     Route::get('/email-logs/{emailLog}', [AdminEmailLogsController::class, 'show'])->name('email-logs.show');
+
+    // IA Design Lab (test interne)
+    Route::get('/ia-design-lab', [AdminIaDesignLabController::class, 'index'])->name('ia-design-lab');
+    Route::post('/ia-design-lab', [AdminIaDesignLabController::class, 'test'])->name('ia-design-lab.test');
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
