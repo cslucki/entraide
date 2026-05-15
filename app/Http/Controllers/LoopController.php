@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Community;
 use App\Models\Loop;
+use App\Models\LoopMember;
 use App\Models\Referral;
 use App\Services\LoopService;
 use Illuminate\Http\RedirectResponse;
@@ -15,11 +17,38 @@ class LoopController extends Controller
         private readonly LoopService $loopService,
     ) {}
 
-    public function index(): View
+    private function resolveCommunity(): Community
+    {
+        if (app()->bound('current_community')) {
+            return app('current_community');
+        }
+
+        $user = auth()->user();
+
+        if (! $user->community) {
+            abort(404);
+        }
+
+        return $user->community;
+    }
+
+    private function assertUserBelongsToCommunity(Community $community): void
     {
         $user = auth()->user();
 
-        $loops = Loop::where('community_id', $user->community_id)
+        if ($user->community_id !== $community->id) {
+            abort(404);
+        }
+    }
+
+    public function index(): View
+    {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
+        $user = auth()->user();
+
+        $loops = Loop::where('community_id', $community->id)
             ->whereIn('id', function ($q) use ($user) {
                 $q->select('loop_id')
                     ->from('loop_members')
@@ -34,11 +63,17 @@ class LoopController extends Controller
 
     public function create(): View
     {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
         return view('loops.create');
     }
 
     public function store(Request $request): RedirectResponse
     {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:5000',
@@ -56,9 +91,21 @@ class LoopController extends Controller
 
     public function show(Loop $loop): View
     {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
+        if ($loop->community_id !== $community->id) {
+            abort(404);
+        }
+
         $user = auth()->user();
 
-        if ($loop->community_id !== $user->community_id) {
+        $isMember = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $isMember) {
             abort(404);
         }
 
@@ -66,16 +113,26 @@ class LoopController extends Controller
 
         $eligibleReferrals = $this->loopService->getEligibleReferrals($user, $loop);
 
-        $isMember = $loop->members->contains('user_id', $user->id);
-
         return view('loops.show', compact('loop', 'eligibleReferrals', 'isMember'));
     }
 
     public function addMember(Request $request, Loop $loop): RedirectResponse
     {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
+        if ($loop->community_id !== $community->id) {
+            abort(404);
+        }
+
         $user = $request->user();
 
-        if ($loop->community_id !== $user->community_id) {
+        $currentMember = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $currentMember || ! in_array($currentMember->role, ['owner', 'moderator'])) {
             abort(404);
         }
 
