@@ -164,6 +164,11 @@ class User extends Authenticatable
         return $this->hasMany(ReferralReward::class);
     }
 
+    public function loopMemberships(): HasMany
+    {
+        return $this->hasMany(LoopMember::class);
+    }
+
     public function getAvatarUrlAttribute(): string
     {
         if ($this->avatar) {
