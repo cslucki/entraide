@@ -3,47 +3,89 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\LoopMessage;
 use App\Models\Message;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\View\View;
 
 class AdminMessageController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = Message::with(['sender', 'transaction.buyer', 'transaction.seller'])
-            ->orderByDesc('created_at');
+        $user = auth()->user();
+        $orgId = $user->organization_id ?? $user->community_id;
+        $filter = $request->input('filter', 'chatloop');
+        $allowedFilters = ['chatloop', 'exchanges', 'all'];
+        $filter = in_array($filter, $allowedFilters) ? $filter : 'chatloop';
+        $perPage = 25;
 
-        if ($request->filled('search')) {
-            $query->where('body', 'like', '%' . $request->search . '%');
+        if (! $orgId) {
+            $messages = new LengthAwarePaginator([], 0, $perPage);
+        } else {
+            $messages = match ($filter) {
+                'chatloop' => LoopMessage::whereHas('loop', fn($q) => $q->where('community_id', $orgId))
+                    ->with(['sender:id,name,email', 'loop:id,name'])
+                    ->latest()
+                    ->paginate($perPage)
+                    ->withQueryString(),
+
+                'exchanges' => Message::whereHas('transaction', fn($q) => $q->where('organization_id', $orgId))
+                    ->with(['sender:id,name,email', 'transaction.buyer:id,name', 'transaction.seller:id,name'])
+                    ->latest()
+                    ->paginate($perPage)
+                    ->withQueryString(),
+
+                default => $this->unifiedFeed($orgId, $perPage),
+            };
         }
 
-        if ($request->filled('date_from')) {
-            $query->where('created_at', '>=', $request->date_from . ' 00:00:00');
-        }
+        return view('admin.messages.index', compact('filter', 'messages'));
+    }
 
-        if ($request->filled('date_to')) {
-            $query->where('created_at', '<=', $request->date_to . ' 23:59:59');
-        }
+    private function unifiedFeed(string $orgId, int $perPage): LengthAwarePaginator
+    {
+        $loopMessages = LoopMessage::whereHas('loop', fn($q) => $q->where('community_id', $orgId))
+            ->with(['sender:id,name,email', 'loop:id,name'])
+            ->latest()
+            ->limit(500)
+            ->get()
+            ->each->setAttribute('message_type', 'chatloop');
 
-        if ($request->filled('user')) {
-            $term = $request->user;
-            $query->where(function ($q) use ($term) {
-                $q->whereHas('sender', fn($u) => $u->where('name', 'like', "%$term%")->orWhere('email', 'like', "%$term%"))
-                  ->orWhereHas('transaction.buyer', fn($u) => $u->where('name', 'like', "%$term%")->orWhere('email', 'like', "%$term%"))
-                  ->orWhereHas('transaction.seller', fn($u) => $u->where('name', 'like', "%$term%")->orWhere('email', 'like', "%$term%"));
-            });
-        }
+        $exchangeMessages = Message::whereHas('transaction', fn($q) => $q->where('organization_id', $orgId))
+            ->with(['sender:id,name,email', 'transaction.buyer:id,name', 'transaction.seller:id,name'])
+            ->latest()
+            ->limit(500)
+            ->get()
+            ->each->setAttribute('message_type', 'exchange');
 
-        $messages = $query->paginate(50)->withQueryString();
+        $merged = $loopMessages->concat($exchangeMessages)
+            ->sortByDesc('created_at')
+            ->values();
 
-        return view('admin.messages.index', compact('messages'));
+        $page = Paginator::resolveCurrentPage();
+        $total = $merged->count();
+
+        return new LengthAwarePaginator(
+            $merged->forPage($page, $perPage)->values(),
+            $total,
+            $perPage,
+            $page,
+            ['path' => Paginator::resolveCurrentPath()]
+        )->withQueryString();
     }
 
     public function show(Message $message): View
     {
         $message->load(['sender', 'transaction.buyer', 'transaction.seller']);
+
+        $orgId = auth()->user()->organization_id ?? auth()->user()->community_id;
+
+        if (! $orgId || ! $message->transaction || $message->transaction->organization_id !== $orgId) {
+            abort(404);
+        }
 
         $before = Message::where('transaction_id', $message->transaction_id)
             ->where('created_at', '<', $message->created_at)
@@ -62,9 +104,5 @@ class AdminMessageController extends Controller
         return view('admin.messages.show', compact('message', 'before', 'after'));
     }
 
-    public function destroy(Message $message): RedirectResponse
-    {
-        $message->delete();
-        return redirect()->route('admin.messages')->with('success', 'Message supprimé définitivement.');
-    }
+    // destroy removed: T074.9 is strictly read-only (OpenAI review fix)
 }
