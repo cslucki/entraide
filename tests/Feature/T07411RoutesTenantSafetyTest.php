@@ -72,10 +72,15 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_loops_create_returns_404_for_user_without_community(): void
+    public function test_loops_create_redirects_to_index_for_user_without_community(): void
     {
         $response = $this->actingAs($this->userWithoutCommunity)->get('/loops/create');
-        $response->assertNotFound();
+        $response->assertRedirect(route('loops.index'));
+    }
+
+    public function test_loops_create_redirects_guest_to_login(): void
+    {
+        $this->get('/loops/create')->assertRedirect(route('login'));
     }
 
     // ── /boucles (public legacy route) ────────────────────────────────────

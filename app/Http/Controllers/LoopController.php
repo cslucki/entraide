@@ -83,8 +83,15 @@ class LoopController extends Controller
         return auth()->user()->community_id;
     }
 
-    public function create(): View
+    public function create(): View|RedirectResponse
     {
+        $communityId = $this->resolveCommunityId();
+
+        if ($communityId === null) {
+            return redirect()->route('loops.index')
+                ->with('info', 'Vous devez appartenir à une organisation pour créer une boucle.');
+        }
+
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 

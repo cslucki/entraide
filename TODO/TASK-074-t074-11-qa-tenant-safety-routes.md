@@ -20,8 +20,8 @@ labels: []
 lock:
   status: UNLOCKED
   agent: OPENCODE
-  since: 2026-05-16 13:34:40 Europe/Paris
-  unlocked_at: 2026-05-16 14:00:00 Europe/Paris
+  since: 2026-05-16 14:15:00 Europe/Paris
+  unlocked_at: 2026-05-16 14:20:00 Europe/Paris
 
 handoff: false
 
@@ -123,7 +123,7 @@ Session OPENCODE — Audit complet.
 | Route | Auth | Controller | Comportement Attendu | Comportement Réel | Correction |
 |---|---|---|---|---|---|
 | `/loops` (GET) | auth | LoopController@index | 200, liste des boucles membre | 404 car resolveCommunity() abortait quand user.community_id=null | **Corrigé**: resolveCommunityId() nullable + empty state au lieu de 404 |
-| `/loops/create` (GET) | auth | LoopController@create | 200, formulaire création | 404 si user sans community (comportement correct, nécessite tenant) | Aucun (hors scope) |
+| `/loops/create` (GET) | auth | LoopController@create | 200, formulaire création | 404 si user sans community → corrigé : redirect /loops avec info flash si pas de tenant | **Corrigé**: resolveCommunityId() guard → redirect /loops si null |
 | `/loops/store` (POST) | auth | LoopController@store | Redirect, création boucle | Fonctionne (LoopService refuse si pas de community) | Aucun |
 | `/loops/{loop}` (GET) | auth | LoopController@show | 200, détail boucle | Nécessite membership + community match | Aucun |
 | `/{community}/loops` (GET) | auth+community | LoopController@index | 200, boucles tenant-scopées | Fonctionne via ResolveCommunity middleware | Aucun (legacy) |
@@ -134,8 +134,11 @@ Session OPENCODE — Audit complet.
 ### Décisions Routes
 
 - **/loops** → Route membre principale pour les Loops. Fixée (ne retourne plus 404).
+- **/loops/create** → Route membre officielle de création de Loop. Auth-only. Nécessite tenant. Redirige vers /loops avec info flash si pas de tenant (404 → redirect). Ne crée pas de boucle sans tenant (store() also requires tenant).
+- **/loops/store** → POST route, conserve tenant-safe guard existant.
 - **/boucles** → Route legacy publique (listing des communautés). Conservée, documentée legacy.
 - **/{community}/loops** → Route legacy tenant-scopée. Conservée pour compatibilité inverse, documentée legacy technique temporaire.
+- **/{community}/loops/create** → Route legacy tenant-scopée pour création. Fonctionne via ResolveCommunity middleware + assertUserBelongsToCommunity.
 
 ### Concepts Validés
 
@@ -216,17 +219,68 @@ Aucun.
 
 ---
 
+---
+
+## 2026-05-16 14:15:00 Europe/Paris
+
+Session OPENCODE — Complément /loops/create.
+
+### Contexte
+- Cockpit signal : `https://test.laravel/loops/create` retournait 404 avant merge.
+- Route existait déjà (auth, LoopController@create) mais `resolveCommunity()` abort(404) si user sans community.
+- UI (`loops/index.blade.php`) a deux CTA pointant vers `route('loops.create')`.
+
+### Décision
+- `/loops/create` = route membre officielle de création de Loop.
+- Ne peut pas créer sans tenant (store() nécessite tenant pour créer).
+- Donc : redirect vers `/loops` avec info flash si pas de tenant, au lieu de 404.
+- Cohérent avec `index()` (empty state au lieu de 404).
+- Pas de fuite, pas de dead end UX, pas de boucle de redirect.
+
+### Actions
+1. `app/Http/Controllers/LoopController.php` : `create()` ajoute guard `resolveCommunityId() === null` → redirect route('loops.index') avec info flash
+2. `tests/Feature/T07411RoutesTenantSafetyTest.php` : rename test `test_loops_create_returns_404_for_user_without_community` → `test_loops_create_redirects_to_index_for_user_without_community` ; ajout `test_loops_create_redirects_guest_to_login`
+3. `TODO/TASK-074-t074-11-qa-tenant-safety-routes.md` : this section
+
+### Tests exécutés
+| Suite | Résultat |
+|---|---|
+| T07411RoutesTenantSafetyTest | **17/17 PASS** (33 assertions) |
+| LoopCreationTest | 10/10 PASS |
+| LoopMemberInvariantTest | 22/22 PASS |
+| AdminLoopsTest | 8/8 PASS |
+| AdminMessagesTest | 18/18 PASS |
+
+Total : 75 tests, 0 échecs, 0 régression.
+
+### Validation navigateur
+- URL (HTTP) : http://test.laravel/loops/create → 302 redirect vers /loops → 200 OK
+- Titre page : "Entraide" → "Mes boucles"
+- Flash info visible : "Vous devez appartenir à une organisation pour créer une boucle."
+- Empty state : "Vous n'avez encore aucune boucle." + "Créer votre première boucle" CTA intact
+- URL (HTTPS) : ERR_CERT_AUTHORITY_INVALID (certificat auto-signé local, normal)
+- Console errors : 0
+
+### Production Safety Notes
+- composer: none
+- npm: none
+- migrations: none
+- env: none
+- queue: none
+- cache: none
+
 # Handoffs
 
 N/A — Tâche complétée par OPENCODE.
 
 # Tests
 
-- [x] feature tests (14 T074.11 + full regression)
-- [x] browser validation (http://test.laravel/loops → 200 OK)
+- [x] feature tests (17 T074.11 + full regression)
+- [x] browser validation (http://test.laravel/loops → 200 OK; /loops/create → 302 redirect → 200 OK)
 - [x] responsive validation (empty state responsive ok)
 - [x] console inspection (0 errors)
 - [x] tenant validation (cross-community isolation confirmed)
+- [x] guest redirect (/loops/create → login)
 
 ---
 
@@ -281,6 +335,11 @@ T074.11: 16/16 PASS
 Full suite: 542/543 PASS (1 pre-existing SearchControllerTest unrelated)
 Regression: 0 failures
 
+## Après complément /loops/create
+T074.11: 17/17 PASS (33 assertions)
+Full suite: 543/544 PASS (1 pre-existing SearchControllerTest unrelated)
+Regression: 0 failures
+
 ---
 
 # Review Notes
@@ -295,3 +354,10 @@ Regression: 0 failures
 - **Blocker 2 corrigé** : assertUserBelongsToCommunity() dans index() → même discipline tenant-scoped que les autres méthodes
 - **HTTPS**: Certificat auto-signé non reconnu en local (ERR_CERT_AUTHORITY_INVALID). HTTP fonctionne parfaitement. La validation HTTPS sera assurée par le staging/production avec des certificats valides.
 - **Prêt pour nouvelle OPENAI review**: Oui.
+
+## Complément /loops/create (2026-05-16)
+- **Route** : `/loops/create` = route membre officielle de création de Loop
+- **Fix** : si `resolveCommunityId() === null` → redirect route('loops.index') avec info flash, au lieu de 404
+- **Consistance** : même pattern que `index()` (guard null tenant → état propre)
+- **Sécurité** : impossible de créer une boucle sans tenant (store() nécessite aussi tenant)
+- **CTA intact** : les deux boutons "Nouvelle" / "Créer votre première boucle" dans l'UI pointent toujours vers route('loops.create') — redirect propre si pas de tenant
