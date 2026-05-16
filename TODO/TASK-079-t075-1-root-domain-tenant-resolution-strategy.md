@@ -2,7 +2,7 @@
 task_id: TASK-079
 title: T075.1 — Root Domain Tenant Resolution Strategy
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-079-t075-1-root-domain-tenant-resolution-strategy
 priority: HIGH
 
 created_at: 2026-05-16 19:23:43 Europe/Paris
-updated_at: 2026-05-16 19:25:29 Europe/Paris
+updated_at: 2026-05-16 19:30:00 Europe/Paris
 
 labels:
   - strategy
@@ -444,8 +444,8 @@ Pending. No tests to run at this stage.
 
 # Review Notes
 
-**Status**: DONE.
-**Phase**: Strategy (validé COCKPIT).
+**Status**: MERGED.
+**Phase**: Strategy (merged into develop).
 **Code modified**: None.
 **Database migrations**: None.
 **PROD**: Not touched.
