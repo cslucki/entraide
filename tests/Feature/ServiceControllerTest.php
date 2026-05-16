@@ -7,15 +7,23 @@ use App\Models\Service;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use Tests\Concerns\WithTestOrganization;
 use Tests\TestCase;
 
 class ServiceControllerTest extends TestCase
 {
+    use WithTestOrganization;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->setUpOrganization();
+    }
     public function test_anyone_can_view_active_service(): void
     {
-        $user = User::factory()->create();
+        $user = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($user)->forCategory($category)->create();
+        $service = Service::factory()->forUser($user)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
 
         $response = $this->get(route('services.show', $service));
         $response->assertOk();
@@ -23,10 +31,10 @@ class ServiceControllerTest extends TestCase
 
     public function test_paused_service_visible_only_to_owner(): void
     {
-        $owner = User::factory()->create();
-        $other = User::factory()->create();
+        $owner = $this->orgUser();
+        $other = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($owner)->forCategory($category)->paused()->create();
+        $service = Service::factory()->forUser($owner)->forCategory($category)->paused()->create(['community_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($owner)->get(route('services.show', $service));
         $response->assertOk();
@@ -37,7 +45,7 @@ class ServiceControllerTest extends TestCase
 
     public function test_owner_can_create_service(): void
     {
-        $user = User::factory()->create(['bio' => 'Développeur web freelance.']);
+        $user = $this->orgUser(['bio' => 'Développeur web freelance.']);
         $category = Category::factory()->create();
 
         $response = $this->actingAs($user)->post(route('services.store'), [
@@ -54,9 +62,9 @@ class ServiceControllerTest extends TestCase
 
     public function test_owner_can_edit_service(): void
     {
-        $user = User::factory()->create();
+        $user = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($user)->forCategory($category)->create();
+        $service = Service::factory()->forUser($user)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($user)->put(route('services.update', $service), [
             'title' => 'Updated Title',
@@ -73,10 +81,10 @@ class ServiceControllerTest extends TestCase
 
     public function test_non_owner_cannot_edit_service(): void
     {
-        $owner = User::factory()->create();
-        $other = User::factory()->create();
+        $owner = $this->orgUser();
+        $other = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($owner)->forCategory($category)->create();
+        $service = Service::factory()->forUser($owner)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($other)->put(route('services.update', $service), [
             'title' => 'Hacked',
@@ -92,9 +100,9 @@ class ServiceControllerTest extends TestCase
 
     public function test_owner_can_delete_service_without_active_transactions(): void
     {
-        $user = User::factory()->create();
+        $user = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($user)->forCategory($category)->create();
+        $service = Service::factory()->forUser($user)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($user)->delete(route('services.destroy', $service));
         $response->assertRedirect(route('dashboard'));
@@ -103,12 +111,13 @@ class ServiceControllerTest extends TestCase
 
     public function test_cannot_delete_service_with_active_transaction(): void
     {
-        $seller = User::factory()->create();
-        $buyer = User::factory()->create(['points_balance' => 100]);
+        $seller = $this->orgUser();
+        $buyer = $this->orgUser(['points_balance' => 100]);
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($seller)->forCategory($category)->create();
+        $service = Service::factory()->forUser($seller)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
 
         Transaction::create([
+            'community_id' => $this->testOrganization->id,
             'service_id' => $service->id,
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
@@ -123,7 +132,7 @@ class ServiceControllerTest extends TestCase
 
     public function test_service_creation_with_tags(): void
     {
-        $user = User::factory()->create([
+        $user = $this->orgUser([
             'bio' => 'Développeur web freelance.',
             'location' => 'Paris',
             'phone' => '0123456789',
@@ -140,7 +149,7 @@ class ServiceControllerTest extends TestCase
         ]);
 
         $response->assertRedirect(route('dashboard'));
-        $service = Service::where('title', 'Service with tags')->first();
+        $service = Service::withoutGlobalScope(\App\Models\Scopes\BelongsToTenantScope::class)->where('title', 'Service with tags')->first();
         $this->assertEquals(3, $service->tags()->count());
     }
 }

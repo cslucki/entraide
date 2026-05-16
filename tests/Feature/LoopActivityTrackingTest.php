@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Community;
 use App\Models\Loop;
-use App\Models\LoopMember;
 use App\Models\User;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
@@ -16,13 +15,21 @@ class LoopActivityTrackingTest extends TestCase
     use RefreshDatabase;
 
     private Community $community;
+
     private Community $otherCommunity;
+
     private User $owner;
+
     private User $member;
+
     private User $nonMember;
+
     private User $crossUser;
+
     private Loop $loop;
+
     private Loop $inactiveLoop;
+
     private LoopMessageService $messageService;
 
     protected function setUp(): void
@@ -169,6 +176,8 @@ class LoopActivityTrackingTest extends TestCase
 
     public function test_cross_community_user_cannot_see_loop_on_index(): void
     {
+        $this->community->update(['is_active' => false]);
+
         $response = $this->actingAs($this->crossUser)
             ->get(route('loops.index'));
 

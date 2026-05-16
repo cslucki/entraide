@@ -6,19 +6,27 @@ use App\Models\PointLedger;
 use App\Models\Service;
 use App\Models\Transaction;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use Tests\Concerns\WithTestOrganization;
 use Tests\TestCase;
 
 class FullExchangeFlowTest extends TestCase
 {
+    use WithTestOrganization;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->setUpOrganization();
+    }
     public function test_complete_exchange_flow(): void
     {
-        $buyer = User::factory()->create(['points_balance' => 300]);
-        $seller = User::factory()->create(['points_balance' => 100]);
+        $buyer = $this->orgUser(['points_balance' => 300]);
+        $seller = $this->orgUser(['points_balance' => 100]);
 
         $service = Service::factory()->forUser($seller)->create([
             'title' => 'Design de logo',
             'points_cost' => 75,
+            'community_id' => $this->testOrganization->id,
         ]);
 
         $this->actingAs($buyer)
@@ -66,9 +74,9 @@ class FullExchangeFlowTest extends TestCase
 
     public function test_exchange_can_be_refused(): void
     {
-        $buyer = User::factory()->create(['points_balance' => 200]);
-        $seller = User::factory()->create();
-        $service = Service::factory()->forUser($seller)->create();
+        $buyer = $this->orgUser(['points_balance' => 200]);
+        $seller = $this->orgUser();
+        $service = Service::factory()->forUser($seller)->create(['community_id' => $this->testOrganization->id]);
 
         $this->actingAs($buyer)->post(route('transactions.store'), [
             'service_id' => $service->id,
@@ -86,9 +94,9 @@ class FullExchangeFlowTest extends TestCase
 
     public function test_exchange_can_be_cancelled(): void
     {
-        $buyer = User::factory()->create(['points_balance' => 200]);
-        $seller = User::factory()->create();
-        $service = Service::factory()->forUser($seller)->create();
+        $buyer = $this->orgUser(['points_balance' => 200]);
+        $seller = $this->orgUser();
+        $service = Service::factory()->forUser($seller)->create(['community_id' => $this->testOrganization->id]);
 
         $this->actingAs($buyer)->post(route('transactions.store'), [
             'service_id' => $service->id,
