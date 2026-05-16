@@ -2,7 +2,7 @@
 task_id: TASK-084
 title: T075.5 — Services / Requests Tenant Safety + Hidden Field Tampering
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
