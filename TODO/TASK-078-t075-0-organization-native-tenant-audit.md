@@ -2,7 +2,7 @@
 task_id: TASK-078
 title: t075-0-organization-native-tenant-audit
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-078-t075-0-organization-native-tenant-audit
 priority: HIGH
 
 created_at: 2026-05-16 19:02:23 Europe/Paris
-updated_at: 2026-05-16 20:45:00 Europe/Paris
+updated_at: 2026-05-16 21:15:00 Europe/Paris
 
 labels:
   - audit
@@ -274,3 +274,14 @@ Ouvrir une **lame courte T075.1** centrée sur :
 - Ne PAS durcir BelongsToTenantScope en premier (risque de casser brutalement l'app)
 - D'abord définir la stratégie tenant du root domain
 - Ensuite seulement adapter le scope et les routes
+
+---
+
+# Merge
+
+## 2026-05-16 21:15:00 Europe/Paris
+
+Merged into develop via `git merge --no-ff`.
+
+Merge commit: `f7c0db3`
+Develop pushed to origin. TASK status updated to MERGED.
