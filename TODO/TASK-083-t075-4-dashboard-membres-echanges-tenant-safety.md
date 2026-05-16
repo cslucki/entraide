@@ -2,7 +2,7 @@
 task_id: TASK-083
 title: "T075.4 — Dashboard / Membres / Echanges Tenant Safety"
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-083-t075-4-dashboard-membres-echanges-tenant-safety
 priority: HIGH
 
 created_at: 2026-05-16 23:33:50 Europe/Paris
-updated_at: 2026-05-17 00:10:00 Europe/Paris
+updated_at: 2026-05-17 00:20:00 Europe/Paris
 
 labels:
   - tenant-safety
