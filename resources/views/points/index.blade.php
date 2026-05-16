@@ -27,6 +27,51 @@
             </div>
         </div>
 
+        @if($referralLink)
+        <div id="invitations" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-8">
+            <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Invitations</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Chaque membre que vous invitez et qui rejoint la boucle vous rapporte des points.
+            </p>
+            <div class="flex gap-6 text-sm text-gray-600 dark:text-gray-400 mb-4">
+                <div>
+                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $sentReferralsCount }}</span>
+                    <span class="ml-1">invitation(s)</span>
+                </div>
+                <div>
+                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $activatedReferralsCount }}</span>
+                    <span class="ml-1">activation(s)</span>
+                </div>
+                <div>
+                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $referralPointsEarned }}</span>
+                    <span class="ml-1">pts gagnés</span>
+                </div>
+            </div>
+            <div class="flex gap-2" x-data="{ copied: false, link: @js($referralLink) }">
+                <input type="text" readonly value="{{ $referralLink }}" data-referral-link-points
+                       class="flex-1 max-w-xs px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 select-all">
+                <button type="button" @click="
+                    const input = $root.querySelector('[data-referral-link-points]');
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(link);
+                    } else if (input) {
+                        input.select();
+                        document.execCommand('copy');
+                    }
+                    copied = true;
+                    setTimeout(() => copied = false, 2000);
+                " class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+                    <span x-show="!copied">Copier</span>
+                    <span x-show="copied">Copié !</span>
+                </button>
+                <a href="https://wa.me/?text={{ urlencode($referralLink) }}" target="_blank" rel="noopener noreferrer"
+                   class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition whitespace-nowrap">
+                    WhatsApp
+                </a>
+            </div>
+        </div>
+        @endif
+
         <!-- Ledger -->
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             @forelse($entries as $entry)
@@ -42,6 +87,7 @@
                                 'welcome_bonus'   => 'Bonus de bienvenue',
                                 'exchange_earned' => 'Échange — gain',
                                 'exchange_spent'  => 'Échange — dépense',
+                                'referral_reward' => 'Récompense invitation',
                                 'adjustment'      => 'Ajustement',
                                 default           => $entry->reason,
                             } }}

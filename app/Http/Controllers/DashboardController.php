@@ -36,14 +36,23 @@ class DashboardController extends Controller
         $recentMessages = Transaction::where(function ($q) use ($user) {
             $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id);
         })->whereIn('status', ['pending', 'accepted', 'buyer_done'])
-            ->with(['buyer', 'seller', 'service', 'serviceRequest', 'messages' => fn($q) => $q->latest('created_at')->limit(1)])
+            ->with(['buyer', 'seller', 'service', 'serviceRequest', 'messages' => fn ($q) => $q->latest('created_at')->limit(1)])
             ->orderByDesc('updated_at')
             ->limit(5)
             ->get();
 
+        $referralCode = $user->referral_code;
+        $referralLink = $user->community?->slug && $user->referral_code
+            ? route('community.register', ['community' => $user->community->slug, 'ref' => $user->referral_code])
+            : null;
+        $sentReferralsCount = $user->sentReferrals()->count();
+        $activatedReferralsCount = $user->sentReferrals()->where('status', 'activated')->count();
+        $referralPointsEarned = $user->referralRewards()->sum('points');
+
         return view('dashboard', compact(
             'user', 'earned', 'spent', 'completedCount',
-            'myServices', 'myRequests', 'myProposals', 'activeExchanges', 'recentMessages'
+            'myServices', 'myRequests', 'myProposals', 'activeExchanges', 'recentMessages',
+            'referralCode', 'referralLink', 'sentReferralsCount', 'activatedReferralsCount', 'referralPointsEarned',
         ));
     }
 }

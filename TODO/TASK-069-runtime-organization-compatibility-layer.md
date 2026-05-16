@@ -2,18 +2,19 @@
 task_id: TASK-069
 title: runtime-organization-compatibility-layer
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
-contributors: []
+contributors:
+  - OPENCODE
 
 branch: TASK-069-runtime-organization-compatibility-layer
 
 priority: MEDIUM
 
 created_at: 2026-05-12 19:34:20 Europe/Paris
-updated_at: 2026-05-12 19:38:20 Europe/Paris
+updated_at: 2026-05-12 19:50:00 Europe/Paris
 
 labels:
   - runtime
@@ -28,8 +29,8 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
-  url: null
+  status: MERGED
+  url: https://github.com/cslucki/entraide/pull/27
 ---
 
 # Objective
@@ -179,4 +180,18 @@ All 310 tests passed (621 assertions). Full suite vert.
 
 # Review Notes
 
-Pending.
+Merged into develop.
+
+---
+
+## 2026-05-12 19:50:00 Europe/Paris
+
+OPS workflow complet :
+- check-task.sh ✅
+- Commit implémentation + TASK ✅
+- Push branch ✅
+- CI PostgreSQL ✅ (run #9)
+- Merge --no-ff vers develop ✅
+- Push develop ✅
+- Cleanup branche locale ✅
+- PR #27 fermée ✅

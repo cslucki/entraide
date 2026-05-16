@@ -155,6 +155,43 @@ pg_dump --host=<prod-host> --port=5432 \
 ./ai/scripts/pg-dump.sh reset
 ```
 
+### Production Mirror Workflow (prod → local)
+
+Full 4-phase pipeline to mirror production data into local PostgreSQL.
+
+```bash
+./ai/scripts/pg-dump.sh prod-mirror
+```
+
+Phases:
+1. **Dump** — prompts for production credentials (from Laravel Cloud dashboard or `php artisan cloud:db:show`), dumps to `storage/app/dumps/production_<timestamp>.sql`
+2. **Import** — `pg_restore --clean` into local PostgreSQL (destructive — interactive confirmation required)
+3. **Migrate** — runs `php artisan migrate --force` for additive local migrations
+4. **Cache clear** — `php artisan optimize:clear`
+
+Alternatively, dump production separately:
+
+```bash
+./ai/scripts/pg-dump.sh prod-dump
+```
+Then import via:
+
+```bash
+./ai/scripts/pg-dump.sh import storage/app/dumps/production_<file>.sql
+```
+
+Credentials are requested interactively — never stored in scripts.
+
+### Post-mirror validation (CODE)
+
+After mirror completes, validate runtime parity:
+
+```bash
+./ai/scripts/switch-db.sh pgsql   # ensure PostgreSQL is active
+php artisan test                    # PHPUnit test suite
+npx playwright test                 # Playwright browser tests
+```
+
 ### List available dumps
 
 ```bash

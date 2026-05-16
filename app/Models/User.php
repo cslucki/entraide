@@ -19,6 +19,15 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasOrganizationId, HasUuids, Notifiable;
 
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            if (! $user->isDirty('referral_code')) {
+                $user->referral_code = app(\App\Services\ReferralCodeGenerator::class)->generate($user);
+            }
+        });
+    }
+
     protected $fillable = [
         'community_id',
         'organization_id',
@@ -38,6 +47,7 @@ class User extends Authenticatable
         'is_admin',
         'banned_at',
         'rating',
+        'referral_code',
     ];
 
     protected $hidden = [
@@ -137,6 +147,21 @@ class User extends Authenticatable
         return $this->belongsToMany(Badge::class, 'badge_user', 'user_id', 'badge_id')
             ->withPivot('earned_at')
             ->orderBy('badge_user.earned_at');
+    }
+
+    public function sentReferrals(): HasMany
+    {
+        return $this->hasMany(Referral::class, 'referrer_user_id');
+    }
+
+    public function receivedReferrals(): HasMany
+    {
+        return $this->hasMany(Referral::class, 'referred_user_id');
+    }
+
+    public function referralRewards(): HasMany
+    {
+        return $this->hasMany(ReferralReward::class);
     }
 
     public function getAvatarUrlAttribute(): string

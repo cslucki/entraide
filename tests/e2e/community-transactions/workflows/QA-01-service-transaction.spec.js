@@ -25,6 +25,7 @@ import {
     getUserPoints,
 } from '../helpers/community.js';
 import { SELECTORS, TEST_VALUES, TRANSACTION_STATUS } from '../helpers/config.js';
+import { extractSlugFromUrl } from '../helpers/community.js';
 import '../../../setup.js';
 
 // Test users from environment
@@ -53,8 +54,8 @@ test.describe('QA-01: Service Transaction Complete Workflow', () => {
 
         // Get community slug from current URL
         const url = page.url();
-        const slugMatch = url.match(/\/([a-z0-9-]+)\//);
-        communitySlug = slugMatch ? slugMatch[1] : 'default';
+
+        communitySlug = extractSlugFromUrl(page.url());
 
         // Navigate to create service
         await page.goto(`/${communitySlug}/services/create`);

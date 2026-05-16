@@ -19,6 +19,7 @@ import {
     goToMessageThread,
 } from '../helpers/community.js';
 import { TEST_VALUES } from '../helpers/config.js';
+import { extractSlugFromUrl } from '../helpers/community.js';
 import '../../../setup.js';
 
 // Test users from environment
@@ -42,9 +43,7 @@ test.describe('QA-MT02: Cross-Community Transaction Access Prevention', () => {
     test('setup: identify user communities', async ({ page }) => {
         // Check USER1 community
         await login(page, USER1_EMAIL, USER1_PASSWORD);
-        const url1 = page.url();
-        const slugMatch1 = url1.match(/\/([a-z0-9-]+)\//);
-        user1CommunitySlug = slugMatch1 ? slugMatch1[1] : 'default';
+        user1CommunitySlug = new URL(page.url()).pathname.split('/').filter(Boolean)[0] || 'default';
         console.log(`📍 USER1 community: ${user1CommunitySlug}`);
 
         await captureScreenshot(page, 'QA-MT02-setup-user1-community');
@@ -52,9 +51,7 @@ test.describe('QA-MT02: Cross-Community Transaction Access Prevention', () => {
         // Check USER2 community
         await page.goto('/logout');
         await login(page, USER2_EMAIL, USER2_PASSWORD);
-        const url2 = page.url();
-        const slugMatch2 = url2.match(/\/([a-z0-9-]+)\//);
-        user2CommunitySlug = slugMatch2 ? slugMatch2[1] : 'default';
+        user2CommunitySlug = new URL(page.url()).pathname.split('/').filter(Boolean)[0] || 'default';
         console.log(`📍 USER2 community: ${user2CommunitySlug}`);
 
         await captureScreenshot(page, 'QA-MT02-setup-user2-community');

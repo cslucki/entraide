@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PointLedger;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
+use App\Services\ReferralService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,9 +21,9 @@ class RegisteredUserController extends Controller
     /**
      * Display the registration view.
      */
-    public function create(): View
+    public function create(Request $request): View
     {
-        return view('auth.register');
+        return view('auth.register', ['ref' => $request->input('ref')]);
     }
 
     /**
@@ -60,6 +61,16 @@ class RegisteredUserController extends Controller
         $user->notify(new WelcomeNotification);
 
         Auth::login($user);
+
+        if ($ref = $request->input('ref')) {
+            try {
+                app(ReferralService::class)->attributeByCode(
+                    $user, $ref,
+                    organizationId: $organization?->id,
+                );
+            } catch (\RuntimeException) {
+            }
+        }
 
         if ($user->community_id) {
             $community = $user->community;

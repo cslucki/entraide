@@ -65,20 +65,21 @@ MAIL_FROM_NAME="BouclePro"
 VITE_APP_NAME="${APP_NAME}"
 
 # ---------------------------------------------------------
-# TEST USERS
+# TEST USERS — QA overlay
 # ---------------------------------------------------------
-# Super-Admin
-TEST_ADMIN_LOGIN=admin@example.com
+# Comptes QA officiels (QaAccountsSeeder)
+# Tous : password123
+TEST_ADMIN_LOGIN=qa-admin@bouclepro.local
 TEST_ADMIN_PASSWORD=password123
 
-# Members globaux (hors CPME)
-TEST_MEMBER1_LOGIN= alice@example.com
+TEST_MEMBER1_LOGIN=qa-member1@bouclepro.local
 TEST_MEMBER1_PASSWORD=password123
-TEST_MEMBER2_LOGIN=cyril@teletravailleurs.com
+
+TEST_MEMBER2_LOGIN=qa-member2@bouclepro.local
 TEST_MEMBER2_PASSWORD=password123
 
-# Members CPME (isolation test)
-TEST_MEMBER_OF_CPME1_LOGIN="bob@example.com"
-TEST_MEMBER_OF_CPME1_PASSWORD="password123"
-TEST_MEMBER_OF_CPME2_LOGIN="john@example.com"
-TEST_MEMBER_OF_CPME2_PASSWORD="password123"
+TEST_MEMBER_OF_CPME1_LOGIN=qa-cpme1@bouclepro.local
+TEST_MEMBER_OF_CPME1_PASSWORD=password123
+
+TEST_MEMBER_OF_CPME2_LOGIN=qa-cpme2@bouclepro.local
+TEST_MEMBER_OF_CPME2_PASSWORD=password123

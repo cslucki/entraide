@@ -48,6 +48,7 @@ PROJECT_DOCUMENTATION_DUMP.md
 /nul
 ai/scripts/*.txt
 _temp/
+.obsidian/
 ai/scripts/*.txt
 storage/app/dumps/
 public/build/
