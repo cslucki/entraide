@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminMetaCommunityController;
 use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
+use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\CommunityLandingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FavoriteController;
@@ -240,6 +241,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
     Route::patch('/blog/{post}/status', [AdminBlogController::class, 'updateStatus'])->name('blog.status');
     Route::delete('/blog/{post}', [AdminBlogController::class, 'destroy'])->name('blog.destroy');
+
+    // Loops Center
+    Route::get('/loops', [AdminLoopController::class, 'index'])->name('loops');
 });
 
 // Community landing page (with or without trailing slash)
