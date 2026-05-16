@@ -22,10 +22,6 @@
         <form method="POST" action="{{ route('requests.store') }}" enctype="multipart/form-data"
               x-data="{ selectedCategory: '{{ old('category_id', '') }}', files: [] }">
             @csrf
-            @php $tenant = $currentCommunity ?? $currentOrganization ?? null; @endphp
-            @isset($tenant)
-            <input type="hidden" name="community_id" value="{{ $tenant->id }}">
-            @endisset
 
             <div class="mb-5">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre *</label>

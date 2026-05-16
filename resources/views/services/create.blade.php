@@ -36,10 +36,6 @@
                 init() { if(this.tags) this.tagList = this.tags.split(',').filter(t=>t); }
               }">
             @csrf
-            @php $tenant = $currentCommunity ?? $currentOrganization ?? null; @endphp
-            @isset($tenant)
-            <input type="hidden" name="community_id" value="{{ $tenant->id }}">
-            @endisset
 
             <!-- Titre -->
             <div class="mb-5">
