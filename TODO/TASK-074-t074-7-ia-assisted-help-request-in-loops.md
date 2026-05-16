@@ -2,7 +2,7 @@
 task_id: TASK-074.7
 title: IA-assisted Help Request in Loops
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: T074.7-t074-7-ia-assisted-help-request-in-loops
 priority: MEDIUM
 
 created_at: 2026-05-15 21:47:26 Europe/Paris
-updated_at: 2026-05-16 07:20:00 Europe/Paris
+updated_at: 2026-05-16 08:15:00 Europe/Paris
 
 labels: []
 
@@ -144,6 +144,15 @@ OPS finalization:
 - Playwright desktop/mobile/dark PASS (6/6)
 - pr.status set to READY
 - Ready for check-task.sh → finalize-task.sh → merge-task.sh
+
+## 2026-05-16 08:15:00 Europe/Paris
+
+Merged into develop.
+
+- Merge commit: 164c2f6
+- CI develop: ✅ PASS
+- Status: MERGED
+- T074.7 complete.
 
 # Handoffs
 
