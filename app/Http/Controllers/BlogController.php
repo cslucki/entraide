@@ -14,25 +14,36 @@ class BlogController extends Controller
 {
     public function index(): View
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $recentPosts = BlogPost::published()
+            ->where('community_id', $organization->id)
             ->with(['user', 'categories', 'tags'])
             ->withCount(['comments', 'likes'])
             ->latest('published_at')
             ->paginate(12);
 
         $popularPosts = BlogPost::published()
+            ->where('community_id', $organization->id)
             ->with('user')
             ->orderByDesc('views_count')
             ->limit(5)
             ->get();
 
-        $categories = Category::withCount(['blogPosts' => fn($q) => $q->published()])->get();
+        $categories = Category::withCount([
+            'blogPosts' => fn ($q) => $q->published()->where('community_id', $organization->id),
+        ])->get();
 
-        $popularTags = Tag::withCount(['blogPosts' => fn($q) => $q->published()])
+        $popularTags = Tag::withCount([
+            'blogPosts' => fn ($q) => $q->published()->where('community_id', $organization->id),
+        ])
             ->orderByDesc('blog_posts_count')
             ->limit(30)
             ->get()
-            ->filter(fn($t) => $t->blog_posts_count > 0)
+            ->filter(fn ($t) => $t->blog_posts_count > 0)
             ->take(20);
 
         return view('blog.index', compact('recentPosts', 'popularPosts', 'categories', 'popularTags'));
@@ -40,12 +51,18 @@ class BlogController extends Controller
 
     public function byCategory(string $slug): View
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $category = Category::where('slug', $slug)->firstOrFail();
 
         $posts = BlogPost::published()
+            ->where('community_id', $organization->id)
             ->with(['user', 'categories', 'tags'])
             ->withCount(['comments', 'likes'])
-            ->whereHas('categories', fn($q) => $q->where('slug', $slug))
+            ->whereHas('categories', fn ($q) => $q->where('slug', $slug))
             ->latest('published_at')
             ->paginate(12);
 
@@ -54,12 +71,18 @@ class BlogController extends Controller
 
     public function byTag(string $slug): View
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $tag = Tag::where('slug', $slug)->firstOrFail();
 
         $posts = BlogPost::published()
+            ->where('community_id', $organization->id)
             ->with(['user', 'categories', 'tags'])
             ->withCount(['comments', 'likes'])
-            ->whereHas('tags', fn($q) => $q->where('slug', $slug))
+            ->whereHas('tags', fn ($q) => $q->where('slug', $slug))
             ->latest('published_at')
             ->paginate(12);
 
@@ -68,7 +91,12 @@ class BlogController extends Controller
 
     public function show(BlogPost $post): View
     {
-        if ($post->status !== 'published' && auth()->id() !== $post->user_id && !auth()->user()?->is_admin) {
+        $organization = currentOrganization();
+        if (! $organization || $post->community_id !== $organization->id) {
+            abort(404);
+        }
+
+        if ($post->status !== 'published' && auth()->id() !== $post->user_id && ! auth()->user()?->is_admin) {
             abort(404);
         }
 
@@ -76,8 +104,9 @@ class BlogController extends Controller
         $post->load(['user', 'categories', 'tags', 'comments.user', 'comments.replies.user']);
 
         $relatedPosts = BlogPost::published()
+            ->where('community_id', $organization->id)
             ->with('user')
-            ->whereHas('categories', fn($q) => $q->whereIn('categories.id', $post->categories->pluck('id')))
+            ->whereHas('categories', fn ($q) => $q->whereIn('categories.id', $post->categories->pluck('id')))
             ->where('id', '!=', $post->id)
             ->latest('published_at')
             ->limit(3)
@@ -90,31 +119,43 @@ class BlogController extends Controller
 
     public function create(): View
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $this->authorize('create', BlogPost::class);
         $categories = Category::all();
         $tags = Tag::orderBy('name')->get();
+
         return view('blog.create', compact('categories', 'tags'));
     }
 
     public function store(Request $request): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $this->authorize('create', BlogPost::class);
 
         $data = $request->validate([
-            'title'            => 'required|string|max:255',
-            'summary'          => 'nullable|string|max:500',
-            'content'          => 'required|string|min:50',
-            'image'            => 'nullable|image|max:2048',
-            'status'           => 'required|in:draft,published',
-            'categories'       => 'nullable|array',
-            'categories.*'     => 'uuid|exists:categories,id',
-            'tags'             => 'nullable|string',
-            'meta_title'       => 'nullable|string|max:255',
+            'title' => 'required|string|max:255',
+            'summary' => 'nullable|string|max:500',
+            'content' => 'required|string|min:50',
+            'image' => 'nullable|image|max:2048',
+            'status' => 'required|in:draft,published',
+            'categories' => 'nullable|array',
+            'categories.*' => 'uuid|exists:categories,id',
+            'tags' => 'nullable|string',
+            'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string|max:320',
         ]);
 
-        $data['user_id']      = auth()->id();
-        $data['slug']         = Str::slug($data['title']);
+        $data['user_id'] = auth()->id();
+        $data['community_id'] = $organization->id;
+        $data['slug'] = Str::slug($data['title']);
         $data['published_at'] = $data['status'] === 'published' ? now() : null;
 
         if ($request->hasFile('image')) {
@@ -123,13 +164,13 @@ class BlogController extends Controller
 
         $post = BlogPost::create($data);
 
-        if (!empty($data['categories'])) {
+        if (! empty($data['categories'])) {
             $post->categories()->sync($data['categories']);
         }
 
-        if (!empty($data['tags'])) {
+        if (! empty($data['tags'])) {
             $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
-                ->map(fn($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
+                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
                 ->all();
             $post->tags()->sync($tagIds);
         }
@@ -139,30 +180,41 @@ class BlogController extends Controller
 
     public function edit(BlogPost $post): View
     {
+        $organization = currentOrganization();
+        if (! $organization || $post->community_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('update', $post);
         $categories = Category::all();
         $tags = Tag::orderBy('name')->get();
+
         return view('blog.edit', compact('post', 'categories', 'tags'));
     }
 
     public function update(Request $request, BlogPost $post): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization || $post->community_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('update', $post);
 
         $data = $request->validate([
-            'title'            => 'required|string|max:255',
-            'summary'          => 'nullable|string|max:500',
-            'content'          => 'required|string|min:50',
-            'image'            => 'nullable|image|max:2048',
-            'status'           => 'required|in:draft,pending,published,archived',
-            'categories'       => 'nullable|array',
-            'categories.*'     => 'uuid|exists:categories,id',
-            'tags'             => 'nullable|string',
-            'meta_title'       => 'nullable|string|max:255',
+            'title' => 'required|string|max:255',
+            'summary' => 'nullable|string|max:500',
+            'content' => 'required|string|min:50',
+            'image' => 'nullable|image|max:2048',
+            'status' => 'required|in:draft,pending,published,archived',
+            'categories' => 'nullable|array',
+            'categories.*' => 'uuid|exists:categories,id',
+            'tags' => 'nullable|string',
+            'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string|max:320',
         ]);
 
-        if ($data['status'] === 'published' && !$post->published_at) {
+        if ($data['status'] === 'published' && ! $post->published_at) {
             $data['published_at'] = now();
         }
 
@@ -175,7 +227,7 @@ class BlogController extends Controller
 
         if (isset($data['tags'])) {
             $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
-                ->map(fn($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
+                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
                 ->all();
             $post->tags()->sync($tagIds);
         }
@@ -185,24 +237,42 @@ class BlogController extends Controller
 
     public function publish(BlogPost $post): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization || $post->community_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('update', $post);
         $post->update([
-            'status'       => 'published',
+            'status' => 'published',
             'published_at' => $post->published_at ?? now(),
         ]);
+
         return back()->with('success', 'Article publié.');
     }
 
     public function destroy(BlogPost $post): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization || $post->community_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('delete', $post);
         $post->delete();
+
         return redirect()->route('blog.my-posts')->with('success', 'Article supprimé.');
     }
 
     public function myPosts(): View
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $posts = BlogPost::where('user_id', auth()->id())
+            ->where('community_id', $organization->id)
             ->withCount(['comments', 'likes'])
             ->latest()
             ->paginate(15);
