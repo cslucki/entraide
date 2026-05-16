@@ -14,6 +14,8 @@ use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
+use App\Services\Ai\Contracts\AiProvider;
+use App\Services\Ai\FakeAIProvider;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -30,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(ReferralCodeGenerator::class);
         $this->app->singleton(RewardDispatcher::class);
+        $this->app->bind(AiProvider::class, FakeAIProvider::class);
     }
 
     public function boot(): void
