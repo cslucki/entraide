@@ -2,7 +2,7 @@
 task_id: TASK-074.11
 title: QA & Tenant Safety Routes
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
