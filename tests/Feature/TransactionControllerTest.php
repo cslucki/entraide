@@ -5,10 +5,18 @@ namespace Tests\Feature;
 use App\Models\Service;
 use App\Models\Transaction;
 use App\Models\User;
+use Tests\Concerns\WithTestOrganization;
 use Tests\TestCase;
 
 class TransactionControllerTest extends TestCase
 {
+    use WithTestOrganization;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->setUpOrganization();
+    }
     public function test_buyer_can_create_transaction_on_service(): void
     {
         $seller = User::factory()->create();

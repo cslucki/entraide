@@ -5,14 +5,23 @@ namespace Tests\Feature;
 use App\Models\Service;
 use App\Models\User;
 use App\Models\Favorite;
+use Tests\Concerns\WithTestOrganization;
 use Tests\TestCase;
 
 class FavoriteControllerTest extends TestCase
 {
+    use WithTestOrganization;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->setUpOrganization();
+    }
     public function test_user_can_favorite_service(): void
     {
-        $user = User::factory()->create();
-        $service = Service::factory()->forUser(User::factory()->create())->create();
+        $user = $this->orgUser();
+        $owner = $this->orgUser();
+        $service = Service::factory()->forUser($owner)->create(['community_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($user)->post(route('favorites.toggle', $service));
 
@@ -24,8 +33,9 @@ class FavoriteControllerTest extends TestCase
 
     public function test_user_can_unfavorite_service(): void
     {
-        $user = User::factory()->create();
-        $service = Service::factory()->forUser(User::factory()->create())->create();
+        $user = $this->orgUser();
+        $owner = $this->orgUser();
+        $service = Service::factory()->forUser($owner)->create(['community_id' => $this->testOrganization->id]);
 
         Favorite::create(['user_id' => $user->id, 'service_id' => $service->id]);
 
@@ -39,9 +49,9 @@ class FavoriteControllerTest extends TestCase
 
     public function test_favorite_page_shows_user_favorites(): void
     {
-        $user = User::factory()->create();
-        $otherUser = User::factory()->create();
-        $service = Service::factory()->forUser($otherUser)->create();
+        $user = $this->orgUser();
+        $otherUser = $this->orgUser();
+        $service = Service::factory()->forUser($otherUser)->create(['community_id' => $this->testOrganization->id]);
 
         Favorite::create(['user_id' => $user->id, 'service_id' => $service->id]);
 

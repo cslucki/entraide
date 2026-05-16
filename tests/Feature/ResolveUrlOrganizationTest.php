@@ -340,13 +340,11 @@ class ResolveUrlOrganizationTest extends TestCase
         $this->assertEquals(ResolveUrlOrganization::class, $aliases['url.organization']);
     }
 
-    public function test_resolve_url_organization_is_not_in_web_group(): void
+    public function test_resolve_url_organization_is_in_web_group(): void
     {
-        // Deferred to T075.3+ — web group activation requires fixing 36 tests
-        // that create users without Organization setup (WithTestOrganization trait).
         $webGroup = app('router')->getMiddlewareGroups()['web'] ?? [];
 
-        $this->assertNotContains(ResolveUrlOrganization::class, $webGroup);
+        $this->assertContains(ResolveUrlOrganization::class, $webGroup);
     }
 
     public function test_default_organization_id_static_is_null_by_default(): void

@@ -4,11 +4,19 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\WithTestOrganization;
 use Tests\TestCase;
 
 class BanMiddlewareTest extends TestCase
 {
     use RefreshDatabase;
+    use WithTestOrganization;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->setUpOrganization();
+    }
 
     public function test_banned_user_is_logged_out_and_redirected(): void
     {
@@ -33,7 +41,7 @@ class BanMiddlewareTest extends TestCase
 
     public function test_active_user_is_not_affected(): void
     {
-        $user = User::factory()->create(['banned_at' => null]);
+        $user = $this->orgUser(['banned_at' => null]);
 
         $response = $this->actingAs($user)->get('/dashboard');
 

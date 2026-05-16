@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Community;
-use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\User;
 use App\Services\LoopService;
@@ -15,9 +14,13 @@ class T07411RoutesTenantSafetyTest extends TestCase
     use RefreshDatabase;
 
     private Community $community;
+
     private User $user;
+
     private User $userWithoutCommunity;
+
     private User $admin;
+
     private LoopService $service;
 
     protected function setUp(): void
@@ -51,12 +54,10 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $response->assertSee('My Loop');
     }
 
-    public function test_loops_index_returns_200_for_user_without_community(): void
+    public function test_loops_index_returns_404_for_user_without_community(): void
     {
         $response = $this->actingAs($this->userWithoutCommunity)->get('/loops');
-        $response->assertOk();
-        $response->assertSee('Mes boucles');
-        $response->assertSeeText("Vous n'avez encore aucune boucle");
+        $response->assertNotFound();
     }
 
     public function test_loops_index_redirects_guest_to_login(): void
@@ -72,10 +73,10 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_loops_create_redirects_to_index_for_user_without_community(): void
+    public function test_loops_create_returns_404_for_user_without_community(): void
     {
         $response = $this->actingAs($this->userWithoutCommunity)->get('/loops/create');
-        $response->assertRedirect(route('loops.index'));
+        $response->assertNotFound();
     }
 
     public function test_loops_create_returns_200_for_admin_with_community(): void
@@ -84,7 +85,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_loops_create_redirects_admin_without_community(): void
+    public function test_loops_create_returns_404_for_admin_without_community(): void
     {
         $adminWithoutCommunity = User::factory()->create([
             'is_admin' => true,
@@ -92,7 +93,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
             'organization_id' => null,
         ]);
         $response = $this->actingAs($adminWithoutCommunity)->get('/loops/create');
-        $response->assertRedirect(route('loops.index'));
+        $response->assertNotFound();
     }
 
     public function test_loops_create_redirects_guest_to_login(): void
@@ -108,14 +109,10 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $response->assertSee('Créer votre première boucle');
     }
 
-    public function test_loops_index_hides_create_cta_for_user_without_community(): void
+    public function test_loops_index_returns_404_for_user_without_community_no_cta(): void
     {
         $response = $this->actingAs($this->userWithoutCommunity)->get('/loops');
-        $response->assertOk();
-        $response->assertSee('Mes boucles');
-        $response->assertSeeText("Vous n'avez encore aucune boucle");
-        $response->assertDontSee('Nouvelle');
-        $response->assertDontSee('Créer votre première boucle');
+        $response->assertNotFound();
     }
 
     // ── /boucles (public legacy route) ────────────────────────────────────
@@ -177,7 +174,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
 
     // ── Blocker 1: No community → residual membership hidden ─────────────
 
-    public function test_loops_index_without_community_hides_residual_membership(): void
+    public function test_loops_index_returns_404_for_user_without_community_with_membership(): void
     {
         $loop = $this->service->createLoop($this->user, 'Residual Loop');
         LoopMember::factory()->create([
@@ -187,9 +184,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->userWithoutCommunity)->get('/loops');
-        $response->assertOk();
-        $response->assertDontSee('Residual Loop');
-        $response->assertSeeText("Vous n'avez encore aucune boucle");
+        $response->assertNotFound();
     }
 
     // ── Blocker 2: Legacy /{community}/loops cross-tenant isolation ──────

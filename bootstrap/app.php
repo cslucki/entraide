@@ -31,7 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // hit business routes without setting up an Organization.
         $middleware->appendToGroup('web', [
             EnsureUserIsNotBanned::class,
-            // ResolveUrlOrganization::class, // TODO T075.3 — activate
+            ResolveUrlOrganization::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
