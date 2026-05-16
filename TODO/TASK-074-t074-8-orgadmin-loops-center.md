@@ -2,7 +2,7 @@
 task_id: TASK-074.8
 title: OrgAdmin Loops Center
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: T074.8-t074-8-orgadmin-loops-center
 priority: MEDIUM
 
 created_at: 2026-05-16 10:45:29 Europe/Paris
-updated_at: 2026-05-16 17:54:00 Europe/Paris
+updated_at: 2026-05-16 18:15:00 Europe/Paris
 
 labels:
   - orgadmin
