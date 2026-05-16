@@ -230,18 +230,68 @@ N/A — Tâche complétée par OPENCODE.
 
 ---
 
+# OPENAI Review — CHANGES REQUESTED (2026-05-16)
+
+## Blocker 1 — index() sans community_id expose les adhésions résiduelles
+
+**Rapport OPENAI :**
+> Quand resolveCommunityId() retourne null, la requête saute le filtre community_id (via when()). Elle retombe uniquement sur loop_members.user_id. Risque : un utilisateur sans Organization/Community mais avec une adhésion résiduelle à une Loop pourrait voir cette Loop.
+
+**Correction appliquée :**
+- `index()` vérifie maintenant `$communityId === null` en tête de méthode
+- Si null → `$loops = collect()` + vue avec empty state immédiatement
+- La requête Eloquent n'est jamais exécutée sans filtre tenant
+- Le `when()` a été supprimé ; la clause `where('community_id', $communityId)` est maintenant inconditionnelle (protégée par le early return)
+
+## Blocker 2 — /{community}/loops ne vérifie pas l'appartenance au tenant legacy
+
+**Rapport OPENAI :**
+> index() ne vérifie pas explicitement que l'utilisateur appartient au tenant legacy courant quand current_community est bindé.
+
+**Correction appliquée :**
+- Après le guard null, `index()` appelle `resolveCommunity()` + `assertUserBelongsToCommunity()`
+- Même discipline que `create()`, `store()`, `show()`, `addMember()`, etc.
+- Si current_community est bindé (route legacy), `assertUserBelongsToCommunity` vérifie `$user->community_id === current_community->id`
+- Si mismatch → abort(404), identique au comportement des autres méthodes
+
+## Fichiers modifiés (fix OPENAI)
+
+| Fichier | Modification |
+|---|---|
+| `app/Http/Controllers/LoopController.php` | index() : early return empty si communityId null + resolveCommunity() + assertUserBelongsToCommunity() |
+| `tests/Feature/T07411RoutesTenantSafetyTest.php` | +2 tests : residual membership hidden + cross-tenant legacy denie d |
+| `TODO/TASK-074-t074-11-qa-tenant-safety-routes.md` | Section OPENAI review + fix documentation |
+
+## Tests ajoutés
+
+- `test_loops_index_without_community_hides_residual_membership` — user sans community, adhésion résiduelle forcée, GET /loops → 200, loop non visible, empty state
+- `test_legacy_community_loops_denies_cross_tenant_access` — user org A, GET /{orgB}/loops, même avec membership résiduelle → 404
+
+---
+
 # Test Results
 
+## Avant fix OPENAI
 T074.11: 14/14 PASS
 Full suite: 540/541 PASS (1 pre-existing SearchControllerTest unrelated)
+Regression: 0 failures
+
+## Après fix OPENAI
+T074.11: 16/16 PASS
+Full suite: 542/543 PASS (1 pre-existing SearchControllerTest unrelated)
 Regression: 0 failures
 
 ---
 
 # Review Notes
 
+## Initial fix
 - **Root cause du 404**: `LoopController::resolveCommunity()` abort(404) quand `current_community` non bound ET user.community_id null. L'utilisateur fixture test@example.com a community_id=null.
-- **Fix**: Nouvelle méthode `resolveCommunityId()` retourne nullable string au lieu d'abort(404). L'index() utilise `when()` pour conditionner le filtre community_id. Les autres méthodes (create, store, show, etc.) conservent le comportement strict.
-- **Sécurité**: Le fix préserve la tenant isolation — si community_id résolu, le filtre est appliqué. Sans community_id, seules les loops où l'user est member sont retournées.
+- **Fix v1**: Nouvelle méthode `resolveCommunityId()` retourne nullable string au lieu d'abort(404). L'index() utilise `when()` pour conditionner le filtre community_id. Les autres méthodes conservent le comportement strict.
+- **Sécurité v1**: Le fix préserve la tenant isolation — si community_id résolu, le filtre est appliqué. Sans community_id, seules les loops où l'user est member sont retournées.
+
+## Fix après OPENAI review (2026-05-16)
+- **Blocker 1 corrigé** : early return empty collection si communityId null → plus aucune exposition résiduelle
+- **Blocker 2 corrigé** : assertUserBelongsToCommunity() dans index() → même discipline tenant-scoped que les autres méthodes
 - **HTTPS**: Certificat auto-signé non reconnu en local (ERR_CERT_AUTHORITY_INVALID). HTTP fonctionne parfaitement. La validation HTTPS sera assurée par le staging/production avec des certificats valides.
-- **Prêt pour OPENAI review**: Oui.
+- **Prêt pour nouvelle OPENAI review**: Oui.

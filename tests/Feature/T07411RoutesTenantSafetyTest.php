@@ -135,6 +135,42 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $response->assertDontSee('Other Community Loop');
     }
 
+    // ── Blocker 1: No community → residual membership hidden ─────────────
+
+    public function test_loops_index_without_community_hides_residual_membership(): void
+    {
+        $loop = $this->service->createLoop($this->user, 'Residual Loop');
+        LoopMember::factory()->create([
+            'loop_id' => $loop->id,
+            'user_id' => $this->userWithoutCommunity->id,
+            'status' => 'active',
+        ]);
+
+        $response = $this->actingAs($this->userWithoutCommunity)->get('/loops');
+        $response->assertOk();
+        $response->assertDontSee('Residual Loop');
+        $response->assertSeeText("Vous n'avez encore aucune boucle");
+    }
+
+    // ── Blocker 2: Legacy /{community}/loops cross-tenant isolation ──────
+
+    public function test_legacy_community_loops_denies_cross_tenant_access(): void
+    {
+        $otherCommunity = Community::factory()->create(['is_active' => true]);
+        $otherUser = User::factory()->create(['community_id' => $otherCommunity->id]);
+        $loop = $this->service->createLoop($otherUser, 'Other Tenant Loop');
+
+        LoopMember::factory()->create([
+            'loop_id' => $loop->id,
+            'user_id' => $this->user->id,
+            'status' => 'active',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->get("/{$otherCommunity->slug}/loops");
+        $response->assertNotFound();
+    }
+
     // ── Named routes consistency ──────────────────────────────────────────
 
     public function test_loops_named_routes_exist(): void

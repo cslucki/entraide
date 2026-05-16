@@ -51,8 +51,17 @@ class LoopController extends Controller
 
         $communityId = $this->resolveCommunityId();
 
+        if ($communityId === null) {
+            $loops = collect();
+
+            return view('loops.index', compact('loops'));
+        }
+
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
         $loops = Loop::query()
-            ->when($communityId, fn ($q) => $q->where('community_id', $communityId))
+            ->where('community_id', $communityId)
             ->whereIn('id', function ($q) use ($user) {
                 $q->select('loop_id')
                     ->from('loop_members')
