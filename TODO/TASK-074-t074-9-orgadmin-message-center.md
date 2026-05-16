@@ -2,7 +2,7 @@
 task_id: TASK-074.9
 title: OrgAdmin Message Center
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
