@@ -44,9 +44,19 @@ class PointController extends Controller
             $labels[] = now()->format('d/m H:i');
         }
 
+        $referralPointsEarned = $user->referralRewards()->sum('points');
+        $sentReferralsCount = $user->sentReferrals()->count();
+        $activatedReferralsCount = $user->sentReferrals()->where('status', 'activated')->count();
+        $referralLink = $user->community?->slug && $user->referral_code
+            ? route('community.register', ['community' => $user->community->slug, 'ref' => $user->referral_code])
+            : null;
+
         $history = array_reverse($history);
         $labels = array_reverse($labels);
 
-        return view('points.index', compact('entries', 'earned', 'spent', 'history', 'labels'));
+        return view('points.index', compact(
+            'entries', 'earned', 'spent', 'history', 'labels',
+            'referralPointsEarned', 'sentReferralsCount', 'activatedReferralsCount', 'referralLink',
+        ));
     }
 }
