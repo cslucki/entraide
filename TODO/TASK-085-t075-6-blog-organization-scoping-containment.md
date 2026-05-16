@@ -2,7 +2,7 @@
 task_id: TASK-085
 title: T075.6 — Blog Organization Scoping + Containment
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-085-t075-6-blog-organization-scoping-containment
 priority: HIGH
 
 created_at: 2026-05-17 01:12:40 Europe/Paris
-updated_at: 2026-05-17 03:00:00 Europe/Paris
+updated_at: 2026-05-17 03:05:00 Europe/Paris
 
 labels:
   - organization-scoping
