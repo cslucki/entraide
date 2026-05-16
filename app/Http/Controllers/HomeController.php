@@ -34,9 +34,15 @@ class HomeController extends Controller
 
     public function members(): View
     {
-        $communityId = $this->currentCommunityId();
+        $organization = currentOrganization();
 
-        $members = User::when($communityId, fn ($q) => $q->where('community_id', $communityId))
+        if (! $organization) {
+            abort(404);
+        }
+
+        $communityId = $organization->id;
+
+        $members = User::where('community_id', $communityId)
             ->withCount([
                 'services as active_services_count' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'active')->where('community_id', $communityId),
                 'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'open')->where('community_id', $communityId),
@@ -59,7 +65,13 @@ class HomeController extends Controller
 
     public function exchanges(): View
     {
-        $communityId = $this->currentCommunityId();
+        $organization = currentOrganization();
+
+        if (! $organization) {
+            abort(404);
+        }
+
+        $communityId = $organization->id;
 
         $exchanges = Transaction::withoutGlobalScopes()
             ->where('status', 'completed')
@@ -69,10 +81,5 @@ class HomeController extends Controller
             ->paginate(20);
 
         return view('exchanges.index', compact('exchanges'));
-    }
-
-    private function currentCommunityId(): ?string
-    {
-        return currentOrganization()?->id;
     }
 }
