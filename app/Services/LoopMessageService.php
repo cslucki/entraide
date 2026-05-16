@@ -26,6 +26,8 @@ class LoopMessageService
 
             event(new LoopMessageCreated($message));
 
+            $loop->touch();
+
             return $message;
         });
     }
@@ -60,6 +62,8 @@ class LoopMessageService
             ]);
 
             event(new LoopMessageCreated($message));
+
+            $loop->touch();
 
             return $message;
         });

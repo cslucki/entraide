@@ -69,7 +69,8 @@ class LoopController extends Controller
                     ->where('user_id', $user->id);
             })
             ->withCount('activeMembers')
-            ->latest()
+            ->withMax('messages as last_message_at', 'created_at')
+            ->latest('updated_at')
             ->get();
 
         $canCreate = true;
