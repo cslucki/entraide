@@ -6,6 +6,7 @@ use App\Models\Community;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Referral;
+use App\Services\Ai\Contracts\AiProvider;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
 use Illuminate\Http\RedirectResponse;
@@ -17,6 +18,7 @@ class LoopController extends Controller
     public function __construct(
         private readonly LoopService $loopService,
         private readonly LoopMessageService $loopMessageService,
+        private readonly AiProvider $aiProvider,
     ) {}
 
     private function resolveCommunity(): Community
@@ -121,6 +123,100 @@ class LoopController extends Controller
         $eligibleReferrals = $this->loopService->getEligibleReferrals($user, $loop);
 
         return view('loops.show', compact('loop', 'messages', 'eligibleReferrals', 'isMember'));
+    }
+
+    public function analyzeHelpIntention(Request $request, Loop $loop): RedirectResponse
+    {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
+        if ($loop->community_id !== $community->id) {
+            abort(404);
+        }
+
+        $user = $request->user();
+
+        $isMember = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $isMember) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'intention' => 'required|string|min:3|max:2000',
+        ]);
+
+        $result = $this->aiProvider->analyze($data['intention']);
+
+        if ($result->isBlocked()) {
+            return redirect()->route('loops.show', $loop)
+                ->with('help_request_error', $result->fallback['reason'] ?? 'Cette demande ne peut pas être publiée.');
+        }
+
+        return redirect()->route('loops.show', $loop)
+            ->with('help_request_analysis', $result->toArray())
+            ->with('help_request_intention', $data['intention']);
+    }
+
+    public function publishHelpRequest(Request $request, Loop $loop): RedirectResponse
+    {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
+        if ($loop->community_id !== $community->id) {
+            abort(404);
+        }
+
+        $user = $request->user();
+
+        $isMember = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $isMember) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'title' => 'required|string|max:120',
+            'need' => 'required|string|max:2000',
+            'context' => 'nullable|string|max:3000',
+            'expected_help_type' => 'nullable|string|max:500',
+            'deadline' => 'nullable|string|max:500',
+            'urgency' => 'nullable|string|in:low,normal,high',
+        ]);
+
+        $body = $data['need'];
+        $title = $data['title'];
+        $need = $data['need'];
+        $context = $data['context'] ?? '';
+        $expectedHelpType = $data['expected_help_type'] ?? '';
+        $deadline = $data['deadline'] ? ['label' => $data['deadline']] : null;
+        $urgency = $data['urgency'] ?? 'normal';
+
+        try {
+            $this->loopMessageService->sendHelpRequestMessage(
+                $loop,
+                $user,
+                $body,
+                $title,
+                $need,
+                $context,
+                $expectedHelpType,
+                $deadline,
+                $urgency,
+            );
+        } catch (\RuntimeException $e) {
+            return redirect()->route('loops.show', $loop)
+                ->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('loops.show', $loop)
+            ->with('success', 'Votre demande d\'aide a été publiée dans la boucle.');
     }
 
     public function addMember(Request $request, Loop $loop): RedirectResponse
