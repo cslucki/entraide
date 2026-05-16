@@ -134,6 +134,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
     Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
     Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
+    Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
+    Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
 });
 
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
@@ -337,6 +339,8 @@ Route::prefix('/{community}')
             Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
             Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
             Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
+            Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
+            Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
         });
 
         // Routes publiques communauté
