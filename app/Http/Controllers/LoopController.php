@@ -53,8 +53,9 @@ class LoopController extends Controller
 
         if ($communityId === null) {
             $loops = collect();
+            $canCreate = false;
 
-            return view('loops.index', compact('loops'));
+            return view('loops.index', compact('loops', 'canCreate'));
         }
 
         $community = $this->resolveCommunity();
@@ -71,7 +72,9 @@ class LoopController extends Controller
             ->latest()
             ->get();
 
-        return view('loops.index', compact('loops'));
+        $canCreate = true;
+
+        return view('loops.index', compact('loops', 'canCreate'));
     }
 
     private function resolveCommunityId(): ?string
