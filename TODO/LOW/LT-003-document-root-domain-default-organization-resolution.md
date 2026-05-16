@@ -2,7 +2,7 @@
 task_id: LT-003
 title: Document Root Domain Default Organization Resolution
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: LT-003-document-root-domain-default-organization-resolution
 priority: LOW
 
 created_at: 2026-05-16 14:55:00 Europe/Paris
-updated_at: 2026-05-16 14:55:00 Europe/Paris
+updated_at: 2026-05-16 17:00:00 Europe/Paris
 
 labels:
   - documentation
@@ -161,6 +161,23 @@ Prochaine étape : implémenter la documentation dans les fichiers visés.
 Status: DONE
 Lock: UNLOCKED
 Handoff to T75/T76: documented in ADR-002
+
+---
+
+## 2026-05-16 17:00:00 Europe/Paris
+
+### Merged into develop
+
+- Commit: `7f7b7c4` — `docs(architecture): document root domain default organization resolution`
+- Merge commit: `a13ec71` — merge commit into develop
+- Branch pushed: `LT-003-document-root-domain-default-organization-resolution`
+- Develop pushed: `a13ec71`
+- CI: not triggered (documentation only, no code)
+
+### Final status
+
+Status: MERGED
+Lock: UNLOCKED
 
 ---
 
