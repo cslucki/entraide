@@ -46,6 +46,22 @@ Critical systems must remain stable:
 
 ---
 
+# Concepts Clarifiés (T075.1)
+
+| Concept | Rôle |
+|---------|------|
+| Organization | Tenant. Frontière de sécurité, billing, gouvernance. |
+| Partner | Entrée co-branding / distribution. Pas un tenant. Peut pointer vers une Organization. |
+| Loop | Groupe collaboratif interne à une Organization. Pas un tenant. |
+| Community | Legacy technique temporaire. Community_id sera progressivement remplacé par organization_id. |
+| Root domain | N'est pas tenantless pour les routes métier. Résout l'Organization par défaut. |
+| Default Organization | Organization résolue pour `/{feature}` sur le root domain. |
+| Partner slug route | `/{partnerSlug}/{feature}` résout l'Organization partenaire. |
+| Platform global route | Route sans Organization (`/`, `/login`, `/admin/*`, `/partners`). |
+| Organization-scoped public route | Route publique mais Organization-scopée. Public ≠ global. |
+
+---
+
 # Organization Migration Context
 
 The platform is actively migrating from:

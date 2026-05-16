@@ -164,6 +164,32 @@ but only when:
 
 ---
 
+# URL Context Resolution Order
+
+La résolution de l'Organization dépend du contexte URL. Cinq niveaux :
+
+### 1. Platform global route
+Routes : `/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partners`, `/admin/*`.
+**Aucune Organization requise.** Sauf `/admin/*` qui reste accessible sans Organization (Platform admin global).
+
+### 2. Default Organization route (`/{feature}`)
+Routes : `/blog`, `/explorer`, `/membres`, `/loops`, `/services`, `/requests`, `/messages`.
+**Résout l'Organization par défaut de la plateforme.** Ces routes sont publiques ou auth selon les besoins, mais toujours Organization-scopées.
+
+### 3. Partner slug route (`/{partnerSlug}/{feature}`)
+Routes : `/{partnerSlug}`, `/{partnerSlug}/blog`, `/{partnerSlug}/explorer`, `/{partnerSlug}/membres`, `/{partnerSlug}/loops`.
+**Résout l'Organization liée au partnerSlug** via mapping Partner → Organization.
+**Partner n'est pas un tenant.** C'est une entrée co-branding / distribution.
+
+### 4. Authenticated personal route
+Routes : `/dashboard`.
+**Résout l'Organization du user connecté.** Si le user n'a pas d'Organization, redirection vers onboarding.
+
+### 5. Fail-safe
+Si une route métier requiert Organization et qu'aucune n'est résolue → blocage / redirect / 404.
+
+---
+
 # Route Architecture
 
 ## Current Route Pattern

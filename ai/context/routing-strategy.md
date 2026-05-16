@@ -1,10 +1,35 @@
 # Organization-Aware Routing Strategy
 
+## Root Domain Routing Patterns (T075.1)
+
+### Pattern cible
+
+| Pattern | Comportement |
+|---------|-------------|
+| `/{feature}` | Résout l'Organization par défaut de la plateforme. Ex: `/blog`, `/explorer`, `/membres`. |
+| `/{partnerSlug}/{feature}` | Résout l'Organization partenaire. Ex: `/bni/blog`, `/bni/explorer`. |
+| `/partners` | Platform global. Pas d'Organization. |
+| `/{partnerSlug}` | Public mais Organization-scopé (Needs Org = Yes, Global = No). |
+
+### Règles
+
+- **Public ≠ global.** Une route publique peut être Organization-scopée. Ex: `/{partnerSlug}` est publique mais nécessite une Organization résolue.
+- **`/boucles` est legacy** à déprécier, pas le vrai concept Loop.
+- **Toute feature métier actuelle et future** doit être Organization-scopée. Aucune feature métier sur route Platform globale par défaut.
+
+### Routes Platform globales autorisées
+
+`/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partners`, `/admin/*`.
+
+---
+
 ## Current Architecture
 
 ### Two URL Scheme Patterns
 
-**Global routes** (non-scoped): `/login`, `/dashboard`, `/services/{uuid}`, etc.
+**Platform global routes**: `/`, `/login`, `/register`, `/password/*`, `/partners`, `/admin/*`.
+
+**Legacy root-domain business routes currently lacking tenant middleware**: `/dashboard`, `/services/{uuid}`, etc. These are not architecturally global; T075.2 must resolve an Organization for them.
 
 **Community-scoped routes**: `/{community}/...` with middleware `['web', 'community']`
 
