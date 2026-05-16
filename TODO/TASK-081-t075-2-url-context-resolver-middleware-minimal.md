@@ -2,7 +2,7 @@
 task_id: TASK-081
 title: T075.2 — URL Context Resolver Middleware Minimal
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -278,6 +278,13 @@ Implémentation :
 - Test ajouté : `test_partners_prefix_is_platform_global`.
 
 **Résultats** : 22/22 tests ciblés ✅ · 580/580 full suite ✅ · Pint clean ✅.
+
+## 2026-05-17 — Merge into develop
+
+- Merged via merge-task.sh (--no-ff).
+- Merge commit: 13806aa.
+- Push develop: OK.
+- TASK status: MERGED.
 
 ## 2026-05-16 — Implémentation
 
