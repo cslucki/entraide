@@ -330,6 +330,67 @@ Not part of the current MVP scope.
 
 ---
 
+# 9.5 Root Domain Resolution
+
+## Rule
+
+The root domain is **not tenantless**.
+
+```text
+Organization = Tenant
+```
+
+Therefore, the root domain (`test.laravel` in dev, `bouclepro.com` in production) resolves the **default Organization**.
+
+## Rationale
+
+- The root domain is the primary entry point for all users.
+- Treating the root domain as "outside Organization" would create:
+  - a security breach,
+  - an architectural inconsistency,
+  - a bypass of the tenant model.
+- A Loop is never created outside an Organization.
+- A Loop never becomes the tenant.
+
+## Resolution Strategy
+
+Two canonical approaches:
+
+| Approach | Description |
+| -------- | ----------- |
+| Internal resolution | The root domain implicitly resolves a default Organization (e.g. public page with implicit tenant context) |
+| Redirect | The root domain redirects to an Organization-scoped canonical route (e.g. `/org/{slug}`) |
+
+## Guard State
+
+If no Organization can be resolved from:
+- the route,
+- the host,
+- the authenticated user,
+- or an explicit default Organization,
+
+the application must fail safely (404, 410, or documented setup redirect).
+
+## Application
+
+This rule applies to all routes accessed via the root domain without an explicit Organization scope:
+
+```text
+/loops
+/loops/create
+/admin/loops
+/dashboard
+/services
+/requests
+/messages
+/blog
+/membres
+```
+
+All environments (dev, staging, production) must follow this rule.
+
+---
+
 # 10. Legacy Compatibility
 
 The current Laravel implementation still relies heavily on:
