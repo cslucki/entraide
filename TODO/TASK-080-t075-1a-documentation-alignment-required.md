@@ -2,7 +2,7 @@
 task_id: TASK-080
 title: T075.1A — Documentation Alignment Required
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -203,6 +203,14 @@ Finalisation.
 - Aucun code applicatif modifié.
 - Prêt pour check-task.sh + finalize-task.sh.
 
+## 2026-05-17 00:05:00 Europe/Paris
+
+Merged into develop via merge-task.sh.
+- Merge commit: 96b44a2 (--no-ff).
+- Push develop: OK.
+- CI triggered automatically (in_progress).
+- TASK status: MERGED.
+
 ---
 
 # Handoffs
@@ -228,8 +236,8 @@ Pending.
 
 # Review Notes
 
-**Status**: DONE.
-**Phase**: Documentation alignment — finalisé.
+**Status**: MERGED.
+**Phase**: Documentation alignment — mergé dans develop.
 **Code modified**: None.
 **Database migrations**: None.
 **PROD**: Not touched.
