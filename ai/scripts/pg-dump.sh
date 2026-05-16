@@ -4,6 +4,25 @@
 # =========================================================
 # Production sync workflow for Laravel Cloud
 # =========================================================
+#
+# PRODUCTION CREDENTIALS
+# -----------------------
+# Private credentials file, outside git:
+#   /home/cyril/.config/bouclepro/prod-db.env
+#
+# Expected Laravel Cloud format:
+#   DB_NAME=...
+#   DB_CONNECTION=pgsql
+#   DB_HOST=...
+#   DB_PORT=5432
+#   DB_USERNAME=...
+#   DB_PASSWORD=...
+#
+# Security:
+#   chmod 600 /home/cyril/.config/bouclepro/prod-db.env
+#   Never commit this file.
+#   Never print DB_PASSWORD.
+# =========================================================
 # Usage:
 #   ./pg-dump.sh dump [file]        → Export local PostgreSQL to file
 #   ./pg-dump.sh import <file>      → Import dump into local PostgreSQL
@@ -90,6 +109,94 @@ confirm_destructive() {
         echo "Aborted."
         exit 1
     fi
+}
+
+# -------------------------------------------------------
+# Production credentials loader
+# -------------------------------------------------------
+# Loads PROD_DB_* variables from private file outside git.
+# Falls back to interactive prompt if file doesn't exist.
+# -------------------------------------------------------
+PROD_CREDENTIALS_FILE="/home/cyril/.config/bouclepro/prod-db.env"
+
+load_prod_credentials() {
+    if [ ! -f "$PROD_CREDENTIALS_FILE" ]; then
+        return 1
+    fi
+
+    local perms
+    perms=$(stat -c "%a" "$PROD_CREDENTIALS_FILE" 2>/dev/null)
+    if [ "$perms" != "600" ]; then
+        echo "⚠️  WARNING: $PROD_CREDENTIALS_FILE has permissions $perms (expected 600)."
+        echo "   Run: chmod 600 $PROD_CREDENTIALS_FILE"
+    fi
+
+    # Validate format: reject lines with spaces around =
+    if grep -q '^[A-Za-z_][A-Za-z0-9_]*\s\+=\s\+' "$PROD_CREDENTIALS_FILE" 2>/dev/null; then
+        echo "⚠️  Invalid env format in $PROD_CREDENTIALS_FILE:"
+        echo "   Use DB_HOST=value, not DB_HOST = value"
+        echo "   Falling back to interactive mode."
+        return 1
+    fi
+
+    source "$PROD_CREDENTIALS_FILE"
+
+    # Map Laravel Cloud format (DB_*) to internal PROD_* variables
+    # Support both DB_* and legacy PROD_DB_* naming
+    PROD_HOST="${PROD_DB_HOST:-$DB_HOST}"
+    PROD_PORT="${PROD_DB_PORT:-${DB_PORT:-5432}}"
+    PROD_USER="${PROD_DB_USERNAME:-$DB_USERNAME}"
+    PROD_PASS="${PROD_DB_PASSWORD:-$DB_PASSWORD}"
+    PROD_DB="${PROD_DB_DATABASE:-${DB_NAME:-$DB_DATABASE}}"
+
+    local missing=0
+    local checks=("PROD_HOST" "PROD_USER" "PROD_PASS" "PROD_DB")
+    for v in "${checks[@]}"; do
+        if [ -z "${!v:-}" ]; then
+            echo "  Missing: ${v#PROD_}"
+            missing=1
+        fi
+    done
+
+    if [ "$missing" -eq 1 ]; then
+        echo "  Some variables are missing in $PROD_CREDENTIALS_FILE."
+        echo "  Falling back to interactive mode."
+        return 1
+    fi
+
+    echo "→ Loaded production credentials from: $PROD_CREDENTIALS_FILE"
+    return 0
+}
+
+# -------------------------------------------------------
+# Prompt production credentials (interactive fallback)
+# -------------------------------------------------------
+prompt_prod_credentials() {
+    read -rp "Production host: " PROD_HOST
+    read -rp "Production port [5432]: " PROD_PORT
+    PROD_PORT="${PROD_PORT:-5432}"
+    read -rp "Production username: " PROD_USER
+    read -rsp "Production password: " PROD_PASS
+    echo ""
+    read -rp "Production database name: " PROD_DB
+}
+
+# -------------------------------------------------------
+# Dump production database (requires PROD_* vars set)
+# -------------------------------------------------------
+dump_prod_db() {
+    local file="$1"
+    echo "→ Dumping production DB to: $file"
+    PGPASSWORD="$PROD_PASS" pg_dump \
+      --host="$PROD_HOST" \
+      --port="$PROD_PORT" \
+      --username="$PROD_USER" \
+      --dbname="$PROD_DB" \
+      --format=custom \
+      --no-owner \
+      --verbose \
+      --file="$file"
+    unset PROD_PASS
 }
 
 case "${1:-}" in
@@ -223,37 +330,19 @@ case "${1:-}" in
     FILE="${2:-${DUMPS_DIR}/production_$(timestamp).sql}"
     echo "→ Production dump (Laravel Cloud)"
     echo ""
-    echo "This command creates a production database dump for local mirroring."
-    echo ""
-    echo "Mode: MANUAL (enter credentials from Laravel Cloud dashboard)"
-    echo ""
-    echo "Production credentials can be obtained via:"
-    echo "   php artisan cloud:db:show"
-    echo "  (or from Laravel Cloud Dashboard > Database > Connection Details)"
-    echo ""
-    echo "---"
-    echo ""
-    read -rp "Production host: " PROD_HOST
-    read -rp "Production port [5432]: " PROD_PORT
-    PROD_PORT="${PROD_PORT:-5432}"
-    read -rp "Production username: " PROD_USER
-    read -rsp "Production password: " PROD_PASS
-    echo ""
-    read -rp "Production database name: " PROD_DB
+    if ! load_prod_credentials; then
+        echo "Mode: MANUAL (enter credentials from Laravel Cloud dashboard)"
+        echo ""
+        echo "Production credentials can be obtained via:"
+        echo "  - Laravel Cloud Dashboard > Database > Connection Details"
+        echo "  - Or: php artisan cloud:db:show"
+        echo ""
+        prompt_prod_credentials
+    fi
     echo ""
     confirm_destructive "Dump production database" "$PROD_HOST:$PROD_PORT/$PROD_DB"
     echo ""
-    echo "→ Dumping production database to: $FILE"
-    PGPASSWORD="$PROD_PASS" pg_dump \
-      --host="$PROD_HOST" \
-      --port="$PROD_PORT" \
-      --username="$PROD_USER" \
-      --dbname="$PROD_DB" \
-      --format=custom \
-      --no-owner \
-      --verbose \
-      --file="$FILE"
-    unset PROD_PASS
+    dump_prod_db "$FILE"
     echo "✓ Production dump completed: $FILE"
     ls -lh "$FILE"
     echo ""
@@ -272,30 +361,16 @@ case "${1:-}" in
     echo "Phase 1/4 — Dump production database"
     echo "──────────────────────────────────────"
     echo ""
-    echo "Production credentials can be obtained via:"
-    echo "  - Laravel Cloud Dashboard > Database > Connection Details"
-    echo "  - Or: php artisan cloud:db:show"
-    echo ""
-    read -rp "Production host: " PROD_HOST
-    read -rp "Production port [5432]: " PROD_PORT
-    PROD_PORT="${PROD_PORT:-5432}"
-    read -rp "Production username: " PROD_USER
-    read -rsp "Production password: " PROD_PASS
-    echo ""
-    read -rp "Production database name: " PROD_DB
+    if ! load_prod_credentials; then
+        echo "Production credentials can be obtained via:"
+        echo "  - Laravel Cloud Dashboard > Database > Connection Details"
+        echo "  - Or: php artisan cloud:db:show"
+        echo ""
+        prompt_prod_credentials
+    fi
     MIRROR_FILE="${DUMPS_DIR}/production_$(timestamp).sql"
     echo ""
-    echo "→ Dumping production DB to: $MIRROR_FILE"
-    PGPASSWORD="$PROD_PASS" pg_dump \
-      --host="$PROD_HOST" \
-      --port="$PROD_PORT" \
-      --username="$PROD_USER" \
-      --dbname="$PROD_DB" \
-      --format=custom \
-      --no-owner \
-      --verbose \
-      --file="$MIRROR_FILE"
-    unset PROD_PASS
+    dump_prod_db "$MIRROR_FILE"
     echo "✓ Phase 1/4 — Dump completed"
     echo ""
     echo "Phase 2/4 — Import into local PostgreSQL"
@@ -346,8 +421,13 @@ case "${1:-}" in
     echo "  data-only [file]    Export data without schema"
     echo "  list                List available dump files"
     echo "  reset               Import latest dump + migrate + cache clear"
-    echo "  prod-dump [file]    Dump production Laravel Cloud database (manual creds)"
+    echo "  prod-dump [file]    Dump production Laravel Cloud database"
     echo "  prod-mirror         Full prod → local mirror: dump + import + migrate + cache"
+    echo ""
+    echo "Production credentials:"
+    echo "  Private file: /home/cyril/.config/bouclepro/prod-db.env"
+    echo "  If the file exists, credentials are loaded automatically."
+    echo "  Otherwise, interactive prompt is used."
     exit 1
     ;;
 esac
