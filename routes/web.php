@@ -198,7 +198,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Messages moderation
     Route::get('/messages', [AdminMessageController::class, 'index'])->name('messages');
     Route::get('/messages/{message}', [AdminMessageController::class, 'show'])->name('messages.show');
-    Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
+    // DELETE disabled: T074.9 is strictly read-only (OpenAI review fix)
+    // Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
 
     // Reports
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports');
