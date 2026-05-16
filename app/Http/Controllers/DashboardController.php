@@ -9,6 +9,12 @@ class DashboardController extends Controller
 {
     public function index(): View
     {
+        $organization = currentOrganization();
+
+        if (! $organization) {
+            abort(404);
+        }
+
         $user = auth()->user();
 
         $earned = $user->pointLedger()->where('delta', '>', 0)->sum('delta');
