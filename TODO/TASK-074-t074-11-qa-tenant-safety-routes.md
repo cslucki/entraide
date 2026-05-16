@@ -537,3 +537,196 @@ Nouveaux tests :
 - **Problème** : les CTAs "+ Nouvelle" et "Créer votre première boucle" étaient visibles même quand `/loops/create` redirect
 - **Fix** : `$canCreate` passé à la vue — CTAs masqués si `resolveCommunityId() === null`
 - **UX** : pas de promesse de création impossible ; pas de dead end ; pas de redirect boucle
+
+---
+
+# Audit OPENAI + COCKPIT Arbitration
+
+## OPENAI Review
+- OPENAI a validé la tenant safety des gardes `/loops` et `/loops/create` :
+  - **Blocker 1** (index sans community → empty state) : corrigé et validé
+  - **Blocker 2** (`/{community}/loops` cross-tenant) : corrigé et validé
+  - Tenant isolation confirmée : pas de fuite cross-tenant, pas d'exposition d'adhésions résiduelles
+  - Les 3 tests ajoutés par OPENAI (residual membership, cross-tenant deny, legacy redirect) sont tous PASS
+
+## COCKPIT Arbitration
+- COCKPIT a rappelé que **T074.11 ne doit pas devenir une migration Community → Organization**
+- COCKPIT a confirmé que les corrections T074.11 sont des **gardes bornés**, pas une refonte tenant globale :
+  - `LoopController@index()` : early return empty collection si pas de tenant → borné à ce controller
+  - `LoopController@create()` : redirect si pas de tenant → borné à ce controller
+  - `$canCreate` guard dans la vue : masquage des CTAs si pas de tenant → borné à cette vue
+  - `QaAccountsSeeder` : seed fix pour QA Admin → borné au seeder
+- COCKPIT a arbitré que le problème racine de résolution tenant sur les routes root-domain **doit être transféré à T75**
+
+## Fixes conservés (aucun retiré)
+| Fix | Décision |
+|---|---|
+| `LoopController@index()` — early return collect() si null | Conservé — garde tenant-safe borné |
+| `LoopController@index()` — `resolveCommunity()` + `assertUserBelongsToCommunity()` | Conservé — discipline tenant-scoped cohérente |
+| `LoopController@create()` — redirect si null | Conservé — UX correcte sans dead end |
+| `$canCreate` guard in Blade | Conservé — protection UI pour utilisateur sans tenant |
+| `QaAccountsSeeder` — QA Admin → `'cpme'` | Conservé — le compte de démo DOIT avoir un tenant |
+
+## Fixes retirés (aucun)
+Aucun fix n'a été retiré. Tous les correctifs sont strictement bornés à leur scope et ne génèrent pas de régression.
+
+---
+
+# Root Cause / Handoff T75
+
+## Problème racine
+La résolution tenant est incohérente entre les surfaces suivantes :
+
+| Surface | Résolution tenant | Problème |
+|---|---|---|
+| `/loops` (route membre root-domain) | `auth()->user()->community_id` | Null si admin global sans tenant → empty state correct, mais pas de tenant → pas de création possible |
+| `/loops/create` (root-domain) | `auth()->user()->community_id` | Null → redirect, pas de création possible |
+| `/admin/loops` (root-domain) | `$user->organization_id ?? $user->community_id` | Null → `Loop::where('community_id', null)` → 200 avec 0 résultats, **aucun message informatif** |
+| `/admin/messages` (root-domain) | `$user->organization_id ?? $user->community_id` | Null → paginate vide (géré explicitement), acceptable |
+| `/{community}/loops` (legacy tenant-scoped) | `current_community` via `ResolveCommunity` middleware | Fonctionne mais bridge legacy, nécessite Community |
+| `/{community}/loops/create` (legacy tenant-scoped) | `current_community` via `ResolveCommunity` middleware | Fonctionne mais bridge legacy, nécessite Community |
+| `/boucles` (public legacy) | Pas de tenant | Listing public, pas de problème tenant |
+
+Certaines surfaces métier dépendent encore implicitement de `current_community` ou de `community_id`. Les routes admin (`/admin/loops`) sont particulièrement exposées : un admin global sans tenant obtient une page vide sans explication.
+
+**T074.11 ne règle pas définitivement la tenant safety globale.**
+
+## Handoff T75 — Organization-Native Tenant Foundation
+
+T75 doit établir une fondation Organization-native cohérente sur toutes les surfaces :
+
+### 1. Résolution Organization sur root domain
+- Définir le comportement du root domain quand `auth()->user()->organization_id` est :
+  - **null** (admin global, ou utilisateur sans Organization) → comportement cohérent sur toutes les routes
+  - **non-null** (cas nominal) → résolution automatique
+- Résoudre explicitement la question : le root domain doit-il résoudre une Organization par défaut ou rediriger vers une route Organization-scopée canonique ?
+- Actuellement, les routes admin (`/admin/loops`) et membre (`/loops`) sont root-domain. Faut-il adopter `/{organization}/admin/loops` et `/{organization}/loops` ?
+
+### 2. Fallback explicite
+- `$user->organization_id ?? $user->community_id` (pattern actuel dans AdminLoopController, AdminMessageController)
+- Ce pattern doit être formalisé et consistant, ou remplacé par une couche centralisée
+
+### 3. Comportement des admins globaux sans tenant
+- Que voit un admin global sur `/admin/loops` ? Actuellement page vide 200 sans explication
+- Doit-on afficher un message "Aucune organization configurée" ?
+- Faut-il permettre aux admins globaux de sélectionner une Organization via un sélecteur ?
+
+### 4. Routes globales vs routes Organization-scopées
+- Stratégie à définir : conserver les root-domain routes comme alias ou uniformiser vers des préfixes Organization ?
+- Impact sur les URL bookmarks, SEO, notifications, liens partagés
+
+### 5. Stratégie de compatibilité `current_community` / `community_id`
+- `current_community` (bind du middleware ResolveCommunity) reste pour les routes legacy `/{community}/...`
+- `community_id` reste sur les modèles non migrés (ex: `loops.community_id`)
+- T75 doit définir le calendrier de migration ou d'abstraction durable
+
+### 6. Audit des surfaces admin/membre
+Audit complet requis pour T75 :
+
+| Surface | Controller(s) | Tenants | Risque |
+|---|---|---|---|
+| Loops (membre) | `LoopController` | `community_id` | Borné par T074.11 |
+| Loops (admin) | `AdminLoopController` | `organization_id ?? community_id` | **Page vide si null** |
+| Messages (admin) | `AdminMessageController` | `organization_id ?? community_id` | Paginate vide si null (géré) |
+| Échanges (membre) | — | — | Hors scope T074.11 |
+| Blog | — | — | Hors scope T074.11 |
+| Messagerie | — | — | Hors scope T074.11 |
+| Annuaire | — | — | Hors scope T074.11 |
+| Dashboard | — | — | Hors scope T074.11 |
+
+## T76 — Abstraction ou suppression de Community
+T76 pourra traiter la suppression progressive ou l'abstraction durable de `Community`. À ouvrir après T75.
+
+## T77/T78 — UX produit réelle des Loops
+T77/T78 pourra revenir sur l'expérience produit réelle des Loops : appartenance, ajout de Members, écrans de gestion, validation manuelle. Pas avant T75/T76.
+
+---
+
+# Explicit Non-Claims
+
+Ce que T074.11 **ne prétend pas** avoir fait :
+
+- ❌ T074.11 **ne prétend pas** avoir supprimé `Community` — `Community` model, table, middleware, routes legacy sont tous intacts
+- ❌ T074.11 **ne prétend pas** avoir migré vers `Organization` — `organization_id` n'est utilisé que dans les controllers admin (fallback) et les tests, pas dans LoopController ni dans les vues
+- ❌ T074.11 **ne prétend pas** avoir corrigé toutes les routes root-domain — seules `/loops` et `/loops/create` ont été traitées ; `/admin/loops` page vide sans tenant est documentée et transférée à T75
+- ❌ T074.11 **ne prétend pas** avoir finalisé l'appartenance réelle des Loops — pas de gestion UI des membres, pas d'invitations, pas de rôles, pas de validation manuelle
+- ❌ T074.11 **ne prétend pas** avoir nettoyé `current_community`, `ResolveCommunity`, `community_id` sur les modèles
+- ❌ T074.11 **ne prétend pas** avoir audit la tenant safety des autres surfaces (Échanges, Blog, Messagerie, Annuaire, Dashboard)
+- ❌ T074.11 **ne prétend pas** avoir migré les routes `/{community}/loops` vers `/{organization}/loops` — les routes legacy sont conservées inchangées
+
+Ce que T074.11 **a fait** :
+
+- ✅ Stabilisé les risques évidents sur `/loops` et `/loops/create` (404→empty, 404→redirect, cross-tenant guard)
+- ✅ Ajouté un guard UI `$canCreate` pour ne pas exposer de CTAs inatteignables
+- ✅ Aligné le compte QA Admin sur un tenant Organisation pour la démo
+- ✅ Ajouté 21 tests de non-régression couvrant tenant isolation, les cas avec/sans communauté, guest redirect, admin scenarios
+- ✅ Documenté la dette restante et préparé le handoff vers T75
+
+## Scope validation finale
+
+| Affirmation | Statut |
+|---|---|
+| T074.11 n'a pas refactoré admin routes | ✅ Conforme |
+| T074.11 n'a pas refactoré le tenant resolver global | ✅ Conforme |
+| T074.11 n'a pas lancé de migration DB | ✅ Conforme |
+| T074.11 n'a pas introduit `organization_id` dans les routes métier globales | ✅ Conforme (déjà présent dans admin controllers, inchangé) |
+| T074.11 n'a pas renommé Community | ✅ Conforme |
+| T074.11 n'a pas ajouté de nouvelle couche middleware | ✅ Conforme |
+| T074.11 n'a pas créé de nouveau module | ✅ Conforme |
+| T074.11 n'a pas refactoré LoopModel/LoopService | ✅ Conforme |
+| T074.11 n'a pas modifié les routes legacy `/{community}/...` | ✅ Conforme |
+| T074.11 n'a pas modifié `/{community}/loops/create` | ✅ Conforme (inchangé, fonctionne via middleware) |
+| T074.11 a borné ses corrections à LoopController + vue + seeder + tests | ✅ Conforme |
+
+---
+
+# Final Test Suite — 79/79 PASS (167 assertions)
+
+| Suite | Tests | Assertions | Résultat |
+|---|---|---|---|
+| T07411RoutesTenantSafetyTest | 21 | 44 | ✅ 21/21 PASS |
+| LoopCreationTest | 10 | 30 | ✅ 10/10 PASS |
+| LoopMemberInvariantTest | 22 | 40 | ✅ 22/22 PASS |
+| AdminLoopsTest | 8 | 16 | ✅ 8/8 PASS |
+| AdminMessagesTest | 18 | 37 | ✅ 18/18 PASS |
+| **Total** | **79** | **167** | **✅ Zéro échec** |
+
+Full suite : 546/546 PASS (plus de fail préexistant SearchControllerTest — résolu entre temps)
+
+---
+
+# Production Safety Notes
+
+- composer: none
+- npm: none
+- migrations: none
+- env: none
+- queue: none
+- cache: none
+- seed impact : `php artisan migrate:fresh --seed` (ou `db:seed --class=QaAccountsSeeder`) pour QA Admin tenant
+
+---
+
+# Modified Files
+
+| Fichier | Modification | Commit |
+|---|---|---|
+| `app/Http/Controllers/LoopController.php` | index(): early return + tenant guard + `$canCreate` ; create(): redirect | `a10979b`, `00c1f52`, `f9b8561`, `48000a8` |
+| `resources/views/loops/index.blade.php` | CTAs dans `@if($canCreate)` | `48000a8` |
+| `database/seeders/QaAccountsSeeder.php` | QA Admin `community_slug`: `null` → `'cpme'` | `5627e40` |
+| `tests/Feature/T07411RoutesTenantSafetyTest.php` | 21 tests : tenant isolation, admin, CTA visibility | `a10979b`, `00c1f52`, `f9b8561`, `48000a8` |
+| `TODO/TASK-074-t074-11-qa-tenant-safety-routes.md` | Audit, OPENAI review, COCKPIT arbitration, handoff T75 | Multiple commits |
+
+---
+
+# Commit History
+
+```
+5627e40 fix(qa): align admin tenant for loop creation demo
+48000a8 fix(loops): hide create CTAs when user has no tenant
+f9b8561 fix(loops): redirect create to index when no tenant
+00c1f52 fix(loops): enforce tenant-safe loop index
+a10979b fix(loops): stabilize T074.11 routes and tenant safety
+```
+
+---
