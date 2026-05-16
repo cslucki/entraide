@@ -128,6 +128,62 @@ OrganizationScope
 
 ---
 
+## Root Domain Resolution
+
+The root domain is not tenantless.
+
+In local development (`test.laravel`) and production SaaS (`bouclepro.com`), the root domain resolves the **default Organization**.
+
+Examples:
+
+```text
+https://test.laravel/       → default Organization
+https://bouclepro.com/      → default Organization
+```
+
+All business routes accessed via the root domain:
+
+```text
+/loops
+/loops/create
+/admin/loops
+/dashboard
+/services
+/requests
+/messages
+/blog
+/membres
+```
+
+must resolve an Organization **before** loading or creating business data.
+
+### Resolution Strategy
+
+Two canonical approaches:
+
+1. **Internal resolution** — the root domain implicitly resolves a default Organization (e.g. public home page with implicit tenant context).
+2. **Redirect** — the root domain redirects to an Organization-scoped canonical route (e.g. `/org/{slug}`).
+
+### Guard State
+
+If no Organization can be resolved from:
+
+- the route,
+- the host,
+- the authenticated user, or
+- an explicit default Organization,
+
+the application must fail safely with a documented guard state (e.g. 404, 410, or a setup redirect).
+
+### Critical Rules
+
+- A Loop is **never** created outside an Organization.
+- A Loop **never** becomes the tenant.
+- The root domain must never be treated as a "no-tenant zone" for business features.
+- This rule applies to all environments (dev, staging, production).
+
+---
+
 ## UUID Architecture
 
 All primary keys use UUIDs.
