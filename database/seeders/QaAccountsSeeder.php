@@ -29,7 +29,7 @@ class QaAccountsSeeder extends Seeder
                 'email' => 'qa-admin@bouclepro.local',
                 'name' => 'QA Admin',
                 'is_admin' => true,
-                'community_slug' => null,
+                'community_slug' => 'cpme',
                 'points' => 100,
             ],
             [
