@@ -47,12 +47,22 @@ class LoopController extends Controller
 
     public function index(): View
     {
+        $user = auth()->user();
+
+        $communityId = $this->resolveCommunityId();
+
+        if ($communityId === null) {
+            $loops = collect();
+            $canCreate = false;
+
+            return view('loops.index', compact('loops', 'canCreate'));
+        }
+
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
-        $user = auth()->user();
-
-        $loops = Loop::where('community_id', $community->id)
+        $loops = Loop::query()
+            ->where('community_id', $communityId)
             ->whereIn('id', function ($q) use ($user) {
                 $q->select('loop_id')
                     ->from('loop_members')
@@ -62,11 +72,29 @@ class LoopController extends Controller
             ->latest()
             ->get();
 
-        return view('loops.index', compact('loops'));
+        $canCreate = true;
+
+        return view('loops.index', compact('loops', 'canCreate'));
     }
 
-    public function create(): View
+    private function resolveCommunityId(): ?string
     {
+        if (app()->bound('current_community')) {
+            return app('current_community')->id;
+        }
+
+        return auth()->user()->community_id;
+    }
+
+    public function create(): View|RedirectResponse
+    {
+        $communityId = $this->resolveCommunityId();
+
+        if ($communityId === null) {
+            return redirect()->route('loops.index')
+                ->with('info', 'Vous devez appartenir à une organisation pour créer une boucle.');
+        }
+
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
