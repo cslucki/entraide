@@ -62,9 +62,9 @@ Implémenter un middleware minimal de résolution du contexte URL (URL Context R
 ## Middleware : `app/Http/Middleware/ResolveUrlOrganization.php`
 
 - **5 contextes URL** classifiés :
-  1. Platform global — routes exactes et préfixes
+  1. Platform global — routes exactes et préfixes (dont `/partners`)
   2. Default Organization — routes métier connues
-  3. Partner slug — détection uniquement (résolution = future task)
+  3. Partner slug — détection + fail-safe 404 (résolution = future task T075.4+)
   4. Authenticated personal — user → community_id → Organization
   5. Fail-safe — 404 pour routes métier connues sans résolution
 
@@ -72,11 +72,14 @@ Implémenter un middleware minimal de résolution du contexte URL (URL Context R
   - `alreadyResolved()` — ne pas écraser si déjà résolue
   - `isCommunityPrefixedRoute()` — laisser `ResolveCommunity` gérer
   - `isPlatformGlobal()` — pas de DB, pas de résolution
+  - `isAuthenticatedPersonalRoute() + guest` — pass-through, laisser auth rediriger
 
 - **Fail-safe 404** : routes métier connues sans Organization → `abort(404)`
-- **Partner** : détection minimale, résolution = future task (aucun Partner model/table)
+- **Fail-safe 404 Partner** : `/{slug}/{feature}` sans mapping → `abort(404)` (pas de tenantless)
+- **Dashboard guest** : pass-through sans bind (route personnelle authentifiée, guest → auth gère)
+- **Partner** : détection + fail-safe, résolution = future task (aucun Partner model/table)
 - **current_community legacy** : bindé si non déjà résolu
-- **Listes statiques injectables** : `$platformGlobalExact`, `$platformGlobalPrefixes`, `$defaultOrganizationRoutes`, `$defaultOrganizationId`
+- **Listes statiques injectables** : `$platformGlobalExact`, `$platformGlobalPrefixes`, `$defaultOrganizationRoutes`, `$authenticatedPersonalRoutes`, `$defaultOrganizationId`
 
 ## Enregistrement
 
@@ -85,14 +88,16 @@ Implémenter un middleware minimal de résolution du contexte URL (URL Context R
 
 ## Tests : `tests/Feature/ResolveUrlOrganizationTest.php`
 
-21 tests, 37 assertions — **all green**.
+22 tests, 40 assertions — **all green**.
 
 | Catégorie | Tests | Status |
 |---|---|---|
 | Platform global (vraies routes) | `/`, `/login`, `/register`, `/forgot-password`, `/mentions-legales`, `/admin/dashboard` | ✅ |
+| Platform global (`/partners`) | prefix platform global, pas de bind org | ✅ |
 | Default Organization (test direct) | résout avec org, 404 sans org | ✅ |
 | Dashboard user authentifié | résout org, 404 si pas d'org | ✅ |
-| Dashboard guest | résout default org, 404 sans default | ✅ |
+| Dashboard guest | pass-through sans bind (route personnelle authentifiée) | ✅ |
+| Partner slug `/{slug}/{feature}` | fail-safe 404 si pas de mapping | ✅ |
 | Unknown route | passe transparent | ✅ |
 | Community-prefixed | skip | ✅ |
 | Already resolved | skip | ✅ |
@@ -137,7 +142,7 @@ tests/Feature/ResolveUrlOrganizationTest.php   (nouveau, 314 lignes)
 TODO/TASK-081-t075-2-url-context-resolver-middleware-minimal.md (mis à jour)
 ```
 
-**579 tests passent, 21 ResolveUrlOrganization tests passent.**
+**580 tests passent, 22 ResolveUrlOrganization tests passent.**
 
 ## Fichiers modifiés (git diff --stat)
 
@@ -174,23 +179,26 @@ TODO/TASK-081-t075-2-url-context-resolver-middleware-minimal.md (mis à jour)
 
 | Check | Résultat |
 |---|---|
-| Tests ciblés `ResolveUrlOrganizationTest` | 21/21 ✅ |
-| Full suite | 579/579 ✅ |
+| Tests ciblés `ResolveUrlOrganizationTest` | 22/22 ✅ (après REQUEST CHANGES) |
+| Full suite | 580/580 ✅ |
 | Middleware logique | Sain ✅ |
 | bootstrap/app.php alias | Enregistré ✅ |
-| Web group activation | Déactivée — délibéré ✅ |
+| Web group activation | Désactivée — délibéré ✅ |
+| Pint | Clean ✅ |
 
-### Analyse du middleware
+### Analyse du middleware (état final après REQUEST CHANGES)
 
 Le middleware est architecturalement correct. Points inspectés :
 
 - **5 contextes URL** : classifiés et gérés proprement.
-- **Bypasses** : `alreadyResolved`, `isCommunityPrefixedRoute`, `isPlatformGlobal` — fiables.
-- **Fail-safe 404** : comportement correct per T075.1 — toute route métier connue sans Organization résolue → 404.
+- **Bypasses** : `alreadyResolved`, `isCommunityPrefixedRoute`, `isPlatformGlobal`, `isAuthenticatedPersonalRoute + guest` — fiables.
+- **Fail-safe 404** : routes métier connues sans Organization → 404. Routes partner-slug sans mapping → 404.
 - **Legacy compatibility** : `current_community` bindé si non déjà résolu.
-- **Partner stub** : `resolvePartnerOrganization()` retourne null explicitement — scope futur documenté.
+- **Partner** : `isPartnerSlugRoute()` détecte `/{slug}/{feature}` où `$first` n'est pas une feature route. Fail-safe 404 si pas de mapping. Résolution complète = T075.4+.
+- **Dashboard guest** : pass-through sans bind. Route personnelle — auth gère la redirection.
+- **`/partners`** : classifié platform global via `$platformGlobalPrefixes`.
 
-Observations mineures (non bloquantes) :
+Observations mineures (non bloquantes, non corrigées) :
 - `'/'` dans `$platformGlobalExact` est inatteignable par `segment(1)` — code mort inoffensif.
 - La boucle `foreach` dans `isPlatformGlobal` est équivalente à `in_array` — lisible, sans impact.
 
@@ -232,6 +240,44 @@ Task created by OPENCODE.
 - CI develop : verte.
 - T075.2 créée via create-task.sh.
 - Scope : URL Context Resolver Middleware minimal.
+
+## 2026-05-17 — REQUEST CHANGES OpenAI — corrections ciblées (Claude Sonnet 4.6)
+
+Deux comportements internes corrigés :
+
+**1. `/dashboard` guest — comportement incorrect corrigé**
+
+Avant : guest sur `/dashboard` → `resolveDefaultOrganization()` → bind default org.
+Après : guest sur `/dashboard` → pass-through sans bind org (route personnelle authentifiée).
+
+Règle T075.1 : `/dashboard` est une route personnelle authentifiée. Un guest doit laisser le flux auth/login gérer la redirection, sans injection d'une Organization par défaut.
+
+Implémentation :
+- Ajout de `$authenticatedPersonalRoutes = ['dashboard']` (liste statique injectable).
+- Ajout de `isAuthenticatedPersonalRoute(Request $request): bool`.
+- Dans `handle()` : si authenticated personal route + guest → `return $next($request)` immédiatement.
+- Test `test_guest_dashboard_resolves_default_org` → remplacé par `test_guest_dashboard_passes_through_without_org_binding`.
+- Test `test_guest_dashboard_returns_404_without_default_org` → supprimé (comportement devenu non-applicable).
+
+**2. Partner slug fail-safe 404 — tenantless gap corrigé**
+
+Avant : `/{slug}/{feature}` (ex. `/bni/blog`) sans mapping → `resolvePartnerOrganization()` = null → fall-through → tenantless.
+Après : `/{slug}/{feature}` sans mapping → `abort(404)`.
+
+Règle T075.1 : une route partner-slug métier non résolue ne doit jamais devenir tenantless.
+
+Implémentation :
+- Ajout de `isPartnerSlugRoute(Request $request): bool` : premier segment NOT feature, deuxième segment IS feature.
+- Dans `handle()` : si partner slug route → tente `resolvePartnerOrganization()` → si null → `abort(404)`.
+- Logique partner slug retirée de `resolveOrganization()` (gérée en amont dans `handle()`).
+- Test ajouté : `test_partner_slug_with_known_feature_returns_404`.
+
+**3. `/partners` classifié Platform global**
+
+- Ajout de `'partners'` dans `$platformGlobalPrefixes`.
+- Test ajouté : `test_partners_prefix_is_platform_global`.
+
+**Résultats** : 22/22 tests ciblés ✅ · 580/580 full suite ✅ · Pint clean ✅.
 
 ## 2026-05-16 — Implémentation
 

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\ResolveCommunity;
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\Community;
 use App\Models\User;
@@ -17,8 +16,12 @@ class ResolveUrlOrganizationTest extends TestCase
     use RefreshDatabase;
 
     private array $savedExact = [];
+
     private array $savedPrefixes = [];
+
     private array $savedRoutes = [];
+
+    private array $savedPersonalRoutes = [];
 
     protected function setUp(): void
     {
@@ -26,6 +29,7 @@ class ResolveUrlOrganizationTest extends TestCase
         $this->savedExact = ResolveUrlOrganization::$platformGlobalExact;
         $this->savedPrefixes = ResolveUrlOrganization::$platformGlobalPrefixes;
         $this->savedRoutes = ResolveUrlOrganization::$defaultOrganizationRoutes;
+        $this->savedPersonalRoutes = ResolveUrlOrganization::$authenticatedPersonalRoutes;
     }
 
     protected function tearDown(): void
@@ -33,6 +37,7 @@ class ResolveUrlOrganizationTest extends TestCase
         ResolveUrlOrganization::$platformGlobalExact = $this->savedExact;
         ResolveUrlOrganization::$platformGlobalPrefixes = $this->savedPrefixes;
         ResolveUrlOrganization::$defaultOrganizationRoutes = $this->savedRoutes;
+        ResolveUrlOrganization::$authenticatedPersonalRoutes = $this->savedPersonalRoutes;
         parent::tearDown();
     }
 
@@ -85,6 +90,22 @@ class ResolveUrlOrganizationTest extends TestCase
         $response = $this->get('/admin/dashboard');
 
         $response->assertRedirect(); // needs auth → redirect to login
+        $this->assertFalse(app()->bound('current_organization'));
+    }
+
+    public function test_partners_prefix_is_platform_global(): void
+    {
+        $request = Request::create('/partners', 'GET');
+        $middleware = new ResolveUrlOrganization;
+        $handled = false;
+
+        $middleware->handle($request, function () use (&$handled) {
+            $handled = true;
+
+            return response('ok');
+        });
+
+        $this->assertTrue($handled);
         $this->assertFalse(app()->bound('current_organization'));
     }
 
@@ -175,32 +196,24 @@ class ResolveUrlOrganizationTest extends TestCase
         $this->assertTrue($caught);
     }
 
-    public function test_guest_dashboard_resolves_default_org(): void
+    public function test_guest_dashboard_passes_through_without_org_binding(): void
     {
-        $org = Community::factory()->create(['is_active' => true]);
-
+        // /dashboard is an authenticated personal route.
+        // A guest must not receive the default org — the auth middleware
+        // handles the redirect to login. No org binding, no 404.
         $request = Request::create('/dashboard', 'GET');
         $middleware = new ResolveUrlOrganization;
+        $handled = false;
 
-        $response = $middleware->handle($request, fn () => response('ok'));
+        $response = $middleware->handle($request, function () use (&$handled) {
+            $handled = true;
 
+            return response('ok');
+        });
+
+        $this->assertTrue($handled);
         $this->assertEquals(200, $response->getStatusCode());
-        $this->assertEquals($org->id, app('current_organization')->id);
-    }
-
-    public function test_guest_dashboard_returns_404_without_default_org(): void
-    {
-        $request = Request::create('/dashboard', 'GET');
-        $middleware = new ResolveUrlOrganization;
-
-        $caught = false;
-        try {
-            $middleware->handle($request, fn () => response('ok'));
-        } catch (NotFoundHttpException $e) {
-            $caught = true;
-        }
-
-        $this->assertTrue($caught);
+        $this->assertFalse(app()->bound('current_organization'));
     }
 
     // -----------------------------------------------------------------------
@@ -216,6 +229,27 @@ class ResolveUrlOrganizationTest extends TestCase
 
         $this->assertEquals(200, $response->getStatusCode());
         $this->assertFalse(app()->bound('current_organization'));
+    }
+
+    // -----------------------------------------------------------------------
+    // Partner slug routes — fail-safe 404
+    // -----------------------------------------------------------------------
+
+    public function test_partner_slug_with_known_feature_returns_404(): void
+    {
+        // /{slug}/{feature} with no partner mapping must never be tenantless.
+        // Partner → Organization resolution is a future task (T075.4+).
+        $request = Request::create('/bni/blog', 'GET');
+        $middleware = new ResolveUrlOrganization;
+
+        $caught = false;
+        try {
+            $middleware->handle($request, fn () => response('ok'));
+        } catch (NotFoundHttpException $e) {
+            $caught = true;
+        }
+
+        $this->assertTrue($caught, 'Expected 404 for partner slug route without partner mapping');
     }
 
     // -----------------------------------------------------------------------
@@ -308,8 +342,8 @@ class ResolveUrlOrganizationTest extends TestCase
 
     public function test_resolve_url_organization_is_not_in_web_group(): void
     {
-        // Deferred to T075.3+ — web group activation breaks 36 tests that
-        // create users without Organization setup.
+        // Deferred to T075.3+ — web group activation requires fixing 36 tests
+        // that create users without Organization setup (WithTestOrganization trait).
         $webGroup = app('router')->getMiddlewareGroups()['web'] ?? [];
 
         $this->assertNotContains(ResolveUrlOrganization::class, $webGroup);

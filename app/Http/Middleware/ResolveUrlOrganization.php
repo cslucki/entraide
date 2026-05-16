@@ -29,6 +29,7 @@ class ResolveUrlOrganization
         'email',
         'password',
         'auth',
+        'partners',
     ];
 
     public static array $defaultOrganizationRoutes = [
@@ -50,6 +51,12 @@ class ResolveUrlOrganization
         'reports',
     ];
 
+    // Routes that require an authenticated user — guests are passed through
+    // without org binding so the auth middleware can redirect them to login.
+    public static array $authenticatedPersonalRoutes = [
+        'dashboard',
+    ];
+
     public static ?string $defaultOrganizationId = null;
 
     public function handle(Request $request, Closure $next): Response
@@ -63,6 +70,25 @@ class ResolveUrlOrganization
         }
 
         if ($this->isPlatformGlobal($request)) {
+            return $next($request);
+        }
+
+        // Authenticated personal routes: guests pass through without org binding.
+        // The auth middleware handles the redirect to login — no org resolution needed.
+        if ($this->isAuthenticatedPersonalRoute($request) && ! Auth::check()) {
+            return $next($request);
+        }
+
+        // Partner slug routes (/{slug}/{feature}): try to resolve, fail-safe 404
+        // if the partner → Organization mapping is not found.
+        // Partner model/table and full resolution are future tasks (T075.4+).
+        if ($this->isPartnerSlugRoute($request)) {
+            $partnerOrg = $this->resolvePartnerOrganization($request->segment(1));
+            if (! $partnerOrg) {
+                abort(404);
+            }
+            $this->bindOrganization($partnerOrg);
+
             return $next($request);
         }
 
@@ -103,7 +129,7 @@ class ResolveUrlOrganization
 
         $first = $request->segment(1);
 
-        if (!$first) {
+        if (! $first) {
             return true;
         }
 
@@ -120,21 +146,32 @@ class ResolveUrlOrganization
         return false;
     }
 
+    protected function isAuthenticatedPersonalRoute(Request $request): bool
+    {
+        $first = $request->segment(1);
+
+        return $first !== null && in_array($first, static::$authenticatedPersonalRoutes);
+    }
+
+    // Detects /{slug}/{feature} where the first segment is NOT itself a feature route.
+    // This distinguishes partner slugs from nested feature paths like /dashboard/settings.
+    protected function isPartnerSlugRoute(Request $request): bool
+    {
+        $first = $request->segment(1);
+        $second = $request->segment(2);
+
+        return $first !== null
+            && $second !== null
+            && ! $this->isFeatureRoute($first)
+            && $this->isFeatureRoute($second);
+    }
+
     protected function resolveOrganization(Request $request): ?Community
     {
-        $segments = $request->segments();
-        $first = $segments[0] ?? null;
-        $second = $segments[1] ?? null;
-
-        if ($first && $second && $this->isFeatureRoute($second)) {
-            $partnerOrg = $this->resolvePartnerOrganization($first);
-            if ($partnerOrg) {
-                return $partnerOrg;
-            }
-        }
+        $first = $request->segment(1);
 
         if ($first && $this->isFeatureRoute($first)) {
-            if ($first === 'dashboard' && Auth::check()) {
+            if ($this->isAuthenticatedPersonalRoute($request)) {
                 return $this->resolveFromAuthenticatedUser();
             }
 
@@ -157,7 +194,7 @@ class ResolveUrlOrganization
     {
         $first = $request->segment(1);
 
-        if (!$first) {
+        if (! $first) {
             return false;
         }
 
@@ -188,7 +225,7 @@ class ResolveUrlOrganization
     {
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             return null;
         }
 
@@ -202,7 +239,7 @@ class ResolveUrlOrganization
     protected function resolvePartnerOrganization(string $slug): ?Community
     {
         // Out of scope for T075.2.
-        // Partner — Organization resolution is a future task.
+        // Partner — Organization resolution is a future task (T075.4+).
         return null;
     }
 
@@ -210,7 +247,7 @@ class ResolveUrlOrganization
     {
         app()->instance('current_organization', $organization);
 
-        if (!app()->bound('current_community')) {
+        if (! app()->bound('current_community')) {
             app()->instance('current_community', $organization);
         }
     }
