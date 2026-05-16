@@ -1,0 +1,254 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use App\Models\Community;
+use App\Models\Setting;
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
+
+class ResolveUrlOrganization
+{
+    public static array $platformGlobalExact = [
+        '/',
+        'login',
+        'register',
+        'forgot-password',
+        'reset-password',
+        'confirm-password',
+        'verify-email',
+        'mentions-legales',
+        'sitemap.xml',
+        'logout',
+    ];
+
+    public static array $platformGlobalPrefixes = [
+        'admin',
+        'email',
+        'password',
+        'auth',
+        'partners',
+    ];
+
+    public static array $defaultOrganizationRoutes = [
+        'dashboard',
+        'explorer',
+        'membres',
+        'echanges',
+        'boucles',
+        'blog',
+        'search',
+        'services',
+        'requests',
+        'transactions',
+        'loops',
+        'messages',
+        'points',
+        'favorites',
+        'profile',
+        'reports',
+    ];
+
+    // Routes that require an authenticated user — guests are passed through
+    // without org binding so the auth middleware can redirect them to login.
+    public static array $authenticatedPersonalRoutes = [
+        'dashboard',
+    ];
+
+    public static ?string $defaultOrganizationId = null;
+
+    public function handle(Request $request, Closure $next): Response
+    {
+        if ($this->alreadyResolved()) {
+            return $next($request);
+        }
+
+        if ($this->isCommunityPrefixedRoute($request)) {
+            return $next($request);
+        }
+
+        if ($this->isPlatformGlobal($request)) {
+            return $next($request);
+        }
+
+        // Authenticated personal routes: guests pass through without org binding.
+        // The auth middleware handles the redirect to login — no org resolution needed.
+        if ($this->isAuthenticatedPersonalRoute($request) && ! Auth::check()) {
+            return $next($request);
+        }
+
+        // Partner slug routes (/{slug}/{feature}): try to resolve, fail-safe 404
+        // if the partner → Organization mapping is not found.
+        // Partner model/table and full resolution are future tasks (T075.4+).
+        if ($this->isPartnerSlugRoute($request)) {
+            $partnerOrg = $this->resolvePartnerOrganization($request->segment(1));
+            if (! $partnerOrg) {
+                abort(404);
+            }
+            $this->bindOrganization($partnerOrg);
+
+            return $next($request);
+        }
+
+        $organization = $this->resolveOrganization($request);
+
+        if ($organization) {
+            $this->bindOrganization($organization);
+
+            return $next($request);
+        }
+
+        if ($this->isKnownBusinessRoute($request)) {
+            abort(404);
+        }
+
+        return $next($request);
+    }
+
+    protected function alreadyResolved(): bool
+    {
+        return app()->bound('current_organization') && app('current_organization') !== null;
+    }
+
+    protected function isCommunityPrefixedRoute(Request $request): bool
+    {
+        $route = $request->route();
+
+        return $route && $route->hasParameter('community');
+    }
+
+    protected function isPlatformGlobal(Request $request): bool
+    {
+        $path = '/'.trim($request->path(), '/');
+
+        if ($path === '/') {
+            return true;
+        }
+
+        $first = $request->segment(1);
+
+        if (! $first) {
+            return true;
+        }
+
+        if (in_array($first, static::$platformGlobalExact)) {
+            return true;
+        }
+
+        foreach (static::$platformGlobalPrefixes as $prefix) {
+            if ($first === $prefix) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function isAuthenticatedPersonalRoute(Request $request): bool
+    {
+        $first = $request->segment(1);
+
+        return $first !== null && in_array($first, static::$authenticatedPersonalRoutes);
+    }
+
+    // Detects /{slug}/{feature} where the first segment is NOT itself a feature route.
+    // This distinguishes partner slugs from nested feature paths like /dashboard/settings.
+    protected function isPartnerSlugRoute(Request $request): bool
+    {
+        $first = $request->segment(1);
+        $second = $request->segment(2);
+
+        return $first !== null
+            && $second !== null
+            && ! $this->isFeatureRoute($first)
+            && $this->isFeatureRoute($second);
+    }
+
+    protected function resolveOrganization(Request $request): ?Community
+    {
+        $first = $request->segment(1);
+
+        if ($first && $this->isFeatureRoute($first)) {
+            if ($this->isAuthenticatedPersonalRoute($request)) {
+                return $this->resolveFromAuthenticatedUser();
+            }
+
+            return $this->resolveDefaultOrganization();
+        }
+
+        if (Auth::check()) {
+            return $this->resolveFromAuthenticatedUser();
+        }
+
+        return null;
+    }
+
+    protected function isFeatureRoute(string $segment): bool
+    {
+        return in_array($segment, static::$defaultOrganizationRoutes);
+    }
+
+    protected function isKnownBusinessRoute(Request $request): bool
+    {
+        $first = $request->segment(1);
+
+        if (! $first) {
+            return false;
+        }
+
+        return in_array($first, static::$defaultOrganizationRoutes);
+    }
+
+    protected function resolveDefaultOrganization(): ?Community
+    {
+        if (static::$defaultOrganizationId) {
+            $org = Community::find(static::$defaultOrganizationId);
+            if ($org) {
+                return $org;
+            }
+        }
+
+        $defaultId = Setting::get('default_organization_id');
+        if ($defaultId) {
+            $org = Community::find($defaultId);
+            if ($org) {
+                return $org;
+            }
+        }
+
+        return Community::where('is_active', true)->first();
+    }
+
+    protected function resolveFromAuthenticatedUser(): ?Community
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return null;
+        }
+
+        if ($user->community_id) {
+            return Community::find($user->community_id);
+        }
+
+        return null;
+    }
+
+    protected function resolvePartnerOrganization(string $slug): ?Community
+    {
+        // Out of scope for T075.2.
+        // Partner — Organization resolution is a future task (T075.4+).
+        return null;
+    }
+
+    protected function bindOrganization(Community $organization): void
+    {
+        app()->instance('current_organization', $organization);
+
+        if (! app()->bound('current_community')) {
+            app()->instance('current_community', $organization);
+        }
+    }
+}
