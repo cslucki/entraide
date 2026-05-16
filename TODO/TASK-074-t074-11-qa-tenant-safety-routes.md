@@ -20,8 +20,8 @@ labels: []
 lock:
   status: UNLOCKED
   agent: OPENCODE
-  since: 2026-05-16 14:25:00 Europe/Paris
-  unlocked_at: 2026-05-16 14:35:00 Europe/Paris
+  since: 2026-05-16 14:45:00 Europe/Paris
+  unlocked_at: 2026-05-16 14:55:00 Europe/Paris
 
 handoff: false
 
@@ -440,7 +440,81 @@ Nouveaux tests :
 
 ---
 
-# Review Notes
+# Product Blocker after OPENAI PASS — CTA hidden for QA Admin (2026-05-16)
+
+## Contexte
+- OPENAI a validé la tenant safety → PASS
+- COCKPIT a rejeté l'expérience produit : le bouton "Créer une boucle" a disparu de `/loops`
+- Cause immédiate (commit `48000a8`) : masquage des CTAs quand `resolveCommunityId()` retourne null
+- En cause réelle : `qa-admin@bouclepro.local` (`TEST_ADMIN_LOGIN`) n'avait pas de tenant
+
+## Enquête
+
+### Compte QA Admin — AVANT correction
+
+| Champ | Valeur |
+|---|---|
+| email | `qa-admin@bouclepro.local` |
+| is_admin | `true` |
+| community_id | `null` |
+| Tenant actif | Non |
+| Rôle attendu | Admin organisation de démo |
+
+### Cause racine
+`QaAccountsSeeder` (v1.0) assignait `community_slug => null` à `qa-admin@bouclepro.local`. Le compte était intentionnellement un admin global sans tenant, ce qui est incohérent avec son rôle attendu de **compte admin de démo pour l'Organization par défaut**.
+
+### Décision
+- Le comportement défensif (`$canCreate`) est correct et conservé pour les vrais admins globaux sans tenant
+- Mais `qa-admin@bouclepro.local` est le compte **admin organisation** utilisé en démo — il DOIT avoir un tenant valide
+- **Correction** : assigner `community_slug => 'cpme'` (Organization par défaut) dans `QaAccountsSeeder`
+
+## Correction appliquée
+
+**Fichier modifié :**
+
+| Fichier | Modification |
+|---|---|
+| `database/seeders/QaAccountsSeeder.php:29` | `community_slug` de `null` → `'cpme'` pour `qa-admin@bouclepro.local` |
+
+**Aucune autre modification nécessaire :**
+- `$canCreate` guard dans `LoopController@index()` conservé
+- CTAs dans `views/loops/index.blade.php` conservés
+- Tests existants (21 tests, factory-based) déjà valides — ils créent leurs propres users
+- Aucune migration DB nécessaire
+- Aucun refactor
+
+## Tests exécutés — 79/79 PASS (167 assertions)
+
+| Suite | Tests | Résultat |
+|---|---|---|
+| T074.11 | 21 | ✅ 21/21 PASS (44 assertions) |
+| LoopCreationTest | 10 | ✅ 10/10 PASS |
+| LoopMemberInvariantTest | 22 | ✅ 22/22 PASS |
+| AdminLoopsTest | 8 | ✅ 8/8 PASS |
+| AdminMessagesTest | 18 | ✅ 18/18 PASS |
+| **Total** | **79** | **✅ Zéro échec, zéro régression** |
+
+## Validation navigateur (QA Admin après correction)
+
+| Test | Résultat |
+|---|---|
+| `GET /loops` | 200 OK ✅ |
+| CTA "+ Nouvelle" visible | ✅ Oui |
+| CTA "Créer votre première boucle" visible | ✅ Oui |
+| Clic "Nouvelle" → `/loops/create` | 200 OK ✅ |
+| Formulaire "Créer une boucle" visible | ✅ Oui |
+| Console errors | 0 ✅ |
+
+## Production Safety Notes
+- composer: none
+- npm: none
+- migrations: none
+- env: none
+- queue: none
+- cache: none
+- **seed impact** : `php artisan migrate:fresh --seed` requis (ou `db:seed --class=QaAccountsSeeder`) pour appliquer la correction sur les installations existantes
+
+---
 
 ## Initial fix
 - **Root cause du 404**: `LoopController::resolveCommunity()` abort(404) quand `current_community` non bound ET user.community_id null. L'utilisateur fixture test@example.com a community_id=null.
