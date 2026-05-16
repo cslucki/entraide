@@ -378,7 +378,6 @@ This rule applies to all routes accessed via the root domain without an explicit
 ```text
 /loops
 /loops/create
-/admin/loops
 /dashboard
 /services
 /requests
@@ -387,7 +386,48 @@ This rule applies to all routes accessed via the root domain without an explicit
 /membres
 ```
 
+`/admin/*` routes are Platform global by design and are not Organization-scoped.
+
 All environments (dev, staging, production) must follow this rule.
+
+---
+
+# 9.6 Partner / Co-branding
+
+Partner est une entrée de **co-branding / distribution**, pas un tenant.
+
+| Concept | Rôle |
+|---------|------|
+| Partner | Entrée publique co-brandée. Point d'entrée vers une Organization. |
+| Organization | Tenant. Frontière de sécurité, billing, gouvernance. |
+| Loop | Groupe collaboratif interne à une Organization. |
+
+Un Partner peut pointer vers une Organization (ex: BNI = Partner + Organization).
+Les Loops appartiennent toujours à une Organization, jamais à un Partner directement.
+
+---
+
+# 9.7 URL Context Resolution
+
+| Niveau | Routes | Comportement |
+|--------|--------|-------------|
+| Platform global | `/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partners`, `/admin/*` | Aucune Organization requise |
+| Default Organization | `/blog`, `/explorer`, `/membres`, `/loops`, `/services`, `/requests`, `/messages` | Organization par défaut de la plateforme |
+| Partner slug | `/{partnerSlug}`, `/{partnerSlug}/blog`, etc. | Organization partenaire |
+| Authenticated personal | `/dashboard` | Organization du user connecté |
+| Fail-safe | Route métier sans Org résolue | Blocage / redirect / 404 |
+
+**Public ≠ global.** `/{partnerSlug}` est publique mais Organization-scopée.
+
+---
+
+# 9.8 Organisation Scoping Rule
+
+Toutes les fonctionnalités métier actuelles et futures sont Organization-scopées.
+
+Aucune feature métier ne doit fonctionner sans Organization résolue.
+Les futures features ne doivent jamais être ajoutées comme routes Platform globales par défaut.
+Toute exception doit être explicitement documentée et validée.
 
 ---
 

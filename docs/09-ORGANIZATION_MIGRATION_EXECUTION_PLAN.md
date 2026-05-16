@@ -100,6 +100,46 @@ Loops are NOT:
 * DB isolation layers,
 * tenant scopes.
 
+----
+
+# 3.5 T075.1 Decisions — Root Domain Tenant Resolution Strategy
+
+La stratégie T075.1 (docs/architecture/T075.1-root-domain-tenant-resolution-strategy.md) a validé les décisions suivantes, qui impactent l'exécution de la migration :
+
+| Décision | Valeur |
+|----------|--------|
+| AD01 | Résolution implicite, pas URL-based |
+| AD02 | Session-cached Org resolution |
+| AD03 | User `community_id` comme fallback source legacy |
+| AD04 | `/membres` et `/loops` gagnent `auth` |
+| AD05 | `/admin` global |
+| AD06 | Blog Organization-scopé |
+| AD07 | `/boucles` = legacy à déprécier |
+| AD08 | BelongsToTenantScope fail-closed |
+| AD09 | `/org/{org}` explicite différé |
+| AD10 | Nouveau middleware (pas modification existant) |
+| AD11 | Toute feature métier actuelle et future Organization-scopée |
+
+### T075.x task breakdown corrigé
+
+| Tâche | Description | Dépend de |
+|-------|-------------|-----------|
+| T075.2 | URL Context Resolver Middleware minimal | — |
+| T075.3 | Dashboard / membres / échanges tenant-safe | T075.2 |
+| T075.4 | Services / Requests route-model binding | T075.2 |
+| T075.5 | Blog Organization Scoping + Containment | — |
+| T075.6 | Legacy /boucles audit + repositioning /partners | T075.2 |
+| T075.7 | BelongsToTenantScope hardening | T075.2 |
+| T075.8 | Auth guard /membres et /loops | — |
+| T075.9 | Policies tenant checks | T075.2, T075.3, T075.4 |
+| T075.10 | API tenant scoping | T075.2 |
+| T075.11 | Playwright root-domain tenant tests | T075.2→T075.10 |
+
+### Documentation Alignment
+
+La mise à jour documentaire (T075.1A) doit précéder ou accompagner T075.2.
+Sans documentation alignée, les agents futurs risquent de confondre Partner, Organization, Loop, Community legacy, root domain et default Organization.
+
 ---
 
 # 4. Migration Scope

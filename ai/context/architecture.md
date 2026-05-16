@@ -128,6 +128,36 @@ OrganizationScope
 
 ---
 
+## Organisation Scoping Rule
+
+**Toutes les fonctionnalités métier actuelles et futures doivent être Organization-scopées.**
+
+Aucune feature métier ne doit fonctionner sans Organization résolue.
+Une route Platform globale doit être une exception explicite, documentée, non métier.
+
+### Partner ≠ Tenant
+
+Partner est une entrée de co-branding / distribution. Ce n'est pas un tenant.
+Le tenant reste l'Organization.
+
+### Loop ≠ Tenant
+
+Loop est un groupe collaboratif interne à une Organization. Ce n'est pas un tenant.
+
+### Public ≠ Global
+
+Une route publique n'est pas forcément globale. Exemple : `/{partnerSlug}` est publique (pas d'auth) mais Organization-scopée (Needs Org = Yes). Les routes Global = Yes n'ont pas d'Organization résolue.
+
+### Résolution par contexte URL
+
+1. **Platform global route** — aucune Organization. Ex: `/`, `/login`, `/admin/*`.
+2. **Default Organization route** (`/{feature}`) — résout l'Organization par défaut de la plateforme. Ex: `/blog`, `/explorer`, `/membres`.
+3. **Partner slug route** (`/{partnerSlug}/{feature}`) — résout l'Organization partenaire via mapping Partner → Organization. Ex: `/bni/blog`, `/bni/explorer`.
+4. **Authenticated personal route** (`/dashboard`) — résout l'Organization du user connecté.
+5. **Fail-safe** — blocage / redirect / 404 si route métier sans Organization résolue.
+
+---
+
 ## Root Domain Resolution
 
 The root domain is not tenantless.
@@ -141,21 +171,12 @@ https://test.laravel/       → default Organization
 https://bouclepro.com/      → default Organization
 ```
 
-All business routes accessed via the root domain:
+Root-domain business feature routes (`/blog`, `/explorer`, `/membres`, `/loops`, `/services`, `/requests`, `/messages`) resolve the platform default Organization.
 
-```text
-/loops
-/loops/create
-/admin/loops
-/dashboard
-/services
-/requests
-/messages
-/blog
-/membres
-```
+Authenticated personal routes such as `/dashboard` resolve the Organization of the logged-in user.
 
-must resolve an Organization **before** loading or creating business data.
+All business routes must resolve an Organization **before** loading or creating business data.
+Admin routes (`/admin/*`) restent globales — pas de résolution d'Organization.
 
 ### Resolution Strategy
 

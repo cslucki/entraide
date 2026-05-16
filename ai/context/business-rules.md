@@ -1,5 +1,36 @@
 # Business Rules
 
+## Organisation Scoping Rule
+
+**Toutes les fonctionnalités métier actuelles et futures de BouclePro doivent être Organization-scopées.**
+
+Aucune feature métier ne doit fonctionner sans Organization résolue.
+
+Features concernées :
+- Blog
+- Explorer / échanges
+- Annuaire / membres
+- Services
+- Requests / demandes
+- Transactions
+- Messages
+- Loops
+- Referrals
+- CRM (futur)
+- LMS / formation (futur)
+- Events (futur)
+- Objectifs (futur)
+- IA / assistants (futur)
+- Automatisations (futur)
+- Notifications métier (futur)
+- Tout futur module activable
+
+Pattern cible :
+- `/{feature}` → Organization par défaut de la plateforme.
+- `/{partnerSlug}/{feature}` → Organization partenaire.
+
+---
+
 ## Critical Rules
 
 - Point ledger is append-only

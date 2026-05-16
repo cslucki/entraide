@@ -51,6 +51,27 @@ in order to:
 
 ---
 
+## Concepts T075.1
+
+| Concept | Type | Définition |
+|---------|------|------------|
+| Partner | Co-branding / Distribution | Entrée publique co-brandée. N'est pas un tenant. Peut pointer vers une Organization. |
+| Default Organization | Résolution | Organization par défaut résolue pour les routes `/{feature}` sur le root domain. |
+| Partner slug route | Résolution | Route `/{partnerSlug}/{feature}` qui résout l'Organization liée au partnerSlug. |
+| Root domain | Résolution | Domaine racine (`test.laravel`, `bouclepro.com`). Pas tenantless pour les routes métier. |
+| Platform global route | Résolution | Route sans Organization résolue (`/`, `/login`, `/partners`, `/admin/*`, etc.) |
+| Organization-scoped public route | Résolution | Route publique mais qui résout une Organization. Public ≠ global. |
+
+### Rappels critiques
+
+- **Partner ≠ Tenant.** Partner = co-branding / distribution. Organization = tenant.
+- **Loop ≠ Tenant.** Loop = groupe collaboratif interne à une Organization.
+- **Community** = legacy technique temporaire. Ne pas utiliser comme nouveau concept produit.
+- **Default Organization** ≠ Organization du user connecté. La default Organization est celle de la plateforme.
+- **Public ≠ Global.** Une route publique peut être Organization-scopée.
+
+---
+
 # 2. Official System Concepts
 
 These terms are considered:

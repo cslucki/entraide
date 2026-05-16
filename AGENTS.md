@@ -14,6 +14,21 @@ Technical architecture, Laravel conventions, migration strategy and AI operation
 
 ---
 
+# Organisation Scoping Rule (T075.1)
+
+Toutes les fonctionnalités métier actuelles et futures doivent être **Organization-scopées**.
+
+- **Organization = Tenant.** Frontière de sécurité unique.
+- **Partner ≠ Tenant.** Partner est une entrée co-branding / distribution.
+- **Loop ≠ Tenant.** Loop est un groupe collaboratif interne à une Organization.
+- **Community** / `community_id` / `current_community` = legacy technique temporaire.
+- **Public ≠ Global.** Une route publique peut être Organization-scopée.
+- **Root domain** n'est pas tenantless. Les routes métier résolvent une Organization.
+- `/{feature}` → Organization par défaut de la plateforme.
+- `/{partnerSlug}/{feature}` → Organization partenaire.
+
+---
+
 # Core Philosophy
 
 The system is:

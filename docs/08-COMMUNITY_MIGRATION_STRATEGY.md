@@ -470,6 +470,34 @@ Not part of the current migration phase.
 
 ---
 
+# 17.5 Root Domain & Default Organization Resolution (T075.1)
+
+Le root domain n'est pas tenantless. La stratégie T075.1 établit :
+
+### Résolution par contexte URL
+
+1. **Platform global** — aucune Organization. Ex: `/`, `/login`, `/partners`, `/admin/*`.
+2. **Default Organization** (`/{feature}`) — Organization par défaut de la plateforme. Ex: `/blog`, `/explorer`.
+3. **Partner slug** (`/{partnerSlug}/{feature}`) — Organization liée au partnerSlug. Ex: `/bni/blog`.
+4. **Authenticated personal** (`/dashboard`) — Organization du user connecté.
+5. **Fail-safe** — blocage si route métier sans Organization résolue.
+
+### Partner slug routing comme nouveau pattern de migration
+
+Le pattern `/{partnerSlug}/{feature}` est un nouveau canal de résolution pour la migration :
+- Il permet d'exposer les données d'une Organization partenaire sans authentification.
+- Il remplace conceptuellement l'ancien `/{community}/...` pour les cas publics.
+- Community / community_id / current_community reste legacy technique temporaire.
+- Ne pas lancer de migration DB maintenant.
+
+### Community legacy
+
+- Community reste legacy technique temporaire.
+- Ne pas introduire Community comme nouveau concept produit.
+- Ne pas migrer la DB maintenant.
+
+---
+
 # 18. Multi-Tenant Clarification
 
 Current system:
