@@ -2,7 +2,7 @@
 task_id: TASK-082
 title: t075-3-activate-url-organization-middleware-test-fixtures
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
