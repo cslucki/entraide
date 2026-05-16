@@ -47,12 +47,12 @@ class LoopController extends Controller
 
     public function index(): View
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
-
         $user = auth()->user();
 
-        $loops = Loop::where('community_id', $community->id)
+        $communityId = $this->resolveCommunityId();
+
+        $loops = Loop::query()
+            ->when($communityId, fn ($q) => $q->where('community_id', $communityId))
             ->whereIn('id', function ($q) use ($user) {
                 $q->select('loop_id')
                     ->from('loop_members')
@@ -63,6 +63,15 @@ class LoopController extends Controller
             ->get();
 
         return view('loops.index', compact('loops'));
+    }
+
+    private function resolveCommunityId(): ?string
+    {
+        if (app()->bound('current_community')) {
+            return app('current_community')->id;
+        }
+
+        return auth()->user()->community_id;
     }
 
     public function create(): View
