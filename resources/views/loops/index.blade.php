@@ -56,6 +56,19 @@
                                 {{ $item->active_members_count }}
                             </span>
                             <span>{{ $item->type === 'system' ? 'Système' : 'Personnalisée' }}</span>
+                            @if($lastMessageAt = $item->last_message_at ? \Carbon\Carbon::parse($item->last_message_at) : null)
+                                @php
+                                    $recent = $lastMessageAt->gt(now()->subHours(24));
+                                @endphp
+                                <span class="flex items-center gap-1 @if($recent) text-indigo-500 dark:text-indigo-400 @endif">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    {{ $lastMessageAt->diffForHumans() }}
+                                </span>
+                            @else
+                                <span class="text-gray-300 dark:text-gray-600">—</span>
+                            @endif
                         </div>
                     </a>
                 @endforeach
