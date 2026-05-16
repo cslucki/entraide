@@ -20,8 +20,8 @@ labels: []
 lock:
   status: UNLOCKED
   agent: OPENCODE
-  since: 2026-05-16 14:15:00 Europe/Paris
-  unlocked_at: 2026-05-16 14:20:00 Europe/Paris
+  since: 2026-05-16 14:25:00 Europe/Paris
+  unlocked_at: 2026-05-16 14:35:00 Europe/Paris
 
 handoff: false
 
@@ -275,12 +275,13 @@ N/A — Tâche complétée par OPENCODE.
 
 # Tests
 
-- [x] feature tests (17 T074.11 + full regression)
-- [x] browser validation (http://test.laravel/loops → 200 OK; /loops/create → 302 redirect → 200 OK)
-- [x] responsive validation (empty state responsive ok)
+- [x] feature tests (21 T074.11 + full regression)
+- [x] browser validation (http://test.laravel/loops → 200, CTA hidden; http://test.laravel/loops/create → 302 redirect → /loops + flash)
+- [x] responsive validation (empty state sans CTA ok)
 - [x] console inspection (0 errors)
 - [x] tenant validation (cross-community isolation confirmed)
 - [x] guest redirect (/loops/create → login)
+- [x] CTA visibility gated by $canCreate (hidden when no tenant)
 
 ---
 
@@ -335,10 +336,107 @@ T074.11: 16/16 PASS
 Full suite: 542/543 PASS (1 pre-existing SearchControllerTest unrelated)
 Regression: 0 failures
 
-## Après complément /loops/create
+## Après complément /loops/create (v2)
 T074.11: 17/17 PASS (33 assertions)
 Full suite: 543/544 PASS (1 pre-existing SearchControllerTest unrelated)
 Regression: 0 failures
+
+## Après blocker CTA sans tenant (v3)
+T074.11: 21/21 PASS (44 assertions)
+Full suite: 545/546 PASS (1 pre-existing SearchControllerTest unrelated)
+Regression: 0 failures
+
+---
+
+# Browser Blocker: /loops/create CTA sans tenant (2026-05-16)
+
+## Constat COCKPIT
+- **QA Admin** connecté sur `https://test.laravel/loops`
+- Écran "Mes boucles" affiche les CTA "+ Nouvelle" et "+ Créer votre première boucle"
+- Clic → `/loops/create` → redirect `/loops` avec flash "Vous devez appartenir à une organisation pour créer une boucle."
+- Comportement inacceptable en release : les CTAs promettent la création mais livrent une redirection.
+
+## Enquête
+
+### Compte QA Admin
+- **Email** : `qa-admin@bouclepro.local` (variable `TEST_ADMIN_LOGIN`)
+- **Créé par** : `QaAccountsSeeder` (overlay QA)
+- **is_admin** : `true`
+- **community_id** : `null` — intentionnellement **sans tenant**
+- **Raison** : admin global de plateforme, pas membre d'une Organization spécifique
+- **Ce n'est PAS un bug de seed** — l'admin QA est délibérément global
+
+### Résolution tenant sur /loops et /loops/create
+- Routes globales membre (sans préfixe `/{community}/`)
+- `current_community` n'est PAS bound sur ces routes
+- `resolveCommunityId()` retombe sur `auth()->user()->community_id` → `null`
+- `resolveCommunity()` → `abort(404)` quand `user->community` inexistant
+- Comportement correct du point de vue tenant safety
+
+### Vérifications séparées
+| Route | Tenant | Comportement |
+|---|---|---|
+| `/loops` (GET) | auth()->user()->community_id | Empty state si null, CAN create si non-null |
+| `/loops/create` (GET) | auth()->user()->community_id | Redirect /loops + flash si null |
+| `/{community}/loops` (GET) | current_community (ResolveCommunity) | Fonctionne via middleware legacy |
+| `/{community}/loops/create` (GET) | current_community (ResolveCommunity) | Fonctionne via middleware legacy |
+| `/boucles` (GET) | Public, pas de tenant | Fonctionne (listing public legacy) |
+
+### Conclusion : Pas de bug dans la résolution tenant
+- C'est **Option C** : l'utilisateur n'a réellement pas de tenant
+- Les CTAs ne doivent pas être affichés quand la création est impossible
+- `resolveCommunityId()` → `null` est un état légitime (global admin, ou utilisateur sans org)
+
+## Correction appliquée
+
+### Option C — Masquer les CTAs de création quand `resolveCommunityId()` retourne null
+
+**Fichiers modifiés :**
+
+| Fichier | Modification |
+|---|---|
+| `app/Http/Controllers/LoopController.php:57,74` | `index()` passe `$canCreate` à la vue (`true` si tenant résolu, `false` sinon) |
+| `resources/views/loops/index.blade.php:8,30` | CTAs "+ Nouvelle" et "+ Créer votre première boucle" wraps dans `@if($canCreate)` |
+| `tests/Feature/T07411RoutesTenantSafetyTest.php` | +4 tests : admin create 200, admin no-tenant redirect, CTA visible, CTA hidden |
+
+### Tests T074.11 — 21 tests (44 assertions)
+
+Nouveaux tests :
+- `test_loops_create_returns_200_for_admin_with_community` — admin avec tenant → 200
+- `test_loops_create_redirects_admin_without_community` — admin sans tenant → redirect
+- `test_loops_index_shows_create_cta_for_user_with_community` — CTA visibles si tenant
+- `test_loops_index_hides_create_cta_for_user_without_community` — CTA cachés si pas de tenant
+
+### Tests exécutés — 79/79 PASS (167 assertions)
+
+| Suite | Tests | Résultat |
+|---|---|---|
+| T074.11 | 21 | ✅ 21/21 PASS (44 assertions) |
+| LoopCreationTest | 10 | ✅ 10/10 PASS |
+| LoopMemberInvariantTest | 22 | ✅ 22/22 PASS |
+| AdminLoopsTest | 8 | ✅ 8/8 PASS |
+| AdminMessagesTest | 18 | ✅ 18/18 PASS |
+| **Total** | **79** | **✅ Zéro échec, zéro régression** |
+
+### Validation navigateur
+- **/loops** (HTTP) : 200 OK, "Mes boucles", "Vous n'avez encore aucune boucle." — **CTA "+ Nouvelle" MASQUÉ**, **CTA "Créer votre première boucle" MASQUÉ** ✅
+- **/loops/create** (HTTP) : 302 redirect → /loops, flash "Vous devez appartenir à une organisation pour créer une boucle." visible ✅
+- **/loops** (HTTPS) : ERR_CERT_AUTHORITY_INVALID (certificat auto-signé local seulement)
+- **Console errors** : 0
+
+### Décision retenue
+- **Option C** : utilisateur sans tenant ne peut pas créer de Loop
+- Les CTAs sont masqués sur `/loops` quand `resolveCommunityId()` retourne null
+- `/loops/create` redirige proprement avec info flash si tentative d'accès direct
+- Cohérence produit : `Loop != Tenant`, créer une boucle nécessite un tenant (Organization)
+
+### Production Safety Notes
+- composer: none
+- npm: none
+- migrations: none
+- env: none
+- queue: none
+- cache: none
 
 ---
 
@@ -360,4 +458,8 @@ Regression: 0 failures
 - **Fix** : si `resolveCommunityId() === null` → redirect route('loops.index') avec info flash, au lieu de 404
 - **Consistance** : même pattern que `index()` (guard null tenant → état propre)
 - **Sécurité** : impossible de créer une boucle sans tenant (store() nécessite aussi tenant)
-- **CTA intact** : les deux boutons "Nouvelle" / "Créer votre première boucle" dans l'UI pointent toujours vers route('loops.create') — redirect propre si pas de tenant
+
+### CTA correction (2026-05-16 v3)
+- **Problème** : les CTAs "+ Nouvelle" et "Créer votre première boucle" étaient visibles même quand `/loops/create` redirect
+- **Fix** : `$canCreate` passé à la vue — CTAs masqués si `resolveCommunityId() === null`
+- **UX** : pas de promesse de création impossible ; pas de dead end ; pas de redirect boucle

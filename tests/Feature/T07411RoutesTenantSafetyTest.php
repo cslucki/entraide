@@ -78,9 +78,44 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $response->assertRedirect(route('loops.index'));
     }
 
+    public function test_loops_create_returns_200_for_admin_with_community(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('loops.create'));
+        $response->assertOk();
+    }
+
+    public function test_loops_create_redirects_admin_without_community(): void
+    {
+        $adminWithoutCommunity = User::factory()->create([
+            'is_admin' => true,
+            'community_id' => null,
+            'organization_id' => null,
+        ]);
+        $response = $this->actingAs($adminWithoutCommunity)->get('/loops/create');
+        $response->assertRedirect(route('loops.index'));
+    }
+
     public function test_loops_create_redirects_guest_to_login(): void
     {
         $this->get('/loops/create')->assertRedirect(route('login'));
+    }
+
+    public function test_loops_index_shows_create_cta_for_user_with_community(): void
+    {
+        $response = $this->actingAs($this->user)->get('/loops');
+        $response->assertOk();
+        $response->assertSee('Nouvelle');
+        $response->assertSee('Créer votre première boucle');
+    }
+
+    public function test_loops_index_hides_create_cta_for_user_without_community(): void
+    {
+        $response = $this->actingAs($this->userWithoutCommunity)->get('/loops');
+        $response->assertOk();
+        $response->assertSee('Mes boucles');
+        $response->assertSeeText("Vous n'avez encore aucune boucle");
+        $response->assertDontSee('Nouvelle');
+        $response->assertDontSee('Créer votre première boucle');
     }
 
     // ── /boucles (public legacy route) ────────────────────────────────────
