@@ -11,6 +11,8 @@
 #   ./pg-dump.sh schema-only [file] → Export schema only (no data)
 #   ./pg-dump.sh data-only [file]   → Export data only (no schema)
 #   ./pg-dump.sh list               → List available dumps
+#   ./pg-dump.sh prod-dump [file]  → Export production PostgreSQL to file (manual creds)
+#   ./pg-dump.sh prod-mirror       → Full prod → local mirror: dump + import + migrate + cache
 #   ./pg-dump.sh reset              → Import latest dump + migrate + cache clear
 # =========================================================
 
@@ -217,34 +219,125 @@ case "${1:-}" in
     ;;
 
   prod-dump)
+    check_prereqs
+    FILE="${2:-${DUMPS_DIR}/production_$(timestamp).sql}"
     echo "→ Production dump (Laravel Cloud)"
     echo ""
-    echo "Laravel Cloud PostgreSQL credentials are available via:"
-    echo "  php artisan cloud:db:show"
+    echo "This command creates a production database dump for local mirroring."
     echo ""
-    echo "Typical production dump workflow:"
+    echo "Mode: MANUAL (enter credentials from Laravel Cloud dashboard)"
     echo ""
-    echo "  1. Get production connection details:"
-    echo "     php artisan cloud:db:show"
+    echo "Production credentials can be obtained via:"
+    echo "   php artisan cloud:db:show"
+    echo "  (or from Laravel Cloud Dashboard > Database > Connection Details)"
     echo ""
-    echo "  2. Dump production database:"
-    echo "     pg_dump --host=<prod-host> --port=5432 \\"
-    echo "       --username=<prod-user> --dbname=<prod-db> \\"
-    echo "       --format=custom --no-owner \\"
-    echo "       --file=${DUMPS_DIR}/production_$(timestamp).sql"
+    echo "---"
     echo ""
-    echo "  3. Import into local:"
-    echo "     $0 import ${DUMPS_DIR}/production_<timestamp>.sql"
+    read -rp "Production host: " PROD_HOST
+    read -rp "Production port [5432]: " PROD_PORT
+    PROD_PORT="${PROD_PORT:-5432}"
+    read -rp "Production username: " PROD_USER
+    read -rsp "Production password: " PROD_PASS
     echo ""
-    echo "  4. Or use reset for full workflow:"
-    echo "     $0 reset"
+    read -rp "Production database name: " PROD_DB
+    echo ""
+    confirm_destructive "Dump production database" "$PROD_HOST:$PROD_PORT/$PROD_DB"
+    echo ""
+    echo "→ Dumping production database to: $FILE"
+    PGPASSWORD="$PROD_PASS" pg_dump \
+      --host="$PROD_HOST" \
+      --port="$PROD_PORT" \
+      --username="$PROD_USER" \
+      --dbname="$PROD_DB" \
+      --format=custom \
+      --no-owner \
+      --verbose \
+      --file="$FILE"
+    unset PROD_PASS
+    echo "✓ Production dump completed: $FILE"
+    ls -lh "$FILE"
     echo ""
     echo "⚠️  NEVER commit production dumps to the repository."
     echo "   The dumps directory is already gitignored (see .gitignore)."
     ;;
 
+  prod-mirror)
+    echo "═════════════════════════════════════════════════"
+    echo "  PRODUCTION → LOCAL MIRROR WORKFLOW"
+    echo "═════════════════════════════════════════════════"
+    echo ""
+    check_prereqs
+    check_runtime_env
+    echo ""
+    echo "Phase 1/4 — Dump production database"
+    echo "──────────────────────────────────────"
+    echo ""
+    echo "Production credentials can be obtained via:"
+    echo "  - Laravel Cloud Dashboard > Database > Connection Details"
+    echo "  - Or: php artisan cloud:db:show"
+    echo ""
+    read -rp "Production host: " PROD_HOST
+    read -rp "Production port [5432]: " PROD_PORT
+    PROD_PORT="${PROD_PORT:-5432}"
+    read -rp "Production username: " PROD_USER
+    read -rsp "Production password: " PROD_PASS
+    echo ""
+    read -rp "Production database name: " PROD_DB
+    MIRROR_FILE="${DUMPS_DIR}/production_$(timestamp).sql"
+    echo ""
+    echo "→ Dumping production DB to: $MIRROR_FILE"
+    PGPASSWORD="$PROD_PASS" pg_dump \
+      --host="$PROD_HOST" \
+      --port="$PROD_PORT" \
+      --username="$PROD_USER" \
+      --dbname="$PROD_DB" \
+      --format=custom \
+      --no-owner \
+      --verbose \
+      --file="$MIRROR_FILE"
+    unset PROD_PASS
+    echo "✓ Phase 1/4 — Dump completed"
+    echo ""
+    echo "Phase 2/4 — Import into local PostgreSQL"
+    echo "─────────────────────────────────────────"
+    confirm_destructive "Import production dump into LOCAL database" "$PG_DB@$PG_HOST:$PG_PORT"
+    pg_restore \
+      --host="$PG_HOST" \
+      --port="$PG_PORT" \
+      --username="$PG_USER" \
+      --dbname="$PG_DB" \
+      --clean \
+      --if-exists \
+      --verbose \
+      "$MIRROR_FILE"
+    echo "✓ Phase 2/4 — Import completed"
+    echo ""
+    echo "Phase 3/4 — Run pending migrations"
+    echo "─────────────────────────────────────"
+    php artisan migrate --force
+    echo "✓ Phase 3/4 — Migrations up to date"
+    echo ""
+    echo "Phase 4/4 — Clear application cache"
+    echo "────────────────────────────────────"
+    php artisan optimize:clear
+    echo "✓ Phase 4/4 — Cache cleared"
+    echo ""
+    echo "═════════════════════════════════════════════════"
+    echo "  ✓ MIRROR COMPLETE"
+    echo "  Source: $PROD_HOST/$PROD_DB"
+    echo "  Local:  $PG_HOST:$PG_PORT/$PG_DB"
+    echo "  Dump:   $(basename "$MIRROR_FILE")"
+    echo "═════════════════════════════════════════════════"
+    echo ""
+    echo "Next steps (CODE):"
+    echo "  1. ./ai/scripts/switch-db.sh pgsql"
+    echo "  2. php artisan test"
+    echo "  3. npx playwright test"
+    echo "  4. Validate runtime parity"
+    ;;
+
   *)
-    echo "Usage: $0 {dump|import|schema-only|data-only|list|prod-dump|reset} [file]"
+    echo "Usage: $0 {dump|import|schema-only|data-only|list|prod-dump|prod-mirror|reset} [file]"
     echo ""
     echo "Commands:"
     echo "  dump [file]         Export full database to custom-format dump"
@@ -253,7 +346,8 @@ case "${1:-}" in
     echo "  data-only [file]    Export data without schema"
     echo "  list                List available dump files"
     echo "  reset               Import latest dump + migrate + cache clear"
-    echo "  prod-dump           Instructions for Laravel Cloud production dump"
+    echo "  prod-dump [file]    Dump production Laravel Cloud database (manual creds)"
+    echo "  prod-mirror         Full prod → local mirror: dump + import + migrate + cache"
     exit 1
     ;;
 esac

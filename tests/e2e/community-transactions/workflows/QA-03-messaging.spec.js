@@ -23,6 +23,7 @@ import {
     goToCommunity,
 } from '../helpers/community.js';
 import { SELECTORS } from '../helpers/config.js';
+import { extractSlugFromUrl } from '../helpers/community.js';
 import '../../../setup.js';
 
 // Test users from environment
@@ -52,8 +53,8 @@ test.describe('QA-03: Messaging Between Participants', () => {
 
         // Get community slug
         const url = page.url();
-        const slugMatch = url.match(/\/([a-z0-9-]+)\//);
-        communitySlug = slugMatch ? slugMatch[1] : 'default';
+
+        communitySlug = extractSlugFromUrl(page.url());
 
         console.log(`📍 Community slug: ${communitySlug}`);
 

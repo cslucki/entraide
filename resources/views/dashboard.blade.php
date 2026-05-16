@@ -43,6 +43,50 @@
             </div>
         </div>
 
+        @if($referralLink)
+        <div id="invitations" class="mb-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+            <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Mes invitations</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Partagez ce lien avec une personne que vous souhaitez faire entrer dans la boucle.
+            </p>
+            <div class="flex gap-2 mb-4" x-data="{ copied: false, link: @js($referralLink) }">
+                <input type="text" readonly value="{{ $referralLink }}" data-referral-link
+                       class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 select-all">
+                <button type="button" @click="
+                    const input = $root.querySelector('[data-referral-link]');
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(link);
+                    } else if (input) {
+                        input.select();
+                        document.execCommand('copy');
+                    }
+                    copied = true;
+                    setTimeout(() => copied = false, 2000);
+                " class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+                    <span x-show="!copied">Copier</span>
+                    <span x-show="copied">Copié !</span>
+                </button>
+            </div>
+            <div class="flex items-center justify-between">
+                <div class="flex gap-6 text-sm text-gray-600 dark:text-gray-400">
+                    <div>
+                        <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $sentReferralsCount }}</span>
+                        <span class="ml-1">invitation(s)</span>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $activatedReferralsCount }}</span>
+                        <span class="ml-1">activation(s)</span>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $referralPointsEarned }}</span>
+                        <span class="ml-1">pts reçus</span>
+                    </div>
+                </div>
+                <a href="{{ route('points.index') }}#invitations" class="text-xs text-indigo-600 hover:underline">Voir l'historique</a>
+            </div>
+        </div>
+        @endif
+
         @if(session('success'))
         <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
             class="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg text-sm">
@@ -205,6 +249,11 @@
             <a href="{{ route('points.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
                 Historique des points
             </a>
+            @if($referralLink)
+            <a href="{{ route('points.index') }}#invitations" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+                Points d'invitation
+            </a>
+            @endif
             <a href="{{ route('favorites.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
                 Mes favoris
             </a>
