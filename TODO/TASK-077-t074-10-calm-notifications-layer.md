@@ -2,7 +2,7 @@
 task_id: TASK-077
 title: t074-10-calm-notifications-layer
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -240,3 +240,22 @@ Aucun blocker code/produit.
 - [x] Console → 0 errors, 0 warnings
 - [x] Aucune modification code produit après review
 - [x] Prêt pour ops check-task.sh / finalize-task.sh
+
+---
+
+# Merge Final — 2026-05-16 17:56:00 Europe/Paris
+
+- **Merge commit**: `e6942a9` (--no-ff into develop)
+- **Push develop**: OK
+- **CI**: pending — vérification manuelle après push
+- **Scope respecté**: Oui — calm activity indicators only
+- **Migration**: Aucune
+- **Option A**: Validée (calm indicators, pas de badges)
+- **Option B**: Rejetée (pas de read/unread tracking, pas de Nouveau badge)
+
+## Commit History (merge)
+
+```
+e6942a9 Merge branch 'TASK-077-t074-10-calm-notifications-layer' into develop
+751267a feat(loops): add calm activity indicators
+```
