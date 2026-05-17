@@ -2,7 +2,7 @@
 task_id: TASK-086
 title: T075.7 — BelongsToTenantScope Safety Guard + No Silent Tenant Skip
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
