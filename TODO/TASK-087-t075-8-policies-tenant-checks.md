@@ -2,7 +2,7 @@
 task_id: TASK-087
 title: T075.8 — Policies Tenant Checks
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
