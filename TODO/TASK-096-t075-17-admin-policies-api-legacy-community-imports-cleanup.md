@@ -2,7 +2,7 @@
 task_id: TASK-096
 title: t075-17-admin-policies-api-legacy-community-imports-cleanup
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-096-t075-17-admin-policies-api-legacy-community-imports-cleanup
 priority: MEDIUM
 
 created_at: 2026-05-17 23:45:38 Europe/Paris
-updated_at: 2026-05-18 00:02:00 Europe/Paris
+updated_at: 2026-05-18 00:06:00 Europe/Paris
 
 labels: []
 
@@ -280,3 +280,14 @@ Recommendation: **READY FOR FINALIZE**
 - Risque résiduel legacy admin community documenté comme handoff futur.
 - Status: DONE.
 - Lock: UNLOCKED.
+
+## 2026-05-18 00:06:00 Europe/Paris — OPS (Merge)
+
+- `./ai/scripts/merge-task.sh` exécuté avec succès.
+- `git merge --no-ff` — merge commit `2052d64`.
+- `git push origin develop` — OK.
+- CI develop déclenchée (attente résultat).
+- Status: MERGED.
+- Lock: UNLOCKED (inchangé).
+- Branche distante conservée : `origin/TASK-096-t075-17-...`.
+- main / PROD non touchés : `b392a13`.
