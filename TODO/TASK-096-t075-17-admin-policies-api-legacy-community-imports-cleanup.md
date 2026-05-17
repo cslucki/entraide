@@ -2,7 +2,7 @@
 task_id: TASK-096
 title: t075-17-admin-policies-api-legacy-community-imports-cleanup
 
-status: TESTING
+status: DONE
 
 owner: OPENCODE
 
@@ -13,14 +13,14 @@ branch: TASK-096-t075-17-admin-policies-api-legacy-community-imports-cleanup
 priority: MEDIUM
 
 created_at: 2026-05-17 23:45:38 Europe/Paris
-updated_at: 2026-05-17 23:57:40 Europe/Paris
+updated_at: 2026-05-18 00:02:00 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-05-17 23:45:38 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
@@ -246,3 +246,37 @@ Playwright/browser validation:
 
 - Audit complete. Patch is test-only and Organization-first where the tenant fixture was conceptual Organization.
 - Legacy `AdminCommunitiesTest` intentionally remains Community-based pending future runtime/domain migration.
+
+## 2026-05-18 00:02:00 Europe/Paris — OPS (Finalization)
+
+### OPENAI Review Summary
+
+Verdict: **APPROVE WITH NOTES**
+Blocking issues: **none**
+Recommendation: **READY FOR FINALIZE**
+
+### OPENAI Review Notes
+
+- Patch limité aux 6 fichiers de tests Admin/API ciblés + TASK file.
+- Aucun runtime modifié.
+- Remplacements Community → Organization corrects : les fixtures représentent bien le tenant Organization, souvent bindé comme `current_organization`.
+- Les `community_id` restants sont des champs de fixture liés au schéma legacy, pas un nouveau concept Community.
+- Aucun helper permissif, abstraction dangereuse, `current_community`, `ResolveCommunity` ou refactor global introduit.
+- Restes legacy justifiés :
+  - `AdminCommunitiesTest` teste explicitement les routes/table legacy `communities`.
+  - `ApiTenantScopingTest` garde une assertion de non-binding legacy.
+- Risque résiduel : noms de routes/champs admin community restent legacy, hors scope T075.17, handoff futur.
+
+### OPENAI Tests Relancés
+
+- `php artisan test tests/Feature/Admin` — 128 passed, 323 assertions
+- `php artisan test tests/Feature/Policies` — 57 passed, 66 assertions
+- `php artisan test tests/Feature/Api` — 37 passed, 100 assertions
+
+### OPS Finalization
+
+- Review OPENAI intégrée : APPROVED, aucun blocking issue.
+- Aucun runtime / DB / route / controller / middleware / policy métier / API métier / UI modifié.
+- Risque résiduel legacy admin community documenté comme handoff futur.
+- Status: DONE.
+- Lock: UNLOCKED.
