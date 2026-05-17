@@ -2,7 +2,7 @@
 task_id: TASK-091
 title: t075-12-has-organization-id-organization-first-sync-strategy
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -259,6 +259,15 @@ Full Feature suite        : 649 passed (1399 assertions)
 - Pas de changement contrôleur / API / Policy / Route / UI
 - Pas de modification PROD
 - Pas de changement Loop / ChatLoop
+
+## Merge
+
+- **Date :** 2026-05-17 22:00:00 Europe/Paris
+- **Merge commit develop :** `7f06dee`
+- **Message :** Merge T075.12 HasOrganizationId Organization-First Sync Strategy
+- **CI PostgreSQL :** en attente
+
+---
 
 ## OPENAI Review Verdict
 
