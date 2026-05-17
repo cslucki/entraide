@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -21,7 +21,7 @@ class CurrentOrganizationTest extends TestCase
 
     public function test_get_returns_current_organization_when_bound(): void
     {
-        $org = Community::factory()->create();
+        $org = Organization::factory()->create();
 
         app()->instance('current_organization', $org);
 
@@ -30,7 +30,7 @@ class CurrentOrganizationTest extends TestCase
 
     public function test_get_falls_back_to_current_community(): void
     {
-        $community = Community::factory()->create();
+        $community = Organization::factory()->create();
 
         app()->instance('current_community', $community);
 
@@ -39,8 +39,8 @@ class CurrentOrganizationTest extends TestCase
 
     public function test_get_prefers_organization_over_community(): void
     {
-        $org = Community::factory()->create();
-        $community = Community::factory()->create();
+        $org = Organization::factory()->create();
+        $community = Organization::factory()->create();
 
         app()->instance('current_organization', $org);
         app()->instance('current_community', $community);
@@ -50,8 +50,8 @@ class CurrentOrganizationTest extends TestCase
 
     public function test_get_uses_organization_when_values_differ(): void
     {
-        $org = Community::factory()->create();
-        $community = Community::factory()->create();
+        $org = Organization::factory()->create();
+        $community = Organization::factory()->create();
 
         app()->instance('current_organization', $org);
         app()->instance('current_community', $community);
@@ -64,7 +64,7 @@ class CurrentOrganizationTest extends TestCase
 
     public function test_get_fallbacks_to_community_only_as_legacy_bound(): void
     {
-        $community = Community::factory()->create();
+        $community = Organization::factory()->create();
 
         app()->instance('current_community', $community);
 
@@ -85,7 +85,7 @@ class CurrentOrganizationTest extends TestCase
 
     public function test_id_returns_organization_id_when_bound(): void
     {
-        $org = Community::factory()->create();
+        $org = Organization::factory()->create();
 
         app()->instance('current_organization', $org);
 
@@ -103,7 +103,7 @@ class CurrentOrganizationTest extends TestCase
 
     public function test_helper_returns_current_organization_when_bound(): void
     {
-        $org = Community::factory()->create();
+        $org = Organization::factory()->create();
 
         app()->instance('current_organization', $org);
 
@@ -112,7 +112,7 @@ class CurrentOrganizationTest extends TestCase
 
     public function test_helper_falls_back_to_current_community(): void
     {
-        $community = Community::factory()->create();
+        $community = Organization::factory()->create();
 
         app()->instance('current_community', $community);
 

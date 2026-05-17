@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Service;
 use App\Models\User;
@@ -11,12 +11,12 @@ use Tests\TestCase;
 
 class PointsSystemTest extends TestCase
 {
-    private Community $org;
+    private Organization $org;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->org = Community::factory()->create(['is_active' => true]);
+        $this->org = Organization::factory()->create(['is_active' => true]);
         app()->instance('current_organization', $this->org);
     }
 
