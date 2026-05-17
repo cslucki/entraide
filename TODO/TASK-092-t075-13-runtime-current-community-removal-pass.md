@@ -2,7 +2,7 @@
 task_id: TASK-092
 title: 'T075.13 — Runtime current_community Removal Pass'
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
