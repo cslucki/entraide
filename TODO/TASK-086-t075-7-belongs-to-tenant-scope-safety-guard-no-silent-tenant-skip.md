@@ -261,6 +261,24 @@ Pint: clean on all modified files
 - Admin bypass pattern (`withoutGlobalScope`) is preserved and documented
 - No architectural changes, no migration, no new vocabulary introduced
 
+## OPENAI Review — APPROVE WITH NOTES
+
+Résumé :
+- BelongsToTenantScope fail-closed validé.
+- En absence de current_organization / fallback legacy, `whereRaw('0 = 1')` est accepté.
+- Avec Organization résolue, le scope reste borné à community_id legacy.
+- Fallback current_community legacy couvert.
+- Tests suffisants pour T075.7 : avec Organization, sans Organization, fallback legacy, absence de fuite cross-Organization, bypass admin explicite.
+- `app/Http/Controllers/Api/TransactionController.php` : changement accepté comme correction étroite de compatibilité avec le nouveau scope fail-closed.
+- **Handoff T075.10** : l'API tenant resolution globale reste à traiter. Les tests API bindent `current_organization` manuellement ; ils ne prouvent pas encore qu'un middleware API résout l'Organization en production.
+
+Handoff T075.10 :
+- Auditer `routes/api.php`.
+- Ajouter ou valider un resolver Organization pour les routes API.
+- Vérifier que les créations API ne dépendent pas d'un bind manuel de `current_organization`.
+- Tester l'isolation API sans contexte Organization manuel.
+- Ne pas considérer le changement T075.7 dans `Api/TransactionController` comme une résolution complète de l'API Tenant Scoping.
+
 ---
 
 # Risks
