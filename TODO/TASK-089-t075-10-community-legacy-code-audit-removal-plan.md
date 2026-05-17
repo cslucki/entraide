@@ -2,7 +2,7 @@
 task_id: TASK-089
 title: T075.10 — Community Legacy Code Audit & Removal Plan
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
