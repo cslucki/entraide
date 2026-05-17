@@ -3,18 +3,18 @@
 namespace Tests\Feature\Api;
 
 use App\Models\Category;
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Service;
 use Tests\TestCase;
 
 class ServiceApiTest extends TestCase
 {
-    private Community $org;
+    private Organization $org;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->org = Community::factory()->create(['is_active' => true]);
+        $this->org = Organization::factory()->create(['is_active' => true]);
         app()->instance('current_organization', $this->org);
     }
 

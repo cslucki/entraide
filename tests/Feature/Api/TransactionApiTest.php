@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Api;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Service;
 use App\Models\Transaction;
 use App\Models\User;
@@ -10,12 +10,12 @@ use Tests\TestCase;
 
 class TransactionApiTest extends TestCase
 {
-    private Community $org;
+    private Organization $org;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->org = Community::factory()->create(['is_active' => true]);
+        $this->org = Organization::factory()->create(['is_active' => true]);
         app()->instance('current_organization', $this->org);
     }
 

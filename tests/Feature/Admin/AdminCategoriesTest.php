@@ -3,7 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\Category;
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Service;
 use App\Models\Skill;
 use App\Models\User;
@@ -117,7 +117,7 @@ class AdminCategoriesTest extends TestCase
     public function test_admin_cannot_delete_category_with_services(): void
     {
         $admin = $this->makeAdmin();
-        $org = Community::factory()->create();
+        $org = Organization::factory()->create();
         $category = Category::factory()->create();
         Service::factory()->forCategory($category)->create(['community_id' => $org->id]);
 
