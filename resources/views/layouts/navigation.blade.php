@@ -7,7 +7,7 @@
                     <a href="{{ route('home') }}" class="flex items-center">
                         <img src="/favicon.svg" alt="BouclePro" class="h-8 w-8 hidden sm:block">
                     </a>
-                    @php $tenant = $currentCommunity ?? $currentOrganization ?? null; @endphp
+                    @php $tenant = $currentOrganization ?? $currentCommunity ?? null; @endphp
                     @isset($tenant)
                     <span class="text-sm sm:text-xs text-gray-500 dark:text-gray-400 font-medium sm:border-l sm:border-gray-300 sm:dark:border-gray-600 sm:pl-2">{{ $tenant->name }}</span>
                     @endisset
