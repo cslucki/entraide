@@ -9,6 +9,7 @@ use App\Models\Referral;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
+use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -23,8 +24,10 @@ class LoopController extends Controller
 
     private function resolveCommunity(): Community
     {
-        if (app()->bound('current_community')) {
-            return app('current_community');
+        $organization = CurrentOrganization::get();
+
+        if ($organization) {
+            return $organization;
         }
 
         $user = auth()->user();
@@ -80,8 +83,10 @@ class LoopController extends Controller
 
     private function resolveCommunityId(): ?string
     {
-        if (app()->bound('current_community')) {
-            return app('current_community')->id;
+        $organizationId = CurrentOrganization::id();
+
+        if ($organizationId) {
+            return $organizationId;
         }
 
         return auth()->user()->community_id;
