@@ -2,7 +2,7 @@
 task_id: TASK-093
 title: 'T075.14 — Organization-First Test Fixtures & Legacy Community Imports Cleanup'
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-093-t075-14-organization-first-test-fixtures-legacy-community-impor
 priority: MEDIUM
 
 created_at: 2026-05-17 21:27:01 Europe/Paris
-updated_at: 2026-05-17 23:15:00 Europe/Paris
+updated_at: 2026-05-17 23:30:00 Europe/Paris
 
 labels:
   - organization-migration
@@ -232,7 +232,18 @@ Finalisation OPS.
 - **Handoff**: Documented with remaining legacy imports
 - **Runtime**: Confirmé — aucun fichier runtime modifié
 
-Prochaine étape : merge OPS.
+Prochaine étape : merge OPS (accomplie).
+
+## 2026-05-17 23:30:00 Europe/Paris
+
+Merge OPS complete.
+
+- `git merge --no-ff` into develop: a393fa5
+- `git push origin develop`: OK — ee280a7..a393fa5
+- TASK status: DONE → MERGED
+- Branch conservée sur origin
+
+Prochaine étape : CI PostgreSQL develop.
 
 # Handoffs
 
