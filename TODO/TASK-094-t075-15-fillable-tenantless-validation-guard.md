@@ -2,7 +2,7 @@
 task_id: TASK-094
 title: t075-15-fillable-tenantless-validation-guard
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-094-t075-15-fillable-tenantless-validation-guard
 priority: MEDIUM
 
 created_at: 2026-05-17 22:11:04 Europe/Paris
-updated_at: 2026-05-17 22:11:04 Europe/Paris
+updated_at: 2026-05-17 23:00:00 Europe/Paris
 
 labels: []
 
@@ -362,6 +362,14 @@ FINALISATION OPS.
 - Lock UNLOCKED
 - Handoff activé (factories tenantless, BlogPost scope, Loop architecture)
 - Aucun commit, aucun push, aucun merge — prêt pour finalize-task.sh
+
+## 2026-05-17 23:00:00 Europe/Paris
+
+MERGED into develop.
+- Merge commit: 6293934
+- TASK-094-t075-15-fillable-tenantless-validation-guard merged into develop via --no-ff
+- Develop pushed to origin
+- CI develop déclenchée
 
 ### Models Audited
 
