@@ -2,7 +2,7 @@
 task_id: TASK-097
 title: T075.18 — Legacy Routes /boucles & Community-Named Admin Surface Repositioning Audit
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-097-t075-18-legacy-routes-boucles-community-named-admin-surface-rep
 priority: MEDIUM
 
 created_at: 2026-05-18 00:18:20 Europe/Paris
-updated_at: 2026-05-18 00:22:38 Europe/Paris
+updated_at: 2026-05-18 00:36:00 Europe/Paris
 
 labels:
   - audit
@@ -25,9 +25,9 @@ labels:
   - admin
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-05-18 00:18:20 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
@@ -164,7 +164,12 @@ Auditer et cadrer le repositionnement des surfaces legacy visibles :
 - [X] Phase 3 — audit tests legacy (CODE)
 - [X] Phase 4 — synthèse & découpage futur (CODE)
 - [X] documentation légère si nécessaire (CODE)
-- [ ] handoff vers T075.19 / T76 (OPS)
+- [X] handoff vers T075.19 / T76 (OPS)
+- [X] review OPENAI intégrée (OPS)
+- [X] TASK file passé DONE + UNLOCKED (OPS)
+- [X] check-task.sh validé (OPS)
+- [X] finalize-task.sh exécuté (OPS)
+- [X] commit + push finalisation (OPS)
 
 ---
 
@@ -192,6 +197,20 @@ Auditer et cadrer le repositionnement des surfaces legacy visibles :
 - Seule modification volontaire : ce TASK file.
 - Décision provisoire : ne pas implémenter `/partners` dans T075.18 ; documenter la cible et reporter toute implémentation à une tâche validée par Cyril.
 - Décision provisoire : conserver temporairement `/boucles`, `/boucles/creer`, `AdminCommunityController`, `admin.communities`, `admin.meta-community` et `admin.users.assign-community` comme surfaces legacy documentées.
+
+## 2026-05-18 00:36:00 Europe/Paris
+
+### OPS — Finalisation T075.18
+
+- OPENAI review reçue : APPROVE WITH NOTES.
+- Review intégrée dans Review Notes.
+- Status passé de IN_PROGRESS à DONE.
+- Lock passé de LOCKED à UNLOCKED.
+- check-task.sh validé avec succès (DONE + UNLOCKED + branche correcte).
+- finalize-task.sh exécuté avec succès.
+- Seule modification : ce TASK file.
+- Aucun fichier runtime modifié.
+- Commit + push finalisation effectués.
 
 ---
 
@@ -369,6 +388,36 @@ Une fois l'audit terminé, handover vers :
 ---
 
 # Review Notes
+
+## OPENAI Review — 2026-05-18
+
+### Verdict
+APPROVE WITH NOTES
+
+### Blocking Issues
+Aucun.
+
+### Confirmation Runtime
+Le commit 8759f1a modifie uniquement le TASK file. Aucune route, aucun contrôleur, aucune vue, aucun test, aucune migration, aucun middleware, aucune API, aucune policy modifiés. Le scope audit/documentation est respecté.
+
+### Points Validés
+- `/boucles` est correctement qualifié comme surface legacy Community, non assimilée aux vrais Loop.
+- `/boucles/creer` est laissé en place et repositionné seulement comme sujet futur potentiel "Devenir partenaire" / "Créer un espace partenaire".
+- `/partners` n'est pas créé dans T075.18 et reste explicitement reporté.
+- `admin.communities.*`, `admin.meta-community`, `admin.users.assign-community` sont conservés comme legacy temporaire justifié.
+- `AdminCommunitiesTest`, `AdminUsersTest`, `T07411RoutesTenantSafetyTest` sont correctement maintenus comme safety coverage legacy.
+- Le rapport évite le giant search/replace, la migration DB, le changement runtime et la création prématurée d'un modèle/surface Partner.
+
+### Non-Blocking Notes
+- Le découpage futur est sain : décision produit/routing `/boucles` vs `/partners`, UI wording, admin rename, migration DB/runtime, puis bascule tests.
+- Risque résiduel principal : le vocabulaire visible "Boucles / Communautés / Meta-Communauté" reste confus tant que T076/UI/Admin rename n'est pas traité. C'est correctement documenté et hors scope T075.18.
+
+### Recommandation Découpage Futur
+- **T075.19** : arbitrage produit/routing `/boucles`, `/boucles/creer`, `/partners`.
+- **T076 UI** : correction des textes visibles ambigus.
+- **T076 Admin** : renommage admin contrôlé avec compat route names si nécessaire.
+- **Tâche DB/runtime dédiée** : migration `communities` / `community_id`.
+- **Tâche tests dédiée** : bascule des assertions legacy après runtime prêt.
 
 ## Contraintes OPS
 
