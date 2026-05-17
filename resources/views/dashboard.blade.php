@@ -3,7 +3,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
             <div>
-                @php $tenant = $currentCommunity ?? $currentOrganization ?? null; @endphp
+                @php $tenant = $currentOrganization ?? $currentCommunity ?? null; @endphp
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
                     @isset($tenant)Tableau de bord — {{ $tenant->name }}@elseBonjour, {{ $user->name }}@endisset
                     @empty($tenant) 👋@endempty
