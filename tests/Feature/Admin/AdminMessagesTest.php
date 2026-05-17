@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
@@ -18,12 +18,12 @@ class AdminMessagesTest extends TestCase
         return User::factory()->create(array_merge(['is_admin' => true], $overrides));
     }
 
-    private function makeOrg(): Community
+    private function makeOrg(): Organization
     {
-        return Community::factory()->create(['is_active' => true]);
+        return Organization::factory()->create(['is_active' => true]);
     }
 
-    private function makeLoop(Community $org, ?User $creator = null): Loop
+    private function makeLoop(Organization $org, ?User $creator = null): Loop
     {
         return Loop::factory()->create([
             'community_id' => $org->id,
@@ -51,7 +51,7 @@ class AdminMessagesTest extends TestCase
         ]);
     }
 
-    private function makeTransactionInOrg(Community $org, ?User $buyer = null, ?User $seller = null): Transaction
+    private function makeTransactionInOrg(Organization $org, ?User $buyer = null, ?User $seller = null): Transaction
     {
         $buyer ??= User::factory()->create();
         $seller ??= User::factory()->create();
