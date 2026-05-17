@@ -2,7 +2,7 @@
 task_id: TASK-090
 title: t075-11-belongs-to-tenant-scope-source-of-truth-safety
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-090-t075-11-belongs-to-tenant-scope-source-of-truth-safety
 priority: MEDIUM
 
 created_at: 2026-05-17 20:00:31 Europe/Paris
-updated_at: 2026-05-17 21:30:00 Europe/Paris
+updated_at: 2026-05-17 22:00:00 Europe/Paris
 
 labels: []
 
