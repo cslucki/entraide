@@ -3,6 +3,7 @@
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\EnsureProfileComplete;
 use App\Http\Middleware\EnsureUserIsNotBanned;
+use App\Http\Middleware\ResolveApiOrganization;
 use App\Http\Middleware\ResolveCommunity;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\ResolveUrlOrganization;
@@ -25,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'organization' => ResolveOrganization::class,
             'profile.complete' => EnsureProfileComplete::class,
             'url.organization' => ResolveUrlOrganization::class,
+            'api.organization' => ResolveApiOrganization::class,
         ]);
         // T075.2 : middleware créé, testé, alias « url.organization » disponible.
         // Web group integration deferred to T075.3+ : 36 tests fail because they
@@ -32,6 +34,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', [
             EnsureUserIsNotBanned::class,
             ResolveUrlOrganization::class,
+        ]);
+        $middleware->appendToGroup('api', [
+            ResolveApiOrganization::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
