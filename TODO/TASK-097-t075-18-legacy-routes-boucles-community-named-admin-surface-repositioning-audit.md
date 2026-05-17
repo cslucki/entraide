@@ -2,7 +2,7 @@
 task_id: TASK-097
 title: T075.18 — Legacy Routes /boucles & Community-Named Admin Surface Repositioning Audit
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-097-t075-18-legacy-routes-boucles-community-named-admin-surface-rep
 priority: MEDIUM
 
 created_at: 2026-05-18 00:18:20 Europe/Paris
-updated_at: 2026-05-18 00:36:00 Europe/Paris
+updated_at: 2026-05-18 00:42:00 Europe/Paris
 
 labels:
   - audit
@@ -170,6 +170,8 @@ Auditer et cadrer le repositionnement des surfaces legacy visibles :
 - [X] check-task.sh validé (OPS)
 - [X] finalize-task.sh exécuté (OPS)
 - [X] commit + push finalisation (OPS)
+- [X] merge dans develop (OPS)
+- [X] status passé MERGED (OPS)
 
 ---
 
@@ -209,6 +211,19 @@ Auditer et cadrer le repositionnement des surfaces legacy visibles :
 - check-task.sh validé avec succès (DONE + UNLOCKED + branche correcte).
 - finalize-task.sh exécuté avec succès.
 - Seule modification : ce TASK file.
+
+## 2026-05-18 00:42:00 Europe/Paris
+
+### OPS — Merge T075.18 dans develop
+
+- merge-task.sh exécuté avec succès.
+- Merge commit develop : `c972a01`.
+- develop poussé sur origin.
+- Status TASK passé de DONE à MERGED.
+- Lock : UNLOCKED (inchangé).
+- Aucun fichier runtime modifié.
+- main / PROD non touchés (`b392a13`).
+- Branche distante conservée (`origin/TASK-097-t075-18-...`).
 - Aucun fichier runtime modifié.
 - Commit + push finalisation effectués.
 
