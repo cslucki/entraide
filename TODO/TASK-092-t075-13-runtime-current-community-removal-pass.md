@@ -2,7 +2,7 @@
 task_id: TASK-092
 title: 'T075.13 — Runtime current_community Removal Pass'
 
-status: TESTING
+status: DONE
 
 owner: OPENCODE
 
@@ -13,14 +13,15 @@ branch: TASK-092-t075-13-runtime-current-community-removal-pass
 priority: MEDIUM
 
 created_at: 2026-05-17 20:54:41 Europe/Paris
-updated_at: 2026-05-17 20:54:41 Europe/Paris
+updated_at: 2026-05-17 ~21:30 Europe/Paris
 
-labels: []
+labels:
+  - review-approved
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-05-17 20:54:41 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
@@ -118,6 +119,20 @@ IN_PROGRESS
 
 ### Status
 Ready for review.
+
+## 2026-05-17 ~21:30 Europe/Paris
+
+### Review
+- OPENAI / Codex: **APPROVE WITH NOTES**
+- Blocking issues: none
+- All targeted tests re-executed by reviewer — all green.
+
+### Finalization
+- TASK status → DONE
+- Lock → UNLOCKED
+- Functional files modified: 2 (LoopController.php, LoopMemberInvariantTest.php)
+- TASK file updated: review notes, handoff section, scope clarification added.
+- Waiting for finalization and merge via official scripts.
 
 # Handoffs
 
@@ -236,3 +251,56 @@ tests/Feature/LoopMemberInvariantTest.php |  8 ++++++--
 - ✅ No legacy route rewrites
 - ✅ No PROD modifications
 - ✅ No files outside scope
+
+---
+
+# Review — OPENAI / Codex
+
+## Verdict
+
+**APPROVE WITH NOTES**
+
+Blocking issues: none
+
+## Notes
+
+- `LoopController` correctly replaces direct `app('current_community')` reads with `CurrentOrganization::get()` and `CurrentOrganization::id()`.
+- `CurrentOrganization` is the correct runtime entry point: `current_organization` priority, centralized legacy fallback.
+- No new direct dependency on `current_community` is introduced.
+- Adaptations in `LoopMemberInvariantTest` are consistent with real middleware behavior.
+- Legacy compatibility preserved.
+- Scope respected: no migration, no route, no API, no Policy, no UI, no global refactor.
+- Clarification: **Functional files modified: 2** (`LoopController.php`, `LoopMemberInvariantTest.php`). The TASK file was also updated for audit/review/finalization tracking — this is a 3rd file but is operational documentation, not functional code.
+
+## Tests re-executed by reviewer
+
+- `php artisan test --filter=LoopMemberInvariantTest`: 22 passed
+- `php artisan test --filter=CurrentOrganizationTest`: 11 passed
+- `php artisan test --filter=BelongsToTenantScopeTest`: 14 passed
+- `php artisan test --filter=OrganizationCompatibilityTest`: 18 passed
+- `php artisan test --filter=ResolveUrlOrganizationTest`: 22 passed
+- `php artisan test --filter=OrganizationRouteCompatibilityTest`: 9 passed
+
+---
+
+# Future Handoff
+
+## Next pass: reduce remaining legacy fallbacks
+
+Locations still binding/reading `current_community` as runtime:
+
+1. **`CurrentOrganization::get()`** — central helper, `current_community` fallback — final removal when DB migration drops `community_id`.
+2. **`ResolveCommunity` middleware** — binds both `current_community` and `current_organization` — to simplify after middleware consolidation.
+3. **`ResolveUrlOrganization::bindOrganization()`** — sets `current_community` as compatibility fallback — same.
+4. **Tests** — test files that verify legacy fallback behavior — to simplify after removal pass.
+5. **Blade views** — `$currentCommunity ?? $currentOrganization` pattern — UI pass.
+6. **Doc files** — AGENTS.md, CLAUDE.md, TODO/*.md, ai/context/*.md — doc pass.
+
+## Conditions for a future removal pass
+
+- DB schema drops `community_id` column.
+- All middleware consolidates to `current_organization` only.
+- No runtime path reads `app('current_community')`.
+- Blade views migrated.
+- Tests updated.
+- Docs updated.
