@@ -20,9 +20,14 @@ class TransactionControllerTest extends TestCase
 
     public function test_buyer_can_create_transaction_on_service(): void
     {
-        $seller = User::factory()->create();
-        $buyer = User::factory()->create(['points_balance' => 200]);
-        $service = Service::factory()->forUser($seller)->create();
+        $seller = User::factory()->create(['community_id' => $this->testOrganization->id]);
+        $buyer = User::factory()->create([
+            'community_id' => $this->testOrganization->id,
+            'points_balance' => 200,
+        ]);
+        $service = Service::factory()->forUser($seller)->create([
+            'community_id' => $this->testOrganization->id,
+        ]);
 
         $response = $this->actingAs($buyer)->post(route('transactions.store'), [
             'service_id' => $service->id,
@@ -40,9 +45,14 @@ class TransactionControllerTest extends TestCase
 
     public function test_cannot_create_transaction_with_insufficient_points(): void
     {
-        $seller = User::factory()->create();
-        $buyer = User::factory()->create(['points_balance' => 10]);
-        $service = Service::factory()->forUser($seller)->create();
+        $seller = User::factory()->create(['community_id' => $this->testOrganization->id]);
+        $buyer = User::factory()->create([
+            'community_id' => $this->testOrganization->id,
+            'points_balance' => 10,
+        ]);
+        $service = Service::factory()->forUser($seller)->create([
+            'community_id' => $this->testOrganization->id,
+        ]);
 
         $response = $this->actingAs($buyer)->post(route('transactions.store'), [
             'service_id' => $service->id,
@@ -54,8 +64,13 @@ class TransactionControllerTest extends TestCase
 
     public function test_cannot_create_transaction_with_yourself(): void
     {
-        $user = User::factory()->create(['points_balance' => 200]);
-        $service = Service::factory()->forUser($user)->create();
+        $user = User::factory()->create([
+            'community_id' => $this->testOrganization->id,
+            'points_balance' => 200,
+        ]);
+        $service = Service::factory()->forUser($user)->create([
+            'community_id' => $this->testOrganization->id,
+        ]);
 
         $response = $this->actingAs($user)->post(route('transactions.store'), [
             'service_id' => $service->id,
