@@ -18,6 +18,12 @@ class TransactionController extends Controller
 {
     public function store(Request $request): RedirectResponse
     {
+        $organization = currentOrganization();
+
+        if (! $organization) {
+            abort(404);
+        }
+
         $data = $request->validate([
             'service_id' => 'nullable|uuid|exists:services,id',
             'request_id' => 'nullable|uuid|exists:service_requests,id',
@@ -30,11 +36,21 @@ class TransactionController extends Controller
         $communityId = null;
         if (! empty($data['service_id'])) {
             $service = Service::withoutGlobalScope(BelongsToTenantScope::class)->findOrFail($data['service_id']);
+
+            if ($service->community_id === null || $service->community_id !== $organization->id) {
+                abort(404);
+            }
+
             $seller = $service->user;
             $sellerId = $seller->id;
             $communityId = $service->community_id;
         } else {
             $serviceReq = ServiceRequest::withoutGlobalScope(BelongsToTenantScope::class)->findOrFail($data['request_id']);
+
+            if ($serviceReq->community_id === null || $serviceReq->community_id !== $organization->id) {
+                abort(404);
+            }
+
             $seller = $buyer;
             $sellerId = $buyer->id;
             $buyer = $serviceReq->user;
