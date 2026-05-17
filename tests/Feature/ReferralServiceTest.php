@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Referral;
 use App\Models\ReferralReward;
@@ -15,7 +15,7 @@ class ReferralServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $org;
+    private Organization $org;
     private User $referrer;
     private User $referred;
     private ReferralService $service;
@@ -24,13 +24,13 @@ class ReferralServiceTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Community::factory()->create();
+        $this->org = Organization::factory()->create();
         $this->referrer = User::factory()->create([
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'referral_code' => 'john',
         ]);
         $this->referred = User::factory()->create([
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
         ]);
         $this->service = new ReferralService;
 
@@ -44,7 +44,7 @@ class ReferralServiceTest extends TestCase
         $this->assertNotNull($referral->id);
         $this->assertEquals($this->referrer->id, $referral->referrer_user_id);
         $this->assertEquals($this->referred->id, $referral->referred_user_id);
-        $this->assertEquals($this->org->id, $referral->community_id);
+        $this->assertEquals($this->org->id, $referral->organization_id);
         $this->assertEquals(1, $referral->depth);
         $this->assertEquals('pending', $referral->status);
 
@@ -83,8 +83,8 @@ class ReferralServiceTest extends TestCase
 
     public function test_rejects_cross_organization_referral(): void
     {
-        $otherOrg = Community::factory()->create();
-        $otherUser = User::factory()->create(['community_id' => $otherOrg->id]);
+        $otherOrg = Organization::factory()->create();
+        $otherUser = User::factory()->create(['organization_id' => $otherOrg->id]);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Cross-organization referral is not allowed.');
@@ -94,10 +94,10 @@ class ReferralServiceTest extends TestCase
 
     public function test_rejects_cross_organization_when_explicit_org_id_matches_referrer(): void
     {
-        $orgA = Community::factory()->create();
-        $orgB = Community::factory()->create();
-        $referrer = User::factory()->create(['community_id' => $orgA->id, 'referral_code' => 'anna']);
-        $referred = User::factory()->create(['community_id' => $orgB->id]);
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
+        $referrer = User::factory()->create(['organization_id' => $orgA->id, 'referral_code' => 'anna']);
+        $referred = User::factory()->create(['organization_id' => $orgB->id]);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Cross-organization referral is not allowed.');
@@ -107,10 +107,10 @@ class ReferralServiceTest extends TestCase
 
     public function test_rejects_cross_organization_when_explicit_org_id_matches_referred(): void
     {
-        $orgA = Community::factory()->create();
-        $orgB = Community::factory()->create();
-        $referrer = User::factory()->create(['community_id' => $orgA->id, 'referral_code' => 'anna']);
-        $referred = User::factory()->create(['community_id' => $orgB->id]);
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
+        $referrer = User::factory()->create(['organization_id' => $orgA->id, 'referral_code' => 'anna']);
+        $referred = User::factory()->create(['organization_id' => $orgB->id]);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Cross-organization referral is not allowed.');

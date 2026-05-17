@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Badge;
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Review;
 use App\Models\Service;
 use App\Models\Transaction;
@@ -15,12 +15,12 @@ class BadgeServiceTest extends TestCase
 {
     private BadgeService $badgeService;
 
-    private Community $org;
+    private Organization $org;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->org = Community::factory()->create(['is_active' => true]);
+        $this->org = Organization::factory()->create(['is_active' => true]);
         app()->instance('current_organization', $this->org);
         $this->badgeService = app(BadgeService::class);
         $this->seedBadges();

@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Events\MemberActivated;
 use App\Events\MemberInvited;
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Referral;
 use App\Models\ReferralReward;
@@ -17,7 +17,7 @@ class RewardDispatcherTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $org;
+    private Organization $org;
 
     private User $referrer;
 
@@ -29,7 +29,7 @@ class RewardDispatcherTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Community::factory()->create();
+        $this->org = Organization::factory()->create();
         $this->referrer = User::factory()->create(['community_id' => $this->org->id]);
         $this->referred = User::factory()->create(['community_id' => $this->org->id]);
         $this->dispatcher = new RewardDispatcher;
@@ -150,8 +150,8 @@ class RewardDispatcherTest extends TestCase
 
     public function test_handle_invited_same_pair_allowed_in_different_organizations(): void
     {
-        $orgA = Community::factory()->create();
-        $orgB = Community::factory()->create();
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
         $referrerA = User::factory()->create(['community_id' => $orgA->id]);
         $referredA = User::factory()->create(['community_id' => $orgA->id]);
         $referrerB = User::factory()->create(['community_id' => $orgB->id]);
@@ -171,8 +171,8 @@ class RewardDispatcherTest extends TestCase
 
     public function test_handle_invited_rejects_direct_cross_organization(): void
     {
-        $orgA = Community::factory()->create();
-        $orgB = Community::factory()->create();
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
         $referrer = User::factory()->create(['community_id' => $orgA->id]);
         $referred = User::factory()->create(['community_id' => $orgB->id]);
 
@@ -284,7 +284,7 @@ class RewardDispatcherTest extends TestCase
 
     public function test_handle_activated_with_l2_chain(): void
     {
-        $org = Community::factory()->create();
+        $org = Organization::factory()->create();
         $gpa = User::factory()->create(['community_id' => $org->id]);
         $parent = User::factory()->create(['community_id' => $org->id]);
         $child = User::factory()->create(['community_id' => $org->id]);
@@ -459,7 +459,7 @@ class RewardDispatcherTest extends TestCase
 
     public function test_point_ledger_count_with_l2_chain(): void
     {
-        $org = Community::factory()->create();
+        $org = Organization::factory()->create();
         $gpa = User::factory()->create(['community_id' => $org->id]);
         $parent = User::factory()->create(['community_id' => $org->id]);
         $child = User::factory()->create(['community_id' => $org->id]);

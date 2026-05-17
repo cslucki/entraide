@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Referral;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -12,7 +12,7 @@ class ReferralRegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $org;
+    private Organization $org;
 
     private User $referrer;
 
@@ -20,9 +20,9 @@ class ReferralRegistrationTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Community::factory()->create(['slug' => 'testorg']);
+        $this->org = Organization::factory()->create(['slug' => 'testorg']);
         $this->referrer = User::factory()->create([
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'referral_code' => 'testref',
         ]);
 
@@ -50,7 +50,7 @@ class ReferralRegistrationTest extends TestCase
 
         $this->assertNotNull($referral);
         $this->assertEquals('pending', $referral->status);
-        $this->assertEquals($this->org->id, $referral->community_id);
+        $this->assertEquals($this->org->id, $referral->organization_id);
     }
 
     public function test_register_with_invalid_ref_still_succeeds(): void
@@ -71,7 +71,7 @@ class ReferralRegistrationTest extends TestCase
     public function test_dashboard_shows_referral_link(): void
     {
         $user = User::factory()->create([
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'referral_code' => 'mylink',
         ]);
 
