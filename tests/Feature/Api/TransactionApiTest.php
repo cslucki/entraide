@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Api;
 
-use App\Models\PointLedger;
+use App\Models\Community;
 use App\Models\Service;
 use App\Models\Transaction;
 use App\Models\User;
@@ -10,11 +10,20 @@ use Tests\TestCase;
 
 class TransactionApiTest extends TestCase
 {
+    private Community $org;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->org = Community::factory()->create(['is_active' => true]);
+        app()->instance('current_organization', $this->org);
+    }
+
     public function test_store_creates_pending_transaction(): void
     {
         $buyer = User::factory()->create(['points_balance' => 300]);
         $seller = User::factory()->create();
-        $service = Service::factory()->forUser($seller)->create(['points_cost' => 100, 'status' => 'active']);
+        $service = Service::factory()->forUser($seller)->create(['points_cost' => 100, 'status' => 'active', 'community_id' => $this->org->id]);
 
         $token = $buyer->createToken('api')->plainTextToken;
 
@@ -37,7 +46,7 @@ class TransactionApiTest extends TestCase
     {
         $buyer = User::factory()->create(['points_balance' => 50]);
         $seller = User::factory()->create();
-        $service = Service::factory()->forUser($seller)->create(['status' => 'active']);
+        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'community_id' => $this->org->id]);
 
         $this->withToken($buyer->createToken('api')->plainTextToken)
             ->postJson('/api/transactions', [
@@ -51,12 +60,13 @@ class TransactionApiTest extends TestCase
     {
         $buyer = User::factory()->create(['points_balance' => 500]);
         $seller = User::factory()->create();
-        $service = Service::factory()->forUser($seller)->create(['status' => 'active']);
+        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'community_id' => $this->org->id]);
 
         Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
             'service_id' => $service->id,
+            'community_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -72,12 +82,13 @@ class TransactionApiTest extends TestCase
     {
         $seller = User::factory()->create();
         $buyer = User::factory()->create(['points_balance' => 300]);
-        $service = Service::factory()->forUser($seller)->create(['status' => 'active']);
+        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'community_id' => $this->org->id]);
 
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
             'service_id' => $service->id,
+            'community_id' => $this->org->id,
             'status' => 'pending',
             'points_proposed' => 100,
         ]);
@@ -95,6 +106,7 @@ class TransactionApiTest extends TestCase
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
+            'community_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -110,6 +122,7 @@ class TransactionApiTest extends TestCase
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
+            'community_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -126,6 +139,7 @@ class TransactionApiTest extends TestCase
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
+            'community_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -139,9 +153,8 @@ class TransactionApiTest extends TestCase
     {
         $buyer = User::factory()->create(['points_balance' => 300]);
         $seller = User::factory()->create(['points_balance' => 100]);
-        $service = Service::factory()->forUser($seller)->create(['status' => 'active']);
+        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'community_id' => $this->org->id]);
 
-        // Create
         $tx = $this->actingAs($buyer, 'sanctum')
             ->postJson('/api/transactions', [
                 'service_id' => $service->id,
@@ -150,18 +163,15 @@ class TransactionApiTest extends TestCase
 
         $txId = $tx['id'];
 
-        // Approve
         $this->actingAs($seller, 'sanctum')
             ->postJson("/api/transactions/{$txId}/approve")
             ->assertOk();
 
-        // Buyer declares done
         $this->actingAs($buyer, 'sanctum')
             ->postJson("/api/transactions/{$txId}/complete")
             ->assertOk()
             ->assertJsonFragment(['status' => 'buyer_done']);
 
-        // Seller confirms
         $this->actingAs($seller, 'sanctum')
             ->postJson("/api/transactions/{$txId}/confirm")
             ->assertOk()
@@ -192,6 +202,7 @@ class TransactionApiTest extends TestCase
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
+            'community_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -205,8 +216,8 @@ class TransactionApiTest extends TestCase
         $user = User::factory()->create(['points_balance' => 500]);
         $other = User::factory()->create(['points_balance' => 500]);
 
-        Transaction::factory()->count(2)->create(['buyer_id' => $user->id, 'seller_id' => $other->id]);
-        Transaction::factory()->count(3)->create(['buyer_id' => $other->id, 'seller_id' => User::factory()->create()->id]);
+        Transaction::factory()->count(2)->create(['buyer_id' => $user->id, 'seller_id' => $other->id, 'community_id' => $this->org->id]);
+        Transaction::factory()->count(3)->create(['buyer_id' => $other->id, 'seller_id' => User::factory()->create()->id, 'community_id' => $this->org->id]);
 
         $this->withToken($user->createToken('api')->plainTextToken)
             ->getJson('/api/transactions')

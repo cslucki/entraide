@@ -144,6 +144,8 @@ class AdminMessagesTest extends TestCase
         $tx = $this->makeTransactionInOrg($org, $admin, $member);
         $msg = $this->makeExchangeMessage($tx, $admin, body: 'EXCHANGE LOCAL MSG');
 
+        app()->instance('current_organization', $org);
+
         $response = $this->actingAs($admin)
             ->get(route('admin.messages', ['filter' => 'exchanges']));
 
@@ -165,6 +167,8 @@ class AdminMessagesTest extends TestCase
 
         $tx = $this->makeTransactionInOrg($org, $admin, $member);
         $this->makeExchangeMessage($tx, $admin, body: 'ALL EXCHANGE MSG');
+
+        app()->instance('current_organization', $org);
 
         $response = $this->actingAs($admin)
             ->get(route('admin.messages', ['filter' => 'all']));
@@ -218,6 +222,8 @@ class AdminMessagesTest extends TestCase
 
         $txB = $this->makeTransactionInOrg($orgB, $adminB, $memberB);
         $this->makeExchangeMessage($txB, $adminB, body: 'EXCHANGE ORG B MSG');
+
+        app()->instance('current_organization', $orgA);
 
         $response = $this->actingAs($adminA)
             ->get(route('admin.messages', ['filter' => 'exchanges']));
@@ -287,6 +293,8 @@ class AdminMessagesTest extends TestCase
 
         $tx = $this->makeTransactionInOrg($org);
         $message = $this->makeExchangeMessage($tx);
+
+        app()->instance('current_organization', $org);
 
         $this->actingAs($admin)
             ->get(route('admin.messages.show', $message))

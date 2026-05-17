@@ -16,11 +16,17 @@ class LoopMemberInvariantTest extends TestCase
     use RefreshDatabase;
 
     private Community $communityA;
+
     private Community $communityB;
+
     private User $userA;
+
     private User $userB;
+
     private User $crossUser;
+
     private Loop $loop;
+
     private LoopService $service;
 
     protected function setUp(): void
@@ -36,6 +42,8 @@ class LoopMemberInvariantTest extends TestCase
 
         $this->service = new LoopService;
         $this->loop = $this->service->createLoop($this->userA, 'Test Loop');
+
+        app()->instance('current_organization', $this->communityA);
     }
 
     // -------------------------------------------------------------------------

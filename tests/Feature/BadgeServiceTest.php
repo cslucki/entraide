@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Badge;
+use App\Models\Community;
 use App\Models\Review;
 use App\Models\Service;
 use App\Models\Transaction;
@@ -14,9 +15,13 @@ class BadgeServiceTest extends TestCase
 {
     private BadgeService $badgeService;
 
+    private Community $org;
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->org = Community::factory()->create(['is_active' => true]);
+        app()->instance('current_organization', $this->org);
         $this->badgeService = app(BadgeService::class);
         $this->seedBadges();
     }
@@ -55,6 +60,7 @@ class BadgeServiceTest extends TestCase
         Transaction::factory()->create([
             'buyer_id' => $user->id,
             'seller_id' => $other->id,
+            'community_id' => $this->org->id,
             'status' => 'completed',
         ]);
 
@@ -72,6 +78,7 @@ class BadgeServiceTest extends TestCase
         Transaction::factory()->count(3)->create([
             'buyer_id' => $user->id,
             'seller_id' => $other->id,
+            'community_id' => $this->org->id,
             'status' => 'completed',
         ]);
 
@@ -89,6 +96,7 @@ class BadgeServiceTest extends TestCase
         Transaction::factory()->count(10)->create([
             'seller_id' => $user->id,
             'buyer_id' => $other->id,
+            'community_id' => $this->org->id,
             'status' => 'completed',
         ]);
 
@@ -103,7 +111,7 @@ class BadgeServiceTest extends TestCase
     public function test_first_service_badge_awarded_when_service_created(): void
     {
         $user = User::factory()->create();
-        Service::factory()->forUser($user)->create();
+        Service::factory()->forUser($user)->create(['community_id' => $this->org->id]);
 
         $this->badgeService->checkAndAward($user);
 
@@ -113,7 +121,7 @@ class BadgeServiceTest extends TestCase
     public function test_five_services_badge_awarded_at_threshold(): void
     {
         $user = User::factory()->create();
-        Service::factory()->count(5)->forUser($user)->create();
+        Service::factory()->count(5)->forUser($user)->create(['community_id' => $this->org->id]);
 
         $this->badgeService->checkAndAward($user);
 
@@ -126,6 +134,7 @@ class BadgeServiceTest extends TestCase
         $tx = Transaction::factory()->create([
             'buyer_id' => $reviewer->id,
             'seller_id' => $reviewed->id,
+            'community_id' => $this->org->id,
             'status' => 'completed',
         ]);
         Review::factory()->create([
@@ -181,10 +190,10 @@ class BadgeServiceTest extends TestCase
         $this->assertContains('generous', $user->fresh()->badges->pluck('key')->all());
     }
 
-    public function test_checkAndAward_is_idempotent(): void
+    public function test_check_and_award_is_idempotent(): void
     {
         $user = User::factory()->create();
-        Service::factory()->forUser($user)->create();
+        Service::factory()->forUser($user)->create(['community_id' => $this->org->id]);
 
         $this->badgeService->checkAndAward($user);
         $this->badgeService->checkAndAward($user);
@@ -197,8 +206,7 @@ class BadgeServiceTest extends TestCase
     {
         $user = User::factory()->create();
 
-        // Creating via factory triggers observer
-        Service::factory()->forUser($user)->create();
+        Service::factory()->forUser($user)->create(['community_id' => $this->org->id]);
 
         $this->assertContains('first_service', $user->fresh()->badges->pluck('key')->all());
     }
@@ -211,6 +219,7 @@ class BadgeServiceTest extends TestCase
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
+            'community_id' => $this->org->id,
             'status' => 'buyer_done',
             'points_agreed' => 50,
         ]);

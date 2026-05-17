@@ -15,6 +15,8 @@ class BelongsToTenantScope implements Scope
 
         if ($organization) {
             $builder->where($model->getTable().'.community_id', $organization->id);
+        } else {
+            $builder->whereRaw('0 = 1');
         }
     }
 
