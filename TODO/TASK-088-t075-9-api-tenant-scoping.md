@@ -2,7 +2,7 @@
 task_id: TASK-088
 title: t075-9-api-tenant-scoping
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
