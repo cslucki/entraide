@@ -2,7 +2,7 @@
 task_id: TASK-095
 title: t075-16-resolve-url-organization-legacy-fallback-reduction
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
