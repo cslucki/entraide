@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Api;
 
-use App\Models\PointLedger;
+use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -89,7 +89,8 @@ class AuthApiTest extends TestCase
 
     public function test_logout_revokes_token(): void
     {
-        $user = User::factory()->create();
+        $organization = Organization::factory()->create(['is_active' => true]);
+        $user = User::factory()->create(['community_id' => $organization->id]);
         $token = $user->createToken('api')->plainTextToken;
 
         $this->withToken($token)
