@@ -19,7 +19,7 @@ class TransactionController extends Controller
         $user = $request->user();
 
         $transactions = Transaction::with(['service:id,title', 'serviceRequest:id,title', 'buyer:id,name', 'seller:id,name'])
-            ->where(fn($q) => $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id))
+            ->where(fn ($q) => $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id))
             ->latest()
             ->paginate(15);
 
@@ -40,7 +40,7 @@ class TransactionController extends Controller
 
         $buyer = $request->user();
 
-        if (!empty($data['service_id'])) {
+        if (! empty($data['service_id'])) {
             $service = Service::findOrFail($data['service_id']);
             $seller = $service->user;
         } else {
@@ -58,7 +58,7 @@ class TransactionController extends Controller
         }
 
         $existingQuery = Transaction::where('buyer_id', $buyer->id)->whereIn('status', ['pending', 'accepted']);
-        if (!empty($data['service_id'])) {
+        if (! empty($data['service_id'])) {
             $existingQuery->where('service_id', $data['service_id']);
         } else {
             $existingQuery->where('request_id', $data['request_id']);
@@ -74,12 +74,13 @@ class TransactionController extends Controller
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
             'points_proposed' => $data['points_proposed'],
+            'community_id' => app()->bound('current_organization') ? app('current_organization')->getKey() : null,
             'status' => 'pending',
         ]);
 
-        $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : ' . $data['points_proposed'] . ' points.');
+        $this->addSystemMessage($transaction, 'Nouvelle échange envoyée : '.$data['points_proposed'].' points.');
 
-        if (!empty($data['request_id'])) {
+        if (! empty($data['request_id'])) {
             ServiceRequest::where('id', $data['request_id'])->update(['status' => 'in_progress']);
         }
 
@@ -90,7 +91,7 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
+        if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
             return response()->json(['message' => 'Accès refusé.'], 403);
         }
 
@@ -137,11 +138,11 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
+        if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
             return response()->json(['message' => 'Action non autorisée.'], 403);
         }
 
-        if (!in_array($transaction->status, ['pending', 'accepted'])) {
+        if (! in_array($transaction->status, ['pending', 'accepted'])) {
             return response()->json(['message' => 'Annulation impossible dans ce statut.'], 422);
         }
 
@@ -198,8 +199,8 @@ class TransactionController extends Controller
                 'reason' => 'exchange_earned',
             ]);
 
-            $transaction->buyer()->update(['points_balance' => DB::raw('points_balance - ' . $points)]);
-            $transaction->seller()->update(['points_balance' => DB::raw('points_balance + ' . $points)]);
+            $transaction->buyer()->update(['points_balance' => DB::raw('points_balance - '.$points)]);
+            $transaction->seller()->update(['points_balance' => DB::raw('points_balance + '.$points)]);
 
             $transaction->update([
                 'status' => 'completed',

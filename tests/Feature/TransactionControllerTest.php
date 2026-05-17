@@ -17,6 +17,7 @@ class TransactionControllerTest extends TestCase
         parent::setUp();
         $this->setUpOrganization();
     }
+
     public function test_buyer_can_create_transaction_on_service(): void
     {
         $seller = User::factory()->create();
@@ -71,6 +72,7 @@ class TransactionControllerTest extends TestCase
         $service = Service::factory()->forUser($seller)->create();
 
         $transaction = Transaction::create([
+            'community_id' => $this->testOrganization->id,
             'service_id' => $service->id,
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
@@ -90,6 +92,7 @@ class TransactionControllerTest extends TestCase
         $service = Service::factory()->forUser($seller)->create();
 
         $transaction = Transaction::create([
+            'community_id' => $this->testOrganization->id,
             'service_id' => $service->id,
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
@@ -108,6 +111,7 @@ class TransactionControllerTest extends TestCase
         $service = Service::factory()->forUser($seller)->create();
 
         $transaction = Transaction::create([
+            'community_id' => $this->testOrganization->id,
             'service_id' => $service->id,
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
@@ -127,6 +131,7 @@ class TransactionControllerTest extends TestCase
         $service = Service::factory()->forUser($seller)->create();
 
         $transaction = Transaction::create([
+            'community_id' => $this->testOrganization->id,
             'service_id' => $service->id,
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,

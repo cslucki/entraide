@@ -16,6 +16,15 @@ class ReferralTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Community $org;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->org = Community::factory()->create();
+        app()->instance('current_organization', $this->org);
+    }
+
     // -------------------------------------------------------------------------
     // Basic creation
     // -------------------------------------------------------------------------
@@ -28,6 +37,7 @@ class ReferralTest extends TestCase
         $referral = Referral::create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
             'depth' => 1,
             'status' => 'pending',
         ]);
@@ -44,11 +54,13 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
 
         $reward = ReferralReward::create([
             'referral_id' => $referral->id,
             'user_id' => $referrer->id,
+            'community_id' => $this->org->id,
             'event_type' => 'member_invited',
             'level' => 1,
             'points' => 10,
@@ -108,14 +120,17 @@ class ReferralTest extends TestCase
     {
         $referrer = User::factory()->create();
         $referred = User::factory()->create();
+        $third = User::factory()->create();
         $parent = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
         $child = Referral::factory()->create([
-            'referrer_user_id' => $referrer->id,
-            'referred_user_id' => $referred->id,
+            'referrer_user_id' => $referred->id,
+            'referred_user_id' => $third->id,
             'parent_referral_id' => $parent->id,
+            'community_id' => $this->org->id,
             'depth' => 2,
         ]);
 
@@ -127,14 +142,17 @@ class ReferralTest extends TestCase
     {
         $referrer = User::factory()->create();
         $referred = User::factory()->create();
+        $third = User::factory()->create();
         $parent = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
         $child = Referral::factory()->create([
-            'referrer_user_id' => $referrer->id,
-            'referred_user_id' => $referred->id,
+            'referrer_user_id' => $referred->id,
+            'referred_user_id' => $third->id,
             'parent_referral_id' => $parent->id,
+            'community_id' => $this->org->id,
             'depth' => 2,
         ]);
 
@@ -149,10 +167,12 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
         ReferralReward::factory()->create([
             'referral_id' => $referral->id,
             'user_id' => $referrer->id,
+            'community_id' => $this->org->id,
         ]);
 
         $this->assertCount(1, $referral->rewards);
@@ -170,6 +190,7 @@ class ReferralTest extends TestCase
         Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
 
         $this->assertCount(1, $referrer->sentReferrals);
@@ -183,6 +204,7 @@ class ReferralTest extends TestCase
         Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
 
         $this->assertCount(1, $referred->receivedReferrals);
@@ -196,10 +218,12 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
         ReferralReward::factory()->create([
             'referral_id' => $referral->id,
             'user_id' => $referrer->id,
+            'community_id' => $this->org->id,
         ]);
 
         $this->assertCount(1, $referrer->referralRewards);
@@ -217,10 +241,12 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
         $reward = ReferralReward::factory()->create([
             'referral_id' => $referral->id,
             'user_id' => $referrer->id,
+            'community_id' => $this->org->id,
         ]);
 
         $this->assertInstanceOf(Referral::class, $reward->referral);
@@ -234,10 +260,12 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
         $reward = ReferralReward::factory()->create([
             'referral_id' => $referral->id,
             'user_id' => $referrer->id,
+            'community_id' => $this->org->id,
         ]);
 
         $this->assertInstanceOf(User::class, $reward->user);
@@ -251,11 +279,13 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
         $reward = ReferralReward::factory()->create([
             'referral_id' => $referral->id,
             'user_id' => $referrer->id,
             'source_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
 
         $this->assertInstanceOf(User::class, $reward->sourceUser);
@@ -467,12 +497,13 @@ class ReferralTest extends TestCase
 
     public function test_referral_reward_stores_json_metadata(): void
     {
-        $referral = Referral::factory()->create();
+        $referral = Referral::factory()->create(['community_id' => $this->org->id]);
         $metadata = ['source' => 'link', 'campaign' => 'spring2026'];
 
         $reward = ReferralReward::factory()->create([
             'referral_id' => $referral->id,
             'user_id' => User::factory(),
+            'community_id' => $this->org->id,
             'metadata' => $metadata,
         ]);
 
@@ -481,10 +512,11 @@ class ReferralTest extends TestCase
 
     public function test_referral_reward_metadata_is_nullable(): void
     {
-        $referral = Referral::factory()->create();
+        $referral = Referral::factory()->create(['community_id' => $this->org->id]);
         $reward = ReferralReward::factory()->create([
             'referral_id' => $referral->id,
             'user_id' => User::factory(),
+            'community_id' => $this->org->id,
             'metadata' => null,
         ]);
 
@@ -502,6 +534,7 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
 
         $referrer->delete();
@@ -516,10 +549,12 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
         $reward = ReferralReward::factory()->create([
             'referral_id' => $referral->id,
             'user_id' => $referrer->id,
+            'community_id' => $this->org->id,
         ]);
 
         $referral->delete();
@@ -538,6 +573,7 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -562,6 +598,7 @@ class ReferralTest extends TestCase
         $referral = Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
 
         $loaded = Referral::with(['referrer', 'referred', 'rewards'])->find($referral->id);
@@ -578,6 +615,7 @@ class ReferralTest extends TestCase
         Referral::factory()->create([
             'referrer_user_id' => $referrer->id,
             'referred_user_id' => $referred->id,
+            'community_id' => $this->org->id,
         ]);
 
         $user = User::with('sentReferrals')->find($referrer->id);

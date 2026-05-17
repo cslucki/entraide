@@ -18,8 +18,9 @@ use Tests\TestCase;
  * Verifies that:
  * - current_organization takes precedence (canonical)
  * - current_community works as legacy fallback
- * - neither bound = no scope applied
+ * - neither bound = empty result set (safety guard, no silent skip)
  * - behavior is identical whether community_id is set via Organization or Community
+ * - cross-Organization data leakage is impossible
  */
 class BelongsToTenantScopeTest extends TestCase
 {
@@ -79,10 +80,10 @@ class BelongsToTenantScopeTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // No binding — no scope applied
+    // No binding — safety guard returns empty set
     // -------------------------------------------------------------------------
 
-    public function test_scope_not_applied_when_neither_is_bound(): void
+    public function test_scope_returns_empty_set_when_neither_is_bound(): void
     {
         $org = Community::factory()->create();
         $other = Community::factory()->create();
@@ -91,8 +92,29 @@ class BelongsToTenantScopeTest extends TestCase
         Service::factory()->forUser($user)->create(['community_id' => $org->id]);
         Service::factory()->forUser($user)->create(['community_id' => $other->id]);
 
-        // Neither bound — no WHERE clause, all rows visible
-        $this->assertCount(2, Service::all());
+        $this->assertCount(0, Service::all());
+    }
+
+    public function test_scope_returns_empty_set_for_service_request_without_org(): void
+    {
+        $org = Community::factory()->create();
+
+        $user = User::factory()->create(['community_id' => $org->id]);
+        ServiceRequest::factory()->forUser($user)->create(['community_id' => $org->id]);
+
+        $this->assertCount(0, ServiceRequest::all());
+    }
+
+    public function test_scope_returns_empty_set_for_transaction_without_org(): void
+    {
+        $org = Community::factory()->create();
+
+        $buyer = User::factory()->create(['community_id' => $org->id]);
+        $seller = User::factory()->create(['community_id' => $org->id]);
+
+        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $org->id]);
+
+        $this->assertCount(0, Transaction::all());
     }
 
     // -------------------------------------------------------------------------
@@ -164,5 +186,64 @@ class BelongsToTenantScopeTest extends TestCase
         app()->instance('current_organization', $org);
 
         $this->assertCount(1, Service::all());
+    }
+
+    // -------------------------------------------------------------------------
+    // Cross-Organization leakage prevention
+    // -------------------------------------------------------------------------
+
+    public function test_no_cross_organization_leak_with_org_bound(): void
+    {
+        $orgA = Community::factory()->create();
+        $orgB = Community::factory()->create();
+
+        $userA = User::factory()->create(['community_id' => $orgA->id]);
+        $userB = User::factory()->create(['community_id' => $orgB->id]);
+
+        Service::factory()->forUser($userA)->create(['community_id' => $orgA->id, 'title' => 'Service A']);
+        Service::factory()->forUser($userB)->create(['community_id' => $orgB->id, 'title' => 'Service B']);
+
+        app()->instance('current_organization', $orgA);
+
+        $services = Service::all();
+        $this->assertCount(1, $services);
+        $this->assertEquals('Service A', $services->first()->title);
+    }
+
+    public function test_no_cross_organization_leak_without_org_bound(): void
+    {
+        $orgA = Community::factory()->create();
+        $orgB = Community::factory()->create();
+
+        $userA = User::factory()->create(['community_id' => $orgA->id]);
+        $userB = User::factory()->create(['community_id' => $orgB->id]);
+
+        Service::factory()->forUser($userA)->create(['community_id' => $orgA->id]);
+        ServiceRequest::factory()->forUser($userA)->create(['community_id' => $orgA->id]);
+
+        $buyer = User::factory()->create(['community_id' => $orgB->id]);
+        $seller = User::factory()->create(['community_id' => $orgB->id]);
+        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $orgB->id]);
+
+        $this->assertCount(0, Service::all());
+        $this->assertCount(0, ServiceRequest::all());
+        $this->assertCount(0, Transaction::all());
+    }
+
+    public function test_without_global_scope_still_bypasses_for_admin_context(): void
+    {
+        $orgA = Community::factory()->create();
+        $orgB = Community::factory()->create();
+
+        $userA = User::factory()->create(['community_id' => $orgA->id]);
+        $userB = User::factory()->create(['community_id' => $orgB->id]);
+
+        Service::factory()->forUser($userA)->create(['community_id' => $orgA->id]);
+        Service::factory()->forUser($userB)->create(['community_id' => $orgB->id]);
+
+        $this->assertCount(
+            2,
+            Service::withoutGlobalScope(BelongsToTenantScope::class)->get()
+        );
     }
 }

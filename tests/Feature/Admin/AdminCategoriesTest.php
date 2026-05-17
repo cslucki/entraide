@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\Category;
+use App\Models\Community;
 use App\Models\Service;
 use App\Models\Skill;
 use App\Models\User;
@@ -44,15 +45,15 @@ class AdminCategoriesTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.categories.store'), [
-                'name'  => 'Informatique',
+                'name' => 'Informatique',
                 'color' => '#3b82f6',
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
 
         $this->assertDatabaseHas('categories', [
-            'name'  => 'Informatique',
-            'slug'  => 'informatique',
+            'name' => 'Informatique',
+            'slug' => 'informatique',
             'color' => '#3b82f6',
         ]);
     }
@@ -79,21 +80,21 @@ class AdminCategoriesTest extends TestCase
 
     public function test_admin_can_update_a_category(): void
     {
-        $admin    = $this->makeAdmin();
+        $admin = $this->makeAdmin();
         $category = Category::factory()->create();
 
         $this->actingAs($admin)
             ->patch(route('admin.categories.update', $category), [
-                'name'  => 'Nouveau nom',
+                'name' => 'Nouveau nom',
                 'color' => '#ef4444',
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
 
         $this->assertDatabaseHas('categories', [
-            'id'    => $category->id,
-            'name'  => 'Nouveau nom',
-            'slug'  => 'nouveau-nom',
+            'id' => $category->id,
+            'name' => 'Nouveau nom',
+            'slug' => 'nouveau-nom',
             'color' => '#ef4444',
         ]);
     }
@@ -102,7 +103,7 @@ class AdminCategoriesTest extends TestCase
 
     public function test_admin_can_delete_empty_category(): void
     {
-        $admin    = $this->makeAdmin();
+        $admin = $this->makeAdmin();
         $category = Category::factory()->create();
 
         $this->actingAs($admin)
@@ -115,9 +116,12 @@ class AdminCategoriesTest extends TestCase
 
     public function test_admin_cannot_delete_category_with_services(): void
     {
-        $admin    = $this->makeAdmin();
+        $admin = $this->makeAdmin();
+        $org = Community::factory()->create();
         $category = Category::factory()->create();
-        Service::factory()->forCategory($category)->create();
+        Service::factory()->forCategory($category)->create(['community_id' => $org->id]);
+
+        app()->instance('current_organization', $org);
 
         $this->actingAs($admin)
             ->delete(route('admin.categories.destroy', $category))
@@ -129,9 +133,9 @@ class AdminCategoriesTest extends TestCase
 
     public function test_deleting_category_also_deletes_its_skills(): void
     {
-        $admin    = $this->makeAdmin();
+        $admin = $this->makeAdmin();
         $category = Category::factory()->create();
-        $skill    = Skill::factory()->create(['category_id' => $category->id]);
+        $skill = Skill::factory()->create(['category_id' => $category->id]);
 
         $this->actingAs($admin)
             ->delete(route('admin.categories.destroy', $category));
@@ -143,7 +147,7 @@ class AdminCategoriesTest extends TestCase
 
     public function test_admin_can_add_skill_to_category(): void
     {
-        $admin    = $this->makeAdmin();
+        $admin = $this->makeAdmin();
         $category = Category::factory()->create();
 
         $this->actingAs($admin)
@@ -153,16 +157,16 @@ class AdminCategoriesTest extends TestCase
 
         $this->assertDatabaseHas('skills', [
             'category_id' => $category->id,
-            'name'        => 'PHP',
-            'slug'        => 'php',
+            'name' => 'PHP',
+            'slug' => 'php',
         ]);
     }
 
     public function test_admin_can_delete_a_skill(): void
     {
-        $admin    = $this->makeAdmin();
+        $admin = $this->makeAdmin();
         $category = Category::factory()->create();
-        $skill    = Skill::factory()->create(['category_id' => $category->id]);
+        $skill = Skill::factory()->create(['category_id' => $category->id]);
 
         $this->actingAs($admin)
             ->delete(route('admin.skills.destroy', $skill))

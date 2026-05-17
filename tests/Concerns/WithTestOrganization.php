@@ -12,6 +12,7 @@ trait WithTestOrganization
     protected function setUpOrganization(): void
     {
         $this->testOrganization = Community::factory()->create(['is_active' => true]);
+        app()->instance('current_organization', $this->testOrganization);
     }
 
     protected function orgUser(array $overrides = []): User
