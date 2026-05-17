@@ -11,7 +11,7 @@ trait HasOrganizationId
         });
 
         static::updating(function ($model) {
-            if ($model->isDirty('community_id')) {
+            if ($model->isDirty('organization_id') || $model->isDirty('community_id')) {
                 $model->syncOrganizationId();
             }
         });
@@ -19,6 +19,28 @@ trait HasOrganizationId
 
     public function syncOrganizationId(): void
     {
-        $this->organization_id = $this->community_id;
+        if ($this->exists) {
+            if ($this->isDirty('organization_id')) {
+                $this->community_id = $this->organization_id;
+                return;
+            }
+
+            if ($this->isDirty('community_id')) {
+                $this->organization_id = $this->community_id;
+                return;
+            }
+
+            return;
+        }
+
+        if ($this->organization_id !== null) {
+            $this->community_id = $this->organization_id;
+            return;
+        }
+
+        if ($this->community_id !== null) {
+            $this->organization_id = $this->community_id;
+            return;
+        }
     }
 }
