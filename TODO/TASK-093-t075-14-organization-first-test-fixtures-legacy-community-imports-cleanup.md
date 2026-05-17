@@ -2,7 +2,7 @@
 task_id: TASK-093
 title: 'T075.14 — Organization-First Test Fixtures & Legacy Community Imports Cleanup'
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-093-t075-14-organization-first-test-fixtures-legacy-community-impor
 priority: MEDIUM
 
 created_at: 2026-05-17 21:27:01 Europe/Paris
-updated_at: 2026-05-17 21:27:01 Europe/Paris
+updated_at: 2026-05-17 23:15:00 Europe/Paris
 
 labels:
   - organization-migration
@@ -21,9 +21,9 @@ labels:
   - legacy-cleanup
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-05-17 21:27:01 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
@@ -220,27 +220,75 @@ All changes are test-only:
 - PROD untouched
 - main branch untouched
 
+## 2026-05-17 23:15:00 Europe/Paris
+
+Finalisation OPS.
+
+- **Review**: OPENAI — APPROVE WITH NOTES
+- **Blocking**: None
+- **TASK status**: IN_PROGRESS → DONE
+- **Lock**: LOCKED → UNLOCKED
+- **Test results**: Updated with review validation
+- **Handoff**: Documented with remaining legacy imports
+- **Runtime**: Confirmé — aucun fichier runtime modifié
+
+Prochaine étape : merge OPS.
+
 # Handoffs
+
+Imports Community restants dans les catégories suivantes — à traiter en passes dédiés :
+
+1. **Loop tests** (5 fichiers) — nécessitent `loop.community_id` DB column legacy
+2. **Compatibility tests** (5 fichiers) — testent explicitement Community ↔ Organization
+3. **Tenant safety tests** (2 fichiers) — testent `current_community` fallback / `community_id` tampering
+4. **Model-specific tests** (2 fichiers) — `community_id` est colonne DB canonique
+5. **Admin/Policies/API tests** (4+ fichiers) — isolation legacy, deferred
+
+Rappel : `community_id` NE DOIT PAS être supprimé de la DB dans T075.14.
+Pas de migration DB dans cette tâche.
 
 # Tests
 
-- [ ] tests ciblés (Organization-first fixtures)
-- [ ] full suite PHPUnit (SQLite)
-- [ ] full suite PHPUnit (PostgreSQL)
-- [ ] tenant isolation validation
-- [ ] pas de browser / UI validation (hors scope)
+- [x] tests ciblés (Organization-first fixtures) — 83 passed, 192 assertions
+- [x] full suite PHPUnit (SQLite) — 655 passed, 1410 assertions
+- [ ] full suite PHPUnit (PostgreSQL) — CI post-merge
+- [x] tenant isolation validation — Organization::factory() confirmé
+- [x] pas de browser / UI validation (hors scope)
 
 ---
 
 # Test Results
 
-Pending.
+## CODE Phase
+
+- **Targeted tests**: 83 passed, 192 assertions
+- **Full suite (SQLite)**: 655 passed, 1410 assertions
+
+## Review Phase (OPENAI / Codex GPT-5.5)
+
+- **CurrentOrganizationTest**: 11 passed, 13 assertions
+- **ReferralRegistrationTest**: 3 passed, 11 assertions
+- **ReferralServiceTest**: 9 passed, 24 assertions
+- **PointsSystemTest**: 5 passed, 13 assertions
+- **BadgeServiceTest**: 12 passed, 16 assertions
+- **RewardDispatcherTest**: 28 passed, 78 assertions
+- **Subtotal review targeted**: 68 passed, 155 assertions
+
+All green. No regressions.
 
 ---
 
 # Review Notes
 
-Pending.
+## OPENAI / Codex GPT-5.5 — APPROVE WITH NOTES
+
+- **Decision**: APPROVE WITH NOTES
+- **Blocking issues**: None
+- `Organization::factory()` validé comme fixture tenant canonique
+- `organization_id` dans ReferralServiceTest / ReferralRegistrationTest validé (Référence a HasOrganizationId)
+- `community_id` restant accepté comme colonne DB legacy de transition
+- Aucun runtime touché — confirmé (test-only)
+- **Notes**: Legacy Community imports restants dans Loop / Compatibility / Admin / Policies / API tests — à traiter en passes dédiés
 
 ---
 
