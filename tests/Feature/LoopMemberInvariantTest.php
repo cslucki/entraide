@@ -292,26 +292,30 @@ class LoopMemberInvariantTest extends TestCase
     public function test_cross_community_route_prefix_is_blocked(): void
     {
         // Simulate communityB context (as if accessed via /community-b/...)
+        // Both bindings are set (matching ResolveCommunity middleware behavior)
         app()->instance('current_community', $this->communityB);
+        app()->instance('current_organization', $this->communityB);
 
         $response = $this->actingAs($this->userA)
             ->get(route('loops.show', $this->loop));
 
-        // userA belongs to communityA, but current_community is communityB → 404
+        // userA belongs to communityA, but tenant context is communityB → 404
         $response->assertStatus(404);
     }
 
     public function test_cross_community_creation_is_blocked(): void
     {
         // Simulate communityB context (as if accessed via /community-b/...)
+        // Both bindings are set (matching ResolveCommunity middleware behavior)
         app()->instance('current_community', $this->communityB);
+        app()->instance('current_organization', $this->communityB);
 
         $response = $this->actingAs($this->userA)
             ->post(route('loops.store'), [
                 'name' => 'Cross-community loop attempt',
             ]);
 
-        // userA belongs to communityA, but current_community is communityB → 404
+        // userA belongs to communityA, but tenant context is communityB → 404
         $response->assertStatus(404);
     }
 
