@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
+use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -26,7 +26,7 @@ class PublicFrenchPartnersRoutesTest extends TestCase
 
     public function test_boucles_creer_redirects_to_partenaires_demande(): void
     {
-        Community::factory()->create(['is_active' => true]);
+        Organization::factory()->create(['is_active' => true]);
 
         $this->get('/boucles/creer')
             ->assertRedirect('/partenaires/demande');
@@ -34,7 +34,7 @@ class PublicFrenchPartnersRoutesTest extends TestCase
 
     public function test_boucles_index_does_not_redirect_to_partenaires(): void
     {
-        Community::factory()->create(['is_active' => true]);
+        Organization::factory()->create(['is_active' => true]);
 
         $this->get('/boucles')
             ->assertOk()

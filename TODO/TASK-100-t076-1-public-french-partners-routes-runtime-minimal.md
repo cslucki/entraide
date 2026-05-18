@@ -13,7 +13,7 @@ branch: TASK-100-t076-1-public-french-partners-routes-runtime-minimal
 priority: MEDIUM
 
 created_at: 2026-05-18 07:55:40 Europe/Paris
-updated_at: 2026-05-18 10:37:17 Europe/Paris
+updated_at: 2026-05-18 11:02:37 Europe/Paris
 
 labels: []
 
@@ -104,6 +104,32 @@ Validation notes:
 - `npm run build` succeeded; generated ignored assets were not committed
 - screenshots captured under ignored `ai/playwright/screenshots/`
 
+## 2026-05-18 11:02:37 Europe/Paris
+
+Applied OPENAI REQUEST CHANGES minimal corrective patch.
+
+Corrections applied:
+
+- removed partner CTA from `/boucles`; `/boucles` no longer points to `/partenaires` or `/partenaires/demande`
+- replaced `/boucles` top block with neutral non-partner wording reserving the page for future Boucles
+- replaced public partner wording `Communautés` with `Collectifs` on `/partenaires`
+- changed `PublicFrenchPartnersRoutesTest` to use `Organization::factory()` instead of importing `Community`
+
+Scope preserved:
+
+- no `/loops`, `/partners`, `/organization`, or `/explorer` changes
+- no tenant middleware changes
+- no Partner model
+- no DB migration
+- no ChatLoop changes
+
+Validation after corrective patch:
+
+- `php artisan test tests/Feature/PublicFrenchPartnersRoutesTest.php` — PASS, 4 tests / 8 assertions
+- `php artisan test` — PASS, 664 tests / 1430 assertions
+- `npm run build` — PASS
+- Playwright quick validation — PASS on `/partenaires`, `/partenaires/demande`, and `/boucles` in desktop and mobile viewports; no console warnings/errors observed
+
 # Handoffs
 
 No handoff. Task completed by OPENCODE.
@@ -128,9 +154,15 @@ No handoff. Task completed by OPENCODE.
 - Playwright responsive validation — PASS on mobile viewport 390x844
 - Playwright dark mode validation — PASS on `/partenaires`
 - Playwright console inspection — PASS, no warnings or errors observed
+- OPENAI REQUEST CHANGES patch: `php artisan test tests/Feature/PublicFrenchPartnersRoutesTest.php` — PASS, 4 tests / 8 assertions
+- OPENAI REQUEST CHANGES patch: `php artisan test` — PASS, 664 tests / 1430 assertions
+- OPENAI REQUEST CHANGES patch: `npm run build` — PASS
+- OPENAI REQUEST CHANGES patch: Playwright quick validation — PASS on `/partenaires`, `/partenaires/demande`, and `/boucles` desktop/mobile; no warnings/errors observed
 
 ---
 
 # Review Notes
 
 T076.1 scope respected. Partner public surface now uses French URLs and visible CTA text `Devenir partenaire`. `/boucles` remains a distinct public Boucles route. English and deferred routes remain out of scope and should be handled in dedicated future tasks if needed.
+
+OPENAI REQUEST CHANGES addressed: `/boucles` no longer exposes a partner CTA, partner public wording avoids `Communautés`, and route tests use the `Organization` compatibility model rather than importing `Community`.
