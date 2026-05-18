@@ -13,7 +13,7 @@ branch: TASK-100-t076-1-public-french-partners-routes-runtime-minimal
 priority: MEDIUM
 
 created_at: 2026-05-18 07:55:40 Europe/Paris
-updated_at: 2026-05-18 11:02:37 Europe/Paris
+updated_at: 2026-05-18 11:13:53 Europe/Paris
 
 labels: []
 
@@ -130,6 +130,34 @@ Validation after corrective patch:
 - `npm run build` — PASS
 - Playwright quick validation — PASS on `/partenaires`, `/partenaires/demande`, and `/boucles` in desktop and mobile viewports; no console warnings/errors observed
 
+## 2026-05-18 11:13:53 Europe/Paris
+
+Applied second OPENAI REQUEST CHANGES minimal corrective patch.
+
+Corrections applied:
+
+- neutralized `/boucles` fully by removing the legacy `$communities` grid from `resources/views/boucles/index.blade.php`
+- removed all rendered legacy Community entries from `/boucles`
+- removed all `community.home` links from `/boucles`
+- kept `/boucles` as a normal non-redirecting page with neutral wording reserved for future real Boucles
+- added targeted assertions proving `/boucles` does not render an Organization fixture name and does not include the old `community.home` URL
+
+Scope preserved:
+
+- no routes changes
+- no HomeController changes
+- no CommunityRequestController changes
+- no `/partenaires`, `/partenaires/demande`, `/loops`, `/partners`, `/organization`, or `/explorer` changes
+- no tenant middleware changes
+- no models, migrations, or ChatLoop changes
+
+Validation after second corrective patch:
+
+- `php artisan test tests/Feature/PublicFrenchPartnersRoutesTest.php` — PASS, 4 tests / 11 assertions
+- `php artisan test` — PASS, 664 tests / 1433 assertions
+- `npm run build` — PASS
+- Playwright quick validation — PASS on `/boucles`, `/partenaires`, and `/partenaires/demande` in desktop and mobile viewports; `/boucles` console check showed 0 warnings and 0 errors
+
 # Handoffs
 
 No handoff. Task completed by OPENCODE.
@@ -158,6 +186,10 @@ No handoff. Task completed by OPENCODE.
 - OPENAI REQUEST CHANGES patch: `php artisan test` — PASS, 664 tests / 1430 assertions
 - OPENAI REQUEST CHANGES patch: `npm run build` — PASS
 - OPENAI REQUEST CHANGES patch: Playwright quick validation — PASS on `/partenaires`, `/partenaires/demande`, and `/boucles` desktop/mobile; no warnings/errors observed
+- Second OPENAI REQUEST CHANGES patch: `php artisan test tests/Feature/PublicFrenchPartnersRoutesTest.php` — PASS, 4 tests / 11 assertions
+- Second OPENAI REQUEST CHANGES patch: `php artisan test` — PASS, 664 tests / 1433 assertions
+- Second OPENAI REQUEST CHANGES patch: `npm run build` — PASS
+- Second OPENAI REQUEST CHANGES patch: Playwright quick validation — PASS on `/boucles`, `/partenaires`, and `/partenaires/demande` desktop/mobile; `/boucles` console check showed 0 warnings and 0 errors
 
 ---
 
@@ -166,3 +198,5 @@ No handoff. Task completed by OPENCODE.
 T076.1 scope respected. Partner public surface now uses French URLs and visible CTA text `Devenir partenaire`. `/boucles` remains a distinct public Boucles route. English and deferred routes remain out of scope and should be handled in dedicated future tasks if needed.
 
 OPENAI REQUEST CHANGES addressed: `/boucles` no longer exposes a partner CTA, partner public wording avoids `Communautés`, and route tests use the `Organization` compatibility model rather than importing `Community`.
+
+Second OPENAI REQUEST CHANGES addressed: `/boucles` is now fully neutralized and no longer renders legacy `$communities`, Organization fixture entries, or `community.home` links.

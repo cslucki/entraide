@@ -34,10 +34,18 @@ class PublicFrenchPartnersRoutesTest extends TestCase
 
     public function test_boucles_index_does_not_redirect_to_partenaires(): void
     {
-        Organization::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create([
+            'name' => 'Legacy Organization Fixture',
+            'slug' => 'legacy-organization-fixture',
+            'is_active' => true,
+            'is_public' => true,
+        ]);
 
         $this->get('/boucles')
             ->assertOk()
-            ->assertSee('Les Boucles');
+            ->assertSee('Les Boucles')
+            ->assertSee('Les Boucles sont en cours de réorganisation.')
+            ->assertDontSee($organization->name)
+            ->assertDontSee(route('community.home', ['community' => $organization->slug]));
     }
 }
