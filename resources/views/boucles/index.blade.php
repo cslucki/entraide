@@ -15,12 +15,7 @@
             ],
         ]);
 
-        $visibleLoops = $loops->isNotEmpty()
-            ? $loops->map(fn ($loop) => [
-                'name' => $loop->name,
-                'description' => $loop->description ?: 'Une Boucle active dans votre Organization.',
-            ])
-            : $exampleLoops;
+        $visibleLoops = $exampleLoops;
     @endphp
 
     <div class="max-w-5xl mx-auto px-4 py-8 sm:py-12">
@@ -40,9 +35,6 @@
                         Se connecter
                     </a>
                 @endguest
-                <a href="{{ route('partenaires.request.create') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800">
-                    Demander une invitation
-                </a>
             </div>
         </div>
 
