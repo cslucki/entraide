@@ -2,7 +2,7 @@
 task_id: TASK-101
 title: t076-2-public-english-routes-debt-audit-redirect-strategy
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-101-t076-2-public-english-routes-debt-audit-redirect-strategy
 priority: MEDIUM
 
 created_at: 2026-05-18 11:37:00 Europe/Paris
-updated_at: 2026-05-18 11:50:36 Europe/Paris
+updated_at: 2026-05-18 11:55:00 Europe/Paris
 
 labels: []
 
@@ -224,6 +224,26 @@ Findings:
 Modified files:
 
 - `TODO/TASK-101-t076-2-public-english-routes-debt-audit-redirect-strategy.md`
+
+Runtime files modified:
+
+- none
+
+## 2026-05-18 11:55:00 Europe/Paris
+
+Merged into `develop` with the official merge workflow.
+
+Merge commit:
+
+- `d02a4baba8b262e5302cbb566838dc33d6d68294`
+
+Status:
+
+- MERGED
+
+Lock:
+
+- UNLOCKED
 
 Runtime files modified:
 
