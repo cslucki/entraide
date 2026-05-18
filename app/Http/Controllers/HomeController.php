@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use App\Models\Loop;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -56,19 +55,7 @@ class HomeController extends Controller
 
     public function boucles(): View
     {
-        $organization = currentOrganization();
-
-        $loops = $organization
-            ? Loop::query()
-                ->where('community_id', $organization->id)
-                ->where('status', 'active')
-                ->select(['id', 'name', 'description', 'type'])
-                ->orderBy('name')
-                ->limit(3)
-                ->get()
-            : collect();
-
-        return view('boucles.index', compact('loops'));
+        return view('boucles.index');
     }
 
     public function partners(): View

@@ -13,7 +13,7 @@ branch: TASK-104-t077-1-boucles-public-surface-runtime-mvp
 priority: MEDIUM
 
 created_at: 2026-05-18 18:04:14 Europe/Paris
-updated_at: 2026-05-18 18:23:07 Europe/Paris
+updated_at: 2026-05-18 18:39:57 Europe/Paris
 
 labels: []
 
@@ -136,6 +136,28 @@ Notes de validation:
 - Branche `main` et environnement PROD non touchés.
 - Aucun `finalize-task.sh`, merge ou push vers branche protégée effectué.
 
+## 2026-05-18 18:39:57 Europe/Paris
+
+Patch review OPENAI appliqué par OPENCODE sur les deux points bloquants.
+
+Constats review OPENAI:
+- `/boucles` pouvait afficher des Boucles DB actives aux visiteurs si une Organization était résolue.
+- La page réintroduisait un lien public vers `/partenaires/demande` via `route('partenaires.request.create')`.
+
+Corrections appliquées:
+- `HomeController::boucles()` ne charge plus `Loop` et retourne uniquement la vue publique.
+- `resources/views/boucles/index.blade.php` utilise uniquement les exemples contrôlés `$exampleLoops`.
+- Le CTA `Demander une invitation` vers `/partenaires/demande` a été retiré.
+- `public/build/manifest.json`, modifié localement par `npm run build`, a été restauré et reste hors commit.
+
+Validations patch:
+- Playwright HTTP local `/boucles`: page accessible en visiteur, exemples contrôlés visibles, aucun lien `/partenaires/demande` dans les hrefs.
+- Recherche ciblée: aucune occurrence restante de `partenaires.request.create`, `/partenaires/demande`, `Loop::query` ou `$visibleLoops = $loops` dans les fichiers modifiés.
+- `php artisan test --filter=PublicFrenchPartnersRoutesTest`: PASS, 6 tests, 15 assertions.
+- `php artisan test --filter=T07411RoutesTenantSafetyTest`: PASS, 21 tests, 34 assertions.
+- Note locale: après restauration du manifest généré, le serveur local signale un 404 CSS sur l'asset Vite absent du filesystem; le build Vite a déjà été validé PASS et l'artefact généré n'est volontairement pas commité.
+- Aucun `finalize-task.sh`, merge ou push vers branche protégée effectué.
+
 # Handoffs
 
 # Tests
@@ -155,6 +177,8 @@ Notes de validation:
 - `php artisan test`: PASS, 666 tests, 1437 assertions.
 - `npm run build`: PASS.
 - Playwright manual validation: `/boucles` desktop, mobile 390x844, dark mode toggle, console inspection sans warning/error.
+- Patch OPENAI: Playwright HTTP local `/boucles` visiteur confirme uniquement les exemples contrôlés et aucun lien `/partenaires/demande`; recherche ciblée PASS sur les deux fichiers runtime.
+- Patch OPENAI rerun: `php artisan test --filter=PublicFrenchPartnersRoutesTest` PASS; `php artisan test --filter=T07411RoutesTenantSafetyTest` PASS.
 
 ---
 
@@ -164,3 +188,4 @@ Notes de validation:
 - Aucun changement apporté à `/loops`, `LoopController`, IA, ChatLoop, migrations, modèles ou permissions.
 - Les Boucles DB visibles restent strictement conditionnées par `currentOrganization()` et filtrées via `community_id` legacy-compatible.
 - Aucun Member, message, demande, activité interne ou donnée cross-Organization exposé.
+- Review OPENAI corrigée: `/boucles` n'affiche plus aucune Boucle DB et ne contient plus de CTA vers `/partenaires/demande`.
