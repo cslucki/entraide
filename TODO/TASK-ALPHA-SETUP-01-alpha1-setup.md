@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 11:51:15 Europe/Paris
+updated_at: 2026-05-18 11:59:03 Europe/Paris
 
 labels:
   - alpha
@@ -64,7 +64,9 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] create local alpha `.env` from `.env.pgsql`
 - [x] verify branch, base SHA, worktree, and local alpha env keys
 - [x] prepare PostgreSQL local alpha database configuration
-- [ ] prepare Apache alpha vhost configuration after alpha certificate is available
+- [x] inspect existing `test.laravel` Apache method without privileged writes
+- [x] prepare exact manual Apache alpha vhost report
+- [ ] privileged Apache alpha vhost creation by Cyril
 
 ---
 
@@ -198,6 +200,130 @@ sudo chmod 600 /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel-key.pe
 
 Then create Apache vhost files for `alpha1.test.laravel` using the `test.laravel` structure, with document root `/home/cyril/claude-code/sites/alpha1.test.laravel/public`, enable the site, run configtest, and reload Apache.
 
+## 2026-05-18 11:59:03 Europe/Paris
+
+Non-privileged Apache inspection report completed as requested. No Apache file was created, no certificate was copied, and Apache was not reloaded.
+
+Observed existing `test.laravel` method:
+
+- HTTP vhost file: `/etc/apache2/sites-available/test.laravel.conf`.
+- HTTPS vhost file: `/etc/apache2/sites-available/test.laravel-ssl.conf`.
+- Both files are enabled through symlinks in `/etc/apache2/sites-enabled`.
+- HTTP uses `<VirtualHost *:80>` with `ServerName test.laravel` and document root `/home/cyril/claude-code/sites/test.laravel/public`.
+- HTTPS uses `<VirtualHost *:443>`, `SSLEngine on`, the same document root, and certificates under `/etc/apache2/certs/test.laravel/`.
+- Existing certificate references are `SSLCertificateFile /etc/apache2/certs/test.laravel/cert.pem` and `SSLCertificateKeyFile /etc/apache2/certs/test.laravel/cert.key`.
+- `test.laravel` does not reference certificates via `/mnt/d/...`; therefore the alpha manual commands below reproduce the current `/etc/apache2/certs/...` method.
+
+Current blocker:
+
+- `/etc/apache2/sites-available` is not writable by the current user.
+- `/etc/apache2/sites-enabled` is not writable by the current user.
+- `sudo -n` returns `sudo: a password is required`.
+- `/etc/apache2/sites-available/alpha1.test.laravel.conf` is still absent.
+- No dedicated `alpha1.test.laravel` vhost is active according to non-privileged inspection.
+- `vendor/autoload.php` is absent in alpha; composer was intentionally not run.
+
+Exact HTTP vhost content to create at `/etc/apache2/sites-available/alpha1.test.laravel.conf`:
+
+```apache
+<VirtualHost *:80>
+    ServerName alpha1.test.laravel
+    DocumentRoot /home/cyril/claude-code/sites/alpha1.test.laravel/public
+
+    <Directory /home/cyril/claude-code/sites/alpha1.test.laravel/public>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/alpha1.test.laravel_error.log
+    CustomLog ${APACHE_LOG_DIR}/alpha1.test.laravel_access.log combined
+</VirtualHost>
+```
+
+Exact HTTPS vhost content to create at `/etc/apache2/sites-available/alpha1.test.laravel-ssl.conf`:
+
+```apache
+<VirtualHost *:443>
+    ServerName alpha1.test.laravel
+    DocumentRoot /home/cyril/claude-code/sites/alpha1.test.laravel/public
+
+    SSLEngine on
+    SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+    SSLCipherSuite HIGH:!aNULL:!MD5
+    SSLCertificateFile /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel.pem
+    SSLCertificateKeyFile /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel-key.pem
+
+    <Directory /home/cyril/claude-code/sites/alpha1.test.laravel/public>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/alpha1.test.laravel_ssl_error.log
+    CustomLog ${APACHE_LOG_DIR}/alpha1.test.laravel_ssl_access.log combined
+</VirtualHost>
+```
+
+Exact privileged commands for Cyril to execute manually:
+
+```bash
+sudo mkdir -p /etc/apache2/certs/alpha1.test.laravel
+sudo cp /mnt/d/mkcert/alpha1.test.laravel.pem /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel.pem
+sudo cp /mnt/d/mkcert/alpha1.test.laravel-key.pem /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel-key.pem
+sudo chmod 644 /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel.pem
+sudo chmod 600 /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel-key.pem
+sudo tee /etc/apache2/sites-available/alpha1.test.laravel.conf >/dev/null <<'EOF'
+<VirtualHost *:80>
+    ServerName alpha1.test.laravel
+    DocumentRoot /home/cyril/claude-code/sites/alpha1.test.laravel/public
+
+    <Directory /home/cyril/claude-code/sites/alpha1.test.laravel/public>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/alpha1.test.laravel_error.log
+    CustomLog ${APACHE_LOG_DIR}/alpha1.test.laravel_access.log combined
+</VirtualHost>
+EOF
+sudo tee /etc/apache2/sites-available/alpha1.test.laravel-ssl.conf >/dev/null <<'EOF'
+<VirtualHost *:443>
+    ServerName alpha1.test.laravel
+    DocumentRoot /home/cyril/claude-code/sites/alpha1.test.laravel/public
+
+    SSLEngine on
+    SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+    SSLCipherSuite HIGH:!aNULL:!MD5
+    SSLCertificateFile /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel.pem
+    SSLCertificateKeyFile /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel-key.pem
+
+    <Directory /home/cyril/claude-code/sites/alpha1.test.laravel/public>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/alpha1.test.laravel_ssl_error.log
+    CustomLog ${APACHE_LOG_DIR}/alpha1.test.laravel_ssl_access.log combined
+</VirtualHost>
+EOF
+sudo a2ensite alpha1.test.laravel.conf
+sudo a2ensite alpha1.test.laravel-ssl.conf
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
+
+Validation commands after Cyril executes the privileged sequence:
+
+```bash
+apache2ctl -S 2>/dev/null | grep -A3 -B3 "alpha1.test.laravel" || true
+curl -k -I https://alpha1.test.laravel
+```
+
+Expected result after the dedicated vhost points to the alpha worktree: because `vendor/autoload.php` is absent, Laravel may return HTTP 500 until dependencies are installed. That would still indicate Apache is reaching the alpha document root, not the previous fallback vhost.
+
 # Handoffs
 
 None.
@@ -227,6 +353,7 @@ Setup verification completed without runtime patching:
 - Alpha mkcert files are now available and valid for `alpha1.test.laravel`.
 - Apache alpha dedicated vhost setup remains blocked by non-interactive sudo privileges.
 - `curl -k -I https://alpha1.test.laravel` currently returns HTTP `302 Found`, but Apache does not yet list a dedicated `alpha1.test.laravel` vhost.
+- Non-privileged Apache report prepared with exact alpha vhost contents and manual sudo command sequence.
 
 ---
 
