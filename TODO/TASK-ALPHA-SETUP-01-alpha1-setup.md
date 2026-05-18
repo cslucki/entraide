@@ -2,7 +2,7 @@
 task_id: ALPHA-SETUP-01
 title: Alpha1 local worktree setup from production main
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 19:30:00 Europe/Paris
+updated_at: 2026-05-18 19:45:00 Europe/Paris
 
 labels:
   - alpha
@@ -21,9 +21,9 @@ labels:
   - worktree
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-05-18 11:33:02 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
@@ -85,6 +85,7 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] commit Vite manifest and required referenced CSS asset for local alpha
 - [x] create public storage link and audit referenced avatar files
 - [x] perform final alpha1 validation and consolidate local setup documentation
+- [x] finalize ALPHA-SETUP-01 without merge
 
 ---
 
@@ -921,6 +922,51 @@ Safety status:
 - No main/production branch was touched.
 - No T074/T075/T076 backport was performed.
 
+## 2026-05-18 19:45:00 Europe/Paris
+
+ALPHA-SETUP-01 finalization completed without merge and without runtime changes.
+
+Final task state:
+
+- TASK status set to `DONE`.
+- TASK lock set to `UNLOCKED`.
+- Branch remains `ALPHA-SETUP-01-alpha1-setup`.
+- No merge was performed in this step.
+
+Final alpha summary:
+
+- Alpha1 environment is operational at `https://alpha1.test.laravel`.
+- Exact base remains `b392a134e85a26a5018d2c371aeaebe20802bb63`, production `main` T073 pre-T074.
+- `develop` was not used as the alpha base.
+- Apache HTTPS alpha vhost is active.
+- PostgreSQL local database `bouclepro_alpha1` is active.
+- Authorized local dump `production_2026-05-16_18-42-55.sql` was imported.
+- Import produced 40 tables; final validation reported `users=23`, `sessions_table=yes`, and `users_table=yes`.
+- Home and login return HTTP `200`; unauthenticated dashboard returns HTTP `302` to `/login`.
+- Admin/member dashboard login flows were validated earlier in a secret-safe headless browser run.
+- Five configured `TEST_*_LOGIN` users exist in the database.
+- `public/storage` is linked.
+- Known accepted local limitation: 2 referenced avatar files are absent locally.
+- `@DOCS/ALPHA-POSTGRES-SYNC-AND-TEST-USERS.md` consolidates the local setup procedure and safety rules.
+
+Safety status:
+
+- No migration was run.
+- No `migrate:fresh` was run.
+- No seed was run.
+- No additional dump import was run.
+- No npm build was run.
+- No avatars or media files were copied.
+- No application runtime code under `app/`, `routes/`, `resources/`, `database/`, or `config/` was modified.
+- No main/production branch was touched.
+- No develop branch modification was performed.
+- No T074/T075/T076 backport was performed.
+
+Closure recommendation:
+
+- The RUN can close ALPHA-SETUP-01 as local alpha setup complete.
+- Any future merge decision should wait for Cockpit Alpha arbitration and must not be performed as part of this finalization step.
+
 # Handoffs
 
 None.
@@ -980,6 +1026,7 @@ Setup verification completed without runtime patching:
 - RUN decision authorized committing the manifest plus only the ignored referenced CSS asset; JS was already tracked and not force-added.
 - Storage link audit created `public/storage` symlink successfully; home remained HTTP `200`; two referenced avatar files are missing locally and were not found at the exact paths in the original repo storage inspected.
 - Final validation: home/login OK, unauthenticated dashboard redirects to login, DB has `users=23` with `sessions` and `users` tables, five `TEST_*_LOGIN` users exist, `public/storage` is linked, and two missing avatars are accepted as a local alpha limitation.
+- Finalization: TASK marked `DONE`, lock `UNLOCKED`, branch conserved, no merge performed, and no runtime/app code modified.
 
 ---
 
