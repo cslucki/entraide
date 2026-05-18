@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 15:39:19 Europe/Paris
+updated_at: 2026-05-18 17:08:38 Europe/Paris
 
 labels:
   - alpha
@@ -72,6 +72,7 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] verify Laravel CLI boot after Composer install
 - [x] document manual Laravel permissions fix and empty alpha database state
 - [x] check for local production dump before authorized alpha import
+- [x] locate existing local production dump candidate outside alpha worktree
 
 ---
 
@@ -481,6 +482,59 @@ Next required action:
 
 - Place or identify an existing local production dump under `storage/app/dumps` and rerun the authorized import micro-step.
 
+## 2026-05-18 17:08:38 Europe/Paris
+
+Existing local production dump location search completed without import or destructive database action.
+
+Reason alpha worktree had no dump:
+
+- The alpha worktree path `/home/cyril/claude-code/sites/alpha1.test.laravel/storage/app/dumps` did not list dump files in the previous import attempt.
+- This is coherent with `storage/` being local/ignored and not shared across Git worktrees.
+
+Locations inspected:
+
+- `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps`.
+- `/home/cyril/claude-code/sites/*/storage/app/dumps/*`.
+- `/home/cyril` up to depth 6 for `production_*.sql`, `*.dump`, `*.backup`, and `*.sql`.
+
+Production dumps found in the existing `test.laravel` worktree:
+
+- `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-13_12-45-00.sql`.
+- `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-16_16-25-55.sql`.
+- `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-16_17-15-13.sql`.
+- `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-16_18-42-25.sql`.
+- `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-16_18-42-55.sql`.
+
+Other local dump-like files were also present in broader `/home/cyril` search results, including VS Code history files and unrelated backup trees, but they were not selected because the explicit production dump candidates in `test.laravel/storage/app/dumps` are more relevant to BouclePro alpha setup.
+
+Retained production dump candidate:
+
+- Path: `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-16_18-42-55.sql`.
+- Size: `110561 bytes`.
+- Modification date: `2026-05-16 18:43:13.856356456 +0200`.
+- `file` result: `PostgreSQL custom database dump - v1.16-0`.
+- `pg_restore -l` check: succeeded, so format is `custom`.
+
+Planned import command for next GO only:
+
+```bash
+PGPASSWORD="$DB_PASS" pg_restore --no-owner --no-acl -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" "/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-16_18-42-55.sql"
+```
+
+Safety status:
+
+- No dump content was displayed.
+- No personal data was displayed.
+- No secret was displayed.
+- No import was run.
+- `drop schema public cascade` was not run.
+- No migration was run.
+- No Laravel runtime file was modified.
+
+Next required action:
+
+- Wait for explicit Cyril GO before resetting `bouclepro_alpha1` and importing the retained dump candidate.
+
 # Handoffs
 
 None.
@@ -519,6 +573,7 @@ Setup verification completed without runtime patching:
 - Read-only checks confirm `vendor/autoload.php` is present, Artisan reports `Laravel Framework 13.7.0`, and `.env` points to PostgreSQL database `bouclepro_alpha1` with `SESSION_DRIVER=database`.
 - Current blocker is expected empty alpha database state; no migration or production import has been run yet.
 - Authorized production dump import was blocked before destructive action because no existing local dump file was found in `storage/app/dumps`; `drop schema public cascade` was not run.
+- Existing local production dump candidate found in the original `test.laravel` worktree: `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-16_18-42-55.sql`, PostgreSQL custom dump, 110561 bytes, modified `2026-05-16 18:43:13.856356456 +0200`.
 
 ---
 
