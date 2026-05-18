@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 11:37:30 Europe/Paris
+updated_at: 2026-05-18 11:41:55 Europe/Paris
 
 labels:
   - alpha
@@ -63,8 +63,8 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] create alpha1 worktree at `/home/cyril/claude-code/sites/alpha1.test.laravel`
 - [x] create local alpha `.env` from `.env.pgsql`
 - [x] verify branch, base SHA, worktree, and local alpha env keys
-- [ ] prepare PostgreSQL local alpha database configuration in a later step
-- [ ] prepare Apache alpha vhost configuration in a later step
+- [x] prepare PostgreSQL local alpha database configuration
+- [ ] prepare Apache alpha vhost configuration after alpha certificate is available
 
 ---
 
@@ -127,6 +127,38 @@ Initial checkpoint before commit/push:
 
 Next OPS step: prepare PostgreSQL local alpha database (`bouclepro_alpha1`) and Apache alpha vhost configuration, still without production import until explicitly authorized.
 
+## 2026-05-18 11:41:55 Europe/Paris
+
+Local infrastructure setup micro-step executed with OPS constraints:
+
+- Git branch confirmed: `ALPHA-SETUP-01-alpha1-setup`.
+- Git status before infra step was clean.
+- Non-secret `.env` keys confirmed: `APP_URL=https://alpha1.test.laravel`, `DB_CONNECTION=pgsql`, `DB_HOST=127.0.0.1`, `DB_PORT=5432`, `DB_DATABASE=bouclepro_alpha1`, `DB_USERNAME=bouclepro`.
+- `DB_PASSWORD` presence confirmed without displaying the value.
+- PostgreSQL server readiness confirmed with `pg_isready`.
+- Local PostgreSQL database `bouclepro_alpha1` was created using local `.env` credentials.
+- PostgreSQL access to `bouclepro_alpha1` confirmed.
+- `php artisan about --only=environment` could not run because `vendor/autoload.php` is absent in the alpha worktree; no migration was attempted.
+- Apache `test.laravel` vhost inspected.
+- Existing HTTPS certificate `/etc/apache2/certs/test.laravel/cert.pem` has SAN `DNS:test.laravel` only.
+- Apache alpha vhost was not created because the existing certificate is not compatible with `alpha1.test.laravel`.
+- Apache current configtest returned `Syntax OK`.
+- Apache reload was not run because no alpha vhost was created.
+- WSL resolution for `alpha1.test.laravel` is missing.
+- Windows hosts entry for `alpha1.test.laravel` is missing or not readable.
+- Existing Windows hosts reference for `test.laravel` uses `172.27.130.89`.
+- HTTPS check for `https://alpha1.test.laravel` did not return an HTTP response.
+- No production dump was imported.
+- No migration was run.
+- No Laravel runtime file was modified.
+- No production secret was displayed, copied, or committed.
+
+Manual prerequisites before Apache HTTPS activation:
+
+- Create or provide a local trusted certificate for `alpha1.test.laravel` with SAN `DNS:alpha1.test.laravel`.
+- Add Windows hosts entry if still missing: `172.27.130.89 alpha1.test.laravel`.
+- After certificate and hosts are ready, create/enable Apache vhost files for `alpha1.test.laravel` using the `test.laravel` structure and alpha public path.
+
 # Handoffs
 
 None.
@@ -150,6 +182,9 @@ Setup verification completed without runtime patching:
 - `git worktree list` shows alpha worktree at `/home/cyril/claude-code/sites/alpha1.test.laravel` on branch `ALPHA-SETUP-01-alpha1-setup`.
 - Non-secret local `.env` keys confirm alpha URL and alpha database name.
 - `.env` appears as ignored in git status.
+- PostgreSQL local database `bouclepro_alpha1` was created and connection verified.
+- Apache alpha HTTPS setup is blocked pending a certificate whose SAN includes `alpha1.test.laravel`.
+- Hosts resolution for `alpha1.test.laravel` is not active yet.
 
 ---
 
