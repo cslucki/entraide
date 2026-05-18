@@ -2,7 +2,7 @@
 task_id: TASK-102
 title: t076-3-public-english-redirect-runtime-patch
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-102-t076-3-public-english-redirect-runtime-patch
 priority: MEDIUM
 
 created_at: 2026-05-18 12:02:36 Europe/Paris
-updated_at: 2026-05-18 12:18:05 Europe/Paris
+updated_at: 2026-05-18 12:20:25 Europe/Paris
 
 labels: []
 
@@ -110,6 +110,20 @@ Non-blocking note:
 - No runtime change was made during OPS finalization.
 
 Status moved to DONE with lock already UNLOCKED.
+
+## 2026-05-18 12:20:25 Europe/Paris
+
+Merged into `develop` using the official `merge-task.sh` workflow.
+
+Merge result:
+
+- Merge commit: `47ea256`
+- Target branch: `develop`
+- Develop push: completed
+- Remote task branch: conserved
+- `main` / PROD: not touched
+
+Status moved to MERGED with lock remaining UNLOCKED.
 
 Modified files:
 
