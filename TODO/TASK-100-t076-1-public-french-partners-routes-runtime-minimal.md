@@ -2,7 +2,7 @@
 task_id: TASK-100
 title: t076-1-public-french-partners-routes-runtime-minimal
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-100-t076-1-public-french-partners-routes-runtime-minimal
 priority: MEDIUM
 
 created_at: 2026-05-18 07:55:40 Europe/Paris
-updated_at: 2026-05-18 11:13:53 Europe/Paris
+updated_at: 2026-05-18 11:29:54 Europe/Paris
 
 labels: []
 
@@ -190,6 +190,23 @@ No handoff. Task completed by OPENCODE.
 - Second OPENAI REQUEST CHANGES patch: `php artisan test` — PASS, 664 tests / 1433 assertions
 - Second OPENAI REQUEST CHANGES patch: `npm run build` — PASS
 - Second OPENAI REQUEST CHANGES patch: Playwright quick validation — PASS on `/boucles`, `/partenaires`, and `/partenaires/demande` desktop/mobile; `/boucles` console check showed 0 warnings and 0 errors
+
+## 2026-05-18 11:29:54 Europe/Paris
+
+Merged into `develop` after final OPENAI APPROVE review and green GitHub Actions CI.
+
+Merge result:
+
+- merge commit on `develop`: `3b02fa9aac265b435c44579fcd4857c683a8bb39`
+- GitHub Actions `PostgreSQL CI`: PASS, run `26025066748`
+- `main` / PROD not touched
+
+Runtime scope merged:
+
+- `/partenaires`
+- `/partenaires/demande`
+- `/boucles/creer` explicit redirect to `/partenaires/demande`
+- `/boucles` remains neutral and reserved for future real Boucles
 
 ---
 
