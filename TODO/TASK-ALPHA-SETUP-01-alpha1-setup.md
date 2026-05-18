@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 19:15:00 Europe/Paris
+updated_at: 2026-05-18 19:30:00 Europe/Paris
 
 labels:
   - alpha
@@ -84,6 +84,7 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] inspect tracked Vite manifest after real browser validation
 - [x] commit Vite manifest and required referenced CSS asset for local alpha
 - [x] create public storage link and audit referenced avatar files
+- [x] perform final alpha1 validation and consolidate local setup documentation
 
 ---
 
@@ -866,6 +867,60 @@ Safety status:
 - No T074/T075/T076 backport was performed.
 - No production media sync was performed.
 
+## 2026-05-18 19:30:00 Europe/Paris
+
+Final alpha1 validation and documentation consolidation completed.
+
+Git and environment:
+
+- Current branch confirmed: `ALPHA-SETUP-01-alpha1-setup`.
+- Git status before final validation was clean.
+- Recent commits include Vite asset stabilization `edc5aa7` and storage audit documentation `87e8384`.
+- `.env` non-secret keys confirm `APP_ENV=local`, `APP_DEBUG=true`, `APP_URL=https://alpha1.test.laravel`, `DB_CONNECTION=pgsql`, `DB_DATABASE=bouclepro_alpha1`, and `SESSION_DRIVER=database`.
+- `DB_PASSWORD` is present and was not displayed.
+
+HTTP and DB validation:
+
+- Home returned `HTTP/1.1 200 OK`.
+- Login returned `HTTP/1.1 200 OK`.
+- Dashboard while unauthenticated returned `HTTP/1.1 302 Found` to `/login`.
+- Database validation returned `users=23`, `sessions_table=yes`, and `users_table=yes`.
+
+Test account validation:
+
+- No `TEST_*EMAIL` variables are present; this alpha `.env` uses `TEST_*_LOGIN` variables.
+- `TEST_ADMIN_LOGIN`: exists in DB.
+- `TEST_MEMBER1_LOGIN`: exists in DB.
+- `TEST_MEMBER2_LOGIN`: exists in DB.
+- `TEST_MEMBER_OF_CPME1_LOGIN`: exists in DB.
+- `TEST_MEMBER_OF_CPME2_LOGIN`: exists in DB.
+- TEST password variables are present and values were not displayed.
+- Five configured test users are present; previous headless browser validation confirmed admin/member dashboard access.
+
+Storage and avatar validation:
+
+- `public/storage` is linked to `/home/cyril/claude-code/sites/alpha1.test.laravel/storage/app/public`.
+- Final home fetch returned HTTP `200`.
+- Home references 2 unique `/storage/avatars/...` URLs.
+- RUN decision accepts the two locally missing avatars as a non-blocking alpha limitation.
+- No avatars or media files were copied.
+
+Documentation:
+
+- Updated `@DOCS/ALPHA-POSTGRES-SYNC-AND-TEST-USERS.md` with the alpha objective, exact base commit, local URL/worktree, Apache/mkcert notes, PostgreSQL database and dump, no-migration rule, permissions/storage link/Vite procedures, test user status, known avatar limitation, and security rules.
+
+Safety status:
+
+- No migration was run.
+- No `migrate:fresh` was run.
+- No seed was run.
+- No additional dump import was run.
+- No npm build was run.
+- No application runtime code under `app/`, `routes/`, `resources/`, `database/`, or `config/` was modified.
+- No production media sync was performed.
+- No main/production branch was touched.
+- No T074/T075/T076 backport was performed.
+
 # Handoffs
 
 None.
@@ -924,6 +979,7 @@ Setup verification completed without runtime patching:
 - Git tracking check found referenced CSS `app-CosGWsUZ.css` is ignored/untracked while the JS asset is tracked, so the manifest-only commit was blocked.
 - RUN decision authorized committing the manifest plus only the ignored referenced CSS asset; JS was already tracked and not force-added.
 - Storage link audit created `public/storage` symlink successfully; home remained HTTP `200`; two referenced avatar files are missing locally and were not found at the exact paths in the original repo storage inspected.
+- Final validation: home/login OK, unauthenticated dashboard redirects to login, DB has `users=23` with `sessions` and `users` tables, five `TEST_*_LOGIN` users exist, `public/storage` is linked, and two missing avatars are accepted as a local alpha limitation.
 
 ---
 
