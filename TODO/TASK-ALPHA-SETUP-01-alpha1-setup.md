@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 17:08:38 Europe/Paris
+updated_at: 2026-05-18 17:23:47 Europe/Paris
 
 labels:
   - alpha
@@ -73,6 +73,7 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] document manual Laravel permissions fix and empty alpha database state
 - [x] check for local production dump before authorized alpha import
 - [x] locate existing local production dump candidate outside alpha worktree
+- [x] import authorized local production dump into alpha database
 
 ---
 
@@ -535,6 +536,60 @@ Next required action:
 
 - Wait for explicit Cyril GO before resetting `bouclepro_alpha1` and importing the retained dump candidate.
 
+## 2026-05-18 17:23:47 Europe/Paris
+
+Authorized local production dump import completed against alpha database `bouclepro_alpha1`.
+
+Safety checks before database action:
+
+- Current branch: `ALPHA-SETUP-01-alpha1-setup`.
+- Git status before import: clean.
+- Authorized dump path: `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-16_18-42-55.sql`.
+- Authorized dump size/date: `110561 bytes`, modified `2026-05-16 18:43:13.856356456 +0200`.
+- DB target guard from `.env`: `DB target confirmed: bouclepro_alpha1`.
+- Non-secret DB target: `127.0.0.1:5432/bouclepro_alpha1` as `bouclepro`.
+- `DB_PASSWORD` was read only into process environment for PostgreSQL commands and was not displayed.
+
+Pre-import DB state:
+
+- PostgreSQL connection to `bouclepro_alpha1` succeeded.
+- `tables_before=0`.
+- Attempted `drop schema public cascade; create schema public;` was refused by PostgreSQL because schema `public` is owned by `postgres`.
+- Effective `drop schema` execution: no.
+- Follow-up privilege check showed current user `bouclepro`, schema owner `postgres`, and `can_create_in_public=true`.
+- Because `tables_before=0` and `bouclepro` can create in `public`, import proceeded into the empty alpha schema.
+
+Import:
+
+- Executed `pg_restore --no-owner --no-acl` from the authorized dump into `bouclepro_alpha1`.
+- Import result: OK.
+- No dump content was displayed.
+- No personal data was displayed.
+
+Post-import verification:
+
+- `tables_after=40`.
+- `sessions` table present: yes.
+- `users` table present: yes.
+- `users_count=18`.
+- `php artisan about --only=environment` succeeded with Laravel `13.7.0`, PHP `8.4.21`, environment `local`, URL `alpha1.test.laravel`.
+- HTTPS check for `https://alpha1.test.laravel` returned `HTTP/1.1 200 OK` with `http_code=200`.
+
+Safety status:
+
+- No migration was run.
+- No `migrate:fresh` was run.
+- No seed was run.
+- No Composer update was run.
+- No npm install/build was run.
+- No new remote dump was created.
+- No Laravel runtime file was modified.
+- No production/main/develop branch was touched.
+
+Remaining note:
+
+- The requested destructive schema reset did not execute due local PostgreSQL ownership of `public`, but the target DB was empty before import and the authorized dump import succeeded with the expected tables present and HTTP `200 OK` afterward.
+
 # Handoffs
 
 None.
@@ -574,6 +629,7 @@ Setup verification completed without runtime patching:
 - Current blocker is expected empty alpha database state; no migration or production import has been run yet.
 - Authorized production dump import was blocked before destructive action because no existing local dump file was found in `storage/app/dumps`; `drop schema public cascade` was not run.
 - Existing local production dump candidate found in the original `test.laravel` worktree: `/home/cyril/claude-code/sites/test.laravel/storage/app/dumps/production_2026-05-16_18-42-55.sql`, PostgreSQL custom dump, 110561 bytes, modified `2026-05-16 18:43:13.856356456 +0200`.
+- Authorized local production dump import succeeded into `bouclepro_alpha1`: `tables_before=0`, effective `drop schema` no due schema owner `postgres`, `tables_after=40`, `sessions` present, `users` present, `users_count=18`, HTTPS alpha returned `HTTP/1.1 200 OK` / `http_code=200`.
 
 ---
 
