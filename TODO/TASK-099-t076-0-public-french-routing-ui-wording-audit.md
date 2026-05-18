@@ -2,7 +2,7 @@
 task_id: TASK-099
 title: t076-0-public-french-routing-ui-wording-audit
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-099-t076-0-public-french-routing-ui-wording-audit
 priority: MEDIUM
 
 created_at: 2026-05-18 05:19:43 Europe/Paris
-updated_at: 2026-05-18 05:30:24 Europe/Paris
+updated_at: 2026-05-18 06:03:35 Europe/Paris
 
 labels: []
 
@@ -301,4 +301,16 @@ Observed command note:
 
 # Review Notes
 
-Audit complete. TASK status set to DONE and lock released. Ready for `ai/scripts/check-task.sh TASK-099` and `ai/scripts/finalize-task.sh TASK-099`.
+Audit complete. TASK status set to DONE and lock released. `ai/scripts/merge-task.sh TASK-099` merged the task branch into `develop`.
+
+OPENAI review: APPROVE WITH NOTES. No blocking issue. Runtime unchanged. Documentation-only patch.
+
+Notes to preserve for follow-up scope:
+
+- In the matrix, "rename later" on `/boucles` means move the partner content currently served by `/boucles`, not abandon `/boucles`.
+- `/boucles` remains reserved as the future canonical French public route for real Loops.
+- `/boucles` must not redirect to partners by default.
+- `/boucles/creer` may be explicitly redirected to `/partenaires/demande` in T076.1.
+- `/explorer` is a separate English URL debt to arbitrate later, not in this merge.
+
+Merged into `develop` on 2026-05-18 06:03:35 Europe/Paris. Runtime files remained untouched.
