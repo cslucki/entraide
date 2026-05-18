@@ -967,6 +967,51 @@ Closure recommendation:
 - The RUN can close ALPHA-SETUP-01 as local alpha setup complete.
 - Any future merge decision should wait for Cockpit Alpha arbitration and must not be performed as part of this finalization step.
 
+## 2026-05-18 20:41:00 Europe/Paris — ALPHA-PATCH-01 Runtime Media Sync
+
+OPS run: restore missing alpha runtime media assets (avatars + blog images) from `test.laravel` source storage without code changes.
+
+Cause runtime:
+- `storage/app/public/avatars/` était absent dans le worktree alpha
+- `storage/app/public/blog/` était absent dans le worktree alpha
+- `public/storage` était déjà lié, mais les répertoires et fichiers médias n'existaient pas
+
+Commandes rsync exécutées :
+```bash
+mkdir -p storage/app/public/avatars storage/app/public/blog
+rsync -av --ignore-existing /home/cyril/claude-code/sites/test.laravel/storage/app/public/avatars/ storage/app/public/avatars/
+rsync -av --ignore-existing /home/cyril/claude-code/sites/test.laravel/storage/app/public/blog/ storage/app/public/blog/
+```
+
+Fichiers copiés :
+- 3 avatars (221,337 bytes) : `1777979800_Screen Shot 04-30-26 at 06.21 PM.PNG`, `1778517410_photo et logo entourés avec drapeaux.png`, `1778673761_Prototype.png`
+- 2 images blog (352,769 bytes) : `4r8aDnGE5O8SmhNGreTS4fkSxaUl4A9GZTD2ZvmR.png`, `VnL1xDk3dEbLd1bJY241EVUttHqF1KEQyftS2AcB.jpg`
+
+Ghost refs DB (fichiers inexistants dans toutes les runtimes, refs orphelines en base) :
+- Avatars : `1778173711_16804092_1230031057051138_1422879892918194560_o.jpg`, `1778932148_1000081855.jpg`
+- Blog : `brV5kDQEMxwwfZPW1tj0IrzaFsZf17MSoWd2bLEc.png`
+
+Validation HTTP :
+- `https://alpha1.test.laravel` → 200 OK
+- `https://alpha1.test.laravel/storage/avatars/1777979800_...PNG` → 200 OK (image/png)
+- `https://alpha1.test.laravel/storage/blog/4r8aDnGE5O8SmhNGreTS4fkSxaUl4A9GZTD2ZvmR.png` → 200 OK (image/png)
+
+Validation navigateur :
+- Home : OK, rendu correct, CSS/JS chargés
+- /membres : OK
+- /blog : OK
+- Console : 3 erreurs 403 (ghost refs uniquement) — pas de 500, pas d'erreur critique
+- Logs Laravel : aucun nouvel entry post-patch
+
+Permissions : OK (héritées de rsync, www-data accessible)
+
+Git status : clean. Aucun fichier modifié. Aucun commit.
+
+main/PROD touché : non
+develop touché : non
+
+Recommandation : clôturer. Ghost refs DB à nettoyer séparément si nécessaire.
+
 ## 2026-05-18 19:50:00 Europe/Paris
 
 Official finalization script compatibility checked after committing the final TASK state.
