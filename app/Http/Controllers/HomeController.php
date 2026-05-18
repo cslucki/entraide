@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use App\Models\Community;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -56,11 +55,7 @@ class HomeController extends Controller
 
     public function boucles(): View
     {
-        $communities = Community::where('is_active', true)
-            ->orderBy('name')
-            ->get();
-
-        return view('boucles.index', compact('communities'));
+        return view('boucles.index');
     }
 
     public function partners(): View
