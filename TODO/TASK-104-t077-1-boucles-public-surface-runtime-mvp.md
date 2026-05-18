@@ -2,7 +2,7 @@
 task_id: TASK-104
 title: t077-1-boucles-public-surface-runtime-mvp
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -13,19 +13,19 @@ branch: TASK-104-t077-1-boucles-public-surface-runtime-mvp
 priority: MEDIUM
 
 created_at: 2026-05-18 18:04:14 Europe/Paris
-updated_at: 2026-05-18 18:39:57 Europe/Paris
+updated_at: 2026-05-18 18:45:13 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-05-18 18:04:14 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: READY
   url: null
 ---
 
@@ -158,6 +158,18 @@ Validations patch:
 - Note locale: après restauration du manifest généré, le serveur local signale un 404 CSS sur l'asset Vite absent du filesystem; le build Vite a déjà été validé PASS et l'artefact généré n'est volontairement pas commité.
 - Aucun `finalize-task.sh`, merge ou push vers branche protégée effectué.
 
+## 2026-05-18 18:45:13 Europe/Paris
+
+Clôture pré-merge demandée par COCKPIT après review OPENAI approuvée.
+
+État:
+- Review OPENAI: APPROVE.
+- Blocking issues restants: aucun.
+- Merge readiness: OK.
+- Status passé à `DONE`.
+- Lock passé à `UNLOCKED`.
+- Aucun merge effectué.
+
 # Handoffs
 
 # Tests
@@ -189,3 +201,4 @@ Validations patch:
 - Les Boucles DB visibles restent strictement conditionnées par `currentOrganization()` et filtrées via `community_id` legacy-compatible.
 - Aucun Member, message, demande, activité interne ou donnée cross-Organization exposé.
 - Review OPENAI corrigée: `/boucles` n'affiche plus aucune Boucle DB et ne contient plus de CTA vers `/partenaires/demande`.
+- Review OPENAI finale: APPROVE, aucun blocker restant, prêt pour finalisation avant merge.
