@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 12:18:12 Europe/Paris
+updated_at: 2026-05-18 15:39:19 Europe/Paris
 
 labels:
   - alpha
@@ -71,6 +71,7 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] install Composer dependencies from lock in alpha worktree
 - [x] verify Laravel CLI boot after Composer install
 - [x] document manual Laravel permissions fix and empty alpha database state
+- [x] check for local production dump before authorized alpha import
 
 ---
 
@@ -440,6 +441,46 @@ Interpretation:
 - No production import was performed.
 - No Laravel runtime file was modified.
 
+## 2026-05-18 15:39:19 Europe/Paris
+
+Authorized production dump import micro-step started after explicit Cyril GO for destructive local reset limited to `bouclepro_alpha1`.
+
+Pre-drop safety checks completed:
+
+- Current branch: `ALPHA-SETUP-01-alpha1-setup`.
+- Git status before import attempt: clean.
+- Non-secret `.env` keys verified: `APP_ENV=local`, `APP_DEBUG=true`, `APP_URL=https://alpha1.test.laravel`, `DB_CONNECTION=pgsql`, `DB_HOST=127.0.0.1`, `DB_PORT=5432`, `DB_DATABASE=bouclepro_alpha1`, `DB_USERNAME=bouclepro`, `SESSION_DRIVER=database`.
+- `DB_PASSWORD` presence confirmed without displaying the value.
+- DB target guard passed from `.env`: `DB_DATABASE` is exactly `bouclepro_alpha1`.
+
+Dump discovery result:
+
+- Checked `storage/app/dumps` for local dump files.
+- No local dump file was listed by `find storage/app/dumps -maxdepth 1 -type f`.
+- No recent dump file was listed by `ls -lt storage/app/dumps`.
+- No production dump was selected.
+- Dump format: not identified because no dump file is present.
+
+Import result:
+
+- BLOCKED before any destructive database action because no existing local production dump was found in `storage/app/dumps`.
+- `drop schema public cascade` was not run.
+- No dump import was run.
+- No post-import table verification was possible.
+- No HTTP post-import validation was run.
+- No migration was run.
+- No seed was run.
+- No Laravel runtime file was modified.
+
+Documentation note:
+
+- Requested `@DOCS/ALPHA-POSTGRES-SYNC-AND-TEST-USERS.md` was not created because the `@DOCS` directory is absent in this worktree.
+- The import blockage and safety result are documented in this TASK file instead.
+
+Next required action:
+
+- Place or identify an existing local production dump under `storage/app/dumps` and rerun the authorized import micro-step.
+
 # Handoffs
 
 None.
@@ -477,6 +518,7 @@ Setup verification completed without runtime patching:
 - After Cyril's manual local permissions fix, the browser error changed from `tempnam` to PostgreSQL `SQLSTATE[42P01]` for missing relation `sessions` on database `bouclepro_alpha1`.
 - Read-only checks confirm `vendor/autoload.php` is present, Artisan reports `Laravel Framework 13.7.0`, and `.env` points to PostgreSQL database `bouclepro_alpha1` with `SESSION_DRIVER=database`.
 - Current blocker is expected empty alpha database state; no migration or production import has been run yet.
+- Authorized production dump import was blocked before destructive action because no existing local dump file was found in `storage/app/dumps`; `drop schema public cascade` was not run.
 
 ---
 
