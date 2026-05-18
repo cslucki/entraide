@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 12:08:34 Europe/Paris
+updated_at: 2026-05-18 12:18:12 Europe/Paris
 
 labels:
   - alpha
@@ -70,6 +70,7 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] verify manual Apache alpha vhost apply without runtime changes
 - [x] install Composer dependencies from lock in alpha worktree
 - [x] verify Laravel CLI boot after Composer install
+- [x] document manual Laravel permissions fix and empty alpha database state
 
 ---
 
@@ -398,6 +399,47 @@ Interpretation:
 - No migration was run.
 - No Laravel runtime file was modified.
 
+## 2026-05-18 12:18:12 Europe/Paris
+
+Manual Laravel local permissions fix documented after Cyril applied it outside this session.
+
+Permissions actions reported by Cyril:
+
+- Created missing local directories under `storage/framework/views`, `storage/framework/cache/data`, `storage/framework/sessions`, `storage/logs`, and `bootstrap/cache`.
+- Applied `chown -R cyril:www-data storage bootstrap/cache`.
+- Applied directory permissions `2775`.
+- Applied file permissions `664`.
+
+Observed browser/runtime state reported by Cyril:
+
+- Previous `tempnam` error has disappeared.
+- Current Chrome error is `SQLSTATE[42P01]: Undefined table: relation "sessions" does not exist`.
+- Database shown in the error: `bouclepro_alpha1`.
+- Route shown in the error: `GET /`.
+- Controller shown in the error: `HomeController@index`.
+- Middleware shown in the error: `web`.
+
+Read-only verification executed in the alpha worktree:
+
+- `git status --short` returned clean.
+- `vendor/autoload.php` is present.
+- `php artisan --version` returned `Laravel Framework 13.7.0`.
+- Non-secret `.env` keys verified: `APP_URL=https://alpha1.test.laravel`, `DB_CONNECTION=pgsql`, `DB_HOST=127.0.0.1`, `DB_PORT=5432`, `DB_DATABASE=bouclepro_alpha1`, `DB_USERNAME=bouclepro`, `SESSION_DRIVER=database`.
+- `DB_PASSWORD` presence was confirmed without displaying the value.
+
+Interpretation:
+
+- Apache points to the alpha worktree.
+- Laravel boots.
+- Composer/vendor is OK.
+- PostgreSQL is reachable.
+- The alpha database is empty for the current application schema because the configured database session table `sessions` is missing.
+- Cause probable: `bouclepro_alpha1` has not received a production dump import yet.
+- Recommended next step: import the production dump into `bouclepro_alpha1` when Cyril explicitly authorizes the import step.
+- No migration was run.
+- No production import was performed.
+- No Laravel runtime file was modified.
+
 # Handoffs
 
 None.
@@ -432,6 +474,9 @@ Setup verification completed without runtime patching:
 - The 500 is consistent with Apache reaching the alpha Laravel document root while `vendor/autoload.php` is absent.
 - Composer install from lock completed successfully; `vendor/autoload.php` is now present and Artisan reports `Laravel Framework 13.7.0`.
 - After Composer install, `curl -k -I https://alpha1.test.laravel` still returns `HTTP/1.1 500 Internal Server Error`; no short `storage/logs/laravel.log` output was visible in this session.
+- After Cyril's manual local permissions fix, the browser error changed from `tempnam` to PostgreSQL `SQLSTATE[42P01]` for missing relation `sessions` on database `bouclepro_alpha1`.
+- Read-only checks confirm `vendor/autoload.php` is present, Artisan reports `Laravel Framework 13.7.0`, and `.env` points to PostgreSQL database `bouclepro_alpha1` with `SESSION_DRIVER=database`.
+- Current blocker is expected empty alpha database state; no migration or production import has been run yet.
 
 ---
 
