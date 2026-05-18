@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 12:05:06 Europe/Paris
+updated_at: 2026-05-18 12:08:34 Europe/Paris
 
 labels:
   - alpha
@@ -68,6 +68,8 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] prepare exact manual Apache alpha vhost report
 - [x] privileged Apache alpha vhost creation by Cyril
 - [x] verify manual Apache alpha vhost apply without runtime changes
+- [x] install Composer dependencies from lock in alpha worktree
+- [x] verify Laravel CLI boot after Composer install
 
 ---
 
@@ -353,6 +355,49 @@ Interpretation:
 - No migration was run.
 - No Laravel runtime file was modified.
 
+## 2026-05-18 12:08:34 Europe/Paris
+
+Composer dependency installation verification completed for alpha1.
+
+Pre-install checks:
+
+- Current branch: `ALPHA-SETUP-01-alpha1-setup`.
+- Git status before Composer install: clean.
+- Composer version: `Composer version 2.9.7 2026-04-14 13:31:52`.
+- PHP CLI version: `PHP 8.4.21`.
+- `composer.lock` present.
+
+Composer install:
+
+- Executed `composer install --no-interaction --prefer-dist`.
+- Composer installed from lock file with 123 package installs, 0 updates, and 0 removals.
+- Composer generated optimized autoload files and ran Laravel package discovery.
+- `composer update` was not run.
+- `composer.json` was not modified.
+- `composer.lock` was not modified.
+- Git status after Composer install remained clean; `vendor/` is not committed.
+
+Post-install verification:
+
+- `vendor/autoload.php` is present.
+- `php artisan --version` returned `Laravel Framework 13.7.0`.
+- `php artisan about --only=environment` succeeded and reported: application `Entraide`, Laravel `13.7.0`, PHP `8.4.21`, Composer `2.9.7`, environment `local`, debug mode enabled, URL `alpha1.test.laravel`, maintenance mode off, timezone `UTC`, locale `fr`.
+- `curl -k -I https://alpha1.test.laravel` returned `HTTP/1.1 500 Internal Server Error`.
+- `tail -50 storage/logs/laravel.log 2>/dev/null || true` returned no visible log output in this session.
+
+Interpretation:
+
+- Composer install OK: yes.
+- Vendor present: yes.
+- Artisan OK: yes.
+- Laravel now boots from CLI.
+- The remaining HTTP 500 is no longer caused by missing `vendor/autoload.php`.
+- No short Laravel log entry was available from `storage/logs/laravel.log` to identify the exact web-request error in this micro-step.
+- Recommended next step: inspect the web error path/logs or HTTP response body in a dedicated diagnostic step, then proceed toward the authorized production import only when Cyril explicitly approves it.
+- No production import was performed.
+- No migration was run.
+- No Laravel runtime file was modified.
+
 # Handoffs
 
 None.
@@ -385,6 +430,8 @@ Setup verification completed without runtime patching:
 - Non-privileged Apache report prepared with exact alpha vhost contents and manual sudo command sequence.
 - After Cyril's manual Apache apply, `alpha1.test.laravel` is active on `*:443` and `*:80`, is the local default server for both ports, and `curl -k -I https://alpha1.test.laravel` returns `HTTP/1.0 500 Internal Server Error`.
 - The 500 is consistent with Apache reaching the alpha Laravel document root while `vendor/autoload.php` is absent.
+- Composer install from lock completed successfully; `vendor/autoload.php` is now present and Artisan reports `Laravel Framework 13.7.0`.
+- After Composer install, `curl -k -I https://alpha1.test.laravel` still returns `HTTP/1.1 500 Internal Server Error`; no short `storage/logs/laravel.log` output was visible in this session.
 
 ---
 
