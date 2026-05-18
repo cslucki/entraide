@@ -30,7 +30,7 @@
                     </div>
                     <div class="flex gap-3">
                         <span class="mt-1 w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0"></span>
-                        <p>Communautés qui veulent structurer l'entraide entre membres</p>
+                        <p>Collectifs qui veulent structurer l'entraide entre membres</p>
                     </div>
                 </div>
             </div>
