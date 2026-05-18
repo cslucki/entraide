@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 11:41:55 Europe/Paris
+updated_at: 2026-05-18 11:51:15 Europe/Paris
 
 labels:
   - alpha
@@ -159,6 +159,45 @@ Manual prerequisites before Apache HTTPS activation:
 - Add Windows hosts entry if still missing: `172.27.130.89 alpha1.test.laravel`.
 - After certificate and hosts are ready, create/enable Apache vhost files for `alpha1.test.laravel` using the `test.laravel` structure and alpha public path.
 
+## 2026-05-18 11:51:15 Europe/Paris
+
+Alpha1 HTTPS setup retry after Cyril provided mkcert files and Windows hosts entry:
+
+- Current branch confirmed: `ALPHA-SETUP-01-alpha1-setup`.
+- Git status before HTTPS step was clean.
+- Windows mkcert directory inspected at `/mnt/d/mkcert`.
+- Alpha certificate found: `alpha1.test.laravel.pem`.
+- Alpha key found: `alpha1.test.laravel-key.pem`.
+- Certificate SAN verified: `DNS:alpha1.test.laravel`.
+- Vendor remains absent in the alpha worktree (`vendor/autoload.php` missing); composer was not run.
+- Windows hosts entry for `alpha1.test.laravel` is present: `172.27.130.89 alpha1.test.laravel`.
+- WSL resolution for `alpha1.test.laravel` is present and currently resolves to `127.0.0.1`.
+- Apache current configtest returned `Syntax OK`.
+- `curl -k -I https://alpha1.test.laravel` returned HTTP `302 Found`.
+- No production dump was imported.
+- No migration was run.
+- No Laravel runtime file was modified.
+- No secret was displayed, copied into git, or committed.
+
+Blocked system-level Apache changes:
+
+- Copy to `/etc/apache2/certs/alpha1.test.laravel` was not performed because `sudo -n` returned `sudo: a password is required`.
+- `/etc/apache2/certs/alpha1.test.laravel` is still missing.
+- `/etc/apache2/sites-available/alpha1.test.laravel.conf` is still missing.
+- Apache alpha vhost was not created or enabled.
+- Apache reload was not run.
+
+Manual command sequence required from a privileged shell:
+
+```bash
+sudo mkdir -p /etc/apache2/certs/alpha1.test.laravel
+sudo cp /mnt/d/mkcert/alpha1.test.laravel.pem /mnt/d/mkcert/alpha1.test.laravel-key.pem /etc/apache2/certs/alpha1.test.laravel/
+sudo chmod 644 /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel.pem
+sudo chmod 600 /etc/apache2/certs/alpha1.test.laravel/alpha1.test.laravel-key.pem
+```
+
+Then create Apache vhost files for `alpha1.test.laravel` using the `test.laravel` structure, with document root `/home/cyril/claude-code/sites/alpha1.test.laravel/public`, enable the site, run configtest, and reload Apache.
+
 # Handoffs
 
 None.
@@ -185,6 +224,9 @@ Setup verification completed without runtime patching:
 - PostgreSQL local database `bouclepro_alpha1` was created and connection verified.
 - Apache alpha HTTPS setup is blocked pending a certificate whose SAN includes `alpha1.test.laravel`.
 - Hosts resolution for `alpha1.test.laravel` is not active yet.
+- Alpha mkcert files are now available and valid for `alpha1.test.laravel`.
+- Apache alpha dedicated vhost setup remains blocked by non-interactive sudo privileges.
+- `curl -k -I https://alpha1.test.laravel` currently returns HTTP `302 Found`, but Apache does not yet list a dedicated `alpha1.test.laravel` vhost.
 
 ---
 
