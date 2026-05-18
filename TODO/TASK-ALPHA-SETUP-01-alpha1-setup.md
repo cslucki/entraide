@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 11:59:03 Europe/Paris
+updated_at: 2026-05-18 12:05:06 Europe/Paris
 
 labels:
   - alpha
@@ -66,7 +66,8 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] prepare PostgreSQL local alpha database configuration
 - [x] inspect existing `test.laravel` Apache method without privileged writes
 - [x] prepare exact manual Apache alpha vhost report
-- [ ] privileged Apache alpha vhost creation by Cyril
+- [x] privileged Apache alpha vhost creation by Cyril
+- [x] verify manual Apache alpha vhost apply without runtime changes
 
 ---
 
@@ -324,6 +325,34 @@ curl -k -I https://alpha1.test.laravel
 
 Expected result after the dedicated vhost points to the alpha worktree: because `vendor/autoload.php` is absent, Laravel may return HTTP 500 until dependencies are installed. That would still indicate Apache is reaching the alpha document root, not the previous fallback vhost.
 
+## 2026-05-18 12:05:06 Europe/Paris
+
+Manual Apache alpha vhost apply verification completed in read-only mode after Cyril executed the privileged setup commands.
+
+Observed state:
+
+- Current branch: `ALPHA-SETUP-01-alpha1-setup`.
+- Git status before documentation update: clean.
+- `apache2ctl -S` lists `alpha1.test.laravel` as active on `*:443` via `/etc/apache2/sites-enabled/alpha1.test.laravel-ssl.conf:1`.
+- `apache2ctl -S` lists `alpha1.test.laravel` as active on `*:80` via `/etc/apache2/sites-enabled/alpha1.test.laravel.conf:1`.
+- `alpha1.test.laravel` is currently the default server for local `*:443`.
+- `alpha1.test.laravel` is currently the default server for local `*:80`.
+- `test.laravel` is still present in Apache on `*:443` via `/etc/apache2/sites-enabled/test.laravel-ssl.conf:1`.
+- `vendor/autoload.php` is still absent in the alpha worktree.
+- `curl -k -I https://alpha1.test.laravel` returns `HTTP/1.0 500 Internal Server Error`.
+- Attempts to read `/var/log/apache2/alpha1.test.laravel_ssl_error.log` and `/var/log/apache2/alpha1.test.laravel_error.log` with sudo returned no visible log output in this session.
+
+Interpretation:
+
+- Apache alpha is active: yes.
+- Alpha default server local: yes. This is documented as non-blocking for the alpha check, but should be kept in mind because unmatched local hosts on `*:80` or `*:443` may now fall through to alpha.
+- The HTTP 500 strongly indicates Apache is reaching the alpha Laravel document root at `/home/cyril/claude-code/sites/alpha1.test.laravel/public`, replacing the earlier fallback behavior that returned `302 Found` before a dedicated alpha vhost was active.
+- The 500 is coherent with the known missing dependency state: `vendor/autoload.php` is absent.
+- Recommended next step: run `composer install` in `/home/cyril/claude-code/sites/alpha1.test.laravel` when Cyril authorizes dependency installation.
+- No production import was performed.
+- No migration was run.
+- No Laravel runtime file was modified.
+
 # Handoffs
 
 None.
@@ -354,6 +383,8 @@ Setup verification completed without runtime patching:
 - Apache alpha dedicated vhost setup remains blocked by non-interactive sudo privileges.
 - `curl -k -I https://alpha1.test.laravel` currently returns HTTP `302 Found`, but Apache does not yet list a dedicated `alpha1.test.laravel` vhost.
 - Non-privileged Apache report prepared with exact alpha vhost contents and manual sudo command sequence.
+- After Cyril's manual Apache apply, `alpha1.test.laravel` is active on `*:443` and `*:80`, is the local default server for both ports, and `curl -k -I https://alpha1.test.laravel` returns `HTTP/1.0 500 Internal Server Error`.
+- The 500 is consistent with Apache reaching the alpha Laravel document root while `vendor/autoload.php` is absent.
 
 ---
 
