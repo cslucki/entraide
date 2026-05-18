@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 19:05:00 Europe/Paris
+updated_at: 2026-05-18 19:15:00 Europe/Paris
 
 labels:
   - alpha
@@ -83,6 +83,7 @@ This task is setup-only. No runtime patch, migration, Apache configuration, Post
 - [x] diagnose Vite manifest/assets mismatch and storage media 403 errors
 - [x] inspect tracked Vite manifest after real browser validation
 - [x] commit Vite manifest and required referenced CSS asset for local alpha
+- [x] create public storage link and audit referenced avatar files
 
 ---
 
@@ -814,6 +815,57 @@ Safety status:
 - No main/production branch was touched.
 - No T074/T075/T076 backport was performed.
 
+## 2026-05-18 19:15:00 Europe/Paris
+
+Storage link and avatar audit micro-step completed after Vite stabilization.
+
+Initial state:
+
+- Current branch confirmed: `ALPHA-SETUP-01-alpha1-setup`.
+- Git status before storage step: clean.
+- `public/storage` was absent.
+- `storage/app/public` existed and contained only `.gitignore` within the inspected depth.
+- `php artisan about --only=environment` succeeded with Laravel `13.7.0`, environment `local`, URL `alpha1.test.laravel`.
+
+Storage link:
+
+- Executed `php artisan storage:link`.
+- Result: OK, Laravel connected `public/storage` to `storage/app/public`.
+- `public/storage` now symlinks to `/home/cyril/claude-code/sites/alpha1.test.laravel/storage/app/public`.
+- Git status after creating the link remained clean before this TASK update; `public/storage` was not added to git.
+
+HTTP validation after link:
+
+- `curl -k -I https://alpha1.test.laravel` returned `HTTP/1.1 200 OK`.
+- `curl -k -L https://alpha1.test.laravel` returned final HTTP `200`.
+
+Avatar audit:
+
+- Home HTML references 2 unique `/storage/avatars/...` URLs.
+- Both referenced avatar files are missing under alpha `storage/app/public/avatars`.
+- Both referenced avatar requests still return HTTP `403` after the storage link.
+- `storage/app/public/avatars` is absent in alpha; `storage/app/public` permissions are `drwxrwsr-x` with owner/group `cyril:www-data`.
+- The original repo storage directory `/home/cyril/claude-code/sites/test.laravel/storage/app/public` contains some media files, but the two exact referenced avatar files were not found there.
+- No media files were copied.
+
+Interpretation / next recommendation:
+
+- `public/storage` link is now present, so the Laravel storage symlink prerequisite is satisfied.
+- Remaining avatar failures are not fixed by the symlink alone because the referenced avatar files are absent locally.
+- Next micro-step should decide whether to locate/copy only the required avatar media from an approved local source, or accept missing avatars in alpha.
+
+Safety status:
+
+- No migration was run.
+- No `migrate:fresh` was run.
+- No seed was run.
+- No additional dump import was run.
+- No npm build was run.
+- No application runtime code under `app/`, `routes/`, `resources/`, `database/`, or `config/` was modified.
+- No main/production branch was touched.
+- No T074/T075/T076 backport was performed.
+- No production media sync was performed.
+
 # Handoffs
 
 None.
@@ -871,6 +923,7 @@ Setup verification completed without runtime patching:
 - Vite manifest stabilization check confirmed `public/build/manifest.json` is the only reported build modification and all referenced assets exist on disk (`app-CosGWsUZ.css`, `app-BE0FrHm7.js`).
 - Git tracking check found referenced CSS `app-CosGWsUZ.css` is ignored/untracked while the JS asset is tracked, so the manifest-only commit was blocked.
 - RUN decision authorized committing the manifest plus only the ignored referenced CSS asset; JS was already tracked and not force-added.
+- Storage link audit created `public/storage` symlink successfully; home remained HTTP `200`; two referenced avatar files are missing locally and were not found at the exact paths in the original repo storage inspected.
 
 ---
 
