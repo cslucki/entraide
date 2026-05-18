@@ -2,7 +2,7 @@
 task_id: TASK-103
 title: T077.0 — Boucles Product Surface Spec
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-103-t077-0-boucles-product-surface-spec
 priority: MEDIUM
 
 created_at: 2026-05-18 16:54:03 Europe/Paris
-updated_at: 2026-05-18 17:31:37 Europe/Paris
+updated_at: 2026-05-18 17:42:14 Europe/Paris
 
 labels: []
 
@@ -150,6 +150,20 @@ Micro-ajustements documentaires appliqués dans `docs/specs/T077.0-boucles-produ
 - clarification T077.1: aucune création de Boucle incluse sauf décision produit séparée.
 
 Statut passé à DONE et lock passé à UNLOCKED pour finalisation OPS.
+
+## 2026-05-18 17:42:14 Europe/Paris
+
+Merge OPS effectué via le script officiel `ai/scripts/merge-task.sh TASK-103`.
+
+- Source: `TASK-103-t077-0-boucles-product-surface-spec`.
+- Cible: `develop` uniquement.
+- Merge commit develop: `0e456328c92955424e8c5980656240534edd58e3`.
+- `develop` poussé vers `origin/develop`.
+- Branche distante tâche conservée.
+- Aucun fichier runtime modifié.
+- `main` / PROD non touchés.
+
+Statut TASK passé à MERGED après merge réussi.
 
 # Handoffs
 
