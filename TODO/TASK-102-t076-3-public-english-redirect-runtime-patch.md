@@ -2,7 +2,7 @@
 task_id: TASK-102
 title: t076-3-public-english-redirect-runtime-patch
 
-status: IN_REVIEW
+status: DONE
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-102-t076-3-public-english-redirect-runtime-patch
 priority: MEDIUM
 
 created_at: 2026-05-18 12:02:36 Europe/Paris
-updated_at: 2026-05-18 12:07:23 Europe/Paris
+updated_at: 2026-05-18 12:18:05 Europe/Paris
 
 labels: []
 
@@ -93,6 +93,24 @@ Scope respected:
 - no `/loops` redirect or `/boucles` behavior change
 - no `main` / PROD changes
 
+## 2026-05-18 12:18:05 Europe/Paris
+
+OPS finalization after OPENAI review.
+
+Review result:
+
+- OPENAI: APPROVE WITH NOTES
+- Blocking issues: none
+- Recommendation: READY FOR OPS FINALIZE
+
+Non-blocking note:
+
+- `Route::redirect()` currently uses Laravel's default redirect status.
+- A future SEO consolidation patch may explicitly set `301` if required.
+- No runtime change was made during OPS finalization.
+
+Status moved to DONE with lock already UNLOCKED.
+
 Modified files:
 
 - `routes/web.php`
@@ -130,6 +148,14 @@ Browser, responsive, and console validation were not run because this task is a 
 
 # Review Notes
 
-READY FOR REVIEW.
+OPENAI review: APPROVE WITH NOTES.
+
+Blocking issues: none.
+
+Recommendation: READY FOR OPS FINALIZE.
+
+Non-blocking note: `Route::redirect()` uses Laravel's default redirect status. A future patch may explicitly set `301` if SEO consolidation requires it. No change applied during finalization.
+
+READY FOR OPS FINALIZE.
 
 The runtime patch is intentionally narrow: `/partners` now redirects to `/partenaires` and `partners` is reserved from legacy tenant slug capture. `/partenaires` remains the canonical public Partner route. `/boucles` remains distinct and was not transformed into a Partner route. `main` / PROD were not touched.
