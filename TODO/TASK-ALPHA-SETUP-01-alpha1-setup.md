@@ -13,7 +13,7 @@ branch: ALPHA-SETUP-01-alpha1-setup
 priority: HIGH
 
 created_at: 2026-05-18 11:33:02 Europe/Paris
-updated_at: 2026-05-18 19:45:00 Europe/Paris
+updated_at: 2026-05-18 19:50:00 Europe/Paris
 
 labels:
   - alpha
@@ -967,6 +967,24 @@ Closure recommendation:
 - The RUN can close ALPHA-SETUP-01 as local alpha setup complete.
 - Any future merge decision should wait for Cockpit Alpha arbitration and must not be performed as part of this finalization step.
 
+## 2026-05-18 19:50:00 Europe/Paris
+
+Official finalization script compatibility checked after committing the final TASK state.
+
+Script results:
+
+- `ai/scripts/check-task.sh` exists and is executable.
+- `ai/scripts/finalize-task.sh` exists and is executable.
+- `check-task.sh ALPHA-SETUP-01` failed because the script is hardcoded to inspect `/home/cyril/claude-code/sites/test.laravel/TODO` and did not find this alpha worktree TASK file.
+- `finalize-task.sh ALPHA-SETUP-01` failed at its first step for the same TASK detection reason before any commit, push, or merge action.
+- Git status was clean when both script checks ran.
+
+Interpretation:
+
+- The TASK itself is finalized in the alpha worktree with `status: DONE` and `lock: UNLOCKED`.
+- Script failure is a tooling/path compatibility issue for this non-standard ALPHA task/worktree, not a runtime validation failure.
+- No merge was performed.
+
 # Handoffs
 
 None.
@@ -1027,6 +1045,7 @@ Setup verification completed without runtime patching:
 - Storage link audit created `public/storage` symlink successfully; home remained HTTP `200`; two referenced avatar files are missing locally and were not found at the exact paths in the original repo storage inspected.
 - Final validation: home/login OK, unauthenticated dashboard redirects to login, DB has `users=23` with `sessions` and `users` tables, five `TEST_*_LOGIN` users exist, `public/storage` is linked, and two missing avatars are accepted as a local alpha limitation.
 - Finalization: TASK marked `DONE`, lock `UNLOCKED`, branch conserved, no merge performed, and no runtime/app code modified.
+- Official `check-task.sh` and `finalize-task.sh` were attempted after commit; both are blocked by hardcoded TASK lookup in the original `test.laravel` worktree and do not apply cleanly to this ALPHA worktree.
 
 ---
 
