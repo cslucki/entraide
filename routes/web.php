@@ -42,9 +42,11 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
 Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
 Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+Route::get('/partenaires', [HomeController::class, 'partners'])->name('partenaires.index');
+Route::get('/partenaires/demande', [CommunityRequestController::class, 'create'])->name('partenaires.request.create');
+Route::post('/partenaires/demande', [CommunityRequestController::class, 'store'])->name('partenaires.request.store');
 Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index');
-Route::get('/boucles/creer', [CommunityRequestController::class, 'create'])->name('boucles.request.create');
-Route::post('/boucles/creer', [CommunityRequestController::class, 'store'])->name('boucles.request.store');
+Route::redirect('/boucles/creer', '/partenaires/demande');
 
 // Blog — public (routes fixes avant le wildcard)
 Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
@@ -249,7 +251,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
 // Community landing page (with or without trailing slash)
 // Negative lookahead excludes reserved global slugs so /login, /register, /admin etc. are never captured.
-$communityConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges|boucles)[a-z0-9][a-z0-9\-]*';
+$communityConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges|partenaires|boucles)[a-z0-9][a-z0-9\-]*';
 
 // Organization route constraint — same slug format as community, reserved for future /org/{organization} routes.
 // Usage: Route::prefix('/org/{organization}')->middleware(['web', 'organization'])->where(['organization' => $organizationConstraint])->group(...)
