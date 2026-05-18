@@ -2,7 +2,7 @@
 task_id: TASK-104
 title: t077-1-boucles-public-surface-runtime-mvp
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-104-t077-1-boucles-public-surface-runtime-mvp
 priority: MEDIUM
 
 created_at: 2026-05-18 18:04:14 Europe/Paris
-updated_at: 2026-05-18 18:45:13 Europe/Paris
+updated_at: 2026-05-18 18:52:09 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: READY
+  status: MERGED
   url: null
 ---
 
@@ -169,6 +169,19 @@ Clôture pré-merge demandée par COCKPIT après review OPENAI approuvée.
 - Status passé à `DONE`.
 - Lock passé à `UNLOCKED`.
 - Aucun merge effectué.
+
+## 2026-05-18 18:52:09 Europe/Paris
+
+Merge officiel effectué par OPENCODE via `./ai/scripts/merge-task.sh TASK-104`.
+
+État:
+- Merge dans `develop`: OK.
+- Push `develop`: OK.
+- Merge commit: `0cf7750`.
+- Status passé à `MERGED`.
+- Lock conservé `UNLOCKED`.
+- Branche `main` et PROD non touchés.
+- Branche distante tâche conservée.
 
 # Handoffs
 
