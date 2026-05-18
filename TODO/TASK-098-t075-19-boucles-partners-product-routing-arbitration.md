@@ -2,7 +2,7 @@
 task_id: TASK-098
 title: t075-19-boucles-partners-product-routing-arbitration
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-098-t075-19-boucles-partners-product-routing-arbitration
 priority: HIGH
 
 created_at: 2026-05-18 00:44:55 Europe/Paris
-updated_at: 2026-05-18 04:55:21 Europe/Paris
+updated_at: 2026-05-18 05:03:21 Europe/Paris
 
 labels:
   - T075
@@ -567,6 +567,19 @@ No routes, controllers, views, tests, migrations, APIs, policies, middleware, or
 - Ran `yes n | ./ai/scripts/finalize-task.sh TODO/TASK-098-t075-19-boucles-partners-product-routing-arbitration.md`: passed; script check passed and commit, push, and CI inspection were intentionally skipped so the explicit requested commit/push commands could be executed manually after this TASK update.
 - Worktree still contains only this TASK file before commit.
 
+## 2026-05-18 05:03:21 Europe/Paris
+
+### OPENCODE — Merged into develop
+
+- Ran official merge flow from branch `TASK-098-t075-19-boucles-partners-product-routing-arbitration` after synchronizing `develop` with `origin/develop`.
+- Ran `yes y | ./ai/scripts/merge-task.sh TASK-098-t075-19-boucles-partners-product-routing-arbitration`: task check passed with status `DONE`, lock `UNLOCKED`, clean source branch, merge completed into `develop`, and `develop` was pushed.
+- Merge commit on `develop`: `8f2bc86 Merge branch 'TASK-098-t075-19-boucles-partners-product-routing-arbitration' into develop`.
+- Updated this TASK status to `MERGED` after the merge script reminder, keeping lock `UNLOCKED`.
+- Branch `TASK-098-t075-19-boucles-partners-product-routing-arbitration` remains preserved on `origin`; no remote branch deletion performed.
+- No runtime files modified.
+- No route, controller, view, test, migration, API, policy, middleware, or PROD file modified.
+- `main` / PROD remain untouched.
+
 # Handoffs
 
 ## Final Handoff Targets
@@ -594,6 +607,8 @@ No routes, controllers, views, tests, migrations, APIs, policies, middleware, or
 - `./ai/scripts/check-task.sh TODO/TASK-098-t075-19-boucles-partners-product-routing-arbitration.md` run after arbitration: failed as expected because status remains `IN_PROGRESS`, lock remains `LOCKED`, and the TASK file is intentionally uncommitted. No finalize/commit/push requested.
 - `./ai/scripts/check-task.sh TODO/TASK-098-t075-19-boucles-partners-product-routing-arbitration.md` run after final review update: passed with status `DONE` and lock `UNLOCKED`.
 - `yes n | ./ai/scripts/finalize-task.sh TODO/TASK-098-t075-19-boucles-partners-product-routing-arbitration.md` run after final review update: passed; commit, push, and CI inspection skipped inside the script by non-interactive `n` responses, because commit/push are executed explicitly afterward.
+- `yes y | ./ai/scripts/merge-task.sh TASK-098-t075-19-boucles-partners-product-routing-arbitration` run from the source branch: passed, created merge commit `8f2bc86` on `develop`, and pushed `develop`.
+- Post-merge TASK closeout is documentation-only: status changed from `DONE` to `MERGED`, lock remains `UNLOCKED`, no runtime files changed.
 
 ---
 
