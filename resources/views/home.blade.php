@@ -94,12 +94,12 @@
                             Accompagnement à la mise en place
                         </div>
                     </div>
-                    <a href="{{ route('boucles.request.create') }}"
+                    <a href="{{ route('partenaires.request.create') }}"
                        class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                         </svg>
-                        Créer ma boucle
+                        Devenir partenaire
                     </a>
                 </div>
                 <div class="hidden md:flex flex-col gap-3 w-56">
