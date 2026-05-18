@@ -17,6 +17,24 @@ class PublicFrenchPartnersRoutesTest extends TestCase
             ->assertSee('Devenir partenaire');
     }
 
+    public function test_english_partners_redirects_to_french_public_route(): void
+    {
+        $this->get('/partners')
+            ->assertRedirect('/partenaires');
+    }
+
+    public function test_english_partners_redirect_does_not_resolve_legacy_tenant_slug(): void
+    {
+        Organization::factory()->create([
+            'slug' => 'partners',
+            'is_active' => true,
+            'is_public' => true,
+        ]);
+
+        $this->get('/partners')
+            ->assertRedirect('/partenaires');
+    }
+
     public function test_partenaires_demande_is_public(): void
     {
         $this->get('/partenaires/demande')
