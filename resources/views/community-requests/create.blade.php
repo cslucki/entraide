@@ -8,14 +8,14 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
             </div>
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Créez votre boucle</h1>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Devenir partenaire</h1>
             <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                Une boucle, c'est votre réseau privé d'échange de services. Décrivez votre projet et nous vous accompagnons dans sa mise en place.
+                Présentez votre réseau, association ou collectif professionnel. Nous vous accompagnons pour créer un espace BouclePro adapté.
             </p>
         </div>
 
         <!-- Form -->
-        <form method="POST" action="{{ route('boucles.request.store') }}"
+        <form method="POST" action="{{ route('partenaires.request.store') }}"
               class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 space-y-6">
             @csrf
 
@@ -87,7 +87,7 @@
             </div>
 
             <div class="flex gap-3 justify-end">
-                <a href="{{ route('boucles.index') }}"
+                <a href="{{ route('partenaires.index') }}"
                    class="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                     Annuler
                 </a>

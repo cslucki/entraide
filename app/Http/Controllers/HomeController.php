@@ -63,6 +63,11 @@ class HomeController extends Controller
         return view('boucles.index', compact('communities'));
     }
 
+    public function partners(): View
+    {
+        return view('partenaires.index');
+    }
+
     public function exchanges(): View
     {
         $organization = currentOrganization();

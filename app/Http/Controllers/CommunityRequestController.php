@@ -32,7 +32,7 @@ class CommunityRequestController extends Controller
 
         CommunityRequest::create($data);
 
-        return redirect()->route('boucles.index')
-            ->with('success', "Votre demande de boucle « {$data['boucle_name']} » a bien été envoyée. Nous vous répondrons sous 48h.");
+        return redirect()->route('partenaires.index')
+            ->with('success', "Votre demande de partenariat « {$data['boucle_name']} » a bien été envoyée. Nous vous répondrons sous 48h.");
     }
 }
