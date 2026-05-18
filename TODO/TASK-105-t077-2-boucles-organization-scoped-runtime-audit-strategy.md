@@ -2,7 +2,7 @@
 task_id: TASK-105
 title: t077-2-boucles-organization-scoped-runtime-audit-strategy
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,19 +13,19 @@ branch: TASK-105-t077-2-boucles-organization-scoped-runtime-audit-strategy
 priority: MEDIUM
 
 created_at: 2026-05-18 19:35:00 Europe/Paris
-updated_at: 2026-05-18 19:42:16 Europe/Paris
+updated_at: 2026-05-18 20:37:06 Europe/Paris
 
 labels: []
 
 lock:
   status: UNLOCKED
-  agent: OPENCODE
-  since: 2026-05-18 19:42:16 Europe/Paris
+  agent: null
+  since: null
 
 handoff: false
 
 pr:
-  status: READY
+  status: MERGED
   url: null
 ---
 
@@ -166,3 +166,16 @@ Static validation performed:
 Audit document created at `docs/audits/T077.2-boucles-organization-scoped-runtime-audit-strategy.md`.
 
 T077.3 must stay fail-closed: no true public Loop DB exposure without Organization resolution and an explicit visibility contract. Existing membership protections are useful for authenticated internal Loop access, but are not sufficient alone for public `/boucles` runtime.
+
+## 2026-05-18 20:37:06 Europe/Paris
+
+Merge officiel effectué par OPENCODE via `./ai/scripts/merge-task.sh TASK-105`.
+
+État:
+- Merge dans `develop`: OK.
+- Push `develop`: OK.
+- Merge commit: `9347026`.
+- Status passé à `MERGED`.
+- Lock conservé `UNLOCKED`, lock.since nullifié.
+- Branche `main` et PROD non touchés.
+- Branche distante tâche conservée.
