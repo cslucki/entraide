@@ -26,8 +26,14 @@ class LoopFactory extends Factory
             'description' => fake()->sentence(),
             'type' => 'custom',
             'status' => 'active',
+            'visibility' => 'private',
             'created_by' => User::factory(),
         ];
+    }
+
+    public function public(): static
+    {
+        return $this->state(['visibility' => 'public']);
     }
 
     public function system(): static

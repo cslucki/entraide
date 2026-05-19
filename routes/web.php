@@ -136,6 +136,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
     Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
     Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+    Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
+    Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
     Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
     Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
     Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
@@ -252,7 +254,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
 // Community landing page (with or without trailing slash)
 // Negative lookahead excludes reserved global slugs so /login, /register, /admin etc. are never captured.
-$communityConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges|partenaires|partners|boucles)[a-z0-9][a-z0-9\-]*';
+$communityConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges|partenaires|partners|boucles|loops)[a-z0-9][a-z0-9\-]*';
 
 // Organization route constraint — same slug format as community, reserved for future /org/{organization} routes.
 // Usage: Route::prefix('/org/{organization}')->middleware(['web', 'organization'])->where(['organization' => $organizationConstraint])->group(...)
@@ -345,6 +347,8 @@ Route::prefix('/{community}')
             Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
             Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
             Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+            Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
+            Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
             Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
             Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
             Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
