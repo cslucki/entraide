@@ -48,28 +48,40 @@ class LoopController extends Controller
         }
     }
 
-    public function index(): View
+    private function resolveCommunityId(): string
     {
-        $user = auth()->user();
+        $organizationId = CurrentOrganization::id();
 
-        $communityId = $this->resolveCommunityId();
-
-        if ($communityId === null) {
-            $loops = collect();
-            $canCreate = false;
-
-            return view('loops.index', compact('loops', 'canCreate'));
+        if ($organizationId) {
+            return $organizationId;
         }
 
+        $user = auth()->user();
+
+        if ($user->community_id) {
+            return $user->community_id;
+        }
+
+        abort(403);
+    }
+
+    public function index(): View
+    {
+        $communityId = $this->resolveCommunityId();
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
+        $user = auth()->user();
+
         $loops = Loop::query()
             ->where('community_id', $communityId)
-            ->whereIn('id', function ($q) use ($user) {
-                $q->select('loop_id')
-                    ->from('loop_members')
-                    ->where('user_id', $user->id);
+            ->where(function ($q) use ($user) {
+                $q->where('visibility', 'public')
+                    ->orWhereIn('id', function ($sub) use ($user) {
+                        $sub->select('loop_id')
+                            ->from('loop_members')
+                            ->where('user_id', $user->id);
+                    });
             })
             ->withCount('activeMembers')
             ->withMax('messages as last_message_at', 'created_at')
@@ -81,26 +93,8 @@ class LoopController extends Controller
         return view('loops.index', compact('loops', 'canCreate'));
     }
 
-    private function resolveCommunityId(): ?string
+    public function create(): View
     {
-        $organizationId = CurrentOrganization::id();
-
-        if ($organizationId) {
-            return $organizationId;
-        }
-
-        return auth()->user()->community_id;
-    }
-
-    public function create(): View|RedirectResponse
-    {
-        $communityId = $this->resolveCommunityId();
-
-        if ($communityId === null) {
-            return redirect()->route('loops.index')
-                ->with('info', 'Vous devez appartenir à une organisation pour créer une boucle.');
-        }
-
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
@@ -143,7 +137,7 @@ class LoopController extends Controller
             ->where('status', 'active')
             ->exists();
 
-        if (! $isMember) {
+        if ($loop->isPrivate() && ! $isMember) {
             abort(404);
         }
 
@@ -157,6 +151,77 @@ class LoopController extends Controller
         $eligibleReferrals = $this->loopService->getEligibleReferrals($user, $loop);
 
         return view('loops.show', compact('loop', 'messages', 'eligibleReferrals', 'isMember'));
+    }
+
+    public function join(Request $request, Loop $loop): RedirectResponse
+    {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
+        if ($loop->community_id !== $community->id) {
+            abort(404);
+        }
+
+        $user = $request->user();
+
+        $existing = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($existing) {
+            if ($existing->status === 'active') {
+                return redirect()->route('loops.show', $loop)
+                    ->with('info', 'Vous êtes déjà membre de cette boucle.');
+            }
+
+            $existing->update(['status' => 'active', 'joined_at' => now()]);
+
+            return redirect()->route('loops.show', $loop)
+                ->with('success', 'Vous avez rejoint la boucle.');
+        }
+
+        LoopMember::create([
+            'loop_id' => $loop->id,
+            'user_id' => $user->id,
+            'role' => 'member',
+            'status' => 'active',
+            'joined_at' => now(),
+        ]);
+
+        return redirect()->route('loops.show', $loop)
+            ->with('success', 'Vous avez rejoint la boucle.');
+    }
+
+    public function leave(Request $request, Loop $loop): RedirectResponse
+    {
+        $community = $this->resolveCommunity();
+        $this->assertUserBelongsToCommunity($community);
+
+        if ($loop->community_id !== $community->id) {
+            abort(404);
+        }
+
+        $user = $request->user();
+
+        $member = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $member) {
+            return redirect()->route('loops.show', $loop)
+                ->with('info', 'Vous n\'êtes pas membre de cette boucle.');
+        }
+
+        if ($member->role === 'owner') {
+            return redirect()->route('loops.show', $loop)
+                ->with('error', 'Le propriétaire ne peut pas quitter la boucle.');
+        }
+
+        $member->update(['status' => 'left']);
+
+        return redirect()->route('loops.index')
+            ->with('success', 'Vous avez quitté la boucle.');
     }
 
     public function analyzeHelpIntention(Request $request, Loop $loop): RedirectResponse

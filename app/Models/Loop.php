@@ -21,6 +21,7 @@ class Loop extends Model
         'description',
         'type',
         'status',
+        'visibility',
         'created_by',
     ];
 
@@ -29,7 +30,28 @@ class Loop extends Model
         return [
             'type' => 'string',
             'status' => 'string',
+            'visibility' => 'string',
         ];
+    }
+
+    public function scopePublic($query)
+    {
+        return $query->where('visibility', 'public');
+    }
+
+    public function scopePrivate($query)
+    {
+        return $query->where('visibility', 'private');
+    }
+
+    public function isPublic(): bool
+    {
+        return $this->visibility === 'public';
+    }
+
+    public function isPrivate(): bool
+    {
+        return $this->visibility === 'private';
     }
 
     public function community(): BelongsTo
