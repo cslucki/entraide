@@ -2,7 +2,7 @@
 task_id: TASK-077.3
 title: Boucles Visibility & Membership MVP
 
-status: DONE
+status: MERGED
 
 owner: OPS
 
