@@ -2,7 +2,7 @@
 task_id: TASK-107
 title: T078.1 — Admin AI Supervision Center
 
-status: DONE
+status: MERGED
 
 owner: CLAUDE
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -69,6 +69,22 @@ TASK-107-t078-1-admin-ai-supervision-center
 
 Status:
 IN_PROGRESS
+
+---
+
+## 2026-05-20 — T078.1 merged into develop (OPS)
+
+**CI PostgreSQL success** — Run ID: 26179474384
+URL: https://github.com/cslucki/entraide/actions/runs/26179474384
+
+**Merge commit:** 6208341
+Branch: TASK-107-t078-1-admin-ai-supervision-center → develop
+
+**Confirmations:**
+- develop aligné origin/develop
+- main / PROD non touchés
+- git status clean
+- TASK status updated to MERGED
 
 ---
 
