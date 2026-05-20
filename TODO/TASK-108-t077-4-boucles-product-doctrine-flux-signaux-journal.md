@@ -1,0 +1,187 @@
+---
+task_id: TASK-108
+title: T077.4 — Boucles Product Doctrine: Flux, Signaux, Journal
+
+status: DONE
+
+owner: GLM
+
+contributors: []
+
+branch: TASK-108-t077-4-boucles-product-doctrine-flux-signaux-journal
+
+priority: MEDIUM
+
+created_at: 2026-05-20 20:20:57 Europe/Paris
+updated_at: 2026-05-20 20:25:00 Europe/Paris
+
+labels: []
+
+lock:
+  status: UNLOCKED
+
+handoff: false
+
+pr:
+  status: NOT_READY
+  url: null
+---
+
+# Objective
+
+Stabiliser la doctrine produit Boucles Product: Flux, Signaux, Journal avant toute implémentation runtime.
+
+Scope: Documentation only. Aucun code runtime.
+
+---
+
+# Planned Actions
+
+- [x] inspect architecture
+- [x] inspect impacted files
+- [x] implement changes (documentation only)
+- [ ] run tests (non requis - scope documentation only)
+- [ ] validate UI (non requis - scope documentation only)
+
+---
+# Progress Log
+
+
+## 2026-05-20 20:20:57 Europe/Paris
+
+Task created.
+
+Owner:
+GLM
+
+Branch:
+TASK-108-t077-4-boucles-product-doctrine-flux-signaux-journal
+
+Status:
+IN_PROGRESS
+
+## 2026-05-20 20:25:00 Europe/Paris
+
+**Documentation créée:**
+
+Fichier: `docs/boucles-product-doctrine.md`
+
+**Décisions Produit:**
+
+1. **Flux Vivant** = activité réelle, émergente, non hiérarchique
+2. **Signaux** = patterns détectés dans le Flux, indicateurs de dynamiques
+3. **Boucles** = contextes intentionnels pour l'énergie collective
+4. **Journal** = mémoire narrative séquentielle d'une Boucle
+5. **IA** = clarifier, relier, mémoriser (pas remplacer l'élan humain)
+
+**Relation Causale:**
+```
+Flux → Signaux → Boucles → Journal
+```
+
+**Règles Anti-Dérive:**
+- Flux ≠ Workflow
+- Signaux ≠ Notifications
+- Boucles ≠ Groupes de discussion
+- Journal ≠ Logs
+- Organization = Tenant
+- Loop ≠ Tenant
+
+**Implications pour Tâches Futures:**
+- T077.5 (Visibility): Signaux respectent visibilité, Journal accessible selon visibilité
+- T077.6 (Membership): Signaux calculés sur activités membres, Journal attribue aux membres
+- T077.9 (Surface Runtime): Interface expose Flux vivant, Signaux subtils, Journal navigable
+- T078.2 (Flux & Signaux Runtime): Implémente cette doctrine fidèlement
+
+**Fichiers Modifiés:**
+- `docs/boucles-product-doctrine.md` (CRÉÉ)
+
+**Tests Non Requis (Justification):**
+- Scope: Documentation only
+- Aucun code runtime
+- Aucune modification de app/, routes/, resources/, database/, config/
+- Tests Playwright requis pour T078.2 (runtime implementation), pas T077.4
+
+**Limites:**
+- Hors scope runtime
+- Aucun code, migration, modèle, route, vue, composant
+- Aucun test Playwright ou PHPUnit
+- Ne pas toucher ALPHA
+- Ne pas toucher main / PROD
+- Ne pas introduire de nouveau vocabulaire Community/current_community/ResolveCommunity
+- Préserver Organization = Tenant
+- Préserver Loop ≠ Tenant
+- Préparer T078.2 pour implémentation fidèle
+
+**Handoff vers Tâches Suivantes:**
+- T077.5 (Boucles Visibility Rules): Utiliser cette doctrine pour définir règles visibilité
+- T077.6 (Boucles Membership & Roles): Utiliser cette doctrine pour définir rôles membres
+- T077.9 (Boucles Product Surface Runtime V1): Utiliser cette doctrine pour concevoir interface
+- T078.2 (Boucles Flux & Signaux Runtime): Implémenter cette doctrine fidèlement sans dériver
+
+**Statut:** DONE
+**Lock:** UNLOCKED
+
+Prêt pour review OPENAI.
+
+# Handoffs
+
+# Tests
+
+- [x] feature tests (NON REQUIS - scope documentation only)
+- [x] browser validation (NON REQUIS - scope documentation only)
+- [x] responsive validation (NON REQUIS - scope documentation only)
+- [x] console inspection (NON REQUIS - scope documentation only)
+- [x] tenant validation (NON REQUIS - scope documentation only)
+
+---
+
+# Test Results
+
+**NON APPLICABLE** - Scope documentation only.
+
+Justification: T077.4 ne modifie aucun code runtime. Tests Playwright et PHPUnit requis pour T078.2 (Flux & Signaux Runtime), pas pour T077.4.
+
+---
+
+---
+
+# Review Notes
+
+**Pour Review OPENAI:**
+
+1. **Vérifier Stabilité Conceptuelle:**
+   - Concepts Flux, Signaux, Boucles, Journal cohérents?
+   - Relations causales claires?
+   - Rôles IA bien définis?
+
+2. **Vérifier Anti-Dérive:**
+   - Règles anti-dérive suffisantes?
+   - Distinctions claires (Flux ≠ Workflow, Signaux ≠ Notifications, etc.)?
+   - Tenant safety préservé?
+
+3. **Vérifier Implications Futures:**
+   - T077.5, T077.6, T077.9, T078.2 bien éclairées?
+   - T078.2 peut implémenter fidèlement cette doctrine?
+   - Aucun gap conceptuel?
+
+4. **Vérifier Scope Documentation Only:**
+   - Aucune modification runtime?
+   - Aucun code, modèle, route, vue?
+   - Tests justifiés comme non requis?
+
+5. **Vérifier Vocabulaire:**
+   - Pas de nouveau Community/current_community/ResolveCommunity?
+   - Organization = Tenant bien établi?
+   - Loop ≠ Tenant bien établi?
+
+**Recommandé:** Approbation doctrine avant toute implémentation runtime (T078.2).
+
+**Points de Réserve (si applicable):**
+- [ ] Concepts instables
+- [ ] Règles anti-dérive insuffisantes
+- [ ] Implications futures floues
+- [ ] Tenant safety compromis
+- [ ] Vocabulaire dérive
+
+**Statut Review:** PENDING OPENAI
