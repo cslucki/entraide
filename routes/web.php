@@ -1,35 +1,40 @@
 <?php
 
-use App\Http\Controllers\Admin\AdminCommunityController;
+use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminBlogController;
-use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminCommunityController;
 use App\Http\Controllers\Admin\AdminController;
-use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminEmailController;
-use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
-use App\Http\Controllers\Admin\AdminMetaCommunityController;
-use App\Http\Controllers\Admin\AdminSettingController;
+use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminLoopController;
-use App\Http\Controllers\CommunityLandingController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\FavoriteController;
-use App\Http\Controllers\PointController;
-use App\Http\Controllers\ReportController;
-use App\Http\Controllers\ReviewController;
-use App\Http\Controllers\ExplorerController;
-use App\Http\Controllers\HomeController;
-use App\Http\Controllers\MessageController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\RequestController;
-use App\Http\Controllers\ServiceController;
-use App\Http\Controllers\CommunityRequestController;
+use App\Http\Controllers\Admin\AdminMessageController;
+use App\Http\Controllers\Admin\AdminMetaCommunityController;
+use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminSettingController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\CommunityLandingController;
+use App\Http\Controllers\CommunityRequestController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExplorerController;
+use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LoopController;
+use App\Http\Controllers\MessageController;
+use App\Http\Controllers\PointController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\RequestController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
@@ -243,6 +248,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ia-design-lab', [AdminIaDesignLabController::class, 'index'])->name('ia-design-lab');
     Route::post('/ia-design-lab', [AdminIaDesignLabController::class, 'test'])->name('ia-design-lab.test');
 
+    // Centre de supervision IA (T078.1) — appel réel OpenAI gpt-4o-mini
+    Route::get('/ai-supervision', [AdminAiSupervisionController::class, 'index'])->name('ai-supervision');
+    Route::post('/ai-supervision', [AdminAiSupervisionController::class, 'analyze'])->name('ai-supervision.analyze');
+
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
     Route::patch('/blog/{post}/status', [AdminBlogController::class, 'updateStatus'])->name('blog.status');
@@ -275,20 +284,20 @@ Route::prefix('/{community}')
 
         // Routes guest (auth)
         Route::middleware('guest')->group(function () {
-            Route::get('/login', [\App\Http\Controllers\Auth\AuthenticatedSessionController::class, 'create'])->name('login');
-            Route::post('/login', [\App\Http\Controllers\Auth\AuthenticatedSessionController::class, 'store']);
-            Route::get('/register', [\App\Http\Controllers\Auth\RegisteredUserController::class, 'create'])->name('register');
-            Route::post('/register', [\App\Http\Controllers\Auth\RegisteredUserController::class, 'store']);
-            Route::get('/forgot-password', [\App\Http\Controllers\Auth\PasswordResetLinkController::class, 'create'])->name('password.request');
-            Route::post('/forgot-password', [\App\Http\Controllers\Auth\PasswordResetLinkController::class, 'store'])->name('password.email');
-            Route::get('/reset-password/{token}', [\App\Http\Controllers\Auth\NewPasswordController::class, 'create'])->name('password.reset');
-            Route::post('/reset-password', [\App\Http\Controllers\Auth\NewPasswordController::class, 'store'])->name('password.store');
+            Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+            Route::post('/login', [AuthenticatedSessionController::class, 'store']);
+            Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
+            Route::post('/register', [RegisteredUserController::class, 'store']);
+            Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+            Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+            Route::get('/reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
+            Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.store');
         });
 
         // Routes authentifiées
         Route::middleware('auth')->group(function () {
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-            Route::post('/logout', [\App\Http\Controllers\Auth\AuthenticatedSessionController::class, 'destroy'])->name('logout');
+            Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
             // Services
             Route::middleware('profile.complete')->group(function () {
