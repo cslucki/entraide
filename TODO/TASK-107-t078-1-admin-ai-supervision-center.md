@@ -2,7 +2,7 @@
 task_id: TASK-107
 title: T078.1 — Admin AI Supervision Center
 
-status: IN_PROGRESS
+status: DONE
 
 owner: CLAUDE
 
@@ -13,14 +13,14 @@ branch: TASK-107-t078-1-admin-ai-supervision-center
 priority: MEDIUM
 
 created_at: 2026-05-20 17:27:10 Europe/Paris
-updated_at: 2026-05-20 17:27:10 Europe/Paris
+updated_at: 2026-05-20 19:30:00 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
-  agent: CLAUDE
-  since: 2026-05-20 17:27:10 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: 2026-05-20 19:30:00 Europe/Paris
 
 handoff: false
 
@@ -115,12 +115,49 @@ Sécurité :
 
 # Handoffs
 
+## Handoff → Reviewer (2026-05-20)
+
+**Contexte de scope :**
+Cette tâche a démarré comme un smoke test T078.0A (validation du plan OpenAI
+Responses API). Elle a évolué en cours de session vers l'implémentation complète
+T078.1 — Admin AI Supervision Center, incluant une micro-correction architecture
+(taxonomie extraite du SYSTEM_PROMPT hardcodé → `config/ai.php`).
+
+**Commit livré :** `5db4467` — `feat(admin): add AI supervision center`
+**Branche :** `TASK-107-t078-1-admin-ai-supervision-center`
+**Cible merge :** develop (pas main directement)
+
+**Points d'attention pour la review :**
+
+1. **Taxonomie catégories** : snapshot DB 2026-05-20 dans `config/ai.php`
+   (`ai.supervision.taxonomy`). Clé de dette : future tâche T078.x pour remplacer
+   par un `CategoryTaxonomyProvider` lisant categories/skills depuis la DB.
+
+2. **Enum JSON schema** construit dynamiquement depuis `config('ai.supervision.taxonomy.categories')`.
+   Le test `test_category_enum_in_schema_reflects_taxonomy_from_config` le verrouille.
+
+3. **Entrée nav "Supervision IA"** visible en prod (contrairement au Lab IA qui est
+   dev-only). Si on souhaite la cacher jusqu'à validation staging, ajouter un
+   `@if (!app()->isProduction())` dans `layouts/admin.blade.php`.
+
+4. **`store: false`** explicitement envoyé à OpenAI — aucune donnée conservée côté API.
+
+5. **Secrets** : la clé API ne passe jamais dans la vue HTML. Test dédié :
+   `test_api_key_and_bearer_never_leak_in_response`.
+
+**Garanties de sécurité confirmées :**
+- `main` / PROD non touchés — branche feature isolée
+- `public/build/manifest.json` exclu du commit `5db4467` (restauré avant commit)
+- `.env` réel non modifié (seul `.env.example` étendu)
+- Pas de migration, pas de DB write, pas de nouvelle table
+- `/admin/ia-design-lab` non touché
+
 # Tests
 
 - [x] feature tests (10/10 passants)
-- [x] browser validation (pendant)
-- [x] responsive validation (pendant)
-- [x] console inspection (pendant)
+- [ ] browser validation (hors scope T078.1 — à faire en staging)
+- [ ] responsive validation (hors scope T078.1 — à faire en staging)
+- [ ] console inspection (hors scope T078.1 — à faire en staging)
 - [x] tenant validation (route admin globale, hors scope tenant)
 
 ---
