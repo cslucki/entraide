@@ -52,8 +52,9 @@ return [
                 ['slug' => 'traduction',    'label' => 'Traduction'],
                 ['slug' => 'autre',         'label' => 'Autre (si aucune catégorie ne correspond avec assez de confiance)'],
             ],
-            // Skills explicitly observed in 2026-05-20 DB audit (skills table).
-            // Do NOT add slugs that were not directly audited.
+            // Limited audited subset relevant to current admin supervision (T078.1).
+            // Source: skills table, 2026-05-20 DB audit. Only slugs directly observed
+            // in the audit are listed here. Do NOT add slugs that were not audited.
             'skills' => [
                 ['slug' => 'articles-de-blog',    'label' => 'Articles de blog'],
                 ['slug' => 'redaction-technique', 'label' => 'Rédaction technique'],

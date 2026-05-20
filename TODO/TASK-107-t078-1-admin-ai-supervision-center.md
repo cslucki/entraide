@@ -13,7 +13,7 @@ branch: TASK-107-t078-1-admin-ai-supervision-center
 priority: MEDIUM
 
 created_at: 2026-05-20 17:27:10 Europe/Paris
-updated_at: 2026-05-20 20:00:00 Europe/Paris
+updated_at: 2026-05-20 20:15:00 Europe/Paris
 
 labels: []
 
@@ -114,6 +114,17 @@ Sécurité :
 ---
 
 # Handoffs
+
+## OPENAI APPROVE WITH NOTES (2026-05-20)
+
+**Résultat review :** APPROVE WITH NOTES — aucun blocking issue restant.
+
+**Note mineure documentée :** le subset de skills dans `config/ai.php` est
+volontairement borné à T078.1 (5 slugs audités). Ce périmètre réduit est
+intentionnel et documenté dans le commentaire du fichier. Extension possible
+via future tâche T078.x avec `CategoryTaxonomyProvider` DB.
+
+---
 
 ## OPENAI REQUEST CHANGES — patch correctif (2026-05-20)
 
