@@ -13,7 +13,7 @@ branch: TASK-108-t077-4-boucles-product-doctrine-flux-signaux-journal
 priority: MEDIUM
 
 created_at: 2026-05-20 20:20:57 Europe/Paris
-updated_at: 2026-05-20 20:25:00 Europe/Paris
+updated_at: 2026-05-20 20:30:00 Europe/Paris
 
 labels: []
 
@@ -184,4 +184,58 @@ Justification: T077.4 ne modifie aucun code runtime. Tests Playwright et PHPUnit
 - [ ] Tenant safety compromis
 - [ ] Vocabulaire dérive
 
-**Statut Review:** PENDING OPENAI
+**Statut Review:** PENDING OPENAI DOCUMENTARY AUDIT
+
+## 2026-05-20 20:30:00 Europe/Paris
+
+**Correction COCKPIT ROADMAP:**
+
+T077.4 reste sur sa branche. Aucun merge. Aucune intervention CODE supplémentaire avant review OPENAI.
+
+**Risque Identifié:**
+
+La doctrine a été créée dans un nouveau fichier `docs/boucles-product-doctrine.md` sans audit préalable de la documentation existante.
+
+Risques:
+- Duplication documentaire possible
+- Contradiction possible avec ROADMAP.md
+- Contradiction possible avec ai/context/routing-strategy.md
+- Absence de décision sur l'emplacement canonique de la doctrine
+- Risque de créer une vérité documentaire parallèle
+
+**Décision COCKPIT:**
+
+T077.4 passe en attente de review documentaire OPENAI.
+
+**Questions pour OPENAI (Documentary Audit):**
+
+OPENAI doit auditer la documentation existante et répondre:
+
+1. **Emplacement Canonique:**
+   - `docs/boucles-product-doctrine.md` doit-il rester comme fichier canonique?
+   - Certains passages doivent-ils être intégrés dans ROADMAP.md?
+   - Certains passages doivent-ils être intégrés dans ai/context/routing-strategy.md?
+   - Certains passages doivent-ils être intégrés dans docs existants?
+   - Certains passages doivent-ils être intégrés dans TASK files?
+
+2. **Contradictions Documentaires:**
+   - Y a-t-il des contradictions avec ROADMAP.md?
+   - Y a-t-il des contradictions avec ai/context/routing-strategy.md?
+   - Y a-t-il des contradictions avec d'autres docs existants?
+
+3. **Intégration Documentaire:**
+   - CODE doit-il faire une passe d'intégration documentaire après review OPENAI?
+   - Si oui, quelles actions spécifiques?
+
+4. **Décision:**
+   - Approver la doctrine telle quelle (fichier canonique: docs/boucles-product-doctrine.md)
+   - Demander des ajustements avant approbation
+   - Demander une intégration documentaire dans fichiers existants
+
+**Statut OPS:** DONE + UNLOCKED
+**Statut COCKPIT:** PENDING OPENAI DOCUMENTARY AUDIT
+**Statut Global:** EN ATTENTE REVIEW DOCUMENTAIRE
+
+**Action Requise:**
+- OPENAI: Auditor la documentation existante et décider de l'emplacement canonique
+- CODE: Aucune intervention supplémentaire avant décision OPENAI
