@@ -13,7 +13,7 @@ branch: TASK-107-t078-1-admin-ai-supervision-center
 priority: MEDIUM
 
 created_at: 2026-05-20 17:27:10 Europe/Paris
-updated_at: 2026-05-20 19:30:00 Europe/Paris
+updated_at: 2026-05-20 20:00:00 Europe/Paris
 
 labels: []
 
@@ -115,6 +115,32 @@ Sécurité :
 
 # Handoffs
 
+## OPENAI REQUEST CHANGES — patch correctif (2026-05-20)
+
+**Blocking issues résolus :**
+
+1. `config/ai.php` contenait des slugs skills non audités (`developpement-web`,
+   `graphisme`, `seo`, `formation-professionnelle`). Supprimés. La config ne
+   contient plus que les 5 slugs explicitement observés lors de l'audit DB
+   2026-05-20 : `articles-de-blog`, `redaction-technique`, `correctionrelecture`,
+   `copywriting`, `ateliers-creatifs`.
+
+2. `OpenAiSupervisionProvider::jsonSchema()` n'avait pas d'enum sur
+   `skills[].items.properties.slug`. Ajout de `$skillSlugs` (construit depuis
+   `config('ai.supervision.taxonomy.skills')`, même pattern que `$categorySlugs`),
+   avec fallback sur les 5 slugs audités si la config est vide.
+
+**Tests ajoutés :**
+- `test_skills_enum_in_schema_reflects_taxonomy_from_config` — override config +
+  vérifie que l'enum envoyé à OpenAI correspond exactement à la config
+- `test_non_audited_skill_slugs_absent_from_config_and_schema` — vérifie que
+  `graphisme`, `seo`, `formation-professionnelle` sont absents de la config ET
+  de l'enum du schéma JSON
+
+**Résultat tests après patch :** 17/17 (66 assertions)
+
+---
+
 ## Handoff → Reviewer (2026-05-20)
 
 **Contexte de scope :**
@@ -154,7 +180,7 @@ T078.1 — Admin AI Supervision Center, incluant une micro-correction architectu
 
 # Tests
 
-- [x] feature tests (10/10 passants)
+- [x] feature tests (17/17 passants — après patch correctif OPENAI)
 - [ ] browser validation (hors scope T078.1 — à faire en staging)
 - [ ] responsive validation (hors scope T078.1 — à faire en staging)
 - [ ] console inspection (hors scope T078.1 — à faire en staging)

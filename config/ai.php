@@ -52,16 +52,14 @@ return [
                 ['slug' => 'traduction',    'label' => 'Traduction'],
                 ['slug' => 'autre',         'label' => 'Autre (si aucune catégorie ne correspond avec assez de confiance)'],
             ],
+            // Skills explicitly observed in 2026-05-20 DB audit (skills table).
+            // Do NOT add slugs that were not directly audited.
             'skills' => [
-                ['slug' => 'articles-de-blog',        'label' => 'Articles de blog'],
-                ['slug' => 'redaction-technique',     'label' => 'Rédaction technique'],
-                ['slug' => 'correctionrelecture',     'label' => 'Correction/Relecture'],
-                ['slug' => 'copywriting',             'label' => 'Copywriting'],
-                ['slug' => 'ateliers-creatifs',       'label' => 'Ateliers créatifs'],
-                ['slug' => 'developpement-web',       'label' => 'Développement web'],
-                ['slug' => 'graphisme',               'label' => 'Graphisme'],
-                ['slug' => 'seo',                     'label' => 'SEO/Référencement'],
-                ['slug' => 'formation-professionnelle', 'label' => 'Formation professionnelle'],
+                ['slug' => 'articles-de-blog',    'label' => 'Articles de blog'],
+                ['slug' => 'redaction-technique', 'label' => 'Rédaction technique'],
+                ['slug' => 'correctionrelecture', 'label' => 'Correction/Relecture'],
+                ['slug' => 'copywriting',         'label' => 'Copywriting'],
+                ['slug' => 'ateliers-creatifs',   'label' => 'Ateliers créatifs'],
             ],
         ],
     ],

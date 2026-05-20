@@ -142,6 +142,11 @@ class AdminAiSupervisionTest extends TestCase
             $this->assertArrayHasKey('needs_human_category_review', $props);
             $this->assertArrayNotHasKey('categories', $props);
 
+            // skills[].slug must be constrained by enum
+            $skillSlugEnum = data_get($body, 'text.format.schema.properties.skills.items.properties.slug.enum');
+            $this->assertIsArray($skillSlugEnum);
+            $this->assertNotEmpty($skillSlugEnum);
+
             return true;
         });
     }
@@ -289,6 +294,67 @@ class AdminAiSupervisionTest extends TestCase
         $response->assertOk();
         $response->assertSee('Validation humaine suggérée');
         $response->assertSee('Le contenu mêle plusieurs domaines');
+    }
+
+    public function test_skills_enum_in_schema_reflects_taxonomy_from_config(): void
+    {
+        $customSkills = [
+            ['slug' => 'test-skill-a', 'label' => 'Test Skill A'],
+            ['slug' => 'test-skill-b', 'label' => 'Test Skill B'],
+        ];
+
+        config(['ai.supervision.taxonomy.skills' => $customSkills]);
+
+        Http::fake([
+            'api.openai.com/*' => Http::response($this->fakeOpenAiResponse(array_merge($this->basePayload(), [
+                'skills' => [],
+            ])), 200),
+        ]);
+
+        $admin = $this->makeAdmin();
+
+        $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Contenu de test skills enum override.',
+        ])->assertOk();
+
+        Http::assertSent(function ($request) use ($customSkills) {
+            $enum = data_get($request->data(), 'text.format.schema.properties.skills.items.properties.slug.enum');
+
+            $this->assertSame(array_column($customSkills, 'slug'), $enum);
+
+            return true;
+        });
+    }
+
+    public function test_non_audited_skill_slugs_absent_from_config_and_schema(): void
+    {
+        $forbiddenSlugs = ['graphisme', 'seo', 'formation-professionnelle'];
+
+        $configSkillSlugs = array_column(config('ai.supervision.taxonomy.skills', []), 'slug');
+
+        foreach ($forbiddenSlugs as $slug) {
+            $this->assertNotContains($slug, $configSkillSlugs, "Slug non audité présent dans la config : {$slug}");
+        }
+
+        Http::fake([
+            'api.openai.com/*' => Http::response($this->fakeOpenAiResponse($this->basePayload()), 200),
+        ]);
+
+        $admin = $this->makeAdmin();
+
+        $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Contenu de test slugs non audités.',
+        ])->assertOk();
+
+        Http::assertSent(function ($request) use ($forbiddenSlugs) {
+            $enum = data_get($request->data(), 'text.format.schema.properties.skills.items.properties.slug.enum');
+
+            foreach ($forbiddenSlugs as $slug) {
+                $this->assertNotContains($slug, $enum ?? [], "Slug non audité présent dans l'enum schema : {$slug}");
+            }
+
+            return true;
+        });
     }
 
     public function test_category_enum_in_schema_reflects_taxonomy_from_config(): void

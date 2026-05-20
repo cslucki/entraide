@@ -176,6 +176,15 @@ PROMPT;
             $categorySlugs = ['tech-digital', 'design', 'marketing', 'redaction', 'conseil', 'formation', 'traduction', 'autre'];
         }
 
+        $skillSlugs = array_values(array_column(
+            config('ai.supervision.taxonomy.skills', []),
+            'slug'
+        ));
+
+        if ($skillSlugs === []) {
+            $skillSlugs = ['articles-de-blog', 'redaction-technique', 'correctionrelecture', 'copywriting', 'ateliers-creatifs'];
+        }
+
         return [
             'type' => 'object',
             'additionalProperties' => false,
@@ -217,7 +226,11 @@ PROMPT;
                         'additionalProperties' => false,
                         'required' => ['slug', 'label'],
                         'properties' => [
-                            'slug' => ['type' => 'string'],
+                            'slug' => [
+                                'type' => 'string',
+                                'enum' => $skillSlugs,
+                                'description' => 'Slug exact de la liste de compétences BouclePro.',
+                            ],
                             'label' => ['type' => 'string'],
                         ],
                     ],
