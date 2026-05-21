@@ -1,3 +1,7 @@
+> **ACTIVE CANON**
+>
+> Current workflow and engineering principles source. This file was renamed during T079.0 because its content is primarily workflow, git discipline and multi-agent engineering guidance.
+
 # Engineering Workflow Rules
 
 ---

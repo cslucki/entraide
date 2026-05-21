@@ -1,4 +1,17 @@
+> **AGENT CONTEXT ONLY**
+>
+> This file is an operational summary for agents. It is not canonical project documentation. If this file conflicts with `docs/`, `docs/` wins.
+
 # Development Philosophy
+
+## Canonical Sources
+
+- `docs/README.md`
+- `docs/02-WORKFLOW_AND_ENGINEERING_PRINCIPLES.md`
+- `docs/04-ENGINEERING_RULES.md`
+- `ai/workflows/task-lifecycle.md`
+
+Use this file as an engineering behavior reminder only.
 
 ## Core Principles
 

@@ -1,4 +1,19 @@
+> **AGENT CONTEXT ONLY**
+>
+> This file is an operational summary for agents. It is not canonical project documentation. If this file conflicts with `docs/`, `docs/` wins.
+
 # Multi-Tenant Architecture
+
+## Canonical Sources
+
+- `docs/README.md`
+- `docs/05-DOMAIN_ARCHITECTURE.md`
+- `docs/06-GLOSSARY.md`
+- `docs/architecture/01-ROOT_DOMAIN_TENANT_RESOLUTION.md`
+- `docs/migration/01-COMMUNITY_MIGRATION_STRATEGY.md`
+- `docs/migration/02-ORGANIZATION_MIGRATION_EXECUTION_PLAN.md`
+
+Use this file as a tenant-safety checklist only.
 
 ## Core Principle
 
@@ -169,7 +184,7 @@ but only when:
 La résolution de l'Organization dépend du contexte URL. Cinq niveaux :
 
 ### 1. Platform global route
-Routes : `/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partners`, `/admin/*`.
+Routes : `/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partenaires`, `/admin/*`.
 **Aucune Organization requise.** Sauf `/admin/*` qui reste accessible sans Organization (Platform admin global).
 
 ### 2. Default Organization route (`/{feature}`)

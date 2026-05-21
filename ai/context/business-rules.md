@@ -1,4 +1,18 @@
+> **AGENT CONTEXT ONLY**
+>
+> This file is an operational summary for agents. It is not canonical project documentation. If this file conflicts with `docs/`, `docs/` wins.
+
 # Business Rules
+
+## Canonical Sources
+
+- `docs/README.md`
+- `docs/05-DOMAIN_ARCHITECTURE.md`
+- `docs/06-GLOSSARY.md`
+- `docs/migration/02-ORGANIZATION_MIGRATION_EXECUTION_PLAN.md`
+- `docs/legacy/01-COMMUNITY_TRANSACTION_MATRIX.md` as legacy evidence only
+
+Use this file as a business-safety reminder only.
 
 ## Organisation Scoping Rule
 

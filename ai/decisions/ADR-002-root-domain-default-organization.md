@@ -130,6 +130,6 @@ The ADR exists solely to document the rule before implementation work begins.
 # Related Documents
 
 - `ai/context/architecture.md` — "Root Domain Resolution" section
-- `docs/06-DOMAIN_ARCHITECTURE_V2.md` — section 9.5 "Root Domain Resolution"
-- `docs/07-GLOSSARY.md`
-- `docs/08-COMMUNITY_MIGRATION_STRATEGY.md`
+- `docs/05-DOMAIN_ARCHITECTURE.md` — section 9.5 "Root Domain Resolution"
+- `docs/06-GLOSSARY.md`
+- `docs/migration/01-COMMUNITY_MIGRATION_STRATEGY.md`

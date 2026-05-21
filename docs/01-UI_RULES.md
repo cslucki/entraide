@@ -1,3 +1,7 @@
+> **ACTIVE CANON**
+>
+> Current UI and product engineering source for BouclePro. If this file conflicts with historical audits, this file wins unless a newer active spec says otherwise.
+
 # BouclePro UI Rules
 
 ## Philosophy

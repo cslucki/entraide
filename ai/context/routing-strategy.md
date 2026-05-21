@@ -1,4 +1,19 @@
+> **AGENT CONTEXT ONLY**
+>
+> This file is an operational summary for agents. It is not canonical project documentation. If this file conflicts with `docs/`, `docs/` wins.
+
 # Organization-Aware Routing Strategy
+
+## Canonical Sources
+
+- `docs/README.md`
+- `docs/architecture/01-ROOT_DOMAIN_TENANT_RESOLUTION.md`
+- `docs/specs/02-T077.0-boucles-product-surface-spec.md`
+- `docs/specs/03-T077.4-boucles-flux-signaux-journal-doctrine.md`
+- `docs/05-DOMAIN_ARCHITECTURE.md`
+- `docs/06-GLOSSARY.md`
+
+Use this file as a routing checklist only.
 
 ## Root Domain Routing Patterns (T075.1)
 
@@ -8,18 +23,19 @@
 |---------|-------------|
 | `/{feature}` | Résout l'Organization par défaut de la plateforme. Ex: `/blog`, `/explorer`, `/membres`. |
 | `/{partnerSlug}/{feature}` | Résout l'Organization partenaire. Ex: `/bni/blog`, `/bni/explorer`. |
-| `/partners` | Platform global. Pas d'Organization. |
+| `/partenaires` | Platform global. Pas d'Organization. |
 | `/{partnerSlug}` | Public mais Organization-scopé (Needs Org = Yes, Global = No). |
 
 ### Règles
 
 - **Public ≠ global.** Une route publique peut être Organization-scopée. Ex: `/{partnerSlug}` est publique mais nécessite une Organization résolue.
+- **Routes publiques françaises canoniques.** `/partenaires` est la route canonique partenaires, `/partenaires/demande` la demande partenaire. `/partners` est legacy redirect / compatibility only.
 - **`/boucles` a changé de statut documentaire.** L'ancien usage `/boucles` comme demande de création de communauté est legacy historique. `/boucles` est désormais la route française canonique cible du vrai concept Boucles. Toute surface publique Boucles doit résoudre une Organization ou fail-closed; aucune donnée Boucles ne doit être chargée hors Organization résolue. Public ≠ Global.
 - **Toute feature métier actuelle et future** doit être Organization-scopée. Aucune feature métier sur route Platform globale par défaut.
 
 ### Routes Platform globales autorisées
 
-`/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partners`, `/admin/*`.
+`/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partenaires`, `/admin/*`.
 
 ---
 
@@ -27,7 +43,7 @@
 
 ### Two URL Scheme Patterns
 
-**Platform global routes**: `/`, `/login`, `/register`, `/password/*`, `/partners`, `/admin/*`.
+**Platform global routes**: `/`, `/login`, `/register`, `/password/*`, `/partenaires`, `/admin/*`.
 
 **Legacy root-domain business routes currently lacking tenant middleware**: `/dashboard`, `/services/{uuid}`, etc. These are not architecturally global; T075.2 must resolve an Organization for them.
 

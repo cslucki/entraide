@@ -1,4 +1,10 @@
-# 07-GLOSSARY.md
+> **ACTIVE CANON**
+>
+> Current vocabulary source for BouclePro. Use this file to prevent terminology drift across docs, code, UI and AI prompts.
+>
+> Public product routes are French-first. `/partenaires` is canonical for partners; `/partners` is legacy redirect / compatibility only.
+
+# 06-GLOSSARY.md
 **Update Date : 11/05/2026 - 20h41**
 
 Vocabulary stabilization document for BouclePro / Cyberworkers.
@@ -13,10 +19,10 @@ Goals:
 
 References:
 
-* Domain Architecture V2 
-* Engineering Workflow Rules 
-* UI Rules 
-* Community Transaction Matrix 
+* `docs/05-DOMAIN_ARCHITECTURE.md`
+* `docs/02-WORKFLOW_AND_ENGINEERING_PRINCIPLES.md`
+* `docs/01-UI_RULES.md`
+* `docs/legacy/01-COMMUNITY_TRANSACTION_MATRIX.md` as legacy evidence only
 
 ---
 
@@ -59,7 +65,7 @@ in order to:
 | Default Organization | Résolution | Organization par défaut résolue pour les routes `/{feature}` sur le root domain. |
 | Partner slug route | Résolution | Route `/{partnerSlug}/{feature}` qui résout l'Organization liée au partnerSlug. |
 | Root domain | Résolution | Domaine racine (`test.laravel`, `bouclepro.com`). Pas tenantless pour les routes métier. |
-| Platform global route | Résolution | Route sans Organization résolue (`/`, `/login`, `/partners`, `/admin/*`, etc.) |
+| Platform global route | Résolution | Route sans Organization résolue (`/`, `/login`, `/partenaires`, `/admin/*`, etc.) |
 | Organization-scoped public route | Résolution | Route publique mais qui résout une Organization. Public ≠ global. |
 
 ### Rappels critiques
