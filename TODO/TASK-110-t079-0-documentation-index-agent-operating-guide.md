@@ -2,7 +2,7 @@
 task_id: TASK-110
 title: T079.0 — Documentation Index & Agent Operating Guide
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-110-t079-0-documentation-index-agent-operating-guide
 priority: MEDIUM
 
 created_at: 2026-05-21 13:33:24 Europe/Paris
-updated_at: 2026-05-21 16:12:18 Europe/Paris
+updated_at: 2026-05-21 17:16:13 Europe/Paris
 
 labels: []
 
@@ -26,7 +26,7 @@ lock:
 handoff: true
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -311,6 +311,41 @@ Scope confirmed:
 - no `app/`, `routes/`, `resources/`, `database/`, `config/`, `ROADMAP.md`, `@DOCS`, main/PROD or ALPHA changes
 - no merge
 
+## 2026-05-21 17:16:13 Europe/Paris
+
+OPS / OpenCode merged T079.0 into `develop` using the official workflow.
+
+Actions completed:
+
+- verified initial branch was `TASK-110-t079-0-documentation-index-agent-operating-guide`
+- checked out `develop`
+- ran `git pull --ff-only origin develop`; already up to date
+- verified `develop` was clean before merge
+- fetched origin
+- verified source branch exists locally and remotely
+- verified commit `8776bd5` is present on source branch and origin source branch
+- ran `ai/scripts/merge-task.sh TASK-110` from the source branch
+- official merge script check passed with task status `DONE`, lock `UNLOCKED`, and clean source branch
+- merge into `develop` succeeded with merge commit `cd20853`
+- script push prompt was skipped intentionally so post-merge verification and TASK `MERGED` update could be completed before final push
+
+Post-merge verification completed:
+
+- expected documentation index and renamed files exist on `develop`
+- `/partenaires` verified as canonical French partner route
+- `/partners` verified as legacy redirect / compatibility only
+- T077.4 verified as non-authoritative for roadmap numbering / future task labels
+- `ai/agents/agents-list.md` verified with current practical agent routing
+- all `ai/context/*.md` files verified with `AGENT CONTEXT ONLY`
+
+Scope confirmed during merge:
+
+- no runtime change added by OPS
+- no main / PROD touch
+- no ALPHA touch
+- no `@DOCS/` touch
+- no `ROADMAP.md` touch
+
 # Tests
 
 - [ ] feature tests
@@ -371,6 +406,17 @@ Pre-finalize correction validation:
   - `git diff --name-only -- app routes resources database config ROADMAP.md @DOCS ALPHA main PROD`: clean output
   - `git ls-files --others --exclude-standard app routes resources database config ROADMAP.md @DOCS ALPHA main PROD`: clean output
   - `ai/scripts/finalize-task.sh TASK-110`: completed; internal `check-task.sh` gate passed
+- Merge validation:
+  - `git checkout develop`: passed
+  - `git pull --ff-only origin develop`: passed, already up to date
+  - source branch local and remote existence: verified
+  - `8776bd5` presence on source branch and origin source branch: verified
+  - `ai/scripts/merge-task.sh TASK-110`: passed, merge commit `cd20853`
+  - expected post-merge documentation files: verified present on `develop`
+  - `/partenaires` canonical and `/partners` legacy compatibility: verified
+  - T077.4 roadmap non-authoritative wording: verified
+  - `ai/agents/agents-list.md` current routing: verified
+  - `ai/context/*.md` `AGENT CONTEXT ONLY`: verified
 
 ---
 
@@ -380,4 +426,4 @@ T079.0 is intentionally opened as documentation workflow preparation only.
 
 OPENAI / Codex should apply the documentation index / agent guide patch separately.
 
-T079.0 patch is ready for OPS finalize, then REVIEW after commit/push.
+T079.0 patch was merged into `develop` by OPS / OpenCode.
