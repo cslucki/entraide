@@ -184,6 +184,8 @@ A Loop is NOT:
 * a security boundary,
 * a database isolation layer.
 
+Flux, Signaux and Journal are product sub-concepts attached to Loops and Interactions; they do not create an additional tenant boundary.
+
 ---
 
 ## 3.3 Member
@@ -323,6 +325,8 @@ Interactions represent:
 * reviews,
 * AI exchanges,
 * collaborative workflows.
+
+For the Boucles product surface, Flux, Signaux and Journal describe how collaborative activity is revealed, interpreted and memorized inside Organization-scoped Loops.
 
 ---
 

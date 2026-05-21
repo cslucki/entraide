@@ -14,7 +14,7 @@
 ### Règles
 
 - **Public ≠ global.** Une route publique peut être Organization-scopée. Ex: `/{partnerSlug}` est publique mais nécessite une Organization résolue.
-- **`/boucles` est legacy** à déprécier, pas le vrai concept Loop.
+- **`/boucles` a changé de statut documentaire.** L'ancien usage `/boucles` comme demande de création de communauté est legacy historique. `/boucles` est désormais la route française canonique cible du vrai concept Boucles. Toute surface publique Boucles doit résoudre une Organization ou fail-closed; aucune donnée Boucles ne doit être chargée hors Organization résolue. Public ≠ Global.
 - **Toute feature métier actuelle et future** doit être Organization-scopée. Aucune feature métier sur route Platform globale par défaut.
 
 ### Routes Platform globales autorisées
