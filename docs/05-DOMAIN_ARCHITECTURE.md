@@ -1,4 +1,10 @@
-# 06-DOMAIN_ARCHITECTURE_V2
+> **ACTIVE CANON**
+>
+> Current domain architecture source for BouclePro. Use together with `docs/06-GLOSSARY.md` and active specs in `docs/specs/`.
+>
+> Public product routes are French-first. `/partenaires` is canonical for partners; `/partners` is legacy redirect / compatibility only.
+
+# 05-DOMAIN_ARCHITECTURE
 **Update Date : 11/05/2026 - 20h33**
 ## Status
 
@@ -411,7 +417,7 @@ Les Loops appartiennent toujours à une Organization, jamais à un Partner direc
 
 | Niveau | Routes | Comportement |
 |--------|--------|-------------|
-| Platform global | `/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partners`, `/admin/*` | Aucune Organization requise |
+| Platform global | `/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partenaires`, `/admin/*` | Aucune Organization requise |
 | Default Organization | `/blog`, `/explorer`, `/membres`, `/loops`, `/services`, `/requests`, `/messages` | Organization par défaut de la plateforme |
 | Partner slug | `/{partnerSlug}`, `/{partnerSlug}/blog`, etc. | Organization partenaire |
 | Authenticated personal | `/dashboard` | Organization du user connecté |

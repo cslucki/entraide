@@ -1,4 +1,17 @@
+> **AGENT CONTEXT ONLY**
+>
+> This file is an operational summary for agents. It is not canonical project documentation. If this file conflicts with `docs/`, `docs/` wins.
+
 # Testing Strategy
+
+## Canonical Sources
+
+- `docs/README.md`
+- `docs/04-ENGINEERING_RULES.md`
+- `ai/workflows/task-lifecycle.md`
+- `ai/playwright/README.md`
+
+Use this file as a validation checklist only.
 
 ## Critical Domains
 

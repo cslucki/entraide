@@ -1,3 +1,7 @@
+> **ACTIVE CANON**
+>
+> Current engineering rules source for BouclePro. Historical audits are evidence; this file carries current engineering guidance unless superseded by a newer active spec.
+
 # Additional UI & Product Engineering Rules
 
 ---

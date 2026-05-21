@@ -1,7 +1,13 @@
 ````markdown
-# 09-ORGANIZATION_MIGRATION_EXECUTION_PLAN
+# 02-ORGANIZATION_MIGRATION_EXECUTION_PLAN
 
 Status: ACTIVE MIGRATION PLAN
+
+> **SUPERSEDED NOTE — `/boucles`**
+>
+> Older readings of `/boucles` as legacy or as a Community creation request are superseded for true Boucles by `docs/specs/02-T077.0-boucles-product-surface-spec.md` and `docs/specs/03-T077.4-boucles-flux-signaux-journal-doctrine.md`.
+>
+> `/boucles` is the target canonical French route for true Boucles. Any Boucles read remains Organization-scoped. Public != Global. Organization = Tenant. Loop != Tenant.
 
 Purpose:
 Define the real execution strategy for the migration:
@@ -19,9 +25,9 @@ It is intended for:
 - migration orchestration
 
 References:
-- 06-DOMAIN_ARCHITECTURE_V2.md
-- 07-GLOSSARY.md
-- 08-COMMUNITY_MIGRATION_STRATEGY.md
+- `docs/05-DOMAIN_ARCHITECTURE.md`
+- `docs/06-GLOSSARY.md`
+- `docs/migration/01-COMMUNITY_MIGRATION_STRATEGY.md`
 - CLAUDE.md
 - AGENTS.md
 
@@ -104,7 +110,7 @@ Loops are NOT:
 
 # 3.5 T075.1 Decisions — Root Domain Tenant Resolution Strategy
 
-La stratégie T075.1 (docs/architecture/T075.1-root-domain-tenant-resolution-strategy.md) a validé les décisions suivantes, qui impactent l'exécution de la migration :
+La stratégie T075.1 (`docs/architecture/01-ROOT_DOMAIN_TENANT_RESOLUTION.md`) a validé les décisions suivantes, qui impactent l'exécution de la migration :
 
 | Décision | Valeur |
 |----------|--------|
@@ -128,7 +134,7 @@ La stratégie T075.1 (docs/architecture/T075.1-root-domain-tenant-resolution-str
 | T075.3 | Dashboard / membres / échanges tenant-safe | T075.2 |
 | T075.4 | Services / Requests route-model binding | T075.2 |
 | T075.5 | Blog Organization Scoping + Containment | — |
-| T075.6 | Legacy /boucles audit + repositioning /partners | T075.2 |
+| T075.6 | Legacy /boucles audit + repositioning /partenaires | T075.2 |
 | T075.7 | BelongsToTenantScope hardening | T075.2 |
 | T075.8 | Auth guard /membres et /loops | — |
 | T075.9 | Policies tenant checks | T075.2, T075.3, T075.4 |

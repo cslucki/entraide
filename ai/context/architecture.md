@@ -1,4 +1,19 @@
+> **AGENT CONTEXT ONLY**
+>
+> This file is an operational summary for agents. It is not canonical project documentation. If this file conflicts with `docs/`, `docs/` wins.
+
 # Architecture Overview
+
+## Canonical Sources
+
+- `docs/README.md`
+- `docs/05-DOMAIN_ARCHITECTURE.md`
+- `docs/06-GLOSSARY.md`
+- `docs/architecture/01-ROOT_DOMAIN_TENANT_RESOLUTION.md`
+- `docs/migration/01-COMMUNITY_MIGRATION_STRATEGY.md`
+- `docs/migration/02-ORGANIZATION_MIGRATION_EXECUTION_PLAN.md`
+
+Use this file as a short agent reminder only.
 
 ## Project Type
 

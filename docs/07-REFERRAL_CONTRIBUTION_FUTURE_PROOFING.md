@@ -1,4 +1,8 @@
-# 10-REFERRAL_CONTRIBUTION_FUTURE_PROOFING
+> **ACTIVE CANON**
+>
+> Current referral and contribution boundary source. This document prevents drift toward CRM, growth-hack or reputation-system patterns.
+
+# 07-REFERRAL_CONTRIBUTION_FUTURE_PROOFING
 
 **Status:** Architecture Note — Future-Proofing
 
@@ -14,9 +18,9 @@ It exists to prevent architectural drift toward undesirable patterns.
 ---
 
 **References:**
-- 06-DOMAIN_ARCHITECTURE_V2.md
-- 07-GLOSSARY.md
-- 02-PRODUCT_PRINCIPLES.md
+- `docs/05-DOMAIN_ARCHITECTURE.md`
+- `docs/06-GLOSSARY.md`
+- `docs/02-WORKFLOW_AND_ENGINEERING_PRINCIPLES.md`
 - AGENTS.md
 - CLAUDE.md
 
@@ -315,7 +319,7 @@ In product-facing documentation, UI, and prompts:
 
 > Always prefer Organization, Loop, Member, and Contribution.
 
-Refer to docs/07-GLOSSARY.md for canonical vocabulary.
+Refer to `docs/06-GLOSSARY.md` for canonical vocabulary.
 
 ---
 

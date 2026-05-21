@@ -1,3 +1,7 @@
+> **LEGACY COMMUNITY / DO NOT USE AS CURRENT SOURCE**
+>
+> Historical Community-era transaction matrix. Use for legacy evidence only. Current work must follow Organization = Tenant, Loop != Tenant, Public != Global, and the active specs in `docs/specs/`.
+
 # Community Transaction Matrix
 
 **Document**: Source de vérité métier des transactions entre membres au sein d'une communauté

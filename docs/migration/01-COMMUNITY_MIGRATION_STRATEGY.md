@@ -1,4 +1,4 @@
-# 08-COMMUNITY_MIGRATION_STRATEGY.md
+# 01-COMMUNITY_MIGRATION_STRATEGY.md
 
 **Update Date : 11/05/2026 - 20h45**
 
@@ -19,12 +19,12 @@ This document defines:
 
 References:
 
-* Domain Architecture V2 
-* Glossary 
-* Community Transaction Matrix 
-* Engineering Workflow Rules 
-* UI Rules 
-* Additional UI & Product Engineering Rules 
+* `docs/05-DOMAIN_ARCHITECTURE.md`
+* `docs/06-GLOSSARY.md`
+* `docs/legacy/01-COMMUNITY_TRANSACTION_MATRIX.md` as legacy evidence only
+* `docs/02-WORKFLOW_AND_ENGINEERING_PRINCIPLES.md`
+* `docs/01-UI_RULES.md`
+* `docs/04-ENGINEERING_RULES.md`
 
 ---
 
@@ -476,7 +476,7 @@ Le root domain n'est pas tenantless. La stratégie T075.1 établit :
 
 ### Résolution par contexte URL
 
-1. **Platform global** — aucune Organization. Ex: `/`, `/login`, `/partners`, `/admin/*`.
+1. **Platform global** — aucune Organization. Ex: `/`, `/login`, `/partenaires`, `/admin/*`.
 2. **Default Organization** (`/{feature}`) — Organization par défaut de la plateforme. Ex: `/blog`, `/explorer`.
 3. **Partner slug** (`/{partnerSlug}/{feature}`) — Organization liée au partnerSlug. Ex: `/bni/blog`.
 4. **Authenticated personal** (`/dashboard`) — Organization du user connecté.

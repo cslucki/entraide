@@ -1,3 +1,7 @@
+> **HISTORICAL AUDIT**
+>
+> Historical UX asset index. Use as reference evidence only; active specs and active canon documents define current product truth.
+
 # T074 — Assets Index
 
 ## Purpose

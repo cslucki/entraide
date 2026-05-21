@@ -1,4 +1,17 @@
+> **AGENT CONTEXT ONLY**
+>
+> This file is an operational summary for agents. It is not canonical project documentation. If this file conflicts with `docs/`, `docs/` wins.
+
 # Browser & Visual Tooling
+
+## Canonical Sources
+
+- `docs/README.md`
+- `docs/01-UI_RULES.md`
+- `ai/playwright/README.md`
+- `ai/tooling/terminal-tools.md`
+
+Use this file as a browser-validation checklist only.
 
 Use browser and visual tools for:
 
