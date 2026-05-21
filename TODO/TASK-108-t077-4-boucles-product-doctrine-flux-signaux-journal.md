@@ -2,7 +2,7 @@
 task_id: TASK-108
 title: T077.4 — Boucles Product Doctrine: Flux, Signaux, Journal
 
-status: DONE
+status: MERGED
 
 owner: GLM
 
@@ -13,7 +13,7 @@ branch: TASK-108-t077-4-boucles-product-doctrine-flux-signaux-journal
 priority: MEDIUM
 
 created_at: 2026-05-20 20:20:57 Europe/Paris
-updated_at: 2026-05-21 08:12:30 Europe/Paris
+updated_at: 2026-05-21 10:50:34 Europe/Paris
 
 labels: []
 
@@ -292,3 +292,25 @@ OPENAI doit auditer la documentation existante et répondre:
 **Lock:** UNLOCKED.
 
 **Handoff review:** prêt pour nouvelle review documentaire OPENAI après commit/push.
+
+## 2026-05-21 10:50:34 Europe/Paris
+
+**Merge develop effectué:**
+
+- Workflow officiel utilisé: `ai/scripts/merge-task.sh TASK-108`.
+- Source: `TASK-108-t077-4-boucles-product-doctrine-flux-signaux-journal`.
+- Cible: `develop`.
+- Merge `--no-ff` réussi.
+- `develop` poussé vers `origin/develop`.
+
+**Validation merge:**
+
+- Aucun fichier runtime modifié.
+- Aucun fichier `app/`, `routes/`, `resources/`, `database/`, `config/` modifié.
+- `ROADMAP.md` non modifié.
+- `main` / PROD non touchés.
+- ALPHA non touchée.
+
+**Statut final post-merge:** MERGED.
+
+**Lock:** UNLOCKED.
