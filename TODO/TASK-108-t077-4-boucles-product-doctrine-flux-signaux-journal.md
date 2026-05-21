@@ -13,7 +13,7 @@ branch: TASK-108-t077-4-boucles-product-doctrine-flux-signaux-journal
 priority: MEDIUM
 
 created_at: 2026-05-20 20:20:57 Europe/Paris
-updated_at: 2026-05-20 20:30:00 Europe/Paris
+updated_at: 2026-05-21 08:12:30 Europe/Paris
 
 labels: []
 
@@ -239,3 +239,56 @@ OPENAI doit auditer la documentation existante et répondre:
 **Action Requise:**
 - OPENAI: Auditor la documentation existante et décider de l'emplacement canonique
 - CODE: Aucune intervention supplémentaire avant décision OPENAI
+
+## 2026-05-21 08:12:30 Europe/Paris
+
+**Verdict OPENAI:** REQUEST CHANGES.
+
+**Raison du verdict:**
+
+- La doctrine T077.4 était utile mais présentée comme une documentation Boucles autonome.
+- Risque de vérité documentaire parallèle avec `docs/specs/T077.0-boucles-product-surface-spec.md`, `docs/06-DOMAIN_ARCHITECTURE_V2.md` et `docs/07-GLOSSARY.md`.
+- Contradiction active avec `ai/context/routing-strategy.md`, qui disait encore que `/boucles` était legacy à déprécier.
+
+**Corrections appliquées:**
+
+- Déplacé `docs/boucles-product-doctrine.md` vers `docs/specs/T077.4-boucles-flux-signaux-journal-doctrine.md`.
+- Ajouté une section `Hiérarchie documentaire` en tête du document T077.4.
+- Précisé que T077.4 consolide uniquement Flux / Signaux / Journal et ne remplace pas le canon global Boucles.
+- Corrigé la formulation tenant: `Organization-scoped ; tenant boundary = Organization. Une Boucle n'est jamais une frontière tenant.`
+- Ajouté une section `Décision /boucles` clarifiant l'ancien usage legacy et la route française canonique cible.
+- Corrigé `ai/context/routing-strategy.md` pour indiquer que `/boucles` est désormais la route cible des vraies Boucles, Organization-scopée et fail-closed.
+- Ajouté une note courte dans `docs/07-GLOSSARY.md` sur Flux, Signaux et Journal comme sous-concepts produit liés aux Loops / Interactions.
+
+**Fichiers modifiés:**
+
+- `docs/specs/T077.4-boucles-flux-signaux-journal-doctrine.md`
+- `docs/boucles-product-doctrine.md` (supprimé par déplacement)
+- `ai/context/routing-strategy.md`
+- `docs/07-GLOSSARY.md`
+- `TODO/TASK-108-t077-4-boucles-product-doctrine-flux-signaux-journal.md`
+
+**Décisions et limites:**
+
+- `ROADMAP.md` non modifié sans instruction explicite de Cyril.
+- Aucun code runtime modifié.
+- Aucun fichier `app/`, `routes/`, `resources/`, `database/`, `config/` modifié.
+- Aucun merge.
+- Aucun changement ALPHA, main ou PROD.
+- Public ≠ Global préservé.
+- Organization = Tenant préservé.
+- Loop ≠ Tenant préservé.
+
+**Validation effectuée:**
+
+- `ai/scripts/check-task.sh` exécuté avant corrections: PASS.
+- Vérification de présence de `Hiérarchie documentaire`: PASS.
+- Vérification de présence de `Décision /boucles`: PASS.
+- Vérification de correction tenant: PASS.
+- Vérification déplacement fichier vers `docs/specs/`: PASS.
+
+**Statut final:** DONE.
+
+**Lock:** UNLOCKED.
+
+**Handoff review:** prêt pour nouvelle review documentaire OPENAI après commit/push.
