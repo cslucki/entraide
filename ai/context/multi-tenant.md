@@ -1,10 +1,16 @@
 > **AGENT CONTEXT ONLY**
->
-> This file is an operational summary for agents. It is not canonical project documentation. If this file conflicts with `docs/`, `docs/` wins.
+> Short tenant-safety checklist for agents. Not canonical documentation. If this file conflicts with `docs/`, `docs/` wins.
 
-# Multi-Tenant Architecture
+# Multi-Tenant Agent Context
 
-## Canonical Sources
+## Role Of This File
+
+- Use this file before touching tenant resolution, routing, scopes, policies, Livewire data loading, AI context, or public business surfaces.
+- Treat it as an operational checklist, not product doctrine or migration canon.
+- Keep durable concepts and migration plans in `docs/`.
+- Read `ai/context/current-state.md` first for current ROADMAP constraints.
+
+## Canonical Sources To Read
 
 - `docs/README.md`
 - `docs/05-DOMAIN_ARCHITECTURE.md`
@@ -12,113 +18,25 @@
 - `docs/architecture/01-ROOT_DOMAIN_TENANT_RESOLUTION.md`
 - `docs/migration/01-COMMUNITY_MIGRATION_STRATEGY.md`
 - `docs/migration/02-ORGANIZATION_MIGRATION_EXECUTION_PLAN.md`
+- `ai/context/architecture.md`
+- `ai/context/routing-strategy.md`
 
-Use this file as a tenant-safety checklist only.
+## Non-Negotiable Rules
 
-## Core Principle
+- Organization = Tenant.
+- Loop ≠ Tenant.
+- Partner ≠ Tenant.
+- Public route ≠ global route.
+- Member belongs inside an Organization context.
+- Interaction belongs inside Organization-scoped product behavior.
+- Business features must resolve an Organization or fail closed.
+- No business data may be loaded outside a resolved Organization unless the route is explicitly Platform-global.
+- `Community`, `community_id`, `current_community`, and `ResolveCommunity` are temporary legacy technical compatibility only.
+- Do not introduce new Community vocabulary in product, docs, prompts, UI, or new code.
 
-BouclePro is an organization-native multi-tenant platform.
+## Runtime Compatibility
 
-Official rule:
-
-```text
-Organization = Tenant
-````
-
-This is the canonical architecture.
-
-Everything related to:
-
-* security
-* isolation
-* ownership
-* governance
-* permissions
-* data boundaries
-
-must be scoped at the Organization level.
-
----
-
-# Important Distinction
-
-## Organization ≠ Loop
-
-This distinction is critical.
-
-### Organization
-
-An Organization represents:
-
-* the tenant boundary
-* the security boundary
-* the billing boundary
-* the governance boundary
-* the ownership boundary
-
-Organizations isolate:
-
-* users
-* services
-* transactions
-* messaging
-* workflows
-* AI contexts
-
----
-
-## Loop
-
-A Loop represents:
-
-* a collaborative context
-* a subgroup
-* a thematic space
-* an operational environment
-
-Loops are NOT:
-
-* tenant boundaries
-* security scopes
-* database isolation layers
-
-Loops exist INSIDE Organizations.
-
----
-
-# Current Compatibility State
-
-The current Laravel implementation still partially uses legacy terminology:
-
-```text
-Community
-community_id
-ResolveCommunity
-current_community
-```
-
-This is intentional during migration phases.
-
-Internally:
-
-```text
-Community ≈ Organization
-```
-
-but conceptually:
-
-```text
-Organization = official architecture
-Community = temporary compatibility layer
-```
-
----
-
-# Current Tenant Resolution
-
-## Runtime Resolution Priority
-
-Current canonical runtime resolution:
+Current compatibility code may still bind both names to the same tenant instance.
 
 ```php
 $organization = app()->bound('current_organization')
@@ -130,379 +48,54 @@ $organization = app()->bound('current_organization')
 
 Rules:
 
-* prefer `current_organization`
-* preserve `current_community` fallback
-* never break compatibility abruptly
+- Prefer `current_organization` in new work.
+- Preserve `current_community` fallback until the migration plan removes it.
+- Keep explicit `community_id` foreign-key mappings where current models still require them.
+- Do not rename columns, routes, middleware, or model relationships through broad search/replace.
 
----
+## Tenant-Safety Checklist
 
-# Middleware Architecture
+Before changing tenant-sensitive behavior, verify:
 
-## Current Middleware
+- Which Organization is resolved for the request.
+- Whether the route is Platform-global or Organization-scoped.
+- Whether public data is still Organization-scoped.
+- Whether policies enforce the same Organization boundary as queries.
+- Whether Eloquent scopes, manual queries, and route-model binding can leak cross-Organization data.
+- Whether Livewire components hydrate with the correct Organization context.
+- Whether AI prompts, memories, embeddings, settings, and automation stay Organization-scoped.
+- Whether tests or browser checks cover isolation, redirects, and unauthorized access.
 
-Current compatibility middleware:
+## Before Tenant Or Routing Changes
 
-```text
-ResolveCommunity
-```
+- Inspect routes, middleware, controllers, policies, models, scopes, views, and tests before editing.
+- Confirm the change follows the migration order documented in `docs/migration/02-ORGANIZATION_MIGRATION_EXECUTION_PLAN.md`.
+- Keep compatibility additive unless a task explicitly authorizes removal.
+- Keep existing Playwright routes stable unless the task is specifically about Playwright route migration.
+- Document any contradiction between `ai/context/*` and `docs/` in the TASK file before changing runtime behavior.
 
-Responsibilities:
+## Platform-Global Exceptions
 
-* resolve tenant from route
-* bind current tenant
-* share tenant with views
-* enforce tenant existence
-
-Currently binds:
-
-* current_community
-* current_organization
-
-Both currently point to the same underlying model instance.
-
----
-
-## Future Middleware
-
-Future architecture may introduce:
-
-```text
-ResolveOrganization
-```
-
-but only when:
-
-* routes are migrated
-* tests are stable
-* Playwright is validated
-* compatibility is guaranteed
-
----
-
-# URL Context Resolution Order
-
-La résolution de l'Organization dépend du contexte URL. Cinq niveaux :
-
-### 1. Platform global route
-Routes : `/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partenaires`, `/admin/*`.
-**Aucune Organization requise.** Sauf `/admin/*` qui reste accessible sans Organization (Platform admin global).
-
-### 2. Default Organization route (`/{feature}`)
-Routes : `/blog`, `/explorer`, `/membres`, `/loops`, `/services`, `/requests`, `/messages`.
-**Résout l'Organization par défaut de la plateforme.** Ces routes sont publiques ou auth selon les besoins, mais toujours Organization-scopées.
-
-### 3. Partner slug route (`/{partnerSlug}/{feature}`)
-Routes : `/{partnerSlug}`, `/{partnerSlug}/blog`, `/{partnerSlug}/explorer`, `/{partnerSlug}/membres`, `/{partnerSlug}/loops`.
-**Résout l'Organization liée au partnerSlug** via mapping Partner → Organization.
-**Partner n'est pas un tenant.** C'est une entrée co-branding / distribution.
-
-### 4. Authenticated personal route
-Routes : `/dashboard`.
-**Résout l'Organization du user connecté.** Si le user n'a pas d'Organization, redirection vers onboarding.
-
-### 5. Fail-safe
-Si une route métier requiert Organization et qu'aucune n'est résolue → blocage / redirect / 404.
-
----
-
-# Route Architecture
-
-## Current Route Pattern
-
-Current production-safe routes:
-
-```text
-/{community}/dashboard
-/{community}/services
-/{community}/messages
-```
-
-These remain canonical during compatibility phases.
-
----
-
-## Future Route Pattern
-
-Future organization-native routes may include:
-
-```text
-/org/{organization}/dashboard
-/org/{organization}/services
-/org/{organization}/messages
-```
+Some routes may intentionally run without an Organization, such as authentication, legal pages, sitemap, partner landing/request routes, or platform admin.
 
 Rules:
 
-* additive migration only
-* never break existing routes abruptly
-* dual support may temporarily coexist
-
----
-
-# Database Architecture
-
-## Current State
-
-Current canonical database column:
-
-```text
-community_id
-```
-
-Used in:
-
-* users
-* services
-* service_requests
-* transactions
-* blog_posts
-* logs
-
-This remains stable during compatibility phases.
-
----
-
-## Future State
-
-Future architecture may progressively introduce:
-
-```text
-organization_id
-```
-
-Migration rules:
-
-* additive first
-* dual-write possible
-* no destructive migration first
-* compatibility required
-* SQLite compatibility mandatory
-
----
-
-# Model Architecture
-
-## Current Compatibility Pattern
-
-Current models may expose BOTH:
-
-```php
-community()
-organization()
-```
-
-Example:
-
-```php
-public function organization(): BelongsTo
-{
-    return $this->belongsTo(
-        Organization::class,
-        'community_id'
-    );
-}
-```
-
-Important:
-
-* explicit `'community_id'` is required
-* otherwise Eloquent derives `organization_id`
-
----
-
-# Tenant Isolation Rules
-
-## Mandatory Rules
-
-Tenant isolation must NEVER be bypassed accidentally.
-
-All organization-scoped resources must remain isolated:
-
-* services
-* requests
-* transactions
-* messaging
-* reviews
-* AI contexts
-* workflows
-
----
-
-## Scope Rules
-
-Current tenant scope:
-
-```text
-BelongsToTenantScope
-```
-
-Current behavior:
-
-1. prefer `current_organization`
-2. fallback to `current_community`
-3. no binding = no scope
-
-This behavior is intentional.
-
----
-
-# Admin Isolation
-
-Admin systems intentionally bypass tenant scope.
-
-Admin controllers:
-
-* may access all organizations
-* may access all members
-* may manage moderation globally
-
-Rules:
-
-* bypasses must remain explicit
-* never bypass implicitly
-* always validate permissions
-
----
-
-# Livewire Considerations
-
-Livewire components must:
-
-* hydrate safely
-* preserve organization context
-* avoid leaking tenant data
-
-Current compatibility examples:
-
-* `communityId` property names may temporarily remain
-* underlying runtime resolution should prefer Organization
-
-Avoid:
-
-* storing large tenant state in Livewire
-* mixing multiple organizations in the same component
-
----
-
-# Blade & View Rules
-
-Current compatibility state:
-
-* `$currentCommunity` still exists
-* `$currentOrganization` may coexist
-
-Rules:
-
-* prefer Organization terminology in new views
-* preserve backward compatibility
-* avoid massive Blade rewrites
-
----
-
-# Playwright & QA Rules
-
-Playwright stability is critical.
-
-Rules:
-
-* existing community routes must remain stable
-* selectors should not break unnecessarily
-* dual-route coverage may be introduced later
-* cross-organization isolation must be tested
-
-Critical QA domains:
-
-* authentication
-* transactions
-* messaging
-* permissions
-* isolation
-* redirects
-
----
-
-# AI System Isolation
-
-AI systems must remain organization-scoped.
-
-AI isolation applies to:
-
-* prompts
-* embeddings
-* memory systems
-* assistants
-* workflows
-* semantic search
-* automation
-
-Rules:
-
-* never leak cross-organization memory
-* never expose cross-organization context
-* isolate AI state carefully
-
----
-
-# Migration Philosophy
-
-The migration strategy is:
-
-```text
-incremental
-compatibility-first
-test-driven
-non-destructive
-```
-
-Avoid:
-
-* giant rewrites
-* breaking renames
-* destructive schema changes
-* uncontrolled refactors
-
-Preferred strategy:
-
-1. compatibility layer
-2. dual naming
-3. runtime migration
-4. route migration
-5. DB migration
-6. cleanup phase
-
----
-
-# Forbidden Anti-Patterns
-
-Never:
-
-* assume Loop = tenant
-* remove community_id prematurely
-* remove current_community abruptly
-* break Playwright stability
-* bypass tenant scope casually
-* mix organization data accidentally
-
----
-
-# Strategic Goal
-
-Final target architecture:
-
-```text
-Platform
-└── Organization (tenant)
-    └── Loops
-        └── Members
-        └── Services
-        └── Transactions
-        └── AI Systems
-```
-
-The goal is:
-
-* conceptual clarity
-* safe migration
-* operational stability
-* long-term maintainability
-* AI-native organizational architecture
+- Global behavior must be explicit.
+- Admin bypasses must be permission-checked.
+- Public business surfaces remain Organization-scoped unless canonical docs say otherwise.
+- `/boucles`, `/partenaires`, and `/partenaires/demande` follow the routing rules summarized in `ai/context/routing-strategy.md`.
+
+## Out Of Scope For This File
+
+- Detailed route matrices.
+- Full migration execution plans.
+- Database migration recipes.
+- Product definitions for Organization, Loop, Member, Interaction, Flux, Signaux, or Journal.
+- Historical Community-era documentation.
+- Implementation-specific code samples beyond the current runtime compatibility fallback.
+
+## Related Agent Context
+
+- Current ROADMAP state and scope limits: `ai/context/current-state.md`.
+- Architecture overview and high-risk areas: `ai/context/architecture.md`.
+- Public French routing and root-domain route rules: `ai/context/routing-strategy.md`.
