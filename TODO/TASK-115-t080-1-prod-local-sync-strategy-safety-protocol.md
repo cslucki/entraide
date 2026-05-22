@@ -2,7 +2,7 @@
 task_id: TASK-115
 title: t080-1-prod-local-sync-strategy-safety-protocol
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-115-t080-1-prod-local-sync-strategy-safety-protocol
 priority: MEDIUM
 
 created_at: 2026-05-22 22:20:00 Europe/Paris
-updated_at: 2026-05-22 22:55:00 Europe/Paris
+updated_at: 2026-05-22 22:31:07 Europe/Paris
 
 labels: []
 
@@ -119,6 +119,26 @@ Recommendation:
 
 Status:
 DONE
+
+## 2026-05-22 22:31:07 Europe/Paris
+
+T080.1 merged into develop via official workflow.
+
+Merge details:
+- Official script used: ./ai/scripts/merge-task.sh TASK-115-t080-1-prod-local-sync-strategy-safety-protocol
+- Source branch: TASK-115-t080-1-prod-local-sync-strategy-safety-protocol
+- Target branch: develop
+- Develop push completed by merge-task.sh.
+- No remote branch deletion performed.
+
+Scope confirmations:
+- No runtime code modified.
+- main / PROD not touched.
+- ALPHA not touched.
+- No dump, import, storage sync, migration, or CAO tooling phase executed during merge.
+
+Status:
+MERGED
 
 # Handoffs
 
