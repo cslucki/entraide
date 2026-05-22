@@ -12,7 +12,7 @@
 | New ROADMAP task | Create TASK file, then assign via CAO |
 | Existing task continuation | Continue on current agent or handoff if quota/blocked |
 | Code implementation with Laravel | Use laravel_developer worker via CAO assign |
-| Documentation cleanup | Use CODEX or Claude directly |
+| Documentation cleanup | Simple read/clean: CODEX or Claude direct; ROADMAP doc task: TASK file + branch |
 | Code review | Use REVIEW worker or Claude |
 | OPS/finalize/merge | Use OPS / OpenCode |
 | Read-only inspection | Use any agent (no CAO needed) |
@@ -28,12 +28,16 @@
 - Laravel-specific implementation required
 - Need a worker with Laravel Boost access + skills maison
 
-**Do NOT use CAO assign for:**
+**Use CAO assign for validation when:**
 
-- Read-only inspection tasks
-- Simple documentation reads
+- Testing the worker pipeline, skills, Laravel Boost, or agent behavior
+- Read-only validation with explicit testing goal
+
+**Avoid CAO assign for:**
+
+- Simple read-only checks without testing objective
 - One-off shell commands
-- Exploratory research
+- Exploratory research without structured goal
 
 **CAO local tools:** Available without CAO assign for quick operations.
 
@@ -66,7 +70,12 @@
 
 - PHP 8.4, Laravel 13.7.0 environment
 - MCP tools: database-schema, database-query, browser-logs, search-docs
-- Skills maison: laravel-conventions, entraide-domain, git-workflow
+
+**CAO workers may also have project skills:**
+
+- laravel-conventions
+- entraide-domain
+- git-workflow
 
 ---
 

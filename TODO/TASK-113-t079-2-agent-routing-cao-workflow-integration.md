@@ -118,6 +118,12 @@ Scope validated: documentation only (ai/ and TODO/).
 - Worker-specific skills configuration not documented here
 - Copier-coller reduction techniques are guidelines, not enforced
 
+**CHANGES_REQUESTED corrections (2026-05-22):**
+- Nuanced CAO assign usage: clarified validation use case vs simple checks
+- Nuanced documentation cleanup: distinguished simple read/clean vs ROADMAP doc tasks
+- Separated Laravel Boost MCP tools from CAO worker project skills
+- Verified docs/ canon paths exist
+
 **Next steps:**
 - Run check-task.sh
 - Finalize and prepare for merge
