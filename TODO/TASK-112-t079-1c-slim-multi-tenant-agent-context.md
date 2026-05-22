@@ -2,18 +2,19 @@
 task_id: TASK-112
 title: T079.1C Slim Multi-Tenant Agent Context
 
-status: IN_PROGRESS
+status: DONE
 
 owner: CODEX
 
-contributors: []
+contributors:
+  - OPENCODE
 
 branch: TASK-112-t079-1c-slim-multi-tenant-agent-context
 
 priority: MEDIUM
 
 created_at: 2026-05-22 15:18:53 Europe/Paris
-updated_at: 2026-05-22 15:18:53 Europe/Paris
+updated_at: 2026-05-22 15:22:04 Europe/Paris
 
 labels:
   - documentation
@@ -21,9 +22,9 @@ labels:
   - roadmap
 
 lock:
-  status: LOCKED
-  agent: CODEX
-  since: 2026-05-22 15:18:53 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
