@@ -100,6 +100,14 @@ Read-only preflight:
 
 No production connection is opened in Phase 0 unless explicitly authorized.
 
+Use the safe preflight guard before any future sync task:
+
+```bash
+./ai/scripts/safe-sync-preflight.sh --dry-run
+```
+
+This command is non-destructive. It reports `OK`, `WARN`, and `FAIL` checks and rejects action arguments by default.
+
 ### Phase 1 - Production Dump
 
 Production operation type: read-only.
