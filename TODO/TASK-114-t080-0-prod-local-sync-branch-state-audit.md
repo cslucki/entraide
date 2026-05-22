@@ -2,7 +2,7 @@
 task_id: TASK-114
 title: t080-0-prod-local-sync-branch-state-audit
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-114-t080-0-prod-local-sync-branch-state-audit
 priority: MEDIUM
 
 created_at: 2026-05-22 22:03:11 Europe/Paris
-updated_at: 2026-05-22 22:20:00 Europe/Paris
+updated_at: 2026-05-22 22:21:00 Europe/Paris
 
 labels: []
 
@@ -109,6 +109,26 @@ Recommendation for T080.1:
 
 Status:
 DONE
+
+## 2026-05-22 22:21:00 Europe/Paris
+
+T080.0 merged into develop via official workflow.
+
+Merge details:
+- Official script used: ./ai/scripts/merge-task.sh TASK-114-t080-0-prod-local-sync-branch-state-audit
+- Source branch: TASK-114-t080-0-prod-local-sync-branch-state-audit
+- Target branch: develop
+- Develop push completed by merge-task.sh.
+- No remote branch deletion performed.
+
+Scope confirmations:
+- No runtime code modified.
+- main / PROD not touched.
+- ALPHA not touched.
+- No dump, sync, migration, or runtime test executed during merge.
+
+Status:
+MERGED
 
 # Handoffs
 
