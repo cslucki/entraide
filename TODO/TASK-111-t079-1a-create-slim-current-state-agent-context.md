@@ -87,3 +87,11 @@ Create a short, operational, non-canonical agent context file at `ai/context/cur
 ## Blockers
 
 - None.
+
+## OPS Closure Note — 2026-05-22 GLM
+
+- REVIEW: APPROVE (documentation-only).
+- Changes: 3 files, documentation-only (ai/context/current-state.md, ai/context/architecture.md, TASK file).
+- No code, no build, no migration, no server, no PROD, no ALPHA, no main touched.
+- Status: DONE, lock: UNLOCKED.
+- Verdict: READY_TO_MERGE into develop.
