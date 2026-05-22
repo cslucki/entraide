@@ -2,7 +2,7 @@
 task_id: TASK-113
 title: T079.2 Agent Routing & CAO Workflow Integration
 
-status: IN_PROGRESS
+status: DONE
 
 owner: CODEX
 
@@ -14,7 +14,7 @@ branch: TASK-113-t079-2-agent-routing-cao-workflow-integration
 priority: MEDIUM
 
 created_at: 2026-05-22 20:27:07 Europe/Paris
-updated_at: 2026-05-22 20:35:00 Europe/Paris
+updated_at: 2026-05-22 20:40:00 Europe/Paris
 
 labels:
   - documentation
@@ -22,9 +22,9 @@ labels:
   - roadmap
 
 lock:
-  status: LOCKED
-  agent: CODEX
-  since: 2026-05-22 20:27:07 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
