@@ -52,6 +52,7 @@ When documents conflict, use this order:
 | Document | Status | Role |
 |---|---|---|
 | `docs/architecture/01-ROOT_DOMAIN_TENANT_RESOLUTION.md` | ARCHITECTURE DECISION | Root-domain Organization resolution strategy. Older `/boucles` legacy readings are superseded by T077.0 and T077.4 for true Boucles. |
+| `docs/architecture/02-PROD_LOCAL_SYNC_STRATEGY.md` | ARCHITECTURE / OPERATIONS SAFETY | Production-to-local database and media sync safety protocol. Does not authorize real dump/import/sync commands. |
 
 ## Migration
 
