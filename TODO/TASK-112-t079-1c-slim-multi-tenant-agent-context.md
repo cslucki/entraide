@@ -2,7 +2,7 @@
 task_id: TASK-112
 title: T079.1C Slim Multi-Tenant Agent Context
 
-status: DONE
+status: MERGED
 
 owner: CODEX
 
