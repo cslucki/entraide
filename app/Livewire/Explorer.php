@@ -125,13 +125,16 @@ class Explorer extends Component
 
     public function render()
     {
+        // Server-authoritative tenant ID — ignores any client-side tampering of $this->communityId
+        $communityId = currentOrganization()?->id;
+
         $categories = Category::with('skills')->get();
 
         if ($this->tab === 'services') {
             $query = Service::withoutGlobalScopes()
                 ->with(['user', 'category', 'skills', 'tags'])
                 ->where('status', 'active')
-                ->where('community_id', $this->communityId);
+                ->where('community_id', $communityId);
 
             if ($this->search) {
                 $search = '%'.$this->search.'%';
@@ -187,7 +190,7 @@ class Explorer extends Component
             $query = ServiceRequest::withoutGlobalScopes()
                 ->with(['user', 'category'])
                 ->where('status', 'open')
-                ->where('community_id', $this->communityId);
+                ->where('community_id', $communityId);
 
             if ($this->search) {
                 $search = '%'.$this->search.'%';
