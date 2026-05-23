@@ -2,7 +2,7 @@
 task_id: TASK-121
 title: restore-dashboard-user-admin-separation (continuation)
 
-status: DONE
+status: MERGED
 
 owner: CODEX-COCKPIT
 
