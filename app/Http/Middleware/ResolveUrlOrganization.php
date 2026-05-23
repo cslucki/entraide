@@ -80,7 +80,7 @@ class ResolveUrlOrganization
         }
 
         if ($this->isAdminDashboardRequest($request)) {
-            return redirect()->route('admin.dashboard');
+            return $next($request);
         }
 
         // Partner slug routes (/{slug}/{feature}): try to resolve, fail-safe 404
