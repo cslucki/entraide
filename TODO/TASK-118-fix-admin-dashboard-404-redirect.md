@@ -2,7 +2,7 @@
 task_id: TASK-118
 title: fix-admin-dashboard-404-redirect
 
-status: DONE
+status: MERGED
 
 owner: CODEX
 
@@ -13,7 +13,7 @@ branch: TASK-118-fix-admin-dashboard-404-redirect
 priority: MEDIUM
 
 created_at: 2026-05-23 08:44:36 Europe/Paris
-updated_at: 2026-05-23 08:58:36 Europe/Paris
+updated_at: 2026-05-23 09:05:45 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -116,6 +116,19 @@ DONE
 
 Lock:
 UNLOCKED
+
+## 2026-05-23 09:05:45 Europe/Paris
+
+Merged into `develop` using official `merge-task.sh`.
+
+Notes:
+- `finalize-task.sh` pushed branch `TASK-118-fix-admin-dashboard-404-redirect`.
+- GitHub Actions check during finalize found no workflow runs for the branch.
+- `merge-task.sh` completed the no-ff merge into `develop`.
+- Merge commit message was corrected before pushing because the terminal editor inserted `:wq` into the generated message; this was a message-only amend.
+
+Status:
+MERGED
 
 # Handoffs
 
