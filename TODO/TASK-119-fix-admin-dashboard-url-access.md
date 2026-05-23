@@ -2,7 +2,7 @@
 task_id: TASK-119
 title: fix-admin-dashboard-url-access
 
-status: DONE
+status: MERGED
 
 owner: CODEX
 
@@ -13,7 +13,7 @@ branch: TASK-119-fix-admin-dashboard-url-access
 priority: MEDIUM
 
 created_at: 2026-05-23 09:21:07 Europe/Paris
-updated_at: 2026-05-23 09:24:47 Europe/Paris
+updated_at: 2026-05-23 09:26:23 Europe/Paris
 
 labels: []
 
@@ -85,6 +85,16 @@ Validation completed:
 - Playwright was not run because no browser interaction or view markup changed; the rendered view is the existing admin dashboard view.
 
 Status updated to DONE and lock released for official gate scripts.
+
+## 2026-05-23 09:26:23 Europe/Paris
+
+Merge completed:
+- `check-task.sh TASK-119` passed.
+- `finalize-task.sh TASK-119` passed and pushed the task branch.
+- `merge-task.sh TASK-119` merged the branch into `develop` and pushed `develop`.
+- PostgreSQL CI started on `develop` for merge commit `7c0c686`.
+
+Status updated to MERGED.
 
 # Handoffs
 
