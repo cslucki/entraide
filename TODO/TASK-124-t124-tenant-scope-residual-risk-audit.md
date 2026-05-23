@@ -2,7 +2,7 @@
 task_id: TASK-124
 title: t124-tenant-scope-residual-risk-audit
 
-status: DONE
+status: MERGED
 
 owner: CODEX
 
@@ -13,7 +13,7 @@ branch: TASK-124-t124-tenant-scope-residual-risk-audit
 priority: MEDIUM
 
 created_at: 2026-05-23 21:20:33 Europe/Paris
-updated_at: 2026-05-23 21:54:24 Europe/Paris
+updated_at: 2026-05-23 21:59:59 Europe/Paris
 
 labels: []
 
@@ -42,7 +42,8 @@ Produire un audit durable des risques tenant-scope résiduels, sans patch runtim
 - [x] Consolider les résultats agents et audit séquentiel si fallback nécessaire
 - [x] Produire `docs/audits/T124-tenant-scope-residual-risk-audit.md`
 - [x] Mettre à jour TASK-124 avec tests, commandes et notes
-- [ ] Finaliser commit/push sans merge
+- [x] Finaliser commit/push sans merge
+- [x] Merge après validation cockpit
 
 ---
 # Progress Log
@@ -140,6 +141,19 @@ Status:
 - Marked DONE.
 - Lock released for finalization.
 
+## 2026-05-23 21:59:59 Europe/Paris
+
+TASK-124 merged after cockpit validation:
+- Verified source branch `TASK-124-t124-tenant-scope-residual-risk-audit`.
+- Verified clean git status before merge.
+- Verified branch diff limited to:
+  - `docs/audits/T124-tenant-scope-residual-risk-audit.md`
+  - `TODO/TASK-124-t124-tenant-scope-residual-risk-audit.md`
+  - `ai/orchestrator/README.md`
+- Merged into `develop` via `./ai/scripts/merge-task.sh TASK-124`.
+- Pushed `develop` to origin.
+- Marked TASK-124 as MERGED.
+
 # Handoffs
 
 # Tests
@@ -157,6 +171,7 @@ Status:
 - 2026-05-23 21:28:54-21:28:58 Europe/Paris — CAO health check outside sandbox: 5/5 OK.
 - 2026-05-23 21:54:24 Europe/Paris — Read-only tenant audit completed. No PHPUnit or Playwright suite run because TASK-124 is audit-only and introduced no runtime code changes.
 - 2026-05-23 21:54:24 Europe/Paris — CAO read-only agents completed: 4 direct successes + 1 success after stale terminal fallback (`bca22b09` → `0e27034c`).
+- 2026-05-23 21:59:59 Europe/Paris — Merge validation completed via `./ai/scripts/merge-task.sh TASK-124`; no runtime tests required because TASK-124 is audit-only.
 
 ---
 
@@ -164,3 +179,4 @@ Status:
 
 - 2026-05-23 21:29:05 Europe/Paris — No runtime application files changed. CAO issue documented before continuing TASK-124 audit.
 - 2026-05-23 21:54:24 Europe/Paris — Future tasks in the audit report are proposals to arbitrate, not approved TASK-125/TASK-126/TASK-127 work.
+- 2026-05-23 21:59:59 Europe/Paris — TASK-124 closed as MERGED on `develop`; main/PROD not touched.
