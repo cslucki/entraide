@@ -79,6 +79,10 @@ class ResolveUrlOrganization
             return $next($request);
         }
 
+        if ($this->isAdminDashboardRequest($request)) {
+            return redirect()->route('admin.dashboard');
+        }
+
         // Partner slug routes (/{slug}/{feature}): try to resolve, fail-safe 404
         // if the partner → Organization mapping is not found.
         // Partner model/table and full resolution are future tasks (T075.4+).
@@ -151,6 +155,13 @@ class ResolveUrlOrganization
         $first = $request->segment(1);
 
         return $first !== null && in_array($first, static::$authenticatedPersonalRoutes);
+    }
+
+    protected function isAdminDashboardRequest(Request $request): bool
+    {
+        return $request->path() === 'dashboard'
+            && Auth::check()
+            && Auth::user()->is_admin;
     }
 
     // Detects /{slug}/{feature} where the first segment is NOT itself a feature route.
