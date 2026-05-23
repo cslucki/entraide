@@ -2,7 +2,7 @@
 task_id: TASK-120
 title: restore-user-dashboard-admin-separation
 
-status: DONE
+status: MERGED
 
 owner: CODEX
 
@@ -13,7 +13,7 @@ branch: TASK-120-restore-user-dashboard-admin-separation
 priority: MEDIUM
 
 created_at: 2026-05-23 09:39:27 Europe/Paris
-updated_at: 2026-05-23 09:41:54 Europe/Paris
+updated_at: 2026-05-23 09:43:18 Europe/Paris
 
 labels: []
 
@@ -76,6 +76,16 @@ Tenant decision:
 - `/admin/dashboard` remains the tenantless global admin surface.
 
 Status updated to DONE and lock released for official gate scripts.
+
+## 2026-05-23 09:43:18 Europe/Paris
+
+Merge completed:
+- `check-task.sh TASK-120` passed.
+- `finalize-task.sh TASK-120` passed and pushed the task branch.
+- `merge-task.sh TASK-120` merged the branch into `develop` and pushed `develop`.
+- PostgreSQL CI started on `develop` for merge commit `100add6`.
+
+Status updated to MERGED.
 
 # Handoffs
 
