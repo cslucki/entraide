@@ -9,7 +9,41 @@ use Tests\TestCase;
 
 class AdminDashboardRedirectTest extends TestCase
 {
-    public function test_admin_without_organization_can_access_dashboard_url_without_redirect(): void
+    public function test_admin_with_organization_gets_user_dashboard_on_dashboard_url(): void
+    {
+        $organization = Community::factory()->create(['is_active' => true]);
+        $admin = User::factory()->create([
+            'is_admin' => true,
+            'community_id' => $organization->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertViewIs('dashboard')
+            ->assertSee('Tableau de bord');
+    }
+
+    public function test_dashboard_and_admin_dashboard_are_distinct_for_admin_with_organization(): void
+    {
+        $organization = Community::factory()->create(['is_active' => true]);
+        $admin = User::factory()->create([
+            'is_admin' => true,
+            'community_id' => $organization->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertViewIs('dashboard');
+
+        $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertViewIs('admin.dashboard');
+    }
+
+    public function test_admin_without_organization_does_not_get_user_or_admin_dashboard_on_dashboard_url(): void
     {
         $admin = User::factory()->create([
             'is_admin' => true,
@@ -18,19 +52,6 @@ class AdminDashboardRedirectTest extends TestCase
 
         $this->actingAs($admin)
             ->get('/dashboard')
-            ->assertOk()
-            ->assertViewIs('admin.dashboard');
-    }
-
-    public function test_admin_dashboard_access_only_matches_exact_dashboard_path(): void
-    {
-        $admin = User::factory()->create([
-            'is_admin' => true,
-            'community_id' => null,
-        ]);
-
-        $this->actingAs($admin)
-            ->get('/dashboard/anything')
             ->assertNotFound();
     }
 
@@ -57,6 +78,7 @@ class AdminDashboardRedirectTest extends TestCase
         $this->actingAs($member)
             ->get('/dashboard')
             ->assertOk()
+            ->assertViewIs('dashboard')
             ->assertSee('Tableau de bord');
     }
 
@@ -72,7 +94,22 @@ class AdminDashboardRedirectTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_tenantless_admin_login_defaults_to_dashboard_url(): void
+    public function test_admin_with_organization_login_defaults_to_dashboard_url(): void
+    {
+        $organization = Community::factory()->create(['is_active' => true]);
+        $admin = User::factory()->create([
+            'is_admin' => true,
+            'community_id' => $organization->id,
+            'password' => Hash::make('password'),
+        ]);
+
+        $this->post(route('login'), [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_tenantless_admin_login_defaults_to_admin_dashboard_url(): void
     {
         $admin = User::factory()->create([
             'is_admin' => true,
@@ -83,6 +120,6 @@ class AdminDashboardRedirectTest extends TestCase
         $this->post(route('login'), [
             'email' => $admin->email,
             'password' => 'password',
-        ])->assertRedirect(route('dashboard', absolute: false));
+        ])->assertRedirect(route('admin.dashboard', absolute: false));
     }
 }
