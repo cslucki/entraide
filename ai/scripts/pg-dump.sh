@@ -35,6 +35,27 @@
 #   ./pg-dump.sh reset              → Import latest dump + migrate + cache clear
 # =========================================================
 
+# =========================================================
+# AUTHENTICATION NOTE (socket vs TCP)
+# =========================================================
+# PostgreSQL sur cette machine écoute sur le socket Unix
+# (default) et sur TCP (127.0.0.1:5432).
+#
+#   Socket → peer authentication  (utilisateur Linux)
+#   TCP    → md5 authentication   (mot de passe)
+#
+# Le script utilise TCP (--host=127.0.0.1) partout, ce qui
+# est compatible avec l'authentification par mot de passe.
+#
+# Si vous lancez pg_restore / psql / pg_dump MANUELLEMENT,
+# vous DEVEZ ajouter -h localhost (ou 127.0.0.1) :
+#
+#   PG CORRECT  : pg_restore -h localhost -U postgres ...
+#   PG ERRONÉ   : pg_restore -U postgres ...             ← socket peer auth
+#
+# Commande de vérification : PGPASSWORD=password psql -h localhost -U postgres ...
+# =========================================================
+
 set -e
 
 BASE_DIR="/home/cyril/claude-code/sites/test.laravel"
@@ -186,7 +207,7 @@ prompt_prod_credentials() {
 # -------------------------------------------------------
 dump_prod_db() {
     local file="$1"
-    echo "→ Dumping production DB to: $file"
+    echo "→ Dumping production DB to: $file (full schema+data, custom format)"
     PGPASSWORD="$PROD_PASS" pg_dump \
       --host="$PROD_HOST" \
       --port="$PROD_PORT" \
@@ -241,6 +262,7 @@ case "${1:-}" in
       --dbname="$PG_DB" \
       --clean \
       --if-exists \
+      --no-owner \
       --verbose \
       "$FILE"
     echo "✓ Import completed"
@@ -313,6 +335,7 @@ case "${1:-}" in
       --dbname="$PG_DB" \
       --clean \
       --if-exists \
+      --no-owner \
       "$LATEST"
     echo "✓ Import completed"
     echo "→ Running pending migrations..."
@@ -373,24 +396,24 @@ case "${1:-}" in
     dump_prod_db "$MIRROR_FILE"
     echo "✓ Phase 1/4 — Dump completed"
     echo ""
-    echo "Phase 2/4 — Import into local PostgreSQL"
-    echo "─────────────────────────────────────────"
+    echo "Phase 2/4 — Drop local tables"
+    echo "────────────────────────────────"
     confirm_destructive "Import production dump into LOCAL database" "$PG_DB@$PG_HOST:$PG_PORT"
+    php artisan db:wipe --force
+    echo "✓ Phase 2/4 — Local tables dropped"
+    echo ""
+    echo "Phase 3/4 — Restore production data & apply migrations"
+    echo "───────────────────────────────────────────────────────"
     pg_restore \
       --host="$PG_HOST" \
       --port="$PG_PORT" \
       --username="$PG_USER" \
       --dbname="$PG_DB" \
-      --clean \
-      --if-exists \
+      --no-owner \
       --verbose \
       "$MIRROR_FILE"
-    echo "✓ Phase 2/4 — Import completed"
-    echo ""
-    echo "Phase 3/4 — Run pending migrations"
-    echo "─────────────────────────────────────"
     php artisan migrate --force
-    echo "✓ Phase 3/4 — Migrations up to date"
+    echo "✓ Phase 3/4 — Production data + local migrations applied"
     echo ""
     echo "Phase 4/4 — Clear application cache"
     echo "────────────────────────────────────"
@@ -406,9 +429,10 @@ case "${1:-}" in
     echo ""
     echo "Next steps (CODE):"
     echo "  1. ./ai/scripts/switch-db.sh pgsql"
-    echo "  2. php artisan test"
-    echo "  3. npx playwright test"
-    echo "  4. Validate runtime parity"
+    echo "  2. php artisan db:seed --class=QaAccountsSeeder --force"
+    echo "  3. php artisan test"
+    echo "  4. npx playwright test"
+    echo "  5. Validate runtime parity"
     ;;
 
   *)

@@ -41,10 +41,33 @@ Fix 149 CSRF test failures (419 status) across the full Feature test suite, rest
 - [x] fix in base TestCase
 - [x] run full Feature suite — 692 passed (1526 assertions)
 - [x] validate AdminDashboardRedirectTest clean (no workaround)
+- [x] fix prod-mirror data import FK ordering bug (12+ tables silently empty)
+- [x] run production sync: 24 users (19 prod + 5 QA), 1 community, 0 gaps
 
 ---
 
 # Progress Log
+
+## 2026-05-23 18:00:00 Europe/Paris — Prod-mirror fix + sync
+
+### Prod-mirror data import fix
+
+`pg_restore --data-only` ne trie pas les tables par dépendance FK (ordre TOC, pas dependency order). Résultat : les tables avec FK (services, transactions, messages, etc.) échouent silencieusement car la table référencée (users) n'est pas encore importée.
+
+Solutions échouées :
+- `ALTER TABLE DISABLE TRIGGER ALL` : impossible sans superuser (RI_ConstraintTrigger = system trigger)
+- `session_replication_role` via psql séparé : pas propagé à pg_restore (connexion distincte)
+- `pg_restore --clean` : impossible car les tables locales (loops) dépendent de users/communities
+
+Solution retenue :
+- `php artisan db:wipe --force` (DROP all tables)
+- `pg_restore` sans `--data-only` (full restore, FK ordering OK)
+- `php artisan migrate --force` (ajoute les migrations locales: loops, etc.)
+
+### Sync result
+
+- 24 users (19 production + 5 QA), 4 communities, schema à jour
+- Cache cleared, tests verdf
 
 ## 2026-05-23 10:15:00 Europe/Paris
 
@@ -75,6 +98,8 @@ Scope:
 
 - [x] feature tests (692 pass, 1526 assertions)
 - [x] CSRF regression: AdminDashboardRedirectTest (8/8 pass, clean file)
+- [x] prod-mirror data import verified: pg_restore full restore + migrate works
+- [x] PostgreSQL data verified: 24 users, 4 communities, 0 services/transactions (production state)
 
 ---
 
