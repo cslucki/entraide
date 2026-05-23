@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Admin\AdminController;
 use App\Models\Transaction;
 use Illuminate\View\View;
 
@@ -12,6 +13,10 @@ class DashboardController extends Controller
         $organization = currentOrganization();
 
         if (! $organization) {
+            if (auth()->user()?->is_admin) {
+                return app(AdminController::class)->dashboard();
+            }
+
             abort(404);
         }
 
