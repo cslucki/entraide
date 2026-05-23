@@ -415,10 +415,15 @@ case "${1:-}" in
     php artisan migrate --force
     echo "✓ Phase 3/4 — Production data + local migrations applied"
     echo ""
-    echo "Phase 4/4 — Clear application cache"
-    echo "────────────────────────────────────"
+    echo "Phase 4/5 — Backfill legacy data to default organization"
+    echo "─────────────────────────────────────────────────────────"
+    php artisan db:seed --class=LegacyDataOrganizationSeeder --force
+    echo "✓ Phase 4/5 — Legacy data mapped to default organization"
+    echo ""
+    echo "Phase 5/5 — Clear application cache"
+    echo "─────────────────────────────────────"
     php artisan optimize:clear
-    echo "✓ Phase 4/4 — Cache cleared"
+    echo "✓ Phase 5/5 — Cache cleared"
     echo ""
     echo "═════════════════════════════════════════════════"
     echo "  ✓ MIRROR COMPLETE"
