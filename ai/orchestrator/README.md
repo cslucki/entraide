@@ -188,6 +188,85 @@ cao launch --agents "/chemin/absolu/mon-agent.md" ...
 
 `cao session list`, `cao launch`, `cao session view` nécessitent que `cao-server` soit en cours d'exécution. Il écoute par défaut sur `127.0.0.1:9889`.
 
+### UI `Live` / `Offline` intermittent et `terminal does not support clear`
+
+Symptômes observés :
+
+- Web UI CAO qui alterne `Live` / `Offline`
+- terminal CAO fermé avec `open terminal failed: terminal does not support clear`
+- session en `error` sans réponse exploitable, par exemple terminal `0033046b`
+- `cao launch` bloqué puis timeout OpenCode après 120s
+
+Diagnostic important :
+
+- Ne pas conclure que `cao-server` est arrêté depuis un shell sandboxé Codex/OpenCode : le sandbox réseau peut faire échouer `curl http://127.0.0.1:9889/health` avec `Couldn't connect to server` alors que le serveur est bien vivant hors sandbox.
+- Vérifier hors sandbox ou depuis un terminal local :
+
+```bash
+curl -sS http://127.0.0.1:9889/health
+cao session list
+ps -ef | rg 'cao-server|cao-glm-start|cli-agent-orchestrator'
+tail -n 120 ~/.aws/cli-agent-orchestrator/logs/cao_server_glm.log
+```
+
+Cause identifiée le 2026-05-23 :
+
+- L'environnement Codex/OpenCode peut exposer `TERM=dumb`.
+- `TERM=dumb` ne fournit pas la capacité terminfo `clear`; une TUI qui appelle `clear` peut échouer avec `terminal does not support clear`.
+- CAO lance les agents dans tmux. La documentation officielle CAO confirme que les sessions sont des sessions tmux attachables, et que OpenCode est encore expérimental côté CAO.
+- La version CAO locale injecte déjà `TERM=xterm-256color` dans la commande OpenCode (`opencode_cli.py`) et dans l'environnement tmux, mais les sessions créées avant correction ou les shells appelants `TERM=dumb` peuvent rester en état `error`.
+
+Procédure de stabilisation :
+
+```bash
+# 1. Vérifier que le serveur répond vraiment.
+curl -sS http://127.0.0.1:9889/health
+
+# 2. Nettoyer les sessions CAO en erreur plutôt que de relancer par-dessus.
+cao shutdown --session cao-<session-name>
+# ou, si aucune session utile ne tourne :
+cao shutdown --all
+
+# 3. Redémarrer cao-server lui-même avec un TERM exploitable.
+# Important : les terminaux tmux héritent du TERM du processus cao-server,
+# pas du TERM du client `cao launch`.
+env TERM=xterm-256color COLORTERM=truecolor _bash_cyril/cao/cao-glm-start
+
+# 4. Relancer ensuite l'agent.
+cao launch \
+  --agents audit-scope-policies \
+  --session-name t124-withoutglobalscope-audit \
+  --headless \
+  --async \
+  --provider opencode_cli \
+  "Instructions..."
+```
+
+Vérifications utiles :
+
+```bash
+echo "$TERM"
+infocmp "$TERM" | rg 'clear='
+TERM=xterm-256color clear
+tmux -V
+ps -ef | rg 'tmux new-session|CAO_TERMINAL_ID'
+```
+
+Dans la ligne `tmux new-session`, vérifier que l'argument contient `-eTERM=xterm-256color`. Si la ligne contient encore `-eTERM=dumb`, relancer seulement `cao launch` ne suffit pas : il faut redémarrer `cao-server` avec `env TERM=xterm-256color ...`.
+
+Note environnement local 2026-05-23 : `/usr/bin/tmux` est en `3.2a` sur Ubuntu Jammy. Si des erreurs terminal persistent malgré `TERM=xterm-256color`, considérer la version tmux comme suspecte et tester une version `3.3+` avant de conclure à un bug CAO applicatif.
+
+Si `cao launch` crée une session mais que OpenCode échoue ensuite avec `Unexpected server error` sur `config.providers`, `provider.list`, `app.agents` ou `config.get`, ce n'est plus le bug `clear`. Inspecter alors :
+
+```bash
+tail -n 120 ~/.aws/cli-agent-orchestrator/logs/cao_*.log
+tail -n 120 ~/.aws/opencode/log/*.log 2>/dev/null
+```
+
+Dans ce cas, fermer la session en erreur avant de relancer. Éviter les relances multiples en parallèle : elles saturent la boucle de polling et donnent une impression `Live` / `Offline` alors que le serveur HTTP reste joignable.
+
+Si les logs CAO répètent ensuite une erreur de type `can't find window: <nom-window>` ou `Failed to get terminal <terminal_id>`, vérifier d'abord `cao session list`. Si la session n'apparaît plus, il s'agit probablement d'une référence stale créée par un lancement échoué après allocation du terminal tmux. Exemple observé le 2026-05-23 : terminal `bca22b09`, window `audit-scope-policies-4f7a`, après un `Shell initialization timed out after 10 seconds`. Dans ce cas, ne pas relancer plusieurs agents en parallèle : nettoyer toute session encore visible avec `cao shutdown --session ...`, confirmer que `cao session list` est vide, puis relancer l'agent seul. Le résultat peut parfois être récupéré dans `~/.aws/cli-agent-orchestrator/logs/terminal/<terminal_id>.log` même si l'API `/terminals/<id>/output` ne référence plus le terminal.
+
 ## Source des profils
 
 Les profils d'agents CAO sont éditables dans :
