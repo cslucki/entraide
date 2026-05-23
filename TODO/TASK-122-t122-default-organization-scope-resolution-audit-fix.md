@@ -2,7 +2,7 @@
 task_id: TASK-122
 title: t122-default-organization-scope-resolution-audit-fix
 
-status: DONE
+status: MERGED
 
 owner: CODEX
 
