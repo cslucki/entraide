@@ -2,7 +2,7 @@
 task_id: TASK-123
 title: t123-blog-public-surface-tenant-scope-hardening
 
-status: DONE
+status: MERGED
 
 owner: CODEX
 
@@ -13,7 +13,7 @@ branch: TASK-123-t123-blog-public-surface-tenant-scope-hardening
 priority: MEDIUM
 
 created_at: 2026-05-23 19:51:50 Europe/Paris
-updated_at: 2026-05-23 21:35:00 Europe/Paris
+updated_at: 2026-05-23 21:20:03 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -139,6 +139,14 @@ Décisions clés :
 
 Phase 5 — Finalisation en cours...
 
+## 2026-05-23 21:20:03 Europe/Paris
+
+Phase 6 — Merge confirmé :
+- TASK-123 présente dans `develop` via `4651382 merge(task): TASK-123 blog & public surface tenant scope hardening`
+- Commits `37ae0bb` et `f81cb9f` inclus dans `origin/develop`
+- GitHub Actions PostgreSQL CI `26341317007` verte sur `develop`
+- Statut TASK synchronisé à `MERGED`
+
 # Modified Files
 
 - `app/Http/Controllers/ProfileController.php` — guard org dans show() (+5 lignes)
@@ -162,10 +170,10 @@ n/a (mono-opérateur)
 
 # Test Results
 
-Pending.
+- 2026-05-23 21:20:03 Europe/Paris — GitHub Actions PostgreSQL CI `26341317007` sur `develop` : ✅ success.
 
 ---
 
 # Review Notes
 
-Pending.
+- 2026-05-23 21:20:03 Europe/Paris — Merge TASK-123 confirmé, aucun blocage résiduel identifié avant ouverture TASK-124.
