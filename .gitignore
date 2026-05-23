@@ -62,3 +62,4 @@ ai/playwright/test-results/
 ai/playwright/screenshots/
 playwright-report/
 test-results/
+.claude/projects/
