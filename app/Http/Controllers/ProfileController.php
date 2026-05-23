@@ -17,6 +17,11 @@ class ProfileController extends Controller
 {
     public function show(User $user): View
     {
+        $organization = currentOrganization();
+        if (! $organization || $user->community_id !== $organization->id) {
+            abort(404);
+        }
+
         $services = $user->services()->where('status', 'active')->with('category', 'skills')->latest()->get();
         $openRequests = $user->serviceRequests()->where('status', 'open')->with('category')->latest()->get();
         $completedCount = Transaction::where(function ($q) use ($user) {
