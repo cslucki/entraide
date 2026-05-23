@@ -13,7 +13,7 @@ branch: TASK-127-t127-tenant-scope-p0-regression-fixes
 priority: HIGH
 
 created_at: 2026-05-24 00:15:05 Europe/Paris
-updated_at: 2026-05-24 00:30:00 Europe/Paris
+updated_at: 2026-05-24 00:45:00 Europe/Paris
 
 labels:
   - tenant
