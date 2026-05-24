@@ -29,12 +29,12 @@ use Tests\TestCase;
  * Ils devront être ADAPTÉS lors des futures tâches T140.x.
  *
  * Domaines caractérisés :
- *   1. BelongsToTenantScope filtre actuellement sur community_id
+ *   1. BelongsToTenantScope filtre sur organization_id (migré par T140.1)
  *   2. CurrentOrganization::get() peut encore fallback sur current_community
  *   3. ResolveCommunity bind encore current_community + current_organization
  *   4. ResolveApiOrganization dépend encore de $user->community_id
  *   5. Routes legacy /{community} restent fonctionnelles
- *   6. Loop dépend encore de community_id et n'a pas organization_id
+ *   6. Loop a organization_id (migré par T140.2)
  *   7. Broadcast channels comparent encore community_id
  */
 class T1392LegacyCharacterizationTest extends TestCase
@@ -60,10 +60,10 @@ class T1392LegacyCharacterizationTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 1. BelongsToTenantScope filtre sur community_id
+    // 1. BelongsToTenantScope filtre sur organization_id
     // ─────────────────────────────────────────────────────────────
 
-    public function test_belongs_to_tenant_scope_filters_by_community_id(): void
+    public function test_belongs_to_tenant_scope_filters_by_organization_id(): void
     {
         $other = Organization::factory()->create();
 
@@ -84,8 +84,9 @@ class T1392LegacyCharacterizationTest extends TestCase
         $this->assertEquals('Scoped Service', $services->first()->title);
     }
 
-    public function test_belongs_to_tenant_scope_uses_community_id_column(): void
+    public function test_belongs_to_tenant_scope_uses_organization_id_column(): void
     {
+        // Migrated by T140.1 — scope bascule community_id → organization_id
         $scope = new BelongsToTenantScope;
         $model = new Service;
 
@@ -95,7 +96,7 @@ class T1392LegacyCharacterizationTest extends TestCase
         $scope->apply($query, $model);
 
         $sql = $query->toSql();
-        $this->assertStringContainsString('community_id', $sql);
+        $this->assertStringContainsString('organization_id', $sql);
     }
 
     public function test_belongs_to_tenant_scope_returns_empty_when_no_org_bound(): void

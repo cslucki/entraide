@@ -27,8 +27,8 @@ use Tests\TestCase;
  *   (ou retirer le @group pour exécution locale)
  *
  * Risques documentés :
- *   1. BelongsToTenantScope devrait filtrer sur organization_id à terme
- *   2. Loop devrait avoir organization_id à terme
+ *   1. ✓ BelongsToTenantScope filtre sur organization_id (résolu par T140.1)
+ *   2. ✓ Loop a organization_id (résolu par T140.2)
  *   3. current_community devrait disparaître à terme
  *   4. ResolveApiOrganization devrait être organization-first à terme
  *   5. Broadcast channels devraient comparer organization_id à terme
@@ -59,21 +59,13 @@ class T1392KnownRisksTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Known Risk 1: BelongsToTenantScope devrait filtrer sur
-    // organization_id (pas community_id)
+    // Known Risk 1: BelongsToTenantScope filtre sur organization_id
+    // (migré par T140.1)
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * @group tenant-known-risk
-     */
     public function test_known_risk_scope_should_filter_by_organization_id(): void
     {
-        $this->markTestSkipped(
-            'KNOWN RISK — T140.1: BelongsToTenantScope filtre actuellement sur community_id. '.
-            'Objectif : remplacer WHERE community_id = ? par WHERE organization_id = ?. '.
-            'Activation : après migration DB complète et validation HasOrganizationId sync.'
-        );
-
+        // Migrated by T140.1 — scope bascule community_id → organization_id
         $scope = new BelongsToTenantScope;
         $query = Service::query();
         $scope->apply($query, new Service);
@@ -81,7 +73,7 @@ class T1392KnownRisksTest extends TestCase
         $this->assertStringContainsString(
             'organization_id',
             $query->toSql(),
-            'BelongsToTenantScope devrait filtrer sur organization_id à terme'
+            'BelongsToTenantScope devrait filtrer sur organization_id'
         );
     }
 
