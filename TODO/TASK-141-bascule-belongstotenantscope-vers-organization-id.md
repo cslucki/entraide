@@ -2,7 +2,7 @@
 task_id: TASK-141
 title: Bascule BelongsToTenantScope vers organization_id
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPCODE
 
@@ -18,7 +18,7 @@ updated_at: 2026-05-24 20:08:00 Europe/Paris
 labels: []
 
 lock:
-  status: LOCKED
+  status: UNLOCKED
   agent: OPCODE
   since: 2026-05-24 20:08:00 Europe/Paris
 
