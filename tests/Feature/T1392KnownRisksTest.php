@@ -37,6 +37,9 @@ use Tests\TestCase;
  *   8. View variable currentCommunity ne devrait plus être partagée par les middlewares
  *   9. ResolveUrlOrganization ne devrait pas binder current_community en fallback
  *   10. ResolveCommunity devrait être déprécié après migration des routes
+ *   11. Redirects /{community} → /org/{organization} à prévoir après dépréciation community.* routes
+ *   12. Dépréciation des noms de route community.* après migration complète vers organization.*
+ *   13. Duplicate content SEO entre /{community} et /org/{organization} — canonical à définir
  */
 class T1392KnownRisksTest extends TestCase
 {
@@ -276,5 +279,72 @@ class T1392KnownRisksTest extends TestCase
                 app('router')->hasMiddlewareAlias('community'),
             'ResolveCommunity devrait être déprécié'
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Known Risk 11: Redirects /{community} → /org/{organization}
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * @group tenant-known-risk
+     */
+    public function test_known_risk_community_route_redirect_to_org(): void
+    {
+        $this->markTestSkipped(
+            'KNOWN RISK — T140.6+: Les routes /{community} devraient rediriger '.
+            'vers /org/{organization} après dépréciation des routes community.*. '.
+            'Objectif : redirect 301 temporaire puis suppression après migration complète.'
+        );
+
+        $this->get("/{$this->orgA->slug}/")->assertRedirect("/org/{$this->orgA->slug}/");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Known Risk 12: Dépréciation noms de route community.*
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * @group tenant-known-risk
+     */
+    public function test_known_risk_community_route_names_deprecated(): void
+    {
+        $this->markTestSkipped(
+            'KNOWN RISK — T140.6+: Les noms de route community.* devraient être '.
+            'dépréciés après migration complète des appels vers organization.*. '.
+            'Objectif : supprimer les alias community.* après migration controllers/vues.'
+        );
+
+        $this->assertFalse(
+            app('router')->has('community.home'),
+            'community.home ne devrait plus exister'
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Known Risk 13: Duplicate content SEO
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * @group tenant-known-risk
+     */
+    public function test_known_risk_seo_duplicate_content(): void
+    {
+        $this->markTestSkipped(
+            'KNOWN RISK — SEO: Les routes /{community} et /org/{organization} '
+            ."servent le m\u00eame contenu. "
+            ."Objectif : d\u00e9finir une canonical URL unique (organization.*) et redirect "
+            ."les routes legacy apr\u00e8s migration compl\u00e8te."
+        );
+
+        $orgResponse = $this->get("/org/{$this->orgA->slug}/");
+        $communityResponse = $this->get("/{$this->orgA->slug}/");
+
+        $this->assertEquals(
+            $orgResponse->getContent(),
+            $communityResponse->getContent(),
+            'Le contenu devrait \u00eatre identique'
+        );
+
+        $orgResponse->assertHeader('link');
     }
 }
