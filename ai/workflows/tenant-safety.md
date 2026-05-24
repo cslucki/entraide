@@ -98,6 +98,25 @@ APIs must:
 
 ---
 
+# Characterization Gates (T139.2+)
+
+Before any tenant/routing migration:
+
+* **Smoke tests** must cover all critical routes before and after the change
+  - Routes root-level: `/`, `/explorer`, `/membres`, `/blog`, `/boucles`, `/echanges`
+  - Routes admin: `/admin/dashboard`, `/admin/users`, `/admin/services`, `/admin/requests`, `/admin/messages`
+  - Routes community-prefixed: `/{community}/explorer`, `/{community}/dashboard`, `/{community}/membres`
+* **Characterization tests** must freeze the current behavior before modifying it
+  - Scope column used (community_id vs organization_id)
+  - Fallback chain (current_organization → current_community)
+  - Middleware bindings
+  - Route parameter naming ({community} vs {organization})
+* **Known-risk tests** (`@group tenant-known-risk`) must document deferred risks
+  - Skipped by default, explicit activation required
+* **Route-by-route proof** is mandatory to mark DONE
+  - Never mark DONE without per-route validation evidence in TASK file
+* **No silent regressions** — if a route was green before, it must remain green
+
 # Final Validation
 
 Before merge:
