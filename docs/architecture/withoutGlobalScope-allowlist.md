@@ -65,29 +65,27 @@ $totalReferrals = Referral::withoutGlobalScope(BelongsToTenantScope::class)->cou
 
 ---
 
-### 3. HomeController — compat legacy, DETTE, re-filtre explicite
+### 3. HomeController — bypass ciblé, SAFE ✓ (nettoyé T132)
 
 **Fichier :** `app/Http/Controllers/HomeController.php:46-49,76`  
-**Classification :** compat legacy — `withoutGlobalScopes()` (global) + re-filtre manuel  
-**Risque :** MOYEN — `withoutGlobalScopes()` est plus large que nécessaire  
+**Classification :** compat technique ciblé + re-filtre manuel  
+**Risque :** FAIBLE  
 **Tests :** `tests/Feature/T0754DashboardMembersExchangesTenantSafetyTest.php` (4 tests verts)
 
 ```php
-// Lignes 46-49 — membres et compteurs
-'services as active_services_count' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'active')->where('community_id', $communityId),
-'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'open')->where('community_id', $communityId),
-->with(['services' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'active')->where('community_id', $communityId)->with('skills', 'category')])
+// Lignes 46-49 — membres et compteurs (T132)
+'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('community_id', $communityId),
+'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'open')->where('community_id', $communityId),
+->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('community_id', $communityId)->with('skills', 'category')])
 
-// Ligne 76 — échanges
-$exchanges = Transaction::withoutGlobalScopes()
-    // ... puis re-filtre community_id
+// Ligne 76 — échanges (T132)
+$exchanges = Transaction::withoutGlobalScope(BelongsToTenantScope::class)
+    ->where('community_id', $communityId) // re-filtre explicite
 ```
 
-**Justification :** Le bypass est utilisé dans le contexte d'eager loading de relations sur des membres. `withoutGlobalScopes()` est plus large que `withoutGlobalScope(BelongsToTenantScope::class)`, ce qui bypasse potentiellement d'autres scopes si ajoutés. La re-validation sur `community_id` compense.
+**Justification :** Le bypass est utilisé dans le contexte d'eager loading de relations sur des membres. Après T132, la forme est ciblée (`withoutGlobalScope(BelongsToTenantScope::class)`) — seul le scope tenant est bypassé, pas tous les scopes futurs. Le re-filtre `community_id` garantit l'isolation.
 
-**Dette technique :** Remplacer `withoutGlobalScopes()` par `withoutGlobalScope(BelongsToTenantScope::class)` ou supprimer le bypass et utiliser le scope standard.
-
-**Verdict T129 :** Acceptable à court terme grâce aux tests T0754. À nettoyer en étape 3 de la roadmap T128.
+**Verdict T132 :** Nettoyé. Forme ciblée confirmée par 4 tests T0754 verts + batch complet 725/725.
 
 ---
 
@@ -134,8 +132,8 @@ $tx = Transaction::withoutGlobalScopes()->create(array_merge($match, $data));
 | Transaction service lookup | `TransactionController.php:38` | Compat technique ciblé | FAIBLE | ✓ T07515 (5 verts) | Aucune |
 | Transaction request lookup | `TransactionController.php:48` | Compat technique ciblé | FAIBLE | ✓ T07515 (5 verts) | Aucune |
 | Admin referrals global | `AdminReferralController.php:16-48` | Admin plateforme intentionnel | CONDITIONNEL | Non requis | Surveiller si admin multi-niveau |
-| Home members/services | `HomeController.php:46-49` | Legacy, re-filtre explicite | MOYEN | ✓ T0754 (4 verts) | Étape 3 roadmap T128 |
-| Home exchanges | `HomeController.php:76` | Legacy, re-filtre explicite | MOYEN | ✓ T0754 | Étape 3 roadmap T128 |
+| Home members/services | `HomeController.php:46-49` | Ciblé, re-filtre explicite | FAIBLE | ✓ T0754 (4 verts) | Nettoyé T132 ✓ |
+| Home exchanges | `HomeController.php:76` | Ciblé, re-filtre explicite | FAIBLE | ✓ T0754 | Nettoyé T132 ✓ |
 | Explorer services | `Explorer.php:134` | Legacy corrigé T127 | FAIBLE | ✓ T126 (6 verts) | À terme, supprimer bypass |
 | Explorer requests | `Explorer.php:190` | Legacy corrigé T127 | FAIBLE | ✓ T126 (6 verts) | À terme, supprimer bypass |
 | DemoSeeder | `DemoSeeder.php:382,386` | Seeder hors runtime | N/A | N/A | Aucune |

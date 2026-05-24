@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Scopes\BelongsToTenantScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -43,10 +44,10 @@ class HomeController extends Controller
 
         $members = User::where('community_id', $communityId)
             ->withCount([
-                'services as active_services_count' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'active')->where('community_id', $communityId),
-                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'open')->where('community_id', $communityId),
+                'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('community_id', $communityId),
+                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'open')->where('community_id', $communityId),
             ])
-            ->with(['services' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'active')->where('community_id', $communityId)->with('skills', 'category')])
+            ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('community_id', $communityId)->with('skills', 'category')])
             ->orderByDesc('created_at')
             ->paginate(16);
 
@@ -73,7 +74,7 @@ class HomeController extends Controller
 
         $communityId = $organization->id;
 
-        $exchanges = Transaction::withoutGlobalScopes()
+        $exchanges = Transaction::withoutGlobalScope(BelongsToTenantScope::class)
             ->where('status', 'completed')
             ->where('community_id', $communityId)
             ->with(['buyer', 'seller', 'service.category', 'serviceRequest', 'reviews'])
