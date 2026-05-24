@@ -2,7 +2,7 @@
 task_id: TASK-141
 title: Bascule BelongsToTenantScope vers organization_id
 
-status: DONE
+status: MERGED
 
 owner: OPCODE
 
