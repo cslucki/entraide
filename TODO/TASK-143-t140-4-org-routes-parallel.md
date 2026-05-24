@@ -2,7 +2,7 @@
 task_id: TASK-143
 title: T140.4 Routes /org/{organization} en parallèle des routes legacy /{community}
 
-status: DONE
+status: MERGED
 
 owner: CYRIL
 
@@ -13,7 +13,7 @@ branch: TASK-143-t140-4-org-routes-parallel
 priority: MEDIUM
 
 created_at: 2026-05-24 21:00:00 Europe/Paris
-updated_at: 2026-05-24 22:05:00 Europe/Paris
+updated_at: 2026-05-24 22:15:00 Europe/Paris
 
 labels: []
 
@@ -33,7 +33,7 @@ pr:
 
 ## Statut
 
-DONE
+MERGED
 
 ## Objectif
 
