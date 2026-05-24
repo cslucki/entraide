@@ -283,4 +283,45 @@ class T1392RouteSmokeGatesTest extends TestCase
         $this->assertNotNull(route('community.loops.index', ['community' => 'test-org']));
         $this->assertNotNull(route('community.profile.edit', ['community' => 'test-org']));
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // Routes /org/{organization} — smoke tests parallèles
+    // ─────────────────────────────────────────────────────────────
+
+    public function test_organization_home_returns_200(): void
+    {
+        $this->get("/org/{$this->community->slug}/")->assertOk();
+    }
+
+    public function test_organization_explorer_returns_200(): void
+    {
+        $this->get("/org/{$this->community->slug}/explorer")->assertOk();
+    }
+
+    public function test_organization_membres_returns_200(): void
+    {
+        $this->get("/org/{$this->community->slug}/membres")->assertOk();
+    }
+
+    public function test_organization_echanges_returns_200(): void
+    {
+        $this->get("/org/{$this->community->slug}/echanges")->assertOk();
+    }
+
+    public function test_organization_dashboard_returns_200_for_authenticated_user(): void
+    {
+        $this->actingAs($this->user)
+            ->get("/org/{$this->community->slug}/dashboard")
+            ->assertOk();
+    }
+
+    public function test_organization_named_routes_exist(): void
+    {
+        $this->assertNotNull(route('organization.home', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.dashboard', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.explorer', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.members.index', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.loops.index', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.profile.edit', ['organization' => 'test-org']));
+    }
 }

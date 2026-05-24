@@ -265,8 +265,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 // Negative lookahead excludes reserved global slugs so /login, /register, /admin etc. are never captured.
 $communityConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges|partenaires|partners|boucles|loops)[a-z0-9][a-z0-9\-]*';
 
-// Organization route constraint — same slug format as community, reserved for future /org/{organization} routes.
-// Usage: Route::prefix('/org/{organization}')->middleware(['web', 'organization'])->where(['organization' => $organizationConstraint])->group(...)
+// Organization route constraint — same slug format as community.
+// Active routes: /org/{organization} prefix group below.
 $organizationConstraint = $communityConstraint;
 
 Route::get('/{community}', function ($community) {
@@ -365,6 +365,92 @@ Route::prefix('/{community}')
         });
 
         // Routes publiques communauté
+        Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
+        Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
+        Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
+        Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
+        Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
+        Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+    });
+
+// Organization-prefixed routes (/org/{organization}/...) — en parallèle des routes legacy /{community}
+Route::prefix('/org/{organization}')
+    ->middleware(['web', 'organization'])
+    ->where(['organization' => $organizationConstraint])
+    ->name('organization.')
+    ->group(function () {
+        Route::get('/', [CommunityLandingController::class, '__invoke'])->name('home');
+
+        Route::middleware('guest')->group(function () {
+            Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+            Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login');
+            Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
+            Route::post('/register', [RegisteredUserController::class, 'store'])->name('register');
+            Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+            Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+            Route::get('/reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
+            Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.store');
+        });
+
+        Route::middleware('auth')->group(function () {
+            Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+            Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+
+            Route::middleware('profile.complete')->group(function () {
+                Route::get('/services/create', [ServiceController::class, 'create'])->name('services.create');
+                Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
+            });
+            Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->name('services.edit');
+            Route::put('/services/{service}', [ServiceController::class, 'update'])->name('services.update');
+            Route::delete('/services/{service}', [ServiceController::class, 'destroy'])->name('services.destroy');
+
+            Route::middleware('profile.complete')->group(function () {
+                Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
+                Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
+            });
+            Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
+
+            Route::get('/transactions/export', [TransactionController::class, 'exportCsv'])->name('transactions.export');
+            Route::post('/transactions', [TransactionController::class, 'store'])->middleware('throttle:10,1')->name('transactions.store');
+            Route::patch('/transactions/{transaction}/approve', [TransactionController::class, 'approve'])->name('transactions.approve');
+            Route::patch('/transactions/{transaction}/refuse', [TransactionController::class, 'refuse'])->name('transactions.refuse');
+            Route::patch('/transactions/{transaction}/adjust', [TransactionController::class, 'adjust'])->name('transactions.adjust');
+            Route::patch('/transactions/{transaction}/cancel', [TransactionController::class, 'cancel'])->name('transactions.cancel');
+            Route::patch('/transactions/{transaction}/complete', [TransactionController::class, 'complete'])->name('transactions.complete');
+            Route::patch('/transactions/{transaction}/confirm', [TransactionController::class, 'confirm'])->name('transactions.confirm');
+            Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'contest'])->name('transactions.contest');
+
+            Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
+
+            Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+            Route::get('/messages/{transaction}', [MessageController::class, 'show'])->name('messages.show');
+
+            Route::get('/points', [PointController::class, 'index'])->name('points.index');
+
+            Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
+            Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->name('favorites.toggle');
+
+            Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
+            Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->middleware('throttle:5,1')->name('reports.request');
+            Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->middleware('throttle:5,1')->name('reports.user');
+
+            Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+            Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+            Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
+            Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+            Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
+            Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
+            Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
+            Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+            Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
+            Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
+            Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
+            Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
+            Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
+            Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+        });
+
         Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
         Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
