@@ -34,6 +34,9 @@ use Tests\TestCase;
  *   5. Broadcast channels devraient comparer organization_id à terme
  *   6. Routes /org/{organization} devraient exister en parallèle avant dépréciation /{community}
  *   7. Tests Explorer legacy doivent être nettoyés après stabilisation
+ *   8. View variable currentCommunity ne devrait plus être partagée par les middlewares
+ *   9. ResolveUrlOrganization ne devrait pas binder current_community en fallback
+ *   10. ResolveCommunity devrait être déprécié après migration des routes
  */
 class T1392KnownRisksTest extends TestCase
 {
@@ -209,5 +212,69 @@ class T1392KnownRisksTest extends TestCase
         );
 
         $this->assertTrue(true, 'Placeholder — remplacer par vérification réelle dans T140.6');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Known Risk 8: currentCommunity view variable
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * @group tenant-known-risk
+     */
+    public function test_known_risk_current_community_view_should_be_removed(): void
+    {
+        $this->markTestSkipped(
+            'KNOWN RISK — T140.6: View::share(\'currentCommunity\') est un legacy '.
+            'qui partage la même valeur que currentOrganization. '.
+            'Objectif : supprimer le View::share currentCommunity après migration des vues.'
+        );
+
+        $this->assertFalse(
+            view()->getShared()['currentCommunity'] ?? false,
+            'currentCommunity ne devrait plus être partagé aux vues'
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Known Risk 9: ResolveUrlOrganization current_community bind
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * @group tenant-known-risk
+     */
+    public function test_known_risk_resolve_url_organization_should_not_bind_current_community(): void
+    {
+        $this->markTestSkipped(
+            'KNOWN RISK — T140.5: ResolveUrlOrganization::bindOrganization() '.
+            'binde current_community en fallback conditionnel. '.
+            'Objectif : supprimer ce bind après migration API/organization.'
+        );
+
+        $this->assertFalse(
+            app()->bound('current_community'),
+            'ResolveUrlOrganization ne devrait pas binder current_community'
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Known Risk 10: ResolveCommunity deprecated
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * @group tenant-known-risk
+     */
+    public function test_known_risk_resolve_community_should_be_deprecated(): void
+    {
+        $this->markTestSkipped(
+            'KNOWN RISK — T140.9: ResolveCommunity est un middleware legacy qui '.
+            'binde current_community en plus de current_organization. '.
+            'Objectif : déprécier ResolveCommunity après migration complète des routes.'
+        );
+
+        $this->assertFalse(
+            class_exists(\App\Http\Middleware\ResolveCommunity::class) &&
+                app('router')->hasMiddlewareAlias('community'),
+            'ResolveCommunity devrait être déprécié'
+        );
     }
 }

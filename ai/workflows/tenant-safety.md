@@ -117,6 +117,27 @@ Before any tenant/routing migration:
   - Never mark DONE without per-route validation evidence in TASK file
 * **No silent regressions** — if a route was green before, it must remain green
 
+# Tenant Resolution Binding Rules
+
+## Binding Canonique
+
+```php
+app()->instance('current_organization', $organization);  // canonique
+app()->instance('current_community', $organization);      // fallback legacy temporaire (T140.3)
+```
+
+Règles :
+- `current_organization` est le binding canonique — toujours prioritaire
+- `current_community` est un fallback legacy temporaire — à ne pas utiliser dans les nouveaux callers
+- `CurrentOrganization::get()` résout dans cet ordre : `current_organization` → `current_community` → null
+- Suppression de `current_community` interdite sans gates + plan de migration (voir T140.9)
+
+## Interdictions
+
+- Ne PAS introduire de nouveau `app('current_community')` dans les callers
+- Ne PAS supprimer `current_community` sans avoir migré les 14 tests legacy dépendants
+- Ne PAS supprimer `current_community` sans plan de retrait documenté
+
 # Final Validation
 
 Before merge:
