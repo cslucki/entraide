@@ -140,6 +140,13 @@ Task created.
 - Status DONE + UNLOCKED
 
 Étape 11 — Rapport final :
+
+## Post-review (2026-05-24) — 3 vérifications avant merge :
+1. Tests : php artisan test --filter=T1392 → 56 passed, 7 skipped, 0 failures (94 assertions). Verts.
+2. Rapport T139.1 : scope 789 occurrences documenté, T0752 et T126 reconnus. Corrigé.
+3. Script smoke : prérequis "php artisan serve" ajouté dans l'en-tête. Fixé.
+
+Étape 12 — Smoke script corrigé : documentation du prérequis serveur obligatoire.
 - T139.2 terminé : 63 tests de gate créés (29 smoke + 27 caractérisation + 7 skipped known-risks)
 - 1 script smoke local
 - 1 workflow mis à jour

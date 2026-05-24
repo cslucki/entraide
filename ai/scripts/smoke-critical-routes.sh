@@ -4,11 +4,17 @@
 # =============================================================================
 #
 # Usage :
-#   ./ai/scripts/smoke-critical-routes.sh                  # DB locale
+#   ./ai/scripts/smoke-critical-routes.sh                          # http://localhost (port 80)
+#   ./ai/scripts/smoke-critical-routes.sh http://localhost:8000     # php artisan serve
 #   ./ai/scripts/smoke-critical-routes.sh https://staging.example.com   # URL distante
 #
 # Prérequis :
-#   - curl, jq (optionnel mais recommandé)
+#   - curl (obligatoire), jq (optionnel)
+#   - Un serveur Laravel EN COURS D'EXÉCUTION. Pour un test local :
+#       php artisan serve --port=8000 &
+#       ./ai/scripts/smoke-critical-routes.sh http://localhost:8000
+#   - Le serveur doit être accessible depuis le shell
+#   - Ce script NE lance PAS php artisan serve automatiquement
 #   - Ne lance PAS de migration
 #   - Ne modifie AUCUNE donnée
 # =============================================================================
