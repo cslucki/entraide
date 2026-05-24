@@ -2,7 +2,7 @@
 task_id: TASK-140
 title: T140.2 — Add organization_id to loops table
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
