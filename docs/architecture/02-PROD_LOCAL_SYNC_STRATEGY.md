@@ -64,6 +64,7 @@ php artisan cloud:db:show
 
 ```bash
 ./ai/scripts/pg-dump.sh import <file>
+./ai/scripts/pg-dump.sh mirror-import <file>
 ./ai/scripts/pg-dump.sh reset
 ./ai/scripts/pg-dump.sh prod-mirror
 pg_restore --clean ...

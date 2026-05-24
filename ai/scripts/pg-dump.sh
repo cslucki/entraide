@@ -25,13 +25,13 @@
 # =========================================================
 # Usage:
 #   ./pg-dump.sh dump [file]        → Export local PostgreSQL to file
-#   ./pg-dump.sh import <file>      → Import dump into local PostgreSQL
-#   ./pg-dump.sh prod-dump          → Instructions for production dump
+#   ./pg-dump.sh import <file>      → Import dump into local PostgreSQL (legacy, uses --clean)
+#   ./pg-dump.sh mirror-import <file> → Import existing PROD dump + wipe + migrate + backfill + QA
+#   ./pg-dump.sh prod-dump [file]   → Export production PostgreSQL to file (manual creds)
+#   ./pg-dump.sh prod-mirror        → Full prod → local mirror: dump + import + migrate + cache
 #   ./pg-dump.sh schema-only [file] → Export schema only (no data)
 #   ./pg-dump.sh data-only [file]   → Export data only (no schema)
 #   ./pg-dump.sh list               → List available dumps
-#   ./pg-dump.sh prod-dump [file]  → Export production PostgreSQL to file (manual creds)
-#   ./pg-dump.sh prod-mirror       → Full prod → local mirror: dump + import + migrate + cache
 #   ./pg-dump.sh reset              → Import latest dump + migrate + cache clear
 # =========================================================
 
@@ -440,8 +440,74 @@ case "${1:-}" in
     echo "  5. Validate runtime parity"
     ;;
 
+  mirror-import)
+    check_prereqs
+    check_pg_connection
+    check_runtime_env
+    FILE="${2:-}"
+    if [ -z "$FILE" ]; then
+      echo "Error: missing file argument"
+      echo "Usage: $0 mirror-import <dump-file>"
+      exit 1
+    fi
+    if [ ! -f "$FILE" ]; then
+      echo "Error: file not found: $FILE"
+      exit 1
+    fi
+    echo "═════════════════════════════════════════════════"
+    echo "  MIRROR-IMPORT PRODUCTION DUMP INTO LOCAL"
+    echo "═════════════════════════════════════════════════"
+    echo ""
+    echo "Phase 1/5 — Verify dump file"
+    echo "────────────────────────────"
+    echo "Dump file: $(basename "$FILE") ($(du -h "$FILE" | cut -f1))"
+    echo ""
+    confirm_destructive "Mirror-import production dump into LOCAL database" "$FILE"
+    echo "✓ Phase 1/5 — Dump file verified"
+    echo ""
+    echo "Phase 2/5 — Drop local tables"
+    echo "────────────────────────────"
+    php artisan db:wipe --force
+    echo "✓ Phase 2/5 — Local tables dropped"
+    echo ""
+    echo "Phase 3/5 — Restore production data & apply migrations"
+    echo "────────────────────────────────────────────────────"
+    pg_restore \
+      --host="$PG_HOST" \
+      --port="$PG_PORT" \
+      --username="$PG_USER" \
+      --dbname="$PG_DB" \
+      --no-owner \
+      --verbose \
+      "$FILE"
+    php artisan migrate --force
+    echo "✓ Phase 3/5 — Production data + local migrations applied"
+    echo ""
+    echo "Phase 4/5 — Backfill legacy data to default organization"
+    echo "─────────────────────────────────────────────────────────"
+    php artisan db:seed --class=LegacyDataOrganizationSeeder --force
+    echo "✓ Phase 4/5 — Legacy data mapped to default organization"
+    echo ""
+    echo "Phase 5/5 — Inject QA accounts and clear cache"
+    echo "─────────────────────────────────────────────────"
+    php artisan db:seed --class=QaAccountsSeeder --force
+    php artisan optimize:clear
+    echo "✓ Phase 5/5 — QA accounts injected, cache cleared"
+    echo ""
+    echo "═════════════════════════════════════════════════"
+    echo "  ✓ MIRROR-IMPORT COMPLETE"
+    echo "  Local:  $PG_HOST:$PG_PORT/$PG_DB"
+    echo "  Dump:   $(basename "$FILE")"
+    echo "═════════════════════════════════════════════════"
+    echo ""
+    echo "Next steps (CODE):"
+    echo "  1. php artisan test"
+    echo "  2. npx playwright test"
+    echo "  3. Validate runtime parity"
+    ;;
+
   *)
-    echo "Usage: $0 {dump|import|schema-only|data-only|list|prod-dump|prod-mirror|reset} [file]"
+    echo "Usage: $0 {dump|import|schema-only|data-only|list|prod-dump|prod-mirror|mirror-import|reset} [file]"
     echo ""
     echo "Commands:"
     echo "  dump [file]         Export full database to custom-format dump"
@@ -452,6 +518,7 @@ case "${1:-}" in
     echo "  reset               Import latest dump + migrate + cache clear"
     echo "  prod-dump [file]    Dump production Laravel Cloud database"
     echo "  prod-mirror         Full prod → local mirror: dump + import + migrate + cache"
+    echo "  mirror-import <file> Import existing production dump + migrate + backfill + QA"
     echo ""
     echo "Production credentials:"
     echo "  Private file: /home/cyril/.config/bouclepro/prod-db.env"
