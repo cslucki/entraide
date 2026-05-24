@@ -2,7 +2,7 @@
 task_id: TASK-135
 title: prod-local-db-resync-before-product-work
 
-status: DONE
+status: MERGED
 
 owner: CODEX
 
