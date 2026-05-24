@@ -16,22 +16,22 @@ use Tests\TestCase;
  * Vérifie le comportement du système quand community_id != organization_id
  * sur un même enregistrement.
  *
- * Source du risque : T124 audit — BelongsToTenantScope filtre sur community_id,
+ * Source du risque : T124 audit — BelongsToTenantScope filtrait sur community_id,
  * mais ServicePolicy::resourceBelongsToCurrentOrganization() vérifie organization_id.
- * En cas de désync, un enregistrement peut être visible dans les listes (scope)
+ * En cas de désync, un enregistrement pouvait être visible dans les listes (scope)
  * mais autoriser/bloquer des actions incohéremment (policy).
  *
- * Ces tests documentent le comportement actuel. Ils ne patchent pas le runtime.
+ * T140.1 a basculé le scope de community_id vers organization_id, ce qui
+ * résout la divergence : scope et policy utilisent désormais la même colonne.
  *
- * Risque principal :
+ * Comportement après T140.1 :
  * - community_id = OrgA, organization_id = OrgB :
- *   → Service visible dans listing OrgA (scope passe)
+ *   → Scope filtre sur organization_id = OrgB → service invisible dans OrgA
  *   → Policy bloque update/delete pour un user OrgA (org_id = OrgB ≠ OrgA)
  *
  * - community_id = OrgB, organization_id = OrgA :
- *   → Service invisible dans listing OrgA (scope filtre par community_id = OrgB)
- *   → Policy autoriserait update/delete pour un user OrgA (org_id = OrgA)
- *   → Mais le service est invisible donc inaccessible par le listing
+ *   → Scope filtre sur organization_id = OrgA → service visible dans OrgA
+ *   → Policy autorise update/delete pour un user OrgA (org_id = OrgA)
  */
 class T126DesyncCommunityOrganizationIdTest extends TestCase
 {
@@ -101,12 +101,14 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
     // -------------------------------------------------------------------------
     // Scénario 1 : community_id = OrgA, organization_id = OrgB (désync A→B)
     //
-    // Risque : le service apparaît dans le listing OrgA (scope OK)
-    // mais la policy rejette l'update (org_id = OrgB ≠ OrgA résolu)
+    // T140.1 a basculé le scope de community_id vers organization_id.
+    // Le scope filtre sur organization_id = OrgB → service invisible dans OrgA.
+    // La divergence scope/policy n'existe plus.
     // -------------------------------------------------------------------------
 
-    public function test_desync_community_a_org_b_is_visible_in_org_a_scope(): void
+    public function test_desync_community_a_org_b_is_invisible_in_org_a_scope(): void
     {
+        // Migrated by T140.1 — scope bascule community_id → organization_id
         app()->instance('current_organization', $this->orgA);
 
         $this->createDesyncedService(
@@ -114,9 +116,8 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
             organizationId: $this->orgB->id,
         );
 
-        // BelongsToTenantScope filtre sur community_id = OrgA → service visible
-        // Si ce test ÉCHOUE, le scope a été amélioré pour détecter la désync.
-        $this->assertCount(1, Service::all());
+        // BelongsToTenantScope filtre sur organization_id = OrgB → service invisible
+        $this->assertCount(0, Service::all());
     }
 
     public function test_desync_community_a_org_b_policy_blocks_update(): void
@@ -134,9 +135,12 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
     }
 
     /**
-     * Divergence confirmée : scope autorise (community_id = OrgA), policy bloque (organization_id = OrgB).
-     * Un service peut être visible dans le listing mais impossible à modifier pour le propriétaire OrgA.
-     * Ce comportement est le risque P0 de désynchronisation documenté par T124.
+     * T140.1 a résolu la divergence : scope et policy utilisent tous deux organization_id.
+     * Scope invisible (organization_id = OrgB ≠ OrgA), policy bloque (organization_id = OrgB ≠ OrgA).
+     * Plus de risque P0 de désynchronisation scope/policy.
+     *
+     * Ce test continue de documenter l'état résiduel : les deux colonnes divergent toujours en DB,
+     * mais le scope et la policy sont désormais alignés sur organization_id.
      */
     public function test_desync_community_a_org_b_creates_scope_policy_divergence(): void
     {
@@ -179,13 +183,14 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
     // -------------------------------------------------------------------------
     // Scénario 2 : community_id = OrgB, organization_id = OrgA (désync B→A)
     //
-    // Risque : service invisible dans listing OrgA (scope filtre sur community_id = OrgB)
-    // mais policy l'autoriserait (org_id = OrgA).
-    // Cas moins critique (invisible ≠ accessible) mais anomalie architecturale.
+    // T140.1 a basculé le scope de community_id vers organization_id.
+    // Scope filtre sur organization_id = OrgA → service visible dans OrgA.
+    // Policy autorise également (org_id = OrgA) → pas de divergence.
     // -------------------------------------------------------------------------
 
-    public function test_desync_community_b_org_a_is_invisible_in_org_a_scope(): void
+    public function test_desync_community_b_org_a_is_visible_in_org_a_scope(): void
     {
+        // Migrated by T140.1 — scope bascule community_id → organization_id
         app()->instance('current_organization', $this->orgA);
 
         $this->createDesyncedService(
@@ -193,8 +198,8 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
             organizationId: $this->orgA->id,
         );
 
-        // Scope filtre community_id = OrgA → service avec community_id = OrgB est exclu
-        $this->assertCount(0, Service::all());
+        // Scope filtre organization_id = OrgA → service visible
+        $this->assertCount(1, Service::all());
     }
 
     public function test_desync_community_b_org_a_policy_would_authorize_if_accessible(): void
