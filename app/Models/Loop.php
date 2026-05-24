@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasOrganizationId;
 use Database\Factories\LoopFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,10 +13,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Loop extends Model
 {
     /** @use HasFactory<LoopFactory> */
-    use HasUuids, HasFactory;
+    use HasUuids, HasFactory, HasOrganizationId;
 
     protected $fillable = [
         'community_id',
+        'organization_id',
         'name',
         'slug',
         'description',
@@ -57,6 +59,11 @@ class Loop extends Model
     public function community(): BelongsTo
     {
         return $this->belongsTo(Community::class, 'community_id');
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'organization_id');
     }
 
     public function creator(): BelongsTo
