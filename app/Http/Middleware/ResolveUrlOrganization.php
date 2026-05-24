@@ -116,7 +116,7 @@ class ResolveUrlOrganization
     {
         $route = $request->route();
 
-        return $route && $route->hasParameter('community');
+        return $route && ($route->hasParameter('community') || $route->hasParameter('organization'));
     }
 
     protected function isPlatformGlobal(Request $request): bool
