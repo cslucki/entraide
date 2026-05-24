@@ -2,7 +2,7 @@
 task_id: TASK-133
 title: t133-release-readiness-branch-state-changelog
 
-status: DONE
+status: MERGED
 
 owner: CODEX
 
@@ -13,7 +13,7 @@ branch: TASK-133-t133-release-readiness-branch-state-changelog
 priority: MEDIUM
 
 created_at: 2026-05-24 09:45:22 Europe/Paris
-updated_at: 2026-05-24 09:57:00 Europe/Paris
+updated_at: 2026-05-24 10:43:10 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: READY
+  status: MERGED
   url: null
 ---
 
@@ -64,6 +64,7 @@ Strict exclusions:
 - [x] Validate diff scope.
 - [x] Mark DONE / unlock before finalization.
 - [x] Run `check-task.sh`, commit, and push branch.
+- [x] Merge into `develop`, push `develop`, and mark TASK as `MERGED`.
 
 ---
 # Progress Log
@@ -178,6 +179,31 @@ Final validation:
 
 - `git status --short --branch` clean on `TASK-133-t133-release-readiness-branch-state-changelog...origin/TASK-133-t133-release-readiness-branch-state-changelog`;
 - `./ai/scripts/check-task.sh TASK-133` passed with `Uncommitted: NO`.
+
+## 2026-05-24 10:43:10 Europe/Paris - CODEX
+
+Validation cockpit completed:
+
+- verified current branch was `TASK-133-t133-release-readiness-branch-state-changelog`;
+- verified `git status --short --branch` was clean before merge;
+- verified `git diff --stat origin/develop...HEAD` contained only:
+  - `CHANGELOG.md`;
+  - `docs/audits/T133-release-readiness-branch-state-changelog.md`;
+  - `TODO/TASK-133-t133-release-readiness-branch-state-changelog.md`.
+- confirmed documentation-only scope:
+  - no runtime file modified;
+  - no migration executed;
+  - no `database/migrations` file modified;
+  - no `main` / PROD action performed.
+- confirmed `CHANGELOG.md` distinguishes:
+  - merged in `develop`;
+  - not yet merged in `main`;
+  - not yet deployed to production.
+- `./ai/scripts/check-task.sh TASK-133` passed.
+- `./ai/scripts/finalize-task.sh TASK-133` passed its internal task check; the branch was already synchronized with origin, and the script stopped at its interactive push prompt in non-TTY execution.
+- `./ai/scripts/merge-task.sh TASK-133` merged the branch into `develop` via no-ff merge commit `4937f9b` and pushed `develop` to origin.
+
+Marked TASK-133 as `MERGED` after successful develop push.
 
 # Handoffs
 
