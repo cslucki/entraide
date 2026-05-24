@@ -15,7 +15,7 @@ return [
 
     'name' => env('APP_NAME', 'BouclePro'),
 
-    'version' => 'v0.130-alpha',
+    'version' => env('APP_VERSION', 'v0.0-alpha'),
 
     /*
     |--------------------------------------------------------------------------

@@ -33,6 +33,26 @@ If `ai/context/*`, prompts, workflows or local notes conflict with `docs/`, `doc
 
 Do not merge without explicit instruction.
 
+## Version System
+
+The platform uses an automatic version bumping system:
+
+**Files:**
+- `VERSION` at project root: contains current version (e.g., `v0.137-alpha`)
+- `config('app.version')`: reads from `VERSION` file via `VersionServiceProvider`
+- Footer displays `config('app.version')`
+
+**Automation:**
+- `ai/scripts/bump-version.sh`: bumps `VERSION` to `v0.{TASK_ID}-alpha`
+- `ai/scripts/merge-task.sh`: calls `bump-version.sh` after successful merge (skips TASK-137 bootstrap)
+
+**Agent rules:**
+- Do NOT edit `VERSION` manually
+- Do NOT edit footer version manually
+- `finalize-task.sh` does NOT update `VERSION`
+- Version bump happens ONLY during `merge-task.sh`
+- Footer version is ALWAYS `config('app.version')`
+
 ## Tooling
 
 Use `ai/tooling/` before raw shell exploration when possible.

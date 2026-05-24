@@ -57,3 +57,21 @@ Agents should:
 - preserve architectural consistency
 
 Never optimize blindly.
+
+---
+
+# Version Management
+
+**Source of truth:** `VERSION` file at project root.
+
+**Flow:**
+1. Footer displays `config('app.version')`
+2. `config('app.version')` reads from `VERSION` file
+3. `ai/scripts/merge-task.sh` calls `bump-version.sh` after merge
+4. `bump-version.sh` writes `v0.{TASK_ID}-alpha` to `VERSION`
+
+**Agent rules:**
+- Do NOT edit `VERSION` manually
+- Do NOT edit footer version manually
+- `finalize-task.sh` does NOT update `VERSION`
+- Version bump is automatic at merge time
