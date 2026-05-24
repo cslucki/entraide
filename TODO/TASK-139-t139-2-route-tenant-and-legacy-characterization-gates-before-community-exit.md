@@ -2,7 +2,7 @@
 task_id: TASK-139.2
 title: Route, Tenant and Legacy Characterization Gates before Community Exit
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: T139.2-t139-2-route-tenant-and-legacy-characterization-gates-before-comm
 priority: MEDIUM
 
 created_at: 2026-05-24 19:11:57 Europe/Paris
-updated_at: 2026-05-24 21:30:00 Europe/Paris
+updated_at: 2026-05-24 22:00:00 Europe/Paris
 
 labels:
   - gates
