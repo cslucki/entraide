@@ -162,6 +162,25 @@ else
 fi
 
 # =========================================================
+# 7.5. BUMP VERSION (bootstrap: skip for TASK-137)
+# =========================================================
+
+echo ""
+if [[ $CURRENT_BRANCH =~ ^TASK-137 ]]; then
+  echo "Skipping version bump for TASK-137 (bootstrap task)."
+  echo "Version system is initialized in TASK-137."
+else
+  echo "Bumping version..."
+  if bash "$SCRIPTS_DIR/bump-version.sh"; then
+    echo "Version bumped successfully."
+    git add "$BASE_DIR/VERSION"
+    git commit -m "chore: bump version" --no-edit || echo "  No version change to commit."
+  else
+    echo "  Warning: version bump failed, but merge continues."
+  fi
+fi
+
+# =========================================================
 # 8. PUSH DEVELOP (with confirmation)
 # =========================================================
 

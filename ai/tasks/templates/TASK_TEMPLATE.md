@@ -67,3 +67,14 @@ Pending.
 # Review Notes
 
 Pending.
+
+---
+
+# Version Notes
+
+**IMPORTANT:**
+- Do NOT edit `VERSION` file manually
+- Do NOT edit footer version manually
+- `finalize-task.sh` does NOT update `VERSION`
+- Version bump is automatic at merge time via `merge-task.sh`
+- Footer always displays `config('app.version')`

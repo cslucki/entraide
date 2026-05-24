@@ -103,6 +103,20 @@ Waiting for merge.
 
 Changes merged into target branch.
 
+Version automatically bumped to `v0.{TASK_ID}-alpha` by `merge-task.sh`.
+
+**IMPORTANT:**
+- Do NOT edit `VERSION` file manually
+- Do NOT edit footer version manually
+- Version bump is enforced by `merge-task.sh`
+- `finalize-task.sh` does NOT update `VERSION`
+
+---
+
+## MERGED
+
+Changes merged into target branch.
+
 ---
 
 ## ARCHIVED
