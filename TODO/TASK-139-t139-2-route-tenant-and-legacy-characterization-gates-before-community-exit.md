@@ -87,7 +87,7 @@ Task created.
 - A. Périmètre : précisé app/, tests/, database/, routes/, resources/, config/, public/
 - B. /membres : clarification couverture partielle par T0752
 - C. ExplorerTest : reclassé cleanup T140.6 (pas P0 bloquant)
-- D. current_community : reclassé "à couvrir par gates, suppression T140.3"
+- D. current_community : reclassé "à couvrir par gates (T140.3), suppression future"
 - E. routes /{community} : reclassé dette legacy compatible, stratégie parallèle
 - F. Organization extends Community : viable temporairement si gates vertes
 - Section "Mises à jour post-Codex (T139.2)" ajoutée en fin de rapport
@@ -196,7 +196,7 @@ Exécuté via `php artisan test --filter=T1392KnownRisksTest` — 7 skipped.
 Risques documentés :
 1. BelongsToTenantScope → organization_id (T140.1)
 2. Loop → organization_id (T140.2)
-3. current_community → removal (T140.3)
+3. current_community → gates + préparation suppression future (T140.3)
 4. ResolveApiOrganization → organization-first (T140.5)
 5. Broadcast channels → organization_id (T140.5)
 6. Routes /org/{organization} → parallèle (T140.4)

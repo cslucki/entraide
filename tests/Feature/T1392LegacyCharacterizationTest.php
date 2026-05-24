@@ -298,14 +298,15 @@ class T1392LegacyCharacterizationTest extends TestCase
         $this->assertEquals($this->community->id, $loop->community_id);
     }
 
-    public function test_loop_does_not_have_organization_id_column(): void
+    public function test_loop_has_organization_id(): void
     {
         $loop = Loop::factory()->create([
             'community_id' => $this->community->id,
         ]);
 
         $this->assertNotNull($loop->community_id);
-        $this->assertNull($loop->organization_id ?? null);
+        $this->assertNotNull($loop->organization_id);
+        $this->assertEquals($loop->community_id, $loop->organization_id);
     }
 
     public function test_loop_belongs_to_community(): void
@@ -318,13 +319,15 @@ class T1392LegacyCharacterizationTest extends TestCase
         $this->assertEquals($this->community->id, $loop->community->id);
     }
 
-    public function test_loop_does_not_have_organization_relation(): void
+    public function test_loop_has_organization_relation(): void
     {
         $loop = Loop::factory()->create([
             'community_id' => $this->community->id,
         ]);
 
-        $this->assertFalse(method_exists($loop, 'organization'));
+        $this->assertTrue(method_exists($loop, 'organization'));
+        $this->assertNotNull($loop->organization);
+        $this->assertEquals($this->community->id, $loop->organization->id);
     }
 
     // ─────────────────────────────────────────────────────────────

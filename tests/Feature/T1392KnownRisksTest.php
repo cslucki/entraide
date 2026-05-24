@@ -94,12 +94,6 @@ class T1392KnownRisksTest extends TestCase
      */
     public function test_known_risk_loop_should_have_organization_id(): void
     {
-        $this->markTestSkipped(
-            'KNOWN RISK — T140.2: Loop na pas organization_id. '.
-            'Objectif : ajouter organization_id nullable + backfill + HasOrganizationId trait + factory. '.
-            'Impact : LoopService, LoopMessageService, tests Loop doivent être migrés.'
-        );
-
         $loop = Loop::factory()->create([
             'community_id' => $this->orgA->id,
         ]);
@@ -107,6 +101,12 @@ class T1392KnownRisksTest extends TestCase
         $this->assertNotNull(
             $loop->organization_id,
             'Loop devrait avoir organization_id'
+        );
+
+        $this->assertEquals(
+            $loop->community_id,
+            $loop->organization_id,
+            'organization_id doit être synchronisé avec community_id'
         );
     }
 
