@@ -2,7 +2,7 @@
 task_id: TASK-142
 title: T140.3 current_community fallback gates + plan de retrait
 
-status: DONE
+status: MERGED
 
 owner: OPCODE
 
