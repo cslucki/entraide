@@ -9,6 +9,7 @@
 #   ./ai/scripts/media-pull.sh "https://bouclepro.com/avatars/foo.png"
 #   ./ai/scripts/media-pull.sh "https://bouclepro.com/services/bar.jpg"
 #   ./ai/scripts/media-pull.sh "https://bouclepro.com/blog/header.webp"
+#   ./ai/scripts/media-pull.sh "https://entraide-main-1xztoq.free.laravel.cloud/storage/avatars/foo.png"
 # =========================================================
 
 set -e
@@ -16,11 +17,36 @@ set -e
 BASE_DIR="/home/cyril/claude-code/sites/test.laravel"
 STORAGE_DIR="$BASE_DIR/storage/app/public"
 
+# Allowed production domains (allowlist)
+ALLOWED_DOMAINS=(
+    "bouclepro.com"
+    "entraide-main-1xztoq.free.laravel.cloud"
+    "test.laravel"
+    "fls-a1b940d8-a0fe-4409-8ee2-b7c9b832bfbd.laravel.cloud"
+)
+
 check_prereqs() {
     if ! command -v curl &>/dev/null; then
         echo "Error: 'curl' not found."
         exit 1
     fi
+}
+
+check_domain_allowed() {
+    local url="$1"
+    local domain
+    
+    domain=$(echo "$url" | sed -E 's|^https?://([^/]+).*$|\1|')
+    
+    for allowed in "${ALLOWED_DOMAINS[@]}"; do
+        if [[ "$domain" == *"$allowed"* ]]; then
+            return 0
+        fi
+    done
+    
+    echo "✗ Error: domain '$domain' not in allowlist"
+    echo "  Allowed domains: ${ALLOWED_DOMAINS[*]}"
+    exit 1
 }
 
 check_storage_link() {
@@ -47,6 +73,7 @@ fi
 URL="$1"
 
 check_prereqs
+check_domain_allowed "$URL"
 check_storage_link
 
 MEDIA_PATH=$(echo "$URL" | sed -E 's|^https?://[^/]+/||' | sed 's/\?.*$//')
