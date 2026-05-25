@@ -21,6 +21,8 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | ↳ Lot C — Livewire + Views | ✅ MERGED | `TASK-144-t140-5E-lotC-livewire-views` | LOCKED |
 | ↳ Lot B — Admin controllers | ✅ MERGED | `TASK-144-t140-5E-lotB-admin` | LOCKED |
 | ↳ Lot D — ResolveUrlOrganization | ✅ MERGED | `TASK-144-t140-5E-lotD-middleware` | LOCKED |
+| T140.5F — Stabilization | ✅ MERGED | `TASK-144-post-t140-5-stabilization` | LOCKED |
+| T140.5G — Final Review | 🔒 LOCKED | — | LOCKED |
 
 ## Périmètre T140.5A
 
@@ -139,7 +141,9 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 | T140.5B — LoopService + LoopMessageService | ✅ MERGED | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | ✅ MERGED | LOCKED |
 | T140.5D — Controllers métier | ✅ MERGED | LOCKED |
-| T140.5E — Admin/Auth/Livewire cleanup | LOCKED | LOCKED |
+| T140.5E — Admin/Auth/Livewire cleanup | ✅ COMPLETE | LOCKED |
+| T140.5F — Stabilization | ✅ MERGED | LOCKED |
+| T140.5G — Final Review | 🔒 LOCKED | LOCKED |
 
 ## Governance Hardening — Leçons T140.5A/T140.5B
 
@@ -254,6 +258,8 @@ Priorité 0 (LoopMember queries) **annulée** — faux positifs confirmés.
 - 2026-05-25 : T140.5E Lot B (4 Admin controllers, ~13 refs) mergé (826 pass). Enchaînement Lot D (ResolveUrlOrganization).
 - 2026-05-25 : T140.5E Lot D (ResolveUrlOrganization middleware, 2 refs) mergé (826 pass).
 - 2026-05-25 : **T140.5 complet — rendez-vous humain final.**
+- 2026-05-25 : **T140.5F — Stabilization** : PHPStan 10→0, 826 pass. Mergé.
+- 2026-05-25 : **T140.5G — Final Review Cluster** : créé, LOCKED. Attente ouverture.
 
 ## État final T140.5
 
@@ -269,3 +275,5 @@ Priorité 0 (LoopMember queries) **annulée** — faux positifs confirmés.
 | ↳ Lot C — Livewire + Views | ✅ MERGED | 826 pass |
 | ↳ Lot D — ResolveUrlOrganization | ✅ MERGED | 826 pass |
 | ↳ Lot E — helpers.php | ✅ MERGED | 826 pass |
+| T140.5F — Stabilization | ✅ MERGED | 826 pass / PHPStan 0 |
+| T140.5G — Final Review | 🔒 LOCKED | — |
