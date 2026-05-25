@@ -19,8 +19,8 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | ↳ Lot E — helpers.php | ✅ MERGED | `TASK-144-t140-5E-lotE-helpers` | LOCKED |
 | ↳ Lot A — Controllers métier | ✅ MERGED | `TASK-144-t140-5E-lotA-controllers` | LOCKED |
 | ↳ Lot C — Livewire + Views | ✅ MERGED | `TASK-144-t140-5E-lotC-livewire-views` | LOCKED |
-| ↳ Lot B — Admin controllers | IN PROGRESS | `TASK-144-t140-5E-lotB-admin` | UNLOCKED |
-| ↳ Lot D — ResolveUrlOrganization | LOCKED | — | LOCKED |
+| ↳ Lot B — Admin controllers | ✅ MERGED | `TASK-144-t140-5E-lotB-admin` | LOCKED |
+| ↳ Lot D — ResolveUrlOrganization | IN PROGRESS | `TASK-144-t140-5E-lotD-middleware` | UNLOCKED |
 
 ## Périmètre T140.5A
 
