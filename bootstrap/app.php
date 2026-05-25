@@ -28,12 +28,20 @@ return Application::configure(basePath: dirname(__DIR__))
             'url.organization' => ResolveUrlOrganization::class,
             'api.organization' => ResolveApiOrganization::class,
         ]);
-        // T075.2 : middleware créé, testé, alias « url.organization » disponible.
-        // Web group integration deferred to T075.3+ : 36 tests fail because they
-        // hit business routes without setting up an Organization.
-        $middleware->appendToGroup('web', [
+        // TASK-145: Reorder web group so ResolveUrlOrganization runs BEFORE
+        // SubstituteBindings. With appendToGroup, ResolveUrlOrganization ran AFTER
+        // SubstituteBindings, meaning route model binding (Service $service, etc.)
+        // fired BEFORE the Organization was resolved. BelongsToTenantScope then
+        // blocked every query with whereRaw('0=1'), causing 404 on model-bound
+        // routes like /services/{service}/edit.
+        $middleware->group('web', [
+            \Illuminate\Cookie\Middleware\EncryptCookies::class,
+            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             EnsureUserIsNotBanned::class,
             ResolveUrlOrganization::class,
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ]);
         $middleware->appendToGroup('api', [
             ResolveApiOrganization::class,
