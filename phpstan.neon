@@ -1,0 +1,15 @@
+# Configuration PHPStan — Review Cluster
+
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - app/Services/LoopService.php
+        - app/Services/LoopMessageService.php
+        - app/Services/ReferralService.php
+        - app/Services/RewardDispatcher.php
+        - app/Http/Controllers/LoopController.php
+    bootstrapFiles:
+        - vendor/autoload.php
