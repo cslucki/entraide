@@ -17,9 +17,9 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | T140.5D — Controllers métier | ✅ MERGED | `TASK-144-t140-5D-controllers-metier` | LOCKED |
 | T140.5E — Admin/Auth/Livewire cleanup | PARTIEL | — | LOCKED |
 | ↳ Lot E — helpers.php | ✅ MERGED | `TASK-144-t140-5E-lotE-helpers` | LOCKED |
-| ↳ Lot A — Controllers métier | IN PROGRESS | `TASK-144-t140-5E-lotA-controllers` | UNLOCKED |
+| ↳ Lot A — Controllers métier | ✅ MERGED | `TASK-144-t140-5E-lotA-controllers` | LOCKED |
+| ↳ Lot C — Livewire + Views | IN PROGRESS | `TASK-144-t140-5E-lotC-livewire-views` | UNLOCKED |
 | ↳ Lot B — Admin controllers | LOCKED | — | LOCKED |
-| ↳ Lot C — Livewire + Views | LOCKED | — | LOCKED |
 | ↳ Lot D — ResolveUrlOrganization | LOCKED | — | LOCKED |
 
 ## Périmètre T140.5A
@@ -248,4 +248,5 @@ Priorité 0 (LoopMember queries) **annulée** — faux positifs confirmés.
 - 2026-05-25 : T140.5E en pause — attente rapport REVIEW_CLUSTER sur T140.5A-D.
 - 2026-05-25 : **Governance Update post-audit** — conflit REVIEW_ARCHITECT/TENANT_SAFETY_REVIEWER résolu (TENANT_SAFETY_REVIEWER correct). Doctrine Guard Before Query validée. Faux positifs LoopMember confirmés. Confidence levels intégrés. Priorité 0 annulée. Rendez-vous humain avant T140.5E.
 - 2026-05-25 : T140.5E Lot E (helpers.php) mergé. Lots A/B/C/D LOCKED.
-- 2026-05-25 : **Rendez-vous humain levé** pour enchaînement automatique T140.5E. Ordre : A → C → B → D. Conditions : lot précédent MERGED, develop propre, tests verts, tous GO, scope fixe, aucune violation, pas de finding CRITICAL reproductible, pas de modif gouvernance.
+- 2026-05-25 : **Rendez-vous humain levé** pour enchaînement automatique T140.5E. Ordre : A → C → B → D.
+- 2026-05-25 : T140.5E Lot A — 9 controllers métier (42 refs), mergé (826 pass). Enchaînement Lot C. Conditions : lot précédent MERGED, develop propre, tests verts, tous GO, scope fixe, aucune violation, pas de finding CRITICAL reproductible, pas de modif gouvernance.
