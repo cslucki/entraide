@@ -16,8 +16,8 @@ use Tests\TestCase;
  * T126 — Explorer Livewire Tenant Isolation (P0)
  *
  * Vérifie que le composant Explorer isole correctement les données par Organization.
- * Source du risque : T124 audit — Explorer::$communityId est une propriété publique
- * Livewire. Le composant utilise withoutGlobalScopes() puis filtre sur $this->communityId.
+ * Source du risque : T124 audit — Explorer::$organizationId est une propriété publique
+ * Livewire. Le composant utilise withoutGlobalScopes() puis filtre sur $this->organizationId.
  * Un tampering de cette propriété côté client contourne l'isolation tenant.
  *
  * Tests verts : comportement normal attendu.
@@ -105,29 +105,29 @@ class T126ExplorerTenantScopingTest extends TestCase
             ->assertDontSee('T126_REQUEST_ORG_B_HIDDEN');
     }
 
-    public function test_explorer_mount_initializes_community_id_from_current_organization(): void
+    public function test_explorer_mount_initializes_organization_id_from_current_organization(): void
     {
         $component = Livewire::test(Explorer::class);
 
-        $component->assertSet('communityId', $this->orgA->id);
+        $component->assertSet('orgId', $this->orgA->id);
     }
 
     // -------------------------------------------------------------------------
     // Test de tampering — P0 — risque Livewire public property
     //
     // Ce test vérifie si un attaquant peut voir les données d'une autre
-    // Organization en forçant la propriété publique `communityId` via Livewire.
+    // Organization en forçant la propriété publique `organizationId` via Livewire.
     //
     // Si ce test ÉCHOUE (assertDontSee échoue), le risque P0 est CONFIRMÉ :
     // le composant affiche des données cross-org après tampering.
     //
     // Patch recommandé (non appliqué ici, à valider COCKPIT) :
-    // - Rendre communityId protected ou computed
-    // - Ou recomputer communityId côté serveur dans chaque render()
-    //   avec une vérification : $this->communityId = currentOrganization()?->id;
+    // - Rendre organizationId protected ou computed
+    // - Ou recomputer organizationId côté serveur dans chaque render()
+    //   avec une vérification : $this->organizationId = currentOrganization()?->id;
     // -------------------------------------------------------------------------
 
-    public function test_explorer_tampering_community_id_does_not_expose_cross_org_services(): void
+    public function test_explorer_tampering_organization_id_does_not_expose_cross_org_services(): void
     {
         Service::factory()->forUser($this->userB)->for($this->category)->create([
             'title' => 'T126_SERVICE_ORG_B_TAMPERING_TARGET',
@@ -135,13 +135,13 @@ class T126ExplorerTenantScopingTest extends TestCase
             'community_id' => $this->orgB->id,
         ]);
 
-        // Tampering: forcer communityId à l'ID de l'org B alors que current_org = org A
+        // Tampering: forcer orgId à l'ID de l'org B alors que current_org = org A
         Livewire::test(Explorer::class)
-            ->set('communityId', $this->orgB->id)
+            ->set('orgId', $this->orgB->id)
             ->assertDontSee('T126_SERVICE_ORG_B_TAMPERING_TARGET');
     }
 
-    public function test_explorer_tampering_community_id_does_not_expose_cross_org_requests(): void
+    public function test_explorer_tampering_organization_id_does_not_expose_cross_org_requests(): void
     {
         ServiceRequest::factory()->for($this->userB)->for($this->category)->create([
             'title' => 'T126_REQUEST_ORG_B_TAMPERING_TARGET',
@@ -151,7 +151,7 @@ class T126ExplorerTenantScopingTest extends TestCase
 
         Livewire::test(Explorer::class)
             ->call('switchTab', 'requests')
-            ->set('communityId', $this->orgB->id)
+            ->set('orgId', $this->orgB->id)
             ->assertDontSee('T126_REQUEST_ORG_B_TAMPERING_TARGET');
     }
 }
