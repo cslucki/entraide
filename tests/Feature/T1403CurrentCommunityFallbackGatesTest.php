@@ -147,6 +147,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
             'tests/Feature/LoopMemberInvariantTest.php',
             'tests/Feature/T0757ProfileOrganizationScopingTest.php',
             'tests/Feature/Api/ApiTenantScopingTest.php',
+            'app/Http/Middleware/ResolveApiOrganization.php',
         ];
 
         $candidates = [];
