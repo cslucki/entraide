@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
+use App\Services\ReferralCodeGenerator;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,6 +15,9 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
+/**
+ * @property string|null $organization_id
+ */
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -23,7 +27,7 @@ class User extends Authenticatable
     {
         static::creating(function (User $user) {
             if (! $user->isDirty('referral_code')) {
-                $user->referral_code = app(\App\Services\ReferralCodeGenerator::class)->generate($user);
+                $user->referral_code = app(ReferralCodeGenerator::class)->generate($user);
             }
         });
     }

@@ -77,6 +77,7 @@ class RewardDispatcher
                     'activated_at' => now(),
                 ]);
 
+                assert($referral->referrer instanceof User);
                 $this->award($referral, $referral->referrer, $event->user, 'member_activated', 1, (int) config('referral.rewards.activation.level_1_referrer', 20), $event->metadata);
                 $this->handleL2Activation($referral, $event);
             }
@@ -106,6 +107,7 @@ class RewardDispatcher
             'status' => 'pending',
         ]);
 
+        assert($l2->referrer instanceof User);
         $this->award($l2, $l2->referrer, $event->referred, 'member_invited', 2, (int) config('referral.rewards.invitation.level_2_referrer', 5), $event->metadata);
     }
 
@@ -124,6 +126,7 @@ class RewardDispatcher
             'activated_at' => now(),
         ]);
 
+        assert($l2->referrer instanceof User);
         $this->award($l2, $l2->referrer, $event->user, 'member_activated', 2, (int) config('referral.rewards.activation.level_2_referrer', 10), $event->metadata);
     }
 
