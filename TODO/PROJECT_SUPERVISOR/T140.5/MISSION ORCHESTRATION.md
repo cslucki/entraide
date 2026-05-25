@@ -1,6 +1,6 @@
 # MISSION ORCHESTRATION T140.5
 Fichier : `TODO/PROJECT_SUPERVISOR/T140.5/MISSION ORCHESTRATION.md`
-Mise à jour : 2026-05-25 14:41:31 Europe/Paris
+Mise à jour : 2026-05-25 Governance Hardening — règles renforcées, orchestration multi-agents obligatoire, rendez-vous humains
 Tu es OpenCode Workspace.
 
 ## Objectif
@@ -27,13 +27,12 @@ Toute implémentation doit être :
 
 ## Architecture agents
 
-Architecture cible :
+Architecture agents (subtask-agnostic) :
 
 - PRIMARY_1_PROJECT_SUPERVISOR
 - PRIMARY_2_REVIEW_SUPERVISOR
-- TECH_WRITER
-- TEST_WORKER_API_CHANNELS
-- TEST_WORKER_TENANT_SAFETY
+- TECH_WRITER (un seul par sous-tâche)
+- TEST_WORKER (cellule générique : tests unitaires + tenant safety)
 - STEP_GLOBAL_REVIEWER
 
 ## PRIMARY_1_PROJECT_SUPERVISOR
@@ -223,26 +222,26 @@ Les branches prévues sont maintenues dans :
 
 ## Branches autorisées
 
-### Branche active
+### Branches actives
+
+Aucune — point de rendez-vous actif.
+
+### Branches LOCKED à venir
 
 ```text
-TASK-144-t140-5A-channels-resolve-api-organization
-```
-
-### Branches futures LOCKED
-
-```text
-TASK-144-t140-5B-loop-services
 TASK-144-t140-5C-referral-reward
 TASK-144-t140-5D-controllers-metier
 TASK-144-t140-5E-admin-auth-livewire
 ```
 
-Ces branches ne doivent pas exister tant que :
+Ces branches ne doivent pas exister tant qu’une décision explicite (humaine ou autonome) n’a pas été prise pour chaque sous-tâche.
 
-* T140.5A n’est pas MERGED ;
-* les règles d’autonomie ne sont pas satisfaites ;
-* une décision explicite n’a pas été prise.
+### Branches historiques (MERGED)
+
+```text
+TASK-144-t140-5A-channels-resolve-api-organization ✅ MERGED
+TASK-144-t140-5B-loop-services                      ✅ MERGED
+```
 
 ---
 
@@ -559,29 +558,44 @@ alors le PROJECT_SUPERVISOR doit :
 
 ## Principe
 
-Le PROJECT_SUPERVISOR peut décider seul :
+Le PROJECT_SUPERVISOR peut décider seul le push + merge d'une sous-tâche T140.5 si toutes les conditions suivantes sont vraies.
 
-* push ;
-* merge ;
-* clôture T140.5A ;
+Ce document définit les règles pour toutes les sous-tâches (A, B, C, D, E).
 
-si toutes les conditions suivantes sont vraies.
+## Conditions obligatoires (toute sous-tâche)
 
-## Conditions obligatoires
-
-* T140.5A est `DONE — PRÊT MERGE` dans `MASTER_PLAN.md` ;
+* la sous-tâche est `DONE — PRÊT MERGE` dans `MASTER_PLAN.md` ;
 * REVIEW_SUPERVISOR verdict GO ;
 * STEP_GLOBAL_REVIEWER verdict GO ;
-* TEST_WORKER_API_CHANNELS verdict GO ;
-* TEST_WORKER_TENANT_SAFETY verdict GO ;
-* le commit T140.5A existe ;
+* TEST_WORKER verdict GO ;
+* le commit de la sous-tâche existe ;
 * les tests post-commit sont verts ;
-* le commit est limité au périmètre T140.5A ;
+* le commit est limité au périmètre autorisé de la sous-tâche ;
 * aucun fichier interdit dans le commit ;
-* aucun changement de mode parasite dans le commit ;
-* T140.5B/C/D/E restent LOCKED ;
-* aucune branche T140.5B/C/D/E n’existe ;
-* aucun TASK file T140.5B/C/D/E n’a été créé.
+* develop est propre (aucun changement non commité, aucune sale branche) ;
+* les sous-tâches suivantes restent LOCKED (sauf si règles d'enchaînement) ;
+* aucune branche des sous-tâches suivantes n'existe.
+
+## Règles d'enchaînement autonome
+
+Le PROJECT_SUPERVISOR peut enchaîner automatiquement sur la sous-tâche suivante SI :
+
+* sous-tâche courante MERGED ✅ ;
+* develop propre ;
+* aucun bloqueur actif ;
+* le MASTER_PLAN ne spécifie PAS de point de rendez-vous humain entre les deux sous-tâches.
+
+## Conditions de retour humain obligatoire
+
+Le PROJECT_SUPERVISOR DOIT marquer un point de rendez-vous et attendre validation humaine si :
+
+* changement de phase métier (ex: services → controllers, ou controllers → admin) ;
+* incertitude sur le périmètre d'une sous-tâche ;
+* conflit Git irrésoluble ;
+* violation de périmètre détectée ;
+* bloqueur runtime non résoluble ;
+* divergence entre rapports d'agents (ex: TECH_WRITER GO mais TEST_WORKER NO-GO) ;
+* le superviseur humain (Cyril) l'exige explicitement.
 
 ## Si toutes les conditions sont vraies
 
@@ -594,21 +608,22 @@ Le PROJECT_SUPERVISOR peut :
 
 Le PROJECT_SUPERVISOR ne peut PAS :
 
-* démarrer T140.5B ;
-* créer une branche T140.5B ;
-* modifier le runtime après merge.
+* lancer la sous-tâche suivante si un point de rendez-vous est actif ;
+* modifier le runtime après merge ;
+* sauter une étape d'orchestration.
 
 ## Si une condition manque
 
 Ne pas :
 
 * push ;
-* merge.
+* merge ;
+* unlock sous-tâche suivante.
 
-Créer :
+Créer un rapport dans :
 
 ```text
-TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/PROJECT_SUPERVISOR/BLOCKED_PUSH_MERGE_T140.5A.md
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/PROJECT_SUPERVISOR/BLOCKED_<SUBTASK>.md
 ```
 
 ---
@@ -784,31 +799,164 @@ TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/STEP_GLOBAL_REVIEWER/REVIEW_T140.5A.md
 
 ---
 
-# Séquence d’exécution
+# Séquence d’exécution (subtask-agnostic)
 
-1. PROJECT_SUPERVISOR crée le master plan.
+1. PROJECT_SUPERVISOR crée le master plan + TASK file.
 2. REVIEW_SUPERVISOR valide le périmètre.
-3. TECH_WRITER implémente T140.5A.
-4. TEST_WORKER_API_CHANNELS lance les tests.
-5. TEST_WORKER_TENANT_SAFETY vérifie tenant safety.
-6. STEP_GLOBAL_REVIEWER relit diff + docs + tests.
-7. REVIEW_SUPERVISOR rend verdict final.
-8. PROJECT_SUPERVISOR met à jour MASTER_PLAN.md.
-9. Si vert : commit.
-10. Si Autonomous decision rules satisfaites :
-    push + merge autorisés.
-11. Après merge :
-    T140.5B reste LOCKED jusqu’à validation explicite.
+3. TECH_WRITER implémente la sous-tâche.
+4. TEST_WORKER lance les tests ciblés + tenant safety.
+5. STEP_GLOBAL_REVIEWER relit diff + docs + tests.
+6. REVIEW_SUPERVISOR rend verdict final.
+7. PROJECT_SUPERVISOR met à jour MASTER_PLAN.md.
+8. Si vert : commit.
+9. Si Autonomous decision rules satisfaites : push + merge.
+10. Si un point de rendez-vous humain est actif : STOP, attendre validation.
+11. Sinon : enchaînement autonome sur sous-tâche suivante.
+
+## Types de TEST_WORKER par sous-tâche
+
+| Sous-tâche | Focus tests |
+|------------|-------------|
+| T140.5A | API/channels + broadcast + tenant safety |
+| T140.5B | LoopService + LoopMessageService + tenant safety |
+| T140.5C | ReferralService + RewardDispatcher + tenant safety |
+| T140.5D | LoopController (routes web, policies, Livewire) + tenant safety |
+| T140.5E | Admin/Auth/Livewire cleanup + tenant safety |
 
 ---
 
-# État final attendu
+### TEST_WORKER generic
 
-* T140.5A uniquement implémenté ;
-* tests verts ;
-* rapports produits ;
-* review globale produite ;
-* MASTER_PLAN mis à jour ;
-* aucun changement hors périmètre ;
-* aucun push/merge sans validation humaine OU Autonomous decision rules ;
-* T140.5B/C/D/E toujours LOCKED.
+## Mode
+
+read-only/test-only.
+
+Peut être spécialisé par sous-tâche (ex: TEST_WORKER_API_CHANNELS, TEST_WORKER_T140.5B, etc.).
+
+## Mission
+
+Valider :
+* tests ciblés de la sous-tâche ;
+* absence de régressions ;
+* tenant safety (cross-org isolation) ;
+* cohérence avec les sous-tâches précédentes mergées.
+
+## Livrable
+
+```text
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TEST_WORKER_<SUBTASK>/REPORT_<SUBTASK>.md
+```
+
+---
+
+# Governance Hardening
+
+## Origine
+
+Le comportement observé lors de T140.5B a révélé une dérive : le PROJECT_SUPERVISOR a commencé à coder directement au lieu de déléguer au TECH_WRITER via sous-agent.
+
+Cette section fige la correction.
+
+## Règles absolues
+
+1. **PROJECT_SUPERVISOR ne code jamais.** Il ne modifie jamais :
+   - app/
+   - routes/
+   - tests/
+   - docs/
+
+2. **PROJECT_SUPERVISOR ne teste jamais.** Il orchestre, coordonne, décide, merge — mais n'exécute pas de tests lui-même.
+
+3. **PROJECT_SUPERVISOR ne review pas.** La revue est déléguée à STEP_GLOBAL_REVIEWER + REVIEW_SUPERVISOR.
+
+4. **Orchestration multi-agents obligatoire.** Une sous-tâche sans TECH_WRITER/TEST_WORKER/STEP_GLOBAL_REVIEWER/REVIEW_SUPERVISOR explicites est invalide.
+
+5. **Les sous-agents sont exécutés via `task` tool**, pas par le PROJECT_SUPERVISOR lui-même.
+
+## Cycle de sous-tâche complet et obligatoire
+
+```text
+TECH_WRITER (implémente)
+  → TEST_WORKER (tests + tenant safety)
+    → STEP_GLOBAL_REVIEWER (revue périmètre)
+      → REVIEW_SUPERVISOR (verdict final)
+        → PROJECT_SUPERVISOR (commit + push + merge)
+```
+
+Aucune étape ne peut être sautée.
+
+## Règle : rendez-vous humain obligatoire après modification gouvernance
+
+### Quand
+
+Après toute modification de :
+- `MASTER_PLAN.md`
+- `MISSION ORCHESTRATION.md`
+- règles d’autonomie
+- règles d’orchestration
+- doctrine multi-agents
+- règles merge/unlock
+
+### Pourquoi
+
+Ces fichiers définissent le comportement du système autonome lui-même. Ils doivent être validés humainement avant poursuite.
+
+### Effet
+
+Aucune nouvelle branche, aucun unlock, aucune nouvelle orchestration, tant que le rendez-vous gouvernance n’a pas eu lieu.
+
+### Avec qui
+
+Cyril (supervision humaine principale).
+
+Cette règle évite : dérive autonome, auto-modification incontrôlée, changement silencieux des règles du système.
+
+## Cas particulier : sous-tâche triviale
+
+Si une sous-tâche est suffisamment petite (1 fichier, ≤ 5 lignes), le PROJECT_SUPERVISOR peut fusionner les rôles TEST_WORKER + STEP_GLOBAL_REVIEWER en une seule étape, mais jamais coder lui-même.
+
+---
+
+# Points de rendez-vous humains
+
+## Définition
+
+Un point de rendez-vous humain est un arrêt obligatoire de l'orchestration autonome, imposant un retour du superviseur humain (Cyril) avant toute poursuite.
+
+## Liste des points de rendez-vous T140.5
+
+| # | Position | Raison | Statut |
+|---|----------|--------|--------|
+| 0 | **Modification gouvernance** | **Après toute modification de MASTER_PLAN.md, MISSION ORCHESTRATION.md, règles d'autonomie/orchestration/doctrine** | **⚠️ ACTIF** |
+| 1 | Après T140.5A | Fin phase API/channels | ✅ Complété (validation donnée) |
+| 2 | **Après T140.5B** | **Fin phase services. Stabilisation gouvernance avant controllers.** | **⚠️ ACTIF** |
+| 3 | Après T140.5C | Fin phase referrals/rewards | À venir |
+| 4 | Après T140.5D | Fin phase controllers métier. Avant admin/Auth/Livewire | À venir |
+
+## Effets
+
+Quand un point de rendez-vous est actif :
+
+* le PROJECT_SUPERVISOR s'arrête après le merge de la sous-tâche en cours ;
+* il produit un rapport d'étape ;
+* il attend une décision humaine explicite (GO / NO-GO / périmètre ajusté) ;
+* il n'ouvre aucune sous-tâche suivante sans cette validation.
+
+## Lever un point de rendez-vous
+
+Un point de rendez-vous est levé quand le superviseur humain :
+* confirme la poursuite (GO) ;
+* ajuste le périmètre si nécessaire ;
+* ou décide un changement de direction.
+
+---
+
+# État final attendu — T140.5 complet
+
+```text
+T140.5A — Channels + ResolveApiOrganization   ✅ MERGED
+T140.5B — LoopService + LoopMessageService     ✅ MERGED
+T140.5C — ReferralService + RewardDispatcher   🔒 LOCKED
+T140.5D — Controllers métier                   🔒 LOCKED
+T140.5E — Admin/Auth/Livewire cleanup          🔒 LOCKED
+```
