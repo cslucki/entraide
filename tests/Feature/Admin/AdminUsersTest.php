@@ -177,25 +177,25 @@ class AdminUsersTest extends TestCase
         $organization = Organization::factory()->create(['is_active' => true]);
 
         $this->actingAs($admin)
-            ->patch(route('admin.users.assign-community', $user), ['community_id' => $organization->id])
+            ->patch(route('admin.users.assign-community', $user), ['organization_id' => $organization->id])
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        $this->assertEquals($organization->id, $user->fresh()->community_id);
+        $this->assertEquals($organization->id, $user->fresh()->organization_id);
     }
 
     public function test_admin_can_remove_user_from_community(): void
     {
         $admin = $this->makeAdmin();
         $organization = Organization::factory()->create(['is_active' => true]);
-        $user = User::factory()->create(['community_id' => $organization->id]);
+        $user = User::factory()->create(['organization_id' => $organization->id]);
 
         $this->actingAs($admin)
-            ->patch(route('admin.users.assign-community', $user), ['community_id' => null])
+            ->patch(route('admin.users.assign-community', $user), ['organization_id' => null])
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        $this->assertNull($user->fresh()->community_id);
+        $this->assertNull($user->fresh()->organization_id);
     }
 
     public function test_admin_cannot_assign_themselves_to_community(): void
@@ -204,23 +204,23 @@ class AdminUsersTest extends TestCase
         $organization = Organization::factory()->create(['is_active' => true]);
 
         $this->actingAs($admin)
-            ->patch(route('admin.users.assign-community', $admin), ['community_id' => $organization->id])
+            ->patch(route('admin.users.assign-community', $admin), ['organization_id' => $organization->id])
             ->assertRedirect()
             ->assertSessionHas('error');
 
-        $this->assertNull($admin->fresh()->community_id);
+        $this->assertNull($admin->fresh()->organization_id);
     }
 
     public function test_assign_community_rejects_invalid_community_id(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['community_id' => null]);
+        $user  = User::factory()->create(['organization_id' => null]);
 
         $this->actingAs($admin)
-            ->patch(route('admin.users.assign-community', $user), ['community_id' => 'nonexistent-uuid'])
-            ->assertSessionHasErrors('community_id');
+            ->patch(route('admin.users.assign-community', $user), ['organization_id' => 'nonexistent-uuid'])
+            ->assertSessionHasErrors('organization_id');
 
-        $this->assertNull($user->fresh()->community_id);
+        $this->assertNull($user->fresh()->organization_id);
     }
 
     public function test_admin_users_list_shows_community_column(): void

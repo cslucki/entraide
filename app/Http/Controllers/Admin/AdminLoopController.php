@@ -14,7 +14,7 @@ class AdminLoopController extends Controller
 
         $orgId = $user->organization_id ?? $user->community_id;
 
-        $loops = Loop::where('community_id', $orgId)
+        $loops = Loop::where('organization_id', $orgId)
             ->with('creator:id,name,email')
             ->withCount('activeMembers')
             ->latest()

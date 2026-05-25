@@ -2,7 +2,7 @@
 task_id: TASK-144-t140-5E-lotB
 title: T140.5E Lot B — Admin controllers community_id → organization_id
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OpenCode
 
