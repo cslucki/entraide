@@ -27,6 +27,8 @@ class LoopController extends Controller
         $organization = CurrentOrganization::get();
 
         if ($organization) {
+            assert($organization instanceof Community);
+
             return $organization;
         }
 
@@ -35,6 +37,8 @@ class LoopController extends Controller
         if (! $user->community) {
             abort(404);
         }
+
+        assert($user->community instanceof Community);
 
         return $user->community;
     }

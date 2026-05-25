@@ -98,6 +98,8 @@ class LoopService
             throw new \RuntimeException('Referred user not found.');
         }
 
+        assert($referred instanceof User);
+
         return $this->addMember($loop, $referred);
     }
 
@@ -115,9 +117,9 @@ class LoopService
                 return $slug;
             }
 
-            $slug = $base . '-' . $i;
+            $slug = $base.'-'.$i;
         }
 
-        return $base . '-' . Str::lower(Str::random(4));
+        return $base.'-'.Str::lower(Str::random(4));
     }
 }
