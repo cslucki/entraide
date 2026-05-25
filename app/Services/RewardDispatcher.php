@@ -132,6 +132,13 @@ class RewardDispatcher
 
     private function award(Referral $referral, User $user, User $source, string $eventType, int $level, int $points, ?array $metadata = null): ReferralReward
     {
+        if ($referral->organization_id !== null) {
+            $currentOrg = app()->bound('current_organization') ? app('current_organization') : null;
+            if ($currentOrg && $referral->organization_id !== $currentOrg->id) {
+                throw new \RuntimeException('Referral belongs to a different organization.');
+            }
+        }
+
         $reward = ReferralReward::create([
             'organization_id' => $referral->organization_id,
             'referral_id' => $referral->id,
