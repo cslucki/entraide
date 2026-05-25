@@ -115,3 +115,9 @@
 | Default Org ≠ User Org | Confirmé | Doctrine claire, testé dans RUN 7 |
 | Refonte middleware nécessaire | FAIBLE | Architecture déjà correcte |
 | Migration destructive nécessaire | ZÉRO | Seed only, pas de migration |
+
+### Commit RUN1
+
+**Hash:** `4de93e2`
+**Date:** 2026-05-25
+**Message:** `task: RUN1 viability audit complete — verdict GO`
