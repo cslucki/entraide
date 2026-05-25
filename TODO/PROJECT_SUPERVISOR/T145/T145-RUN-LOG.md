@@ -260,3 +260,42 @@ Base PostgreSQL locale (`bouclepro`) : 53 migrations exécutées (batch 1), 0 li
 ### Conclusion RUN4
 
 **GO → RUN5** : PHPUnit OrganizationRouteCompatibilityTest — réparer les 2 tests cassés.
+
+---
+
+## RUN 5 — PHPUnit OrganizationRouteCompatibilityTest
+
+**Statut:** ✅ DONE
+**Date:** 2026-05-25
+
+### Problème
+
+2 tests échouaient avec 302 redirect au lieu de 200 :
+- `test_middleware_resolves_organization_route_parameter`
+- `test_organization_param_binds_both_current_keys`
+
+**Root cause :** Utilisation de `/org/{organization}` comme route de test → collision avec le groupe `Route::prefix('/org/{organization}')` dans `web.php` (CommunityLandingController qui redirige vers login pour les communautés non-publiques).
+
+### Fix
+
+| Fichier | Changement |
+|---------|-----------|
+| `tests/Feature/OrganizationRouteCompatibilityTest.php` | Routes de test changées de `/org/` → `/_test/org/` pour éviter collision avec `web.php` |
+
+### Résultat
+
+| Suite | Pass | Fail | Skip | Assertions |
+|-------|------|------|------|------------|
+| OrganizationRouteCompatibilityTest | 9 | **0** | 0 | 17 |
+| Full suite | TBD | TBD | TBD | TBD |
+
+### Vérification
+
+```bash
+php artisan test --filter OrganizationRouteCompatibilityTest
+# 9/9 passed, 0 failures, 17 assertions
+```
+
+### Conclusion RUN5
+
+**GO → RUN6** : Pages publiques — homepage, /membres, /explorer, /blog.

@@ -26,6 +26,12 @@ commits:
   - hash: 4de93e2
     run: RUN 1
     message: "task: RUN1 viability audit complete — verdict GO"
+  - hash: 47f4a89
+    run: RUN 3 + RUN 4
+    message: "task: RUN3 (resolver observability) + RUN4 (seed/backfill Default Organization)"
+  - hash: TBD
+    run: RUN 5
+    message: "task: RUN5 PHPUnit fix — OrganizationRouteCompatibilityTest 9/9 passed"
 
 labels:
   - organization
@@ -51,7 +57,8 @@ lock:
 | RUN 2 — Doctrine Documentation | ✅ DONE | 7 docs audités, 100% aligné |
 | RUN 3 — Runtime Resolver Analysis | ✅ DONE | Architecture correcte, observabilité ajoutée |
 | RUN 4 — Seed/Backfill | ✅ DONE | `db:seed`, `default_organization_id` set, SettingSeeder updaté |
-| RUN 5 — PHPUnit | 🔄 NEXT | OrganizationRouteCompatibilityTest |
+| RUN 5 — PHPUnit | ✅ DONE | 9/9 passed, OrganisationRouteCompatibilityTest fixé |
+| RUN 6 — Pages publiques | 🔄 NEXT | Homepage, /membres, /explorer, /blog |
 
 ## RUN 1 Résumé
 
@@ -84,6 +91,7 @@ Le runtime DOIT résoudre une Default Organization réelle sur toute route méti
 | RUN3 | `app/Http/Middleware/ResolveUrlOrganization.php` | Added `Log::warning` when default org resolution fails |
 | RUN3 | `app/Models/Scopes/BelongsToTenantScope.php` | Added `Log::warning` when whereRaw('0=1') activates |
 | RUN4 | `database/seeders/SettingSeeder.php` | Added `default_organization_id` = first community |
+| RUN5 | `tests/Feature/OrganizationRouteCompatibilityTest.php` | Changed test route prefix `/org/` → `/_test/org/` to avoid web.php collision |
 
 ## Tests
 

@@ -28,11 +28,11 @@ class OrganizationRouteCompatibilityTest extends TestCase
     {
         $community = Community::factory()->create(['slug' => 'my-org', 'is_active' => true]);
 
-        Route::get('/org/{organization}', function () {
+        Route::get('/_test/org/{organization}', function () {
             return response()->json(['id' => app('current_organization')->id]);
         })->middleware(ResolveCommunity::class);
 
-        $this->get('/org/my-org')->assertOk()->assertJson(['id' => $community->id]);
+        $this->get('/_test/org/my-org')->assertOk()->assertJson(['id' => $community->id]);
     }
 
     public function test_middleware_resolves_community_param_still_works(): void
@@ -50,14 +50,14 @@ class OrganizationRouteCompatibilityTest extends TestCase
     {
         $community = Community::factory()->create(['slug' => 'both-keys', 'is_active' => true]);
 
-        Route::get('/org/{organization}', function () {
+        Route::get('/_test/org/{organization}', function () {
             return response()->json([
                 'community_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
             ]);
         })->middleware(ResolveCommunity::class);
 
-        $this->get('/org/both-keys')
+        $this->get('/_test/org/both-keys')
             ->assertOk()
             ->assertJson([
                 'community_id' => $community->id,
