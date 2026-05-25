@@ -15,7 +15,9 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | T140.5B — LoopService + LoopMessageService | ✅ MERGED | `TASK-144-t140-5B-loop-services` | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | ✅ MERGED | `TASK-144-t140-5C-referral-reward` | LOCKED |
 | T140.5D — Controllers métier | ✅ MERGED | `TASK-144-t140-5D-controllers-metier` | LOCKED |
-| T140.5E — Admin/Auth/Livewire cleanup | LOCKED | — | LOCKED |
+| T140.5E — Admin/Auth/Livewire cleanup | PARTIEL | — | LOCKED |
+| ↳ Lot E — helpers.php | ✅ MERGED | `TASK-144-t140-5E-lotE-helpers` | LOCKED |
+| ↳ Lots A-D — controllers, admin, Livewire, middleware | LOCKED | — | LOCKED |
 
 ## Périmètre T140.5A
 
@@ -241,3 +243,4 @@ Priorité 0 (LoopMember queries) **annulée** — faux positifs confirmés.
 - 2026-05-25 : T140.5D mergé (826 pass). Rendez-vous gouvernance avant T140.5E.
 - 2026-05-25 : T140.5E en pause — attente rapport REVIEW_CLUSTER sur T140.5A-D.
 - 2026-05-25 : **Governance Update post-audit** — conflit REVIEW_ARCHITECT/TENANT_SAFETY_REVIEWER résolu (TENANT_SAFETY_REVIEWER correct). Doctrine Guard Before Query validée. Faux positifs LoopMember confirmés. Confidence levels intégrés. Priorité 0 annulée. Rendez-vous humain avant T140.5E.
+- 2026-05-25 : T140.5E Lot E (helpers.php) mergé. Lots A/B/C/D LOCKED.
