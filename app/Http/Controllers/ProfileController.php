@@ -18,7 +18,7 @@ class ProfileController extends Controller
     public function show(User $user): View
     {
         $organization = currentOrganization();
-        if (! $organization || $user->community_id !== $organization->id) {
+        if (! $organization || $user->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -28,7 +28,7 @@ class ProfileController extends Controller
             $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id);
         })->where('status', 'completed')->count();
         $reviews = $user->reviewsReceived()
-            ->whereHas('transaction', fn ($q) => $q->where('community_id', $organization->id))
+            ->whereHas('transaction', fn ($q) => $q->where('organization_id', $organization->id))
             ->with('reviewer')
             ->latest('created_at')
             ->get();

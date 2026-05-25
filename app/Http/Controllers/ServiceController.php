@@ -20,7 +20,7 @@ class ServiceController extends Controller
     public function show(Service $service): View|RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization || $service->community_id !== $organization->id) {
+        if (! $organization || $service->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -83,7 +83,7 @@ class ServiceController extends Controller
 
         $service = Service::create([
             'user_id' => auth()->id(),
-            'community_id' => $organization->id,
+            'organization_id' => $organization->id,
             'title' => $data['title'],
             'description' => $data['description'],
             'category_id' => $data['category_id'],
@@ -133,7 +133,7 @@ class ServiceController extends Controller
     public function edit(Service $service): View
     {
         $organization = currentOrganization();
-        if (! $organization || $service->community_id !== $organization->id) {
+        if (! $organization || $service->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -148,7 +148,7 @@ class ServiceController extends Controller
     public function update(Request $request, Service $service): RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization || $service->community_id !== $organization->id) {
+        if (! $organization || $service->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -231,7 +231,7 @@ class ServiceController extends Controller
     public function destroy(Service $service): RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization || $service->community_id !== $organization->id) {
+        if (! $organization || $service->organization_id !== $organization->id) {
             abort(404);
         }
 

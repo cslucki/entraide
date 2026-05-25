@@ -14,7 +14,7 @@ class RequestController extends Controller
     public function show(ServiceRequest $request): View
     {
         $organization = currentOrganization();
-        if (! $organization || $request->community_id !== $organization->id) {
+        if (! $organization || $request->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -55,7 +55,7 @@ class RequestController extends Controller
 
         $serviceRequest = ServiceRequest::create([
             'user_id' => auth()->id(),
-            'community_id' => $organization->id,
+            'organization_id' => $organization->id,
             'title' => $data['title'],
             'description' => $data['description'],
             'category_id' => $data['category_id'],
@@ -90,7 +90,7 @@ class RequestController extends Controller
     public function destroy(ServiceRequest $request): RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization || $request->community_id !== $organization->id) {
+        if (! $organization || $request->organization_id !== $organization->id) {
             abort(404);
         }
 

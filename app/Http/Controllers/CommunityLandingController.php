@@ -18,7 +18,7 @@ class CommunityLandingController extends Controller
             return redirect()->route('community.login', ['community' => $community->slug]);
         }
 
-        $recentServices = Service::where('community_id', $community->id)
+        $recentServices = Service::where('organization_id', $community->id)
             ->where('status', 'active')
             ->with(['user', 'category'])
             ->latest()
