@@ -13,16 +13,16 @@ class LoopService
 {
     public function createLoop(User $user, string $name, ?string $description = null): Loop
     {
-        $communityId = $user->community_id;
+        $orgId = $user->organization_id ?? $user->community_id;
 
-        if (! $communityId) {
-            throw new \RuntimeException('User has no community.');
+        if (! $orgId) {
+            throw new \RuntimeException('User has no organization.');
         }
 
-        $slug = $this->generateUniqueSlug($communityId, $name);
+        $slug = $this->generateUniqueSlug($orgId, $name);
 
         $loop = Loop::create([
-            'community_id' => $communityId,
+            'organization_id' => $orgId,
             'name' => $name,
             'slug' => $slug,
             'description' => $description,
@@ -38,8 +38,10 @@ class LoopService
 
     public function addMember(Loop $loop, User $user, string $role = 'member'): LoopMember
     {
-        if ($loop->community_id !== $user->community_id) {
-            throw new \RuntimeException('Cannot add member from a different community to this loop.');
+        $orgId = $user->organization_id ?? $user->community_id;
+
+        if ($loop->organization_id !== $orgId) {
+            throw new \RuntimeException('Cannot add member from a different organization to this loop.');
         }
 
         $existing = LoopMember::where('loop_id', $loop->id)
@@ -61,7 +63,9 @@ class LoopService
 
     public function getEligibleReferrals(User $user, Loop $loop): Collection
     {
-        if ($loop->community_id !== $user->community_id) {
+        $orgId = $user->organization_id ?? $user->community_id;
+
+        if ($loop->organization_id !== $orgId) {
             return new Collection;
         }
 
@@ -69,9 +73,9 @@ class LoopService
             ->pluck('user_id');
 
         return Referral::where('referrer_user_id', $user->id)
-            ->where('community_id', $loop->community_id)
+            ->where('organization_id', $loop->organization_id)
             ->whereHas('referred', function ($q) use ($loop, $existingMemberUserIds) {
-                $q->where('community_id', $loop->community_id)
+                $q->where('organization_id', $loop->organization_id)
                     ->whereNotIn('id', $existingMemberUserIds);
             })
             ->with('referred')
@@ -84,8 +88,8 @@ class LoopService
             throw new \RuntimeException('This referral does not belong to you.');
         }
 
-        if ($referral->community_id !== $loop->community_id) {
-            throw new \RuntimeException('Cannot add cross-community referral to this loop.');
+        if ($referral->organization_id !== $loop->organization_id) {
+            throw new \RuntimeException('Cannot add cross-organization referral to this loop.');
         }
 
         $referred = $referral->referred;
@@ -97,13 +101,13 @@ class LoopService
         return $this->addMember($loop, $referred);
     }
 
-    private function generateUniqueSlug(string $communityId, string $name): string
+    private function generateUniqueSlug(string $orgId, string $name): string
     {
         $base = Str::slug($name);
         $slug = $base;
 
         for ($i = 1; $i <= 20; $i++) {
-            $exists = Loop::where('community_id', $communityId)
+            $exists = Loop::where('organization_id', $orgId)
                 ->where('slug', $slug)
                 ->exists();
 

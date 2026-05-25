@@ -2,7 +2,7 @@
 task_id: TASK-144-t140-5B
 title: T140.5B LoopService + LoopMessageService → organization_id-first
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OpenCode
 
@@ -14,7 +14,7 @@ branch: TASK-144-t140-5B-loop-services
 priority: MEDIUM
 
 created_at: 2026-05-25 14:41:31 Europe/Paris
-updated_at: 2026-05-25 14:41:31 Europe/Paris
+updated_at: 2026-05-25
 
 labels:
   - organization
@@ -90,8 +90,32 @@ Migrer les guards tenant dans LoopService et LoopMessageService de `community_id
 
 # Modified Files
 
-<!-- à remplir après implémentation -->
+- `app/Services/LoopService.php` — 8 community_id refs → organization_id-first
+- `app/Services/LoopMessageService.php` — 1 community_id ref → organization_id-first
+- `tests/Feature/LoopCreationTest.php` — error message assertion updated
+- `tests/Feature/LoopMessageTest.php` — error message assertion updated
+- `tests/Feature/LoopMemberInvariantTest.php` — 3 error message assertions updated
 
 # Tests
 
-<!-- à remplir après exécution -->
+**Sous-agent TEST_WORKER** — 221 passed, 11 skipped (known risks), 0 failed
+
+| Suite | Result |
+|-------|--------|
+| LoopCreationTest | 10/10 ✅ |
+| LoopMemberInvariantTest | 22/22 ✅ |
+| LoopMessageTest | 21/21 ✅ |
+| LoopHelpRequestTest | 19/19 ✅ |
+| LoopActivityTrackingTest | 10/10 ✅ |
+| LoopModelTest | 19/19 ✅ |
+| LoopVisibilityMembershipTest | 7/7 ✅ |
+| T07411RoutesTenantSafetyTest | 21/21 ✅ |
+| T1392LegacyCharacterizationTest | 28/28 ✅ |
+| T1392RouteSmokeGatesTest | 35/35 ✅ |
+| T1405ARuntimeOrganizationIdTest | 15/15 ✅ |
+| T1392KnownRisksTest | 2/2 + 11 skipped (documented) |
+| AdminLoopsTest | 8/8 ✅ |
+| AdminMessagesTest | 5/5 ✅ |
+
+**Sous-agent REVIEW_SUPERVISOR : GO** ✅
+**Sous-agent STEP_GLOBAL_REVIEWER : GO** ✅

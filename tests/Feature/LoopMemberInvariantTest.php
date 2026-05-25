@@ -64,7 +64,7 @@ class LoopMemberInvariantTest extends TestCase
     public function test_cannot_add_member_from_different_community(): void
     {
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Cannot add member from a different community to this loop.');
+        $this->expectExceptionMessage('Cannot add member from a different organization to this loop.');
 
         $this->service->addMember($this->loop, $this->crossUser);
     }
@@ -96,7 +96,7 @@ class LoopMemberInvariantTest extends TestCase
     public function test_cannot_directly_create_cross_community_membership(): void
     {
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Cannot add member from a different community to this loop.');
+        $this->expectExceptionMessage('Cannot add member from a different organization to this loop.');
 
         $this->service->addMember($this->loop, $this->crossUser);
     }
@@ -199,7 +199,7 @@ class LoopMemberInvariantTest extends TestCase
         ]);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Cannot add cross-community referral to this loop.');
+        $this->expectExceptionMessage('Cannot add cross-organization referral to this loop.');
 
         $this->service->addReferralToLoop($this->loop, $this->crossUser, $referral);
     }

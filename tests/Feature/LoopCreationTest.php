@@ -66,7 +66,7 @@ class LoopCreationTest extends TestCase
         $userWithoutCommunity = User::factory()->create(['community_id' => null]);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('User has no community.');
+        $this->expectExceptionMessage('User has no organization.');
 
         $this->service->createLoop($userWithoutCommunity, 'Loop');
     }
