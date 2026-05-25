@@ -62,8 +62,17 @@ Tests strictement nécessaires.
 
 ## Modified Files
 
-<!-- à remplir -->
+- `app/Http/Controllers/BlogController.php` — 14 refs
+- `app/Http/Controllers/TransactionController.php` — 7 refs + 3 variable renames
+- `app/Http/Controllers/RequestController.php` — 3 refs
+- `app/Http/Controllers/HomeController.php` — 5 refs + 2 variable renames
+- `app/Http/Controllers/ServiceController.php` — 5 refs
+- `app/Http/Controllers/ProfileController.php` — 2 refs
+- `app/Http/Controllers/CommunityLandingController.php` — 1 ref
+- `app/Http/Controllers/BlogCommentController.php` — 2 refs
+- `app/Http/Controllers/Api/TransactionController.php` — 1 ref
 
 ## Tests
 
-<!-- à remplir -->
+- 826 passed, 11 skipped, 0 failed
+- 0 test files modified
