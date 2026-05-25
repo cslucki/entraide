@@ -43,7 +43,8 @@ class LoopController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->community_id !== $community->id) {
+        $orgId = $user->organization_id ?? $user->community_id;
+        if ($orgId !== $community->id) {
             abort(404);
         }
     }
@@ -58,8 +59,8 @@ class LoopController extends Controller
 
         $user = auth()->user();
 
-        if ($user->community_id) {
-            return $user->community_id;
+        if ($orgId = $user->organization_id ?? $user->community_id) {
+            return $orgId;
         }
 
         abort(403);
@@ -74,7 +75,7 @@ class LoopController extends Controller
         $user = auth()->user();
 
         $loops = Loop::query()
-            ->where('community_id', $communityId)
+            ->where('organization_id', $communityId)
             ->where(function ($q) use ($user) {
                 $q->where('visibility', 'public')
                     ->orWhereIn('id', function ($sub) use ($user) {
@@ -126,7 +127,7 @@ class LoopController extends Controller
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
-        if ($loop->community_id !== $community->id) {
+        if ($loop->organization_id !== $community->id) {
             abort(404);
         }
 
@@ -158,7 +159,7 @@ class LoopController extends Controller
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
-        if ($loop->community_id !== $community->id) {
+        if ($loop->organization_id !== $community->id) {
             abort(404);
         }
 
@@ -197,7 +198,7 @@ class LoopController extends Controller
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
-        if ($loop->community_id !== $community->id) {
+        if ($loop->organization_id !== $community->id) {
             abort(404);
         }
 
@@ -229,7 +230,7 @@ class LoopController extends Controller
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
-        if ($loop->community_id !== $community->id) {
+        if ($loop->organization_id !== $community->id) {
             abort(404);
         }
 
@@ -265,7 +266,7 @@ class LoopController extends Controller
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
-        if ($loop->community_id !== $community->id) {
+        if ($loop->organization_id !== $community->id) {
             abort(404);
         }
 
@@ -323,7 +324,7 @@ class LoopController extends Controller
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
-        if ($loop->community_id !== $community->id) {
+        if ($loop->organization_id !== $community->id) {
             abort(404);
         }
 
@@ -359,7 +360,7 @@ class LoopController extends Controller
         $community = $this->resolveCommunity();
         $this->assertUserBelongsToCommunity($community);
 
-        if ($loop->community_id !== $community->id) {
+        if ($loop->organization_id !== $community->id) {
             abort(404);
         }
 
