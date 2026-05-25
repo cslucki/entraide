@@ -7,6 +7,7 @@ use App\Models\Setting;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class ResolveUrlOrganization
@@ -218,7 +219,13 @@ class ResolveUrlOrganization
             }
         }
 
-        return Community::where('is_active', true)->first();
+        $org = Community::where('is_active', true)->first();
+
+        if (! $org) {
+            Log::warning('Default Organization resolution failed: no active community in DB, static $defaultOrganizationId is null, and Setting default_organization_id is not set. Environment may be uninitialized.');
+        }
+
+        return $org;
     }
 
     protected function resolveFromAuthenticatedUser(): ?Community

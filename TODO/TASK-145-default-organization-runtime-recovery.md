@@ -48,7 +48,10 @@ lock:
 |-------|--------|--------|
 | RUN 0 — Bootstrap & Safety | ✅ DONE | Branch, cockpit, git state |
 | RUN 1 — Viability Audit | ✅ DONE | 7 sub-agents, verdict GO |
-| RUN 2+ — Doctrine/Implementation | ✅ UNLOCKED | GO AUTONOME donné par Cyril |
+| RUN 2 — Doctrine Documentation | ✅ DONE | 7 docs audités, 100% aligné |
+| RUN 3 — Runtime Resolver Analysis | ✅ DONE | Architecture correcte, observabilité ajoutée |
+| RUN 4 — Seed/Backfill | ✅ DONE | `db:seed`, `default_organization_id` set, SettingSeeder updaté |
+| RUN 5 — PHPUnit | 🔄 NEXT | OrganizationRouteCompatibilityTest |
 
 ## RUN 1 Résumé
 
@@ -76,7 +79,11 @@ Le runtime DOIT résoudre une Default Organization réelle sur toute route méti
 
 ## Modified Files
 
-<!-- à remplir après implémentation -->
+| Run | File | Change |
+|-----|------|--------|
+| RUN3 | `app/Http/Middleware/ResolveUrlOrganization.php` | Added `Log::warning` when default org resolution fails |
+| RUN3 | `app/Models/Scopes/BelongsToTenantScope.php` | Added `Log::warning` when whereRaw('0=1') activates |
+| RUN4 | `database/seeders/SettingSeeder.php` | Added `default_organization_id` = first community |
 
 ## Tests
 

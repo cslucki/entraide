@@ -121,3 +121,142 @@
 **Hash:** `4de93e2`
 **Date:** 2026-05-25
 **Message:** `task: RUN1 viability audit complete — verdict GO`
+
+---
+
+## RUN 2 — Doctrine Documentation Alignment
+
+**Statut:** ✅ DONE
+**Date:** 2026-05-25
+
+### Documents audités
+
+| Document | Verdict | Écart ? |
+|----------|---------|---------|
+| `docs/05-DOMAIN_ARCHITECTURE.md` | ✅ Aligné | Aucun. Section 9.5 Root Domain Resolution confirme : root domain ≠ tenantless. Guard state fail-safe (404/410/redirect). |
+| `docs/06-GLOSSARY.md` | ✅ Aligné | Aucun. Default Organization définie. Rappels : Partner ≠ Tenant, Loop ≠ Tenant, Community légacy, Default Org ≠ User Org. |
+| `docs/architecture/01-ROOT_DOMAIN_TENANT_RESOLUTION.md` | ✅ Aligné | AD01-AD11 complets. 5 niveaux contexte URL : Platform global, Default Org, Partner slug, Auth personal, Fail-safe. |
+| `docs/migration/01-COMMUNITY_MIGRATION_STRATEGY.md` | ✅ Aligné | Root domain & Default Organization resolution intégrés section 17.5. |
+| `docs/migration/02-ORGANIZATION_MIGRATION_EXECUTION_PLAN.md` | ✅ Aligné | Décisions T075.1 intégrées (AD01-AD11, sections 3.5, 6). T075.x task breakdown correct. |
+| `ai/context/architecture.md` | ✅ Aligné | Court résumé opérationnel. Réfère à docs/ comme source canonique. |
+| `ai/context/multi-tenant.md` | ✅ Aligné | Checklist tenant-safety. Runtime compatibility fallback documenté. |
+
+### Verdict Doctrine
+
+**Toute la documentation est alignée avec la doctrine Default Organization.**
+
+Aucune contradiction trouvée entre les 7 documents audités sur les points suivants :
+- Organization = Tenant
+- Loop ≠ Tenant
+- Default Organization = Organization réelle persistée
+- Root domain ≠ tenantless pour routes métier
+- Routes Platform globales limitées : `/`, `/login`, `/register`, `/password/*`, `/mentions-legales`, `/sitemap.xml`, `/partenaires`, `/admin/*`
+- Routes métier racine résolvent Default Organization
+- Fail-safe si aucune Organization résolue
+- Community/community_id = legacy technique temporaire
+
+### Écart constaté
+
+**Aucun écart documentaire.** Le gap est uniquement opérationnel :
+- 0 communautés en base (communities table vide)
+- 0 settings (pas de `default_organization_id`)
+- Le résolveur (ResolveUrlOrganization) existe, est correct, mais échoue faute de données
+
+### Conclusion RUN2
+
+**GO → RUN3** : Runtime resolver. La doctrine est stable, la documentation alignée. On peut passer à la résolution runtime sans risque de contradiction architecturale.
+
+---
+
+## RUN 3 — Runtime Resolver Default Organization
+
+**Statut:** ✅ DONE
+**Date:** 2026-05-25
+
+### Analyse architecture resolver
+
+**Fichiers analysés :**
+
+| Fichier | Rôle | Verdict |
+|---------|------|---------|
+| `app/Http/Middleware/ResolveUrlOrganization.php` | Middleware principal de résolution URL → Organization | ✅ Architecture correcte |
+| `app/Support/Tenancy/CurrentOrganization.php` | Helper de résolution tenant (current_org → current_community → null) | ✅ Correct |
+| `app/Models/Scopes/BelongsToTenantScope.php` | Scope Eloquent : where organization_id ou whereRaw('0=1') | ✅ Fail-closed correct |
+| `bootstrap/app.php` | Enregistrement middleware : alias `url.organization` + groupe `web` | ✅ Correct |
+
+**Chaîne de résolution ResolveUrlOrganization :**
+
+```
+Request → alreadyResolved() guard → community-prefixed skip → platform global skip
+→ authenticated personal? (guest pass-through)
+→ partner slug? (future T075.4+)
+→ resolveOrganization()
+  → feature route? → resolveDefaultOrganization()
+    → static::$defaultOrganizationId (cache) → null par défaut
+    → Setting::get('default_organization_id') → null (DB vide)
+    → Community::where('is_active', true)->first() → null (0 communities)
+  → null → isKnownBusinessRoute? → abort(404)
+```
+
+**Conclusion :** Le resolver est correct et complet. Les 3 fallbacks échouent uniquement parce que la base locale est vide. Aucun refactor du resolver n'est nécessaire.
+
+### Changements effectués
+
+| Fichier | Changement | Justification |
+|---------|-----------|---------------|
+| `ResolveUrlOrganization.php` | Ajout `Log::warning` quand resolveDefaultOrganization() échoue | Observabilité : diagnostic clair en log quand environnement non initialisé |
+| `BelongsToTenantScope.php` | Ajout `Log::warning` quand whereRaw('0=1') est appliqué | Observabilité : trace explicite quand les données sont inaccessibles faute d'Organization |
+
+### Réserves
+
+- **Aucune.** RUN3 confirme que l'architecture runtime est correcte. La seule chose qui manque est une Default Organization en base.
+
+### Conclusion RUN3
+
+**GO → RUN4** : Seed/backfill. Garantir une Default Organization réelle en local/dev/test.
+
+---
+
+## RUN 4 — Seed/Backfill Default Organization
+
+**Statut:** ✅ DONE
+**Date:** 2026-05-25
+
+### Contexte
+
+Base PostgreSQL locale (`bouclepro`) : 53 migrations exécutées (batch 1), 0 ligne de données. Aucun seeder n'avait été exécuté. Communities table vide → ResolveUrlOrganization échouait systématiquement.
+
+### Actions
+
+| Action | Command/Fichier | Détail |
+|--------|----------------|--------|
+| Vérification état DB | `SELECT count(*) FROM communities` | 0 lignes |
+| Vérification migrations | `migrations` table | 53 migrations, batch 1 |
+| Run seeders | `php artisan db:seed --force` | ✅ 9 seeders OK |
+| Vérification communities | `SELECT * FROM communities` | 3 communautés : CPME, BNI, 60000 Rebonds (toutes actives) |
+| Vérification settings | `SELECT * FROM settings` | 3 settings : platform_name, platform_tagline, maintenance_mode (pas de default_organization_id) |
+| Vérification users | `SELECT count(*) FROM users` | 7 users |
+| Set default_organization_id | `Setting::set(...)` | CPME (019e60c8-8fb0-73a2-b82c-fed13d2d6818) |
+| Update SettingSeeder | `database/seeders/SettingSeeder.php` | Ajout persist `default_organization_id` = première communauté |
+
+### Chaîne de résolution après RUN4
+
+```
+1. static::$defaultOrganizationId → null (cache non initialisé)
+2. Setting::get('default_organization_id') → ID CPME (maintenant set !)
+3. Community::where('is_active', true)->first() → CPME (fallback si setting absent)
+```
+
+### Changements effectués
+
+| Fichier | Changement |
+|---------|-----------|
+| `database/seeders/SettingSeeder.php` | Ajout `Setting::set('default_organization_id', $default->id)` après création des settings |
+
+### Réserves
+
+- Aucune. La base locale a maintenant une Default Organization réelle (CPME). Le resolver peut résoudre les routes métier racine.
+
+### Conclusion RUN4
+
+**GO → RUN5** : PHPUnit OrganizationRouteCompatibilityTest — réparer les 2 tests cassés.
