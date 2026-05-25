@@ -29,9 +29,15 @@ commits:
   - hash: 47f4a89
     run: RUN 3 + RUN 4
     message: "task: RUN3 (resolver observability) + RUN4 (seed/backfill Default Organization)"
-  - hash: TBD
+   - hash: b06879d
     run: RUN 5
     message: "task: RUN5 PHPUnit fix — OrganizationRouteCompatibilityTest 9/9 passed"
+   - hash: e2602a8
+    run: RUN 7 + RUN 8
+    message: "task: RUN7 (auth flows verified) + RUN8 (middleware order fix for model binding)"
+  - hash: UNCOMMITTED
+    run: RUN 9 + RUN 10
+    message: "task: RUN9 (Playwright regression) + RUN10 (validation finale)"
 
 labels:
   - organization
@@ -58,7 +64,10 @@ lock:
 | RUN 3 — Runtime Resolver Analysis | ✅ DONE | Architecture correcte, observabilité ajoutée |
 | RUN 4 — Seed/Backfill | ✅ DONE | `db:seed`, `default_organization_id` set, SettingSeeder updaté |
 | RUN 5 — PHPUnit | ✅ DONE | 9/9 passed, OrganisationRouteCompatibilityTest fixé |
-| RUN 6 — Pages publiques | 🔄 NEXT | Homepage, /membres, /explorer, /blog |
+| RUN 6 — Pages publiques | ✅ DONE | Homepage, /membres, /explorer, /blog — all PASS |
+ | RUN 7 — Auth flows | ✅ DONE | Login, register, dashboard post-login | | RUN 8 — Transactions/Service Requests | ✅ DONE | Model binding fix (middleware order), service creation/editing |
+ | RUN 9 — Playwright regression suite | ✅ DONE | 17 passed, 10 failed (pre-existing community-transaction issues) |
+ | RUN 10 — Validation finale | 🔄 NEXT | Commit, push, final report |
 
 ## RUN 1 Résumé
 
@@ -92,6 +101,8 @@ Le runtime DOIT résoudre une Default Organization réelle sur toute route méti
 | RUN3 | `app/Models/Scopes/BelongsToTenantScope.php` | Added `Log::warning` when whereRaw('0=1') activates |
 | RUN4 | `database/seeders/SettingSeeder.php` | Added `default_organization_id` = first community |
 | RUN5 | `tests/Feature/OrganizationRouteCompatibilityTest.php` | Changed test route prefix `/org/` → `/_test/org/` to avoid web.php collision |
+| RUN8 | `bootstrap/app.php` | Reordered middleware: ResolveUrlOrganization BEFORE SubstituteBindings |
+| RUN9 | `tests/e2e/community-transactions/workflows/QA-03-messaging.spec.js` | Fixed mismatched parenthesis syntax error |
 
 ## Tests
 

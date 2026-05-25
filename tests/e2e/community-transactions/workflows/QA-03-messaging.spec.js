@@ -126,7 +126,7 @@ test.describe('QA-03: Messaging Between Participants', () => {
         await goToMessageThread(page, activeTransactionId, communitySlug);
 
         // Verify message thread is visible
-        await expect(page.locator('[class*="message"], [class*="thread"]')).first()).toBeVisible();
+        await expect(page.locator('[class*="message"], [class*="thread"]').first()).toBeVisible();
 
         // Check for transaction status indicator
         const statusElement = page.locator('[class*="status"], [class*="badge"], .transaction-status').first();
