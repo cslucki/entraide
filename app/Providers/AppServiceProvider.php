@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Loop;
 use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -26,6 +27,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -77,6 +79,19 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
+        });
+
+        Route::bind('loop', function (string $value) {
+            $currentOrg = app()->bound('current_organization') ? app('current_organization') : null;
+            $orgId = $currentOrg?->id
+                ?? auth()->user()?->organization_id
+                ?? auth()->user()?->community_id;
+
+            if ($orgId) {
+                return Loop::where('organization_id', $orgId)->findOrFail($value);
+            }
+
+            return Loop::findOrFail($value);
         });
 
         View::share('T', config('terms'));
