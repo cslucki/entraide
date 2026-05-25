@@ -11,7 +11,7 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 
 | Sous-tâche | Statut | Branche | Lock |
 |------------|--------|---------|------|
-| T140.5A — Channels + ResolveApiOrganization | DONE — PRÊT MERGE | `TASK-144-t140-5A-channels-resolve-api-organization` | UNLOCKED |
+| T140.5A — Channels + ResolveApiOrganization | MERGED | `TASK-144-t140-5A-channels-resolve-api-organization` | LOCKED |
 | T140.5B — LoopService + LoopMessageService | LOCKED | — | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | LOCKED | — | LOCKED |
 | T140.5D — Controllers métier | LOCKED | — | LOCKED |
@@ -60,7 +60,7 @@ Statut attendu après merge :
 
 | Sous-tâche | Statut attendu | Lock |
 |---|---|---|
-| T140.5A — Channels + ResolveApiOrganization | MERGED | LOCKED |
+| T140.5A — Channels + ResolveApiOrganization | ✅ MERGED | LOCKED |
 | T140.5B — LoopService + LoopMessageService | LOCKED | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | LOCKED | LOCKED |
 | T140.5D — Controllers métier | LOCKED | LOCKED |
