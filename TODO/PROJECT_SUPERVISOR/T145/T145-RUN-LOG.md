@@ -483,5 +483,41 @@ Les 3 tests UI `QA-N13-unauthorized-message-access` échouent car ils attendent 
 
 ## RUN 10 — Validation Finale
 
-**Statut:** 🔄 IN PROGRESS
+**Statut:** ✅ DONE
 **Date:** 2026-05-25
+
+### Validation finale
+
+| Étape | Verdict | Détail |
+|-------|---------|--------|
+| PHPUnit Feature suite | ✅ 820 passed, 0 failed | 11 skipped (baseline), 1748 assertions |
+| OrganizationRouteCompatibilityTest | ✅ 9/9 passed | 17 assertions |
+| Playwright smoke tests | ✅ 25/26 passed | 1 pre-existing element visibility flakiness (chatloop) |
+| Playwright community-transactions | ⚠️ 10 failed (pre-existing) | Login timeout on setup + QA-N13 UI security mismatch |
+| DB seed | ✅ 3 communities, 7 users, 4 settings | `default_organization_id` → CPME |
+| All business routes | ✅ Verified | homepage, /membres, /explorer, /blog, /dashboard, /messages, /services, /requests, /admin |
+
+### Fichiers modifiés (T145 au complet)
+
+| Run | Fichier | Changement |
+|-----|---------|-----------|
+| RUN3 | `app/Http/Middleware/ResolveUrlOrganization.php` | `Log::warning` when default org resolution fails |
+| RUN3 | `app/Models/Scopes/BelongsToTenantScope.php` | `Log::warning` when whereRaw('0=1') activates |
+| RUN4 | `database/seeders/SettingSeeder.php` | Ajout `default_organization_id` = first community |
+| RUN5 | `tests/Feature/OrganizationRouteCompatibilityTest.php` | Route prefix `/org/` → `/_test/org/` |
+| RUN8 | `bootstrap/app.php` | Middleware order: ResolveUrlOrganization before SubstituteBindings |
+| RUN9 | `tests/e2e/community-transactions/workflows/QA-03-messaging.spec.js` | Fix mismatched parenthesis syntax |
+
+### Commit final
+
+```
+77f0af9 — task: RUN9 (Playwright regression) + RUN10 (validation finale)
+```
+
+### Résumé T145
+
+**Problème :** Base locale PostgreSQL vide après migration (0 communautés, 0 settings) → ResolveUrlOrganization échouait sur les 3 fallbacks → abort(404) sur toutes les routes métier.
+
+**10 RUNs :** Audit → Seed → Fix PHPUnit → Fix middleware order → Playwright regression
+
+**Résultat :** Toutes les routes métier racine fonctionnent sous Default Organization. PHPUnit 820/820 vert. Playwright 25/26 core tests vert.

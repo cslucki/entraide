@@ -2,7 +2,7 @@
 task_id: TASK-145
 title: Default Organization Runtime Recovery & Full Regression
 
-status: IN_PROGRESS
+status: DONE
 
 owner: PROJECT_SUPERVISOR
 
@@ -35,7 +35,7 @@ commits:
    - hash: e2602a8
     run: RUN 7 + RUN 8
     message: "task: RUN7 (auth flows verified) + RUN8 (middleware order fix for model binding)"
-  - hash: UNCOMMITTED
+  - hash: 77f0af9
     run: RUN 9 + RUN 10
     message: "task: RUN9 (Playwright regression) + RUN10 (validation finale)"
 
@@ -67,7 +67,7 @@ lock:
 | RUN 6 — Pages publiques | ✅ DONE | Homepage, /membres, /explorer, /blog — all PASS |
  | RUN 7 — Auth flows | ✅ DONE | Login, register, dashboard post-login | | RUN 8 — Transactions/Service Requests | ✅ DONE | Model binding fix (middleware order), service creation/editing |
  | RUN 9 — Playwright regression suite | ✅ DONE | 17 passed, 10 failed (pre-existing community-transaction issues) |
- | RUN 10 — Validation finale | 🔄 NEXT | Commit, push, final report |
+ | RUN 10 — Validation finale | ✅ DONE | Commit, push, final report |
 
 ## RUN 1 Résumé
 
