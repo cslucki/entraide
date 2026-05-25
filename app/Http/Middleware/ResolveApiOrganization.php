@@ -37,12 +37,13 @@ class ResolveApiOrganization
 
     protected function resolveFromAuthenticatedUser(object $user): ?Organization
     {
-        if (! $user->community_id) {
+        $orgId = $user->organization_id ?? $user->community_id;
+
+        if (! $orgId) {
             return null;
         }
 
-        // Legacy DB tenant column: community_id currently stores the Organization id.
-        return Organization::whereKey($user->community_id)
+        return Organization::whereKey($orgId)
             ->where('is_active', true)
             ->first();
     }
@@ -67,5 +68,9 @@ class ResolveApiOrganization
     protected function bindOrganization(Organization $organization): void
     {
         app()->instance('current_organization', $organization);
+
+        if (! app()->bound('current_community')) {
+            app()->instance('current_community', $organization);
+        }
     }
 }
