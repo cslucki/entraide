@@ -2,7 +2,7 @@
 task_id: TASK-144-t140-5C
 title: T140.5C ReferralService + RewardDispatcher → organization_id-first
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OpenCode
 
@@ -91,8 +91,16 @@ Migrer les guards tenant dans ReferralService et RewardDispatcher de `community_
 
 # Modified Files
 
-<!-- à remplir après implémentation -->
+- `app/Services/ReferralService.php` — 6 refs migrated ($orgId variable, triple fallback, organization_id guards/queries)
+- `app/Services/RewardDispatcher.php` — 7 refs migrated (same pattern + writes, parameter rename handleL2Invite)
+- `docs/audits/T140.5C-referral-reward.md` — audit document
 
 # Tests
 
-<!-- à remplir après exécution -->
+- ReferralServiceTest: 9/9 ✅
+- RewardDispatcherTest: 28/28 ✅
+- ReferralTest: 33/33 ✅
+- Loop tests impacted: all pass
+- **Total scope: 98 passed (228 assertions)**
+
+
