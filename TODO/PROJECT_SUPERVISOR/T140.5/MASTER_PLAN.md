@@ -14,7 +14,7 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | T140.5A — Channels + ResolveApiOrganization | MERGED | `TASK-144-t140-5A-channels-resolve-api-organization` | LOCKED |
 | T140.5B — LoopService + LoopMessageService | ✅ MERGED | `TASK-144-t140-5B-loop-services` | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | ✅ MERGED | `TASK-144-t140-5C-referral-reward` | LOCKED |
-| T140.5D — Controllers métier | IN PROGRESS | `TASK-144-t140-5D-controllers-metier` | UNLOCKED |
+| T140.5D — Controllers métier | ✅ MERGED | `TASK-144-t140-5D-controllers-metier` | LOCKED |
 | T140.5E — Admin/Auth/Livewire cleanup | LOCKED | — | LOCKED |
 
 ## Périmètre T140.5A
@@ -169,3 +169,4 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 - 2026-05-25 : Governance Hardening — règles renforcées, rendez-vous humain avant T140.5C.
 - 2026-05-25 : T140.5C implémenté, testé (98 pass), mergé.
 - 2026-05-25 : T140.5D ouvert (GO humain). Début orchestration.
+- 2026-05-25 : T140.5D mergé (826 pass). Rendez-vous gouvernance avant T140.5E.
