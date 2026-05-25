@@ -23,9 +23,9 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | ↳ Lot D — ResolveUrlOrganization | ✅ MERGED | `TASK-144-t140-5E-lotD-middleware` | LOCKED |
 | T140.5F — Stabilization | ✅ MERGED | `TASK-144-post-t140-5-stabilization` | LOCKED |
 | T140.5G — Final Review | ✅ COMPLETE | — | LOCKED |
-| T140.5H — Tenant Boundary Hardening | IN PROGRESS | `TASK-144-t140-5H-tenant-hardening` | UNLOCKED |
+| T140.5H — Tenant Boundary Hardening | ✅ MERGED | `TASK-144-t140-5H-tenant-hardening` | LOCKED |
 
-## Périmètre T140.5H
+## 🏁 Cycle T140.5 — COMPLETE
 
 **Autorisé :**
 - `app/Services/RewardDispatcher.php` — cross-org referrals verification
@@ -74,7 +74,7 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 - 2026-05-25 : **T140.5G — Final Review Cluster** : créé, LOCKED. Attente ouverture.
 - 2026-05-25 : **T140.5F mergé, T140.5H — Tenant Boundary Hardening** ouvert. Scope strict : RewardDispatcher cross-org, Loop binding, WebSocket channel. Clôture finale cycle T140.5.
 
-## État final T140.5
+## 🏁 État final T140.5 — CYCLE COMPLET
 
 | Sous-tâche | Statut | Tests |
 |------------|--------|-------|
@@ -90,4 +90,9 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | ↳ Lot E — helpers.php | ✅ MERGED | 826 pass |
 | T140.5F — Stabilization | ✅ MERGED | 826 pass / PHPStan 0 |
 | T140.5G — Final Review | ✅ COMPLETE | — |
-| T140.5H — Tenant Boundary Hardening | IN PROGRESS | `TASK-144-t140-5H-tenant-hardening` | UNLOCKED |
+| T140.5H — Tenant Boundary Hardening | ✅ MERGED | 826 pass |
+| **T140.5 — CYCLE COMPLET** | **✅ COMPLETE** | **8 sous-tâches, 0 fail** |
+
+## Historique
+
+- 2026-05-25 : **🏁 T140.5 cycle complet.** T140.5H mergé (826 pass). Tenant boundary hardened : RewardDispatcher, Loop binding, WebSocket channels. Clôture industrielle du cycle de migration community_id → organization_id.
