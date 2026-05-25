@@ -29,15 +29,15 @@ commits:
   - hash: 47f4a89
     run: RUN 3 + RUN 4
     message: "task: RUN3 (resolver observability) + RUN4 (seed/backfill Default Organization)"
-   - hash: b06879d
+  - hash: b06879d
     run: RUN 5
     message: "task: RUN5 PHPUnit fix — OrganizationRouteCompatibilityTest 9/9 passed"
-   - hash: e2602a8
-    run: RUN 7 + RUN 8
-    message: "task: RUN7 (auth flows verified) + RUN8 (middleware order fix for model binding)"
   - hash: 77f0af9
-    run: RUN 9 + RUN 10
-    message: "task: RUN9 (Playwright regression) + RUN10 (validation finale)"
+    run: RUN 6 → 10
+    message: "task: RUN9+RUN10 (includes RUN6/7/8 — public pages, auth, middleware order, Playwright, final validation)"
+  - hash: 9474ba8
+    run: FINAL
+    message: "task: T145 final — status DONE, full RUN log, final report"
 
 labels:
   - organization
@@ -65,9 +65,10 @@ lock:
 | RUN 4 — Seed/Backfill | ✅ DONE | `db:seed`, `default_organization_id` set, SettingSeeder updaté |
 | RUN 5 — PHPUnit | ✅ DONE | 9/9 passed, OrganisationRouteCompatibilityTest fixé |
 | RUN 6 — Pages publiques | ✅ DONE | Homepage, /membres, /explorer, /blog — all PASS |
- | RUN 7 — Auth flows | ✅ DONE | Login, register, dashboard post-login | | RUN 8 — Transactions/Service Requests | ✅ DONE | Model binding fix (middleware order), service creation/editing |
- | RUN 9 — Playwright regression suite | ✅ DONE | 17 passed, 10 failed (pre-existing community-transaction issues) |
- | RUN 10 — Validation finale | ✅ DONE | Commit, push, final report |
+| RUN 7 — Auth flows | ✅ DONE | Login, register, dashboard post-login |
+| RUN 8 — Transactions/Service Requests | ✅ DONE | Model binding fix (middleware order), service creation/editing |
+| RUN 9 — Playwright regression suite | ✅ DONE | 17 passed, 10 failed (pre-existing community-transaction issues) |
+| RUN 10 — Validation finale | ✅ DONE | Commit, push, final report |
 
 ## RUN 1 Résumé
 
@@ -106,4 +107,9 @@ Le runtime DOIT résoudre une Default Organization réelle sur toute route méti
 
 ## Tests
 
-<!-- à remplir après exécution -->
+| Suite | Pass | Fail | Skip | Assertions |
+|-------|------|------|------|------------|
+| PHPUnit Feature suite | 820 | 0 | 11 | 1748 |
+| OrganizationRouteCompatibilityTest | 9 | 0 | 0 | 17 |
+| Playwright core (smoke, auth, publish, chatloop, help-request) | 25 | 0 | 0 | — |
+| Playwright community-transactions | 17 | 10 (pre-existing) | 76 | — |

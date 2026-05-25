@@ -508,11 +508,17 @@ Les 3 tests UI `QA-N13-unauthorized-message-access` échouent car ils attendent 
 | RUN8 | `bootstrap/app.php` | Middleware order: ResolveUrlOrganization before SubstituteBindings |
 | RUN9 | `tests/e2e/community-transactions/workflows/QA-03-messaging.spec.js` | Fix mismatched parenthesis syntax |
 
-### Commit final
+### Commits
 
-```
-77f0af9 — task: RUN9 (Playwright regression) + RUN10 (validation finale)
-```
+| Hash | Message | Contenu |
+|------|---------|---------|
+| `4de93e2` | task: RUN1 viability audit complete — verdict GO | RUN1 audit |
+| `47f4a89` | task: RUN3 (resolver observability) + RUN4 (seed/backfill Default Organization) | RUN3+RUN4 |
+| `b06879d` | task: RUN5 PHPUnit fix — OrganizationRouteCompatibilityTest 9/9 passed | RUN5 |
+| `77f0af9` | task: RUN9 (Playwright regression) + RUN10 (validation finale) | RUN6→10 (public pages, auth, middleware fix, Playwright, validation) |
+| `9474ba8` | task: T145 final — status DONE, full RUN log, final report | Finalisation docs |
+
+**4 commits de travail + 1 commit final (`9474ba8`)**
 
 ### Résumé T145
 
