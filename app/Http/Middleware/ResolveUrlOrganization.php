@@ -229,8 +229,9 @@ class ResolveUrlOrganization
             return null;
         }
 
-        if ($user->community_id) {
-            return Community::find($user->community_id);
+        $orgId = $user->organization_id ?? $user->community_id;
+        if ($orgId) {
+            return Community::find($orgId);
         }
 
         return null;
