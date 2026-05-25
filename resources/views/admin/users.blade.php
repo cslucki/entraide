@@ -143,11 +143,11 @@
                                     </p>
                                     <form method="POST" action="{{ route('admin.users.assign-community', $u) }}">
                                         @csrf @method('PATCH')
-                                        <select name="community_id"
+                                        <select name="organization_id"
                                                 class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-2">
                                             <option value="">— Communauté globale —</option>
                                             @foreach(\App\Models\Community::where('is_active', true)->get() as $community)
-                                            <option value="{{ $community->id }}" {{ $u->community_id === $community->id ? 'selected' : '' }}>
+                                            <option value="{{ $community->id }}" {{ $u->organization_id === $community->id ? 'selected' : '' }}>
                                                 {{ $community->name }}
                                             </option>
                                             @endforeach

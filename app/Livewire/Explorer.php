@@ -14,7 +14,7 @@ class Explorer extends Component
 {
     use WithPagination;
 
-    public ?string $communityId = null;
+    public ?string $orgId = null;
 
     #[Url]
     public string $tab = 'services';
@@ -79,7 +79,7 @@ class Explorer extends Component
 
     public function mount(): void
     {
-        $this->communityId = currentOrganization()?->id;
+        $this->orgId = currentOrganization()?->id;
     }
 
     public function switchTab(string $tab): void
@@ -125,8 +125,8 @@ class Explorer extends Component
 
     public function render()
     {
-        // Server-authoritative tenant ID — ignores any client-side tampering of $this->communityId
-        $communityId = currentOrganization()?->id;
+        // Server-authoritative tenant ID — ignores any client-side tampering of $this->orgId
+        $orgId = currentOrganization()?->id;
 
         $categories = Category::with('skills')->get();
 
@@ -134,7 +134,7 @@ class Explorer extends Component
             $query = Service::withoutGlobalScopes()
                 ->with(['user', 'category', 'skills', 'tags'])
                 ->where('status', 'active')
-                ->where('community_id', $communityId);
+                ->where('organization_id', $orgId);
 
             if ($this->search) {
                 $search = '%'.$this->search.'%';
@@ -190,7 +190,7 @@ class Explorer extends Component
             $query = ServiceRequest::withoutGlobalScopes()
                 ->with(['user', 'category'])
                 ->where('status', 'open')
-                ->where('community_id', $communityId);
+                ->where('organization_id', $orgId);
 
             if ($this->search) {
                 $search = '%'.$this->search.'%';
