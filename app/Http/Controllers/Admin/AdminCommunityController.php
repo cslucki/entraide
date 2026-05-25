@@ -87,7 +87,7 @@ class AdminCommunityController extends Controller
 
     public function toggleActive(Community $community): RedirectResponse
     {
-        if ($community->id === auth()->user()->community_id && auth()->user()->is_admin) {
+        if ($community->id === (auth()->user()->organization_id ?? auth()->user()->community_id) && auth()->user()->is_admin) {
             return back()->with('error', 'Vous ne pouvez pas désactiver votre propre communauté.');
         }
 
@@ -99,10 +99,10 @@ class AdminCommunityController extends Controller
 
     public function destroy(Community $community): RedirectResponse
     {
-        $community->users()->update(['community_id' => null, 'organization_id' => null]);
-        $community->services()->update(['community_id' => null, 'organization_id' => null]);
-        $community->serviceRequests()->update(['community_id' => null, 'organization_id' => null]);
-        $community->transactions()->update(['community_id' => null, 'organization_id' => null]);
+        $community->users()->update(['organization_id' => null]);
+        $community->services()->update(['organization_id' => null]);
+        $community->serviceRequests()->update(['organization_id' => null]);
+        $community->transactions()->update(['organization_id' => null]);
 
         $community->delete();
 

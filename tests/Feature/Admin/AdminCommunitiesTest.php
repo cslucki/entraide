@@ -157,7 +157,7 @@ class AdminCommunitiesTest extends TestCase
             ->assertRedirect();
 
         $user->refresh();
-        $this->assertNull($user->community_id);
+        $this->assertNull($user->organization_id);
         $this->assertSoftDeleted('communities', ['id' => $community->id]);
     }
 
@@ -166,11 +166,11 @@ class AdminCommunitiesTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
         $community = Community::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $community->id]);
+        $user = User::factory()->create(['organization_id' => $community->id]);
 
         $this->actingAs($admin)->delete(route('admin.communities.destroy', $community));
 
-        $this->assertDatabaseHas('users', ['id' => $user->id, 'community_id' => null]);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'organization_id' => null]);
         $this->assertSoftDeleted('communities', ['id' => $community->id]);
     }
 
