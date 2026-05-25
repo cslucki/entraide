@@ -133,7 +133,7 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 | T140.5A — Channels + ResolveApiOrganization | ✅ MERGED | LOCKED |
 | T140.5B — LoopService + LoopMessageService | ✅ MERGED | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | ✅ MERGED | LOCKED |
-| T140.5D — Controllers métier | IN PROGRESS | UNLOCKED |
+| T140.5D — Controllers métier | ✅ MERGED | LOCKED |
 | T140.5E — Admin/Auth/Livewire cleanup | LOCKED | LOCKED |
 
 ## Governance Hardening — Leçons T140.5A/T140.5B
@@ -158,6 +158,7 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 - Option A stricte pour T140.5B : services uniquement, LoopController reste en T140.5D.
 - Governance Hardening appliqué après T140.5B avant toute ouverture de T140.5C.
 - T140.5D ouvert avec rendez-vous humain. Prochain rendez-vous avant T140.5E.
+- T140.5E en pause — attente rapport REVIEW_CLUSTER. Pré-analyse conservée (~79 refs, 5 lots).
 
 ## Historique
 
@@ -170,3 +171,4 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 - 2026-05-25 : T140.5C implémenté, testé (98 pass), mergé.
 - 2026-05-25 : T140.5D ouvert (GO humain). Début orchestration.
 - 2026-05-25 : T140.5D mergé (826 pass). Rendez-vous gouvernance avant T140.5E.
+- 2026-05-25 : T140.5E en pause — attente rapport REVIEW_CLUSTER sur T140.5A-D.
