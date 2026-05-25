@@ -149,7 +149,72 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 
 ### Prochain rendez-vous
 
-⚠️ **Point de rendez-vous humain programmé** — après merge T140.5D, avant T140.5E.
+⚠️ **Point de rendez-vous humain programmé** — intégration Review Cluster T140.5A-D.
+
+## Review Cluster T140.5A-D — Conclusions
+
+### Conflit inter-agents résolu
+
+| Agent | Position initiale | Résolution |
+|-------|-------------------|------------|
+| REVIEW_ARCHITECT | Escalade — LoopMember sans tenant scope | Partialement overrulé |
+| TENANT_SAFETY_REVIEWER | Pas d'escalade — bugs implementation-level | **Confirmé** |
+| LARAVEL_REVIEWER | Pas d'escalade — qualité code uniquement | Confirmé |
+
+**Arbitrage** : TENANT_SAFETY_REVIEWER correct. Audit ciblé LOOPMEMBER_TENANT_SCOPE_AUDIT confirme 10/11 faux positifs, 1 dette minimale.
+
+### Doctrine "Guard Before Query"
+
+Une query sans scoping SQL direct (ex: `LoopMember::where('loop_id', $loop->id)`) **n'est pas** une faille tenant si elle est précédée d'une validation explicite du `organization_id` sur l'objet parent (ex: `if ($loop->organization_id !== $orgId)`).
+
+**Pattern validé** :
+1. Charger l'objet root (Loop, Referral, etc.)
+2. Valider `$objet->organization_id === $orgId` (guard amont)
+3. Exécuter la query dépendante
+
+**Absence de tenant scope SQL ≠ faille automatique.**
+
+### Confidence levels des findings
+
+| Niveau | Critère | Exemple |
+|--------|---------|---------|
+| **LOW** | grep match sans lecture contexte | LoopMember query sans where('organization_id') |
+| **MEDIUM** | lecture contexte montre protection amont partielle | routes/channels.php:10 — Loop::find sans scope |
+| **HIGH** | lecture contexte montre absence protection | LoopMember query sans guard amont |
+| **CRITICAL** | cross-org data leak démontrable | Données d'org B visibles par org A |
+
+**Règle** : grep finding ≠ vulnérabilité. Niveau LOW nécessite toujours lecture contexte avant escalade.
+
+### Faux positifs confirmés
+
+Tous les LoopMember queries identifiés sont des faux positifs. Protection existante (guard amont) suffisante :
+
+| Location | Protection amont | Classification |
+|----------|-----------------|----------------|
+| routes/channels.php:16 | Lignes 25-28 | Faux positif |
+| LoopService.php:47 | Lignes 41-44 | Faux positif |
+| LoopService.php:72 | Lignes 66-69 | Faux positif |
+| LoopMessageService.php:74 | Lignes 83-86 | Faux positif |
+| LoopController.php:136 | Lignes 127-132 | Faux positif |
+| loopController.php:168 | Lignes 159-164 | Faux positif |
+| LoopController.php:207 | Lignes 198-203 | Faux positif |
+| LoopController.php:239 | Lignes 230-235 | Faux positif |
+| LoopController.php:275 | Lignes 266-271 | Faux positif |
+| LoopController.php:333 | Lignes 324-329 | Faux positif |
+| routes/channels.php:10 | Lignes 25-28 | Dette minimale |
+
+Priorité 0 (LoopMember queries) **annulée** — faux positifs confirmés.
+
+### Priorités réelles post-audit
+
+| Priorité | Domaine | Gravité | Action |
+|----------|---------|---------|--------|
+| P1 | PHPStan (10 erreurs) | Moyenne | Typage Eloquent incomplet |
+| P2 | `$organization_id` non déclarée | Basse | Ajouter PHPDoc User.php |
+| P2B | Referral queries (3, defense-in-depth) | Basse | Scoping optionnel |
+| P3 | Pint (7 violations) | Cosmétique | Corriger style |
+| P4 | Configuration Rector | Info | Configurer règles |
+| P5 | Documentation fallback | Info | PHPDoc pattern
 
 ## Décisions
 
@@ -159,6 +224,9 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 - Governance Hardening appliqué après T140.5B avant toute ouverture de T140.5C.
 - T140.5D ouvert avec rendez-vous humain. Prochain rendez-vous avant T140.5E.
 - T140.5E en pause — attente rapport REVIEW_CLUSTER. Pré-analyse conservée (~79 refs, 5 lots).
+- **Doctrine "Guard Before Query" validée** : guard amont SQL + validation organization_id = protection suffisante.
+- **Grep finding ≠ vulnérabilité** : confidence LOW nécessite lecture contexte avant escalade.
+- **Arbitrage inter-agents** : conflit = audit ciblé obligatoire avant escalade. L'agent avec le plus de contexte sur la couche (TENANT_SAFETY_REVIEWER pour sécurité) a préséance en cas d'égalité.
 
 ## Historique
 
@@ -172,3 +240,4 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 - 2026-05-25 : T140.5D ouvert (GO humain). Début orchestration.
 - 2026-05-25 : T140.5D mergé (826 pass). Rendez-vous gouvernance avant T140.5E.
 - 2026-05-25 : T140.5E en pause — attente rapport REVIEW_CLUSTER sur T140.5A-D.
+- 2026-05-25 : **Governance Update post-audit** — conflit REVIEW_ARCHITECT/TENANT_SAFETY_REVIEWER résolu (TENANT_SAFETY_REVIEWER correct). Doctrine Guard Before Query validée. Faux positifs LoopMember confirmés. Confidence levels intégrés. Priorité 0 annulée. Rendez-vous humain avant T140.5E.

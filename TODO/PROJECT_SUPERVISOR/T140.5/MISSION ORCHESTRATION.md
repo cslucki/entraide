@@ -928,10 +928,11 @@ Un point de rendez-vous humain est un arrêt obligatoire de l'orchestration auto
 | # | Position | Raison | Statut |
 |---|----------|--------|--------|
 | 0 | **Modification gouvernance** | **Après toute modification de MASTER_PLAN.md, MISSION ORCHESTRATION.md, règles d'autonomie/orchestration/doctrine** | **⚠️ ACTIF** |
-| 1 | Après T140.5A | Fin phase API/channels | ✅ Complété (validation donnée) |
-| 2 | **Après T140.5B** | **Fin phase services. Stabilisation gouvernance avant controllers.** | **⚠️ ACTIF** |
-| 3 | Après T140.5C | Fin phase referrals/rewards | À venir |
-| 4 | Après T140.5D | Fin phase controllers métier. Avant admin/Auth/Livewire | À venir |
+| 1 | Après T140.5A | Fin phase API/channels | ✅ Complété |
+| 2 | Après T140.5B | Fin phase services. Stabilisation gouvernance avant controllers. | ✅ Complété |
+| 3 | Après T140.5C | Fin phase referrals/rewards | ✅ Complété |
+| 4 | Après T140.5D | Fin phase controllers métier. Avant admin/Auth/Livewire | ✅ Complété |
+| 5 | **Intégration Review Cluster T140.5A-D** | **Conflit inter-agents, doctrine Guard Before Query, faux positifs, confidence levels, priorités réelles** | **⚠️ ACTIF** |
 
 ## Effets
 
@@ -951,12 +952,208 @@ Un point de rendez-vous est levé quand le superviseur humain :
 
 ---
 
-# État final attendu — T140.5 complet
+# État final — T140.5 (après Review Cluster)
 
 ```text
-T140.5A — Channels + ResolveApiOrganization   ✅ MERGED
-T140.5B — LoopService + LoopMessageService     ✅ MERGED
-T140.5C — ReferralService + RewardDispatcher   🔒 LOCKED
-T140.5D — Controllers métier                   🔒 LOCKED
-T140.5E — Admin/Auth/Livewire cleanup          🔒 LOCKED
+T140.5A — Channels + ResolveApiOrganization         ✅ MERGED
+T140.5B — LoopService + LoopMessageService           ✅ MERGED
+T140.5C — ReferralService + RewardDispatcher         ✅ MERGED
+T140.5D — LoopController                             ✅ MERGED
+T140.5E — Admin/Livewire/Views cleanup               🔒 PAUSE (attente décision)
 ```
+
+---
+
+# Review Cluster Integration — Multi-Agent Arbitration & Findings Doctrine
+
+## Origine
+
+L'audit T140.5A-D a révélé un conflit inter-agents entre REVIEW_ARCHITECT (escalade, quality C) et TENANT_SAFETY_REVIEWER (pas d'escalade, quality B) sur les LoopMember queries sans tenant scope SQL.
+
+L'audit ciblé LOOPMEMBER_TENANT_SCOPE_AUDIT a tranché : TENANT_SAFETY_REVIEWER correct. Tous les LoopMember queries sont des faux positifs.
+
+Cette section fige les enseignements et les règles qui en découlent.
+
+## Workflow Arbitrage Inter-Agents
+
+### Déclencheur
+
+Lorsque deux ou plusieurs agents de review émettent des verdicts contradictoires sur le même finding :
+
+| Agent A | Agent B | Conflit |
+|---------|---------|---------|
+| Escalade (quality C) | Pas d'escalade (quality B) | **Actif** |
+| Critical | Medium/Low | **Actif** |
+| GO | NO-GO | **Actif** |
+
+### Procédure
+
+1. **Identifier le périmètre précis du conflit** — fichier, ligne, pattern
+2. **Déclencher un audit ciblé** (mode READ-ONLY strict)
+3. **L'audit ciblé examine** :
+   - Le code exact (pas un grep, pas un résumé)
+   - La protection existante en amont de chaque location
+   - L'exploitabilité réelle (pas théorique)
+   - Le contexte complet (pas un extrait)
+4. **L'audit rend un verdict** : faux positif / vrai risque / dette technique
+5. **Le conflit est résolu** par l'arbitrage final
+
+### Règle de préséance
+
+En cas de conflit persistant :
+
+1. **L'agent avec le plus de contexte sur la couche concernée a préséance**
+   - Sécurité tenant → TENANT_SAFETY_REVIEWER
+   - Architecture code → REVIEW_ARCHITECT
+   - Conventions Laravel → LARAVEL_REVIEWER
+2. **Si les deux agents ont une autorité égale**, l'audit ciblé est décisif
+3. **L'escalade n'est pas un jugement final** — elle déclenche un processus, pas une décision
+
+## Procédure Audit Ciblé
+
+### Définition
+
+Un audit ciblé est une analyse READ-ONLY d'un ou plusieurs findings disputés, visant à déterminer la classification réelle du risque.
+
+### Conditions de déclenchement
+
+- Conflit inter-agents sur un finding
+- Classification CRITICAL avec désaccord
+- Finding basé sur grep pattern sans lecture contexte
+- Demande explicite du REVIEW_SUPERVISOR ou du superviseur humain
+
+### Règles
+
+1. **Lecture seule stricte** — interdiction de modifier un fichier pendant l'audit
+2. **Code exact** — l'audit lit le fichier complet, pas un extrait de grep
+3. **Protection amont** — pour chaque location, vérifier si une validation existe AVANT
+4. **Exploitabilité réelle** — démontrer le vecteur d'attaque, pas supposer
+5. **Classification explicite** — chaque location reçoit une classe : faux positif / vrai risque / dette technique
+
+### Livrable
+
+Un rapport d'audit ciblé listant :
+- Chaque location analysée
+- La protection existante (avec numéros de ligne)
+- L'exploitabilité réelle
+- La classification
+- La recommandation
+
+## Confidence Levels des Findings
+
+### Principes
+
+Tous les findings ne se valent pas. Un grep match sans lecture contexte a un niveau de confiance inférieur à une revue manuelle avec lecture complète du code.
+
+### Échelle
+
+| Niveau | Critère | Action attendue |
+|--------|---------|-----------------|
+| **LOW** | grep match seul, sans lecture contexte | Lecture contexte obligatoire avant toute action |
+| **MEDIUM** | lecture contexte partielle, protection amont partielle | Vérification manuelle, escalade possible |
+| **HIGH** | lecture contexte complète, absence protection confirmée | Action corrective obligatoire |
+| **CRITICAL** | vulnérabilité démontrable (ex: cross-org leak reproductible) | Blocage immédiat |
+
+### Règles associées
+
+- Un finding LOW ne peut pas justifier un NO-GO ou une escalade seul
+- Un finding CRITICAL nécessite toujours démonstration reproductible
+- Le niveau de confiance est ajusté après audit ciblé
+
+## Doctrine Faux Positifs Tenant Safety
+
+### Définition
+
+Un faux positif tenant safety est un finding qui identifie une absence de scoping SQL direct alors qu'une protection équivalente (ou supérieure) existe ailleurs dans le flux.
+
+### Cas typiques
+
+| Pattern | Protections alternatives valides |
+|---------|----------------------------------|
+| `LoopMember::where('loop_id', $loop->id)` sans `where('organization_id')` | Guard amont `$loop->organization_id !== $orgId` avant la query |
+| `Referral::where('referrer_user_id', $user->id)` sans `where('organization_id')` | Relation déduite du user (auto-scoped) |
+| `Loop::find($id)` sans where clause | Guard immédiat après le find |
+
+### Règle fondamentale
+
+**L'absence de tenant scope SQL n'est pas une faille automatique si une protection équivalente existe ailleurs dans le flux.**
+
+Le pattern valide est :
+
+```text
+1. Charger objet root (Loop, Referral, etc.)
+2. Valider organization_id de l'objet root (guard amont)
+3. Exécuter query dépendante
+```
+
+Ce pattern est appelé **"Guard Before Query"** et est considéré comme une protection tenant suffisante.
+
+### Distinction faux positif vs vrai risque
+
+| Critère | Faux positif | Vrai risque |
+|---------|-------------|-------------|
+| Protection amont | Oui (guard explicite avant query) | Non |
+| Exploitabilité | Aucune (même avec ID enumeration) | Démonstrable |
+| Impact | N/A — code comportemental correct | Data leak cross-org |
+
+## Règle "Lecture Contexte Avant Escalade"
+
+### Principe
+
+Toute escalade (NO-GO, block, quality C/D) doit être précédée d'une lecture complète du fichier concerné.
+
+### Interdictions
+
+- **Interdit** : escalader sur un grep match sans lire le fichier
+- **Interdit** : escalader sur un pattern général sans vérifier les exceptions
+- **Interdit** : classer CRITICAL sans démonstration d'exploitabilité
+
+### Processus obligatoire
+
+1. Grep → trouver les locations candidates
+2. Lecture fichier complet → comprendre le contexte
+3. Vérifier protection amont pour chaque location
+4. Évaluer l'exploitabilité réelle
+5. Si aucune protection et exploitabilité démontrée → escalade
+6. Si protection existe ou exploitabilité non démontrée → faux positif ou dette
+
+## Guard Before Query — Clarification
+
+### Le pattern validé
+
+```php
+// ÉTAPE 1 : valider l'objet root (guard amont)
+if ($loop->organization_id !== $orgId) {
+    abort(404);  // ou throw, return false, etc.
+}
+
+// ÉTAPE 2 : query dépendante (safe)
+$member = LoopMember::where('loop_id', $loop->id)
+    ->where('user_id', $user->id)
+    ->first();
+```
+
+### Pourquoi c'est suffisant
+
+- Le guard amont garantit que l'objet root (Loop) appartient à la même organization que l'utilisateur
+- La query LoopMember ne peut donc matcher que des enregistrements du même organization
+- Même avec ID enumeration, l'attaquant ne peut pas contourner le guard amont
+
+### Defense-in-depth (optionnel)
+
+Le pattern alternatif avec scoping SQL direct offre une redondance mais n'est pas obligatoire :
+
+```php
+// Pattern alternatif (redondant)
+$member = LoopMember::where('loop_id', $loop->id)
+    ->where('user_id', $user->id)
+    ->whereHas('loop', fn($q) => $q->where('organization_id', $orgId))
+    ->first();
+```
+
+### Quand le guard amont est INSUFFISANT
+
+Le guard amont n'est pas suffisant quand :
+- L'objet root est chargé sans aucune validation (ex: `Loop::find($id)` sans garde)
+- L'objet root n'a pas de organization_id (ex: modèles sans tenant)
+- La query dépendante peut remonter à un objet root d'une autre organization via une relation non-scopée
