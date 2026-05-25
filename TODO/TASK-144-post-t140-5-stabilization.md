@@ -2,7 +2,7 @@
 task_id: TASK-144-post-t140-5
 title: Post-T140.5 Stabilization — PHPStan + organization_id + Referral queries + Pint
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OpenCode
 branch: TASK-144-post-t140-5-stabilization
@@ -12,6 +12,19 @@ lock:
   status: UNLOCKED
   agent: OpenCode
   since: 2026-05-25 14:41:31 Europe/Paris
+
+## Sub-agent verdicts
+
+| Agent | Verdict |
+|---|---|
+| TECH_WRITER | P1+P2: 4 files, 6 assert() + 1 PHPDoc. PHPStan 0 errors |
+| TEST_WORKER | 826 passed, 11 skipped, 0 failed — baseline intact |
+| P2B analysis | Defense-in-depth confirmed. Referral+ReferralReward use BelongsToTenantScope. Keep as-is |
+| STEP_GLOBAL_REVIEWER | GO — zero logic changes, zero PHPStan errors |
+| REVIEW_SUPERVISOR | GO — all sub-agents pass |
+
+## P3 note
+Pint flagged 80+ violations (not 7). Scope mismatch with "no global refactor" constraint. Skipped.
 
 ---
 
@@ -40,3 +53,20 @@ Corriger les 4 priorités identifiées par le Review Cluster post-audit T140.5A-
 ## Sources
 - Review Cluster report: `TODO/REVIEW_CLUSTER/REPORT_T1405_A_D.md`
 - PHPStan errors: 10 (LoopController:2, LoopService:1, ReferralService:2, RewardDispatcher:5)
+
+## Modified Files
+
+| File | Change |
+|---|---|
+| app/Http/Controllers/LoopController.php | +2 assert() — Community type guard |
+| app/Models/User.php | +1 PHPDoc @property $organization_id |
+| app/Services/LoopService.php | +1 assert() — User type guard |
+| app/Services/RewardDispatcher.php | +3 assert() — User type guards |
+
+## Tests
+
+| Suite | Result |
+|---|---|
+| PHPStan | 10 → 0 errors |
+| Full test suite | 826 passed, 11 skipped, 0 failed |
+| Pint | 80+ violations (out of scope) |
