@@ -22,7 +22,8 @@ Broadcast::channel('loop.{loopId}', function ($user, string $loopId) {
         return false;
     }
 
-    if ($loop->community_id !== $user->community_id) {
+    $orgId = $user->organization_id ?? $user->community_id;
+    if ($loop->organization_id !== $orgId) {
         return false;
     }
 
