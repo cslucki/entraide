@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Community;
 use App\Models\EmailLog;
+use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Report;
 use App\Models\RequestAttachment;
@@ -86,7 +87,7 @@ class AdminController extends Controller
             'location'     => 'nullable|string|max:100',
             'website'      => 'nullable|url|max:255',
             'linkedin_url' => 'nullable|url|max:255',
-            'community_id' => 'nullable|uuid|exists:communities,id',
+            'organization_id' => 'nullable|uuid|exists:communities,id',
             'is_available' => 'boolean',
             'is_admin'     => 'boolean',
             'banned'       => 'boolean',
@@ -99,7 +100,7 @@ class AdminController extends Controller
             'location'     => $data['location'] ?? null,
             'website'      => $data['website'] ?? null,
             'linkedin_url' => $data['linkedin_url'] ?? null,
-            'community_id' => $data['community_id'] ?? null,
+            'organization_id' => $data['organization_id'] ?? null,
             'is_available' => $request->boolean('is_available'),
         ];
 
@@ -241,16 +242,15 @@ class AdminController extends Controller
         }
 
         $data = $request->validate([
-            'community_id' => ['nullable', 'uuid', 'exists:communities,id'],
+            'organization_id' => ['nullable', 'uuid', 'exists:communities,id'],
         ]);
 
-        $community = $data['community_id']
-            ? Community::withTrashed()->find($data['community_id'])
+        $community = $data['organization_id']
+            ? Organization::withTrashed()->find($data['organization_id'])
             : null;
 
         $user->update([
-            'community_id' => $data['community_id'],
-            'organization_id' => $data['community_id'],
+            'organization_id' => $data['organization_id'],
         ]);
 
         if ($community) {
@@ -344,7 +344,7 @@ class AdminController extends Controller
         }
         // admin d'une communauté : seulement les services de sa communauté
         $community = Community::where('admin_id', $user->id)->first();
-        if (! $community || $service->community_id !== $community->id) {
+        if (! $community || $service->organization_id !== $community->id) {
             abort(403);
         }
     }
@@ -478,7 +478,7 @@ class AdminController extends Controller
             return;
         }
         $community = Community::where('admin_id', $user->id)->first();
-        if (! $community || $serviceRequest->community_id !== $community->id) {
+        if (! $community || $serviceRequest->organization_id !== $community->id) {
             abort(403);
         }
     }

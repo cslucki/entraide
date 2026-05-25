@@ -26,7 +26,7 @@ class AdminMessageController extends Controller
             $messages = new LengthAwarePaginator([], 0, $perPage);
         } else {
             $messages = match ($filter) {
-                'chatloop' => LoopMessage::whereHas('loop', fn($q) => $q->where('community_id', $orgId))
+                'chatloop' => LoopMessage::whereHas('loop', fn($q) => $q->where('organization_id', $orgId))
                     ->with(['sender:id,name,email', 'loop:id,name'])
                     ->latest()
                     ->paginate($perPage)
@@ -47,7 +47,7 @@ class AdminMessageController extends Controller
 
     private function unifiedFeed(string $orgId, int $perPage): LengthAwarePaginator
     {
-        $loopMessages = LoopMessage::whereHas('loop', fn($q) => $q->where('community_id', $orgId))
+        $loopMessages = LoopMessage::whereHas('loop', fn($q) => $q->where('organization_id', $orgId))
             ->with(['sender:id,name,email', 'loop:id,name'])
             ->latest()
             ->limit(500)
