@@ -11,9 +11,9 @@ if (! function_exists('currentOrganization')) {
 
 if (! function_exists('organizationRoute')) {
     /**
-     * Generate a URL for a community/organization route.
+     * Generate a URL for an organization route.
      *
-     * Currently wraps route() with transparent 'organization' → 'community'
+     * Currently wraps route() with transparent 'community' → 'organization'
      * parameter mapping. This enables future dual routing without changing
      * call sites: when '/org/{organization}' routes are activated, swap
      * the mapping here.
@@ -27,9 +27,9 @@ if (! function_exists('organizationRoute')) {
      */
     function organizationRoute(string $name, array $parameters = []): string
     {
-        if (isset($parameters['organization']) && ! isset($parameters['community'])) {
-            $parameters['community'] = $parameters['organization'];
-            unset($parameters['organization']);
+        if (isset($parameters['community']) && ! isset($parameters['organization'])) {
+            $parameters['organization'] = $parameters['community'];
+            unset($parameters['community']);
         }
 
         return route($name, $parameters);
