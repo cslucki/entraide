@@ -14,7 +14,7 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | T140.5A — Channels + ResolveApiOrganization | MERGED | `TASK-144-t140-5A-channels-resolve-api-organization` | LOCKED |
 | T140.5B — LoopService + LoopMessageService | ✅ MERGED | `TASK-144-t140-5B-loop-services` | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | ✅ MERGED | `TASK-144-t140-5C-referral-reward` | LOCKED |
-| T140.5D — Controllers métier | LOCKED | — | LOCKED |
+| T140.5D — Controllers métier | IN PROGRESS | `TASK-144-t140-5D-controllers-metier` | UNLOCKED |
 | T140.5E — Admin/Auth/Livewire cleanup | LOCKED | — | LOCKED |
 
 ## Périmètre T140.5A
@@ -90,6 +90,30 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 7. REVIEW_SUPERVISOR verdict final
 8. PROJECT_SUPERVISOR met à jour master plan
 
+## Périmètre T140.5D
+
+**Autorisé :**
+- `app/Http/Controllers/LoopController.php`
+- Tests strictement nécessaires associés au controller
+- `TODO/TASK-144-t140-5D-controllers-metier.md`
+- `docs/audits/T140.5D-controllers-metier.md`
+
+**Interdit :**
+- services déjà mergés T140.5B/T140.5C
+- admin, auth, Livewire
+- database/*, migrations/*
+- modèles, policies métier, VERSION
+- T140.5E
+
+## Séquences d'exécution T140.5D
+
+1. TECH_WRITER implémente LoopController
+2. TEST_WORKER lance tests ciblés
+3. STEP_GLOBAL_REVIEWER review
+4. REVIEW_SUPERVISOR verdict
+5. PROJECT_SUPERVISOR : commit, push, merge
+6. **Rendez-vous humain obligatoire avant T140.5E**
+
 ## Bloqueurs
 
 - Aucun pour l'instant.
@@ -108,8 +132,8 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 |---|---|---|
 | T140.5A — Channels + ResolveApiOrganization | ✅ MERGED | LOCKED |
 | T140.5B — LoopService + LoopMessageService | ✅ MERGED | LOCKED |
-| T140.5C — ReferralService + RewardDispatcher | IN PROGRESS | UNLOCKED |
-| T140.5D — Controllers métier | LOCKED | LOCKED |
+| T140.5C — ReferralService + RewardDispatcher | ✅ MERGED | LOCKED |
+| T140.5D — Controllers métier | IN PROGRESS | UNLOCKED |
 | T140.5E — Admin/Auth/Livewire cleanup | LOCKED | LOCKED |
 
 ## Governance Hardening — Leçons T140.5A/T140.5B
@@ -125,7 +149,7 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 
 ### Prochain rendez-vous
 
-⚠️ **Point de rendez-vous humain programmé** — après merge T140.5C, avant T140.5D.
+⚠️ **Point de rendez-vous humain programmé** — après merge T140.5D, avant T140.5E.
 
 ## Décisions
 
@@ -133,7 +157,7 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 - T140.5A first. Sous-tâches séquentielles. Déverrouillage autonome après merge si develop propre.
 - Option A stricte pour T140.5B : services uniquement, LoopController reste en T140.5D.
 - Governance Hardening appliqué après T140.5B avant toute ouverture de T140.5C.
-- T140.5C ouvert avec point de rendez-vous humain avant T140.5D.
+- T140.5D ouvert avec rendez-vous humain. Prochain rendez-vous avant T140.5E.
 
 ## Historique
 
@@ -144,3 +168,4 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 - 2026-05-25 : T140.5B implémenté, testé (221 pass), mergé.
 - 2026-05-25 : Governance Hardening — règles renforcées, rendez-vous humain avant T140.5C.
 - 2026-05-25 : T140.5C implémenté, testé (98 pass), mergé.
+- 2026-05-25 : T140.5D ouvert (GO humain). Début orchestration.
