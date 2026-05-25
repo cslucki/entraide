@@ -22,6 +22,11 @@ priority: HIGH
 created_at: 2026-05-25
 updated_at: 2026-05-25
 
+commits:
+  - hash: TBD
+    run: RUN 1
+    message: "task: commit RUN1 audit cockpit + TASK update"
+
 labels:
   - organization
   - runtime
@@ -41,9 +46,17 @@ lock:
 
 | Phase | Status | Detail |
 |-------|--------|--------|
-| RUN 0 — Bootstrap & Safety | IN PROGRESS | Branch, cockpit, git state |
-| RUN 1 — Viability Audit | PENDING | 7 sub-agents |
-| RUN 2+ — Doctrine/Implementation | LOCKED | Wait for Cyril GO |
+| RUN 0 — Bootstrap & Safety | ✅ DONE | Branch, cockpit, git state |
+| RUN 1 — Viability Audit | ✅ DONE | 7 sub-agents, verdict GO |
+| RUN 2+ — Doctrine/Implementation | ✅ UNLOCKED | GO AUTONOME donné par Cyril |
+
+## RUN 1 Résumé
+
+**Verdict:** GO — stabilisation possible en ≤5 RUNs.
+**Problème principal:** Base locale vide (0 communities, 0 settings). Pas une erreur de code.
+**2 failures PHPUnit:** collision de routes `/org/{organization}` dans le test vs web.php.
+**Architecture:** Existe et correcte. ResolveUrlOrganization a 3 fallbacks, tous échouent faute de données.
+**DB audit:** 0 communautés, 0 settings, pas de table `organizations` (Organization extends Community).
 
 ## Symptômes rapportés
 
