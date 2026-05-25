@@ -24,6 +24,7 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | T140.5F — Stabilization | ✅ MERGED | `TASK-144-post-t140-5-stabilization` | LOCKED |
 | T140.5G — Final Review | ✅ COMPLETE | — | LOCKED |
 | T140.5H — Tenant Boundary Hardening | ✅ MERGED | `TASK-144-t140-5H-tenant-hardening` | LOCKED |
+| T140.5I — Route Cache Serialization Hotfix | ✅ MERGED | `TASK-144-t140-5I-route-cache-hotfix` | LOCKED |
 
 ## 🏁 Cycle T140.5 — COMPLETE
 
