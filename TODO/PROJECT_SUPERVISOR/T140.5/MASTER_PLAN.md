@@ -12,7 +12,7 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | Sous-tâche | Statut | Branche | Lock |
 |------------|--------|---------|------|
 | T140.5A — Channels + ResolveApiOrganization | MERGED | `TASK-144-t140-5A-channels-resolve-api-organization` | LOCKED |
-| T140.5B — LoopService + LoopMessageService | IN PROGRESS | `TASK-144-t140-5B-loop-services` | UNLOCKED |
+| T140.5B — LoopService + LoopMessageService | ✅ MERGED | `TASK-144-t140-5B-loop-services` | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | LOCKED | — | LOCKED |
 | T140.5D — Controllers métier | LOCKED | — | LOCKED |
 | T140.5E — Admin/Auth/Livewire cleanup | LOCKED | — | LOCKED |
@@ -86,7 +86,7 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 | Sous-tâche | Statut | Lock |
 |---|---|---|
 | T140.5A — Channels + ResolveApiOrganization | ✅ MERGED | LOCKED |
-| T140.5B — LoopService + LoopMessageService | IN PROGRESS | UNLOCKED |
+| T140.5B — LoopService + LoopMessageService | ✅ MERGED | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | LOCKED | LOCKED |
 | T140.5D — Controllers métier | LOCKED | LOCKED |
 | T140.5E — Admin/Auth/Livewire cleanup | LOCKED | LOCKED |
@@ -103,3 +103,4 @@ sont satisfaites. Aucun GO humain requis après validation initiale.
 - 2026-05-24 : Gouvernance refondue (trackable paths, permissions, branches). Code patch channels + API effectué.
 - 2026-05-24 : TECH_WRITER reste à faire (tests + audit doc).
 - 2026-05-25 : T140.5A mergé. T140.5B délocké par décision gouvernance.
+- 2026-05-25 : T140.5B implémenté, testé (221 pass), mergé.
