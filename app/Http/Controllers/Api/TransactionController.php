@@ -74,7 +74,7 @@ class TransactionController extends Controller
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
             'points_proposed' => $data['points_proposed'],
-            'community_id' => app()->bound('current_organization') ? app('current_organization')->getKey() : null,
+            'organization_id' => app()->bound('current_organization') ? app('current_organization')->getKey() : null,
             'status' => 'pending',
         ]);
 

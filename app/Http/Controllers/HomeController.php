@@ -40,14 +40,14 @@ class HomeController extends Controller
             abort(404);
         }
 
-        $communityId = $organization->id;
+        $organizationId = $organization->id;
 
-        $members = User::where('community_id', $communityId)
+        $members = User::where('organization_id', $organizationId)
             ->withCount([
-                'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('community_id', $communityId),
-                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'open')->where('community_id', $communityId),
+                'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('organization_id', $organizationId),
+                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'open')->where('organization_id', $organizationId),
             ])
-            ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('community_id', $communityId)->with('skills', 'category')])
+            ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('organization_id', $organizationId)->with('skills', 'category')])
             ->orderByDesc('created_at')
             ->paginate(16);
 
@@ -72,11 +72,11 @@ class HomeController extends Controller
             abort(404);
         }
 
-        $communityId = $organization->id;
+        $organizationId = $organization->id;
 
         $exchanges = Transaction::withoutGlobalScope(BelongsToTenantScope::class)
             ->where('status', 'completed')
-            ->where('community_id', $communityId)
+            ->where('organization_id', $organizationId)
             ->with(['buyer', 'seller', 'service.category', 'serviceRequest', 'reviews'])
             ->latest('updated_at')
             ->paginate(20);

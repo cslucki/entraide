@@ -20,25 +20,25 @@ class BlogController extends Controller
         }
 
         $recentPosts = BlogPost::published()
-            ->where('community_id', $organization->id)
+            ->where('organization_id', $organization->id)
             ->with(['user', 'categories', 'tags'])
             ->withCount(['comments', 'likes'])
             ->latest('published_at')
             ->paginate(12);
 
         $popularPosts = BlogPost::published()
-            ->where('community_id', $organization->id)
+            ->where('organization_id', $organization->id)
             ->with('user')
             ->orderByDesc('views_count')
             ->limit(5)
             ->get();
 
         $categories = Category::withCount([
-            'blogPosts' => fn ($q) => $q->published()->where('community_id', $organization->id),
+            'blogPosts' => fn ($q) => $q->published()->where('organization_id', $organization->id),
         ])->get();
 
         $popularTags = Tag::withCount([
-            'blogPosts' => fn ($q) => $q->published()->where('community_id', $organization->id),
+            'blogPosts' => fn ($q) => $q->published()->where('organization_id', $organization->id),
         ])
             ->orderByDesc('blog_posts_count')
             ->limit(30)
@@ -59,7 +59,7 @@ class BlogController extends Controller
         $category = Category::where('slug', $slug)->firstOrFail();
 
         $posts = BlogPost::published()
-            ->where('community_id', $organization->id)
+            ->where('organization_id', $organization->id)
             ->with(['user', 'categories', 'tags'])
             ->withCount(['comments', 'likes'])
             ->whereHas('categories', fn ($q) => $q->where('slug', $slug))
@@ -79,7 +79,7 @@ class BlogController extends Controller
         $tag = Tag::where('slug', $slug)->firstOrFail();
 
         $posts = BlogPost::published()
-            ->where('community_id', $organization->id)
+            ->where('organization_id', $organization->id)
             ->with(['user', 'categories', 'tags'])
             ->withCount(['comments', 'likes'])
             ->whereHas('tags', fn ($q) => $q->where('slug', $slug))
@@ -92,7 +92,7 @@ class BlogController extends Controller
     public function show(BlogPost $post): View
     {
         $organization = currentOrganization();
-        if (! $organization || $post->community_id !== $organization->id) {
+        if (! $organization || $post->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -104,7 +104,7 @@ class BlogController extends Controller
         $post->load(['user', 'categories', 'tags', 'comments.user', 'comments.replies.user']);
 
         $relatedPosts = BlogPost::published()
-            ->where('community_id', $organization->id)
+            ->where('organization_id', $organization->id)
             ->with('user')
             ->whereHas('categories', fn ($q) => $q->whereIn('categories.id', $post->categories->pluck('id')))
             ->where('id', '!=', $post->id)
@@ -154,7 +154,7 @@ class BlogController extends Controller
         ]);
 
         $data['user_id'] = auth()->id();
-        $data['community_id'] = $organization->id;
+        $data['organization_id'] = $organization->id;
         $data['slug'] = Str::slug($data['title']);
         $data['published_at'] = $data['status'] === 'published' ? now() : null;
 
@@ -181,7 +181,7 @@ class BlogController extends Controller
     public function edit(BlogPost $post): View
     {
         $organization = currentOrganization();
-        if (! $organization || $post->community_id !== $organization->id) {
+        if (! $organization || $post->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -195,7 +195,7 @@ class BlogController extends Controller
     public function update(Request $request, BlogPost $post): RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization || $post->community_id !== $organization->id) {
+        if (! $organization || $post->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -238,7 +238,7 @@ class BlogController extends Controller
     public function publish(BlogPost $post): RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization || $post->community_id !== $organization->id) {
+        if (! $organization || $post->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -254,7 +254,7 @@ class BlogController extends Controller
     public function destroy(BlogPost $post): RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization || $post->community_id !== $organization->id) {
+        if (! $organization || $post->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -272,7 +272,7 @@ class BlogController extends Controller
         }
 
         $posts = BlogPost::where('user_id', auth()->id())
-            ->where('community_id', $organization->id)
+            ->where('organization_id', $organization->id)
             ->withCount(['comments', 'likes'])
             ->latest()
             ->paginate(15);

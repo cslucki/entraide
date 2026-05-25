@@ -12,7 +12,7 @@ class BlogCommentController extends Controller
     public function store(Request $request, BlogPost $post): RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization || $post->community_id !== $organization->id) {
+        if (! $organization || $post->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -41,7 +41,7 @@ class BlogCommentController extends Controller
     {
         $organization = currentOrganization();
         $post = $comment->post;
-        if (! $organization || ! $post || $post->community_id !== $organization->id) {
+        if (! $organization || ! $post || $post->organization_id !== $organization->id) {
             abort(404);
         }
 
