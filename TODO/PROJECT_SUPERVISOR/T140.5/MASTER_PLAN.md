@@ -15,12 +15,12 @@ Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 | T140.5B — LoopService + LoopMessageService | ✅ MERGED | `TASK-144-t140-5B-loop-services` | LOCKED |
 | T140.5C — ReferralService + RewardDispatcher | ✅ MERGED | `TASK-144-t140-5C-referral-reward` | LOCKED |
 | T140.5D — Controllers métier | ✅ MERGED | `TASK-144-t140-5D-controllers-metier` | LOCKED |
-| T140.5E — Admin/Auth/Livewire cleanup | PARTIEL | — | LOCKED |
+| T140.5E — Admin/Auth/Livewire cleanup | ✅ COMPLETE | — | LOCKED |
 | ↳ Lot E — helpers.php | ✅ MERGED | `TASK-144-t140-5E-lotE-helpers` | LOCKED |
 | ↳ Lot A — Controllers métier | ✅ MERGED | `TASK-144-t140-5E-lotA-controllers` | LOCKED |
 | ↳ Lot C — Livewire + Views | ✅ MERGED | `TASK-144-t140-5E-lotC-livewire-views` | LOCKED |
 | ↳ Lot B — Admin controllers | ✅ MERGED | `TASK-144-t140-5E-lotB-admin` | LOCKED |
-| ↳ Lot D — ResolveUrlOrganization | IN PROGRESS | `TASK-144-t140-5E-lotD-middleware` | UNLOCKED |
+| ↳ Lot D — ResolveUrlOrganization | ✅ MERGED | `TASK-144-t140-5E-lotD-middleware` | LOCKED |
 
 ## Périmètre T140.5A
 
@@ -251,3 +251,21 @@ Priorité 0 (LoopMember queries) **annulée** — faux positifs confirmés.
 - 2026-05-25 : **Rendez-vous humain levé** pour enchaînement automatique T140.5E. Ordre : A → C → B → D.
 - 2026-05-25 : T140.5E Lot A — 9 controllers métier (42 refs), mergé (826 pass). Enchaînement Lot C. Conditions : lot précédent MERGED, develop propre, tests verts, tous GO, scope fixe, aucune violation, pas de finding CRITICAL reproductible, pas de modif gouvernance.
 - 2026-05-25 : T140.5E Lot C (Livewire Explorer + admin views) mergé. Enchaînement Lot B (Admin controllers).
+- 2026-05-25 : T140.5E Lot B (4 Admin controllers, ~13 refs) mergé (826 pass). Enchaînement Lot D (ResolveUrlOrganization).
+- 2026-05-25 : T140.5E Lot D (ResolveUrlOrganization middleware, 2 refs) mergé (826 pass).
+- 2026-05-25 : **T140.5 complet — rendez-vous humain final.**
+
+## État final T140.5
+
+| Sous-tâche | Statut | Tests |
+|------------|--------|-------|
+| T140.5A — Channels + ResolveApiOrganization | ✅ MERGED | 826 pass |
+| T140.5B — LoopService + LoopMessageService | ✅ MERGED | 826 pass |
+| T140.5C — ReferralService + RewardDispatcher | ✅ MERGED | 826 pass |
+| T140.5D — LoopController | ✅ MERGED | 826 pass |
+| T140.5E — Admin/Auth/Livewire cleanup | ✅ COMPLETE | 826 pass |
+| ↳ Lot A — Controllers métier | ✅ MERGED | 826 pass |
+| ↳ Lot B — Admin controllers | ✅ MERGED | 826 pass |
+| ↳ Lot C — Livewire + Views | ✅ MERGED | 826 pass |
+| ↳ Lot D — ResolveUrlOrganization | ✅ MERGED | 826 pass |
+| ↳ Lot E — helpers.php | ✅ MERGED | 826 pass |
