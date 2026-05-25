@@ -126,7 +126,7 @@ class LoopMessageTest extends TestCase
         ]);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('User does not belong to the same community as this loop.');
+        $this->expectExceptionMessage('User does not belong to the same organization as this loop.');
 
         $this->messageService->sendUserMessage(
             $this->loop,
