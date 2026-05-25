@@ -1,105 +1,272 @@
 # MISSION ORCHESTRATION T140.5
-# TODO/PROJECT_SUPERVISOR/T140.5/MISSION ORCHESTRATION.md
-
+Fichier : `TODO/PROJECT_SUPERVISOR/T140.5/MISSION ORCHESTRATION.md`
+Mise à jour : 2026-05-25 14:41:31 Europe/Paris
 Tu es OpenCode Workspace.
 
-Objectif :
+## Objectif
 
 Transformer le NO-GO T140.5 global en plan multi-agents autonome, découpé en sous-tâches sûres.
 
-Règle absolue :
+## Règle absolue
 
 Ne jamais coder T140.5 en bloc.
 
-Architecture agents :
+T140.5 est trop large pour :
+- une seule PR ;
+- une seule branche ;
+- un seul agent ;
+- un seul patch global.
+
+Toute implémentation doit être :
+- découpée ;
+- supervisée ;
+- reviewée ;
+- testée ;
+- traçable ;
+- réversible.
+
+## Architecture agents
+
+Architecture cible :
 
 - PRIMARY_1_PROJECT_SUPERVISOR
-  chef de projet autonome, maintient le plan vivant, découpe les sous-tâches, coordonne les agents.
-
 - PRIMARY_2_REVIEW_SUPERVISOR
-  assistante supervision/review, vérifie cohérence, périmètre, qualité, risques et conformité.
-
 - TECH_WRITER
-  seul agent autorisé à modifier le code.
+- TEST_WORKER_API_CHANNELS
+- TEST_WORKER_TENANT_SAFETY
+- STEP_GLOBAL_REVIEWER
 
-- TEST_WORKERS
-  agents read-only/test-only pour validations, audits et sécurité tenant.
+## PRIMARY_1_PROJECT_SUPERVISOR
 
-Autorité :
+Rôle :
+chef de projet autonome.
 
-- le PROJECT_SUPERVISOR est le seul agent autorisé à lancer/coordonner d'autres agents ;
-- le REVIEW_SUPERVISOR ne lance jamais d'agents ;
-- les workers ne lancent jamais d'autres workers ;
-- aucun agent secondaire ne peut élargir le périmètre ;
-- aucun agent secondaire ne peut démarrer une nouvelle sous-tâche ;
-- un seul writer actif à la fois.
+Responsabilités :
+- maintenir le plan vivant ;
+- coordonner les agents ;
+- maintenir les états ;
+- maintenir les bloqueurs ;
+- maintenir les décisions ;
+- maintenir les branches prévues ;
+- appliquer les règles d’autonomie ;
+- décider GO / NO-GO.
 
-==================================================
-1. TASK GOVERNANCE RULES
-==================================================
+Le PROJECT_SUPERVISOR ne code jamais.
+
+Le PROJECT_SUPERVISOR ne modifie jamais :
+- app/
+- routes/
+- tests/
+- docs/
+
+## PRIMARY_2_REVIEW_SUPERVISOR
+
+Rôle :
+assistante supervision/review.
+
+Responsabilités :
+- relire ;
+- contrôler le périmètre ;
+- détecter les dérives ;
+- contrôler les risques ;
+- rendre un verdict GO / NO-GO.
+
+Le REVIEW_SUPERVISOR ne code jamais.
+
+## TECH_WRITER
+
+Rôle :
+seul agent autorisé à modifier le code.
+
+Responsabilités :
+- implémentation ;
+- tests ciblés ;
+- documentation d’audit ;
+- patch runtime.
+
+Contraintes :
+- un seul writer actif ;
+- aucun élargissement de scope ;
+- aucun lancement de nouvelle sous-tâche.
+
+## TEST_WORKERS
+
+Rôle :
+agents read-only/test-only.
+
+Responsabilités :
+- validations ;
+- tests ;
+- audits ;
+- sécurité tenant ;
+- contrôle cross-organization.
+
+Ils ne modifient pas le runtime.
+
+## STEP_GLOBAL_REVIEWER
+
+Rôle :
+review finale globale.
+
+Responsabilités :
+- comparer plan ;
+- comparer diff ;
+- comparer tests ;
+- comparer docs ;
+- vérifier cohérence globale.
+
+## Autorité
+
+Le PROJECT_SUPERVISOR est le seul agent autorisé à :
+- lancer des agents ;
+- coordonner des agents ;
+- arbitrer ;
+- appliquer les règles d’autonomie ;
+- décider push/merge si les règles le permettent.
+
+Le REVIEW_SUPERVISOR :
+- ne lance jamais d’agents ;
+- ne modifie jamais le runtime.
+
+Les workers :
+- ne lancent jamais d’autres workers ;
+- ne créent jamais de branches ;
+- ne créent jamais de sous-tâches ;
+- ne modifient jamais le runtime.
+
+Le TECH_WRITER :
+- ne merge jamais ;
+- ne push jamais ;
+- ne démarre jamais une autre sous-tâche.
+
+---
+
+# Task governance rules
+
+## EPIC parent
 
 T140.5 est un EPIC de supervision.
+
 Le fichier parent :
 
-TODO/TASK-144-t140-5-runtime-organization-id.md
+`TODO/TASK-144-t140-5-runtime-organization-id.md`
 
-NE CORRESPOND À AUCUNE BRANCHE.
+NE correspond à aucune branche.
 
 Il sert uniquement :
 - de supervision globale ;
+- de coordination ;
 - de master task ;
 - de suivi orchestration ;
-- de coordination multi-agents.
+- de mémoire persistante.
 
-Les sous-tâches héritent OBLIGATOIREMENT du numéro parent 144.
+## Héritage obligatoire IDs
 
-Format obligatoire :
+Les sous-tâches héritent obligatoirement du numéro parent :
 
+`144`
+
+Formats obligatoires :
+
+```text
 TASK-144-t140-5A-...
 TASK-144-t140-5B-...
 TASK-144-t140-5C-...
 TASK-144-t140-5D-...
 TASK-144-t140-5E-...
+````
 
-Les branches DOIVENT utiliser exactement le même identifiant.
+## Correspondance branche / taskfile
+
+La branche doit utiliser exactement le même identifiant que le TASK file.
 
 Exemple :
 
+```text
 TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
+```
+
 → branche :
+
+```text
 TASK-144-t140-5A-channels-resolve-api-organization
+```
+
+## Interdictions
 
 Il est interdit :
-- d'inventer un nouveau numéro TASK ;
-- de créer TASK-145 ;
-- de créer TASK-140 ;
-- de créer une branche pour le parent epic ;
-- de créer une branche globale T140.5.
 
-==================================================
-2. BRANCH GOVERNANCE RULES
-==================================================
+* d’inventer un nouveau numéro TASK ;
+* de créer TASK-145 ;
+* de créer TASK-140 ;
+* de créer une branche pour l’EPIC parent ;
+* de créer une branche globale T140.5 ;
+* de mélanger plusieurs sous-tâches dans une branche.
 
-- une branche par sous-tâche ;
-- jamais de branche globale T140.5 ;
-- chaque sous-tâche repart de develop à jour ;
-- aucun agent ne travaille sur plusieurs sous-tâches simultanément ;
-- l'EPIC parent n'a PAS de branche ;
-- les branches LOCKED ne doivent pas exister.
+---
 
-Branches prévues listées dans :
-TODO/PROJECT_SUPERVISOR/T140.5/BRANCHES_PREVUES.md
+# Branch governance rules
 
-==================================================
-3. ORCHESTRATION FILE STRUCTURE
-==================================================
+## Principes
 
-Tout artefact d'orchestration T140.5 est tracké sous :
+* une branche par sous-tâche ;
+* jamais de branche globale T140.5 ;
+* chaque sous-tâche repart de develop à jour ;
+* aucune branche LOCKED ne doit exister ;
+* aucune sous-tâche parallèle active.
 
+## Branches prévues
+
+Les branches prévues sont maintenues dans :
+
+`TODO/PROJECT_SUPERVISOR/T140.5/BRANCHES_PREVUES.md`
+
+## Branches autorisées
+
+### Branche active
+
+```text
+TASK-144-t140-5A-channels-resolve-api-organization
+```
+
+### Branches futures LOCKED
+
+```text
+TASK-144-t140-5B-loop-services
+TASK-144-t140-5C-referral-reward
+TASK-144-t140-5D-controllers-metier
+TASK-144-t140-5E-admin-auth-livewire
+```
+
+Ces branches ne doivent pas exister tant que :
+
+* T140.5A n’est pas MERGED ;
+* les règles d’autonomie ne sont pas satisfaites ;
+* une décision explicite n’a pas été prise.
+
+---
+
+# Orchestration file structure
+
+## Principe
+
+Tout artefact d’orchestration T140.5 est :
+
+* tracké ;
+* versionné ;
+* synchronisable ;
+* auditable ;
+* persistant.
+
+## Racine orchestration
+
+```text
 TODO/PROJECT_SUPERVISOR/T140.5/
+```
 
-Structure :
+## Structure
 
+```text
 TODO/PROJECT_SUPERVISOR/T140.5/
   README.md
   MISSION ORCHESTRATION.md
@@ -119,103 +286,345 @@ TODO/PROJECT_SUPERVISOR/T140.5/
       REPORT_T140.5A.md
     STEP_GLOBAL_REVIEWER/
       REVIEW_T140.5A.md
+```
 
-Ne PAS utiliser _temp/ pour l'orchestration (gitignored, perte d'historique).
+## Interdiction _temp
 
-==================================================
-4. AGENT READ/WRITE/DELETE PERMISSIONS
-==================================================
+Ne jamais utiliser :
 
-PROJECT_SUPERVISOR peut écrire uniquement :
-- TODO/PROJECT_SUPERVISOR/T140.5/MASTER_PLAN.md
-- TODO/PROJECT_SUPERVISOR/T140.5/BRANCHES_PREVUES.md
-- TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/PROJECT_SUPERVISOR/*
-- TODO/TASK-144-t140-5-runtime-organization-id.md
-- TODO/TASK-144-t140-5-runtime-organization-id.md
-- TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
+```text
+_temp/
+```
 
-PROJECT_SUPERVISOR ne modifie jamais :
-- app/
-- routes/
-- tests/
-- docs/
+pour :
 
-REVIEW_SUPERVISOR peut écrire uniquement :
-- TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/REVIEW_SUPERVISOR/*
+* les plans ;
+* les rapports ;
+* les états ;
+* les décisions ;
+* les audits ;
+* les workflows.
 
-TECH_WRITER peut écrire uniquement :
-- routes/channels.php
-- app/Http/Middleware/ResolveApiOrganization.php
-- tests dédiés API/channels
-- TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
-- docs/audits/T140.5A-channels-resolve-api-organization.md
-- TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TECH_WRITER/*
+Raisons :
 
-TEST_WORKER_API_CHANNELS peut écrire uniquement :
-- TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TEST_WORKER_API_CHANNELS/*
+* non tracké ;
+* gitignored ;
+* non auditable ;
+* non synchronisable ;
+* perte d’historique.
 
-TEST_WORKER_TENANT_SAFETY peut écrire uniquement :
-- TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TEST_WORKER_TENANT_SAFETY/*
+---
 
-STEP_GLOBAL_REVIEWER peut écrire uniquement :
-- TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/STEP_GLOBAL_REVIEWER/*
+# Agent read/write/delete permissions
 
-Aucun agent ne supprime un fichier sauf si listé dans BRANCHES_PREVUES.md ou MASTER_PLAN.md.
-Suppression autorisée : TODO/TASK-144-5A-channels-resolve-api-organization.md (ancien nom, remplacé).
+## PROJECT_SUPERVISOR
 
-==================================================
-5. SUBTASK FILES EXPECTED
-==================================================
+Peut écrire uniquement :
 
-Créés (existant) :
-- TODO/TASK-144-t140-5-runtime-organization-id.md (EPIC parent, pas de branche)
-- TODO/TASK-144-t140-5A-channels-resolve-api-organization.md (actif)
+```text
+TODO/PROJECT_SUPERVISOR/T140.5/MASTER_PLAN.md
+TODO/PROJECT_SUPERVISOR/T140.5/BRANCHES_PREVUES.md
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/PROJECT_SUPERVISOR/*
+TODO/TASK-144-t140-5-runtime-organization-id.md
+TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
+```
 
-Prévisionnels mais LOCKED, ne pas créer sans décision explicite :
-- TODO/TASK-144-t140-5B-loop-services.md
-- TODO/TASK-144-t140-5C-referral-reward.md
-- TODO/TASK-144-t140-5D-controllers-metier.md
-- TODO/TASK-144-t140-5E-admin-auth-livewire.md
+Ne modifie jamais :
 
-==================================================
-6. LOCKED SUBTASKS
-==================================================
+* app/
+* routes/
+* tests/
+* docs/
 
-T140.5B — LoopService + LoopMessageService
-T140.5C — ReferralService + RewardDispatcher
-T140.5D — Controllers métier
-T140.5E — Admin/Auth/Livewire cleanup
+## REVIEW_SUPERVISOR
 
-sont LOCKED tant que T140.5A n'est pas :
-- vert (tests OK) ;
-- documenté (audit doc produit) ;
-- prêt merge (rapport global OK) ;
-- validé humainement.
+Peut écrire uniquement :
 
-==================================================
-7. COMMIT/PUSH POLICY
-==================================================
+```text
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/REVIEW_SUPERVISOR/*
+```
 
-- aucun commit sans rapport final TECH_WRITER ;
-- aucun commit sans review globale ;
-- aucun push sans validation humaine ;
-- les rapports agents sont trackés (TODO/PROJECT_SUPERVISOR/T140.5/) et versionnés ;
-- les TASK files sont toujours mis à jour avant commit ;
-- le pre-commit hook valide la mise à jour TASK.
+## TECH_WRITER
 
-==================================================
-PLAN MAÎTRE
-==================================================
+Peut écrire uniquement :
 
-T140.5 — Migration organization_id-first restante
+```text
+routes/channels.php
+app/Http/Middleware/ResolveApiOrganization.php
+tests dédiés API/channels
+TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
+docs/audits/T140.5A-channels-resolve-api-organization.md
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TECH_WRITER/*
+```
 
-Décision :
+## TEST_WORKER_API_CHANNELS
+
+Peut écrire uniquement :
+
+```text
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TEST_WORKER_API_CHANNELS/*
+```
+
+## TEST_WORKER_TENANT_SAFETY
+
+Peut écrire uniquement :
+
+```text
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TEST_WORKER_TENANT_SAFETY/*
+```
+
+## STEP_GLOBAL_REVIEWER
+
+Peut écrire uniquement :
+
+```text
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/STEP_GLOBAL_REVIEWER/*
+```
+
+## Suppressions autorisées
+
+Aucun agent ne supprime un fichier sauf si explicitement listé.
+
+Suppression autorisée :
+
+```text
+TODO/TASK-144-5A-channels-resolve-api-organization.md
+```
+
+remplacé par :
+
+```text
+TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
+```
+
+---
+
+# Subtask files expected
+
+## Existants
+
+### EPIC parent
+
+```text
+TODO/TASK-144-t140-5-runtime-organization-id.md
+```
+
+Pas de branche associée.
+
+### Sous-tâche active
+
+```text
+TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
+```
+
+## LOCKED mais prévus
+
+```text
+TODO/TASK-144-t140-5B-loop-services.md
+TODO/TASK-144-t140-5C-referral-reward.md
+TODO/TASK-144-t140-5D-controllers-metier.md
+TODO/TASK-144-t140-5E-admin-auth-livewire.md
+```
+
+Ne pas créer ces fichiers sans décision explicite.
+
+---
+
+# Locked subtasks
+
+Les sous-tâches suivantes sont LOCKED :
+
+* T140.5B — LoopService + LoopMessageService
+* T140.5C — ReferralService + RewardDispatcher
+* T140.5D — Controllers métier
+* T140.5E — Admin/Auth/Livewire cleanup
+
+Elles restent LOCKED tant que T140.5A n’est pas :
+
+* tests verts ;
+* documentée ;
+* reviewée ;
+* prête merge ;
+* validée humainement OU conforme aux Autonomous decision rules.
+
+---
+
+# Commit / push policy
+
+## Commit
+
+Aucun commit sans :
+
+* rapport final TECH_WRITER ;
+* review globale ;
+* tests verts ;
+* TASK files à jour.
+
+## Push
+
+Aucun push sans :
+
+* validation humaine ;
+  OU
+* décision autonome conforme à `Autonomous decision rules`.
+
+## Merge
+
+Aucun merge si :
+
+* scope élargi ;
+* fichiers interdits ;
+* changement mode parasite ;
+* blockers critiques ;
+* branches LOCKED créées ;
+* TASK lineage incohérent.
+
+## Hooks
+
+Le pre-commit hook valide :
+
+* mise à jour TASK ;
+* cohérence branche ;
+* cohérence task lineage.
+
+---
+
+# Blockers / bloqueurs
+
+## Définition
+
+Un bloqueur est :
+
+* un obstacle opérationnel ;
+* un problème runtime ;
+* un état empêchant la suite normale.
+
+Les bloqueurs sont :
+
+* temporaires ;
+* explicites ;
+* actionnables ;
+* levables.
+
+## Ce qu’un bloqueur N’EST PAS
+
+Un bloqueur n’est pas :
+
+* une règle permanente ;
+* une permission ;
+* une convention ;
+* une règle d’autonomie ;
+* une règle Git ;
+* une gouvernance système.
+
+## Exemples de bloqueurs valides
+
+* tests rouges ;
+* conflit Git ;
+* review NO-GO ;
+* risque cross-organization ;
+* périmètre violé ;
+* commit sale ;
+* CI rouge ;
+* divergence avec MASTER_PLAN ;
+* contradiction rapports agents.
+
+## Gestion
+
+Le PROJECT_SUPERVISOR maintient les bloqueurs actifs dans :
+
+```text
+TODO/PROJECT_SUPERVISOR/T140.5/MASTER_PLAN.md
+```
+
+## Effets
+
+Si un bloqueur critique empêche :
+
+* commit ;
+* push ;
+* merge ;
+* unlock sous-tâche ;
+* démarrage agent ;
+
+alors le PROJECT_SUPERVISOR doit :
+
+* arrêter l’orchestration ;
+* produire un rapport explicite ;
+* demander arbitrage humain si nécessaire.
+
+---
+
+# Autonomous decision rules
+
+## Principe
+
+Le PROJECT_SUPERVISOR peut décider seul :
+
+* push ;
+* merge ;
+* clôture T140.5A ;
+
+si toutes les conditions suivantes sont vraies.
+
+## Conditions obligatoires
+
+* T140.5A est `DONE — PRÊT MERGE` dans `MASTER_PLAN.md` ;
+* REVIEW_SUPERVISOR verdict GO ;
+* STEP_GLOBAL_REVIEWER verdict GO ;
+* TEST_WORKER_API_CHANNELS verdict GO ;
+* TEST_WORKER_TENANT_SAFETY verdict GO ;
+* le commit T140.5A existe ;
+* les tests post-commit sont verts ;
+* le commit est limité au périmètre T140.5A ;
+* aucun fichier interdit dans le commit ;
+* aucun changement de mode parasite dans le commit ;
+* T140.5B/C/D/E restent LOCKED ;
+* aucune branche T140.5B/C/D/E n’existe ;
+* aucun TASK file T140.5B/C/D/E n’a été créé.
+
+## Si toutes les conditions sont vraies
+
+Le PROJECT_SUPERVISOR peut :
+
+* push ;
+* merge ;
+* mettre à jour les statuts ;
+* produire le rapport final.
+
+Le PROJECT_SUPERVISOR ne peut PAS :
+
+* démarrer T140.5B ;
+* créer une branche T140.5B ;
+* modifier le runtime après merge.
+
+## Si une condition manque
+
+Ne pas :
+
+* push ;
+* merge.
+
+Créer :
+
+```text
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/PROJECT_SUPERVISOR/BLOCKED_PUSH_MERGE_T140.5A.md
+```
+
+---
+
+# Plan maître
+
+## Objectif global
+
+T140.5 :
+migration organization_id-first restante.
+
+## Décision principale
 
 NO-GO patch global.
 
-T140.5 est découpée en sous-tâches séquentielles.
-
-Sous-tâches :
+## Découpage obligatoire
 
 1. T140.5A — Channels + ResolveApiOrganization
 2. T140.5B — LoopService + LoopMessageService
@@ -223,381 +632,183 @@ Sous-tâches :
 4. T140.5D — Controllers métier
 5. T140.5E — Admin/Auth/Livewire cleanup
 
-Règles :
+## Règles
 
-- chaque sous-tâche a sa branche ;
-- chaque sous-tâche a son TASK file ;
-- chaque sous-tâche a ses tests dédiés ;
-- merge uniquement après vert ;
-- la sous-tâche suivante démarre depuis develop à jour ;
-- aucun agent ne mélange deux sous-tâches.
+* une branche par sous-tâche ;
+* une review par sous-tâche ;
+* tests dédiés ;
+* merge uniquement après vert ;
+* aucune sous-tâche parallèle ;
+* aucun mélange de périmètre.
 
-LOCK :
+## LOCK
 
-T140.5B
-T140.5C
-T140.5D
-T140.5E
+Les sous-tâches :
 
-sont LOCKED tant que T140.5A n'est pas :
-- vert ;
-- documenté ;
-- prêt merge ;
-- validé humainement.
+* B ;
+* C ;
+* D ;
+* E ;
 
-Plan détaillé : TODO/PROJECT_SUPERVISOR/T140.5/MASTER_PLAN.md
+restent LOCKED tant que :
 
-==================================================
-PRIMARY_1_PROJECT_SUPERVISOR
-==================================================
+* T140.5A n’est pas MERGED ;
+* les règles autonomie ne sont pas satisfaites ;
+* une décision explicite n’est pas prise.
 
-ROLE:
-PRIMARY_1_PROJECT_SUPERVISOR
+---
 
-Tu es le chef de projet autonome T140.5.
+# TECH_WRITER — T140.5A uniquement
 
-Tu ne modifies jamais :
-- app/
-- routes/
-- tests/
-- docs/
+## Sous-tâche active
 
-Tu peux modifier uniquement :
-
-- TODO/PROJECT_SUPERVISOR/T140.5/MASTER_PLAN.md
-- TODO/PROJECT_SUPERVISOR/T140.5/BRANCHES_PREVUES.md
-- TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/PROJECT_SUPERVISOR/*
-- TODO/TASK-144-t140-5-runtime-organization-id.md
-- TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
-
-Responsabilités :
-
-- créer le master plan ;
-- maintenir le plan vivant ;
-- créer/mettre à jour les TASK files ;
-- découper les sous-tâches ;
-- lancer les agents nécessaires ;
-- coordonner les workers ;
-- intégrer les rapports ;
-- décider GO/NO-GO ;
-- maintenir l'historique des décisions ;
-- maintenir les blockers ;
-- maintenir le statut global.
-
-Règles :
-
-- jamais de patch global ;
-- jamais deux writers ;
-- jamais deux sous-tâches parallèles sur le même domaine ;
-- jamais de changement runtime hors périmètre ;
-- jamais de migration DB ;
-- jamais d'élargissement implicite de scope.
-
-Tu dois commencer uniquement par :
-
+```text
 T140.5A — Channels + ResolveApiOrganization
+```
 
-Livrables :
+## Branche
 
-- TODO/PROJECT_SUPERVISOR/T140.5/MASTER_PLAN.md
-- TODO/PROJECT_SUPERVISOR/T140.5/BRANCHES_PREVUES.md
-- TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
-
-==================================================
-PRIMARY_2_REVIEW_SUPERVISOR
-==================================================
-
-ROLE:
-PRIMARY_2_REVIEW_SUPERVISOR
-
-Tu es l'assistante supervision/review T140.5.
-
-Tu ne codes pas.
-
-Tu ne modifies jamais :
-- app/
-- routes/
-- tests/
-- docs/
-
-Tu peux modifier uniquement :
-
-- TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/REVIEW_SUPERVISOR/*
-
-Mission :
-
-Relire chaque phase avant passage à la suivante.
-
-Tu vérifies :
-
-- respect strict du périmètre ;
-- absence de fichiers interdits ;
-- absence de migration DB ;
-- absence de changement web hors périmètre ;
-- compatibilité legacy ;
-- risques tenant/cross-org ;
-- qualité des tests ;
-- qualité documentation ;
-- conformité aux interdits ;
-- cohérence avec le master plan.
-
-Format du rapport :
-
-- verdict GO/NO-GO ;
-- fichiers inspectés ;
-- risques ;
-- écarts périmètre ;
-- tests manquants ;
-- recommandations ;
-- décision finale.
-
-Tu ne bloques que si risque réel.
-
-==================================================
-TECH_WRITER — T140.5A UNIQUEMENT
-==================================================
-
-ROLE:
-TECH_WRITER
-
-Tu es le seul agent autorisé à modifier le code.
-
-Sous-tâche active :
-
-T140.5A — Channels + ResolveApiOrganization uniquement.
-
-Branche :
-
+```text
 TASK-144-t140-5A-channels-resolve-api-organization
+```
 
-Périmètre autorisé :
+## Périmètre autorisé
 
-- routes/channels.php
-- app/Http/Middleware/ResolveApiOrganization.php
-- tests dédiés API/channels
-- TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
-- docs/audits/T140.5A-channels-resolve-api-organization.md
-- TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TECH_WRITER/*
+```text
+routes/channels.php
+app/Http/Middleware/ResolveApiOrganization.php
+tests dédiés API/channels
+TODO/TASK-144-t140-5A-channels-resolve-api-organization.md
+docs/audits/T140.5A-channels-resolve-api-organization.md
+TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TECH_WRITER/*
+```
 
-Interdits :
+## Interdits
 
-- controllers web ;
-- services ;
-- Livewire ;
-- referrals/rewards ;
-- auth ;
-- admin ;
-- routes web hors channels ;
-- database/* ;
-- migrations/* ;
-- modèles ;
-- policies métier ;
-- VERSION.
+* controllers web ;
+* services ;
+* Livewire ;
+* referrals/rewards ;
+* auth ;
+* admin ;
+* routes web hors channels ;
+* database/* ;
+* migrations/* ;
+* modèles ;
+* policies métier ;
+* VERSION.
 
-Objectif :
+## Objectif
 
 Basculer API/channels en organization_id-first,
-avec community_id fallback documenté si nécessaire.
+avec fallback community_id documenté si nécessaire.
 
-Mode :
+## Tests autorisés
 
-AUTONOMOUS_WITHIN_SCOPE
-
-Tu peux :
-
-- modifier uniquement les fichiers autorisés ;
-- ajouter tests dédiés ;
-- corriger erreurs strictement liées à T140.5A ;
-- mettre à jour TASK/doc ;
-- produire documentation d'audit ;
-- lancer tests autorisés.
-
-Tu ne peux pas :
-
-- élargir le périmètre ;
-- corriger d'autres domaines ;
-- démarrer T140.5B ;
-- modifier fichiers interdits ;
-- commit sans rapport final ;
-- merge ;
-- push.
-
-Tests à lancer :
-
+```bash
 php artisan test --filter=Channel
 php artisan test --filter=Broadcast
 php artisan test --filter=ResolveApiOrganization
 php artisan test --filter=T1405A
+```
 
-Rapport final obligatoire :
+---
 
-- branche ;
-- fichiers modifiés ;
-- changements ;
-- fallback community_id oui/non ;
-- tests ;
-- résultats ;
-- risques ;
-- blockers ;
-- statut GO/NO-GO.
+# TEST_WORKER_API_CHANNELS
 
-==================================================
-TEST_WORKER_API_CHANNELS
-==================================================
-
-ROLE:
-TEST_WORKER_API_CHANNELS
-
-Mode :
+## Mode
 
 read-only/test-only
 
-Mission :
+## Mission
 
-Valider T140.5A côté API/channels.
+Valider :
 
-Tu peux :
+* API/channels ;
+* broadcast ;
+* ResolveApiOrganization.
 
-- lire le code ;
-- lancer les tests ;
-- proposer tests manquants ;
-- analyser erreurs ;
-- produire rapports.
+## Livrable
 
-Tu ne modifies rien.
-
-Commandes :
-
-php artisan test --filter=Channel
-php artisan test --filter=Broadcast
-php artisan test --filter=ResolveApiOrganization
-
-Livrable :
-
+```text
 TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TEST_WORKER_API_CHANNELS/REPORT_T140.5A.md
+```
 
-Format :
+---
 
-- tests lancés ;
-- résultats ;
-- échecs ;
-- hypothèse cause ;
-- tests manquants ;
-- risques ;
-- verdict GO/NO-GO.
+# TEST_WORKER_TENANT_SAFETY
 
-==================================================
-TEST_WORKER_TENANT_SAFETY
-==================================================
-
-ROLE:
-TEST_WORKER_TENANT_SAFETY
-
-Mode :
+## Mode
 
 read-only/test-only
 
-Mission :
+## Mission
 
-Vérifier absence de fuite cross-organization sur T140.5A.
+Vérifier :
 
-Inspecter :
+* absence fuite cross-org ;
+* isolation tenant ;
+* organization_id-first ;
+* fallback legacy documenté.
 
-- routes/channels.php
-- ResolveApiOrganization
-- tests API/channels
+## Verdict
 
-Chercher :
+GO uniquement si :
 
-- usage community_id restant ;
-- organization_id absent ;
-- fallback dangereux ;
-- accès inter-tenant possible ;
-- bypass middleware ;
-- logique tenant incohérente.
+* aucun risque cross-organization évident.
 
-Tu ne modifies rien.
+---
 
-Livrable :
+# STEP_GLOBAL_REVIEWER
 
-TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/TEST_WORKER_TENANT_SAFETY/REPORT_T140.5A.md
-
-Verdict :
-
-GO uniquement si aucun risque cross-org évident.
-
-==================================================
-STEP_GLOBAL_REVIEWER
-==================================================
-
-ROLE:
-STEP_GLOBAL_REVIEWER
-
-Mode :
+## Mode
 
 read-only
 
-Mission :
+## Mission
 
-Relire globalement T140.5A avant clôture.
+Comparer :
 
-Tu dois comparer :
+* MASTER_PLAN ;
+* TASK file ;
+* diff Git ;
+* tests ;
+* docs ;
+* scope autorisé.
 
-- master plan ;
-- TASK file ;
-- diff git ;
-- tests ;
-- docs ;
-- interdits ;
-- périmètre autorisé.
+## Livrable
 
-Commandes utiles :
-
-git diff --stat
-git diff --name-only
-git diff
-
-rg -n "community_id|organization_id|ResolveApiOrganization|channels" \
-routes app tests docs TODO
-
-Livrable :
-
+```text
 TODO/PROJECT_SUPERVISOR/T140.5/AGENTS/STEP_GLOBAL_REVIEWER/REVIEW_T140.5A.md
+```
 
-Format :
+---
 
-- conformité périmètre ;
-- fichiers hors périmètre ;
-- logique organization_id-first ;
-- fallback legacy ;
-- qualité tests ;
-- qualité docs ;
-- risques ;
-- verdict GO/NO-GO.
+# Séquence d’exécution
 
-==================================================
-SÉQUENCE D'EXÉCUTION
-==================================================
-
-1. PROJECT_SUPERVISOR crée le master plan + TASK file.
-2. REVIEW_SUPERVISOR valide le périmètre T140.5A.
+1. PROJECT_SUPERVISOR crée le master plan.
+2. REVIEW_SUPERVISOR valide le périmètre.
 3. TECH_WRITER implémente T140.5A.
-4. TEST_WORKER_API_CHANNELS lance tests.
-5. TEST_WORKER_TENANT_SAFETY audite tenant safety.
-6. STEP_GLOBAL_REVIEWER relit diff + plan + docs.
+4. TEST_WORKER_API_CHANNELS lance les tests.
+5. TEST_WORKER_TENANT_SAFETY vérifie tenant safety.
+6. STEP_GLOBAL_REVIEWER relit diff + docs + tests.
 7. REVIEW_SUPERVISOR rend verdict final.
-8. PROJECT_SUPERVISOR met à jour master plan.
-9. Si vert : rapport prêt pour commit/merge humain.
-10. Après merge T140.5A : déverrouiller T140.5B.
+8. PROJECT_SUPERVISOR met à jour MASTER_PLAN.md.
+9. Si vert : commit.
+10. Si Autonomous decision rules satisfaites :
+    push + merge autorisés.
+11. Après merge :
+    T140.5B reste LOCKED jusqu’à validation explicite.
 
-==================================================
-ÉTAT FINAL ATTENDU
-==================================================
+---
 
-- T140.5A uniquement implémenté ;
-- tests T140.5A exécutés ;
-- rapports workers produits ;
-- review globale produite ;
-- master plan mis à jour ;
-- aucun changement hors périmètre ;
-- aucun commit/push sans validation humaine.
+# État final attendu
+
+* T140.5A uniquement implémenté ;
+* tests verts ;
+* rapports produits ;
+* review globale produite ;
+* MASTER_PLAN mis à jour ;
+* aucun changement hors périmètre ;
+* aucun push/merge sans validation humaine OU Autonomous decision rules ;
+* T140.5B/C/D/E toujours LOCKED.

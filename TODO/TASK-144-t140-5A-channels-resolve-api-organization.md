@@ -2,7 +2,7 @@
 task_id: TASK-144-t140-5A
 title: T140.5A Channels + ResolveApiOrganization → organization_id-first
 
-status: IN_PROGRESS
+status: MERGED
 
 owner: OpenCode
 
@@ -14,7 +14,7 @@ branch: TASK-144-t140-5A-channels-resolve-api-organization
 priority: MEDIUM
 
 created_at: 2026-05-24 22:30:00 Europe/Paris
-updated_at: 2026-05-24 23:00:00 Europe/Paris
+updated_at: 2026-05-25 14:41:31 Europe/Paris
 
 labels:
   - organization

@@ -1,6 +1,8 @@
 # T140.5 — Master Plan
+Fichier : `TODO/PROJECT_SUPERVISOR/T140.5/MASTER_PLAN.md`
 
-**Date :** 2026-05-24
+Mise à jour : 2026-05-25 14:41:31 Europe/Paris
+
 **NO-GO patch global.** Découpage en sous-tâches séquentielles.
 
 ---
@@ -45,6 +47,24 @@
 ## Bloqueurs
 
 - Aucun pour l'instant.
+
+### Décision autonome push/merge
+
+Le PROJECT_SUPERVISOR est autorisé à décider seul le push + merge de T140.5A si toutes les conditions de :
+
+`MISSION ORCHESTRATION.md` → `8. AUTONOMOUS DECISION RULES`
+
+sont satisfaites.
+
+Statut attendu après merge :
+
+| Sous-tâche | Statut attendu | Lock |
+|---|---|---|
+| T140.5A — Channels + ResolveApiOrganization | MERGED | LOCKED |
+| T140.5B — LoopService + LoopMessageService | LOCKED | LOCKED |
+| T140.5C — ReferralService + RewardDispatcher | LOCKED | LOCKED |
+| T140.5D — Controllers métier | LOCKED | LOCKED |
+| T140.5E — Admin/Auth/Livewire cleanup | LOCKED | LOCKED |
 
 ## Décisions
 
