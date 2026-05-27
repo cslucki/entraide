@@ -2,7 +2,7 @@
 task_id: TASK-146
 title: Greenfield Playwright Business Interaction Suite
 
-status: DONE
+status: MERGED
 
 owner: PROJECT_SUPERVISOR
 
