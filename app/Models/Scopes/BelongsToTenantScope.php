@@ -6,6 +6,7 @@ use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
+use Illuminate\Support\Facades\Log;
 
 class BelongsToTenantScope implements Scope
 {
@@ -16,6 +17,7 @@ class BelongsToTenantScope implements Scope
         if ($organization) {
             $builder->where($model->getTable().'.organization_id', $organization->id);
         } else {
+            Log::warning('BelongsToTenantScope: no Organization resolved, applying whereRaw(0=1) — data inaccessible until a Default Organization exists.');
             $builder->whereRaw('0 = 1');
         }
     }
