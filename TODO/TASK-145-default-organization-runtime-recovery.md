@@ -2,7 +2,7 @@
 task_id: TASK-145
 title: Default Organization Runtime Recovery & Full Regression
 
-status: DONE
+status: MERGED
 
 owner: PROJECT_SUPERVISOR
 
