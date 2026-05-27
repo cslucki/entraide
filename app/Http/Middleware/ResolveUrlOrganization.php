@@ -188,6 +188,10 @@ class ResolveUrlOrganization
 
     protected function isFeatureRoute(string $segment): bool
     {
+        if (str_starts_with($segment, 'livewire-')) {
+            return true;
+        }
+
         return in_array($segment, static::$defaultOrganizationRoutes);
     }
 
