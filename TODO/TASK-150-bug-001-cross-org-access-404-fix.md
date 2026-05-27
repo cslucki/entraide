@@ -2,7 +2,7 @@
 task_id: TASK-150
 title: BUG-001 cross-org access 404 fix
 
-status: DONE
+status: MERGED
 
 owner: PROJECT_SUPERVISOR
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: READY
+  status: MERGED
   url: null
 ---
 
