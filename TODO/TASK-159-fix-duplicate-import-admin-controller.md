@@ -1,6 +1,6 @@
 ---
 task_id: TASK-159
-status: DONE
+status: MERGED
 owner: OpenCode
 branch: TASK-159-fix-duplicate-import-admin-controller
 lock:
