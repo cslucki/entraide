@@ -18,7 +18,7 @@ class RewardDispatcher
             throw new \RuntimeException('Self-referral is not allowed.');
         }
 
-        $orgId = $event->organizationId ?? $event->referrer->organization_id ?? $event->referrer->community_id;
+        $orgId = $event->organizationId ?? $event->referrer->organization_id;
 
         if (! $orgId) {
             throw new \RuntimeException('Organization context required for referral.');

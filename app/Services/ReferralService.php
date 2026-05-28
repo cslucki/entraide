@@ -20,7 +20,7 @@ class ReferralService
             throw new \RuntimeException('Self-referral is not allowed.');
         }
 
-        $orgId = $organizationId ?? $referred->organization_id ?? $referred->community_id;
+        $orgId = $organizationId ?? $referred->organization_id;
 
         if (! $orgId) {
             throw new \RuntimeException('Organization context required for referral.');

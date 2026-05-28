@@ -80,7 +80,7 @@ class LoopMessageService
             throw new \RuntimeException('User is not an active member of this loop.');
         }
 
-        $orgId = $sender->organization_id ?? $sender->community_id;
+        $orgId = $sender->organization_id;
 
         if ($loop->organization_id !== $orgId) {
             throw new \RuntimeException('User does not belong to the same organization as this loop.');
