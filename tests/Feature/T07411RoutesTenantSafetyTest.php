@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\LoopMember;
 use App\Models\User;
 use App\Services\LoopService;
@@ -27,18 +28,18 @@ class T07411RoutesTenantSafetyTest extends TestCase
     {
         parent::setUp();
 
-        $this->community = Community::factory()->create(['is_active' => true]);
+        $this->community = Organization::factory()->create(['is_active' => true]);
         $this->user = User::factory()->create([
-            'community_id' => $this->community->id,
+            'organization_id' => $this->community->id,
             'organization_id' => $this->community->id,
         ]);
         $this->userWithoutCommunity = User::factory()->create([
-            'community_id' => null,
+            'organization_id' => null,
             'organization_id' => null,
         ]);
         $this->admin = User::factory()->create([
             'is_admin' => true,
-            'community_id' => $this->community->id,
+            'organization_id' => $this->community->id,
             'organization_id' => $this->community->id,
         ]);
         $this->service = new LoopService;
@@ -89,7 +90,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
     {
         $adminWithoutCommunity = User::factory()->create([
             'is_admin' => true,
-            'community_id' => null,
+            'organization_id' => null,
             'organization_id' => null,
         ]);
         $response = $this->actingAs($adminWithoutCommunity)->get('/loops/create');
@@ -160,8 +161,8 @@ class T07411RoutesTenantSafetyTest extends TestCase
 
     public function test_user_sees_only_own_community_loops_on_index(): void
     {
-        $otherCommunity = Community::factory()->create();
-        $otherUser = User::factory()->create(['community_id' => $otherCommunity->id]);
+        $otherCommunity = Organization::factory()->create();
+        $otherUser = User::factory()->create(['organization_id' => $otherCommunity->id]);
         $this->service->createLoop($otherUser, 'Other Community Loop');
 
         $this->service->createLoop($this->user, 'My Loop');
@@ -191,8 +192,8 @@ class T07411RoutesTenantSafetyTest extends TestCase
 
     public function test_legacy_community_loops_denies_cross_tenant_access(): void
     {
-        $otherCommunity = Community::factory()->create(['is_active' => true]);
-        $otherUser = User::factory()->create(['community_id' => $otherCommunity->id]);
+        $otherCommunity = Organization::factory()->create(['is_active' => true]);
+        $otherUser = User::factory()->create(['organization_id' => $otherCommunity->id]);
         $loop = $this->service->createLoop($otherUser, 'Other Tenant Loop');
 
         LoopMember::factory()->create([

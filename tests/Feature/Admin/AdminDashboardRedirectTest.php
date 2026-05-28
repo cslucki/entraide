@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -11,10 +11,10 @@ class AdminDashboardRedirectTest extends TestCase
 {
     public function test_admin_with_organization_gets_user_dashboard_on_dashboard_url(): void
     {
-        $organization = Community::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true]);
         $admin = User::factory()->create([
             'is_admin' => true,
-            'community_id' => $organization->id,
+            'organization_id' => $organization->id,
         ]);
 
         $this->actingAs($admin)
@@ -26,10 +26,10 @@ class AdminDashboardRedirectTest extends TestCase
 
     public function test_dashboard_and_admin_dashboard_are_distinct_for_admin_with_organization(): void
     {
-        $organization = Community::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true]);
         $admin = User::factory()->create([
             'is_admin' => true,
-            'community_id' => $organization->id,
+            'organization_id' => $organization->id,
         ]);
 
         $this->actingAs($admin)
@@ -47,7 +47,7 @@ class AdminDashboardRedirectTest extends TestCase
     {
         $admin = User::factory()->create([
             'is_admin' => true,
-            'community_id' => null,
+            'organization_id' => null,
         ]);
 
         $this->actingAs($admin)
@@ -59,7 +59,7 @@ class AdminDashboardRedirectTest extends TestCase
     {
         $admin = User::factory()->create([
             'is_admin' => true,
-            'community_id' => null,
+            'organization_id' => null,
         ]);
 
         $this->actingAs($admin)
@@ -69,10 +69,10 @@ class AdminDashboardRedirectTest extends TestCase
 
     public function test_member_with_organization_still_accesses_member_dashboard(): void
     {
-        $organization = Community::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true]);
         $member = User::factory()->create([
             'is_admin' => false,
-            'community_id' => $organization->id,
+            'organization_id' => $organization->id,
         ]);
 
         $this->actingAs($member)
@@ -86,7 +86,7 @@ class AdminDashboardRedirectTest extends TestCase
     {
         $member = User::factory()->create([
             'is_admin' => false,
-            'community_id' => null,
+            'organization_id' => null,
         ]);
 
         $this->actingAs($member)
@@ -96,10 +96,10 @@ class AdminDashboardRedirectTest extends TestCase
 
     public function test_admin_with_organization_login_defaults_to_dashboard_url(): void
     {
-        $organization = Community::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true]);
         $admin = User::factory()->create([
             'is_admin' => true,
-            'community_id' => $organization->id,
+            'organization_id' => $organization->id,
             'password' => Hash::make('password'),
         ]);
 
@@ -113,7 +113,7 @@ class AdminDashboardRedirectTest extends TestCase
     {
         $admin = User::factory()->create([
             'is_admin' => true,
-            'community_id' => null,
+            'organization_id' => null,
             'password' => Hash::make('password'),
         ]);
 

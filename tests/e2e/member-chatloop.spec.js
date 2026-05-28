@@ -4,7 +4,7 @@ import { captureScreenshot } from '../../ai/playwright/helpers/screenshot.js';
 import { setupConsoleLogging } from '../../ai/playwright/helpers/console.js';
 import '../setup.js';
 
-const COMMUNITY_SLUG = 'cpme';
+const ORGANIZATION_SLUG = 'cpme';
 
 test.describe('Member ChatLoop (T074.6)', () => {
     test.beforeEach(async ({ page }) => {
@@ -12,7 +12,7 @@ test.describe('Member ChatLoop (T074.6)', () => {
     });
 
     function loopsUrl(path = '') {
-        return `/${COMMUNITY_SLUG}/loops${path}`;
+        return `/${ORGANIZATION_SLUG}/loops${path}`;
     }
 
     test('member loops index loads and displays loops', async ({ page }) => {

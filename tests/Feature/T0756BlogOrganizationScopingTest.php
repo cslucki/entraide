@@ -6,6 +6,7 @@ use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -84,25 +85,25 @@ class T0756BlogOrganizationScopingTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('blog.store'), array_merge($this->validPostData(), [
-                'community_id' => $organizationB->id,
+                'organization_id' => $organizationB->id,
             ]))
             ->assertRedirect();
 
         $this->assertDatabaseHas('blog_posts', [
             'user_id' => $user->id,
-            'community_id' => $organizationA->id,
+            'organization_id' => $organizationA->id,
         ]);
 
         $this->assertDatabaseMissing('blog_posts', [
             'user_id' => $user->id,
-            'community_id' => $organizationB->id,
+            'organization_id' => $organizationB->id,
         ]);
     }
 
     public function test_blog_store_fails_safe_when_no_organization_resolved(): void
     {
         // Aucune Organization active en base — middleware ne peut rien résoudre.
-        $user = User::factory()->create(['community_id' => null]);
+        $user = User::factory()->create(['organization_id' => null]);
 
         $this->actingAs($user)
             ->post(route('blog.store'), $this->validPostData())
@@ -214,8 +215,8 @@ class T0756BlogOrganizationScopingTest extends TestCase
     /** @return array{Community, Community} */
     private function createOrganizations(): array
     {
-        $organizationA = Community::factory()->create(['is_active' => true]);
-        $organizationB = Community::factory()->create(['is_active' => true]);
+        $organizationA = Organization::factory()->create(['is_active' => true]);
+        $organizationB = Organization::factory()->create(['is_active' => true]);
 
         ResolveUrlOrganization::$defaultOrganizationId = (string) $organizationA->id;
 
@@ -224,14 +225,14 @@ class T0756BlogOrganizationScopingTest extends TestCase
 
     private function createUser(Community $organization): User
     {
-        return User::factory()->create(['community_id' => $organization->id]);
+        return User::factory()->create(['organization_id' => $organization->id]);
     }
 
     private function createPost(User $user, Community $organization, array $overrides = []): BlogPost
     {
         return BlogPost::create(array_merge([
             'user_id' => $user->id,
-            'community_id' => $organization->id,
+            'organization_id' => $organization->id,
             'title' => 'Article de test '.uniqid(),
             'content' => str_repeat('Contenu de test pour vérifier le scoping Organization. ', 5),
             'status' => 'published',

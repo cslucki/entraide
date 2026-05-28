@@ -23,7 +23,7 @@ class AdminLoopsTest extends TestCase
     private function makeLoop(Organization $org, ?User $creator = null): Loop
     {
         return Loop::factory()->create([
-            'community_id' => $org->id,
+            'organization_id' => $org->id,
             'created_by' => $creator?->id ?? User::factory(),
             'type' => 'team',
             'status' => 'active',
@@ -63,13 +63,13 @@ class AdminLoopsTest extends TestCase
     public function test_admin_sees_only_own_organization_loops(): void
     {
         $orgA = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $orgA->id, 'community_id' => $orgA->id]);
+        $admin = $this->makeAdmin(['organization_id' => $orgA->id, 'organization_id' => $orgA->id]);
 
         $loopA = $this->makeLoop($orgA);
         $this->addMember($loopA, $admin);
 
         $orgB = $this->makeOrg();
-        $adminB = $this->makeAdmin(['organization_id' => $orgB->id, 'community_id' => $orgB->id]);
+        $adminB = $this->makeAdmin(['organization_id' => $orgB->id, 'organization_id' => $orgB->id]);
         $loopB = $this->makeLoop($orgB);
         $this->addMember($loopB, $adminB);
 
@@ -83,7 +83,7 @@ class AdminLoopsTest extends TestCase
     public function test_empty_state_when_no_loops(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $this->actingAs($admin)
             ->get(route('admin.loops'))
@@ -94,8 +94,8 @@ class AdminLoopsTest extends TestCase
     public function test_admin_loops_page_shows_member_count(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
-        $member = User::factory()->create(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
+        $member = User::factory()->create(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $loop = $this->makeLoop($org);
         $this->addMember($loop, $admin);
@@ -110,10 +110,10 @@ class AdminLoopsTest extends TestCase
     public function test_admin_loops_page_shows_creator_name(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $loop = Loop::factory()->create([
-            'community_id' => $org->id,
+            'organization_id' => $org->id,
             'created_by' => $admin->id,
             'type' => 'social',
             'status' => 'active',
@@ -134,11 +134,11 @@ class AdminLoopsTest extends TestCase
         $orgA = $this->makeOrg();
         $orgB = $this->makeOrg();
 
-        $admin = $this->makeAdmin(['organization_id' => $orgA->id, 'community_id' => $orgA->id]);
+        $admin = $this->makeAdmin(['organization_id' => $orgA->id, 'organization_id' => $orgA->id]);
 
         $loopB = $this->makeLoop($orgB);
 
-        $otherMember = User::factory()->create(['organization_id' => $orgB->id, 'community_id' => $orgB->id]);
+        $otherMember = User::factory()->create(['organization_id' => $orgB->id, 'organization_id' => $orgB->id]);
         $this->addMember($loopB, $otherMember);
 
         $response = $this->actingAs($admin)->get(route('admin.loops'));

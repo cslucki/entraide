@@ -22,7 +22,7 @@ class SearchControllerTest extends TestCase
     }
     public function test_empty_query_returns_empty_results(): void
     {
-        Service::factory()->count(3)->create(['status' => 'active', 'community_id' => $this->testOrganization->id]);
+        Service::factory()->count(3)->create(['status' => 'active', 'organization_id' => $this->testOrganization->id]);
 
         $response = $this->get(route('search'));
 
@@ -35,8 +35,8 @@ class SearchControllerTest extends TestCase
 
     public function test_search_finds_active_services_by_title(): void
     {
-        Service::factory()->create(['title' => 'Cours de guitare', 'status' => 'active', 'community_id' => $this->testOrganization->id]);
-        Service::factory()->create(['title' => 'Jardinage', 'status' => 'active', 'community_id' => $this->testOrganization->id]);
+        Service::factory()->create(['title' => 'Cours de guitare', 'status' => 'active', 'organization_id' => $this->testOrganization->id]);
+        Service::factory()->create(['title' => 'Jardinage', 'status' => 'active', 'organization_id' => $this->testOrganization->id]);
 
         $response = $this->get(route('search', ['q' => 'guitare']));
 
@@ -50,9 +50,9 @@ class SearchControllerTest extends TestCase
             'title' => 'Service divers',
             'description' => 'Je propose des cours de solfège',
             'status' => 'active',
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
         ]);
-        Service::factory()->create(['status' => 'active', 'community_id' => $this->testOrganization->id]);
+        Service::factory()->create(['status' => 'active', 'organization_id' => $this->testOrganization->id]);
 
         $response = $this->get(route('search', ['q' => 'solfège']));
 
@@ -62,8 +62,8 @@ class SearchControllerTest extends TestCase
 
     public function test_search_excludes_inactive_services(): void
     {
-        Service::factory()->create(['title' => 'Vidéo montage', 'status' => 'active', 'community_id' => $this->testOrganization->id]);
-        Service::factory()->create(['title' => 'Vidéo production', 'status' => 'paused', 'community_id' => $this->testOrganization->id]);
+        Service::factory()->create(['title' => 'Vidéo montage', 'status' => 'active', 'organization_id' => $this->testOrganization->id]);
+        Service::factory()->create(['title' => 'Vidéo production', 'status' => 'paused', 'organization_id' => $this->testOrganization->id]);
 
         $response = $this->get(route('search', ['q' => 'vidéo']));
 
@@ -73,7 +73,7 @@ class SearchControllerTest extends TestCase
 
     public function test_search_caps_service_results_at_five(): void
     {
-        Service::factory()->count(8)->create(['title' => 'Service commun', 'status' => 'active', 'community_id' => $this->testOrganization->id]);
+        Service::factory()->count(8)->create(['title' => 'Service commun', 'status' => 'active', 'organization_id' => $this->testOrganization->id]);
 
         $response = $this->get(route('search', ['q' => 'commun']));
 
@@ -83,9 +83,9 @@ class SearchControllerTest extends TestCase
 
     public function test_search_finds_open_service_requests(): void
     {
-        ServiceRequest::factory()->create(['title' => 'Cherche photographe', 'status' => 'open', 'community_id' => $this->testOrganization->id]);
-        ServiceRequest::factory()->create(['title' => 'Cherche cuisinier', 'status' => 'open', 'community_id' => $this->testOrganization->id]);
-        ServiceRequest::factory()->create(['title' => 'Cherche développeur', 'status' => 'closed', 'community_id' => $this->testOrganization->id]);
+        ServiceRequest::factory()->create(['title' => 'Cherche photographe', 'status' => 'open', 'organization_id' => $this->testOrganization->id]);
+        ServiceRequest::factory()->create(['title' => 'Cherche cuisinier', 'status' => 'open', 'organization_id' => $this->testOrganization->id]);
+        ServiceRequest::factory()->create(['title' => 'Cherche développeur', 'status' => 'closed', 'organization_id' => $this->testOrganization->id]);
 
         $response = $this->get(route('search', ['q' => 'cherche']));
 

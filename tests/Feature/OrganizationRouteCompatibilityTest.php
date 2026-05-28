@@ -26,7 +26,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
     public function test_middleware_resolves_organization_route_parameter(): void
     {
-        $community = Community::factory()->create(['slug' => 'my-org', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'my-org', 'is_active' => true]);
 
         Route::get('/_test/org/{organization}', function () {
             return response()->json(['id' => app('current_organization')->id]);
@@ -37,7 +37,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
     public function test_middleware_resolves_community_param_still_works(): void
     {
-        $community = Community::factory()->create(['slug' => 'legacy-slug', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'legacy-slug', 'is_active' => true]);
 
         Route::get('/c/{community}', function () {
             return response()->json(['id' => app('current_community')->id]);
@@ -48,11 +48,11 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
     public function test_organization_param_binds_both_current_keys(): void
     {
-        $community = Community::factory()->create(['slug' => 'both-keys', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'both-keys', 'is_active' => true]);
 
         Route::get('/_test/org/{organization}', function () {
             return response()->json([
-                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
             ]);
         })->middleware(ResolveCommunity::class);
@@ -60,7 +60,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
         $this->get('/_test/org/both-keys')
             ->assertOk()
             ->assertJson([
-                'community_id' => $community->id,
+                'organization_id' => $community->id,
                 'organization_id' => $community->id,
             ]);
     }
@@ -75,7 +75,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
     public function test_organization_param_returns_404_for_inactive(): void
     {
-        Community::factory()->create(['slug' => 'inactive-org', 'is_active' => false]);
+        Organization::factory()->create(['slug' => 'inactive-org', 'is_active' => false]);
 
         Route::get('/org/{organization}', fn () => response('ok'))
             ->middleware(ResolveCommunity::class);
@@ -85,7 +85,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
     public function test_community_param_takes_precedence_when_both_present(): void
     {
-        $communitySlug = Community::factory()->create(['slug' => 'comm-slug', 'is_active' => true]);
+        $communitySlug = Organization::factory()->create(['slug' => 'comm-slug', 'is_active' => true]);
 
         Route::get('/test/{community}/{organization}', function () {
             return response()->json(['id' => app('current_community')->id]);
@@ -118,11 +118,11 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
     public function test_community_and_organization_aliases_resolve_same_tenant(): void
     {
-        $community = Community::factory()->create(['slug' => 'same-tenant', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'same-tenant', 'is_active' => true]);
 
         Route::get('/community-alias/{community}', function () {
             return response()->json([
-                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
                 'same_instance' => app('current_community') === app('current_organization'),
             ]);
@@ -130,7 +130,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
         Route::get('/organization-alias/{organization}', function () {
             return response()->json([
-                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
                 'same_instance' => app('current_community') === app('current_organization'),
             ]);
@@ -145,20 +145,20 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
         // Each individually binds identical instances
         $communityResponse->assertJson([
-            'community_id' => $community->id,
+            'organization_id' => $community->id,
             'organization_id' => $community->id,
             'same_instance' => true,
         ]);
         $organizationResponse->assertJson([
-            'community_id' => $community->id,
+            'organization_id' => $community->id,
             'organization_id' => $community->id,
             'same_instance' => true,
         ]);
 
         // Both aliases resolve the exact same tenant (same slug)
         $this->assertEquals(
-            $communityResponse->json('community_id'),
-            $organizationResponse->json('community_id'),
+            $communityResponse->json('organization_id'),
+            $organizationResponse->json('organization_id'),
             'community and organization aliases must resolve the same tenant'
         );
     }

@@ -21,7 +21,7 @@ class ServicePolicyTest extends TestCase
     public function test_owner_can_update_service(): void
     {
         $user = User::factory()->create();
-        $service = Service::factory()->forUser($user)->create(['community_id' => $this->org->id]);
+        $service = Service::factory()->forUser($user)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($user->can('update', $service));
     }
 
@@ -29,14 +29,14 @@ class ServicePolicyTest extends TestCase
     {
         $owner = User::factory()->create();
         $other = User::factory()->create();
-        $service = Service::factory()->forUser($owner)->create(['community_id' => $this->org->id]);
+        $service = Service::factory()->forUser($owner)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($other->can('update', $service));
     }
 
     public function test_owner_can_delete_service(): void
     {
         $user = User::factory()->create();
-        $service = Service::factory()->forUser($user)->create(['community_id' => $this->org->id]);
+        $service = Service::factory()->forUser($user)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($user->can('delete', $service));
     }
 
@@ -44,7 +44,7 @@ class ServicePolicyTest extends TestCase
     {
         $owner = User::factory()->create();
         $other = User::factory()->create();
-        $service = Service::factory()->forUser($owner)->create(['community_id' => $this->org->id]);
+        $service = Service::factory()->forUser($owner)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($other->can('delete', $service));
     }
 
@@ -52,7 +52,7 @@ class ServicePolicyTest extends TestCase
     {
         $otherOrg = Organization::factory()->create();
         $user = User::factory()->create();
-        $service = Service::factory()->forUser($user)->create(['community_id' => $otherOrg->id]);
+        $service = Service::factory()->forUser($user)->create(['organization_id' => $otherOrg->id]);
         $this->assertFalse($user->can('update', $service));
         $this->assertFalse($user->can('delete', $service));
     }
@@ -61,7 +61,7 @@ class ServicePolicyTest extends TestCase
     {
         app()->forgetInstance('current_organization');
         $user = User::factory()->create();
-        $service = Service::factory()->forUser($user)->create(['community_id' => $this->org->id]);
+        $service = Service::factory()->forUser($user)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($user->can('update', $service));
         $this->assertFalse($user->can('delete', $service));
     }

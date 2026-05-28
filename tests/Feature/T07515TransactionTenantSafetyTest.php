@@ -31,12 +31,12 @@ class T07515TransactionTenantSafetyTest extends TestCase
         $organizationB = Organization::factory()->create(['is_active' => true]);
 
         $buyer = User::factory()->create([
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
             'points_balance' => 200,
         ]);
-        $seller = User::factory()->create(['community_id' => $organizationB->id]);
+        $seller = User::factory()->create(['organization_id' => $organizationB->id]);
         $service = Service::factory()->forUser($seller)->create([
-            'community_id' => $organizationB->id,
+            'organization_id' => $organizationB->id,
         ]);
 
         $response = $this->actingAs($buyer)->post(route('transactions.store'), [
@@ -54,7 +54,7 @@ class T07515TransactionTenantSafetyTest extends TestCase
     public function test_web_transaction_store_rejects_tenantless_service(): void
     {
         $buyer = User::factory()->create([
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
             'points_balance' => 200,
         ]);
         $seller = User::factory()->create();
@@ -62,7 +62,7 @@ class T07515TransactionTenantSafetyTest extends TestCase
         // Création explicite d'un Service tenantless (community_id null)
         // pour simuler une faille fixture/legacy. Bypass du sync trait.
         $service = Service::factory()->forUser($seller)->create();
-        $service->forceFill(['community_id' => null, 'organization_id' => null])->saveQuietly();
+        $service->forceFill(['organization_id' => null, 'organization_id' => null])->saveQuietly();
 
         $response = $this->actingAs($buyer)->post(route('transactions.store'), [
             'service_id' => $service->id,
@@ -79,12 +79,12 @@ class T07515TransactionTenantSafetyTest extends TestCase
     public function test_web_transaction_store_creates_transaction_when_service_matches_resolved_organization(): void
     {
         $buyer = User::factory()->create([
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
             'points_balance' => 200,
         ]);
-        $seller = User::factory()->create(['community_id' => $this->testOrganization->id]);
+        $seller = User::factory()->create(['organization_id' => $this->testOrganization->id]);
         $service = Service::factory()->forUser($seller)->create([
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
         ]);
 
         $response = $this->actingAs($buyer)->post(route('transactions.store'), [
@@ -97,13 +97,13 @@ class T07515TransactionTenantSafetyTest extends TestCase
             'service_id' => $service->id,
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
             'status' => 'pending',
         ]);
 
         $transaction = Transaction::where('buyer_id', $buyer->id)->first();
         $this->assertNotNull($transaction);
-        $this->assertNotNull($transaction->community_id);
+        $this->assertNotNull($transaction->organization_id);
     }
 
     public function test_web_transaction_store_rejects_service_request_outside_resolved_organization(): void
@@ -111,12 +111,12 @@ class T07515TransactionTenantSafetyTest extends TestCase
         $organizationB = Organization::factory()->create(['is_active' => true]);
 
         $seller = User::factory()->create([
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
             'points_balance' => 200,
         ]);
-        $requester = User::factory()->create(['community_id' => $organizationB->id]);
+        $requester = User::factory()->create(['organization_id' => $organizationB->id]);
         $serviceRequest = ServiceRequest::factory()->forUser($requester)->create([
-            'community_id' => $organizationB->id,
+            'organization_id' => $organizationB->id,
         ]);
 
         $response = $this->actingAs($seller)->post(route('transactions.store'), [
@@ -133,7 +133,7 @@ class T07515TransactionTenantSafetyTest extends TestCase
     public function test_web_transaction_store_rejects_tenantless_service_request(): void
     {
         $seller = User::factory()->create([
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
             'points_balance' => 200,
         ]);
         $requester = User::factory()->create();
@@ -141,7 +141,7 @@ class T07515TransactionTenantSafetyTest extends TestCase
         // ServiceRequest explicitement tenantless pour simuler une faille fixture/legacy.
         // Bypass du sync trait via forceFill + saveQuietly.
         $serviceRequest = ServiceRequest::factory()->forUser($requester)->create();
-        $serviceRequest->forceFill(['community_id' => null, 'organization_id' => null])->saveQuietly();
+        $serviceRequest->forceFill(['organization_id' => null, 'organization_id' => null])->saveQuietly();
 
         $response = $this->actingAs($seller)->post(route('transactions.store'), [
             'request_id' => $serviceRequest->id,

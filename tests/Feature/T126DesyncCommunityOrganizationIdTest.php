@@ -49,7 +49,7 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
 
         $this->orgA = Organization::factory()->create(['name' => 'T126 Desync Org A']);
         $this->orgB = Organization::factory()->create(['name' => 'T126 Desync Org B']);
-        $this->ownerA = User::factory()->create(['community_id' => $this->orgA->id]);
+        $this->ownerA = User::factory()->create(['organization_id' => $this->orgA->id]);
     }
 
     // -------------------------------------------------------------------------
@@ -64,14 +64,14 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
     private function createDesyncedService(int|string $communityId, int|string $organizationId): Service
     {
         $service = Service::factory()->forUser($this->ownerA)->create([
-            'community_id' => $communityId,
+            'organization_id' => $communityId,
         ]);
 
         // Force la désync directement en base sans déclencher les observers
         DB::table('services')
             ->where('id', $service->id)
             ->update([
-                'community_id' => $communityId,
+                'organization_id' => $communityId,
                 'organization_id' => $organizationId,
             ]);
 
@@ -87,7 +87,6 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
         app()->instance('current_organization', $this->orgA);
 
         $service = Service::factory()->forUser($this->ownerA)->create([
-            'community_id' => $this->orgA->id,
             'organization_id' => $this->orgA->id,
         ]);
 
@@ -226,12 +225,12 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
         app()->instance('current_organization', $this->orgA);
 
         $service = Service::factory()->forUser($this->ownerA)->create([
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
         ]);
 
         // Forcer NULL en bypassant le modèle
         DB::table('services')->where('id', $service->id)->update([
-            'community_id' => null,
+            'organization_id' => null,
             'organization_id' => null,
         ]);
 
@@ -250,13 +249,13 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
         app()->instance('current_organization', $this->orgA);
 
         $service = Service::factory()->forUser($this->ownerA)->create([
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
         ]);
 
         $service->refresh();
 
         // HasOrganizationId doit synchroniser organization_id = community_id
-        $this->assertEquals($this->orgA->id, $service->community_id);
+        $this->assertEquals($this->orgA->id, $service->organization_id);
         $this->assertEquals($this->orgA->id, $service->organization_id);
     }
 }

@@ -74,7 +74,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
 
     public function test_resolve_community_binds_both_legacy_and_current_names(): void
     {
-        $community = Community::factory()->create([
+        $community = Organization::factory()->create([
             'slug' => 't1403-gate-4',
             'is_active' => true,
         ]);
@@ -83,7 +83,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
             return response()->json([
                 'community_bound' => app()->bound('current_community'),
                 'organization_bound' => app()->bound('current_organization'),
-                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
                 'same_instance' => app('current_community') === app('current_organization'),
             ]);
@@ -95,7 +95,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
         $response->assertJson([
             'community_bound' => true,
             'organization_bound' => true,
-            'community_id' => $community->id,
+            'organization_id' => $community->id,
             'organization_id' => $community->id,
             'same_instance' => true,
         ]);
@@ -107,7 +107,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
 
     public function test_navigation_renders_with_legacy_current_community_fallback(): void
     {
-        $community = Community::factory()->create([
+        $community = Organization::factory()->create([
             'slug' => 't1403-gate-5',
             'name' => 'T140.3 Gate Five',
             'is_active' => true,

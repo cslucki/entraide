@@ -27,8 +27,8 @@ class ApiTenantScopingTest extends TestCase
     {
         Setting::set('default_organization_id', $this->organizationA->id);
 
-        Service::factory()->count(3)->create(['status' => 'active', 'community_id' => $this->organizationA->id]);
-        Service::factory()->count(2)->create(['status' => 'active', 'community_id' => $this->organizationB->id]);
+        Service::factory()->count(3)->create(['status' => 'active', 'organization_id' => $this->organizationA->id]);
+        Service::factory()->count(2)->create(['status' => 'active', 'organization_id' => $this->organizationB->id]);
 
         $this->getJson('/api/services')
             ->assertOk()
@@ -39,8 +39,8 @@ class ApiTenantScopingTest extends TestCase
     {
         Setting::set('default_organization_id', $this->organizationA->id);
 
-        Service::factory()->count(3)->create(['status' => 'active', 'community_id' => $this->organizationA->id]);
-        Service::factory()->count(2)->create(['status' => 'active', 'community_id' => $this->organizationB->id]);
+        Service::factory()->count(3)->create(['status' => 'active', 'organization_id' => $this->organizationA->id]);
+        Service::factory()->count(2)->create(['status' => 'active', 'organization_id' => $this->organizationB->id]);
 
         $this->withHeaders(['X-Organization' => 'org-beta'])
             ->getJson('/api/services')
@@ -52,7 +52,7 @@ class ApiTenantScopingTest extends TestCase
     {
         Setting::set('default_organization_id', $this->organizationB->id);
 
-        $serviceA = Service::factory()->create(['status' => 'active', 'community_id' => $this->organizationA->id]);
+        $serviceA = Service::factory()->create(['status' => 'active', 'organization_id' => $this->organizationA->id]);
 
         $this->getJson("/api/services/{$serviceA->id}")
             ->assertNotFound();
@@ -60,32 +60,32 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_transactions_isolated_by_authenticated_user_organization(): void
     {
-        $user = User::factory()->create(['community_id' => $this->organizationA->id, 'points_balance' => 500]);
-        $sameOrganizationUser = User::factory()->create(['community_id' => $this->organizationA->id]);
-        $otherOrganizationUser = User::factory()->create(['community_id' => $this->organizationB->id]);
+        $user = User::factory()->create(['organization_id' => $this->organizationA->id, 'points_balance' => 500]);
+        $sameOrganizationUser = User::factory()->create(['organization_id' => $this->organizationA->id]);
+        $otherOrganizationUser = User::factory()->create(['organization_id' => $this->organizationB->id]);
 
         Transaction::factory()->count(2)->create([
             'buyer_id' => $user->id,
             'seller_id' => $sameOrganizationUser->id,
-            'community_id' => $this->organizationA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         Transaction::factory()->create([
             'buyer_id' => $sameOrganizationUser->id,
             'seller_id' => $user->id,
-            'community_id' => $this->organizationA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         Transaction::factory()->count(4)->create([
             'buyer_id' => $sameOrganizationUser->id,
-            'seller_id' => User::factory()->create(['community_id' => $this->organizationA->id])->id,
-            'community_id' => $this->organizationA->id,
+            'seller_id' => User::factory()->create(['organization_id' => $this->organizationA->id])->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         Transaction::factory()->count(2)->create([
             'buyer_id' => $user->id,
             'seller_id' => $otherOrganizationUser->id,
-            'community_id' => $this->organizationB->id,
+            'organization_id' => $this->organizationB->id,
         ]);
 
         $this->withToken($user->createToken('api')->plainTextToken)
@@ -98,38 +98,38 @@ class ApiTenantScopingTest extends TestCase
     {
         Setting::set('default_organization_id', $this->organizationA->id);
 
-        $user = User::factory()->create(['community_id' => $this->organizationB->id, 'points_balance' => 500]);
-        $organizationBUser = User::factory()->create(['community_id' => $this->organizationB->id]);
+        $user = User::factory()->create(['organization_id' => $this->organizationB->id, 'points_balance' => 500]);
+        $organizationBUser = User::factory()->create(['organization_id' => $this->organizationB->id]);
 
         Transaction::factory()->create([
             'buyer_id' => $user->id,
             'seller_id' => $organizationBUser->id,
-            'community_id' => $this->organizationB->id,
+            'organization_id' => $this->organizationB->id,
         ]);
 
         Transaction::factory()->count(2)->create([
             'buyer_id' => $user->id,
-            'seller_id' => User::factory()->create(['community_id' => $this->organizationA->id])->id,
-            'community_id' => $this->organizationA->id,
+            'seller_id' => User::factory()->create(['organization_id' => $this->organizationA->id])->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $this->withToken($user->createToken('api')->plainTextToken)
             ->getJson('/api/transactions')
             ->assertOk()
             ->assertJsonPath('total', 1)
-            ->assertJsonPath('data.0.community_id', $this->organizationB->id);
+            ->assertJsonPath('data.0.organization_id', $this->organizationB->id);
     }
 
     public function test_authenticated_user_without_organization_fails_safe(): void
     {
         Setting::set('default_organization_id', $this->organizationA->id);
 
-        $user = User::factory()->create(['community_id' => null, 'points_balance' => 500]);
+        $user = User::factory()->create(['organization_id' => null, 'points_balance' => 500]);
 
         Transaction::factory()->create([
             'buyer_id' => $user->id,
-            'seller_id' => User::factory()->create(['community_id' => $this->organizationA->id])->id,
-            'community_id' => $this->organizationA->id,
+            'seller_id' => User::factory()->create(['organization_id' => $this->organizationA->id])->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $response = $this->withToken($user->createToken('api')->plainTextToken)
@@ -144,12 +144,12 @@ class ApiTenantScopingTest extends TestCase
         Setting::set('default_organization_id', $this->organizationA->id);
 
         $inactiveOrganization = Organization::factory()->create(['is_active' => false]);
-        $user = User::factory()->create(['community_id' => $inactiveOrganization->id, 'points_balance' => 500]);
+        $user = User::factory()->create(['organization_id' => $inactiveOrganization->id, 'points_balance' => 500]);
 
         Transaction::factory()->create([
             'buyer_id' => $user->id,
-            'seller_id' => User::factory()->create(['community_id' => $this->organizationA->id])->id,
-            'community_id' => $this->organizationA->id,
+            'seller_id' => User::factory()->create(['organization_id' => $this->organizationA->id])->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $response = $this->withToken($user->createToken('api')->plainTextToken)
@@ -161,11 +161,11 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_transaction_store_uses_server_resolved_org(): void
     {
-        $buyer = User::factory()->create(['community_id' => $this->organizationA->id, 'points_balance' => 300]);
-        $seller = User::factory()->create(['community_id' => $this->organizationA->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->organizationA->id, 'points_balance' => 300]);
+        $seller = User::factory()->create(['organization_id' => $this->organizationA->id]);
         $service = Service::factory()->forUser($seller)->create([
             'status' => 'active',
-            'community_id' => $this->organizationA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $this->withToken($buyer->createToken('api')->plainTextToken)
@@ -178,7 +178,7 @@ class ApiTenantScopingTest extends TestCase
         $this->assertDatabaseHas('transactions', [
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
-            'community_id' => $this->organizationA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
     }
 
@@ -186,8 +186,8 @@ class ApiTenantScopingTest extends TestCase
     {
         Setting::set('default_organization_id', $this->organizationB->id);
 
-        Service::factory()->count(2)->create(['status' => 'active', 'community_id' => $this->organizationB->id]);
-        Service::factory()->count(3)->create(['status' => 'active', 'community_id' => $this->organizationA->id]);
+        Service::factory()->count(2)->create(['status' => 'active', 'organization_id' => $this->organizationB->id]);
+        Service::factory()->count(3)->create(['status' => 'active', 'organization_id' => $this->organizationA->id]);
 
         $this->getJson('/api/services')
             ->assertOk()
@@ -196,7 +196,7 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_middleware_binds_current_organization_for_authenticated_requests(): void
     {
-        $user = User::factory()->create(['community_id' => $this->organizationA->id]);
+        $user = User::factory()->create(['organization_id' => $this->organizationA->id]);
 
         $this->withToken($user->createToken('api')->plainTextToken)
             ->getJson('/api/transactions');
@@ -207,7 +207,7 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_middleware_binds_legacy_runtime_tenant_key_for_backward_compat(): void
     {
-        $user = User::factory()->create(['community_id' => $this->organizationB->id]);
+        $user = User::factory()->create(['organization_id' => $this->organizationB->id]);
 
         $this->withToken($user->createToken('api')->plainTextToken)
             ->getJson('/api/transactions');

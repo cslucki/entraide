@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\User;
@@ -16,8 +17,8 @@ class LoopModelTest extends TestCase
 
     public function test_loop_belongs_to_community_via_legacy_community_id(): void
     {
-        $community = Community::factory()->create();
-        $loop = Loop::factory()->create(['community_id' => $community->id]);
+        $community = Organization::factory()->create();
+        $loop = Loop::factory()->create(['organization_id' => $community->id]);
 
         $this->assertInstanceOf(Community::class, $loop->community);
         $this->assertEquals($community->id, $loop->community->id);
@@ -81,9 +82,9 @@ class LoopModelTest extends TestCase
 
     public function test_community_has_many_loops(): void
     {
-        $community = Community::factory()->create();
-        $loop1 = Loop::factory()->create(['community_id' => $community->id]);
-        $loop2 = Loop::factory()->create(['community_id' => $community->id]);
+        $community = Organization::factory()->create();
+        $loop1 = Loop::factory()->create(['organization_id' => $community->id]);
+        $loop2 = Loop::factory()->create(['organization_id' => $community->id]);
 
         $this->assertCount(2, $community->loops);
         $this->assertTrue($community->loops->contains($loop1));
@@ -109,48 +110,48 @@ class LoopModelTest extends TestCase
 
     public function test_loop_slug_is_unique_per_community(): void
     {
-        $community = Community::factory()->create();
+        $community = Organization::factory()->create();
 
         Loop::factory()->create([
-            'community_id' => $community->id,
+            'organization_id' => $community->id,
             'slug' => 'test-loop',
         ]);
 
         $this->expectException(QueryException::class);
         Loop::factory()->create([
-            'community_id' => $community->id,
+            'organization_id' => $community->id,
             'slug' => 'test-loop',
         ]);
     }
 
     public function test_same_slug_allowed_in_different_communities(): void
     {
-        $community1 = Community::factory()->create();
-        $community2 = Community::factory()->create();
+        $community1 = Organization::factory()->create();
+        $community2 = Organization::factory()->create();
 
         Loop::factory()->create([
-            'community_id' => $community1->id,
+            'organization_id' => $community1->id,
             'slug' => 'test-loop',
         ]);
 
         $loop = Loop::factory()->create([
-            'community_id' => $community2->id,
+            'organization_id' => $community2->id,
             'slug' => 'test-loop',
         ]);
 
         $this->assertNotNull($loop);
-        $this->assertEquals($community2->id, $loop->community_id);
+        $this->assertEquals($community2->id, $loop->organization_id);
     }
 
     public function test_loop_is_not_tenant_boundary(): void
     {
-        $community1 = Community::factory()->create();
-        $community2 = Community::factory()->create();
+        $community1 = Organization::factory()->create();
+        $community2 = Organization::factory()->create();
 
-        $loop1 = Loop::factory()->create(['community_id' => $community1->id]);
-        Loop::factory()->create(['community_id' => $community2->id]);
+        $loop1 = Loop::factory()->create(['organization_id' => $community1->id]);
+        Loop::factory()->create(['organization_id' => $community2->id]);
 
-        $loopsInCommunity1 = Loop::where('community_id', $community1->id)->get();
+        $loopsInCommunity1 = Loop::where('organization_id', $community1->id)->get();
         $this->assertCount(1, $loopsInCommunity1);
         $this->assertEquals($loop1->id, $loopsInCommunity1->first()->id);
     }

@@ -44,7 +44,7 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_organization_and_community_share_same_table_data(): void
     {
-        $community = Community::factory()->create(['name' => 'Test Org']);
+        $community = Organization::factory()->create(['name' => 'Test Org']);
 
         $org = Organization::find($community->id);
 
@@ -86,11 +86,11 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_resolve_community_middleware_binds_current_organization(): void
     {
-        $community = Community::factory()->create(['slug' => 'test-boucle', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'test-boucle', 'is_active' => true]);
 
         Route::get('/test-org-bind/{community}', function () {
             return response()->json([
-                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
             ]);
         })->middleware(ResolveCommunity::class);
@@ -99,14 +99,14 @@ class OrganizationCompatibilityTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'community_id' => $community->id,
+            'organization_id' => $community->id,
             'organization_id' => $community->id,
         ]);
     }
 
     public function test_current_organization_is_same_instance_as_current_community(): void
     {
-        $community = Community::factory()->create(['slug' => 'same-instance', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'same-instance', 'is_active' => true]);
 
         Route::get('/test-same-instance/{community}', function () {
             return response()->json([
@@ -165,11 +165,11 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_resolve_organization_binds_both_current_keys(): void
     {
-        $community = Community::factory()->create(['slug' => 'resolve-org', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'resolve-org', 'is_active' => true]);
 
         Route::get('/resolve-org-test/{community}', function () {
             return response()->json([
-                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
             ]);
         })->middleware(ResolveOrganization::class);
@@ -178,7 +178,7 @@ class OrganizationCompatibilityTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'community_id' => $community->id,
+            'organization_id' => $community->id,
             'organization_id' => $community->id,
         ]);
     }
@@ -195,13 +195,13 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_resolve_community_no_regression_legacy_behavior_unchanged(): void
     {
-        $community = Community::factory()->create(['slug' => 'legacy-bind', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'legacy-bind', 'is_active' => true]);
 
         Route::get('/legacy-bind-check/{community}', function () {
             return response()->json([
                 'community_bound' => app()->bound('current_community'),
                 'organization_bound' => app()->bound('current_organization'),
-                'community_id' => app('current_community')->id,
+                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
                 'same_instance' => app('current_community') === app('current_organization'),
                 'view_community' => view()->shared('currentCommunity')?->slug,
@@ -215,7 +215,7 @@ class OrganizationCompatibilityTest extends TestCase
         $response->assertJson([
             'community_bound' => true,
             'organization_bound' => true,
-            'community_id' => $community->id,
+            'organization_id' => $community->id,
             'organization_id' => $community->id,
             'same_instance' => true,
             'view_community' => 'legacy-bind',
@@ -225,7 +225,7 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_resolve_organization_shares_view_variables(): void
     {
-        $community = Community::factory()->create(['slug' => 'view-share', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'view-share', 'is_active' => true]);
 
         Route::get('/resolve-org-view/{community}', function () {
             return response()->json([

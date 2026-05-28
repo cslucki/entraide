@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\BlogPost;
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -30,7 +30,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_membres_returns_200_and_binds_org(): void
     {
-        $org = Community::factory()->create(['is_active' => true]);
+        $org = Organization::factory()->create(['is_active' => true]);
         ResolveUrlOrganization::$defaultOrganizationId = $org->id;
 
         $response = $this->get('/membres');
@@ -41,12 +41,12 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_membres_shows_only_scoped_users(): void
     {
-        $orgA = Community::factory()->create(['is_active' => true]);
-        $orgB = Community::factory()->create(['is_active' => true]);
+        $orgA = Organization::factory()->create(['is_active' => true]);
+        $orgB = Organization::factory()->create(['is_active' => true]);
         ResolveUrlOrganization::$defaultOrganizationId = $orgA->id;
 
-        $userInA = User::factory()->create(['name' => 'User In Org A', 'community_id' => $orgA->id]);
-        $userInB = User::factory()->create(['name' => 'User In Org B', 'community_id' => $orgB->id]);
+        $userInA = User::factory()->create(['name' => 'User In Org A', 'organization_id' => $orgA->id]);
+        $userInB = User::factory()->create(['name' => 'User In Org B', 'organization_id' => $orgB->id]);
 
         $this->get('/membres')
             ->assertOk()
@@ -60,7 +60,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_explorer_returns_200_and_binds_org(): void
     {
-        $org = Community::factory()->create(['is_active' => true]);
+        $org = Organization::factory()->create(['is_active' => true]);
         ResolveUrlOrganization::$defaultOrganizationId = $org->id;
 
         $response = $this->get('/explorer');
@@ -75,7 +75,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_blog_index_returns_200_with_default_org(): void
     {
-        $org = Community::factory()->create(['is_active' => true]);
+        $org = Organization::factory()->create(['is_active' => true]);
         ResolveUrlOrganization::$defaultOrganizationId = $org->id;
 
         $this->get(route('blog.index'))
@@ -84,16 +84,16 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_blog_index_filters_by_resolved_org(): void
     {
-        $orgA = Community::factory()->create(['is_active' => true]);
-        $orgB = Community::factory()->create(['is_active' => true]);
+        $orgA = Organization::factory()->create(['is_active' => true]);
+        $orgB = Organization::factory()->create(['is_active' => true]);
         ResolveUrlOrganization::$defaultOrganizationId = $orgA->id;
 
-        $userA = User::factory()->create(['community_id' => $orgA->id]);
-        $userB = User::factory()->create(['community_id' => $orgB->id]);
+        $userA = User::factory()->create(['organization_id' => $orgA->id]);
+        $userB = User::factory()->create(['organization_id' => $orgB->id]);
 
         BlogPost::create([
             'user_id' => $userA->id,
-            'community_id' => $orgA->id,
+            'organization_id' => $orgA->id,
             'title' => 'Visible Org A Post',
             'content' => str_repeat('Contenu de test pour vérifier le scoping. ', 3),
             'status' => 'published',
@@ -102,7 +102,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
         BlogPost::create([
             'user_id' => $userB->id,
-            'community_id' => $orgB->id,
+            'organization_id' => $orgB->id,
             'title' => 'Hidden Org B Post',
             'content' => str_repeat('Contenu interdit pour Org A. ', 3),
             'status' => 'published',
@@ -121,7 +121,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_admin_dashboard_does_not_bind_org(): void
     {
-        $admin = User::factory()->create(['is_admin' => true, 'community_id' => null]);
+        $admin = User::factory()->create(['is_admin' => true, 'organization_id' => null]);
 
         $this->actingAs($admin)
             ->get(route('admin.dashboard'))
@@ -136,11 +136,11 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_membres_does_not_show_users_from_other_org_after_rebind(): void
     {
-        $orgA = Community::factory()->create(['is_active' => true]);
-        $orgB = Community::factory()->create(['is_active' => true]);
+        $orgA = Organization::factory()->create(['is_active' => true]);
+        $orgB = Organization::factory()->create(['is_active' => true]);
 
-        $userInA = User::factory()->create(['name' => 'Only In A', 'community_id' => $orgA->id]);
-        $userInB = User::factory()->create(['name' => 'Only In B', 'community_id' => $orgB->id]);
+        $userInA = User::factory()->create(['name' => 'Only In A', 'organization_id' => $orgA->id]);
+        $userInB = User::factory()->create(['name' => 'Only In B', 'organization_id' => $orgB->id]);
 
         ResolveUrlOrganization::$defaultOrganizationId = $orgA->id;
         $this->get('/membres')

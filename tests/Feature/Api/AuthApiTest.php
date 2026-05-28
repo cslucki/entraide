@@ -90,7 +90,7 @@ class AuthApiTest extends TestCase
     public function test_logout_revokes_token(): void
     {
         $organization = Organization::factory()->create(['is_active' => true]);
-        $user = User::factory()->create(['community_id' => $organization->id]);
+        $user = User::factory()->create(['organization_id' => $organization->id]);
         $token = $user->createToken('api')->plainTextToken;
 
         $this->withToken($token)

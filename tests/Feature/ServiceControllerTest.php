@@ -23,7 +23,7 @@ class ServiceControllerTest extends TestCase
     {
         $user = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($user)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($user)->forCategory($category)->create(['organization_id' => $this->testOrganization->id]);
 
         $response = $this->get(route('services.show', $service));
         $response->assertOk();
@@ -34,7 +34,7 @@ class ServiceControllerTest extends TestCase
         $owner = $this->orgUser();
         $other = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($owner)->forCategory($category)->paused()->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($owner)->forCategory($category)->paused()->create(['organization_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($owner)->get(route('services.show', $service));
         $response->assertOk();
@@ -64,7 +64,7 @@ class ServiceControllerTest extends TestCase
     {
         $user = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($user)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($user)->forCategory($category)->create(['organization_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($user)->put(route('services.update', $service), [
             'title' => 'Updated Title',
@@ -84,7 +84,7 @@ class ServiceControllerTest extends TestCase
         $owner = $this->orgUser();
         $other = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($owner)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($owner)->forCategory($category)->create(['organization_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($other)->put(route('services.update', $service), [
             'title' => 'Hacked',
@@ -102,7 +102,7 @@ class ServiceControllerTest extends TestCase
     {
         $user = $this->orgUser();
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($user)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($user)->forCategory($category)->create(['organization_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($user)->delete(route('services.destroy', $service));
         $response->assertRedirect(route('dashboard'));
@@ -114,10 +114,10 @@ class ServiceControllerTest extends TestCase
         $seller = $this->orgUser();
         $buyer = $this->orgUser(['points_balance' => 100]);
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($seller)->forCategory($category)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($seller)->forCategory($category)->create(['organization_id' => $this->testOrganization->id]);
 
         Transaction::create([
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
             'service_id' => $service->id,
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,

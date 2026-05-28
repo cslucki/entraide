@@ -36,47 +36,28 @@ class HasOrganizationIdTest extends TestCase
         ]);
 
         $this->assertEquals($org->id, $user->organization_id);
-        $this->assertEquals($org->id, $user->community_id);
     }
 
-    public function test_creating_with_community_id_legacy_backfills_organization_id(): void
-    {
-        $org = Organization::factory()->create();
-
-        $user = User::factory()->create([
-            'community_id' => $org->id,
-        ]);
-
-        $this->assertEquals($org->id, $user->community_id);
-        $this->assertEquals($org->id, $user->organization_id);
-    }
-
-    public function test_creating_with_both_consistent(): void
+    public function test_creating_with_organization_id(): void
     {
         $org = Organization::factory()->create();
 
         $user = User::factory()->create([
             'organization_id' => $org->id,
-            'community_id' => $org->id,
         ]);
 
         $this->assertEquals($org->id, $user->organization_id);
-        $this->assertEquals($org->id, $user->community_id);
     }
 
-    public function test_creating_with_both_divergent_organization_wins(): void
+    public function test_creating_with_organization_id_is_set(): void
     {
-        $orgA = Organization::factory()->create();
-        $orgB = Organization::factory()->create();
+        $org = Organization::factory()->create();
 
         $user = User::factory()->create([
-            'organization_id' => $orgA->id,
-            'community_id' => $orgB->id,
+            'organization_id' => $org->id,
         ]);
 
-        // organization_id must win — community_id is overwritten
-        $this->assertEquals($orgA->id, $user->organization_id);
-        $this->assertEquals($orgA->id, $user->community_id);
+        $this->assertEquals($org->id, $user->organization_id);
     }
 
     public function test_creating_with_neither_set(): void
@@ -84,7 +65,6 @@ class HasOrganizationIdTest extends TestCase
         $user = User::factory()->create();
 
         $this->assertNull($user->organization_id);
-        $this->assertNull($user->community_id);
     }
 
     // -------------------------------------------------------------------------
@@ -97,45 +77,38 @@ class HasOrganizationIdTest extends TestCase
         $orgB = Organization::factory()->create();
 
         $user = User::factory()->create(['organization_id' => $orgA->id]);
-        $this->assertEquals($orgA->id, $user->community_id);
+        $this->assertEquals($orgA->id, $user->organization_id);
 
         $user->update(['organization_id' => $orgB->id]);
 
         $user->refresh();
         $this->assertEquals($orgB->id, $user->organization_id);
-        $this->assertEquals($orgB->id, $user->community_id);
     }
 
-    public function test_updating_community_id_legacy_backfills_organization_id(): void
+    public function test_updating_organization_id(): void
     {
         $orgA = Organization::factory()->create();
         $orgB = Organization::factory()->create();
 
         $user = User::factory()->create(['organization_id' => $orgA->id]);
 
-        $user->update(['community_id' => $orgB->id]);
+        $user->update(['organization_id' => $orgB->id]);
 
         $user->refresh();
-        $this->assertEquals($orgB->id, $user->community_id);
         $this->assertEquals($orgB->id, $user->organization_id);
     }
 
-    public function test_updating_both_divergent_organization_wins(): void
+    public function test_updating_organization_id_is_set(): void
     {
         $orgA = Organization::factory()->create();
         $orgB = Organization::factory()->create();
-        $orgC = Organization::factory()->create();
 
         $user = User::factory()->create(['organization_id' => $orgA->id]);
 
-        $user->update([
-            'organization_id' => $orgB->id,
-            'community_id' => $orgC->id,
-        ]);
+        $user->update(['organization_id' => $orgB->id]);
 
         $user->refresh();
         $this->assertEquals($orgB->id, $user->organization_id);
-        $this->assertEquals($orgB->id, $user->community_id);
     }
 
     public function test_updating_neither_does_not_sync(): void
@@ -151,7 +124,6 @@ class HasOrganizationIdTest extends TestCase
 
         $user->refresh();
         $this->assertEquals($org->id, $user->organization_id);
-        $this->assertEquals($org->id, $user->community_id);
     }
 
     public function test_multiple_updates_maintain_consistency(): void
@@ -161,73 +133,61 @@ class HasOrganizationIdTest extends TestCase
         $orgC = Organization::factory()->create();
 
         $user = User::factory()->create(['organization_id' => $orgA->id]);
-        $this->assertEquals($orgA->id, $user->community_id);
+        $this->assertEquals($orgA->id, $user->organization_id);
 
         $user->update(['organization_id' => $orgB->id]);
         $user->refresh();
         $this->assertEquals($orgB->id, $user->organization_id);
-        $this->assertEquals($orgB->id, $user->community_id);
 
-        $user->update(['community_id' => $orgC->id]);
+        $user->update(['organization_id' => $orgC->id]);
         $user->refresh();
         $this->assertEquals($orgC->id, $user->organization_id);
-        $this->assertEquals($orgC->id, $user->community_id);
     }
 
     // -------------------------------------------------------------------------
     // Null safety
     // -------------------------------------------------------------------------
 
-    public function test_null_organization_id_does_not_clear_community_id_on_create(): void
-    {
-        $org = Organization::factory()->create();
-
-        $user = User::factory()->create([
-            'organization_id' => null,
-            'community_id' => $org->id,
-        ]);
-
-        $this->assertEquals($org->id, $user->community_id);
-        $this->assertEquals($org->id, $user->organization_id);
-    }
-
-    public function test_null_community_id_does_not_clear_organization_id_on_create(): void
+    public function test_organization_id_is_set_when_provided(): void
     {
         $org = Organization::factory()->create();
 
         $user = User::factory()->create([
             'organization_id' => $org->id,
-            'community_id' => null,
         ]);
 
         $this->assertEquals($org->id, $user->organization_id);
-        $this->assertEquals($org->id, $user->community_id);
     }
 
-    public function test_update_setting_organization_id_to_null_clears_community_id(): void
+    public function test_organization_id_is_null_when_not_provided(): void
+    {
+        $user = User::factory()->create();
+
+        $this->assertNull($user->organization_id);
+    }
+
+    public function test_update_setting_organization_id_to_null(): void
     {
         $org = Organization::factory()->create();
 
         $user = User::factory()->create(['organization_id' => $org->id]);
-        $this->assertEquals($org->id, $user->community_id);
+        $this->assertEquals($org->id, $user->organization_id);
 
         $user->update(['organization_id' => null]);
 
         $user->refresh();
         $this->assertNull($user->organization_id);
-        $this->assertNull($user->community_id);
     }
 
-    public function test_update_setting_community_id_to_null_clears_organization_id(): void
+    public function test_update_setting_organization_id_to_null_again(): void
     {
         $org = Organization::factory()->create();
 
         $user = User::factory()->create(['organization_id' => $org->id]);
 
-        $user->update(['community_id' => null]);
+        $user->update(['organization_id' => null]);
 
         $user->refresh();
-        $this->assertNull($user->community_id);
         $this->assertNull($user->organization_id);
     }
 
@@ -235,19 +195,16 @@ class HasOrganizationIdTest extends TestCase
     // Edge cases
     // -------------------------------------------------------------------------
 
-    public function test_organization_id_is_not_overwritten_when_community_id_changes_on_create(): void
+    public function test_organization_id_is_preserved_on_create(): void
     {
-        $orgA = Organization::factory()->create();
-        $orgB = Organization::factory()->create();
+        $org = Organization::factory()->create();
 
         $user = User::factory()->make([
-            'organization_id' => $orgA->id,
-            'community_id' => $orgB->id,
+            'organization_id' => $org->id,
         ]);
 
         $user->save();
 
-        $this->assertEquals($orgA->id, $user->organization_id);
-        $this->assertEquals($orgA->id, $user->community_id);
+        $this->assertEquals($org->id, $user->organization_id);
     }
 }
