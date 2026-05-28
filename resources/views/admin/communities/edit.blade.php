@@ -1,4 +1,4 @@
-<x-admin-layout title="Éditer la communauté">
+<x-admin-layout title="Éditer l'organisation">
     <div class="max-w-2xl">
         <form method="POST" action="{{ route('admin.organizations.update', $community) }}" class="space-y-6">
             @csrf

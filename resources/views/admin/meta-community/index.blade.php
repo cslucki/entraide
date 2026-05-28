@@ -1,9 +1,9 @@
-<x-admin-layout title="Meta-Communauté">
+<x-admin-layout title="Meta-Organisation">
 
     <div class="max-w-2xl">
         <div class="mb-6">
-            <h1 class="text-xl font-bold text-white">Meta-Communauté</h1>
-            <p class="text-sm text-gray-400 mt-1">Paramètres globaux du site BouclePro (hors communautés spécifiques).</p>
+            <h1 class="text-xl font-bold text-white">Meta-Organisation</h1>
+            <p class="text-sm text-gray-400 mt-1">Paramètres globaux du site BouclePro (hors organisations spécifiques).</p>
         </div>
 
         <form method="POST" action="{{ route('admin.meta-organization.update') }}" class="space-y-6">
@@ -70,7 +70,7 @@
 
                     </div>
                     <p class="mt-3 text-xs text-gray-500">
-                        Ce réglage s'applique uniquement au site global. Les communautés conservent leur propre personnalisation.
+                        Ce réglage s'applique uniquement au site global. Les organisations conservent leur propre personnalisation.
                     </p>
                 </div>
             </div>
