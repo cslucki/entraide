@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Category;
-use App\Models\Community;
 use App\Models\Message;
+use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Review;
 use App\Models\Service;
@@ -12,17 +12,16 @@ use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Database\Eloquent\Scopes\BelongsToTenantScope;
 use Illuminate\Support\Facades\Hash;
 
 class DemoSeeder extends Seeder
 {
     public function run(): void
     {
-        // ── Communauté de démo : CPME ────────────────────────────────────────
-        $community = Community::where('slug', 'cpme')->first();
+        // ── Organisation de démo : CPME ─────────────────────────────────────
+        $community = Organization::where('slug', 'cpme')->first();
         if (! $community) {
-            $this->command->error('Communauté "cpme" introuvable. Lancez d\'abord : php artisan db:seed --class=CommunitySeeder');
+            $this->command->error('Organisation "cpme" introuvable. Lancez d\'abord : php artisan db:seed --class=CommunitySeeder');
             return;
         }
 
@@ -30,7 +29,7 @@ class DemoSeeder extends Seeder
         $cyril = User::where('email', 'cslucki@gmail.com')->first();
         if (! $cyril) {
             $cyril = User::create([
-                'community_id'   => $community->id,
+                'organization_id'   => $community->id,
                 'name'           => 'Cyril',
                 'email'          => 'cslucki@gmail.com',
                 'password'       => Hash::make('ChangeMe2026!'),
@@ -42,7 +41,7 @@ class DemoSeeder extends Seeder
             $this->command->info('Utilisateur Cyril créé. Mot de passe : ChangeMe2026!');
         } else {
             $cyril->update([
-                'community_id'   => $community->id,
+                'organization_id'   => $community->id,
                 'points_balance' => 350,
                 'is_available'   => true,
                 'is_admin'       => true,
@@ -68,7 +67,7 @@ class DemoSeeder extends Seeder
         $alice = $this->createOrUpdateUser([
             'email'         => 'alice@bouclepro.com',
             'name'          => 'Alice Moreau',
-            'community_id'  => $community->id,
+            'organization_id'  => $community->id,
             'points_balance'=> 220,
             'bio'           => 'Designer UI/UX freelance avec 8 ans d\'expérience. Spécialisée identité visuelle et Figma.',
             'location'      => 'Paris (75)',
@@ -77,7 +76,7 @@ class DemoSeeder extends Seeder
         $bob = $this->createOrUpdateUser([
             'email'         => 'bob@bouclepro.com',
             'name'          => 'Bob Leclerc',
-            'community_id'  => $community->id,
+            'organization_id'  => $community->id,
             'points_balance'=> 180,
             'bio'           => 'Consultant marketing digital. J\'aide les indépendants à développer leur présence en ligne.',
             'location'      => 'Lyon (69)',
@@ -86,7 +85,7 @@ class DemoSeeder extends Seeder
         $carol = $this->createOrUpdateUser([
             'email'         => 'carol@bouclepro.com',
             'name'          => 'Carol Petit',
-            'community_id'  => $community->id,
+            'organization_id'  => $community->id,
             'points_balance'=> 90,
             'bio'           => 'Ex-DG de PME, maintenant coach et consultante en stratégie d\'entreprise.',
             'location'      => 'Bordeaux (33)',
@@ -95,7 +94,7 @@ class DemoSeeder extends Seeder
         $dave = $this->createOrUpdateUser([
             'email'         => 'dave@bouclepro.com',
             'name'          => 'Dave Nguyen',
-            'community_id'  => $community->id,
+            'organization_id'  => $community->id,
             'points_balance'=> 130,
             'bio'           => 'Traducteur FR/EN certifié. Relecture de documents techniques et juridiques.',
             'location'      => 'Nantes (44)',
@@ -220,7 +219,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $cyril->id,
             'service_id'=> $svcCyril1->id,
         ], [
-            'community_id'        => $community->id,
+            'organization_id'        => $community->id,
             'points_proposed'     => 150,
             'points_agreed'       => 150,
             'status'              => 'completed',
@@ -253,7 +252,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $cyril->id,
             'service_id'=> $svcCyril2->id,
         ], [
-            'community_id'        => $community->id,
+            'organization_id'        => $community->id,
             'points_proposed'     => 80,
             'points_agreed'       => 80,
             'status'              => 'completed',
@@ -286,7 +285,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $alice->id,
             'service_id'=> $svcAlice1->id,
         ], [
-            'community_id'    => $community->id,
+            'organization_id'    => $community->id,
             'points_proposed' => 200,
             'points_agreed'   => 200,
             'status'          => 'accepted',
@@ -306,7 +305,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $cyril->id,
             'service_id'=> $svcCyril2->id,
         ], [
-            'community_id'    => $community->id,
+            'organization_id'    => $community->id,
             'points_proposed' => 80,
             'status'          => 'pending',
         ]);
@@ -323,7 +322,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $dave->id,
             'service_id'=> $svcDave1->id,
         ], [
-            'community_id'       => $community->id,
+            'organization_id'       => $community->id,
             'points_proposed'    => 90,
             'points_agreed'      => 90,
             'status'             => 'buyer_done',
@@ -340,7 +339,7 @@ class DemoSeeder extends Seeder
         }
 
         $this->command->info('DemoSeeder terminé avec succès !');
-        $this->command->info('Communauté : bouclepro.com/cpme');
+        $this->command->info('Organisation : bouclepro.com/cpme');
         $this->command->info('Comptes demo (mdp: demo2026) : alice@bouclepro.com · bob@bouclepro.com · carol@bouclepro.com · dave@bouclepro.com');
     }
 
@@ -361,19 +360,19 @@ class DemoSeeder extends Seeder
         return $user;
     }
 
-    private function service(User $user, Community $community, array $data): Service
+    private function service(User $user, Organization $community, array $data): Service
     {
         return Service::firstOrCreate(
             ['title' => $data['title'], 'user_id' => $user->id],
-            array_merge($data, ['community_id' => $community->id, 'status' => 'active'])
+            array_merge($data, ['organization_id' => $community->id, 'status' => 'active'])
         );
     }
 
-    private function request(User $user, Community $community, array $data): ServiceRequest
+    private function request(User $user, Organization $community, array $data): ServiceRequest
     {
         return ServiceRequest::firstOrCreate(
             ['title' => $data['title'], 'user_id' => $user->id],
-            array_merge($data, ['community_id' => $community->id, 'status' => 'open'])
+            array_merge($data, ['organization_id' => $community->id, 'status' => 'open'])
         );
     }
 

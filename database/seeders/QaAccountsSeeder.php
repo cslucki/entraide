@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -14,7 +14,7 @@ class QaAccountsSeeder extends Seeder
 
     private array $accounts;
 
-    private array $qaCommunities = [
+    private array $qaOrganizations = [
         ['name' => 'CPME', 'slug' => 'cpme'],
         ['name' => 'BNI', 'slug' => 'bni'],
         ['name' => '60 000 Rebonds', 'slug' => '60000rebonds'],
@@ -63,20 +63,20 @@ class QaAccountsSeeder extends Seeder
         ];
     }
 
-    private function ensureQaCommunitiesExist(): void
+    private function ensureQaOrganizationsExist(): void
     {
-        foreach ($this->qaCommunities as $data) {
-            Community::firstOrCreate(['slug' => $data['slug']], $data);
+        foreach ($this->qaOrganizations as $data) {
+            Organization::firstOrCreate(['slug' => $data['slug']], $data);
         }
     }
 
     public function run(): void
     {
-        $this->ensureQaCommunitiesExist();
+        $this->ensureQaOrganizationsExist();
 
         foreach ($this->accounts as $account) {
             $communityId = $account['community_slug']
-                ? Community::where('slug', $account['community_slug'])->value('id')
+                ? Organization::where('slug', $account['community_slug'])->value('id')
                 : null;
 
             $user = User::updateOrCreate(
@@ -88,7 +88,7 @@ class QaAccountsSeeder extends Seeder
                     'is_available' => true,
                     'email_verified_at' => now(),
                     'points_balance' => $account['points'],
-                    'community_id' => $communityId,
+                    'organization_id' => $communityId,
                     'bio' => 'QA test account for Playwright and PHPUnit.',
                     'location' => 'Paris',
                     'phone' => '+33600000000',
