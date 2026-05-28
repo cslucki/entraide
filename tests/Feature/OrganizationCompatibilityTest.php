@@ -28,10 +28,10 @@ class OrganizationCompatibilityTest extends TestCase
         $this->assertInstanceOf(Community::class, new Organization);
     }
 
-    public function test_organization_uses_communities_table(): void
+    public function test_organization_uses_organizations_table(): void
     {
         $org = new Organization;
-        $this->assertEquals('communities', $org->getTable());
+        $this->assertEquals('organizations', $org->getTable());
     }
 
     public function test_organization_factory_creates_persisted_record(): void
@@ -39,7 +39,7 @@ class OrganizationCompatibilityTest extends TestCase
         $org = Organization::factory()->create();
 
         $this->assertNotNull($org->id);
-        $this->assertDatabaseHas('communities', ['id' => $org->id]);
+        $this->assertDatabaseHas('organizations', ['id' => $org->id]);
     }
 
     public function test_organization_and_community_share_same_table_data(): void

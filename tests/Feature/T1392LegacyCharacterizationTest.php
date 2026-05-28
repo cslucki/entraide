@@ -351,10 +351,10 @@ class T1392LegacyCharacterizationTest extends TestCase
     // Organization extends Community — même table
     // ─────────────────────────────────────────────────────────────
 
-    public function test_organization_uses_communities_table(): void
+    public function test_organization_uses_organizations_table(): void
     {
         $org = new Organization;
-        $this->assertEquals('communities', $org->getTable());
+        $this->assertEquals('organizations', $org->getTable());
     }
 
     public function test_organization_and_community_share_same_table(): void
@@ -389,10 +389,22 @@ class T1392LegacyCharacterizationTest extends TestCase
     // HasOrganizationId synchronise community_id ↔ organization_id
     // ─────────────────────────────────────────────────────────────
 
-    public function test_user_create_with_community_id_syncs_organization_id(): void
+    public function test_user_create_with_organization_id_persists(): void
     {
         $user = User::factory()->create([
             'organization_id' => $this->community->id,
+        ]);
+
+        $user->refresh();
+
+        $this->assertEquals($this->community->id, $user->organization_id);
+    }
+
+    public function test_user_create_without_organization_id_gets_default(): void
+    {
+        app()->instance('current_organization', $this->community);
+
+        $user = User::factory()->create([
             'organization_id' => null,
         ]);
 
@@ -401,15 +413,14 @@ class T1392LegacyCharacterizationTest extends TestCase
         $this->assertEquals($this->community->id, $user->organization_id);
     }
 
-    public function test_user_create_with_organization_id_syncs_community_id(): void
+    public function test_user_create_without_org_or_context_gets_null(): void
     {
         $user = User::factory()->create([
             'organization_id' => null,
-            'organization_id' => $this->community->id,
         ]);
 
         $user->refresh();
 
-        $this->assertEquals($this->community->id, $user->organization_id);
+        $this->assertNull($user->organization_id);
     }
 }
