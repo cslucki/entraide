@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\User;
@@ -25,12 +26,12 @@ class LoopVisibilityMembershipTest extends TestCase
     {
         parent::setUp();
 
-        $this->community = Community::factory()->create();
-        $this->otherCommunity = Community::factory()->create();
+        $this->community = Organization::factory()->create();
+        $this->otherCommunity = Organization::factory()->create();
 
-        $this->user = User::factory()->create(['community_id' => $this->community->id]);
-        $this->otherUser = User::factory()->create(['community_id' => $this->community->id]);
-        $this->crossUser = User::factory()->create(['community_id' => $this->otherCommunity->id]);
+        $this->user = User::factory()->create(['organization_id' => $this->community->id]);
+        $this->otherUser = User::factory()->create(['organization_id' => $this->community->id]);
+        $this->crossUser = User::factory()->create(['organization_id' => $this->otherCommunity->id]);
 
         $this->service = new LoopService;
     }
@@ -41,7 +42,7 @@ class LoopVisibilityMembershipTest extends TestCase
 
     public function test_index_returns_client_error_when_user_has_no_organization(): void
     {
-        $userWithoutOrg = User::factory()->create(['community_id' => null]);
+        $userWithoutOrg = User::factory()->create(['organization_id' => null]);
 
         $response = $this->actingAs($userWithoutOrg)
             ->get(route('loops.index'));

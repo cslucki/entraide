@@ -23,7 +23,7 @@ class ReviewPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['organization_id' => $this->org->id]);
         $this->assertTrue($buyer->can('create-review', $transaction));
     }
 
@@ -31,7 +31,7 @@ class ReviewPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['organization_id' => $this->org->id]);
         $this->assertTrue($seller->can('create-review', $transaction));
     }
 
@@ -39,7 +39,7 @@ class ReviewPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('create-review', $transaction));
     }
 
@@ -48,7 +48,7 @@ class ReviewPolicyTest extends TestCase
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
         $other = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($other->can('create-review', $transaction));
     }
 
@@ -56,7 +56,7 @@ class ReviewPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['organization_id' => $this->org->id]);
         Review::create([
             'transaction_id' => $transaction->id,
             'reviewer_id' => $buyer->id,
@@ -71,7 +71,7 @@ class ReviewPolicyTest extends TestCase
         $otherOrg = Organization::factory()->create();
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['community_id' => $otherOrg->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['organization_id' => $otherOrg->id]);
         $this->assertFalse($buyer->can('create-review', $transaction));
     }
 
@@ -80,7 +80,7 @@ class ReviewPolicyTest extends TestCase
         app()->forgetInstance('current_organization');
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('create-review', $transaction));
     }
 }

@@ -22,7 +22,7 @@ class BlogPostPolicyTest extends TestCase
     {
         return BlogPost::create(array_merge([
             'user_id' => $user->id,
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'title' => 'Test Post',
             'content' => 'Test content for the blog post.',
             'status' => 'draft',
@@ -98,7 +98,7 @@ class BlogPostPolicyTest extends TestCase
     {
         $otherOrg = Organization::factory()->create();
         $user = User::factory()->create();
-        $post = $this->createPost($user, ['community_id' => $otherOrg->id]);
+        $post = $this->createPost($user, ['organization_id' => $otherOrg->id]);
         $this->assertFalse($user->can('update', $post));
         $this->assertFalse($user->can('delete', $post));
     }
@@ -108,7 +108,7 @@ class BlogPostPolicyTest extends TestCase
         $otherOrg = Organization::factory()->create();
         $owner = User::factory()->create();
         $admin = User::factory()->create(['is_admin' => true]);
-        $post = $this->createPost($owner, ['community_id' => $otherOrg->id]);
+        $post = $this->createPost($owner, ['organization_id' => $otherOrg->id]);
         $this->assertTrue($admin->can('update', $post));
         $this->assertTrue($admin->can('delete', $post));
     }

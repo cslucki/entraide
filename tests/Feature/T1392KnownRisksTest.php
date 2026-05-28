@@ -57,7 +57,7 @@ class T1392KnownRisksTest extends TestCase
         $this->orgA = Organization::factory()->create(['is_active' => true]);
         $this->orgB = Organization::factory()->create(['is_active' => true]);
         $this->userA = User::factory()->create([
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
             'organization_id' => $this->orgA->id,
         ]);
 
@@ -93,7 +93,7 @@ class T1392KnownRisksTest extends TestCase
     public function test_known_risk_loop_should_have_organization_id(): void
     {
         $loop = Loop::factory()->create([
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
         ]);
 
         $this->assertNotNull(
@@ -102,7 +102,7 @@ class T1392KnownRisksTest extends TestCase
         );
 
         $this->assertEquals(
-            $loop->community_id,
+            $loop->organization_id,
             $loop->organization_id,
             'organization_id doit être synchronisé avec community_id'
         );
@@ -131,7 +131,7 @@ class T1392KnownRisksTest extends TestCase
 
     // ─────────────────────────────────────────────────────────────
     // Known Risk 4: ResolveApiOrganization devrait être
-    // organization-first (pas user->community_id)
+    // organization-first (pas user->organization_id)
     // ─────────────────────────────────────────────────────────────
 
     /**
@@ -140,7 +140,7 @@ class T1392KnownRisksTest extends TestCase
     public function test_known_risk_resolve_api_should_use_organization_id(): void
     {
         $this->markTestSkipped(
-            'KNOWN RISK — T140.5: ResolveApiOrganization utilise $user->community_id. '.
+            'KNOWN RISK — T140.5: ResolveApiOrganization utilise $user->organization_id. '.
             'Objectif : utiliser organization_id comme source de vérité.'
         );
 
@@ -149,7 +149,7 @@ class T1392KnownRisksTest extends TestCase
         // Après migration, le middleware devrait utiliser organization_id
         $this->assertEquals(
             $this->userA->organization_id,
-            $this->userA->community_id,
+            $this->userA->organization_id,
             'organization_id devrait être la source unique'
         );
     }
@@ -165,17 +165,17 @@ class T1392KnownRisksTest extends TestCase
     public function test_known_risk_broadcast_should_compare_organization_id(): void
     {
         $this->markTestSkipped(
-            'KNOWN RISK — T140.5: routes/channels.php compare $loop->community_id !== $user->community_id. '.
+            'KNOWN RISK — T140.5: routes/channels.php compare $loop->organization_id !== $user->organization_id. '.
             'Objectif : remplacer par comparaison organization_id après migration.'
         );
 
         $loop = Loop::factory()->create([
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
         ]);
 
         $this->assertEquals(
             $this->userA->organization_id,
-            $loop->community_id,
+            $loop->organization_id,
             'Broadcast devrait comparer organization_id à terme'
         );
     }

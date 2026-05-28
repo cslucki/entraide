@@ -151,7 +151,7 @@ class AdminCommunitiesTest extends TestCase
         $user = User::factory()->create();
         $community = Community::factory()->create();
 
-        $user->update(['community_id' => $community->id]);
+        $user->update(['organization_id' => $community->id]);
 
         $this->actingAs($admin)->delete(route('admin.communities.destroy', $community))
             ->assertRedirect();

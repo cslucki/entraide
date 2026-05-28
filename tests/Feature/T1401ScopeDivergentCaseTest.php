@@ -23,7 +23,7 @@ class T1401ScopeDivergentCaseTest extends TestCase
         \DB::table('services')->insert([
             'id'              => $serviceId,
             'user_id'         => $user->id,
-            'community_id'    => $org1->id,
+            'organization_id' => $org1->id,
             'organization_id' => $org2->id,
             'title'           => 'Divergent service',
             'description'     => 'test',

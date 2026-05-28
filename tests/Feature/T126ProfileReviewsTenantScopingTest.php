@@ -52,15 +52,15 @@ class T126ProfileReviewsTenantScopingTest extends TestCase
     {
         app()->instance('current_organization', $this->orgA);
 
-        $user = User::factory()->create(['community_id' => $this->orgA->id]);
+        $user = User::factory()->create(['organization_id' => $this->orgA->id]);
 
-        $reviewer = User::factory()->create(['community_id' => $this->orgA->id]);
-        $service = Service::factory()->forUser($user)->create(['community_id' => $this->orgA->id]);
+        $reviewer = User::factory()->create(['organization_id' => $this->orgA->id]);
+        $service = Service::factory()->forUser($user)->create(['organization_id' => $this->orgA->id]);
         $transaction = Transaction::factory()
             ->forService($service)
             ->forBuyer($reviewer)
             ->completed()
-            ->create(['community_id' => $this->orgA->id]);
+            ->create(['organization_id' => $this->orgA->id]);
 
         Review::factory()->forTransaction($transaction)->create([
             'reviewed_id' => $user->id,
@@ -87,7 +87,7 @@ class T126ProfileReviewsTenantScopingTest extends TestCase
     // Patch recommandé (à valider COCKPIT) :
     // - Filtrer reviewsReceived() par l'org courante dans ProfileController
     //   ex: $user->reviewsReceived()->whereHas('transaction', fn($q) =>
-    //       $q->where('community_id', currentOrganization()->id))
+    //       $q->where('organization_id', currentOrganization()->id))
     // -------------------------------------------------------------------------
 
     public function test_profile_does_not_show_reviews_from_other_organization_transactions(): void
@@ -95,18 +95,18 @@ class T126ProfileReviewsTenantScopingTest extends TestCase
         app()->instance('current_organization', $this->orgA);
 
         // L'utilisateur profileé appartient à l'org A (profil accessible)
-        $profiledUser = User::factory()->create(['community_id' => $this->orgA->id]);
+        $profiledUser = User::factory()->create(['organization_id' => $this->orgA->id]);
 
         // Un reviewer de l'org B a effectué une transaction dans l'org B avec profiledUser
-        $reviewerInB = User::factory()->create(['community_id' => $this->orgB->id]);
+        $reviewerInB = User::factory()->create(['organization_id' => $this->orgB->id]);
         $serviceInB = Service::factory()->forUser($profiledUser)->create([
-            'community_id' => $this->orgB->id,
+            'organization_id' => $this->orgB->id,
         ]);
         $transactionInB = Transaction::factory()
             ->forService($serviceInB)
             ->forBuyer($reviewerInB)
             ->completed()
-            ->create(['community_id' => $this->orgB->id]);
+            ->create(['organization_id' => $this->orgB->id]);
 
         Review::factory()->forTransaction($transactionInB)->create([
             'reviewed_id' => $profiledUser->id,
@@ -125,16 +125,16 @@ class T126ProfileReviewsTenantScopingTest extends TestCase
     {
         app()->instance('current_organization', $this->orgA);
 
-        $profiledUser = User::factory()->create(['community_id' => $this->orgA->id]);
+        $profiledUser = User::factory()->create(['organization_id' => $this->orgA->id]);
 
         // Review org A (doit être visible)
-        $reviewerA = User::factory()->create(['community_id' => $this->orgA->id]);
-        $serviceA = Service::factory()->forUser($profiledUser)->create(['community_id' => $this->orgA->id]);
+        $reviewerA = User::factory()->create(['organization_id' => $this->orgA->id]);
+        $serviceA = Service::factory()->forUser($profiledUser)->create(['organization_id' => $this->orgA->id]);
         $txA = Transaction::factory()
             ->forService($serviceA)
             ->forBuyer($reviewerA)
             ->completed()
-            ->create(['community_id' => $this->orgA->id]);
+            ->create(['organization_id' => $this->orgA->id]);
         Review::factory()->forTransaction($txA)->create([
             'reviewed_id' => $profiledUser->id,
             'reviewer_id' => $reviewerA->id,
@@ -143,13 +143,13 @@ class T126ProfileReviewsTenantScopingTest extends TestCase
         ]);
 
         // Review org B (ne doit pas être visible)
-        $reviewerB = User::factory()->create(['community_id' => $this->orgB->id]);
-        $serviceB = Service::factory()->forUser($profiledUser)->create(['community_id' => $this->orgB->id]);
+        $reviewerB = User::factory()->create(['organization_id' => $this->orgB->id]);
+        $serviceB = Service::factory()->forUser($profiledUser)->create(['organization_id' => $this->orgB->id]);
         $txB = Transaction::factory()
             ->forService($serviceB)
             ->forBuyer($reviewerB)
             ->completed()
-            ->create(['community_id' => $this->orgB->id]);
+            ->create(['organization_id' => $this->orgB->id]);
         Review::factory()->forTransaction($txB)->create([
             'reviewed_id' => $profiledUser->id,
             'reviewer_id' => $reviewerB->id,

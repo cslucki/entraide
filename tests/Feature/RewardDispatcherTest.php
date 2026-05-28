@@ -30,8 +30,8 @@ class RewardDispatcherTest extends TestCase
         parent::setUp();
 
         $this->org = Organization::factory()->create();
-        $this->referrer = User::factory()->create(['community_id' => $this->org->id]);
-        $this->referred = User::factory()->create(['community_id' => $this->org->id]);
+        $this->referrer = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->referred = User::factory()->create(['organization_id' => $this->org->id]);
         $this->dispatcher = new RewardDispatcher;
 
         app()->instance('current_organization', $this->org);
@@ -45,7 +45,7 @@ class RewardDispatcherTest extends TestCase
         $this->assertNotNull($referral->id);
         $this->assertEquals($this->referrer->id, $referral->referrer_user_id);
         $this->assertEquals($this->referred->id, $referral->referred_user_id);
-        $this->assertEquals($this->org->id, $referral->community_id);
+        $this->assertEquals($this->org->id, $referral->organization_id);
         $this->assertEquals(1, $referral->depth);
         $this->assertEquals('pending', $referral->status);
     }
@@ -64,7 +64,7 @@ class RewardDispatcherTest extends TestCase
         $this->assertEquals(1, $reward->level);
         $this->assertEquals(config('referral.rewards.invitation.level_1_referrer'), $reward->points);
         $this->assertEquals($this->referred->id, $reward->source_user_id);
-        $this->assertEquals($this->org->id, $reward->community_id);
+        $this->assertEquals($this->org->id, $reward->organization_id);
     }
 
     public function test_handle_invited_creates_welcome_reward(): void
@@ -139,7 +139,7 @@ class RewardDispatcherTest extends TestCase
 
     public function test_handle_invited_rejects_without_organization(): void
     {
-        $userWithoutOrg = User::factory()->create(['community_id' => null]);
+        $userWithoutOrg = User::factory()->create(['organization_id' => null]);
         $event = new MemberInvited($userWithoutOrg, $this->referred);
 
         $this->expectException(\RuntimeException::class);
@@ -152,10 +152,10 @@ class RewardDispatcherTest extends TestCase
     {
         $orgA = Organization::factory()->create();
         $orgB = Organization::factory()->create();
-        $referrerA = User::factory()->create(['community_id' => $orgA->id]);
-        $referredA = User::factory()->create(['community_id' => $orgA->id]);
-        $referrerB = User::factory()->create(['community_id' => $orgB->id]);
-        $referredB = User::factory()->create(['community_id' => $orgB->id]);
+        $referrerA = User::factory()->create(['organization_id' => $orgA->id]);
+        $referredA = User::factory()->create(['organization_id' => $orgA->id]);
+        $referrerB = User::factory()->create(['organization_id' => $orgB->id]);
+        $referredB = User::factory()->create(['organization_id' => $orgB->id]);
 
         app()->instance('current_organization', $orgA);
         $eventA = new MemberInvited($referrerA, $referredA, organizationId: $orgA->id);
@@ -166,15 +166,15 @@ class RewardDispatcherTest extends TestCase
         $referralB = $this->dispatcher->handleInvited($eventB);
 
         $this->assertNotNull($referralB->id);
-        $this->assertEquals($orgB->id, $referralB->community_id);
+        $this->assertEquals($orgB->id, $referralB->organization_id);
     }
 
     public function test_handle_invited_rejects_direct_cross_organization(): void
     {
         $orgA = Organization::factory()->create();
         $orgB = Organization::factory()->create();
-        $referrer = User::factory()->create(['community_id' => $orgA->id]);
-        $referred = User::factory()->create(['community_id' => $orgB->id]);
+        $referrer = User::factory()->create(['organization_id' => $orgA->id]);
+        $referred = User::factory()->create(['organization_id' => $orgB->id]);
 
         $event = new MemberInvited($referrer, $referred, organizationId: $orgA->id);
 
@@ -216,7 +216,7 @@ class RewardDispatcherTest extends TestCase
         $this->assertEquals(1, $reward->level);
         $this->assertEquals(config('referral.rewards.activation.level_1_referrer'), $reward->points);
         $this->assertEquals($this->referred->id, $reward->source_user_id);
-        $this->assertEquals($this->org->id, $reward->community_id);
+        $this->assertEquals($this->org->id, $reward->organization_id);
     }
 
     public function test_handle_activated_increments_referrer_points(): void
@@ -279,15 +279,15 @@ class RewardDispatcherTest extends TestCase
         $reward = ReferralReward::where('referral_id', $referral->id)
             ->where('event_type', 'member_activated')
             ->first();
-        $this->assertEquals($this->org->id, $reward->community_id);
+        $this->assertEquals($this->org->id, $reward->organization_id);
     }
 
     public function test_handle_activated_with_l2_chain(): void
     {
         $org = Organization::factory()->create();
-        $gpa = User::factory()->create(['community_id' => $org->id]);
-        $parent = User::factory()->create(['community_id' => $org->id]);
-        $child = User::factory()->create(['community_id' => $org->id]);
+        $gpa = User::factory()->create(['organization_id' => $org->id]);
+        $parent = User::factory()->create(['organization_id' => $org->id]);
+        $child = User::factory()->create(['organization_id' => $org->id]);
         $initialGpa = $gpa->points_balance;
         $initialParent = $parent->points_balance;
         $initialChild = $child->points_balance;
@@ -344,9 +344,9 @@ class RewardDispatcherTest extends TestCase
 
     public function test_handle_activated_multiple_pending_referrals(): void
     {
-        $referrerA = User::factory()->create(['community_id' => $this->org->id]);
-        $referrerB = User::factory()->create(['community_id' => $this->org->id]);
-        $referred = User::factory()->create(['community_id' => $this->org->id]);
+        $referrerA = User::factory()->create(['organization_id' => $this->org->id]);
+        $referrerB = User::factory()->create(['organization_id' => $this->org->id]);
+        $referred = User::factory()->create(['organization_id' => $this->org->id]);
         $initialA = $referrerA->points_balance;
         $initialB = $referrerB->points_balance;
 
@@ -460,9 +460,9 @@ class RewardDispatcherTest extends TestCase
     public function test_point_ledger_count_with_l2_chain(): void
     {
         $org = Organization::factory()->create();
-        $gpa = User::factory()->create(['community_id' => $org->id]);
-        $parent = User::factory()->create(['community_id' => $org->id]);
-        $child = User::factory()->create(['community_id' => $org->id]);
+        $gpa = User::factory()->create(['organization_id' => $org->id]);
+        $parent = User::factory()->create(['organization_id' => $org->id]);
+        $child = User::factory()->create(['organization_id' => $org->id]);
 
         app()->instance('current_organization', $org);
 

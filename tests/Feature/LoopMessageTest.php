@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Events\LoopMessageCreated;
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\User;
@@ -30,13 +31,13 @@ class LoopMessageTest extends TestCase
     {
         parent::setUp();
 
-        $this->community = Community::factory()->create();
-        $this->otherCommunity = Community::factory()->create();
+        $this->community = Organization::factory()->create();
+        $this->otherCommunity = Organization::factory()->create();
 
-        $this->owner = User::factory()->create(['community_id' => $this->community->id]);
-        $this->member = User::factory()->create(['community_id' => $this->community->id]);
-        $this->nonMember = User::factory()->create(['community_id' => $this->community->id]);
-        $this->crossUser = User::factory()->create(['community_id' => $this->otherCommunity->id]);
+        $this->owner = User::factory()->create(['organization_id' => $this->community->id]);
+        $this->member = User::factory()->create(['organization_id' => $this->community->id]);
+        $this->nonMember = User::factory()->create(['organization_id' => $this->community->id]);
+        $this->crossUser = User::factory()->create(['organization_id' => $this->otherCommunity->id]);
 
         $loopService = new LoopService;
         $this->loop = $loopService->createLoop($this->owner, 'Test Loop');
@@ -324,7 +325,7 @@ class LoopMessageTest extends TestCase
                 ->where('status', 'active')
                 ->exists();
 
-            if ($isActiveMember && $loop->community_id === $user->community_id) {
+            if ($isActiveMember && $loop->organization_id === $user->organization_id) {
                 $result = ['id' => $user->id];
             }
         }
@@ -344,7 +345,7 @@ class LoopMessageTest extends TestCase
                 ->where('status', 'active')
                 ->exists();
 
-            if ($isActiveMember && $loop->community_id === $user->community_id) {
+            if ($isActiveMember && $loop->organization_id === $user->organization_id) {
                 $result = ['id' => $user->id];
             }
         }

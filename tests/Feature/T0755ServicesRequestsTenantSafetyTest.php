@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\Category;
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -38,25 +39,25 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('services.store'), array_merge($this->validServiceData($category), [
-                'community_id' => $organizationB->id,
+                'organization_id' => $organizationB->id,
             ]))
             ->assertRedirect(route('dashboard'));
 
         $this->assertDatabaseHas('services', [
             'user_id' => $user->id,
-            'community_id' => $organizationA->id,
+            'organization_id' => $organizationA->id,
         ]);
 
         $this->assertDatabaseMissing('services', [
             'user_id' => $user->id,
-            'community_id' => $organizationB->id,
+            'organization_id' => $organizationB->id,
         ]);
     }
 
     public function test_service_store_fails_safe_when_no_organization_resolved(): void
     {
         // Aucune Organization active en base — middleware et controller doivent bloquer.
-        $user = User::factory()->create(['community_id' => null]);
+        $user = User::factory()->create(['organization_id' => null]);
 
         $this->actingAs($user)
             ->post(route('services.store'), $this->validServiceData(Category::factory()->create()))
@@ -76,24 +77,24 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('requests.store'), array_merge($this->validRequestData($category), [
-                'community_id' => $organizationB->id,
+                'organization_id' => $organizationB->id,
             ]))
             ->assertRedirect(route('dashboard'));
 
         $this->assertDatabaseHas('service_requests', [
             'user_id' => $user->id,
-            'community_id' => $organizationA->id,
+            'organization_id' => $organizationA->id,
         ]);
 
         $this->assertDatabaseMissing('service_requests', [
             'user_id' => $user->id,
-            'community_id' => $organizationB->id,
+            'organization_id' => $organizationB->id,
         ]);
     }
 
     public function test_request_store_fails_safe_when_no_organization_resolved(): void
     {
-        $user = User::factory()->create(['community_id' => null]);
+        $user = User::factory()->create(['organization_id' => null]);
 
         $this->actingAs($user)
             ->post(route('requests.store'), $this->validRequestData(Category::factory()->create()))
@@ -110,7 +111,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
 
         $user = $this->createUser($organizationB);
         $serviceInOrgB = Service::factory()->forUser($user)->create([
-            'community_id' => $organizationB->id,
+            'organization_id' => $organizationB->id,
         ]);
 
         // Org A est résolue — service de Org B ne doit pas être accessible.
@@ -125,7 +126,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
         $user = $this->createUser($organizationB);
         $requestInOrgB = ServiceRequest::factory()->create([
             'user_id' => $user->id,
-            'community_id' => $organizationB->id,
+            'organization_id' => $organizationB->id,
         ]);
 
         // Org A est résolue — request de Org B ne doit pas être accessible.
@@ -140,8 +141,8 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
     /** @return array{Community, Community} */
     private function createOrganizations(): array
     {
-        $organizationA = Community::factory()->create(['is_active' => true]);
-        $organizationB = Community::factory()->create(['is_active' => true]);
+        $organizationA = Organization::factory()->create(['is_active' => true]);
+        $organizationB = Organization::factory()->create(['is_active' => true]);
 
         ResolveUrlOrganization::$defaultOrganizationId = (string) $organizationA->id;
 
@@ -150,7 +151,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
 
     private function createUser(Community $organization): User
     {
-        return User::factory()->create(['community_id' => $organization->id]);
+        return User::factory()->create(['organization_id' => $organization->id]);
     }
 
     private function validServiceData(Category $category): array

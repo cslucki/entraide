@@ -21,9 +21,9 @@ class TransactionApiTest extends TestCase
 
     public function test_store_creates_pending_transaction(): void
     {
-        $buyer = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 300]);
-        $seller = User::factory()->create(['community_id' => $this->org->id]);
-        $service = Service::factory()->forUser($seller)->create(['points_cost' => 100, 'status' => 'active', 'community_id' => $this->org->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 300]);
+        $seller = User::factory()->create(['organization_id' => $this->org->id]);
+        $service = Service::factory()->forUser($seller)->create(['points_cost' => 100, 'status' => 'active', 'organization_id' => $this->org->id]);
 
         $token = $buyer->createToken('api')->plainTextToken;
 
@@ -44,9 +44,9 @@ class TransactionApiTest extends TestCase
 
     public function test_store_rejected_when_balance_insufficient(): void
     {
-        $buyer = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 50]);
-        $seller = User::factory()->create(['community_id' => $this->org->id]);
-        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'community_id' => $this->org->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 50]);
+        $seller = User::factory()->create(['organization_id' => $this->org->id]);
+        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'organization_id' => $this->org->id]);
 
         $this->withToken($buyer->createToken('api')->plainTextToken)
             ->postJson('/api/transactions', [
@@ -58,15 +58,15 @@ class TransactionApiTest extends TestCase
 
     public function test_store_rejected_when_duplicate_pending_exists(): void
     {
-        $buyer = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 500]);
-        $seller = User::factory()->create(['community_id' => $this->org->id]);
-        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'community_id' => $this->org->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 500]);
+        $seller = User::factory()->create(['organization_id' => $this->org->id]);
+        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'organization_id' => $this->org->id]);
 
         Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
             'service_id' => $service->id,
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -80,15 +80,15 @@ class TransactionApiTest extends TestCase
 
     public function test_approve_transitions_to_accepted(): void
     {
-        $seller = User::factory()->create(['community_id' => $this->org->id]);
-        $buyer = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 300]);
-        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'community_id' => $this->org->id]);
+        $seller = User::factory()->create(['organization_id' => $this->org->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 300]);
+        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'organization_id' => $this->org->id]);
 
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
             'service_id' => $service->id,
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'status' => 'pending',
             'points_proposed' => 100,
         ]);
@@ -101,12 +101,12 @@ class TransactionApiTest extends TestCase
 
     public function test_buyer_cannot_approve(): void
     {
-        $buyer = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 200]);
-        $seller = User::factory()->create(['community_id' => $this->org->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 200]);
+        $seller = User::factory()->create(['organization_id' => $this->org->id]);
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -117,12 +117,12 @@ class TransactionApiTest extends TestCase
 
     public function test_refuse_transitions_to_refused(): void
     {
-        $seller = User::factory()->create(['community_id' => $this->org->id]);
-        $buyer = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 300]);
+        $seller = User::factory()->create(['organization_id' => $this->org->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 300]);
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -134,12 +134,12 @@ class TransactionApiTest extends TestCase
 
     public function test_cancel_allowed_by_buyer_on_pending(): void
     {
-        $buyer = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 300]);
-        $seller = User::factory()->create(['community_id' => $this->org->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 300]);
+        $seller = User::factory()->create(['organization_id' => $this->org->id]);
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -151,9 +151,9 @@ class TransactionApiTest extends TestCase
 
     public function test_full_lifecycle_transfers_points(): void
     {
-        $buyer = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 300]);
-        $seller = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 100]);
-        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'community_id' => $this->org->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 300]);
+        $seller = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 100]);
+        $service = Service::factory()->forUser($seller)->create(['status' => 'active', 'organization_id' => $this->org->id]);
 
         $tx = $this->actingAs($buyer, 'sanctum')
             ->postJson('/api/transactions', [
@@ -195,14 +195,14 @@ class TransactionApiTest extends TestCase
 
     public function test_show_returns_403_for_third_party(): void
     {
-        $buyer = User::factory()->create(['community_id' => $this->org->id]);
-        $seller = User::factory()->create(['community_id' => $this->org->id]);
-        $outsider = User::factory()->create(['community_id' => $this->org->id]);
+        $buyer = User::factory()->create(['organization_id' => $this->org->id]);
+        $seller = User::factory()->create(['organization_id' => $this->org->id]);
+        $outsider = User::factory()->create(['organization_id' => $this->org->id]);
 
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'status' => 'pending',
         ]);
 
@@ -213,11 +213,11 @@ class TransactionApiTest extends TestCase
 
     public function test_index_returns_only_user_transactions(): void
     {
-        $user = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 500]);
-        $other = User::factory()->create(['community_id' => $this->org->id, 'points_balance' => 500]);
+        $user = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 500]);
+        $other = User::factory()->create(['organization_id' => $this->org->id, 'points_balance' => 500]);
 
-        Transaction::factory()->count(2)->create(['buyer_id' => $user->id, 'seller_id' => $other->id, 'community_id' => $this->org->id]);
-        Transaction::factory()->count(3)->create(['buyer_id' => $other->id, 'seller_id' => User::factory()->create(['community_id' => $this->org->id])->id, 'community_id' => $this->org->id]);
+        Transaction::factory()->count(2)->create(['buyer_id' => $user->id, 'seller_id' => $other->id, 'organization_id' => $this->org->id]);
+        Transaction::factory()->count(3)->create(['buyer_id' => $other->id, 'seller_id' => User::factory()->create(['organization_id' => $this->org->id])->id, 'organization_id' => $this->org->id]);
 
         $this->withToken($user->createToken('api')->plainTextToken)
             ->getJson('/api/transactions')

@@ -32,12 +32,12 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_scope_filters_by_current_organization(): void
     {
-        $org = Community::factory()->create();
-        $other = Community::factory()->create();
+        $org = Organization::factory()->create();
+        $other = Organization::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $other->id]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
         app()->instance('current_organization', $org);
 
@@ -46,12 +46,12 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_scope_uses_organization_id_when_both_are_bound(): void
     {
-        $org = Community::factory()->create();
-        $other = Community::factory()->create();
+        $org = Organization::factory()->create();
+        $other = Organization::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $other->id]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
         // Bind both — organization takes precedence
         app()->instance('current_organization', $org);
@@ -62,14 +62,14 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_organization_takes_priority_when_community_differs(): void
     {
-        $org = Community::factory()->create();
-        $community = Community::factory()->create();
-        $other = Community::factory()->create();
+        $org = Organization::factory()->create();
+        $community = Organization::factory()->create();
+        $other = Organization::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $community->id]); // community-only tenant
-        Service::factory()->forUser($user)->create(['community_id' => $other->id]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $community->id]); // community-only tenant
+        Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
         // Bind DIFFERENT values: current_organization = org, current_community = community
         // Organization MUST win — only org data is visible
@@ -85,12 +85,12 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_scope_falls_back_to_current_community(): void
     {
-        $community = Community::factory()->create();
-        $other = Community::factory()->create();
+        $community = Organization::factory()->create();
+        $other = Organization::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $community->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $community->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $other->id]);
+        $user = User::factory()->create(['organization_id' => $community->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $community->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
         // Only legacy binding — no current_organization
         app()->instance('current_community', $community);
@@ -104,34 +104,34 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_scope_returns_empty_set_when_neither_is_bound(): void
     {
-        $org = Community::factory()->create();
-        $other = Community::factory()->create();
+        $org = Organization::factory()->create();
+        $other = Organization::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $other->id]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
         $this->assertCount(0, Service::all());
     }
 
     public function test_scope_returns_empty_set_for_service_request_without_org(): void
     {
-        $org = Community::factory()->create();
+        $org = Organization::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $org->id]);
-        ServiceRequest::factory()->forUser($user)->create(['community_id' => $org->id]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
+        ServiceRequest::factory()->forUser($user)->create(['organization_id' => $org->id]);
 
         $this->assertCount(0, ServiceRequest::all());
     }
 
     public function test_scope_returns_empty_set_for_transaction_without_org(): void
     {
-        $org = Community::factory()->create();
+        $org = Organization::factory()->create();
 
-        $buyer = User::factory()->create(['community_id' => $org->id]);
-        $seller = User::factory()->create(['community_id' => $org->id]);
+        $buyer = User::factory()->create(['organization_id' => $org->id]);
+        $seller = User::factory()->create(['organization_id' => $org->id]);
 
-        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $org->id]);
+        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $org->id]);
 
         $this->assertCount(0, Transaction::all());
     }
@@ -142,12 +142,12 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_scope_applies_to_service_request(): void
     {
-        $org = Community::factory()->create();
-        $other = Community::factory()->create();
+        $org = Organization::factory()->create();
+        $other = Organization::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $org->id]);
-        ServiceRequest::factory()->forUser($user)->create(['community_id' => $org->id]);
-        ServiceRequest::factory()->forUser($user)->create(['community_id' => $other->id]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
+        ServiceRequest::factory()->forUser($user)->create(['organization_id' => $org->id]);
+        ServiceRequest::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
         app()->instance('current_organization', $org);
 
@@ -156,14 +156,14 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_scope_applies_to_transaction(): void
     {
-        $org = Community::factory()->create();
-        $other = Community::factory()->create();
+        $org = Organization::factory()->create();
+        $other = Organization::factory()->create();
 
-        $buyer = User::factory()->create(['community_id' => $org->id]);
-        $seller = User::factory()->create(['community_id' => $org->id]);
+        $buyer = User::factory()->create(['organization_id' => $org->id]);
+        $seller = User::factory()->create(['organization_id' => $org->id]);
 
-        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $org->id]);
-        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $other->id]);
+        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $org->id]);
+        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $other->id]);
 
         app()->instance('current_organization', $org);
 
@@ -176,12 +176,12 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_without_global_scope_bypasses_tenant_filter(): void
     {
-        $org = Community::factory()->create();
-        $other = Community::factory()->create();
+        $org = Organization::factory()->create();
+        $other = Organization::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $other->id]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
         app()->instance('current_organization', $org);
 
@@ -195,11 +195,11 @@ class BelongsToTenantScopeTest extends TestCase
     public function test_organization_instance_scopes_identically_to_community(): void
     {
         $org = Organization::factory()->create();
-        $other = Community::factory()->create();
+        $other = Organization::factory()->create();
 
-        $user = User::factory()->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['community_id' => $other->id]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $org->id]);
+        Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
         // Bind an Organization instance (not Community)
         app()->instance('current_organization', $org);
@@ -213,14 +213,14 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_no_cross_organization_leak_with_org_bound(): void
     {
-        $orgA = Community::factory()->create();
-        $orgB = Community::factory()->create();
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
 
-        $userA = User::factory()->create(['community_id' => $orgA->id]);
-        $userB = User::factory()->create(['community_id' => $orgB->id]);
+        $userA = User::factory()->create(['organization_id' => $orgA->id]);
+        $userB = User::factory()->create(['organization_id' => $orgB->id]);
 
-        Service::factory()->forUser($userA)->create(['community_id' => $orgA->id, 'title' => 'Service A']);
-        Service::factory()->forUser($userB)->create(['community_id' => $orgB->id, 'title' => 'Service B']);
+        Service::factory()->forUser($userA)->create(['organization_id' => $orgA->id, 'title' => 'Service A']);
+        Service::factory()->forUser($userB)->create(['organization_id' => $orgB->id, 'title' => 'Service B']);
 
         app()->instance('current_organization', $orgA);
 
@@ -231,18 +231,18 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_no_cross_organization_leak_without_org_bound(): void
     {
-        $orgA = Community::factory()->create();
-        $orgB = Community::factory()->create();
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
 
-        $userA = User::factory()->create(['community_id' => $orgA->id]);
-        $userB = User::factory()->create(['community_id' => $orgB->id]);
+        $userA = User::factory()->create(['organization_id' => $orgA->id]);
+        $userB = User::factory()->create(['organization_id' => $orgB->id]);
 
-        Service::factory()->forUser($userA)->create(['community_id' => $orgA->id]);
-        ServiceRequest::factory()->forUser($userA)->create(['community_id' => $orgA->id]);
+        Service::factory()->forUser($userA)->create(['organization_id' => $orgA->id]);
+        ServiceRequest::factory()->forUser($userA)->create(['organization_id' => $orgA->id]);
 
-        $buyer = User::factory()->create(['community_id' => $orgB->id]);
-        $seller = User::factory()->create(['community_id' => $orgB->id]);
-        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $orgB->id]);
+        $buyer = User::factory()->create(['organization_id' => $orgB->id]);
+        $seller = User::factory()->create(['organization_id' => $orgB->id]);
+        Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $orgB->id]);
 
         $this->assertCount(0, Service::all());
         $this->assertCount(0, ServiceRequest::all());
@@ -251,14 +251,14 @@ class BelongsToTenantScopeTest extends TestCase
 
     public function test_without_global_scope_still_bypasses_for_admin_context(): void
     {
-        $orgA = Community::factory()->create();
-        $orgB = Community::factory()->create();
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
 
-        $userA = User::factory()->create(['community_id' => $orgA->id]);
-        $userB = User::factory()->create(['community_id' => $orgB->id]);
+        $userA = User::factory()->create(['organization_id' => $orgA->id]);
+        $userB = User::factory()->create(['organization_id' => $orgB->id]);
 
-        Service::factory()->forUser($userA)->create(['community_id' => $orgA->id]);
-        Service::factory()->forUser($userB)->create(['community_id' => $orgB->id]);
+        Service::factory()->forUser($userA)->create(['organization_id' => $orgA->id]);
+        Service::factory()->forUser($userB)->create(['organization_id' => $orgB->id]);
 
         $this->assertCount(
             2,

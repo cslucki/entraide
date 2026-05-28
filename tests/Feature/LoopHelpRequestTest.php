@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\User;
@@ -27,11 +28,11 @@ class LoopHelpRequestTest extends TestCase
     {
         parent::setUp();
 
-        $this->community = Community::factory()->create();
+        $this->community = Organization::factory()->create();
 
-        $this->owner = User::factory()->create(['community_id' => $this->community->id]);
-        $this->member = User::factory()->create(['community_id' => $this->community->id]);
-        $this->nonMember = User::factory()->create(['community_id' => $this->community->id]);
+        $this->owner = User::factory()->create(['organization_id' => $this->community->id]);
+        $this->member = User::factory()->create(['organization_id' => $this->community->id]);
+        $this->nonMember = User::factory()->create(['organization_id' => $this->community->id]);
 
         $loopService = new LoopService;
         $this->loop = $loopService->createLoop($this->owner, 'Test Loop');

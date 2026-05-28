@@ -22,7 +22,6 @@ class ServiceRequest extends Model
     }
 
     protected $fillable = [
-        'community_id',
         'organization_id',
         'user_id',
         'title',
@@ -46,7 +45,7 @@ class ServiceRequest extends Model
 
     public function community(): BelongsTo
     {
-        return $this->belongsTo(Community::class);
+        return $this->organization();
     }
 
     public function organization(): BelongsTo

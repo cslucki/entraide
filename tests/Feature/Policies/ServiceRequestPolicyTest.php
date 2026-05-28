@@ -21,7 +21,7 @@ class ServiceRequestPolicyTest extends TestCase
     public function test_owner_can_delete_request(): void
     {
         $user = User::factory()->create();
-        $request = ServiceRequest::factory()->forUser($user)->create(['community_id' => $this->org->id]);
+        $request = ServiceRequest::factory()->forUser($user)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($user->can('delete', $request));
     }
 
@@ -29,7 +29,7 @@ class ServiceRequestPolicyTest extends TestCase
     {
         $owner = User::factory()->create();
         $other = User::factory()->create();
-        $request = ServiceRequest::factory()->forUser($owner)->create(['community_id' => $this->org->id]);
+        $request = ServiceRequest::factory()->forUser($owner)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($other->can('delete', $request));
     }
 
@@ -37,7 +37,7 @@ class ServiceRequestPolicyTest extends TestCase
     {
         $otherOrg = Organization::factory()->create();
         $user = User::factory()->create();
-        $request = ServiceRequest::factory()->forUser($user)->create(['community_id' => $otherOrg->id]);
+        $request = ServiceRequest::factory()->forUser($user)->create(['organization_id' => $otherOrg->id]);
         $this->assertFalse($user->can('delete', $request));
     }
 
@@ -45,7 +45,7 @@ class ServiceRequestPolicyTest extends TestCase
     {
         app()->forgetInstance('current_organization');
         $user = User::factory()->create();
-        $request = ServiceRequest::factory()->forUser($user)->create(['community_id' => $this->org->id]);
+        $request = ServiceRequest::factory()->forUser($user)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($user->can('delete', $request));
     }
 }

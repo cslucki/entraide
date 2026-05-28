@@ -26,7 +26,7 @@ class AdminMessagesTest extends TestCase
     private function makeLoop(Organization $org, ?User $creator = null): Loop
     {
         return Loop::factory()->create([
-            'community_id' => $org->id,
+            'organization_id' => $org->id,
             'created_by' => $creator?->id ?? User::factory(),
             'type' => 'custom',
             'status' => 'active',
@@ -59,7 +59,7 @@ class AdminMessagesTest extends TestCase
         $tx = Transaction::factory()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
-            'community_id' => $org->id,
+            'organization_id' => $org->id,
             'organization_id' => $org->id,
         ]);
 
@@ -91,7 +91,7 @@ class AdminMessagesTest extends TestCase
     public function test_admin_can_access_admin_messages(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $this->actingAs($admin)->get(route('admin.messages'))->assertOk();
     }
@@ -101,7 +101,7 @@ class AdminMessagesTest extends TestCase
     public function test_default_filter_is_chatloop(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $loop = $this->makeLoop($org, $admin);
         $this->addMember($loop, $admin);
@@ -119,7 +119,7 @@ class AdminMessagesTest extends TestCase
     public function test_chatloop_filter_shows_loop_messages(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $loop = $this->makeLoop($org, $admin);
         $this->addMember($loop, $admin);
@@ -138,8 +138,8 @@ class AdminMessagesTest extends TestCase
     public function test_exchanges_filter_shows_transaction_messages(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
-        $member = User::factory()->create(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
+        $member = User::factory()->create(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $tx = $this->makeTransactionInOrg($org, $admin, $member);
         $msg = $this->makeExchangeMessage($tx, $admin, body: 'EXCHANGE LOCAL MSG');
@@ -158,8 +158,8 @@ class AdminMessagesTest extends TestCase
     public function test_all_filter_shows_both_types(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
-        $member = User::factory()->create(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
+        $member = User::factory()->create(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $loop = $this->makeLoop($org, $admin);
         $this->addMember($loop, $admin);
@@ -187,8 +187,8 @@ class AdminMessagesTest extends TestCase
         $orgA = $this->makeOrg();
         $orgB = $this->makeOrg();
 
-        $adminA = $this->makeAdmin(['organization_id' => $orgA->id, 'community_id' => $orgA->id]);
-        $adminB = $this->makeAdmin(['organization_id' => $orgB->id, 'community_id' => $orgB->id]);
+        $adminA = $this->makeAdmin(['organization_id' => $orgA->id, 'organization_id' => $orgA->id]);
+        $adminB = $this->makeAdmin(['organization_id' => $orgB->id, 'organization_id' => $orgB->id]);
 
         $loopA = $this->makeLoop($orgA, $adminA);
         $this->addMember($loopA, $adminA);
@@ -211,11 +211,11 @@ class AdminMessagesTest extends TestCase
         $orgA = $this->makeOrg();
         $orgB = $this->makeOrg();
 
-        $adminA = $this->makeAdmin(['organization_id' => $orgA->id, 'community_id' => $orgA->id]);
-        $memberA = User::factory()->create(['organization_id' => $orgA->id, 'community_id' => $orgA->id]);
+        $adminA = $this->makeAdmin(['organization_id' => $orgA->id, 'organization_id' => $orgA->id]);
+        $memberA = User::factory()->create(['organization_id' => $orgA->id, 'organization_id' => $orgA->id]);
 
-        $adminB = $this->makeAdmin(['organization_id' => $orgB->id, 'community_id' => $orgB->id]);
-        $memberB = User::factory()->create(['organization_id' => $orgB->id, 'community_id' => $orgB->id]);
+        $adminB = $this->makeAdmin(['organization_id' => $orgB->id, 'organization_id' => $orgB->id]);
+        $memberB = User::factory()->create(['organization_id' => $orgB->id, 'organization_id' => $orgB->id]);
 
         $txA = $this->makeTransactionInOrg($orgA, $adminA, $memberA);
         $this->makeExchangeMessage($txA, $adminA, body: 'EXCHANGE ORG A MSG');
@@ -238,7 +238,7 @@ class AdminMessagesTest extends TestCase
     public function test_empty_state_chatloop(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $this->actingAs($admin)
             ->get(route('admin.messages', ['filter' => 'chatloop']))
@@ -249,7 +249,7 @@ class AdminMessagesTest extends TestCase
     public function test_empty_state_exchanges(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $this->actingAs($admin)
             ->get(route('admin.messages', ['filter' => 'exchanges']))
@@ -260,7 +260,7 @@ class AdminMessagesTest extends TestCase
     public function test_empty_state_all(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $this->actingAs($admin)
             ->get(route('admin.messages', ['filter' => 'all']))
@@ -289,7 +289,7 @@ class AdminMessagesTest extends TestCase
     public function test_admin_can_view_message_detail_within_organization(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $tx = $this->makeTransactionInOrg($org);
         $message = $this->makeExchangeMessage($tx);
@@ -307,7 +307,7 @@ class AdminMessagesTest extends TestCase
         $orgA = $this->makeOrg();
         $orgB = $this->makeOrg();
 
-        $adminA = $this->makeAdmin(['organization_id' => $orgA->id, 'community_id' => $orgA->id]);
+        $adminA = $this->makeAdmin(['organization_id' => $orgA->id, 'organization_id' => $orgA->id]);
 
         $txB = $this->makeTransactionInOrg($orgB);
         $messageB = $this->makeExchangeMessage($txB);
@@ -349,7 +349,7 @@ class AdminMessagesTest extends TestCase
     public function test_unknown_filter_falls_back_to_chatloop(): void
     {
         $org = $this->makeOrg();
-        $admin = $this->makeAdmin(['organization_id' => $org->id, 'community_id' => $org->id]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id, 'organization_id' => $org->id]);
 
         $loop = $this->makeLoop($org, $admin);
         $this->addMember($loop, $admin);

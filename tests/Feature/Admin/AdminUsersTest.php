@@ -173,7 +173,7 @@ class AdminUsersTest extends TestCase
     public function test_admin_can_assign_user_to_community(): void
     {
         $admin = $this->makeAdmin();
-        $user = User::factory()->create(['community_id' => null]);
+        $user = User::factory()->create(['organization_id' => null]);
         $organization = Organization::factory()->create(['is_active' => true]);
 
         $this->actingAs($admin)
@@ -227,7 +227,7 @@ class AdminUsersTest extends TestCase
     {
         $admin = $this->makeAdmin();
         $organization = Organization::factory()->create(['is_active' => true, 'name' => 'Test Communauté']);
-        $user = User::factory()->create(['community_id' => $organization->id]);
+        $user = User::factory()->create(['organization_id' => $organization->id]);
 
         $this->actingAs($admin)
             ->get(route('admin.users'))

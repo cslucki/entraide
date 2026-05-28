@@ -44,8 +44,8 @@ class T126ExplorerTenantScopingTest extends TestCase
         $this->orgA = Organization::factory()->create(['name' => 'T126 Org A']);
         $this->orgB = Organization::factory()->create(['name' => 'T126 Org B']);
         $this->category = Category::factory()->create();
-        $this->userA = User::factory()->create(['community_id' => $this->orgA->id]);
-        $this->userB = User::factory()->create(['community_id' => $this->orgB->id]);
+        $this->userA = User::factory()->create(['organization_id' => $this->orgA->id]);
+        $this->userB = User::factory()->create(['organization_id' => $this->orgB->id]);
 
         app()->instance('current_organization', $this->orgA);
     }
@@ -59,7 +59,7 @@ class T126ExplorerTenantScopingTest extends TestCase
         Service::factory()->forUser($this->userA)->for($this->category)->create([
             'title' => 'T126_SERVICE_ORG_A',
             'status' => 'active',
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
         ]);
 
         Livewire::test(Explorer::class)
@@ -71,13 +71,13 @@ class T126ExplorerTenantScopingTest extends TestCase
         Service::factory()->forUser($this->userA)->for($this->category)->create([
             'title' => 'T126_SERVICE_ORG_A',
             'status' => 'active',
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
         ]);
 
         Service::factory()->forUser($this->userB)->for($this->category)->create([
             'title' => 'T126_SERVICE_ORG_B_HIDDEN',
             'status' => 'active',
-            'community_id' => $this->orgB->id,
+            'organization_id' => $this->orgB->id,
         ]);
 
         Livewire::test(Explorer::class)
@@ -90,13 +90,13 @@ class T126ExplorerTenantScopingTest extends TestCase
         ServiceRequest::factory()->for($this->userA)->for($this->category)->create([
             'title' => 'T126_REQUEST_ORG_A',
             'status' => 'open',
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
         ]);
 
         ServiceRequest::factory()->for($this->userB)->for($this->category)->create([
             'title' => 'T126_REQUEST_ORG_B_HIDDEN',
             'status' => 'open',
-            'community_id' => $this->orgB->id,
+            'organization_id' => $this->orgB->id,
         ]);
 
         Livewire::test(Explorer::class)
@@ -132,7 +132,7 @@ class T126ExplorerTenantScopingTest extends TestCase
         Service::factory()->forUser($this->userB)->for($this->category)->create([
             'title' => 'T126_SERVICE_ORG_B_TAMPERING_TARGET',
             'status' => 'active',
-            'community_id' => $this->orgB->id,
+            'organization_id' => $this->orgB->id,
         ]);
 
         // Tampering: forcer orgId à l'ID de l'org B alors que current_org = org A
@@ -146,7 +146,7 @@ class T126ExplorerTenantScopingTest extends TestCase
         ServiceRequest::factory()->for($this->userB)->for($this->category)->create([
             'title' => 'T126_REQUEST_ORG_B_TAMPERING_TARGET',
             'status' => 'open',
-            'community_id' => $this->orgB->id,
+            'organization_id' => $this->orgB->id,
         ]);
 
         Livewire::test(Explorer::class)

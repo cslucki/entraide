@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -37,16 +38,16 @@ class T1392RouteSmokeGatesTest extends TestCase
     {
         parent::setUp();
 
-        $this->community = Community::factory()->create(['is_active' => true, 'is_public' => true]);
+        $this->community = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         ResolveUrlOrganization::$defaultOrganizationId = $this->community->id;
 
         $this->user = User::factory()->create([
-            'community_id' => $this->community->id,
+            'organization_id' => $this->community->id,
             'organization_id' => $this->community->id,
         ]);
         $this->admin = User::factory()->create([
             'is_admin' => true,
-            'community_id' => $this->community->id,
+            'organization_id' => $this->community->id,
             'organization_id' => $this->community->id,
         ]);
     }

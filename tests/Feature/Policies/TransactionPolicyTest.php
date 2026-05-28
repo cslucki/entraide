@@ -22,7 +22,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($buyer->can('view', $transaction));
     }
 
@@ -30,7 +30,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($seller->can('view', $transaction));
     }
 
@@ -39,7 +39,7 @@ class TransactionPolicyTest extends TestCase
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
         $other = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($other->can('view', $transaction));
     }
 
@@ -47,7 +47,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($seller->can('approve', $transaction));
     }
 
@@ -55,7 +55,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('approve', $transaction));
     }
 
@@ -63,7 +63,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($seller->can('approve', $transaction));
     }
 
@@ -71,7 +71,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($seller->can('refuse', $transaction));
     }
 
@@ -79,7 +79,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($buyer->can('adjust', $transaction));
         $this->assertTrue($seller->can('adjust', $transaction));
     }
@@ -89,7 +89,7 @@ class TransactionPolicyTest extends TestCase
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
         $other = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($other->can('adjust', $transaction));
     }
 
@@ -97,7 +97,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($buyer->can('cancel', $transaction));
         $this->assertTrue($seller->can('cancel', $transaction));
     }
@@ -106,7 +106,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['organization_id' => $this->org->id]);
         $this->assertTrue($buyer->can('cancel', $transaction));
     }
 
@@ -114,7 +114,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('cancel', $transaction));
     }
 
@@ -122,7 +122,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['organization_id' => $this->org->id]);
         $this->assertTrue($buyer->can('complete', $transaction));
     }
 
@@ -130,7 +130,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->accepted()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($seller->can('complete', $transaction));
     }
 
@@ -138,7 +138,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->buyerDone()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->buyerDone()->create(['organization_id' => $this->org->id]);
         $this->assertTrue($seller->can('confirm', $transaction));
     }
 
@@ -146,7 +146,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->buyerDone()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->buyerDone()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('confirm', $transaction));
     }
 
@@ -154,7 +154,7 @@ class TransactionPolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->buyerDone()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->buyerDone()->create(['organization_id' => $this->org->id]);
         $this->assertTrue($seller->can('contest', $transaction));
     }
 
@@ -163,7 +163,7 @@ class TransactionPolicyTest extends TestCase
         $otherOrg = Organization::factory()->create();
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $otherOrg->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $otherOrg->id]);
         $this->assertFalse($buyer->can('view', $transaction));
         $this->assertFalse($seller->can('approve', $transaction));
     }
@@ -173,7 +173,7 @@ class TransactionPolicyTest extends TestCase
         app()->forgetInstance('current_organization');
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('view', $transaction));
     }
 }

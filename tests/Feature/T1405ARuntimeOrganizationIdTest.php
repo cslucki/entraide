@@ -56,7 +56,7 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
                 ->where('status', 'active')
                 ->exists();
 
-            $orgId = $user->organization_id ?? $user->community_id;
+            $orgId = $user->organization_id ?? $user->organization_id;
             if ($isActiveMember && $loop->organization_id === $orgId) {
                 $result = ['id' => $user->id];
             }
@@ -77,7 +77,7 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
                 ->where('status', 'active')
                 ->exists();
 
-            $orgId = $user->organization_id ?? $user->community_id;
+            $orgId = $user->organization_id ?? $user->organization_id;
             if ($isActiveMember && $loop->organization_id === $orgId) {
                 $result = ['id' => $user->id];
             }
@@ -122,12 +122,12 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
     {
         $userDesync = User::factory()->create([
             'organization_id' => $this->orgA->id,
-            'community_id' => $this->orgB->id,
+            'organization_id' => $this->orgB->id,
         ]);
 
         $loopDesync = Loop::factory()->create([
             'organization_id' => $this->orgA->id,
-            'community_id' => $this->orgB->id,
+            'organization_id' => $this->orgB->id,
         ]);
 
         LoopMember::factory()->create([
@@ -142,10 +142,10 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
     public function test_channel_denies_when_organization_id_differs_despite_same_community_id(): void
     {
         $user = User::factory()->create(['organization_id' => $this->orgA->id]);
-        $user->updateQuietly(['community_id' => $this->orgB->id]);
+        $user->updateQuietly(['organization_id' => $this->orgB->id]);
 
         $loop = Loop::factory()->create(['organization_id' => $this->orgB->id]);
-        $loop->updateQuietly(['community_id' => $this->orgA->id]);
+        $loop->updateQuietly(['organization_id' => $this->orgA->id]);
 
         LoopMember::factory()->create([
             'loop_id' => $loop->id,
@@ -166,7 +166,7 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
 
         $user = User::factory()->create([
             'organization_id' => $this->orgB->id,
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
         ]);
 
         Service::factory()->count(2)->create([
@@ -191,7 +191,7 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
 
         $user = User::factory()->create([
             'organization_id' => null,
-            'community_id' => $this->orgA->id,
+            'organization_id' => $this->orgA->id,
         ]);
 
         Service::factory()->count(2)->create([
@@ -214,7 +214,7 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
     {
         $user = User::factory()->create([
             'organization_id' => null,
-            'community_id' => null,
+            'organization_id' => null,
         ]);
 
         Service::factory()->count(2)->create([

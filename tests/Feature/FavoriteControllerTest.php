@@ -21,7 +21,7 @@ class FavoriteControllerTest extends TestCase
     {
         $user = $this->orgUser();
         $owner = $this->orgUser();
-        $service = Service::factory()->forUser($owner)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($owner)->create(['organization_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($user)->post(route('favorites.toggle', $service));
 
@@ -35,7 +35,7 @@ class FavoriteControllerTest extends TestCase
     {
         $user = $this->orgUser();
         $owner = $this->orgUser();
-        $service = Service::factory()->forUser($owner)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($owner)->create(['organization_id' => $this->testOrganization->id]);
 
         Favorite::create(['user_id' => $user->id, 'service_id' => $service->id]);
 
@@ -51,7 +51,7 @@ class FavoriteControllerTest extends TestCase
     {
         $user = $this->orgUser();
         $otherUser = $this->orgUser();
-        $service = Service::factory()->forUser($otherUser)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($otherUser)->create(['organization_id' => $this->testOrganization->id]);
 
         Favorite::create(['user_id' => $user->id, 'service_id' => $service->id]);
 

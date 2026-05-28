@@ -20,7 +20,7 @@ class T0757ProfileOrganizationScopingTest extends TestCase
         $org = Organization::factory()->create();
         app()->instance('current_organization', $org);
 
-        $user = User::factory()->create(['community_id' => $org->id]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
 
         $this->get(route('profile.show', $user))
             ->assertOk();
@@ -32,7 +32,7 @@ class T0757ProfileOrganizationScopingTest extends TestCase
         $orgB = Organization::factory()->create();
         app()->instance('current_organization', $orgA);
 
-        $userInB = User::factory()->create(['community_id' => $orgB->id]);
+        $userInB = User::factory()->create(['organization_id' => $orgB->id]);
 
         $this->get(route('profile.show', $userInB))
             ->assertNotFound();

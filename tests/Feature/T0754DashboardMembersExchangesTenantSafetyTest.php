@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Service;
 use App\Models\Transaction;
 use App\Models\User;
@@ -36,12 +37,12 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
 
         Service::factory()->forUser($user)->create([
             'title' => 'ORG_A_VISIBLE_EXCHANGE',
-            'community_id' => $organizationA->id,
+            'organization_id' => $organizationA->id,
         ]);
 
         Service::factory()->forUser($user)->create([
             'title' => 'ORG_B_HIDDEN_EXCHANGE',
-            'community_id' => $organizationB->id,
+            'organization_id' => $organizationB->id,
         ]);
 
         $this->actingAs($user)
@@ -86,12 +87,12 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
      */
     private function createOrganizations(): array
     {
-        $organizationA = Community::factory()->create([
+        $organizationA = Organization::factory()->create([
             'name' => 'T0754 Organization A',
             'is_active' => true,
         ]);
 
-        $organizationB = Community::factory()->create([
+        $organizationB = Organization::factory()->create([
             'name' => 'T0754 Organization B',
             'is_active' => true,
         ]);
@@ -104,7 +105,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
     private function createUserForOrganization(Community $organization, array $attributes = []): User
     {
         return User::factory()->create(array_merge([
-            'community_id' => $organization->id,
+            'organization_id' => $organization->id,
         ], $attributes));
     }
 
@@ -114,7 +115,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
         $seller = $this->createUserForOrganization($organization);
         $service = Service::factory()->forUser($seller)->create([
             'title' => $serviceTitle,
-            'community_id' => $organization->id,
+            'organization_id' => $organization->id,
         ]);
 
         return Transaction::factory()
@@ -122,7 +123,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
             ->forBuyer($buyer)
             ->completed()
             ->create([
-                'community_id' => $organization->id,
+                'organization_id' => $organization->id,
             ]);
     }
 }

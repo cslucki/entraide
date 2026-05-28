@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import '../setup.js';
 
-const COMMUNITY_SLUG = 'cpme';
+const ORGANIZATION_SLUG = 'cpme';
 const SCREENSHOT_DIR = 'docs/audits/T074.7-assets';
 
 function auditDir() {
@@ -20,7 +20,7 @@ async function auditScreenshot(page, name) {
 }
 
 function loopsUrl(path = '') {
-    return `/${COMMUNITY_SLUG}/loops${path}`;
+    return `/${ORGANIZATION_SLUG}/loops${path}`;
 }
 
 test.describe('Member Help Request (T074.7)', () => {

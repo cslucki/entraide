@@ -26,7 +26,7 @@ class FullExchangeFlowTest extends TestCase
         $service = Service::factory()->forUser($seller)->create([
             'title' => 'Design de logo',
             'points_cost' => 75,
-            'community_id' => $this->testOrganization->id,
+            'organization_id' => $this->testOrganization->id,
         ]);
 
         $this->actingAs($buyer)
@@ -76,7 +76,7 @@ class FullExchangeFlowTest extends TestCase
     {
         $buyer = $this->orgUser(['points_balance' => 200]);
         $seller = $this->orgUser();
-        $service = Service::factory()->forUser($seller)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($seller)->create(['organization_id' => $this->testOrganization->id]);
 
         $this->actingAs($buyer)->post(route('transactions.store'), [
             'service_id' => $service->id,
@@ -96,7 +96,7 @@ class FullExchangeFlowTest extends TestCase
     {
         $buyer = $this->orgUser(['points_balance' => 200]);
         $seller = $this->orgUser();
-        $service = Service::factory()->forUser($seller)->create(['community_id' => $this->testOrganization->id]);
+        $service = Service::factory()->forUser($seller)->create(['organization_id' => $this->testOrganization->id]);
 
         $this->actingAs($buyer)->post(route('transactions.store'), [
             'service_id' => $service->id,

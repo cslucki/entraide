@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveUrlOrganization;
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -115,7 +115,7 @@ class ResolveUrlOrganizationTest extends TestCase
 
     public function test_known_feature_route_resolves_default_org(): void
     {
-        $org = Community::factory()->create(['is_active' => true]);
+        $org = Organization::factory()->create(['is_active' => true]);
         $request = Request::create('/explorer', 'GET');
         $middleware = new ResolveUrlOrganization;
         $handled = false;
@@ -134,7 +134,7 @@ class ResolveUrlOrganizationTest extends TestCase
 
     public function test_known_feature_route_with_org_via_real_route(): void
     {
-        Community::factory()->create(['is_active' => true]);
+        Organization::factory()->create(['is_active' => true]);
 
         // Without web group activation (T075.3+), the real /explorer route
         // does NOT run through ResolveUrlOrganization. This test documents
@@ -165,8 +165,8 @@ class ResolveUrlOrganizationTest extends TestCase
 
     public function test_dashboard_resolves_authenticated_user_org(): void
     {
-        $org = Community::factory()->create(['is_active' => true]);
-        $user = User::factory()->create(['community_id' => $org->id]);
+        $org = Organization::factory()->create(['is_active' => true]);
+        $user = User::factory()->create(['organization_id' => $org->id]);
         $this->actingAs($user);
 
         $request = Request::create('/dashboard', 'GET');
@@ -180,7 +180,7 @@ class ResolveUrlOrganizationTest extends TestCase
 
     public function test_dashboard_returns_404_when_user_has_no_org(): void
     {
-        $user = User::factory()->create(['community_id' => null]);
+        $user = User::factory()->create(['organization_id' => null]);
         $this->actingAs($user);
 
         $request = Request::create('/dashboard', 'GET');
@@ -285,7 +285,7 @@ class ResolveUrlOrganizationTest extends TestCase
 
     public function test_skips_when_organization_already_resolved(): void
     {
-        $org = Community::factory()->create(['is_active' => true]);
+        $org = Organization::factory()->create(['is_active' => true]);
         app()->instance('current_organization', $org);
 
         $request = Request::create('/dashboard', 'GET');
@@ -303,7 +303,7 @@ class ResolveUrlOrganizationTest extends TestCase
 
     public function test_binds_current_community_for_legacy(): void
     {
-        $org = Community::factory()->create(['is_active' => true]);
+        $org = Organization::factory()->create(['is_active' => true]);
 
         $request = Request::create('/explorer', 'GET');
         $middleware = new ResolveUrlOrganization;
@@ -316,8 +316,8 @@ class ResolveUrlOrganizationTest extends TestCase
 
     public function test_does_not_override_existing_current_community(): void
     {
-        $org = Community::factory()->create(['is_active' => true]);
-        $existingOrg = Community::factory()->create(['is_active' => true]);
+        $org = Organization::factory()->create(['is_active' => true]);
+        $existingOrg = Organization::factory()->create(['is_active' => true]);
         app()->instance('current_community', $existingOrg);
 
         $request = Request::create('/explorer', 'GET');

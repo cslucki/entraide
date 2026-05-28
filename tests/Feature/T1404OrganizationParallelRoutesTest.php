@@ -22,7 +22,7 @@ class T1404OrganizationParallelRoutesTest extends TestCase
 
         $this->org = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $this->user = User::factory()->create([
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'organization_id' => $this->org->id,
         ]);
     }

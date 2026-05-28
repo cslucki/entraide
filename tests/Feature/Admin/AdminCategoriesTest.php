@@ -119,7 +119,7 @@ class AdminCategoriesTest extends TestCase
         $admin = $this->makeAdmin();
         $org = Organization::factory()->create();
         $category = Category::factory()->create();
-        Service::factory()->forCategory($category)->create(['community_id' => $org->id]);
+        Service::factory()->forCategory($category)->create(['organization_id' => $org->id]);
 
         app()->instance('current_organization', $org);
 

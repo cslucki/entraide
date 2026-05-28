@@ -22,7 +22,7 @@ class MessagePolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($buyer->can('view-transaction', $transaction));
     }
 
@@ -30,7 +30,7 @@ class MessagePolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($seller->can('view-transaction', $transaction));
     }
 
@@ -39,7 +39,7 @@ class MessagePolicyTest extends TestCase
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
         $other = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($other->can('view-transaction', $transaction));
     }
 
@@ -47,7 +47,7 @@ class MessagePolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertTrue($buyer->can('store-message', $transaction));
     }
 
@@ -55,7 +55,7 @@ class MessagePolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->completed()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('store-message', $transaction));
     }
 
@@ -63,7 +63,7 @@ class MessagePolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->refused()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->refused()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('store-message', $transaction));
     }
 
@@ -71,7 +71,7 @@ class MessagePolicyTest extends TestCase
     {
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->cancelled()->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->cancelled()->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('store-message', $transaction));
     }
 
@@ -80,7 +80,7 @@ class MessagePolicyTest extends TestCase
         $otherOrg = Organization::factory()->create();
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $otherOrg->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $otherOrg->id]);
         $this->assertFalse($buyer->can('view-transaction', $transaction));
         $this->assertFalse($buyer->can('store-message', $transaction));
     }
@@ -90,7 +90,7 @@ class MessagePolicyTest extends TestCase
         app()->forgetInstance('current_organization');
         $buyer = User::factory()->create();
         $seller = User::factory()->create();
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['community_id' => $this->org->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $this->org->id]);
         $this->assertFalse($buyer->can('view-transaction', $transaction));
     }
 }

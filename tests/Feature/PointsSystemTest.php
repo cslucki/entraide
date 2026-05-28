@@ -26,12 +26,12 @@ class PointsSystemTest extends TestCase
         $category = Category::factory()->create();
 
         $this->actingAs($user);
-        $service = Service::factory()->forUser($user)->forCategory($category)->create(['community_id' => $this->org->id]);
+        $service = Service::factory()->forUser($user)->forCategory($category)->create(['organization_id' => $this->org->id]);
 
         $user->buyerTransactions()->create([
             'buyer_id' => $user->id,
             'seller_id' => $user->id,
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'points_proposed' => 100,
             'points_agreed' => 100,
             'status' => 'completed',
@@ -62,14 +62,14 @@ class PointsSystemTest extends TestCase
         $seller = User::factory()->create(['points_balance' => 100]);
         $buyer = User::factory()->create(['points_balance' => 300]);
         $category = Category::factory()->create();
-        $service = Service::factory()->forUser($seller)->forCategory($category)->create(['community_id' => $this->org->id]);
+        $service = Service::factory()->forUser($seller)->forCategory($category)->create(['organization_id' => $this->org->id]);
 
         $this->actingAs($buyer);
 
         $transaction = $service->transactions()->create([
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
-            'community_id' => $this->org->id,
+            'organization_id' => $this->org->id,
             'points_proposed' => 50,
             'points_agreed' => 50,
             'status' => 'accepted',

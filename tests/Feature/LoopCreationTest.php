@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\User;
@@ -22,8 +23,8 @@ class LoopCreationTest extends TestCase
     {
         parent::setUp();
 
-        $this->community = Community::factory()->create();
-        $this->user = User::factory()->create(['community_id' => $this->community->id]);
+        $this->community = Organization::factory()->create();
+        $this->user = User::factory()->create(['organization_id' => $this->community->id]);
         $this->service = new LoopService;
     }
 
@@ -34,7 +35,7 @@ class LoopCreationTest extends TestCase
         $this->assertInstanceOf(Loop::class, $loop);
         $this->assertEquals('My Test Loop', $loop->name);
         $this->assertEquals('A description', $loop->description);
-        $this->assertEquals($this->community->id, $loop->community_id);
+        $this->assertEquals($this->community->id, $loop->organization_id);
         $this->assertEquals($this->user->id, $loop->created_by);
         $this->assertEquals('custom', $loop->type);
         $this->assertEquals('active', $loop->status);
@@ -63,7 +64,7 @@ class LoopCreationTest extends TestCase
 
     public function test_service_throws_if_user_has_no_community(): void
     {
-        $userWithoutCommunity = User::factory()->create(['community_id' => null]);
+        $userWithoutCommunity = User::factory()->create(['organization_id' => null]);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('User has no organization.');
@@ -83,7 +84,7 @@ class LoopCreationTest extends TestCase
 
         $loop = Loop::where('slug', 'web-created-loop')->first();
         $this->assertNotNull($loop);
-        $this->assertEquals($this->community->id, $loop->community_id);
+        $this->assertEquals($this->community->id, $loop->organization_id);
 
         $this->assertDatabaseHas('loop_members', [
             'loop_id' => $loop->id,
@@ -97,8 +98,8 @@ class LoopCreationTest extends TestCase
         $loop1 = $this->service->createLoop($this->user, 'Loop A');
         $loop2 = $this->service->createLoop($this->user, 'Loop B');
 
-        $otherCommunity = Community::factory()->create();
-        $otherUser = User::factory()->create(['community_id' => $otherCommunity->id]);
+        $otherCommunity = Organization::factory()->create();
+        $otherUser = User::factory()->create(['organization_id' => $otherCommunity->id]);
         $this->service->createLoop($otherUser, 'Other Loop');
 
         $response = $this->actingAs($this->user)->get(route('loops.index'));
