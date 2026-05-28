@@ -68,6 +68,18 @@ All changes in `database/seeders/*` only.
 - [x] SUPERVISOR implements fixes
 - [x] run PHPUnit — 831/0/11 ✅
 - [x] verify seeders run without error — `php artisan db:seed --force` ✅
+- [x] Lot 2 — Factory + CommunityModelTest: switch to Organization model
+
+---
+
+# Lot 2 — Factory & Test
+
+| File | Change |
+|------|--------|
+| `database/factories/CommunityFactory.php` | `$model = Community::class` → `Organization::class` |
+| `tests/Feature/CommunityModelTest.php` | All 9 `Community::` → `Organization::` |
+
+**Validation:** `php artisan test --filter=CommunityModelTest` → 10/10 ✅
 
 ---
 
