@@ -58,6 +58,11 @@ class ResolveUrlOrganization
         'dashboard',
     ];
 
+    // Routes that work without an organization (controller handles missing org gracefully).
+    public static array $passthroughNoOrgRoutes = [
+        'membres',
+    ];
+
     public static ?string $defaultOrganizationId = null;
 
     public function handle(Request $request, Closure $next): Response
@@ -101,7 +106,7 @@ class ResolveUrlOrganization
             return $next($request);
         }
 
-        if ($this->isKnownBusinessRoute($request)) {
+        if ($this->isKnownBusinessRoute($request) && ! $this->isPassthroughNoOrgRoute($request)) {
             abort(404);
         }
 
@@ -204,6 +209,17 @@ class ResolveUrlOrganization
         }
 
         return in_array($first, static::$defaultOrganizationRoutes);
+    }
+
+    protected function isPassthroughNoOrgRoute(Request $request): bool
+    {
+        $first = $request->segment(1);
+
+        if (! $first) {
+            return false;
+        }
+
+        return in_array($first, static::$passthroughNoOrgRoutes);
     }
 
     protected function resolveDefaultOrganization(): ?Organization

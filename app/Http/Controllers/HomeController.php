@@ -37,7 +37,7 @@ class HomeController extends Controller
         $organization = currentOrganization();
 
         if (! $organization) {
-            abort(404);
+            return view('members.setup-required');
         }
 
         $organizationId = $organization->id;
