@@ -1,6 +1,6 @@
 ---
 task_id: TASK-161
-status: DONE
+status: MERGED
 owner: OpenCode
 branch: TASK-161-fix-6-remaining-test-failures
 lock:
