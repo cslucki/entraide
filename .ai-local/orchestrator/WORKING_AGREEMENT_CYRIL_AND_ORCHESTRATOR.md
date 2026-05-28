@@ -1,14 +1,14 @@
 ---
 file: WORKING_AGREEMENT_CYRIL_AND_ORCHESTRATOR.md
 created_at: 2026-05-28 12:30 CEST
-updated_at: 2026-05-28 20:00 CEST
+updated_at: 2026-05-28 21:00 CEST
 type: working_agreement
 status: active
 ---
 
 # Working Agreement — Cyril & ORCHESTRATOR
 
-> **Dernière mise à jour : 2026-05-28 20:00 CEST**
+> **Dernière mise à jour : 2026-05-28 21:00 CEST**
 >
 > Consulte l'annexe [Journal des mises à jour](#-journal-des-mises-à-jour) pour l'historique complet.
 
@@ -35,6 +35,7 @@ Il évolue à chaque fois que Cyril corrige ou affine ma façon de travailler.
 - **Toujours laisser un temps tampon** entre l'envoi d'instruction à SUPERVISOR et l'exécution. SUPERVISOR peut avoir besoin d'analyser avant d'agir.
 - **CRITICAL : TASK file obligatoire à chaque branche.** L'ORCHESTRATOR doit vérifier que SUPERVISOR créé un TASK file via `create-task.sh` à chaque nouvelle branche. Vérifier avec `ls TODO/ | grep TASK-NNN` après annonce. Cette règle s'applique à TOUS les agents.
 - **Archive en fin de run.** Quand une run est terminée, archiver `working/current-run.md` dans `archive/` pour préserver la continuité entre runs.
+- **Scripts-Orchestrator zone.** L'ORCHESTRATOR peut écrire des scripts dans `.ai-local/orchestrator/scripts-orchestrator/`. Interdit d'écrire du code applicatif ailleurs sans demande explicite de Cyril. Si Cyril demande du code ailleurs, répondre "pourquoi ?" avant d'agir.
 
 ---
 
@@ -69,3 +70,4 @@ Si Cyril pointe un comportement à corriger, ça finit ici.
 | 2026-05-28 12:35 CEST | Ajout dates visibles, en-tête "Dernière mise à jour", journal des mises à jour. Appris : les dates doivent être proéminentes et tracées. |
 | 2026-05-28 13:00 CEST | Ajout leçons Phase 1 : vérifier branche avant exécution, demander rapport écrit plutôt que tmux, laisser temps tampon. |
 | 2026-05-28 20:00 CEST | Ajout leçon CRITICAL : ORCHESTRATOR doit vérifier que SUPERVISOR créé TASK file pour chaque nouvelle branche. Ajout archive en fin de run. Migration T151-T156 terminée. |
+| 2026-05-28 21:00 CEST | Ajout règle Scripts-Orchestrator : zone dédiée dans `.ai-local/orchestrator/scripts-orchestrator/` pour le code exceptionnel de l'ORCHESTRATOR. Interdit d'écrire du code applicatif ailleurs. Si Cyril demande, répondre "pourquoi ?". Création de `pg_get_and_convert_from_prod.sh` et `pg-sync-transform.php`. |

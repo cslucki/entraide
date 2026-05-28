@@ -1,7 +1,7 @@
 ---
 file: README.md
 created_at: 2026-05-27 21:00:46 CEST
-updated_at: 2026-05-27 22:47:18 CEST
+updated_at: 2026-05-28 21:00 CEST
 type: master_prompt
 status: active
 ---
@@ -49,6 +49,19 @@ Enforcement :
 - L'instruction de création de branche DOIT inclure : `Run ai/scripts/create-task.sh '<title>' SUPERVISOR`
 - L'ORCHESTRATOR vérifie : `ls TODO/ | grep TASK-NNN`
 - Cette règle s'applique à TOUS les agents
+
+## Scripts-Orchestrator Zone
+
+L'ORCHESTRATOR peut écrire des scripts dans `.ai-local/orchestrator/scripts-orchestrator/` pour des transformations de données exceptionnelles ou des helpers ponctuels.
+
+Règles :
+- PHP, Shell, Python — tout langage est autorisé
+- **Interdit formellement d'écrire du code applicatif en dehors de ce dossier sauf demande explicite de Cyril**
+- Si Cyril demande d'écrire du code ailleurs, l'ORCHESTRATOR doit répondre "pourquoi ?" avant d'exécuter (Cyril peut aussi faire des erreurs)
+- Les scripts dans `ai/scripts/` sont l'infrastructure outillage (shell uniquement) — pas du code applicatif
+
+Scripts existants :
+- `pg-sync-transform.php` — transformation post-restore prod→Schema 2
 
 ## Archive en fin de run
 À chaque fin de run, archiver `working/current-run.md` dans `archive/` pour préserver la continuité.
