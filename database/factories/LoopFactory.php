@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Models\Community;
 use App\Models\Loop;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -20,7 +20,7 @@ class LoopFactory extends Factory
         $name = fake()->unique()->words(3, true);
 
         return [
-            'community_id' => Community::factory(),
+            'organization_id' => Organization::factory(),
             'name' => ucfirst($name),
             'slug' => Str::slug($name),
             'description' => fake()->sentence(),

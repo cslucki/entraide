@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Referral;
 use App\Models\ReferralReward;
 use App\Models\User;
@@ -26,10 +26,10 @@ class ReferralRewardFactory extends Factory
         ];
     }
 
-    public function forOrganization(Community $org): static
+    public function forOrganization(Organization $org): static
     {
         return $this->state(fn (array $attributes) => [
-            'community_id' => $org->id,
+            'organization_id' => $org->id,
         ]);
     }
 }

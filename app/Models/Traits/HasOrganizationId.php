@@ -7,40 +7,14 @@ trait HasOrganizationId
     public static function bootHasOrganizationId(): void
     {
         static::creating(function ($model) {
-            $model->syncOrganizationId();
-        });
-
-        static::updating(function ($model) {
-            if ($model->isDirty('organization_id') || $model->isDirty('community_id')) {
-                $model->syncOrganizationId();
+            if ($model->organization_id === null) {
+                $org = app()->bound('current_organization')
+                    ? app('current_organization')
+                    : (app()->bound('current_community') ? app('current_community') : null);
+                if ($org) {
+                    $model->organization_id = $org->id;
+                }
             }
         });
-    }
-
-    public function syncOrganizationId(): void
-    {
-        if ($this->exists) {
-            if ($this->isDirty('organization_id')) {
-                $this->community_id = $this->organization_id;
-                return;
-            }
-
-            if ($this->isDirty('community_id')) {
-                $this->organization_id = $this->community_id;
-                return;
-            }
-
-            return;
-        }
-
-        if ($this->organization_id !== null) {
-            $this->community_id = $this->organization_id;
-            return;
-        }
-
-        if ($this->community_id !== null) {
-            $this->organization_id = $this->community_id;
-            return;
-        }
     }
 }
