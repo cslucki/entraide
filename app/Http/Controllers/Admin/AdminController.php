@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\EmailLog;
 use App\Models\Organization;
-use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Report;
 use App\Models\RequestAttachment;
