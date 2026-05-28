@@ -16,7 +16,6 @@ class MembersPageTest extends TestCase
         $response = $this->get('/membres');
 
         $response->assertOk();
-        $response->assertViewIs('members.setup-required');
         $response->assertSee('Base de données à initialiser');
     }
 
@@ -35,28 +34,38 @@ class MembersPageTest extends TestCase
         $response->assertSee('3 membres');
     }
 
-    public function test_members_shows_correct_member_count(): void
+    public function test_public_pages_show_setup_without_organization(): void
+    {
+        $routes = ['/membres', '/echanges', '/explorer', '/boucles', '/blog', '/search'];
+
+        foreach ($routes as $route) {
+            $response = $this->get($route);
+            $response->assertOk();
+            $response->assertSee('Base de données à initialiser');
+        }
+    }
+
+    public function test_unknown_routes_remain_404_without_organization(): void
+    {
+        $response = $this->get('/une-page-qui-nexiste-pas');
+        $response->assertNotFound();
+    }
+
+    public function test_authenticated_routes_remain_404_without_organization(): void
+    {
+        $response = $this->get('/services');
+        $response->assertNotFound();
+    }
+
+    public function test_public_pages_show_content_when_organization_exists(): void
     {
         $org = Organization::factory()->create(['is_active' => true]);
-        User::factory()->count(5)->create(['organization_id' => $org->id]);
+        User::factory()->count(2)->create(['organization_id' => $org->id]);
 
         app()->instance('current_organization', $org);
 
         $response = $this->get('/membres');
-
         $response->assertOk();
-        $response->assertSee('5 membres');
-    }
-
-    public function test_other_business_routes_still_404_without_organization(): void
-    {
-        $response = $this->get('/echanges');
-        $response->assertNotFound();
-    }
-
-    public function test_other_business_routes_still_404_without_organization_services(): void
-    {
-        $response = $this->get('/services');
-        $response->assertNotFound();
+        $response->assertSee('Annuaire des membres');
     }
 }

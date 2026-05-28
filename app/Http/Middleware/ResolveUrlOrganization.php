@@ -58,9 +58,15 @@ class ResolveUrlOrganization
         'dashboard',
     ];
 
-    // Routes that work without an organization (controller handles missing org gracefully).
+    // Known public business pages that should show a setup-required page
+    // instead of 404 when no Organization exists (empty or unseeded DB).
     public static array $passthroughNoOrgRoutes = [
+        'explorer',
         'membres',
+        'echanges',
+        'boucles',
+        'blog',
+        'search',
     ];
 
     public static ?string $defaultOrganizationId = null;
@@ -108,6 +114,10 @@ class ResolveUrlOrganization
 
         if ($this->isKnownBusinessRoute($request) && ! $this->isPassthroughNoOrgRoute($request)) {
             abort(404);
+        }
+
+        if ($this->isPassthroughNoOrgRoute($request) && $request->isMethod('GET')) {
+            return response()->view('members.setup-required');
         }
 
         return $next($request);
