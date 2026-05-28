@@ -144,19 +144,15 @@ class ResolveUrlOrganizationTest extends TestCase
         $this->assertTrue($response->getStatusCode() < 500);
     }
 
-    public function test_known_feature_route_returns_404_without_org(): void
+    public function test_known_feature_route_shows_setup_page_without_org(): void
     {
         $request = Request::create('/explorer', 'GET');
         $middleware = new ResolveUrlOrganization;
 
-        $caught = false;
-        try {
-            $middleware->handle($request, fn () => response('ok'));
-        } catch (NotFoundHttpException $e) {
-            $caught = true;
-        }
+        $response = $middleware->handle($request, fn () => response('ok'));
 
-        $this->assertTrue($caught, 'Expected NotFoundHttpException for known route without org');
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertStringContainsString('Base de données', $response->getContent());
     }
 
     // -----------------------------------------------------------------------

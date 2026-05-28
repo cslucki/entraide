@@ -58,6 +58,17 @@ class ResolveUrlOrganization
         'dashboard',
     ];
 
+    // Known public business pages that should show a setup-required page
+    // instead of 404 when no Organization exists (empty or unseeded DB).
+    public static array $passthroughNoOrgRoutes = [
+        'explorer',
+        'membres',
+        'echanges',
+        'boucles',
+        'blog',
+        'search',
+    ];
+
     public static ?string $defaultOrganizationId = null;
 
     public function handle(Request $request, Closure $next): Response
@@ -101,8 +112,12 @@ class ResolveUrlOrganization
             return $next($request);
         }
 
-        if ($this->isKnownBusinessRoute($request)) {
+        if ($this->isKnownBusinessRoute($request) && ! $this->isPassthroughNoOrgRoute($request)) {
             abort(404);
+        }
+
+        if ($this->isPassthroughNoOrgRoute($request) && $request->isMethod('GET')) {
+            return response()->view('members.setup-required');
         }
 
         return $next($request);
@@ -204,6 +219,17 @@ class ResolveUrlOrganization
         }
 
         return in_array($first, static::$defaultOrganizationRoutes);
+    }
+
+    protected function isPassthroughNoOrgRoute(Request $request): bool
+    {
+        $first = $request->segment(1);
+
+        if (! $first) {
+            return false;
+        }
+
+        return in_array($first, static::$passthroughNoOrgRoutes);
     }
 
     protected function resolveDefaultOrganization(): ?Organization
