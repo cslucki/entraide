@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Community;
+use App\Models\Organization;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
@@ -15,17 +15,17 @@ class ResolveCommunity
         $slug = $request->route('community') ?? $request->route('organization');
 
         if ($slug) {
-            $community = Community::findBySlug($slug);
-            if (! $community) {
+            $organization = Organization::findBySlug($slug);
+            if (! $organization) {
                 abort(404);
             }
-            app()->instance('current_community', $community);
-            app()->instance('current_organization', $community);
-            View::share('currentCommunity', $community);
-            View::share('currentOrganization', $community);
+            app()->instance('current_organization', $organization);
+            app()->instance('current_community', $organization);
+            View::share('currentOrganization', $organization);
+            View::share('currentCommunity', $organization);
         } else {
-            View::share('currentCommunity', null);
             View::share('currentOrganization', null);
+            View::share('currentCommunity', null);
         }
 
         return $next($request);
