@@ -1,6 +1,6 @@
 ---
 task_id: TASK-160
-status: DONE
+status: MERGED
 owner: OpenCode
 branch: TASK-160-audit-post-t159-test-failures
 lock:
