@@ -20,7 +20,6 @@ class Transaction extends Model
     }
 
     protected $fillable = [
-        'community_id',
         'organization_id',
         'service_id',
         'request_id',
@@ -47,7 +46,7 @@ class Transaction extends Model
 
     public function community(): BelongsTo
     {
-        return $this->belongsTo(Community::class);
+        return $this->organization();
     }
 
     public function organization(): BelongsTo

@@ -16,7 +16,6 @@ class Loop extends Model
     use HasUuids, HasFactory, HasOrganizationId;
 
     protected $fillable = [
-        'community_id',
         'organization_id',
         'name',
         'slug',
@@ -58,7 +57,7 @@ class Loop extends Model
 
     public function community(): BelongsTo
     {
-        return $this->belongsTo(Community::class, 'community_id');
+        return $this->organization();
     }
 
     public function organization(): BelongsTo
