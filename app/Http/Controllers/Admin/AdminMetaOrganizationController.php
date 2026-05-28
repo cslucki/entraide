@@ -8,7 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
-class AdminMetaCommunityController extends Controller
+class AdminMetaOrganizationController extends Controller
 {
     public function index(): View
     {
@@ -27,6 +27,6 @@ class AdminMetaCommunityController extends Controller
 
         Setting::set('global_color_mode', $data['global_color_mode']);
 
-        return redirect()->route('admin.meta-community')->with('success', 'Paramètres meta-communauté sauvegardés.');
+        return redirect()->route('admin.meta-organization')->with('success', 'Paramètres enregistrés.');
     }
 }

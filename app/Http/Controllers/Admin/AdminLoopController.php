@@ -12,7 +12,7 @@ class AdminLoopController extends Controller
     {
         $user = auth()->user();
 
-        $orgId = $user->organization_id ?? $user->community_id;
+        $orgId = $user->organization_id;
 
         $loops = Loop::where('organization_id', $orgId)
             ->with('creator:id,name,email')

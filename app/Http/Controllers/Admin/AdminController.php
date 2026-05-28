@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
-use App\Models\Community;
 use App\Models\EmailLog;
+use App\Models\Organization;
 use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Report;
@@ -49,7 +49,7 @@ class AdminController extends Controller
 
     public function users(Request $request): View
     {
-        $query = User::with(['community'])->withCount(['services', 'buyerTransactions', 'sellerTransactions', 'reviewsReceived']);
+        $query = User::with(['organization'])->withCount(['services', 'buyerTransactions', 'sellerTransactions', 'reviewsReceived']);
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
@@ -74,8 +74,8 @@ class AdminController extends Controller
 
     public function editUser(User $user): View
     {
-        $communities = Community::where('is_active', true)->orderBy('name')->get();
-        return view('admin.users.edit', compact('user', 'communities'));
+        $organizations = Organization::where('is_active', true)->orderBy('name')->get();
+        return view('admin.users.edit', compact('user', 'organizations'));
     }
 
     public function updateUser(Request $request, User $user): RedirectResponse
@@ -87,7 +87,7 @@ class AdminController extends Controller
             'location'     => 'nullable|string|max:100',
             'website'      => 'nullable|url|max:255',
             'linkedin_url' => 'nullable|url|max:255',
-            'organization_id' => 'nullable|uuid|exists:communities,id',
+            'organization_id' => 'nullable|uuid|exists:organizations,id',
             'is_available' => 'boolean',
             'is_admin'     => 'boolean',
             'banned'       => 'boolean',
@@ -242,10 +242,10 @@ class AdminController extends Controller
         }
 
         $data = $request->validate([
-            'organization_id' => ['nullable', 'uuid', 'exists:communities,id'],
+            'organization_id' => ['nullable', 'uuid', 'exists:organizations,id'],
         ]);
 
-        $community = $data['organization_id']
+        $organization = $data['organization_id']
             ? Organization::withTrashed()->find($data['organization_id'])
             : null;
 
@@ -253,11 +253,11 @@ class AdminController extends Controller
             'organization_id' => $data['organization_id'],
         ]);
 
-        if ($community) {
-            return back()->with('success', "{$user->name} affecté à la communauté {$community->name}.");
+        if ($organization) {
+            return back()->with('success', "{$user->name} affecté à l'organisation {$organization->name}.");
         }
 
-        return back()->with('success', "{$user->name} retiré de sa communauté (retour communauté globale).");
+        return back()->with('success', "{$user->name} retiré de son organisation (retour organisation globale).");
     }
 
     // ── Services ─────────────────────────────────────────────────────────────
@@ -343,8 +343,8 @@ class AdminController extends Controller
             return; // super-admin : accès total
         }
         // admin d'une communauté : seulement les services de sa communauté
-        $community = Community::where('admin_id', $user->id)->first();
-        if (! $community || $service->organization_id !== $community->id) {
+        $organization = Organization::where('admin_id', $user->id)->first();
+        if (! $organization || $service->organization_id !== $organization->id) {
             abort(403);
         }
     }
@@ -477,8 +477,8 @@ class AdminController extends Controller
         if ($user->is_admin) {
             return;
         }
-        $community = Community::where('admin_id', $user->id)->first();
-        if (! $community || $serviceRequest->organization_id !== $community->id) {
+        $organization = Organization::where('admin_id', $user->id)->first();
+        if (! $organization || $serviceRequest->organization_id !== $organization->id) {
             abort(403);
         }
     }
