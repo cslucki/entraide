@@ -1,6 +1,6 @@
 <x-admin-layout title="Créer une communauté">
     <div class="max-w-2xl">
-        <form method="POST" action="{{ route('admin.communities.store') }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.organizations.store') }}" class="space-y-6">
             @csrf
 
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
@@ -95,7 +95,7 @@
                 <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
                     Créer la communauté
                 </button>
-                <a href="{{ route('admin.communities') }}" class="px-5 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <a href="{{ route('admin.organizations') }}" class="px-5 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     Annuler
                 </a>
             </div>

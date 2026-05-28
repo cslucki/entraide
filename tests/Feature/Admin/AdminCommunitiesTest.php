@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -11,35 +11,35 @@ class AdminCommunitiesTest extends TestCase
 {
     public function test_guest_cannot_access_communities(): void
     {
-        $this->get(route('admin.communities'))->assertRedirect(route('login'));
+        $this->get(route('admin.organizations'))->assertRedirect(route('login'));
     }
 
     public function test_non_admin_cannot_access_communities(): void
     {
         $user = User::factory()->create();
-        $this->actingAs($user)->get(route('admin.communities'))->assertForbidden();
+        $this->actingAs($user)->get(route('admin.organizations'))->assertForbidden();
     }
 
     public function test_admin_can_view_communities_list(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        Community::factory()->count(3)->create();
+        Organization::factory()->count(3)->create();
 
-        $this->actingAs($admin)->get(route('admin.communities'))
+        $this->actingAs($admin)->get(route('admin.organizations'))
             ->assertOk()
-            ->assertSee(Community::first()->name);
+            ->assertSee(Organization::first()->name);
     }
 
     public function test_admin_can_create_community(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
-        $this->actingAs($admin)->post(route('admin.communities.store'), [
+        $this->actingAs($admin)->post(route('admin.organizations.store'), [
             'name'           => 'Test Community',
             'welcome_points' => 150,
-        ])->assertRedirect(route('admin.communities'));
+        ])->assertRedirect(route('admin.organizations'));
 
-        $this->assertDatabaseHas('communities', [
+        $this->assertDatabaseHas('organizations', [
             'name'           => 'Test Community',
             'slug'           => 'test-community',
             'welcome_points' => 150,
@@ -51,19 +51,19 @@ class AdminCommunitiesTest extends TestCase
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
-        $this->actingAs($admin)->post(route('admin.communities.store'), [
+        $this->actingAs($admin)->post(route('admin.organizations.store'), [
             'name'           => 'My Awesome Community',
             'welcome_points' => 100,
-        ])->assertRedirect(route('admin.communities'));
+        ])->assertRedirect(route('admin.organizations'));
 
-        $this->assertDatabaseHas('communities', ['slug' => 'my-awesome-community']);
+        $this->assertDatabaseHas('organizations', ['slug' => 'my-awesome-community']);
     }
 
     public function test_create_community_validates_name_required(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
-        $this->actingAs($admin)->post(route('admin.communities.store'), [
+        $this->actingAs($admin)->post(route('admin.organizations.store'), [
             'name'           => '',
             'welcome_points' => 100,
         ])->assertSessionHasErrors('name');
@@ -72,9 +72,9 @@ class AdminCommunitiesTest extends TestCase
     public function test_create_community_validates_name_unique(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        Community::factory()->create(['name' => 'Existing Community']);
+        Organization::factory()->create(['name' => 'Existing Community']);
 
-        $this->actingAs($admin)->post(route('admin.communities.store'), [
+        $this->actingAs($admin)->post(route('admin.organizations.store'), [
             'name'           => 'Existing Community',
             'welcome_points' => 100,
         ])->assertSessionHasErrors('name');
@@ -84,7 +84,7 @@ class AdminCommunitiesTest extends TestCase
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
-        $this->actingAs($admin)->post(route('admin.communities.store'), [
+        $this->actingAs($admin)->post(route('admin.organizations.store'), [
             'name'           => 'Bad Slug',
             'slug'           => 'BAD SLUG!',
             'welcome_points' => 100,
@@ -95,7 +95,7 @@ class AdminCommunitiesTest extends TestCase
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
-        $this->actingAs($admin)->post(route('admin.communities.store'), [
+        $this->actingAs($admin)->post(route('admin.organizations.store'), [
             'name'           => 'Color Test',
             'accent_color'   => 'not-a-color',
             'welcome_points' => 100,
@@ -105,10 +105,10 @@ class AdminCommunitiesTest extends TestCase
     public function test_admin_can_edit_community(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $community = Community::factory()->create(['name' => 'Old Name']);
+        $organization = Organization::factory()->create(['name' => 'Old Name']);
 
         $this->actingAs($admin)
-            ->get(route('admin.communities.edit', $community))
+            ->get(route('admin.organizations.edit', $organization))
             ->assertOk()
             ->assertSee('Old Name');
     }
@@ -116,118 +116,118 @@ class AdminCommunitiesTest extends TestCase
     public function test_admin_can_update_community(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $community = Community::factory()->create(['name' => 'Old Name', 'slug' => 'old-name']);
+        $organization = Organization::factory()->create(['name' => 'Old Name', 'slug' => 'old-name']);
 
-        $this->actingAs($admin)->put(route('admin.communities.update', $community), [
+        $this->actingAs($admin)->put(route('admin.organizations.update', $organization), [
             'name'           => 'New Name',
             'slug'           => 'new-name',
             'hero_title'     => 'Welcome!',
             'accent_color'   => '#ff0000',
             'welcome_points' => 200,
-        ])->assertRedirect(route('admin.communities'));
+        ])->assertRedirect(route('admin.organizations'));
 
-        $community->refresh();
-        $this->assertEquals('New Name', $community->name);
-        $this->assertEquals('new-name', $community->slug);
-        $this->assertEquals('#ff0000', $community->accent_color);
-        $this->assertEquals(200, $community->welcome_points);
+        $organization->refresh();
+        $this->assertEquals('New Name', $organization->name);
+        $this->assertEquals('new-name', $organization->slug);
+        $this->assertEquals('#ff0000', $organization->accent_color);
+        $this->assertEquals(200, $organization->welcome_points);
     }
 
     public function test_admin_can_toggle_community_active(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $community = Community::factory()->create(['is_active' => true]);
+        $organization = Organization::factory()->create(['is_active' => true]);
 
-        $this->actingAs($admin)->post(route('admin.communities.toggle-active', $community))
+        $this->actingAs($admin)->post(route('admin.organizations.toggle-active', $organization))
             ->assertRedirect();
 
-        $community->refresh();
-        $this->assertFalse($community->is_active);
+        $organization->refresh();
+        $this->assertFalse($organization->is_active);
     }
 
     public function test_admin_can_soft_delete_community(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
         $user = User::factory()->create();
-        $community = Community::factory()->create();
+        $organization = Organization::factory()->create();
 
-        $user->update(['organization_id' => $community->id]);
+        $user->update(['organization_id' => $organization->id]);
 
-        $this->actingAs($admin)->delete(route('admin.communities.destroy', $community))
+        $this->actingAs($admin)->delete(route('admin.organizations.destroy', $organization))
             ->assertRedirect();
 
         $user->refresh();
         $this->assertNull($user->organization_id);
-        $this->assertSoftDeleted('communities', ['id' => $community->id]);
+        $this->assertSoftDeleted('organizations', ['id' => $organization->id]);
     }
 
     public function test_soft_delete_nullifies_community_id_on_related_models(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $community = Community::factory()->create();
+        $organization = Organization::factory()->create();
 
-        $user = User::factory()->create(['organization_id' => $community->id]);
+        $user = User::factory()->create(['organization_id' => $organization->id]);
 
-        $this->actingAs($admin)->delete(route('admin.communities.destroy', $community));
+        $this->actingAs($admin)->delete(route('admin.organizations.destroy', $organization));
 
         $this->assertDatabaseHas('users', ['id' => $user->id, 'organization_id' => null]);
-        $this->assertSoftDeleted('communities', ['id' => $community->id]);
+        $this->assertSoftDeleted('organizations', ['id' => $organization->id]);
     }
 
     public function test_admin_can_assign_responsable(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
         $responsable = User::factory()->create(['name' => 'John Doe']);
-        $community = Community::factory()->create();
+        $organization = Organization::factory()->create();
 
-        $this->actingAs($admin)->put(route('admin.communities.update', $community), [
-            'name'           => $community->name,
-            'slug'           => $community->slug,
+        $this->actingAs($admin)->put(route('admin.organizations.update', $organization), [
+            'name'           => $organization->name,
+            'slug'           => $organization->slug,
             'admin_id'       => $responsable->id,
             'welcome_points' => 100,
-        ])->assertRedirect(route('admin.communities'));
+        ])->assertRedirect(route('admin.organizations'));
 
-        $community->refresh();
-        $this->assertEquals($responsable->id, $community->admin_id);
+        $organization->refresh();
+        $this->assertEquals($responsable->id, $organization->admin_id);
     }
 
     public function test_admin_can_create_public_community(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
-        $this->actingAs($admin)->post(route('admin.communities.store'), [
+        $this->actingAs($admin)->post(route('admin.organizations.store'), [
             'name'           => 'Public Community',
             'is_public'      => 1,
             'welcome_points' => 100,
-        ])->assertRedirect(route('admin.communities'));
+        ])->assertRedirect(route('admin.organizations'));
 
-        $community = Community::where('name', 'Public Community')->first();
-        $this->assertTrue($community->is_public);
+        $organization = Organization::where('name', 'Public Community')->first();
+        $this->assertTrue($organization->is_public);
     }
 
     public function test_admin_can_toggle_public_visibility(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $community = Community::factory()->create(['is_public' => false]);
+        $organization = Organization::factory()->create(['is_public' => false]);
 
-        $this->actingAs($admin)->put(route('admin.communities.update', $community), [
-            'name'           => $community->name,
-            'slug'           => $community->slug,
+        $this->actingAs($admin)->put(route('admin.organizations.update', $organization), [
+            'name'           => $organization->name,
+            'slug'           => $organization->slug,
             'is_public'      => 1,
             'welcome_points' => 100,
         ]);
 
-        $community->refresh();
-        $this->assertTrue($community->is_public);
+        $organization->refresh();
+        $this->assertTrue($organization->is_public);
     }
 
     public function test_community_index_shows_visibility_badges(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        Community::factory()->create(['name' => 'Public Test', 'is_public' => true]);
-        Community::factory()->create(['name' => 'Private Test', 'is_public' => false]);
+        Organization::factory()->create(['name' => 'Public Test', 'is_public' => true]);
+        Organization::factory()->create(['name' => 'Private Test', 'is_public' => false]);
 
-        $this->actingAs($admin)->get(route('admin.communities'))
+        $this->actingAs($admin)->get(route('admin.organizations'))
             ->assertSee('Publique')
             ->assertSee('Privée');
     }

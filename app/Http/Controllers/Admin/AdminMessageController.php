@@ -16,7 +16,7 @@ class AdminMessageController extends Controller
     public function index(Request $request): View
     {
         $user = auth()->user();
-        $orgId = $user->organization_id ?? $user->community_id;
+        $orgId = $user->organization_id;
         $filter = $request->input('filter', 'chatloop');
         $allowedFilters = ['chatloop', 'exchanges', 'all'];
         $filter = in_array($filter, $allowedFilters) ? $filter : 'chatloop';
@@ -81,7 +81,7 @@ class AdminMessageController extends Controller
     {
         $message->load(['sender', 'transaction.buyer', 'transaction.seller']);
 
-        $orgId = auth()->user()->organization_id ?? auth()->user()->community_id;
+        $orgId = auth()->user()->organization_id;
 
         if (! $orgId || ! $message->transaction || $message->transaction->organization_id !== $orgId) {
             abort(404);

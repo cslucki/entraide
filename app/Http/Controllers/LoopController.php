@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Community;
 use App\Models\Loop;
+use App\Models\Organization;
 use App\Models\LoopMember;
 use App\Models\Referral;
 use App\Services\Ai\Contracts\AiProvider;
@@ -22,38 +22,38 @@ class LoopController extends Controller
         private readonly AiProvider $aiProvider,
     ) {}
 
-    private function resolveCommunity(): Community
+    private function resolveOrganization(): Organization
     {
         $organization = CurrentOrganization::get();
 
         if ($organization) {
-            assert($organization instanceof Community);
+            assert($organization instanceof Organization);
 
             return $organization;
         }
 
         $user = auth()->user();
 
-        if (! $user->community) {
+        if (! $user->organization) {
             abort(404);
         }
 
-        assert($user->community instanceof Community);
+        assert($user->organization instanceof Organization);
 
-        return $user->community;
+        return $user->organization;
     }
 
-    private function assertUserBelongsToCommunity(Community $community): void
+    private function assertUserBelongsToOrganization(Organization $organization): void
     {
         $user = auth()->user();
 
-        $orgId = $user->organization_id ?? $user->community_id;
-        if ($orgId !== $community->id) {
+        $orgId = $user->organization_id;
+        if ($orgId !== $organization->id) {
             abort(404);
         }
     }
 
-    private function resolveCommunityId(): string
+    private function resolveOrganizationId(): string
     {
         $organizationId = CurrentOrganization::id();
 
@@ -63,7 +63,7 @@ class LoopController extends Controller
 
         $user = auth()->user();
 
-        if ($orgId = $user->organization_id ?? $user->community_id) {
+        if ($orgId = $user->organization_id) {
             return $orgId;
         }
 
@@ -72,14 +72,14 @@ class LoopController extends Controller
 
     public function index(): View
     {
-        $communityId = $this->resolveCommunityId();
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organizationId = $this->resolveOrganizationId();
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
         $user = auth()->user();
 
         $loops = Loop::query()
-            ->where('organization_id', $communityId)
+            ->where('organization_id', $organizationId)
             ->where(function ($q) use ($user) {
                 $q->where('visibility', 'public')
                     ->orWhereIn('id', function ($sub) use ($user) {
@@ -100,16 +100,16 @@ class LoopController extends Controller
 
     public function create(): View
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
         return view('loops.create');
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
         $data = $request->validate([
             'name' => 'required|string|max:255',
@@ -128,10 +128,10 @@ class LoopController extends Controller
 
     public function show(Loop $loop): View
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
-        if ($loop->organization_id !== $community->id) {
+        if ($loop->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -160,10 +160,10 @@ class LoopController extends Controller
 
     public function join(Request $request, Loop $loop): RedirectResponse
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
-        if ($loop->organization_id !== $community->id) {
+        if ($loop->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -199,10 +199,10 @@ class LoopController extends Controller
 
     public function leave(Request $request, Loop $loop): RedirectResponse
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
-        if ($loop->organization_id !== $community->id) {
+        if ($loop->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -231,10 +231,10 @@ class LoopController extends Controller
 
     public function analyzeHelpIntention(Request $request, Loop $loop): RedirectResponse
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
-        if ($loop->organization_id !== $community->id) {
+        if ($loop->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -267,10 +267,10 @@ class LoopController extends Controller
 
     public function publishHelpRequest(Request $request, Loop $loop): RedirectResponse
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
-        if ($loop->organization_id !== $community->id) {
+        if ($loop->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -325,10 +325,10 @@ class LoopController extends Controller
 
     public function addMember(Request $request, Loop $loop): RedirectResponse
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
-        if ($loop->organization_id !== $community->id) {
+        if ($loop->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -361,10 +361,10 @@ class LoopController extends Controller
 
     public function storeMessage(Request $request, Loop $loop): RedirectResponse
     {
-        $community = $this->resolveCommunity();
-        $this->assertUserBelongsToCommunity($community);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
 
-        if ($loop->organization_id !== $community->id) {
+        if ($loop->organization_id !== $organization->id) {
             abort(404);
         }
 

@@ -1,6 +1,6 @@
 <x-admin-layout title="Communautés">
     <div class="flex justify-end mb-4">
-        <a href="{{ route('admin.communities.create') }}"
+        <a href="{{ route('admin.organizations.create') }}"
            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
             + Créer une communauté
         </a>
@@ -56,14 +56,14 @@
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2">
-                            <a href="{{ route('admin.communities.edit', $c) }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Éditer</a>
-                            <form method="POST" action="{{ route('admin.communities.toggle-active', $c) }}" class="inline">
+                            <a href="{{ route('admin.organizations.edit', $c) }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Éditer</a>
+                            <form method="POST" action="{{ route('admin.organizations.toggle-active', $c) }}" class="inline">
                                 @csrf
                                 <button type="submit" class="text-xs font-medium {{ $c->is_active ? 'text-amber-600 hover:text-amber-800' : 'text-green-600 hover:text-green-800' }}">
                                     {{ $c->is_active ? 'Désactiver' : 'Activer' }}
                                 </button>
                             </form>
-                            <form method="POST" action="{{ route('admin.communities.destroy', $c) }}" class="inline"
+                            <form method="POST" action="{{ route('admin.organizations.destroy', $c) }}" class="inline"
                                   onsubmit="return confirm('Supprimer cette communauté ? Les utilisateurs et services associés seront remis dans la communauté globale.');">
                                 @csrf
                                 @method('DELETE')

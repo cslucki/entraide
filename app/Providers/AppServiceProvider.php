@@ -84,8 +84,7 @@ class AppServiceProvider extends ServiceProvider
         Route::bind('loop', function (string $value) {
             $currentOrg = app()->bound('current_organization') ? app('current_organization') : null;
             $orgId = $currentOrg?->id
-                ?? auth()->user()?->organization_id
-                ?? auth()->user()?->community_id;
+                ?? auth()->user()?->organization_id;
 
             if ($orgId) {
                 return Loop::where('organization_id', $orgId)->findOrFail($value);

@@ -7,7 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
-class CommunityRequestController extends Controller
+class OrganizationRequestController extends Controller
 {
     public function create(): View
     {
