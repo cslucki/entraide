@@ -33,7 +33,6 @@ class User extends Authenticatable
     }
 
     protected $fillable = [
-        'community_id',
         'organization_id',
         'name',
         'email',
@@ -76,7 +75,7 @@ class User extends Authenticatable
 
     public function community(): BelongsTo
     {
-        return $this->belongsTo(Community::class);
+        return $this->organization();
     }
 
     public function organization(): BelongsTo

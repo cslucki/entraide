@@ -14,6 +14,8 @@ class Community extends Model
 {
     use HasUuids, HasFactory, SoftDeletes;
 
+    protected $table = 'organizations';
+
     protected $fillable = [
         'name',
         'slug',
@@ -78,6 +80,6 @@ class Community extends Model
 
     public function loops(): HasMany
     {
-        return $this->hasMany(Loop::class, 'community_id');
+        return $this->hasMany(Loop::class, 'organization_id');
     }
 }

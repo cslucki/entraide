@@ -19,7 +19,6 @@ class ReferralReward extends Model
     }
 
     protected $fillable = [
-        'community_id',
         'organization_id',
         'referral_id',
         'user_id',
@@ -56,7 +55,7 @@ class ReferralReward extends Model
 
     public function community(): BelongsTo
     {
-        return $this->belongsTo(Community::class);
+        return $this->organization();
     }
 
     public function organization(): BelongsTo

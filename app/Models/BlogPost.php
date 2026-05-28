@@ -20,7 +20,6 @@ class BlogPost extends Model
 
     protected $fillable = [
         'user_id',
-        'community_id',
         'organization_id',
         'title',
         'slug',
@@ -60,7 +59,7 @@ class BlogPost extends Model
 
     public function community(): BelongsTo
     {
-        return $this->belongsTo(Community::class);
+        return $this->organization();
     }
 
     public function organization(): BelongsTo
