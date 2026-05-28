@@ -83,6 +83,14 @@ All changes in `database/seeders/*` only.
 
 ---
 
+# Lot 3 — Blade dead code
+
+`resources/views/admin/users/edit.blade.php:62` — removed dead `$user->community_id` fallback (column dropped in T151).
+
+**Validation:** `php artisan test --filter=Admin` → 200/0 ✅
+
+---
+
 # Progress Log
 
 ## 2026-05-29 00:19:30 Europe/Paris
