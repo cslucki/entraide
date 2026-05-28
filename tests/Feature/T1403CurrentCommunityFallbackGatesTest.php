@@ -133,21 +133,11 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
     {
         $allowlist = [
             'app/Http/Middleware/ResolveCommunity.php',
-            'app/Http/Middleware/ResolveOrganization.php',
             'app/Http/Middleware/ResolveUrlOrganization.php',
-            'app/Support/Tenancy/CurrentOrganization.php',
-            'tests/Feature/T1403CurrentCommunityFallbackGatesTest.php',
-            'tests/Feature/CurrentOrganizationTest.php',
-            'tests/Feature/T1392LegacyCharacterizationTest.php',
-            'tests/Feature/T1392KnownRisksTest.php',
-            'tests/Feature/OrganizationCompatibilityTest.php',
-            'tests/Feature/OrganizationRouteCompatibilityTest.php',
-            'tests/Feature/ResolveUrlOrganizationTest.php',
-            'tests/Feature/BelongsToTenantScopeTest.php',
-            'tests/Feature/LoopMemberInvariantTest.php',
-            'tests/Feature/T0757ProfileOrganizationScopingTest.php',
-            'tests/Feature/Api/ApiTenantScopingTest.php',
             'app/Http/Middleware/ResolveApiOrganization.php',
+            'app/Http/Middleware/ResolveOrganization.php',
+            'app/Support/Tenancy/CurrentOrganization.php',
+            'app/Models/Traits/HasOrganizationId.php',
         ];
 
         $candidates = [];

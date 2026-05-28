@@ -139,7 +139,8 @@ class RewardDispatcherTest extends TestCase
 
     public function test_handle_invited_rejects_without_organization(): void
     {
-        $userWithoutOrg = User::factory()->create(['organization_id' => null]);
+        $userWithoutOrg = User::factory()->create();
+        $userWithoutOrg->updateQuietly(['organization_id' => null]);
         $event = new MemberInvited($userWithoutOrg, $this->referred);
 
         $this->expectException(\RuntimeException::class);
