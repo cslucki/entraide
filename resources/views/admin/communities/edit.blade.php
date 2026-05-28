@@ -1,6 +1,6 @@
 <x-admin-layout title="Éditer la communauté">
     <div class="max-w-2xl">
-        <form method="POST" action="{{ route('admin.communities.update', $community) }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.organizations.update', $community) }}" class="space-y-6">
             @csrf
             @method('PUT')
 
@@ -94,7 +94,7 @@
                 <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
                     Enregistrer
                 </button>
-                <a href="{{ route('admin.communities') }}" class="px-5 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <a href="{{ route('admin.organizations') }}" class="px-5 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     Annuler
                 </a>
             </div>

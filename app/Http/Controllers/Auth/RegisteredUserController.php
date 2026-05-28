@@ -46,7 +46,7 @@ class RegisteredUserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'points_balance' => 100,
-            'community_id' => $organization?->id,
+            'organization_id' => $organization?->id,
         ]);
 
         PointLedger::create([
@@ -72,10 +72,10 @@ class RegisteredUserController extends Controller
             }
         }
 
-        if ($user->community_id) {
-            $community = $user->community;
-            if ($community && $community->is_active) {
-                return redirect()->intended(route('community.home', ['community' => $community->slug]));
+        if ($user->organization_id) {
+            $organization = $user->organization;
+            if ($organization && $organization->is_active) {
+                return redirect()->intended(route('organization.home', ['organization' => $organization->slug]));
             }
         }
 

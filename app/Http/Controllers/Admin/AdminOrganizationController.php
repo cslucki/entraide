@@ -1,0 +1,111 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Organization;
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\View\View;
+
+class AdminOrganizationController extends Controller
+{
+    public function index(): View
+    {
+        $organizations = Organization::withCount(['users', 'services'])->with('admin')
+            ->latest()
+            ->paginate(20);
+
+        return view('admin.communities.index', ['communities' => $organizations]);
+    }
+
+    public function create(): View
+    {
+        $admins = User::orderBy('name')->get();
+        return view('admin.communities.create', compact('admins'));
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name'               => 'required|string|max:100|unique:organizations,name',
+            'slug'               => 'nullable|string|max:100|unique:organizations,slug|regex:/^[a-z0-9\-]+$/',
+            'description'        => 'nullable|string|max:500',
+            'admin_id'           => 'nullable|uuid|exists:users,id',
+            'hero_title'         => 'nullable|string|max:100',
+            'hero_description'   => 'nullable|string|max:500',
+            'accent_color'       => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
+            'welcome_points'     => 'required|integer|min:0|max:10000',
+            'is_public'          => 'nullable|boolean',
+        ]);
+
+        if (empty($data['slug'])) {
+            $data['slug'] = Str::slug($data['name']);
+        }
+
+        $data['accent_color'] = $data['accent_color'] ?? '#6366f1';
+        $data['is_active'] = true;
+        $data['is_public'] = isset($data['is_public']);
+
+        Organization::create($data);
+
+        return redirect()->route('admin.organizations')->with('success', "Organisation « {$data['name']} » créée.");
+    }
+
+    public function edit(Organization $organization): View
+    {
+        $admins = User::orderBy('name')->get();
+        return view('admin.communities.edit', ['community' => $organization, 'admins' => $admins]);
+    }
+
+    public function update(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'name'               => 'required|string|max:100|unique:organizations,name,' . $organization->id,
+            'slug'               => 'nullable|string|max:100|unique:organizations,slug,' . $organization->id . '|regex:/^[a-z0-9\-]+$/',
+            'description'        => 'nullable|string|max:500',
+            'admin_id'           => 'nullable|uuid|exists:users,id',
+            'hero_title'         => 'nullable|string|max:100',
+            'hero_description'   => 'nullable|string|max:500',
+            'accent_color'       => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
+            'welcome_points'     => 'required|integer|min:0|max:10000',
+            'is_public'          => 'nullable|boolean',
+        ]);
+
+        if (empty($data['slug'])) {
+            $data['slug'] = Str::slug($data['name']);
+        }
+
+        $data['is_public'] = isset($data['is_public']);
+
+        $organization->update($data);
+
+        return redirect()->route('admin.organizations')->with('success', "Organisation « {$organization->name} » mise à jour.");
+    }
+
+    public function toggleActive(Organization $organization): RedirectResponse
+    {
+        if ($organization->id === auth()->user()->organization_id && auth()->user()->is_admin) {
+            return back()->with('error', 'Vous ne pouvez pas désactiver votre propre organisation.');
+        }
+
+        $organization->update(['is_active' => !$organization->is_active]);
+        $status = $organization->is_active ? 'activée' : 'désactivée';
+
+        return back()->with('success', "Organisation « {$organization->name} » {$status}.");
+    }
+
+    public function destroy(Organization $organization): RedirectResponse
+    {
+        $organization->users()->update(['organization_id' => null]);
+        $organization->services()->update(['organization_id' => null]);
+        $organization->serviceRequests()->update(['organization_id' => null]);
+        $organization->transactions()->update(['organization_id' => null]);
+
+        $organization->delete();
+
+        return back()->with('success', "Organisation « {$organization->name} » supprimée.");
+    }
+}

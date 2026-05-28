@@ -6,7 +6,7 @@
             <p class="text-sm text-gray-400 mt-1">Paramètres globaux du site BouclePro (hors communautés spécifiques).</p>
         </div>
 
-        <form method="POST" action="{{ route('admin.meta-community.update') }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.meta-organization.update') }}" class="space-y-6">
             @csrf
             @method('POST')
 
