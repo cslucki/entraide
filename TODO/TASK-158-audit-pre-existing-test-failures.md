@@ -2,7 +2,7 @@
 task_id: TASK-158
 title: Audit pre-existing test failures after Community migration
 
-status: DONE
+status: MERGED
 
 owner: ORCHESTRATOR
 
@@ -13,7 +13,7 @@ branch: TASK-158-audit-pre-existing-test-failures
 priority: HIGH
 
 created_at: 2026-05-28 19:54:48 Europe/Paris
-updated_at: 2026-05-28 20:18:00 Europe/Paris
+updated_at: 2026-05-28 21:14:02 Europe/Paris
 
 labels:
   - tests
@@ -92,6 +92,10 @@ Report created:
 `docs/audits/TASK-158-pre-existing-test-failures-audit.md`
 
 Recommendation: do not launch the full test wave yet. Create a tiny fix branch for the duplicate import, then rerun the audit/full test suite to expose the real remaining failure list.
+
+## 2026-05-28 21:14:02 Europe/Paris
+
+Task merged into `develop` via `f405a83`.
 
 ---
 

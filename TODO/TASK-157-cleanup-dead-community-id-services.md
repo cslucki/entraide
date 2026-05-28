@@ -1,6 +1,6 @@
 ---
 task_id: TASK-157
-status: DONE
+status: MERGED
 owner: OpenCode
 branch: TASK-157-cleanup-dead-community-id-services
 lock:
@@ -29,3 +29,4 @@ Aucun changement fonctionnel. Les 6 lignes étaient dead code car `community_id`
 
 ## Progress log
 2026-05-28 — Scope read, 6 occurrences identified, all fixed, syntax validated, committed.
+2026-05-28 21:14:02 CEST — Merged into `develop` via `e799d7c`.
