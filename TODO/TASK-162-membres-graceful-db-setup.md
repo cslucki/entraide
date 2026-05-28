@@ -1,6 +1,6 @@
 ---
 task_id: TASK-162
-status: DONE
+status: MERGED
 owner: OpenCode
 branch: TASK-162-membres-graceful-db-setup
 lock:
