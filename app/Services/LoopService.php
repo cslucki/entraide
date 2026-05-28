@@ -13,7 +13,7 @@ class LoopService
 {
     public function createLoop(User $user, string $name, ?string $description = null): Loop
     {
-        $orgId = $user->organization_id ?? $user->community_id;
+        $orgId = $user->organization_id;
 
         if (! $orgId) {
             throw new \RuntimeException('User has no organization.');
@@ -38,7 +38,7 @@ class LoopService
 
     public function addMember(Loop $loop, User $user, string $role = 'member'): LoopMember
     {
-        $orgId = $user->organization_id ?? $user->community_id;
+        $orgId = $user->organization_id;
 
         if ($loop->organization_id !== $orgId) {
             throw new \RuntimeException('Cannot add member from a different organization to this loop.');
@@ -63,7 +63,7 @@ class LoopService
 
     public function getEligibleReferrals(User $user, Loop $loop): Collection
     {
-        $orgId = $user->organization_id ?? $user->community_id;
+        $orgId = $user->organization_id;
 
         if ($loop->organization_id !== $orgId) {
             return new Collection;
