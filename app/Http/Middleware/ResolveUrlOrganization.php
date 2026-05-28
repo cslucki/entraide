@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Setting;
 use Closure;
 use Illuminate\Http\Request;
@@ -167,7 +167,7 @@ class ResolveUrlOrganization
             && $this->isFeatureRoute($second);
     }
 
-    protected function resolveOrganization(Request $request): ?Community
+    protected function resolveOrganization(Request $request): ?Organization
     {
         $first = $request->segment(1);
 
@@ -206,10 +206,10 @@ class ResolveUrlOrganization
         return in_array($first, static::$defaultOrganizationRoutes);
     }
 
-    protected function resolveDefaultOrganization(): ?Community
+    protected function resolveDefaultOrganization(): ?Organization
     {
         if (static::$defaultOrganizationId) {
-            $org = Community::find(static::$defaultOrganizationId);
+            $org = Organization::find(static::$defaultOrganizationId);
             if ($org) {
                 return $org;
             }
@@ -217,13 +217,13 @@ class ResolveUrlOrganization
 
         $defaultId = Setting::get('default_organization_id');
         if ($defaultId) {
-            $org = Community::find($defaultId);
+            $org = Organization::find($defaultId);
             if ($org) {
                 return $org;
             }
         }
 
-        $org = Community::where('is_active', true)->first();
+        $org = Organization::where('is_active', true)->first();
 
         if (! $org) {
             Log::warning('Default Organization resolution failed: no active community in DB, static $defaultOrganizationId is null, and Setting default_organization_id is not set. Environment may be uninitialized.');
@@ -232,7 +232,7 @@ class ResolveUrlOrganization
         return $org;
     }
 
-    protected function resolveFromAuthenticatedUser(): ?Community
+    protected function resolveFromAuthenticatedUser(): ?Organization
     {
         $user = Auth::user();
 
@@ -240,22 +240,22 @@ class ResolveUrlOrganization
             return null;
         }
 
-        $orgId = $user->organization_id ?? $user->community_id;
+        $orgId = $user->organization_id;
         if ($orgId) {
-            return Community::find($orgId);
+            return Organization::find($orgId);
         }
 
         return null;
     }
 
-    protected function resolvePartnerOrganization(string $slug): ?Community
+    protected function resolvePartnerOrganization(string $slug): ?Organization
     {
         // Out of scope for T075.2.
         // Partner — Organization resolution is a future task (T075.4+).
         return null;
     }
 
-    protected function bindOrganization(Community $organization): void
+    protected function bindOrganization(Organization $organization): void
     {
         app()->instance('current_organization', $organization);
 

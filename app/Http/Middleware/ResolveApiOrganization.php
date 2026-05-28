@@ -37,7 +37,7 @@ class ResolveApiOrganization
 
     protected function resolveFromAuthenticatedUser(object $user): ?Organization
     {
-        $orgId = $user->organization_id ?? $user->community_id;
+        $orgId = $user->organization_id;
 
         if (! $orgId) {
             return null;
