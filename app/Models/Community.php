@@ -80,6 +80,6 @@ class Community extends Model
 
     public function loops(): HasMany
     {
-        return $this->hasMany(Loop::class, 'community_id');
+        return $this->hasMany(Loop::class, 'organization_id');
     }
 }
