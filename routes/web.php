@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminBlogController;
-use App\Http\Controllers\Admin\AdminCommunityController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
@@ -10,7 +9,8 @@ use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminMessageController;
-use App\Http\Controllers\Admin\AdminMetaCommunityController;
+use App\Http\Controllers\Admin\AdminMetaOrganizationController;
+use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -19,9 +19,9 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
-use App\Http\Controllers\CommunityLandingController;
-use App\Http\Controllers\CommunityRequestController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\OrganizationLandingController;
+use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\HomeController;
@@ -49,8 +49,8 @@ Route::get('/membres', [HomeController::class, 'members'])->name('members.index'
 Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
 Route::redirect('/partners', '/partenaires');
 Route::get('/partenaires', [HomeController::class, 'partners'])->name('partenaires.index');
-Route::get('/partenaires/demande', [CommunityRequestController::class, 'create'])->name('partenaires.request.create');
-Route::post('/partenaires/demande', [CommunityRequestController::class, 'store'])->name('partenaires.request.store');
+Route::get('/partenaires/demande', [OrganizationRequestController::class, 'create'])->name('partenaires.request.create');
+Route::post('/partenaires/demande', [OrganizationRequestController::class, 'store'])->name('partenaires.request.store');
 Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index');
 Route::redirect('/boucles/creer', '/partenaires/demande');
 
@@ -196,14 +196,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/categories/{category}/skills', [AdminController::class, 'storeSkill'])->name('categories.skills.store');
     Route::delete('/skills/{skill}', [AdminController::class, 'destroySkill'])->name('skills.destroy');
 
-    // Communities
-    Route::get('/communities', [AdminCommunityController::class, 'index'])->name('communities');
-    Route::get('/communities/create', [AdminCommunityController::class, 'create'])->name('communities.create');
-    Route::post('/communities', [AdminCommunityController::class, 'store'])->name('communities.store');
-    Route::get('/communities/{community}/edit', [AdminCommunityController::class, 'edit'])->name('communities.edit');
-    Route::put('/communities/{community}', [AdminCommunityController::class, 'update'])->name('communities.update');
-    Route::post('/communities/{community}/toggle-active', [AdminCommunityController::class, 'toggleActive'])->name('communities.toggle-active');
-    Route::delete('/communities/{community}', [AdminCommunityController::class, 'destroy'])->name('communities.destroy');
+    // Organizations
+    Route::get('/organizations', [AdminOrganizationController::class, 'index'])->name('organizations');
+    Route::get('/organizations/create', [AdminOrganizationController::class, 'create'])->name('organizations.create');
+    Route::post('/organizations', [AdminOrganizationController::class, 'store'])->name('organizations.store');
+    Route::get('/organizations/{organization}/edit', [AdminOrganizationController::class, 'edit'])->name('organizations.edit');
+    Route::put('/organizations/{organization}', [AdminOrganizationController::class, 'update'])->name('organizations.update');
+    Route::post('/organizations/{organization}/toggle-active', [AdminOrganizationController::class, 'toggleActive'])->name('organizations.toggle-active');
+    Route::delete('/organizations/{organization}', [AdminOrganizationController::class, 'destroy'])->name('organizations.destroy');
 
     // Messages moderation
     Route::get('/messages', [AdminMessageController::class, 'index'])->name('messages');
@@ -223,9 +223,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/settings', [AdminSettingController::class, 'index'])->name('settings');
     Route::post('/settings', [AdminSettingController::class, 'update'])->name('settings.update');
 
-    // Meta-communauté (site global)
-    Route::get('/meta_community', [AdminMetaCommunityController::class, 'index'])->name('meta-community');
-    Route::post('/meta_community', [AdminMetaCommunityController::class, 'update'])->name('meta-community.update');
+    // Meta-organisation (site global)
+    Route::get('/meta_organization', [AdminMetaOrganizationController::class, 'index'])->name('meta-organization');
+    Route::post('/meta_organization', [AdminMetaOrganizationController::class, 'update'])->name('meta-organization.update');
 
     Route::get('/email-test', [AdminEmailController::class, 'index'])->name('email-test');
     Route::post('/email-test', [AdminEmailController::class, 'send'])->name('email-test.send');
@@ -280,7 +280,7 @@ Route::prefix('/{community}')
     ->name('community.')
     ->group(function () {
         // Page d'accueil de la communauté
-        Route::get('/', [CommunityLandingController::class, '__invoke'])->name('home');
+        Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
 
         // Routes guest (auth)
         Route::middleware('guest')->group(function () {
@@ -379,7 +379,7 @@ Route::prefix('/org/{organization}')
     ->where(['organization' => $organizationConstraint])
     ->name('organization.')
     ->group(function () {
-        Route::get('/', [CommunityLandingController::class, '__invoke'])->name('home');
+        Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
 
         Route::middleware('guest')->group(function () {
             Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');

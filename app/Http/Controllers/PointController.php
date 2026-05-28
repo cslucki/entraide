@@ -47,8 +47,8 @@ class PointController extends Controller
         $referralPointsEarned = $user->referralRewards()->sum('points');
         $sentReferralsCount = $user->sentReferrals()->count();
         $activatedReferralsCount = $user->sentReferrals()->where('status', 'activated')->count();
-        $referralLink = $user->community?->slug && $user->referral_code
-            ? route('community.register', ['community' => $user->community->slug, 'ref' => $user->referral_code])
+        $referralLink = $user->organization?->slug && $user->referral_code
+            ? route('organization.register', ['organization' => $user->organization->slug, 'ref' => $user->referral_code])
             : null;
 
         $history = array_reverse($history);
