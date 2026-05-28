@@ -14,6 +14,8 @@ class Community extends Model
 {
     use HasUuids, HasFactory, SoftDeletes;
 
+    protected $table = 'organizations';
+
     protected $fillable = [
         'name',
         'slug',
