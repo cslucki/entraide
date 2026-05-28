@@ -56,7 +56,7 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
                 ->where('status', 'active')
                 ->exists();
 
-            $orgId = $user->organization_id ?? $user->organization_id;
+            $orgId = $user->organization_id;
             if ($isActiveMember && $loop->organization_id === $orgId) {
                 $result = ['id' => $user->id];
             }
@@ -77,7 +77,7 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
                 ->where('status', 'active')
                 ->exists();
 
-            $orgId = $user->organization_id ?? $user->organization_id;
+            $orgId = $user->organization_id;
             if ($isActiveMember && $loop->organization_id === $orgId) {
                 $result = ['id' => $user->id];
             }
@@ -118,16 +118,14 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
         $this->assertChannelDenies($this->userA, '00000000-0000-0000-0000-000000000000');
     }
 
-    public function test_channel_authorizes_when_organization_id_matches_despite_community_id_desync(): void
+    public function test_channel_authorizes_when_organization_id_matches(): void
     {
         $userDesync = User::factory()->create([
             'organization_id' => $this->orgA->id,
-            'organization_id' => $this->orgB->id,
         ]);
 
         $loopDesync = Loop::factory()->create([
             'organization_id' => $this->orgA->id,
-            'organization_id' => $this->orgB->id,
         ]);
 
         LoopMember::factory()->create([
@@ -139,13 +137,10 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
         $this->assertChannelAuthorizes($userDesync, $loopDesync->id);
     }
 
-    public function test_channel_denies_when_organization_id_differs_despite_same_community_id(): void
+    public function test_channel_denies_when_organization_id_differs(): void
     {
         $user = User::factory()->create(['organization_id' => $this->orgA->id]);
-        $user->updateQuietly(['organization_id' => $this->orgB->id]);
-
         $loop = Loop::factory()->create(['organization_id' => $this->orgB->id]);
-        $loop->updateQuietly(['organization_id' => $this->orgA->id]);
 
         LoopMember::factory()->create([
             'loop_id' => $loop->id,
@@ -166,7 +161,6 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
 
         $user = User::factory()->create([
             'organization_id' => $this->orgB->id,
-            'organization_id' => $this->orgA->id,
         ]);
 
         Service::factory()->count(2)->create([
@@ -185,35 +179,9 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
             ->assertJsonPath('total', 3);
     }
 
-    public function test_api_falls_back_to_community_id_when_organization_id_null(): void
-    {
-        Setting::set('default_organization_id', $this->orgA->id);
-
-        $user = User::factory()->create([
-            'organization_id' => null,
-            'organization_id' => $this->orgA->id,
-        ]);
-
-        Service::factory()->count(2)->create([
-            'status' => 'active',
-            'organization_id' => $this->orgA->id,
-        ]);
-
-        Service::factory()->count(3)->create([
-            'status' => 'active',
-            'organization_id' => $this->orgB->id,
-        ]);
-
-        $this->actingAs($user)
-            ->getJson('/api/services')
-            ->assertOk()
-            ->assertJsonPath('total', 2);
-    }
-
-    public function test_api_rejects_user_without_org_id_or_community_id(): void
+    public function test_api_rejects_user_without_organization_id(): void
     {
         $user = User::factory()->create([
-            'organization_id' => null,
             'organization_id' => null,
         ]);
 
