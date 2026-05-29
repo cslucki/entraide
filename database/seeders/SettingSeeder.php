@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Organization;
 use App\Models\Setting;
 use Illuminate\Database\Seeder;
 
@@ -15,7 +16,8 @@ class SettingSeeder extends Seeder
 
         // Default Organization — résolue par ResolveUrlOrganization
         // fallback #2 après static::$defaultOrganizationId.
-        $default = \App\Models\Community::orderBy('created_at')->first();
+        $default = Organization::where('slug', 'main')->first()
+            ?? Organization::orderBy('created_at')->first();
         if ($default) {
             Setting::set('default_organization_id', $default->id);
         }

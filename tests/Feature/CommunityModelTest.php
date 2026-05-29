@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -10,7 +10,7 @@ class CommunityModelTest extends TestCase
 {
     public function test_community_has_customization_fields(): void
     {
-        $community = Community::factory()->create([
+        $community = Organization::factory()->create([
             'hero_title' => 'Bienvenue chez nous',
             'hero_description' => 'Description de la communauté',
             'accent_color' => '#ff5733',
@@ -25,7 +25,7 @@ class CommunityModelTest extends TestCase
 
     public function test_community_default_values(): void
     {
-        $community = Community::factory()->create();
+        $community = Organization::factory()->create();
 
         $this->assertEquals('#6366f1', $community->accent_color);
         $this->assertEquals(100, $community->welcome_points);
@@ -34,7 +34,7 @@ class CommunityModelTest extends TestCase
     public function test_community_admin_relation(): void
     {
         $admin = User::factory()->create();
-        $community = Community::factory()->create(['admin_id' => $admin->id]);
+        $community = Organization::factory()->create(['admin_id' => $admin->id]);
 
         $this->assertTrue($community->admin()->exists());
         $this->assertEquals($admin->id, $community->admin->id);
@@ -43,7 +43,7 @@ class CommunityModelTest extends TestCase
     public function test_community_admin_null_when_deleted(): void
     {
         $admin = User::factory()->create();
-        $community = Community::factory()->create(['admin_id' => $admin->id]);
+        $community = Organization::factory()->create(['admin_id' => $admin->id]);
 
         $admin->delete();
         $community->refresh();
@@ -53,31 +53,31 @@ class CommunityModelTest extends TestCase
 
     public function test_find_by_slug_returns_active_community(): void
     {
-        Community::factory()->create(['slug' => 'test-community', 'is_active' => true]);
-        Community::factory()->create(['slug' => 'inactive-community', 'is_active' => false]);
+        Organization::factory()->create(['slug' => 'test-community', 'is_active' => true]);
+        Organization::factory()->create(['slug' => 'inactive-community', 'is_active' => false]);
 
-        $found = Community::findBySlug('test-community');
+        $found = Organization::findBySlug('test-community');
         $this->assertNotNull($found);
         $this->assertEquals('test-community', $found->slug);
     }
 
     public function test_find_by_slug_returns_null_for_inactive(): void
     {
-        Community::factory()->create(['slug' => 'inactive-community', 'is_active' => false]);
+        Organization::factory()->create(['slug' => 'inactive-community', 'is_active' => false]);
 
-        $found = Community::findBySlug('inactive-community');
+        $found = Organization::findBySlug('inactive-community');
         $this->assertNull($found);
     }
 
     public function test_find_by_slug_returns_null_for_nonexistent(): void
     {
-        $found = Community::findBySlug('nonexistent');
+        $found = Organization::findBySlug('nonexistent');
         $this->assertNull($found);
     }
 
     public function test_get_hero_image_url_returns_asset_when_set(): void
     {
-        $community = Community::factory()->create(['hero_image' => 'communities/my-hero.jpg']);
+        $community = Organization::factory()->create(['hero_image' => 'communities/my-hero.jpg']);
 
         $url = $community->getHeroImageUrl();
         $this->assertStringContainsString('communities/my-hero.jpg', $url);
@@ -85,7 +85,7 @@ class CommunityModelTest extends TestCase
 
     public function test_get_hero_image_url_returns_default_when_not_set(): void
     {
-        $community = Community::factory()->create();
+        $community = Organization::factory()->create();
 
         $url = $community->getHeroImageUrl();
         $this->assertStringContainsString('/images/default-hero.jpg', $url);
@@ -93,7 +93,7 @@ class CommunityModelTest extends TestCase
 
     public function test_community_is_fillable(): void
     {
-        $community = new Community();
+        $community = new Organization();
 
         $fillable = $community->getFillable();
 

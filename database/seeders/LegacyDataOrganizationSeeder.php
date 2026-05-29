@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\Setting;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -11,10 +11,10 @@ class LegacyDataOrganizationSeeder extends Seeder
 {
     public function run(): void
     {
-        $community = $this->resolveDefaultCommunity();
+        $community = $this->resolveDefaultOrganization();
 
         if (! $community) {
-            $this->command->warn('No active community found. Skipping legacy data backfill.');
+            $this->command->warn('No active organization found. Skipping legacy data backfill.');
 
             return;
         }
@@ -44,7 +44,6 @@ class LegacyDataOrganizationSeeder extends Seeder
                 ->whereNull('community_id')
                 ->whereNull('organization_id')
                 ->update([
-                    'community_id' => $community->id,
                     'organization_id' => $community->id,
                 ]);
 
@@ -58,17 +57,22 @@ class LegacyDataOrganizationSeeder extends Seeder
         $this->command->info("Default organization ID set to: {$community->id}");
     }
 
-    private function resolveDefaultCommunity(): ?Community
+    private function resolveDefaultOrganization(): ?Organization
     {
         $defaultId = Setting::get('default_organization_id');
         if ($defaultId) {
-            $community = Community::find($defaultId);
+            $community = Organization::find($defaultId);
             if ($community) {
                 return $community;
             }
         }
 
-        $community = Community::where('is_public', true)
+        $community = Organization::where('slug', 'main')->first();
+        if ($community) {
+            return $community;
+        }
+
+        $community = Organization::where('is_public', true)
             ->where('is_active', true)
             ->first();
 
@@ -76,7 +80,7 @@ class LegacyDataOrganizationSeeder extends Seeder
             return $community;
         }
 
-        return Community::where('is_active', true)->first();
+        return Organization::where('is_active', true)->first();
     }
 
     private function getTablesWithOrganizationColumns(): array
