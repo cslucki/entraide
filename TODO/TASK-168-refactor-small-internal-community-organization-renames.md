@@ -60,11 +60,25 @@ TASK-168-refactor-small-internal-community-organization-renames
 Status:
 IN_PROGRESS
 
+## 2026-05-29 21:48:00 Europe/Paris
+
+Implementation complete:
+- helpers.php: removed community param fallback in organizationRoute()
+- AdminController.php: assignCommunity() → assignOrganization()
+- routes/web.php: updated method reference
+- AdminUsersTest.php: Pint formatting
+
+All 825 tests passed (0 regression).
+Pint applied.
+
+Status:
+DONE
+
 # Handoffs
 
 # Tests
 
-- [ ] feature tests
+- [x] feature tests
 - [ ] browser validation
 - [ ] responsive validation
 - [ ] console inspection
@@ -74,7 +88,7 @@ IN_PROGRESS
 
 # Test Results
 
-Pending.
+825 passed, 11 skipped. Zero regression.
 
 ---
 
