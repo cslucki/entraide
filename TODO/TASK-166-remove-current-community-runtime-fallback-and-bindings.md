@@ -2,7 +2,7 @@
 task_id: TASK-166
 title: Remove current_community runtime fallback and bindings
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
