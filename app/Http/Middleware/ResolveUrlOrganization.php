@@ -284,9 +284,5 @@ class ResolveUrlOrganization
     protected function bindOrganization(Organization $organization): void
     {
         app()->instance('current_organization', $organization);
-
-        if (! app()->bound('current_community')) {
-            app()->instance('current_community', $organization);
-        }
     }
 }
