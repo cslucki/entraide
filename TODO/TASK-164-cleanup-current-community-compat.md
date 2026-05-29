@@ -8,7 +8,7 @@ contributors:
 branch: TASK-164-cleanup-current-community-compat
 priority: HIGH
 created_at: 2026-05-29 08:17:49 Europe/Paris
-updated_at: 2026-05-29 08:40:00 Europe/Paris
+updated_at: 2026-05-29 09:00:00 Europe/Paris
 labels:
   - migration
   - cleanup
@@ -100,6 +100,14 @@ Lot 1 validated:
 
 ## 2026-05-29 08:40:00 Europe/Paris
 Task staged, committed, pushed. Scope scaled back to Lot 1 only. Locks released. Waiting for Lots 2-4 on instruction.
+
+## 2026-05-29 09:00:00 Europe/Paris
+**Merge arbitration by Cyril (option 1):**
+- T164 branch contains 14 files: 4 T164 Lot 1 (Blade views) + 10 T163 night batch (seeders, factory, tests)
+- T163 changes were never merged into develop separately
+- Cyril validates: **merge tout** — no split, no rebuild, no reset
+- Lot 2-4 not started
+- T163 is embedded in T164 merge by decision
 
 # Handoffs
 
