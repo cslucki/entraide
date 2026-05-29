@@ -20,12 +20,7 @@ class ResolveCommunity
                 abort(404);
             }
             app()->instance('current_organization', $organization);
-            app()->instance('current_community', $organization);
             View::share('currentOrganization', $organization);
-            View::share('currentCommunity', $organization);
-        } else {
-            View::share('currentOrganization', null);
-            View::share('currentCommunity', null);
         }
 
         return $next($request);

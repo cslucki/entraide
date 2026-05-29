@@ -7,8 +7,8 @@ namespace App\Http\Middleware;
  * Community → Organization migration.
  *
  * This class exists to provide a properly named middleware for organization
- * route groups. It binds both `current_organization` and `current_community`
- * to the same resolved instance, preserving full backward compatibility.
+ * route groups. It binds `current_organization` as the sole runtime tenant
+ * context, preserving full backward compatibility.
  *
  * @see ResolveCommunity
  */
