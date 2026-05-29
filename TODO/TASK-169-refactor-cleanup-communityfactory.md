@@ -2,7 +2,7 @@
 task_id: TASK-169
 title: Refactor: cleanup CommunityFactory
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
