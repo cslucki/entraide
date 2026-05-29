@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveApiOrganization;
 use App\Http\Middleware\ResolveCommunity;
-use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\Community;
 use App\Models\Loop;
 use App\Models\Organization;
@@ -16,7 +15,6 @@ use App\Models\User;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -147,7 +145,7 @@ class T1392LegacyCharacterizationTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 2. CurrentOrganization::get() fallback current_community
+    // 2. CurrentOrganization::get() — current_organization only
     // ─────────────────────────────────────────────────────────────
 
     public function test_current_organization_returns_null_when_nothing_bound(): void
@@ -166,14 +164,12 @@ class T1392LegacyCharacterizationTest extends TestCase
         $this->assertEquals($this->community->id, CurrentOrganization::get()?->id);
     }
 
-    public function test_current_organization_falls_back_to_current_community(): void
+    public function test_current_organization_no_fallback_to_current_community(): void
     {
         app()->forgetInstance('current_organization');
         app()->instance('current_community', $this->community);
 
-        $result = CurrentOrganization::get();
-        $this->assertNotNull($result);
-        $this->assertEquals($this->community->id, $result->id);
+        $this->assertNull(CurrentOrganization::get());
     }
 
     public function test_current_organization_prioritizes_organization_over_community(): void
@@ -203,25 +199,25 @@ class T1392LegacyCharacterizationTest extends TestCase
         $this->assertEquals($org->id, app('current_organization')->id);
     }
 
-    public function test_community_patched_route_binds_current_community(): void
+    public function test_community_patched_route_does_not_bind_current_community(): void
     {
         $org = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'slug' => 'test-bind-comm']);
 
         $this->get("/{$org->slug}/")
             ->assertOk();
 
-        $this->assertTrue(app()->bound('current_community'));
-        $this->assertEquals($org->id, app('current_community')->id);
+        $this->assertFalse(app()->bound('current_community'));
     }
 
-    public function test_community_route_binds_same_instance_for_both(): void
+    public function test_community_route_binds_current_organization(): void
     {
         $org = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'slug' => 'test-same-instance']);
 
         $this->get("/{$org->slug}/")
             ->assertOk();
 
-        $this->assertSame(app('current_organization'), app('current_community'));
+        $this->assertTrue(app()->bound('current_organization'));
+        $this->assertEquals($org->id, app('current_organization')->id);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -274,14 +270,14 @@ class T1392LegacyCharacterizationTest extends TestCase
     {
         $org = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'slug' => 'ma-communaute-test']);
 
-        $this->get("/ma-communaute-test/")->assertOk();
+        $this->get('/ma-communaute-test/')->assertOk();
     }
 
     public function test_legacy_community_route_binds_current_organization(): void
     {
         $org = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'slug' => 'slug-org-test']);
 
-        $this->get("/slug-org-test/")->assertOk();
+        $this->get('/slug-org-test/')->assertOk();
         $this->assertEquals($org->id, app('current_organization')->id);
     }
 

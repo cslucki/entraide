@@ -80,25 +80,6 @@ class BelongsToTenantScopeTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // current_community legacy fallback
-    // -------------------------------------------------------------------------
-
-    public function test_scope_falls_back_to_current_community(): void
-    {
-        $community = Organization::factory()->create();
-        $other = Organization::factory()->create();
-
-        $user = User::factory()->create(['organization_id' => $community->id]);
-        Service::factory()->forUser($user)->create(['organization_id' => $community->id]);
-        Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
-
-        // Only legacy binding — no current_organization
-        app()->instance('current_community', $community);
-
-        $this->assertCount(1, Service::all());
-    }
-
-    // -------------------------------------------------------------------------
     // No binding — safety guard returns empty set
     // -------------------------------------------------------------------------
 

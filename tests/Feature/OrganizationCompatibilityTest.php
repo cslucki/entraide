@@ -90,7 +90,6 @@ class OrganizationCompatibilityTest extends TestCase
 
         Route::get('/test-org-bind/{community}', function () {
             return response()->json([
-                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
             ]);
         })->middleware(ResolveCommunity::class);
@@ -100,24 +99,27 @@ class OrganizationCompatibilityTest extends TestCase
         $response->assertOk();
         $response->assertJson([
             'organization_id' => $community->id,
-            'organization_id' => $community->id,
         ]);
     }
 
-    public function test_current_organization_is_same_instance_as_current_community(): void
+    public function test_current_organization_is_bound(): void
     {
-        $community = Organization::factory()->create(['slug' => 'same-instance', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'org-bound', 'is_active' => true]);
 
-        Route::get('/test-same-instance/{community}', function () {
+        Route::get('/test-org-bound/{community}', function () {
             return response()->json([
-                'same' => app('current_community') === app('current_organization'),
+                'bound' => app()->bound('current_organization'),
+                'id' => app('current_organization')->id,
             ]);
         })->middleware(ResolveCommunity::class);
 
-        $response = $this->get('/test-same-instance/same-instance');
+        $response = $this->get('/test-org-bound/org-bound');
 
         $response->assertOk();
-        $response->assertJson(['same' => true]);
+        $response->assertJson([
+            'bound' => true,
+            'id' => $community->id,
+        ]);
     }
 
     public function test_middleware_returns_404_for_unknown_slug(): void
@@ -163,13 +165,12 @@ class OrganizationCompatibilityTest extends TestCase
         $this->assertEquals(ResolveOrganization::class, $aliases['organization']);
     }
 
-    public function test_resolve_organization_binds_both_current_keys(): void
+    public function test_resolve_organization_binds_current_organization(): void
     {
         $community = Organization::factory()->create(['slug' => 'resolve-org', 'is_active' => true]);
 
         Route::get('/resolve-org-test/{community}', function () {
             return response()->json([
-                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
             ]);
         })->middleware(ResolveOrganization::class);
@@ -178,7 +179,6 @@ class OrganizationCompatibilityTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'organization_id' => $community->id,
             'organization_id' => $community->id,
         ]);
     }
@@ -193,33 +193,25 @@ class OrganizationCompatibilityTest extends TestCase
         $response->assertNotFound();
     }
 
-    public function test_resolve_community_no_regression_legacy_behavior_unchanged(): void
+    public function test_resolve_community_binds_current_organization(): void
     {
-        $community = Organization::factory()->create(['slug' => 'legacy-bind', 'is_active' => true]);
+        $community = Organization::factory()->create(['slug' => 'org-bind', 'is_active' => true]);
 
-        Route::get('/legacy-bind-check/{community}', function () {
+        Route::get('/org-bind-check/{community}', function () {
             return response()->json([
-                'community_bound' => app()->bound('current_community'),
                 'organization_bound' => app()->bound('current_organization'),
-                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
-                'same_instance' => app('current_community') === app('current_organization'),
-                'view_community' => view()->shared('currentCommunity')?->slug,
                 'view_organization' => view()->shared('currentOrganization')?->slug,
             ]);
         })->middleware(ResolveCommunity::class);
 
-        $response = $this->get('/legacy-bind-check/legacy-bind');
+        $response = $this->get('/org-bind-check/org-bind');
 
         $response->assertOk();
         $response->assertJson([
-            'community_bound' => true,
             'organization_bound' => true,
             'organization_id' => $community->id,
-            'organization_id' => $community->id,
-            'same_instance' => true,
-            'view_community' => 'legacy-bind',
-            'view_organization' => 'legacy-bind',
+            'view_organization' => 'org-bind',
         ]);
     }
 
@@ -229,7 +221,6 @@ class OrganizationCompatibilityTest extends TestCase
 
         Route::get('/resolve-org-view/{community}', function () {
             return response()->json([
-                'currentCommunity' => view()->shared('currentCommunity')?->slug,
                 'currentOrganization' => view()->shared('currentOrganization')?->slug,
             ]);
         })->middleware(ResolveOrganization::class);
@@ -238,7 +229,6 @@ class OrganizationCompatibilityTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'currentCommunity' => 'view-share',
             'currentOrganization' => 'view-share',
         ]);
     }

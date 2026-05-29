@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveCommunity;
-use App\Models\Community;
 use App\Models\Organization;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -39,22 +38,16 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Gate 2: current_community fallback legacy (caractérisation)
+    // Gate 2: current_community fallback is removed
     // ─────────────────────────────────────────────────────────────
 
-    public function test_current_community_fallback_still_works_when_current_organization_missing(): void
+    public function test_current_community_fallback_no_longer_works(): void
     {
         $community = Organization::factory()->create();
 
         app()->instance('current_community', $community);
 
-        $result = CurrentOrganization::get();
-
-        $this->assertNotNull(
-            $result,
-            'Le fallback current_community doit fonctionner (comportement legacy actuel)'
-        );
-        $this->assertEquals($community->id, $result->id);
+        $this->assertNull(CurrentOrganization::get());
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -69,10 +62,10 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Gate 4: ResolveCommunity route middleware binde les deux
+    // Gate 4: ResolveCommunity route middleware binds current_organization
     // ─────────────────────────────────────────────────────────────
 
-    public function test_resolve_community_binds_both_legacy_and_current_names(): void
+    public function test_resolve_community_binds_current_organization(): void
     {
         $community = Organization::factory()->create([
             'slug' => 't1403-gate-4',
@@ -83,9 +76,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
             return response()->json([
                 'community_bound' => app()->bound('current_community'),
                 'organization_bound' => app()->bound('current_organization'),
-                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
-                'same_instance' => app('current_community') === app('current_organization'),
             ]);
         })->middleware(ResolveCommunity::class);
 
@@ -93,11 +84,9 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'community_bound' => true,
+            'community_bound' => false,
             'organization_bound' => true,
             'organization_id' => $community->id,
-            'organization_id' => $community->id,
-            'same_instance' => true,
         ]);
     }
 
@@ -161,7 +150,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
 
         $this->assertEmpty(
             $candidates,
-            'Nouveaux usages runtime de current_community détectés en dehors de l\'allowlist: ' .
+            'Nouveaux usages runtime de current_community détectés en dehors de l\'allowlist: '.
                 implode(', ', $candidates)
         );
     }

@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveCommunity;
-use App\Http\Middleware\ResolveOrganization;
 use App\Models\Community;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,19 +39,18 @@ class OrganizationRouteCompatibilityTest extends TestCase
         $community = Organization::factory()->create(['slug' => 'legacy-slug', 'is_active' => true]);
 
         Route::get('/c/{community}', function () {
-            return response()->json(['id' => app('current_community')->id]);
+            return response()->json(['id' => app('current_organization')->id]);
         })->middleware(ResolveCommunity::class);
 
         $this->get('/c/legacy-slug')->assertOk()->assertJson(['id' => $community->id]);
     }
 
-    public function test_organization_param_binds_both_current_keys(): void
+    public function test_organization_param_binds_current_organization(): void
     {
         $community = Organization::factory()->create(['slug' => 'both-keys', 'is_active' => true]);
 
         Route::get('/_test/org/{organization}', function () {
             return response()->json([
-                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
             ]);
         })->middleware(ResolveCommunity::class);
@@ -60,7 +58,6 @@ class OrganizationRouteCompatibilityTest extends TestCase
         $this->get('/_test/org/both-keys')
             ->assertOk()
             ->assertJson([
-                'organization_id' => $community->id,
                 'organization_id' => $community->id,
             ]);
     }
@@ -88,7 +85,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
         $communitySlug = Organization::factory()->create(['slug' => 'comm-slug', 'is_active' => true]);
 
         Route::get('/test/{community}/{organization}', function () {
-            return response()->json(['id' => app('current_community')->id]);
+            return response()->json(['id' => app('current_organization')->id]);
         })->middleware(ResolveCommunity::class);
 
         $this->get('/test/comm-slug/anything')
@@ -122,17 +119,13 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
         Route::get('/community-alias/{community}', function () {
             return response()->json([
-                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
-                'same_instance' => app('current_community') === app('current_organization'),
             ]);
         })->middleware('community');
 
         Route::get('/organization-alias/{organization}', function () {
             return response()->json([
-                'organization_id' => app('current_community')->id,
                 'organization_id' => app('current_organization')->id,
-                'same_instance' => app('current_community') === app('current_organization'),
             ]);
         })->middleware('organization');
 
@@ -143,23 +136,16 @@ class OrganizationRouteCompatibilityTest extends TestCase
         $communityResponse->assertOk();
         $organizationResponse->assertOk();
 
-        // Each individually binds identical instances
-        $communityResponse->assertJson([
-            'organization_id' => $community->id,
-            'organization_id' => $community->id,
-            'same_instance' => true,
-        ]);
-        $organizationResponse->assertJson([
-            'organization_id' => $community->id,
-            'organization_id' => $community->id,
-            'same_instance' => true,
-        ]);
-
-        // Both aliases resolve the exact same tenant (same slug)
+        // Both aliases resolve the same tenant id
         $this->assertEquals(
+            $community->id,
             $communityResponse->json('organization_id'),
+            'community alias resolves tenant context'
+        );
+        $this->assertEquals(
+            $community->id,
             $organizationResponse->json('organization_id'),
-            'community and organization aliases must resolve the same tenant'
+            'organization alias resolves tenant context'
         );
     }
 }

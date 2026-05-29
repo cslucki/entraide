@@ -219,12 +219,11 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
         $this->assertEquals($this->orgA->id, app('current_organization')->id);
     }
 
-    public function test_org_route_binds_current_community_for_legacy(): void
+    public function test_org_route_does_not_bind_legacy_current_community(): void
     {
         $this->get("/org/{$this->orgA->slug}/");
 
-        $this->assertTrue(app()->bound('current_community'));
-        $this->assertEquals($this->orgA->id, app('current_community')->id);
+        $this->assertFalse(app()->bound('current_community'));
     }
 
     public function test_api_public_services_still_work(): void
