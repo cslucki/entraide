@@ -2,7 +2,7 @@
 task_id: TASK-168
 title: Refactor: small internal Community→Organization renames
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
