@@ -3,7 +3,6 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\Organization;
-use App\Models\PointLedger;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -40,7 +39,7 @@ class AdminUsersTest extends TestCase
     public function test_admin_can_ban_a_user(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['banned_at' => null]);
+        $user = User::factory()->create(['banned_at' => null]);
 
         $this->actingAs($admin)
             ->patch(route('admin.users.ban', $user))
@@ -64,7 +63,7 @@ class AdminUsersTest extends TestCase
     public function test_admin_can_unban_a_user(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['banned_at' => now()]);
+        $user = User::factory()->create(['banned_at' => now()]);
 
         $this->actingAs($admin)
             ->patch(route('admin.users.unban', $user))
@@ -78,7 +77,7 @@ class AdminUsersTest extends TestCase
     public function test_admin_can_add_points_to_user(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['points_balance' => 100]);
+        $user = User::factory()->create(['points_balance' => 100]);
 
         $this->actingAs($admin)
             ->post(route('admin.users.adjust-points', $user), ['delta' => 50])
@@ -91,7 +90,7 @@ class AdminUsersTest extends TestCase
     public function test_admin_can_remove_points_from_user(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['points_balance' => 100]);
+        $user = User::factory()->create(['points_balance' => 100]);
 
         $this->actingAs($admin)
             ->post(route('admin.users.adjust-points', $user), ['delta' => -30])
@@ -103,22 +102,22 @@ class AdminUsersTest extends TestCase
     public function test_adjust_points_writes_to_point_ledger(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['points_balance' => 100]);
+        $user = User::factory()->create(['points_balance' => 100]);
 
         $this->actingAs($admin)
             ->post(route('admin.users.adjust-points', $user), ['delta' => 25]);
 
         $this->assertDatabaseHas('point_ledger', [
             'user_id' => $user->id,
-            'delta'   => 25,
-            'reason'  => 'adjustment',
+            'delta' => 25,
+            'reason' => 'adjustment',
         ]);
     }
 
     public function test_adjust_points_rejects_zero_delta(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['points_balance' => 100]);
+        $user = User::factory()->create(['points_balance' => 100]);
 
         $this->actingAs($admin)
             ->post(route('admin.users.adjust-points', $user), ['delta' => 0])
@@ -133,7 +132,7 @@ class AdminUsersTest extends TestCase
     public function test_admin_can_toggle_admin_rights_of_another_user(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['is_admin' => false]);
+        $user = User::factory()->create(['is_admin' => false]);
 
         $this->actingAs($admin)
             ->patch(route('admin.users.toggle-admin', $user))
@@ -159,7 +158,7 @@ class AdminUsersTest extends TestCase
     public function test_admin_can_toggle_user_availability(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['is_available' => true]);
+        $user = User::factory()->create(['is_available' => true]);
 
         $this->actingAs($admin)
             ->patch(route('admin.users.toggle-availability', $user))
@@ -214,7 +213,7 @@ class AdminUsersTest extends TestCase
     public function test_assign_community_rejects_invalid_community_id(): void
     {
         $admin = $this->makeAdmin();
-        $user  = User::factory()->create(['organization_id' => null]);
+        $user = User::factory()->create(['organization_id' => null]);
 
         $this->actingAs($admin)
             ->patch(route('admin.users.assign-community', $user), ['organization_id' => 'nonexistent-uuid'])

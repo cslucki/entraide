@@ -20,14 +20,14 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\OrganizationLandingController;
-use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\OrganizationLandingController;
+use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\PointController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
@@ -170,7 +170,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/adjust-points', [AdminController::class, 'adjustPoints'])->name('users.adjust-points');
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
-    Route::patch('/users/{user}/assign-community', [AdminController::class, 'assignCommunity'])->name('users.assign-community');
+    Route::patch('/users/{user}/assign-community', [AdminController::class, 'assignOrganization'])->name('users.assign-community');
 
     // Services
     Route::get('/services', [AdminController::class, 'services'])->name('services');
