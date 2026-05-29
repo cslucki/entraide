@@ -2,16 +2,16 @@
 
 namespace Database\Factories;
 
-use App\Models\Community;
+use App\Models\Organization;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends Factory<Community>
+ * @extends Factory<Organization>
  */
 class CommunityFactory extends Factory
 {
-    protected $model = Community::class;
+    protected $model = Organization::class;
 
     public function definition(): array
     {
