@@ -297,7 +297,7 @@ class ResolveUrlOrganizationTest extends TestCase
     // Legacy compatibility
     // -----------------------------------------------------------------------
 
-    public function test_binds_current_community_for_legacy(): void
+    public function test_binds_organization_not_community(): void
     {
         $org = Organization::factory()->create(['is_active' => true]);
 
@@ -306,8 +306,9 @@ class ResolveUrlOrganizationTest extends TestCase
 
         $middleware->handle($request, fn () => response('ok'));
 
-        $this->assertTrue(app()->bound('current_community'));
-        $this->assertEquals($org->id, app('current_community')->id);
+        $this->assertTrue(app()->bound('current_organization'));
+        $this->assertEquals($org->id, app('current_organization')->id);
+        $this->assertFalse(app()->bound('current_community'));
     }
 
     public function test_does_not_override_existing_current_community(): void

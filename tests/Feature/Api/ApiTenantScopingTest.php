@@ -205,14 +205,15 @@ class ApiTenantScopingTest extends TestCase
         $this->assertEquals($this->organizationA->id, app('current_organization')->id);
     }
 
-    public function test_middleware_binds_legacy_runtime_tenant_key_for_backward_compat(): void
+    public function test_middleware_binds_current_organization(): void
     {
         $user = User::factory()->create(['organization_id' => $this->organizationB->id]);
 
         $this->withToken($user->createToken('api')->plainTextToken)
             ->getJson('/api/transactions');
 
-        $this->assertTrue(app()->bound('current_community'));
-        $this->assertEquals($this->organizationB->id, app('current_community')->id);
+        $this->assertTrue(app()->bound('current_organization'));
+        $this->assertEquals($this->organizationB->id, app('current_organization')->id);
+        $this->assertFalse(app()->bound('current_community'));
     }
 }
