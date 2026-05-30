@@ -2,8 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\ResolveCommunity;
-use App\Models\Community;
+use App\Http\Middleware\ResolveOrganization;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
@@ -29,7 +28,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
         Route::get('/_test/org/{organization}', function () {
             return response()->json(['id' => app('current_organization')->id]);
-        })->middleware(ResolveCommunity::class);
+        })->middleware(ResolveOrganization::class);
 
         $this->get('/_test/org/my-org')->assertOk()->assertJson(['id' => $community->id]);
     }
@@ -40,7 +39,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
         Route::get('/c/{community}', function () {
             return response()->json(['id' => app('current_organization')->id]);
-        })->middleware(ResolveCommunity::class);
+        })->middleware(ResolveOrganization::class);
 
         $this->get('/c/legacy-slug')->assertOk()->assertJson(['id' => $community->id]);
     }
@@ -53,7 +52,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
             return response()->json([
                 'organization_id' => app('current_organization')->id,
             ]);
-        })->middleware(ResolveCommunity::class);
+        })->middleware(ResolveOrganization::class);
 
         $this->get('/_test/org/both-keys')
             ->assertOk()
@@ -65,7 +64,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
     public function test_organization_param_returns_404_for_unknown_slug(): void
     {
         Route::get('/org/{organization}', fn () => response('ok'))
-            ->middleware(ResolveCommunity::class);
+            ->middleware(ResolveOrganization::class);
 
         $this->get('/org/nonexistent')->assertNotFound();
     }
@@ -75,7 +74,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
         Organization::factory()->create(['slug' => 'inactive-org', 'is_active' => false]);
 
         Route::get('/org/{organization}', fn () => response('ok'))
-            ->middleware(ResolveCommunity::class);
+            ->middleware(ResolveOrganization::class);
 
         $this->get('/org/inactive-org')->assertNotFound();
     }
@@ -86,7 +85,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
         Route::get('/test/{community}/{organization}', function () {
             return response()->json(['id' => app('current_organization')->id]);
-        })->middleware(ResolveCommunity::class);
+        })->middleware(ResolveOrganization::class);
 
         $this->get('/test/comm-slug/anything')
             ->assertOk()
@@ -103,49 +102,32 @@ class OrganizationRouteCompatibilityTest extends TestCase
         $this->assertEquals('slug', $org->getRouteKeyName());
     }
 
-    public function test_community_route_key_name_is_unchanged(): void
+    public function test_route_key_name_is_unchanged(): void
     {
-        $community = new Community;
-        $this->assertEquals('id', $community->getRouteKeyName());
+        $org = new Organization;
+        $this->assertEquals('slug', $org->getRouteKeyName());
     }
 
     // -------------------------------------------------------------------------
-    // Alias consistency: organization and community resolve the same tenant
+    // Community alias removed — 'organization' is now the only alias
     // -------------------------------------------------------------------------
 
-    public function test_community_and_organization_aliases_resolve_same_tenant(): void
+    public function test_organization_alias_resolves_tenant(): void
     {
-        $community = Organization::factory()->create(['slug' => 'same-tenant', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'org-tenant', 'is_active' => true]);
 
-        Route::get('/community-alias/{community}', function () {
-            return response()->json([
-                'organization_id' => app('current_organization')->id,
-            ]);
-        })->middleware('community');
-
-        Route::get('/organization-alias/{organization}', function () {
+        Route::get('/org-alias/{organization}', function () {
             return response()->json([
                 'organization_id' => app('current_organization')->id,
             ]);
         })->middleware('organization');
 
-        // Both aliases must resolve the same tenant instance
-        $communityResponse = $this->get('/community-alias/same-tenant');
-        $organizationResponse = $this->get('/organization-alias/same-tenant');
+        $response = $this->get('/org-alias/org-tenant');
 
-        $communityResponse->assertOk();
-        $organizationResponse->assertOk();
-
-        // Both aliases resolve the same tenant id
+        $response->assertOk();
         $this->assertEquals(
-            $community->id,
-            $communityResponse->json('organization_id'),
-            'community alias resolves tenant context'
-        );
-        $this->assertEquals(
-            $community->id,
-            $organizationResponse->json('organization_id'),
-            'organization alias resolves tenant context'
+            $organization->id,
+            $response->json('organization_id')
         );
     }
 }

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\ResolveCommunity;
+use App\Http\Middleware\ResolveOrganization;
 use App\Models\Organization;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -78,7 +78,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
                 'organization_bound' => app()->bound('current_organization'),
                 'organization_id' => app('current_organization')->id,
             ]);
-        })->middleware(ResolveCommunity::class);
+        })->middleware(ResolveOrganization::class);
 
         $response = $this->get('/t1403/gate4/t1403-gate-4');
 

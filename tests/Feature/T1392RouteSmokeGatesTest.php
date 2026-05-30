@@ -184,49 +184,49 @@ class T1392RouteSmokeGatesTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Routes communautaires préfixées /{community}/
+    // Routes organisation prefixed /org/{organization}/
     // ─────────────────────────────────────────────────────────────
 
-    public function test_community_home_returns_200(): void
+    public function test_org_home_returns_200(): void
     {
-        $this->get("/{$this->community->slug}/")
+        $this->get("/org/{$this->community->slug}/")
             ->assertOk();
     }
 
-    public function test_community_home_redirects_without_trailing_slash(): void
+    public function test_org_home_handles_trailing_slash(): void
     {
-        $response = $this->get("/{$this->community->slug}");
+        $response = $this->get("/org/{$this->community->slug}");
         $this->assertContains($response->status(), [200, 302]);
     }
 
-    public function test_community_explorer_returns_200(): void
+    public function test_org_explorer_returns_200(): void
     {
-        $this->get("/{$this->community->slug}/explorer")
+        $this->get("/org/{$this->community->slug}/explorer")
             ->assertOk();
     }
 
-    public function test_community_membres_returns_200(): void
+    public function test_org_membres_returns_200(): void
     {
-        $this->get("/{$this->community->slug}/membres")
+        $this->get("/org/{$this->community->slug}/membres")
             ->assertOk();
     }
 
-    public function test_community_dashboard_redirects_guest(): void
+    public function test_org_dashboard_redirects_guest(): void
     {
-        $this->get("/{$this->community->slug}/dashboard")
+        $this->get("/org/{$this->community->slug}/dashboard")
             ->assertRedirect(route('login'));
     }
 
-    public function test_community_dashboard_returns_200_for_authenticated_user(): void
+    public function test_org_dashboard_returns_200_for_authenticated_user(): void
     {
         $this->actingAs($this->user)
-            ->get("/{$this->community->slug}/dashboard")
+            ->get("/org/{$this->community->slug}/dashboard")
             ->assertOk();
     }
 
-    public function test_community_echanges_returns_200(): void
+    public function test_org_echanges_returns_200(): void
     {
-        $this->get("/{$this->community->slug}/echanges")
+        $this->get("/org/{$this->community->slug}/echanges")
             ->assertOk();
     }
 
@@ -234,24 +234,24 @@ class T1392RouteSmokeGatesTest extends TestCase
     // Routes authentifiées (profil, paramètres)
     // ─────────────────────────────────────────────────────────────
 
-    public function test_community_profile_edit_returns_200(): void
+    public function test_org_profile_edit_returns_200(): void
     {
         $this->actingAs($this->user)
-            ->get("/{$this->community->slug}/profile/edit")
+            ->get("/org/{$this->community->slug}/profile/edit")
             ->assertOk();
     }
 
-    public function test_community_loops_index_returns_200(): void
+    public function test_org_loops_index_returns_200(): void
     {
         $this->actingAs($this->user)
-            ->get("/{$this->community->slug}/loops")
+            ->get("/org/{$this->community->slug}/loops")
             ->assertOk();
     }
 
-    public function test_community_points_index_returns_200(): void
+    public function test_org_points_index_returns_200(): void
     {
         $this->actingAs($this->user)
-            ->get("/{$this->community->slug}/points")
+            ->get("/org/{$this->community->slug}/points")
             ->assertOk();
     }
 
@@ -274,14 +274,14 @@ class T1392RouteSmokeGatesTest extends TestCase
         $this->assertNotNull(route('admin.messages'));
     }
 
-    public function test_community_named_routes_exist(): void
+    public function test_organization_named_routes_exist(): void
     {
-        $this->assertNotNull(route('community.home', ['community' => 'test-org']));
-        $this->assertNotNull(route('community.dashboard', ['community' => 'test-org']));
-        $this->assertNotNull(route('community.explorer', ['community' => 'test-org']));
-        $this->assertNotNull(route('community.members.index', ['community' => 'test-org']));
-        $this->assertNotNull(route('community.loops.index', ['community' => 'test-org']));
-        $this->assertNotNull(route('community.profile.edit', ['community' => 'test-org']));
+        $this->assertNotNull(route('organization.home', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.dashboard', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.explorer', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.members.index', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.loops.index', ['organization' => 'test-org']));
+        $this->assertNotNull(route('organization.profile.edit', ['organization' => 'test-org']));
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -313,15 +313,5 @@ class T1392RouteSmokeGatesTest extends TestCase
         $this->actingAs($this->user)
             ->get("/org/{$this->community->slug}/dashboard")
             ->assertOk();
-    }
-
-    public function test_organization_named_routes_exist(): void
-    {
-        $this->assertNotNull(route('organization.home', ['organization' => 'test-org']));
-        $this->assertNotNull(route('organization.dashboard', ['organization' => 'test-org']));
-        $this->assertNotNull(route('organization.explorer', ['organization' => 'test-org']));
-        $this->assertNotNull(route('organization.members.index', ['organization' => 'test-org']));
-        $this->assertNotNull(route('organization.loops.index', ['organization' => 'test-org']));
-        $this->assertNotNull(route('organization.profile.edit', ['organization' => 'test-org']));
     }
 }

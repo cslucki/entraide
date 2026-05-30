@@ -64,6 +64,6 @@ class PublicFrenchPartnersRoutesTest extends TestCase
             ->assertSee('Les Boucles')
             ->assertSee('Les Boucles sont en cours de réorganisation.')
             ->assertDontSee($organization->name)
-            ->assertDontSee(route('community.home', ['community' => $organization->slug]));
+            ->assertDontSee(route('organization.home', ['organization' => $organization->slug]));
     }
 }

@@ -141,7 +141,7 @@
                                     <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
                                         Affecter à une organisation
                                     </p>
-                                    <form method="POST" action="{{ route('admin.users.assign-community', $u) }}">
+                                    <form method="POST" action="{{ route('admin.users.assign-organization', $u) }}">
                                         @csrf @method('PATCH')
                                         <select name="organization_id"
                                                 class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-2">

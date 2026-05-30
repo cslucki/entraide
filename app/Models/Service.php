@@ -33,11 +33,6 @@ class Service extends Model
         'status',
     ];
 
-    public function community(): BelongsTo
-    {
-        return $this->organization();
-    }
-
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'organization_id');

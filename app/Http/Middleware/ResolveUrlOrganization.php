@@ -77,7 +77,7 @@ class ResolveUrlOrganization
             return $next($request);
         }
 
-        if ($this->isCommunityPrefixedRoute($request)) {
+        if ($this->isOrganizationPrefixedRoute($request)) {
             return $next($request);
         }
 
@@ -128,11 +128,11 @@ class ResolveUrlOrganization
         return app()->bound('current_organization') && app('current_organization') !== null;
     }
 
-    protected function isCommunityPrefixedRoute(Request $request): bool
+    protected function isOrganizationPrefixedRoute(Request $request): bool
     {
         $route = $request->route();
 
-        return $route && ($route->hasParameter('community') || $route->hasParameter('organization'));
+        return $route && $route->hasParameter('organization');
     }
 
     protected function isPlatformGlobal(Request $request): bool
@@ -252,7 +252,7 @@ class ResolveUrlOrganization
         $org = Organization::where('is_active', true)->first();
 
         if (! $org) {
-            Log::warning('Default Organization resolution failed: no active community in DB, static $defaultOrganizationId is null, and Setting default_organization_id is not set. Environment may be uninitialized.');
+            Log::warning('Default Organization resolution failed: no active organization in DB, static $defaultOrganizationId is null, and Setting default_organization_id is not set. Environment may be uninitialized.');
         }
 
         return $org;

@@ -12,10 +12,10 @@ class OrganizationLandingController extends Controller
     public function __invoke(string $organization): View|RedirectResponse
     {
         $organization = Organization::findBySlug($organization);
-        abort_if(!$organization || !$organization->is_active, 404);
+        abort_if(! $organization || ! $organization->is_active, 404);
 
         if (! $organization->is_public && ! auth()->check()) {
-            return redirect()->route('community.login', ['community' => $organization->slug]);
+            return redirect()->route('organization.login', ['organization' => $organization->slug]);
         }
 
         $recentServices = Service::where('organization_id', $organization->id)

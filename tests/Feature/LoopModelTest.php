@@ -2,10 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
-use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,8 +19,8 @@ class LoopModelTest extends TestCase
         $community = Organization::factory()->create();
         $loop = Loop::factory()->create(['organization_id' => $community->id]);
 
-        $this->assertInstanceOf(Community::class, $loop->community);
-        $this->assertEquals($community->id, $loop->community->id);
+        $this->assertInstanceOf(Organization::class, $loop->organization);
+        $this->assertEquals($community->id, $loop->organization->id);
     }
 
     public function test_loop_belongs_to_creator(): void
