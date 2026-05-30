@@ -73,7 +73,7 @@ class OrganizationCompatibilityTest extends TestCase
     {
         $organization = Organization::factory()->create(['slug' => 'test-boucle', 'is_active' => true]);
 
-        Route::get('/test-org-bind/{community}', function () {
+        Route::get('/test-org-bind/{organization}', function () {
             return response()->json([
                 'organization_id' => app('current_organization')->id,
             ]);
@@ -91,7 +91,7 @@ class OrganizationCompatibilityTest extends TestCase
     {
         $organization = Organization::factory()->create(['slug' => 'org-bound', 'is_active' => true]);
 
-        Route::get('/test-org-bound/{community}', function () {
+        Route::get('/test-org-bound/{organization}', function () {
             return response()->json([
                 'bound' => app()->bound('current_organization'),
                 'id' => app('current_organization')->id,
@@ -109,7 +109,7 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_middleware_returns_404_for_unknown_slug(): void
     {
-        Route::get('/test-404/{community}', fn () => response('ok'))
+        Route::get('/test-404/{organization}', fn () => response('ok'))
             ->middleware(ResolveOrganization::class);
 
         $response = $this->get('/test-404/nonexistent-org');
@@ -148,7 +148,7 @@ class OrganizationCompatibilityTest extends TestCase
     {
         $organization = Organization::factory()->create(['slug' => 'resolve-org', 'is_active' => true]);
 
-        Route::get('/resolve-org-test/{community}', function () {
+        Route::get('/resolve-org-test/{organization}', function () {
             return response()->json([
                 'organization_id' => app('current_organization')->id,
             ]);
@@ -164,7 +164,7 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_resolve_organization_middleware_returns_404_for_unknown_slug(): void
     {
-        Route::get('/resolve-org-404/{community}', fn () => response('ok'))
+        Route::get('/resolve-org-404/{organization}', fn () => response('ok'))
             ->middleware(ResolveOrganization::class);
 
         $response = $this->get('/resolve-org-404/no-such-slug');
@@ -176,7 +176,7 @@ class OrganizationCompatibilityTest extends TestCase
     {
         $organization = Organization::factory()->create(['slug' => 'org-bind', 'is_active' => true]);
 
-        Route::get('/org-bind-check/{community}', function () {
+        Route::get('/org-bind-check/{organization}', function () {
             return response()->json([
                 'organization_bound' => app()->bound('current_organization'),
                 'organization_id' => app('current_organization')->id,
@@ -198,7 +198,7 @@ class OrganizationCompatibilityTest extends TestCase
     {
         $organization = Organization::factory()->create(['slug' => 'view-share', 'is_active' => true]);
 
-        Route::get('/resolve-org-view/{community}', function () {
+        Route::get('/resolve-org-view/{organization}', function () {
             return response()->json([
                 'currentOrganization' => view()->shared('currentOrganization')?->slug,
             ]);

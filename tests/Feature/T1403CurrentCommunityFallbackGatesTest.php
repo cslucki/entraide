@@ -72,7 +72,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
             'is_active' => true,
         ]);
 
-        Route::get('/t1403/gate4/{community}', function () {
+        Route::get('/t1403/gate4/{organization}', function () {
             return response()->json([
                 'community_bound' => app()->bound('current_community'),
                 'organization_bound' => app()->bound('current_organization'),

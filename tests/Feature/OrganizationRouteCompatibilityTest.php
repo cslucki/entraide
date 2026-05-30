@@ -37,7 +37,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
     {
         $organization = Organization::factory()->create(['slug' => 'legacy-slug', 'is_active' => true]);
 
-        Route::get('/c/{community}', function () {
+        Route::get('/c/{organization}', function () {
             return response()->json(['id' => app('current_organization')->id]);
         })->middleware(ResolveOrganization::class);
 
@@ -79,17 +79,17 @@ class OrganizationRouteCompatibilityTest extends TestCase
         $this->get('/org/inactive-org')->assertNotFound();
     }
 
-    public function test_community_param_takes_precedence_when_both_present(): void
+    public function test_organization_param_resolves_tenant(): void
     {
-        $organizationSlug = Organization::factory()->create(['slug' => 'comm-slug', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'org-slug', 'is_active' => true]);
 
-        Route::get('/test/{community}/{organization}', function () {
+        Route::get('/test/org/{organization}', function () {
             return response()->json(['id' => app('current_organization')->id]);
         })->middleware(ResolveOrganization::class);
 
-        $this->get('/test/comm-slug/anything')
+        $this->get('/test/org/org-slug')
             ->assertOk()
-            ->assertJson(['id' => $organizationSlug->id]);
+            ->assertJson(['id' => $organization->id]);
     }
 
     // -------------------------------------------------------------------------
