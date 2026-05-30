@@ -12,7 +12,7 @@ class ResolveOrganization
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $slug = $request->route('organization');
+        $slug = $request->route('community') ?? $request->route('organization');
 
         if ($slug) {
             $organization = Organization::findBySlug($slug);

@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Loop;
 use App\Models\Organization;
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\User;
 use App\Support\Tenancy\CurrentOrganization;
@@ -27,7 +27,7 @@ use Tests\TestCase;
  *   (ou retirer le @group pour exécution locale)
  *
  * Risques documentés :
- *   1. ✓ BelongsToTenantScope filtre sur organization_id (résolu par T140.1)
+ *   1. ✓ BelongsToOrganizationScope filtre sur organization_id (résolu par T140.1)
  *   2. ✓ Loop a organization_id (résolu par T140.2)
  *   3. current_community devrait disparaître à terme
  *   4. ResolveApiOrganization devrait être organization-first à terme
@@ -65,21 +65,21 @@ class T1392KnownRisksTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Known Risk 1: BelongsToTenantScope filtre sur organization_id
+    // Known Risk 1: BelongsToOrganizationScope filtre sur organization_id
     // (migré par T140.1)
     // ─────────────────────────────────────────────────────────────
 
     public function test_known_risk_scope_should_filter_by_organization_id(): void
     {
         // Migrated by T140.1 — scope bascule community_id → organization_id
-        $scope = new BelongsToTenantScope;
+        $scope = new BelongsToOrganizationScope;
         $query = Service::query();
         $scope->apply($query, new Service);
 
         $this->assertStringContainsString(
             'organization_id',
             $query->toSql(),
-            'BelongsToTenantScope devrait filtrer sur organization_id'
+            'BelongsToOrganizationScope devrait filtrer sur organization_id'
         );
     }
 

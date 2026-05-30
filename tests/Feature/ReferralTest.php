@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\Referral;
 use App\Models\ReferralReward;
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -380,7 +380,7 @@ class ReferralTest extends TestCase
 
         app()->instance('current_organization', $orgA);
 
-        $this->assertCount(2, Referral::withoutGlobalScope(BelongsToTenantScope::class)->get());
+        $this->assertCount(2, Referral::withoutGlobalScope(BelongsToOrganizationScope::class)->get());
     }
 
     // -------------------------------------------------------------------------
