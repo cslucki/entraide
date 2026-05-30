@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             QaAccountsSeeder::class,
             BadgeSeeder::class,
             SettingSeeder::class,
+            BackfillUsersOrganizationSeeder::class,
             EmailTemplateSeeder::class,
         ]);
     }

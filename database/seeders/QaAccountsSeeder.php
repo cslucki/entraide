@@ -5,8 +5,10 @@ namespace Database\Seeders;
 use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\User;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use RuntimeException;
 
 class QaAccountsSeeder extends Seeder
 {
@@ -16,8 +18,6 @@ class QaAccountsSeeder extends Seeder
 
     private array $qaOrganizations = [
         ['name' => 'CPME', 'slug' => 'cpme'],
-        ['name' => 'BNI', 'slug' => 'bni'],
-        ['name' => '60 000 Rebonds', 'slug' => '60000rebonds'],
     ];
 
     public function __construct()
@@ -29,21 +29,21 @@ class QaAccountsSeeder extends Seeder
                 'email' => 'qa-admin@bouclepro.local',
                 'name' => 'QA Admin',
                 'is_admin' => true,
-                'community_slug' => 'cpme',
+                'community_slug' => null,
                 'points' => 100,
             ],
             [
                 'email' => 'qa-member1@bouclepro.local',
                 'name' => 'QA Member 1',
                 'is_admin' => false,
-                'community_slug' => 'bni',
+                'community_slug' => null,
                 'points' => 100,
             ],
             [
                 'email' => 'qa-member2@bouclepro.local',
                 'name' => 'QA Member 2',
                 'is_admin' => false,
-                'community_slug' => 'bni',
+                'community_slug' => null,
                 'points' => 100,
             ],
             [
@@ -77,7 +77,11 @@ class QaAccountsSeeder extends Seeder
         foreach ($this->accounts as $account) {
             $communityId = $account['community_slug']
                 ? Organization::where('slug', $account['community_slug'])->value('id')
-                : null;
+                : DefaultOrganizationResolver::resolve()?->getKey();
+
+            if (! $communityId) {
+                throw new RuntimeException('QaAccountsSeeder requires an active organization for every QA account.');
+            }
 
             $user = User::updateOrCreate(
                 ['email' => $account['email']],
