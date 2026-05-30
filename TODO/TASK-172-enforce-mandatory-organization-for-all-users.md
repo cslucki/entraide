@@ -2,7 +2,7 @@
 task_id: TASK-172
 title: Enforce mandatory Organization for all users
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
