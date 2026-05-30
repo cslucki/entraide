@@ -20,7 +20,7 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                @forelse($communities as $c)
+                @forelse($organizations as $c)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 {{ !$c->is_active ? 'opacity-60' : '' }}">
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-3">
@@ -81,9 +81,9 @@
         </table>
     </div>
 
-    @if($communities->hasPages())
+    @if($organizations->hasPages())
     <div class="mt-4">
-        {{ $communities->links() }}
+        {{ $organizations->links() }}
     </div>
     @endif
 </x-admin-layout>
