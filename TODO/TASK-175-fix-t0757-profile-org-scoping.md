@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-status: DONE
+status: MERGED
   url: null
 ---
 
