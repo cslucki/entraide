@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,7 +15,7 @@ class ReferralReward extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new BelongsToTenantScope);
+        static::addGlobalScope(new BelongsToOrganizationScope);
     }
 
     protected $fillable = [
