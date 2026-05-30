@@ -15,6 +15,7 @@ use App\Models\Skill;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AdminController extends Controller
@@ -93,6 +95,8 @@ class AdminController extends Controller
             'banned' => 'boolean',
         ]);
 
+        $organization = $this->resolveOrganizationFromInput($data['organization_id'] ?? null);
+
         $update = [
             'name' => $data['name'],
             'email' => $data['email'],
@@ -100,7 +104,7 @@ class AdminController extends Controller
             'location' => $data['location'] ?? null,
             'website' => $data['website'] ?? null,
             'linkedin_url' => $data['linkedin_url'] ?? null,
-            'organization_id' => $data['organization_id'] ?? null,
+            'organization_id' => $organization->id,
             'is_available' => $request->boolean('is_available'),
         ];
 
@@ -184,10 +188,13 @@ class AdminController extends Controller
             'points' => 'required|integer|min:0',
         ]);
 
+        $organization = $this->resolveOrganizationFromInput();
+
         $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
+            'organization_id' => $organization->id,
             'is_admin' => $data['is_admin'] ?? false,
             'points_balance' => $data['points'],
         ]);
@@ -250,19 +257,34 @@ class AdminController extends Controller
             'organization_id' => ['nullable', 'uuid', 'exists:organizations,id'],
         ]);
 
-        $organization = $data['organization_id']
-            ? Organization::withTrashed()->find($data['organization_id'])
-            : null;
+        $organization = $this->resolveOrganizationFromInput($data['organization_id'] ?? null);
 
         $user->update([
-            'organization_id' => $data['organization_id'],
+            'organization_id' => $organization->id,
         ]);
 
-        if ($organization) {
-            return back()->with('success', "{$user->name} affecté à l'organisation {$organization->name}.");
+        return back()->with('success', "{$user->name} affecté à l'organisation {$organization->name}.");
+    }
+
+    private function resolveOrganizationFromInput(?string $organizationId = null): Organization
+    {
+        if ($organizationId) {
+            $organization = Organization::withTrashed()->find($organizationId);
+
+            if ($organization) {
+                return $organization;
+            }
         }
 
-        return back()->with('success', "{$user->name} retiré de son organisation (retour organisation globale).");
+        $organization = DefaultOrganizationResolver::resolve();
+
+        if ($organization) {
+            return $organization;
+        }
+
+        throw ValidationException::withMessages([
+            'organization_id' => 'Aucune organisation par défaut active n\'est disponible.',
+        ]);
     }
 
     // ── Services ─────────────────────────────────────────────────────────────

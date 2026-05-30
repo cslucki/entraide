@@ -5,14 +5,21 @@ namespace Database\Seeders;
 use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\User;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use RuntimeException;
 
 class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        $community = Organization::where('slug', 'cpme')->first();
+        $community = Organization::where('slug', 'cpme')->first()
+            ?? DefaultOrganizationResolver::resolve();
+
+        if (! $community) {
+            throw new RuntimeException('UserSeeder requires an active organization.');
+        }
 
         $user = User::firstOrCreate(
             ['email' => 'test@example.com'],
@@ -23,7 +30,7 @@ class UserSeeder extends Seeder
                 'is_available' => true,
                 'is_admin' => true,
                 'email_verified_at' => now(),
-                'organization_id' => $community?->id,
+                'organization_id' => $community->id,
             ]
         );
 
@@ -44,7 +51,7 @@ class UserSeeder extends Seeder
                 'points_balance' => 100,
                 'is_available' => true,
                 'email_verified_at' => now(),
-                'organization_id' => $community?->id,
+                'organization_id' => $community->id,
             ]
         );
 

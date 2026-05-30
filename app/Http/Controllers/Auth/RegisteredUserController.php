@@ -7,6 +7,7 @@ use App\Models\PointLedger;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
 use App\Services\ReferralService;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,14 +40,20 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $organization = currentOrganization();
+        $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
+
+        if (! $organization) {
+            throw ValidationException::withMessages([
+                'email' => 'Aucune organisation active n\'est disponible pour l\'inscription.',
+            ]);
+        }
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'points_balance' => 100,
-            'organization_id' => $organization?->id,
+            'organization_id' => $organization->id,
         ]);
 
         PointLedger::create([
@@ -66,7 +73,7 @@ class RegisteredUserController extends Controller
             try {
                 app(ReferralService::class)->attributeByCode(
                     $user, $ref,
-                    organizationId: $organization?->id,
+                    organizationId: $organization->id,
                 );
             } catch (\RuntimeException) {
             }

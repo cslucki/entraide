@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PointLedger;
 use App\Models\User;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -21,11 +22,20 @@ class AuthController extends Controller
             'password' => ['required', 'confirmed', Password::defaults()],
         ]);
 
+        $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
+
+        if (! $organization) {
+            throw ValidationException::withMessages([
+                'email' => ['Aucune organisation active n\'est disponible pour l\'inscription.'],
+            ]);
+        }
+
         $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
             'points_balance' => 100,
+            'organization_id' => $organization->id,
         ]);
 
         PointLedger::create([
@@ -52,7 +62,7 @@ class AuthController extends Controller
 
         $user = User::where('email', $data['email'])->first();
 
-        if (!$user || !Hash::check($data['password'], $user->password)) {
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Les identifiants fournis sont incorrects.'],
             ]);
