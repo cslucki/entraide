@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\PointLedger;
+use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -36,21 +36,26 @@ class AdminUserCreateTest extends TestCase
 
     public function test_admin_can_create_user(): void
     {
+        $organization = Organization::factory()->create(['slug' => 'main', 'is_active' => true]);
         $admin = $this->makeAdmin();
 
         $this->actingAs($admin)
             ->post(route('admin.users.store'), [
-                'name'                  => 'Alice Dupont',
-                'email'                 => 'alice@example.com',
-                'password'              => 'password123',
+                'name' => 'Alice Dupont',
+                'email' => 'alice@example.com',
+                'password' => 'password123',
                 'password_confirmation' => 'password123',
-                'is_admin'              => false,
-                'points'                => 0,
+                'is_admin' => false,
+                'points' => 0,
             ])
             ->assertRedirect(route('admin.users'))
             ->assertSessionHas('success');
 
-        $this->assertDatabaseHas('users', ['email' => 'alice@example.com', 'points_balance' => 0]);
+        $this->assertDatabaseHas('users', [
+            'email' => 'alice@example.com',
+            'points_balance' => 0,
+            'organization_id' => $organization->id,
+        ]);
     }
 
     public function test_admin_can_create_user_with_points(): void
@@ -59,11 +64,11 @@ class AdminUserCreateTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.users.store'), [
-                'name'                  => 'Bob Martin',
-                'email'                 => 'bob@example.com',
-                'password'              => 'password123',
+                'name' => 'Bob Martin',
+                'email' => 'bob@example.com',
+                'password' => 'password123',
                 'password_confirmation' => 'password123',
-                'points'                => 150,
+                'points' => 150,
             ]);
 
         $user = User::where('email', 'bob@example.com')->first();
@@ -71,8 +76,8 @@ class AdminUserCreateTest extends TestCase
         $this->assertEquals(150, $user->points_balance);
         $this->assertDatabaseHas('point_ledger', [
             'user_id' => $user->id,
-            'delta'   => 150,
-            'reason'  => 'welcome_bonus',
+            'delta' => 150,
+            'reason' => 'welcome_bonus',
         ]);
     }
 
@@ -82,12 +87,12 @@ class AdminUserCreateTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.users.store'), [
-                'name'                  => 'Super Admin',
-                'email'                 => 'super@example.com',
-                'password'              => 'password123',
+                'name' => 'Super Admin',
+                'email' => 'super@example.com',
+                'password' => 'password123',
                 'password_confirmation' => 'password123',
-                'is_admin'              => '1',
-                'points'                => 0,
+                'is_admin' => '1',
+                'points' => 0,
             ]);
 
         $this->assertDatabaseHas('users', ['email' => 'super@example.com', 'is_admin' => true]);
@@ -109,11 +114,11 @@ class AdminUserCreateTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.users.store'), [
-                'name'                  => 'Test',
-                'email'                 => 'taken@example.com',
-                'password'              => 'password123',
+                'name' => 'Test',
+                'email' => 'taken@example.com',
+                'password' => 'password123',
                 'password_confirmation' => 'password123',
-                'points'                => 0,
+                'points' => 0,
             ])
             ->assertSessionHasErrors('email');
     }
@@ -124,11 +129,11 @@ class AdminUserCreateTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.users.store'), [
-                'name'                  => 'Zero',
-                'email'                 => 'zero@example.com',
-                'password'              => 'password123',
+                'name' => 'Zero',
+                'email' => 'zero@example.com',
+                'password' => 'password123',
                 'password_confirmation' => 'password123',
-                'points'                => 0,
+                'points' => 0,
             ]);
 
         $user = User::where('email', 'zero@example.com')->first();
@@ -140,12 +145,12 @@ class AdminUserCreateTest extends TestCase
 
     public function test_admin_can_change_user_password(): void
     {
-        $admin  = $this->makeAdmin();
+        $admin = $this->makeAdmin();
         $target = User::factory()->create();
 
         $this->actingAs($admin)
             ->post(route('admin.users.password', $target), [
-                'password'              => 'newpassword123',
+                'password' => 'newpassword123',
                 'password_confirmation' => 'newpassword123',
             ])
             ->assertRedirect()
@@ -154,12 +159,12 @@ class AdminUserCreateTest extends TestCase
 
     public function test_change_password_validates_confirmation(): void
     {
-        $admin  = $this->makeAdmin();
+        $admin = $this->makeAdmin();
         $target = User::factory()->create();
 
         $this->actingAs($admin)
             ->post(route('admin.users.password', $target), [
-                'password'              => 'newpassword123',
+                'password' => 'newpassword123',
                 'password_confirmation' => 'differentpassword',
             ])
             ->assertSessionHasErrors('password');
@@ -167,12 +172,12 @@ class AdminUserCreateTest extends TestCase
 
     public function test_change_password_validates_min_length(): void
     {
-        $admin  = $this->makeAdmin();
+        $admin = $this->makeAdmin();
         $target = User::factory()->create();
 
         $this->actingAs($admin)
             ->post(route('admin.users.password', $target), [
-                'password'              => 'short',
+                'password' => 'short',
                 'password_confirmation' => 'short',
             ])
             ->assertSessionHasErrors('password');
@@ -180,12 +185,12 @@ class AdminUserCreateTest extends TestCase
 
     public function test_non_admin_cannot_change_password(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $target = User::factory()->create();
 
         $this->actingAs($user)
             ->post(route('admin.users.password', $target), [
-                'password'              => 'newpassword123',
+                'password' => 'newpassword123',
                 'password_confirmation' => 'newpassword123',
             ])
             ->assertStatus(403);

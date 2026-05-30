@@ -10,6 +10,8 @@ class AuthApiTest extends TestCase
 {
     public function test_register_creates_user_with_welcome_bonus(): void
     {
+        $organization = Organization::factory()->create(['slug' => 'main', 'is_active' => true]);
+
         $response = $this->postJson('/api/auth/register', [
             'name' => 'Alice Dupont',
             'email' => 'alice@example.com',
@@ -20,7 +22,11 @@ class AuthApiTest extends TestCase
         $response->assertCreated()
             ->assertJsonStructure(['token', 'user' => ['id', 'name', 'email', 'points_balance']]);
 
-        $this->assertDatabaseHas('users', ['email' => 'alice@example.com', 'points_balance' => 100]);
+        $this->assertDatabaseHas('users', [
+            'email' => 'alice@example.com',
+            'points_balance' => 100,
+            'organization_id' => $organization->id,
+        ]);
 
         $user = User::where('email', 'alice@example.com')->first();
         $this->assertDatabaseHas('point_ledger', [

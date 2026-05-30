@@ -60,11 +60,11 @@ class HasOrganizationIdTest extends TestCase
         $this->assertEquals($org->id, $user->organization_id);
     }
 
-    public function test_creating_with_neither_set(): void
+    public function test_factory_creation_assigns_an_organization_by_default(): void
     {
         $user = User::factory()->create();
 
-        $this->assertNull($user->organization_id);
+        $this->assertNotNull($user->organization_id);
     }
 
     // -------------------------------------------------------------------------
@@ -159,11 +159,11 @@ class HasOrganizationIdTest extends TestCase
         $this->assertEquals($org->id, $user->organization_id);
     }
 
-    public function test_organization_id_is_null_when_not_provided(): void
+    public function test_organization_id_is_assigned_when_not_provided(): void
     {
         $user = User::factory()->create();
 
-        $this->assertNull($user->organization_id);
+        $this->assertNotNull($user->organization_id);
     }
 
     public function test_update_setting_organization_id_to_null(): void

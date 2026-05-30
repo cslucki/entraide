@@ -32,7 +32,6 @@ class LegacyDataOrganizationSeeder extends Seeder
 
         foreach ($tables as $table) {
             $count = DB::table($table)
-                ->whereNull('community_id')
                 ->whereNull('organization_id')
                 ->count();
 
@@ -41,7 +40,6 @@ class LegacyDataOrganizationSeeder extends Seeder
             }
 
             $updated = DB::table($table)
-                ->whereNull('community_id')
                 ->whereNull('organization_id')
                 ->update([
                     'organization_id' => $community->id,

@@ -183,9 +183,10 @@ class AdminUsersTest extends TestCase
         $this->assertEquals($organization->id, $user->fresh()->organization_id);
     }
 
-    public function test_admin_can_remove_user_from_community(): void
+    public function test_blank_assignment_moves_user_to_default_organization(): void
     {
         $admin = $this->makeAdmin();
+        $defaultOrganization = Organization::factory()->create(['slug' => 'main', 'is_active' => true]);
         $organization = Organization::factory()->create(['is_active' => true]);
         $user = User::factory()->create(['organization_id' => $organization->id]);
 
@@ -194,7 +195,7 @@ class AdminUsersTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        $this->assertNull($user->fresh()->organization_id);
+        $this->assertEquals($defaultOrganization->id, $user->fresh()->organization_id);
     }
 
     public function test_admin_cannot_assign_themselves_to_community(): void
@@ -207,7 +208,7 @@ class AdminUsersTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('error');
 
-        $this->assertNull($admin->fresh()->organization_id);
+        $this->assertNotNull($admin->fresh()->organization_id);
     }
 
     public function test_assign_community_rejects_invalid_community_id(): void

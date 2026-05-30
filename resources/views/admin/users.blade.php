@@ -145,7 +145,7 @@
                                         @csrf @method('PATCH')
                                         <select name="organization_id"
                                                 class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-2">
-                                            <option value="">— Organisation globale —</option>
+                                            <option value="">— Organisation par defaut de la plateforme —</option>
                                             @foreach(\App\Models\Organization::where('is_active', true)->get() as $organization)
                                             <option value="{{ $organization->id }}" {{ $u->organization_id === $organization->id ? 'selected' : '' }}>
                                                 {{ $organization->name }}
