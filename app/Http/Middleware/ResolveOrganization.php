@@ -2,14 +2,27 @@
 
 namespace App\Http\Middleware;
 
-/**
- * ResolveOrganization is a semantic alias for ResolveCommunity during the
- * Community → Organization migration.
- *
- * This class exists to provide a properly named middleware for organization
- * route groups. It binds `current_organization` as the sole runtime tenant
- * context, preserving full backward compatibility.
- *
- * @see ResolveCommunity
- */
-class ResolveOrganization extends ResolveCommunity {}
+use App\Models\Organization;
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\View;
+use Symfony\Component\HttpFoundation\Response;
+
+class ResolveOrganization
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        $slug = $request->route('community') ?? $request->route('organization');
+
+        if ($slug) {
+            $organization = Organization::findBySlug($slug);
+            if (! $organization) {
+                abort(404);
+            }
+            app()->instance('current_organization', $organization);
+            View::share('currentOrganization', $organization);
+        }
+
+        return $next($request);
+    }
+}

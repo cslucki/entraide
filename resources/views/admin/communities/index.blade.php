@@ -26,7 +26,7 @@
                         <div class="flex items-center gap-3">
                             <div class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ $c->accent_color }}"></div>
                             <div class="min-w-0">
-                                <a href="{{ route('community.home', ['community' => $c->slug]) }}" target="_blank" rel="noopener"
+                                <a href="{{ route('organization.home', ['organization' => $c->slug]) }}" target="_blank" rel="noopener"
                                    class="font-medium text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     {{ $c->name }} ↗
                                 </a>
