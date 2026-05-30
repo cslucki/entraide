@@ -2,7 +2,7 @@
 task_id: TASK-174
 title: Remove community() aliases, ResolveCommunity middleware, and legacy community routes
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-174-remove-community-aliases-resolvecommunity-middleware-and-legacy
 priority: MEDIUM
 
 created_at: 2026-05-30 14:09:44 Europe/Paris
-updated_at: 2026-05-30 15:30:00 Europe/Paris
+updated_at: 2026-05-30 21:20:00 Europe/Paris
 
 labels: []
 
@@ -173,6 +173,24 @@ Pre-commit verification:
 - T0757 failure is pre-existing (confirmed by testing on clean develop)
 - public/build/manifest.json intentionally excluded from commit
 - No UI regressions expected; only route names and middleware strings changed
+
+---
+
+## 2026-05-30 21:20:00 Europe/Paris
+
+Merge TASK-174 into develop completed.
+
+- Script: `ai/scripts/merge-task.sh TASK-174`
+- Pre-merge check: PASSED (DONE, UNLOCKED, clean git)
+- Fetch/Pull: develop up to date
+- Merge: `git merge --no-ff` via ort strategy
+- Merge commit: `343e5f2 Merge branch 'TASK-174-...' into develop`
+- Files: 35 files changed, 497 insertions(+), 466 deletions(-)
+- Version bump: skipped (bump-version.sh couldn't parse branch name — non-blocking)
+- Push: pushed to origin/develop successfully
+- Post-merge status: clean on develop
+
+Status updated to MERGED.
 
 ---
 
