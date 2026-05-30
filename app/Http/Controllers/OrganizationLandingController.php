@@ -29,6 +29,6 @@ class OrganizationLandingController extends Controller
         $serviceCount = $organization->services()->where('status', 'active')->count();
         $transactionCount = $organization->transactions()->where('status', 'completed')->count();
 
-        return view('community.landing', compact('organization', 'recentServices', 'memberCount', 'serviceCount', 'transactionCount'));
+        return view('organization.landing', compact('organization', 'recentServices', 'memberCount', 'serviceCount', 'transactionCount'));
     }
 }

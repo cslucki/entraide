@@ -16,7 +16,7 @@ class AdminMetaOrganizationController extends Controller
             'global_color_mode' => Setting::get('global_color_mode', 'dark'),
         ];
 
-        return view('admin.meta-community.index', compact('settings'));
+        return view('admin.meta-organization.index', compact('settings'));
     }
 
     public function update(Request $request): RedirectResponse
