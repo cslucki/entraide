@@ -43,7 +43,7 @@ class T0757ProfileOrganizationScopingTest extends TestCase
         app()->forgetInstance('current_organization');
         app()->forgetInstance('current_community');
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['organization_id' => null]);
 
         $this->get(route('profile.show', $user))
             ->assertNotFound();
