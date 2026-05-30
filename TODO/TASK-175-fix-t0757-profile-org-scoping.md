@@ -18,14 +18,14 @@ updated_at: 2026-05-30 21:25:00 Europe/Paris
 labels: [fix, test, ci]
 
 lock:
-  status: LOCKED
+  status: UNLOCKED
   agent: SUPERVISOR
-  since: 2026-05-30 21:25:00 Europe/Paris
+  since: 2026-05-30 21:27:00 Europe/Paris
 
 handoff: false
 
 pr:
-  status: IN_PROGRESS
+status: DONE
   url: null
 ---
 
