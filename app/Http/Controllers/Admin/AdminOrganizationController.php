@@ -18,13 +18,13 @@ class AdminOrganizationController extends Controller
             ->latest()
             ->paginate(20);
 
-        return view('admin.communities.index', ['communities' => $organizations]);
+        return view('admin.organizations.index', ['organizations' => $organizations]);
     }
 
     public function create(): View
     {
         $admins = User::orderBy('name')->get();
-        return view('admin.communities.create', compact('admins'));
+        return view('admin.organizations.create', compact('admins'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -57,7 +57,7 @@ class AdminOrganizationController extends Controller
     public function edit(Organization $organization): View
     {
         $admins = User::orderBy('name')->get();
-        return view('admin.communities.edit', ['community' => $organization, 'admins' => $admins]);
+        return view('admin.organizations.edit', ['organization' => $organization, 'admins' => $admins]);
     }
 
     public function update(Request $request, Organization $organization): RedirectResponse

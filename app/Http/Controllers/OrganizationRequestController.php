@@ -11,7 +11,7 @@ class OrganizationRequestController extends Controller
 {
     public function create(): View
     {
-        return view('community-requests.create');
+        return view('organization-requests.create');
     }
 
     public function store(Request $request): RedirectResponse
