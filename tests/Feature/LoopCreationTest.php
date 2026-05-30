@@ -14,7 +14,7 @@ class LoopCreationTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Organization $community;
+    private Organization $organization;
     private User $user;
     private LoopService $service;
 

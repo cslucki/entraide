@@ -16,7 +16,7 @@ class LoopHelpRequestTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Organization $community;
+    private Organization $organization;
     private User $owner;
     private User $member;
     private User $nonMember;

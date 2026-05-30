@@ -17,7 +17,7 @@ class LoopMessageTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Organization $community;
+    private Organization $organization;
     private Organization $otherCommunity;
     private User $owner;
     private User $member;

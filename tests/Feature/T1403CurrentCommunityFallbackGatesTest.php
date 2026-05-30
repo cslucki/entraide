@@ -28,13 +28,13 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
     public function test_current_organization_takes_priority_over_current_community(): void
     {
         $org = Organization::factory()->create();
-        $community = Organization::factory()->create();
+        $organization = Organization::factory()->create();
 
         app()->instance('current_organization', $org);
-        app()->instance('current_community', $community);
+        app()->instance('current_community', $organization);
 
         $this->assertSame($org, CurrentOrganization::get());
-        $this->assertNotEquals($community->id, CurrentOrganization::id());
+        $this->assertNotEquals($organization->id, CurrentOrganization::id());
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -43,9 +43,9 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
 
     public function test_current_community_fallback_no_longer_works(): void
     {
-        $community = Organization::factory()->create();
+        $organization = Organization::factory()->create();
 
-        app()->instance('current_community', $community);
+        app()->instance('current_community', $organization);
 
         $this->assertNull(CurrentOrganization::get());
     }
@@ -67,7 +67,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
 
     public function test_resolve_community_binds_current_organization(): void
     {
-        $community = Organization::factory()->create([
+        $organization = Organization::factory()->create([
             'slug' => 't1403-gate-4',
             'is_active' => true,
         ]);
@@ -86,7 +86,7 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
         $response->assertJson([
             'community_bound' => false,
             'organization_bound' => true,
-            'organization_id' => $community->id,
+            'organization_id' => $organization->id,
         ]);
     }
 
@@ -96,16 +96,16 @@ class T1403CurrentCommunityFallbackGatesTest extends TestCase
 
     public function test_navigation_renders_with_legacy_current_community_fallback(): void
     {
-        $community = Organization::factory()->create([
+        $organization = Organization::factory()->create([
             'slug' => 't1403-gate-5',
             'name' => 'T140.3 Gate Five',
             'is_active' => true,
         ]);
 
-        View::share('currentCommunity', $community);
-        View::share('currentOrganization', $community);
-        app()->instance('current_community', $community);
-        app()->instance('current_organization', $community);
+        View::share('currentCommunity', $organization);
+        View::share('currentOrganization', $organization);
+        app()->instance('current_community', $organization);
+        app()->instance('current_organization', $organization);
 
         $this->assertTrue(View::shared('currentCommunity') !== null);
         $this->assertTrue(View::shared('currentOrganization') !== null);

@@ -62,18 +62,18 @@ class BelongsToTenantScopeTest extends TestCase
     public function test_organization_takes_priority_when_community_differs(): void
     {
         $org = Organization::factory()->create();
-        $community = Organization::factory()->create();
+        $organization = Organization::factory()->create();
         $other = Organization::factory()->create();
 
         $user = User::factory()->create(['organization_id' => $org->id]);
         Service::factory()->forUser($user)->create(['organization_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['organization_id' => $community->id]); // community-only tenant
+        Service::factory()->forUser($user)->create(['organization_id' => $organization->id]); // community-only tenant
         Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
         // Bind DIFFERENT values: current_organization = org, current_community = community
         // Organization MUST win — only org data is visible
         app()->instance('current_organization', $org);
-        app()->instance('current_community', $community);
+        app()->instance('current_community', $organization);
 
         $this->assertCount(1, Service::all());
     }

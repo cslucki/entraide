@@ -10,45 +10,45 @@ class CommunityModelTest extends TestCase
 {
     public function test_community_has_customization_fields(): void
     {
-        $community = Organization::factory()->create([
+        $organization = Organization::factory()->create([
             'hero_title' => 'Bienvenue chez nous',
             'hero_description' => 'Description de la communauté',
             'accent_color' => '#ff5733',
             'welcome_points' => 200,
         ]);
 
-        $this->assertEquals('Bienvenue chez nous', $community->hero_title);
-        $this->assertEquals('Description de la communauté', $community->hero_description);
-        $this->assertEquals('#ff5733', $community->accent_color);
-        $this->assertEquals(200, $community->welcome_points);
+        $this->assertEquals('Bienvenue chez nous', $organization->hero_title);
+        $this->assertEquals('Description de la communauté', $organization->hero_description);
+        $this->assertEquals('#ff5733', $organization->accent_color);
+        $this->assertEquals(200, $organization->welcome_points);
     }
 
     public function test_community_default_values(): void
     {
-        $community = Organization::factory()->create();
+        $organization = Organization::factory()->create();
 
-        $this->assertEquals('#6366f1', $community->accent_color);
-        $this->assertEquals(100, $community->welcome_points);
+        $this->assertEquals('#6366f1', $organization->accent_color);
+        $this->assertEquals(100, $organization->welcome_points);
     }
 
     public function test_community_admin_relation(): void
     {
         $admin = User::factory()->create();
-        $community = Organization::factory()->create(['admin_id' => $admin->id]);
+        $organization = Organization::factory()->create(['admin_id' => $admin->id]);
 
-        $this->assertTrue($community->admin()->exists());
-        $this->assertEquals($admin->id, $community->admin->id);
+        $this->assertTrue($organization->admin()->exists());
+        $this->assertEquals($admin->id, $organization->admin->id);
     }
 
     public function test_community_admin_null_when_deleted(): void
     {
         $admin = User::factory()->create();
-        $community = Organization::factory()->create(['admin_id' => $admin->id]);
+        $organization = Organization::factory()->create(['admin_id' => $admin->id]);
 
         $admin->delete();
-        $community->refresh();
+        $organization->refresh();
 
-        $this->assertNull($community->admin_id);
+        $this->assertNull($organization->admin_id);
     }
 
     public function test_find_by_slug_returns_active_community(): void
@@ -77,25 +77,25 @@ class CommunityModelTest extends TestCase
 
     public function test_get_hero_image_url_returns_asset_when_set(): void
     {
-        $community = Organization::factory()->create(['hero_image' => 'communities/my-hero.jpg']);
+        $organization = Organization::factory()->create(['hero_image' => 'communities/my-hero.jpg']);
 
-        $url = $community->getHeroImageUrl();
+        $url = $organization->getHeroImageUrl();
         $this->assertStringContainsString('communities/my-hero.jpg', $url);
     }
 
     public function test_get_hero_image_url_returns_default_when_not_set(): void
     {
-        $community = Organization::factory()->create();
+        $organization = Organization::factory()->create();
 
-        $url = $community->getHeroImageUrl();
+        $url = $organization->getHeroImageUrl();
         $this->assertStringContainsString('/images/default-hero.jpg', $url);
     }
 
     public function test_community_is_fillable(): void
     {
-        $community = new Organization();
+        $organization = new Organization();
 
-        $fillable = $community->getFillable();
+        $fillable = $organization->getFillable();
 
         $this->assertContains('admin_id', $fillable);
         $this->assertContains('hero_image', $fillable);
