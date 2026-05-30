@@ -2,7 +2,7 @@
 task_id: TASK-178
 title: Cleanup dead code legacy: ResolveOrganization fallback + BelongsToTenantScope rename
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
