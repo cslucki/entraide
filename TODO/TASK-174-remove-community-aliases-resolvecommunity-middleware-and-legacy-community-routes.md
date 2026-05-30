@@ -142,17 +142,37 @@ Failed:
 T0757ProfileOrganizationScopingTest (pre-existing TASK-172 side-effect)
 
 Pint:
-No violations
+No violations (pre-existing issues in unrelated files — not from TASK-173/174)
 ```
+
+---
+
+## 2026-05-30 21:20:00 Europe/Paris
+
+Commit created (merged TASK-173 + TASK-174 in one commit per Option C):
+
+Hash: `8050271`
+Message: `feat(organization): flatten Organization model, remove Community.php + community aliases/middleware/routes (TASK-173 + TASK-174)`
+
+Stats: 33 files changed, 381 insertions(+), 336 deletions(-)
+manifest.json intentionally excluded.
+
+Pre-commit verification:
+- rg "Community" in app/ source: only view names + CommunityRequest (valid model)
+- rg "community_id" in app/ source: 0 results
+- rg "ResolveCommunity" in app/ source: 0 results (only test characterization files)
+- Tests: 692 passed, 1 pre-existing failure (T0757 — confirmed on clean develop)
+- Pint: pre-existing issues only
 
 ---
 
 # Review Notes
 
-- TASK-173 code (flatten Organization model, delete Community.php) is present in this branch's working tree. It appears both TASK-173 and TASK-174 changes were made on the TASK-174 branch.
-- TASK-173 branch exists but may be stale. ORCHESTRATOR should clarify if TASK-173 should be merged separately or if its scope is fully subsumed by TASK-174.
-- public/build/manifest.json is modified (Cyril's Vite rebuild) — intentionally not staged.
-- No UI regressions expected; only route names and middleware strings changed.
+- TASK-173 + TASK-174 merged in single commit per Option C (ORCHESTRATOR validation)
+- TASK-173 will be marked MERGED/SUPERSEDED
+- T0757 failure is pre-existing (confirmed by testing on clean develop)
+- public/build/manifest.json intentionally excluded from commit
+- No UI regressions expected; only route names and middleware strings changed
 
 ---
 
