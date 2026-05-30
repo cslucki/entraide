@@ -1,6 +1,6 @@
 <x-admin-layout title="Éditer l'organisation">
     <div class="max-w-2xl">
-        <form method="POST" action="{{ route('admin.organizations.update', $community) }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.organizations.update', $organization) }}" class="space-y-6">
             @csrf
             @method('PUT')
 
@@ -9,14 +9,14 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom <span class="text-red-500">*</span></label>
-                    <input type="text" name="name" value="{{ old('name', $community->name) }}" required
+                    <input type="text" name="name" value="{{ old('name', $organization->name) }}" required
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('name') border-red-500 @enderror">
                     @error('name')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slug</label>
-                    <input type="text" name="slug" value="{{ old('slug', $community->slug) }}"
+                    <input type="text" name="slug" value="{{ old('slug', $organization->slug) }}"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono @error('slug') border-red-500 @enderror">
                     @error('slug')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -24,7 +24,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                     <textarea name="description" rows="2"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('description') border-red-500 @enderror">{{ old('description', $community->description) }}</textarea>
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('description') border-red-500 @enderror">{{ old('description', $organization->description) }}</textarea>
                     @error('description')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
 
@@ -34,7 +34,7 @@
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
                         <option value="">— Aucun —</option>
                         @foreach($admins as $a)
-                            <option value="{{ $a->id }}" {{ old('admin_id', $community->admin_id) == $a->id ? 'selected' : '' }}>{{ $a->name }} ({{ $a->email }})</option>
+                            <option value="{{ $a->id }}" {{ old('admin_id', $organization->admin_id) == $a->id ? 'selected' : '' }}>{{ $a->name }} ({{ $a->email }})</option>
                         @endforeach
                     </select>
                     @error('admin_id')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
@@ -46,7 +46,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre hero</label>
-                    <input type="text" name="hero_title" value="{{ old('hero_title', $community->hero_title) }}"
+                    <input type="text" name="hero_title" value="{{ old('hero_title', $organization->hero_title) }}"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('hero_title') border-red-500 @enderror">
                     @error('hero_title')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -54,7 +54,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description hero</label>
                     <textarea name="hero_description" rows="2"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('hero_description') border-red-500 @enderror">{{ old('hero_description', $community->hero_description) }}</textarea>
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('hero_description') border-red-500 @enderror">{{ old('hero_description', $organization->hero_description) }}</textarea>
                     @error('hero_description')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
 
@@ -64,7 +64,7 @@
                 <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">Accès</h2>
 
                 <label class="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" name="is_public" value="1" {{ old('is_public', $community->is_public) ? 'checked' : '' }}
+                    <input type="checkbox" name="is_public" value="1" {{ old('is_public', $organization->is_public) ? 'checked' : '' }}
                         class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
                     <div>
                         <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Visible sans connexion</span>
@@ -74,9 +74,9 @@
             </div>
 
             <div class="flex items-center gap-3">
-                        <input type="color" id="accent_color_picker" value="{{ old('accent_color', $community->accent_color) }}"
+                        <input type="color" id="accent_color_picker" value="{{ old('accent_color', $organization->accent_color) }}"
                             class="w-10 h-10 rounded border border-gray-300 dark:border-gray-600 cursor-pointer">
-                        <input type="text" name="accent_color" id="accent_color_text" value="{{ old('accent_color', $community->accent_color) }}"
+                        <input type="text" name="accent_color" id="accent_color_text" value="{{ old('accent_color', $organization->accent_color) }}"
                             class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono @error('accent_color') border-red-500 @enderror">
                     </div>
                     @error('accent_color')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
@@ -85,7 +85,7 @@
 
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Points de bienvenue</label>
-                <input type="number" name="welcome_points" value="{{ old('welcome_points', $community->welcome_points) }}" min="0" max="10000"
+                <input type="number" name="welcome_points" value="{{ old('welcome_points', $organization->welcome_points) }}" min="0" max="10000"
                     class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('welcome_points') border-red-500 @enderror">
                 @error('welcome_points')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
             </div>

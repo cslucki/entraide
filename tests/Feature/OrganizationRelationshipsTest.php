@@ -23,68 +23,68 @@ class OrganizationRelationshipsTest extends TestCase
 
     public function test_service_organization_relationship_returns_correct_record(): void
     {
-        $community = Organization::factory()->create();
-        $user = User::factory()->create(['organization_id' => $community->id]);
-        $service = Service::factory()->forUser($user)->create(['organization_id' => $community->id]);
+        $organization = Organization::factory()->create();
+        $user = User::factory()->create(['organization_id' => $organization->id]);
+        $service = Service::factory()->forUser($user)->create(['organization_id' => $organization->id]);
 
-        $this->assertEquals($community->id, $service->organization->id);
+        $this->assertEquals($organization->id, $service->organization->id);
     }
 
     public function test_service_organization_is_organization_instance(): void
     {
-        $community = Organization::factory()->create();
-        $user = User::factory()->create(['organization_id' => $community->id]);
-        $service = Service::factory()->forUser($user)->create(['organization_id' => $community->id]);
+        $organization = Organization::factory()->create();
+        $user = User::factory()->create(['organization_id' => $organization->id]);
+        $service = Service::factory()->forUser($user)->create(['organization_id' => $organization->id]);
 
         $this->assertInstanceOf(Organization::class, $service->organization);
     }
 
     public function test_service_organization_and_community_share_same_id(): void
     {
-        $community = Organization::factory()->create();
-        $user = User::factory()->create(['organization_id' => $community->id]);
-        $service = Service::factory()->forUser($user)->create(['organization_id' => $community->id]);
+        $organization = Organization::factory()->create();
+        $user = User::factory()->create(['organization_id' => $organization->id]);
+        $service = Service::factory()->forUser($user)->create(['organization_id' => $organization->id]);
 
         $this->assertEquals($service->organization->id, $service->organization->id);
     }
 
     public function test_service_request_organization_relationship(): void
     {
-        $community = Organization::factory()->create();
-        $user = User::factory()->create(['organization_id' => $community->id]);
-        $request = ServiceRequest::factory()->forUser($user)->create(['organization_id' => $community->id]);
+        $organization = Organization::factory()->create();
+        $user = User::factory()->create(['organization_id' => $organization->id]);
+        $request = ServiceRequest::factory()->forUser($user)->create(['organization_id' => $organization->id]);
 
         $this->assertInstanceOf(Organization::class, $request->organization);
-        $this->assertEquals($community->id, $request->organization->id);
+        $this->assertEquals($organization->id, $request->organization->id);
     }
 
     public function test_transaction_organization_relationship(): void
     {
-        $community = Organization::factory()->create();
-        $buyer = User::factory()->create(['organization_id' => $community->id]);
-        $seller = User::factory()->create(['organization_id' => $community->id]);
-        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $community->id]);
+        $organization = Organization::factory()->create();
+        $buyer = User::factory()->create(['organization_id' => $organization->id]);
+        $seller = User::factory()->create(['organization_id' => $organization->id]);
+        $transaction = Transaction::factory()->forBuyer($buyer)->forSeller($seller)->create(['organization_id' => $organization->id]);
 
         $this->assertInstanceOf(Organization::class, $transaction->organization);
-        $this->assertEquals($community->id, $transaction->organization->id);
+        $this->assertEquals($organization->id, $transaction->organization->id);
     }
 
     public function test_user_organization_relationship(): void
     {
-        $community = Organization::factory()->create();
-        $user = User::factory()->create(['organization_id' => $community->id]);
+        $organization = Organization::factory()->create();
+        $user = User::factory()->create(['organization_id' => $organization->id]);
 
         $this->assertInstanceOf(Organization::class, $user->organization);
-        $this->assertEquals($community->id, $user->organization->id);
+        $this->assertEquals($organization->id, $user->organization->id);
     }
 
     public function test_blog_post_organization_relationship(): void
     {
-        $community = Organization::factory()->create();
+        $organization = Organization::factory()->create();
         $author = User::factory()->create();
         $post = BlogPost::create([
             'user_id' => $author->id,
-            'organization_id' => $community->id,
+            'organization_id' => $organization->id,
             'title' => 'Test post',
             'slug' => 'test-post',
             'content' => 'content',
@@ -92,7 +92,7 @@ class OrganizationRelationshipsTest extends TestCase
         ]);
 
         $this->assertInstanceOf(Organization::class, $post->organization);
-        $this->assertEquals($community->id, $post->organization->id);
+        $this->assertEquals($organization->id, $post->organization->id);
     }
 
     public function test_organization_relationship_returns_null_when_no_community(): void

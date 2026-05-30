@@ -14,9 +14,9 @@ if (! function_exists('organizationRoute')) {
      * Generate a URL for an organization route.
      *
      * Usage:
-     *   organizationRoute('community.home', ['organization' => $slug])
+     *   organizationRoute('organization.home', ['organization' => $slug])
      *
-     * @param  string  $name  Route name (e.g. 'community.home')
+     * @param  string  $name  Route name (e.g. 'organization.home')
      * @param  array  $parameters  Route parameters
      */
     function organizationRoute(string $name, array $parameters = []): string
