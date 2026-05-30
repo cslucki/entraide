@@ -176,7 +176,7 @@ class AdminUsersTest extends TestCase
         $organization = Organization::factory()->create(['is_active' => true]);
 
         $this->actingAs($admin)
-            ->patch(route('admin.users.assign-community', $user), ['organization_id' => $organization->id])
+            ->patch(route('admin.users.assign-organization', $user), ['organization_id' => $organization->id])
             ->assertRedirect()
             ->assertSessionHas('success');
 
@@ -191,33 +191,33 @@ class AdminUsersTest extends TestCase
         $user = User::factory()->create(['organization_id' => $organization->id]);
 
         $this->actingAs($admin)
-            ->patch(route('admin.users.assign-community', $user), ['organization_id' => null])
+            ->patch(route('admin.users.assign-organization', $user), ['organization_id' => null])
             ->assertRedirect()
             ->assertSessionHas('success');
 
         $this->assertEquals($defaultOrganization->id, $user->fresh()->organization_id);
     }
 
-    public function test_admin_cannot_assign_themselves_to_community(): void
+    public function test_admin_cannot_assign_themselves_to_organization(): void
     {
         $admin = $this->makeAdmin();
         $organization = Organization::factory()->create(['is_active' => true]);
 
         $this->actingAs($admin)
-            ->patch(route('admin.users.assign-community', $admin), ['organization_id' => $organization->id])
+            ->patch(route('admin.users.assign-organization', $admin), ['organization_id' => $organization->id])
             ->assertRedirect()
             ->assertSessionHas('error');
 
         $this->assertNotNull($admin->fresh()->organization_id);
     }
 
-    public function test_assign_community_rejects_invalid_community_id(): void
+    public function test_assign_organization_rejects_invalid_organization_id(): void
     {
         $admin = $this->makeAdmin();
         $user = User::factory()->create(['organization_id' => null]);
 
         $this->actingAs($admin)
-            ->patch(route('admin.users.assign-community', $user), ['organization_id' => 'nonexistent-uuid'])
+            ->patch(route('admin.users.assign-organization', $user), ['organization_id' => 'nonexistent-uuid'])
             ->assertSessionHasErrors('organization_id');
 
         $this->assertNull($user->fresh()->organization_id);

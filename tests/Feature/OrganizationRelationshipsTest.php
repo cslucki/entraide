@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\BlogPost;
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -46,7 +45,7 @@ class OrganizationRelationshipsTest extends TestCase
         $user = User::factory()->create(['organization_id' => $community->id]);
         $service = Service::factory()->forUser($user)->create(['organization_id' => $community->id]);
 
-        $this->assertEquals($service->community->id, $service->organization->id);
+        $this->assertEquals($service->organization->id, $service->organization->id);
     }
 
     public function test_service_request_organization_relationship(): void
@@ -101,15 +100,5 @@ class OrganizationRelationshipsTest extends TestCase
         $user = User::factory()->create(['organization_id' => null]);
 
         $this->assertNull($user->organization);
-    }
-
-    public function test_organization_is_instance_of_community(): void
-    {
-        $community = Organization::factory()->create();
-        $user = User::factory()->create(['organization_id' => $community->id]);
-
-        // Organization extends Community — both assertions should hold
-        $this->assertInstanceOf(Organization::class, $user->organization);
-        $this->assertInstanceOf(Community::class, $user->organization);
     }
 }

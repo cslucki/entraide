@@ -57,11 +57,6 @@ class Referral extends Model
         return $this->hasMany(self::class, 'parent_referral_id');
     }
 
-    public function community(): BelongsTo
-    {
-        return $this->organization();
-    }
-
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'organization_id');

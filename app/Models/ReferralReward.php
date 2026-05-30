@@ -53,11 +53,6 @@ class ReferralReward extends Model
         return $this->belongsTo(User::class, 'source_user_id');
     }
 
-    public function community(): BelongsTo
-    {
-        return $this->organization();
-    }
-
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'organization_id');

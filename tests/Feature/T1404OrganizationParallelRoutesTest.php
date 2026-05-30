@@ -27,9 +27,9 @@ class T1404OrganizationParallelRoutesTest extends TestCase
         ]);
     }
 
-    public function test_legacy_community_route_still_works(): void
+    public function test_org_route_still_works(): void
     {
-        $response = $this->get("/{$this->org->slug}/");
+        $response = $this->get("/org/{$this->org->slug}/");
 
         $response->assertOk();
     }
@@ -70,20 +70,11 @@ class T1404OrganizationParallelRoutesTest extends TestCase
         $this->get("/org/{$inactive->slug}/")->assertNotFound();
     }
 
-    public function test_legacy_and_org_routes_resolve_same_organization(): void
+    public function test_org_route_resolves_organization(): void
     {
-        $legacyResponse = $this->get("/{$this->org->slug}/");
-        $this->assertNotNull(app('current_organization'));
-
-        $legacyOrgId = app('current_organization')->id;
-
-        // Reset container bindings between calls
-        app()->forgetInstance('current_organization');
-
         $orgResponse = $this->get("/org/{$this->org->slug}/");
+        $orgResponse->assertOk();
         $this->assertNotNull(app('current_organization'));
-
-        $this->assertEquals($legacyOrgId, app('current_organization')->id);
         $this->assertEquals($this->org->id, app('current_organization')->id);
     }
 
@@ -131,7 +122,7 @@ class T1404OrganizationParallelRoutesTest extends TestCase
 
     public function test_legacy_route_is_not_redirected(): void
     {
-        $response = $this->get("/{$this->org->slug}/");
+        $response = $this->get("/org/{$this->org->slug}/");
 
         $response->assertOk();
         $this->assertFalse($response->isRedirect());
@@ -147,8 +138,8 @@ class T1404OrganizationParallelRoutesTest extends TestCase
 
     public function test_legacy_community_route_name_still_generates_correct_url(): void
     {
-        $url = route('community.home', ['community' => $this->org->slug]);
+        $url = route('organization.home', ['organization' => $this->org->slug]);
 
-        $this->assertStringContainsString("/{$this->org->slug}", $url);
+        $this->assertStringContainsString("/org/{$this->org->slug}", $url);
     }
 }

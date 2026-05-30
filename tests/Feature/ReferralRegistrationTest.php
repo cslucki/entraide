@@ -31,7 +31,7 @@ class ReferralRegistrationTest extends TestCase
 
     public function test_register_with_valid_ref_creates_referral(): void
     {
-        $response = $this->post("/{$this->org->slug}/register", [
+        $response = $this->post("/org/{$this->org->slug}/register", [
             'name' => 'New Member',
             'email' => 'new@example.com',
             'password' => 'password',
@@ -55,7 +55,7 @@ class ReferralRegistrationTest extends TestCase
 
     public function test_register_with_invalid_ref_still_succeeds(): void
     {
-        $response = $this->post("/{$this->org->slug}/register", [
+        $response = $this->post("/org/{$this->org->slug}/register", [
             'name' => 'New Member',
             'email' => 'new@example.com',
             'password' => 'password',
@@ -75,11 +75,11 @@ class ReferralRegistrationTest extends TestCase
             'referral_code' => 'mylink',
         ]);
 
-        $response = $this->actingAs($user)->get("/{$this->org->slug}/dashboard");
+        $response = $this->actingAs($user)->get("/org/{$this->org->slug}/dashboard");
 
         $response->assertStatus(200);
         $response->assertSee('Mes invitations');
         $response->assertSee('mylink');
-        $response->assertSee("/{$this->org->slug}/register?ref=mylink");
+        $response->assertSee("/org/{$this->org->slug}/register?ref=mylink");
     }
 }

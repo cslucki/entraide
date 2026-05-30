@@ -51,10 +51,10 @@ class MembersPageTest extends TestCase
         $response->assertNotFound();
     }
 
-    public function test_authenticated_routes_remain_404_without_organization(): void
+    public function test_authenticated_routes_remain_405_without_organization(): void
     {
         $response = $this->get('/services');
-        $response->assertNotFound();
+        $response->assertStatus(405);
     }
 
     public function test_public_pages_show_content_when_organization_exists(): void

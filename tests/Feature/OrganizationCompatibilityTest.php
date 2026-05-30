@@ -2,9 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\ResolveCommunity;
 use App\Http\Middleware\ResolveOrganization;
-use App\Models\Community;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
@@ -22,11 +20,6 @@ class OrganizationCompatibilityTest extends TestCase
     // -------------------------------------------------------------------------
     // Organization model
     // -------------------------------------------------------------------------
-
-    public function test_organization_extends_community(): void
-    {
-        $this->assertInstanceOf(Community::class, new Organization);
-    }
 
     public function test_organization_uses_organizations_table(): void
     {
@@ -72,14 +65,6 @@ class OrganizationCompatibilityTest extends TestCase
         $this->assertNull($found);
     }
 
-    public function test_organization_is_instance_of_community(): void
-    {
-        $org = Organization::factory()->create();
-
-        $this->assertInstanceOf(Community::class, $org);
-        $this->assertInstanceOf(Organization::class, $org);
-    }
-
     // -------------------------------------------------------------------------
     // Middleware compatibility
     // -------------------------------------------------------------------------
@@ -92,7 +77,7 @@ class OrganizationCompatibilityTest extends TestCase
             return response()->json([
                 'organization_id' => app('current_organization')->id,
             ]);
-        })->middleware(ResolveCommunity::class);
+        })->middleware(ResolveOrganization::class);
 
         $response = $this->get('/test-org-bind/test-boucle');
 
@@ -111,7 +96,7 @@ class OrganizationCompatibilityTest extends TestCase
                 'bound' => app()->bound('current_organization'),
                 'id' => app('current_organization')->id,
             ]);
-        })->middleware(ResolveCommunity::class);
+        })->middleware(ResolveOrganization::class);
 
         $response = $this->get('/test-org-bound/org-bound');
 
@@ -125,7 +110,7 @@ class OrganizationCompatibilityTest extends TestCase
     public function test_middleware_returns_404_for_unknown_slug(): void
     {
         Route::get('/test-404/{community}', fn () => response('ok'))
-            ->middleware(ResolveCommunity::class);
+            ->middleware(ResolveOrganization::class);
 
         $response = $this->get('/test-404/nonexistent-org');
 
@@ -140,22 +125,16 @@ class OrganizationCompatibilityTest extends TestCase
         $this->assertEquals(ResolveOrganization::class, $aliases['organization']);
     }
 
-    public function test_community_middleware_alias_remains_unchanged(): void
+    public function test_community_middleware_alias_has_been_removed(): void
     {
         $aliases = app('router')->getMiddleware();
 
-        $this->assertArrayHasKey('community', $aliases);
-        $this->assertEquals(ResolveCommunity::class, $aliases['community']);
+        $this->assertArrayNotHasKey('community', $aliases);
     }
 
     // -------------------------------------------------------------------------
     // ResolveOrganization middleware compatibility
     // -------------------------------------------------------------------------
-
-    public function test_resolve_organization_extends_resolve_community(): void
-    {
-        $this->assertInstanceOf(ResolveCommunity::class, new ResolveOrganization);
-    }
 
     public function test_organization_middleware_alias_points_to_resolve_organization(): void
     {
@@ -203,7 +182,7 @@ class OrganizationCompatibilityTest extends TestCase
                 'organization_id' => app('current_organization')->id,
                 'view_organization' => view()->shared('currentOrganization')?->slug,
             ]);
-        })->middleware(ResolveCommunity::class);
+        })->middleware(ResolveOrganization::class);
 
         $response = $this->get('/org-bind-check/org-bind');
 

@@ -199,9 +199,9 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
     // Legacy route / service compatibility preserved
     // ─────────────────────────────────────────────────────────────
 
-    public function test_legacy_community_landing_works(): void
+    public function test_org_prefixed_landing_works(): void
     {
-        $this->get("/{$this->orgA->slug}/")
+        $this->get("/org/{$this->orgA->slug}/")
             ->assertOk();
     }
 
