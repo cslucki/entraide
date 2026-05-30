@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Loop extends Model
 {
     /** @use HasFactory<LoopFactory> */
-    use HasUuids, HasFactory, HasOrganizationId;
+    use HasFactory, HasOrganizationId, HasUuids;
 
     protected $fillable = [
         'organization_id',
@@ -53,11 +53,6 @@ class Loop extends Model
     public function isPrivate(): bool
     {
         return $this->visibility === 'private';
-    }
-
-    public function community(): BelongsTo
-    {
-        return $this->organization();
     }
 
     public function organization(): BelongsTo
