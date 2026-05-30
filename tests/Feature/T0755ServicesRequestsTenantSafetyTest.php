@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\Category;
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -138,7 +137,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
     // Helpers
     // ─────────────────────────────────────────────────────────────
 
-    /** @return array{Community, Community} */
+    /** @return array{Organization, Organization} */
     private function createOrganizations(): array
     {
         $organizationA = Organization::factory()->create(['is_active' => true]);
@@ -149,7 +148,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
         return [$organizationA, $organizationB];
     }
 
-    private function createUser(Community $organization): User
+    private function createUser(Organization $organization): User
     {
         return User::factory()->create(['organization_id' => $organization->id]);
     }

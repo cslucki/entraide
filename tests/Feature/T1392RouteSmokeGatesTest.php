@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveUrlOrganization;
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,7 +27,7 @@ class T1392RouteSmokeGatesTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $community;
+    private Organization $community;
 
     private User $user;
 

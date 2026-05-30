@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -15,8 +14,8 @@ class LoopVisibilityMembershipTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $community;
-    private Community $otherCommunity;
+    private Organization $community;
+    private Organization $otherCommunity;
     private User $user;
     private User $otherUser;
     private User $crossUser;

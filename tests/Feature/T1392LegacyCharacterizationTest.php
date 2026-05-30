@@ -41,7 +41,7 @@ class T1392LegacyCharacterizationTest extends TestCase
 
     private Organization $org;
 
-    private Community $community;
+    private Organization $community;
 
     private User $user;
 

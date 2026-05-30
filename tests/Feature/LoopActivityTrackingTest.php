@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\User;
@@ -15,9 +14,9 @@ class LoopActivityTrackingTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $community;
+    private Organization $community;
 
-    private Community $otherCommunity;
+    private Organization $otherCommunity;
 
     private User $owner;
 
