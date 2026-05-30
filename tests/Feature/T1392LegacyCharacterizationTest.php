@@ -353,10 +353,10 @@ class T1392LegacyCharacterizationTest extends TestCase
 
     public function test_organization_and_community_share_same_table(): void
     {
-        $organizationTable = (new Organization)->getTable();
+        $sharedTable = (new Organization)->getTable();
         $organizationTable = (new Organization)->getTable();
 
-        $this->assertEquals($organizationTable, $organizationTable);
+        $this->assertEquals($sharedTable, $organizationTable);
     }
 
     public function test_organization_can_be_retrieved_as_community(): void

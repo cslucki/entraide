@@ -60,6 +60,10 @@ Actions:
 4. Suite complète : 824 passed, 11 skipped, 0 failures 🟢
 5. Commit + rapport envoyé à ORCHESTRATOR
 
+## 2026-05-30 23:50 Europe/Paris
+
+Correction : collision de variable `$organizationTable` dans T1392LegacyCharacterizationTest.php (le sed a renommé `$communityTable` → `$organizationTable`, collision avec la variable pré-existante). Renommé la variable pré-existante en `$sharedTable`, assertion mise à jour. Tests : 824 passed, 11 skipped, 0 failures 🟢
+
 # Handoffs
 
 Handoff to ORCHESTRATOR for finalize+merge.
@@ -79,6 +83,8 @@ Handoff to ORCHESTRATOR for finalize+merge.
 # Review Notes
 
 Aucun problème rencontré. Renommage simple et sûr — aucun string literal `'community'` n'a été touché involontairement. Aucune clé de tableau `'community' =>` à renommer dans les fichiers cibles.
+
+⚠️ CORRECTION APPLIQUÉE (2026-05-30 23:50) : le `sed` a renommé `$communityTable` → `$organizationTable` dans T1392LegacyCharacterizationTest.php, collision avec variable pré-existante. Renommé la variable pré-existante en `$sharedTable`.
 
 ---
 
