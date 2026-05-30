@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -16,9 +15,9 @@ class LoopMemberInvariantTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $communityA;
+    private Organization $communityA;
 
-    private Community $communityB;
+    private Organization $communityB;
 
     private User $userA;
 

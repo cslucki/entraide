@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\LoopMember;
 use App\Models\User;
@@ -14,7 +13,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $community;
+    private Organization $community;
 
     private User $user;
 

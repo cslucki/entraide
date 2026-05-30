@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Referral;
 use App\Models\ReferralReward;
@@ -16,7 +15,7 @@ class ReferralTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $org;
+    private Organization $org;
 
     protected function setUp(): void
     {

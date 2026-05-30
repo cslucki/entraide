@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Events\LoopMessageCreated;
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -18,8 +17,8 @@ class LoopMessageTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $community;
-    private Community $otherCommunity;
+    private Organization $community;
+    private Organization $otherCommunity;
     private User $owner;
     private User $member;
     private User $nonMember;

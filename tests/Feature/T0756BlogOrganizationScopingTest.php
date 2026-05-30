@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\BlogComment;
 use App\Models\BlogPost;
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
@@ -212,7 +211,7 @@ class T0756BlogOrganizationScopingTest extends TestCase
     // Helpers
     // ─────────────────────────────────────────────────────────────
 
-    /** @return array{Community, Community} */
+    /** @return array{Organization, Organization} */
     private function createOrganizations(): array
     {
         $organizationA = Organization::factory()->create(['is_active' => true]);
@@ -223,12 +222,12 @@ class T0756BlogOrganizationScopingTest extends TestCase
         return [$organizationA, $organizationB];
     }
 
-    private function createUser(Community $organization): User
+    private function createUser(Organization $organization): User
     {
         return User::factory()->create(['organization_id' => $organization->id]);
     }
 
-    private function createPost(User $user, Community $organization, array $overrides = []): BlogPost
+    private function createPost(User $user, Organization $organization, array $overrides = []): BlogPost
     {
         return BlogPost::create(array_merge([
             'user_id' => $user->id,

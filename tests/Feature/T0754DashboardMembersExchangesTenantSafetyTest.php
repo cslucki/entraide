@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\ResolveUrlOrganization;
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\Transaction;
@@ -83,7 +82,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
     }
 
     /**
-     * @return array{Community, Community}
+     * @return array{Organization, Organization}
      */
     private function createOrganizations(): array
     {
@@ -102,14 +101,14 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
         return [$organizationA, $organizationB];
     }
 
-    private function createUserForOrganization(Community $organization, array $attributes = []): User
+    private function createUserForOrganization(Organization $organization, array $attributes = []): User
     {
         return User::factory()->create(array_merge([
             'organization_id' => $organization->id,
         ], $attributes));
     }
 
-    private function createCompletedExchange(Community $organization, string $serviceTitle): Transaction
+    private function createCompletedExchange(Organization $organization, string $serviceTitle): Transaction
     {
         $buyer = $this->createUserForOrganization($organization);
         $seller = $this->createUserForOrganization($organization);

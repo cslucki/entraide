@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -17,7 +16,7 @@ class LoopHelpRequestTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $community;
+    private Organization $community;
     private User $owner;
     private User $member;
     private User $nonMember;

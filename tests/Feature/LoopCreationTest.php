@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Community;
 use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -15,7 +14,7 @@ class LoopCreationTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Community $community;
+    private Organization $community;
     private User $user;
     private LoopService $service;
 
