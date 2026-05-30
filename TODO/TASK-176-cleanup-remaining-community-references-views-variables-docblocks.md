@@ -2,7 +2,7 @@
 task_id: TASK-176
 title: Cleanup remaining community references (views/variables/docblocks)
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
