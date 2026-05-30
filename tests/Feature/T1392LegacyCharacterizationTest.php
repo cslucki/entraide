@@ -39,7 +39,7 @@ class T1392LegacyCharacterizationTest extends TestCase
 
     private Organization $org;
 
-    private Organization $community;
+    private Organization $organization;
 
     private User $user;
 
@@ -353,10 +353,10 @@ class T1392LegacyCharacterizationTest extends TestCase
 
     public function test_organization_and_community_share_same_table(): void
     {
-        $communityTable = (new Organization)->getTable();
+        $sharedTable = (new Organization)->getTable();
         $organizationTable = (new Organization)->getTable();
 
-        $this->assertEquals($communityTable, $organizationTable);
+        $this->assertEquals($sharedTable, $organizationTable);
     }
 
     public function test_organization_can_be_retrieved_as_community(): void
@@ -371,9 +371,9 @@ class T1392LegacyCharacterizationTest extends TestCase
 
     public function test_community_can_be_retrieved_as_organization(): void
     {
-        $community = Organization::factory()->create(['name' => 'Test Community As Org']);
+        $organization = Organization::factory()->create(['name' => 'Test Community As Org']);
 
-        $found = Organization::find($community->id);
+        $found = Organization::find($organization->id);
 
         $this->assertNotNull($found);
         $this->assertEquals('Test Community As Org', $found->name);

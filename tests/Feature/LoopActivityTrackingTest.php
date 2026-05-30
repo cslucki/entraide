@@ -14,7 +14,7 @@ class LoopActivityTrackingTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Organization $community;
+    private Organization $organization;
 
     private Organization $otherCommunity;
 

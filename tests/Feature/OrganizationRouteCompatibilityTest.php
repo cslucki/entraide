@@ -24,29 +24,29 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
     public function test_middleware_resolves_organization_route_parameter(): void
     {
-        $community = Organization::factory()->create(['slug' => 'my-org', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'my-org', 'is_active' => true]);
 
         Route::get('/_test/org/{organization}', function () {
             return response()->json(['id' => app('current_organization')->id]);
         })->middleware(ResolveOrganization::class);
 
-        $this->get('/_test/org/my-org')->assertOk()->assertJson(['id' => $community->id]);
+        $this->get('/_test/org/my-org')->assertOk()->assertJson(['id' => $organization->id]);
     }
 
     public function test_middleware_resolves_community_param_still_works(): void
     {
-        $community = Organization::factory()->create(['slug' => 'legacy-slug', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'legacy-slug', 'is_active' => true]);
 
         Route::get('/c/{community}', function () {
             return response()->json(['id' => app('current_organization')->id]);
         })->middleware(ResolveOrganization::class);
 
-        $this->get('/c/legacy-slug')->assertOk()->assertJson(['id' => $community->id]);
+        $this->get('/c/legacy-slug')->assertOk()->assertJson(['id' => $organization->id]);
     }
 
     public function test_organization_param_binds_current_organization(): void
     {
-        $community = Organization::factory()->create(['slug' => 'both-keys', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'both-keys', 'is_active' => true]);
 
         Route::get('/_test/org/{organization}', function () {
             return response()->json([
@@ -57,7 +57,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
         $this->get('/_test/org/both-keys')
             ->assertOk()
             ->assertJson([
-                'organization_id' => $community->id,
+                'organization_id' => $organization->id,
             ]);
     }
 
@@ -81,7 +81,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
     public function test_community_param_takes_precedence_when_both_present(): void
     {
-        $communitySlug = Organization::factory()->create(['slug' => 'comm-slug', 'is_active' => true]);
+        $organizationSlug = Organization::factory()->create(['slug' => 'comm-slug', 'is_active' => true]);
 
         Route::get('/test/{community}/{organization}', function () {
             return response()->json(['id' => app('current_organization')->id]);
@@ -89,7 +89,7 @@ class OrganizationRouteCompatibilityTest extends TestCase
 
         $this->get('/test/comm-slug/anything')
             ->assertOk()
-            ->assertJson(['id' => $communitySlug->id]);
+            ->assertJson(['id' => $organizationSlug->id]);
     }
 
     // -------------------------------------------------------------------------

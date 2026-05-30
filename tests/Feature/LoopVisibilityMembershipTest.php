@@ -14,7 +14,7 @@ class LoopVisibilityMembershipTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Organization $community;
+    private Organization $organization;
     private Organization $otherCommunity;
     private User $user;
     private User $otherUser;

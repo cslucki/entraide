@@ -13,7 +13,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Organization $community;
+    private Organization $organization;
 
     private User $user;
 

@@ -37,13 +37,13 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_organization_and_community_share_same_table_data(): void
     {
-        $community = Organization::factory()->create(['name' => 'Test Org']);
+        $organization = Organization::factory()->create(['name' => 'Test Org']);
 
-        $org = Organization::find($community->id);
+        $org = Organization::find($organization->id);
 
         $this->assertNotNull($org);
         $this->assertEquals('Test Org', $org->name);
-        $this->assertEquals($community->id, $org->id);
+        $this->assertEquals($organization->id, $org->id);
     }
 
     public function test_organization_inherits_find_by_slug(): void
@@ -71,7 +71,7 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_resolve_community_middleware_binds_current_organization(): void
     {
-        $community = Organization::factory()->create(['slug' => 'test-boucle', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'test-boucle', 'is_active' => true]);
 
         Route::get('/test-org-bind/{community}', function () {
             return response()->json([
@@ -83,13 +83,13 @@ class OrganizationCompatibilityTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'organization_id' => $community->id,
+            'organization_id' => $organization->id,
         ]);
     }
 
     public function test_current_organization_is_bound(): void
     {
-        $community = Organization::factory()->create(['slug' => 'org-bound', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'org-bound', 'is_active' => true]);
 
         Route::get('/test-org-bound/{community}', function () {
             return response()->json([
@@ -103,7 +103,7 @@ class OrganizationCompatibilityTest extends TestCase
         $response->assertOk();
         $response->assertJson([
             'bound' => true,
-            'id' => $community->id,
+            'id' => $organization->id,
         ]);
     }
 
@@ -146,7 +146,7 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_resolve_organization_binds_current_organization(): void
     {
-        $community = Organization::factory()->create(['slug' => 'resolve-org', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'resolve-org', 'is_active' => true]);
 
         Route::get('/resolve-org-test/{community}', function () {
             return response()->json([
@@ -158,7 +158,7 @@ class OrganizationCompatibilityTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'organization_id' => $community->id,
+            'organization_id' => $organization->id,
         ]);
     }
 
@@ -174,7 +174,7 @@ class OrganizationCompatibilityTest extends TestCase
 
     public function test_resolve_community_binds_current_organization(): void
     {
-        $community = Organization::factory()->create(['slug' => 'org-bind', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'org-bind', 'is_active' => true]);
 
         Route::get('/org-bind-check/{community}', function () {
             return response()->json([
@@ -189,14 +189,14 @@ class OrganizationCompatibilityTest extends TestCase
         $response->assertOk();
         $response->assertJson([
             'organization_bound' => true,
-            'organization_id' => $community->id,
+            'organization_id' => $organization->id,
             'view_organization' => 'org-bind',
         ]);
     }
 
     public function test_resolve_organization_shares_view_variables(): void
     {
-        $community = Organization::factory()->create(['slug' => 'view-share', 'is_active' => true]);
+        $organization = Organization::factory()->create(['slug' => 'view-share', 'is_active' => true]);
 
         Route::get('/resolve-org-view/{community}', function () {
             return response()->json([
