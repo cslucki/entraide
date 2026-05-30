@@ -2,23 +2,24 @@
 task_id: TASK-173
 title: Flatten Organization model — remove extends Community, delete Community.php
 
-status: IN_PROGRESS
+status: MERGED
 
 owner: SUPERVISOR
 
-contributors: []
+contributors:
+  - ORCHESTRATOR
 
 branch: TASK-173-flatten-organization-model-remove-extends-community-delete-community-php
 
 priority: MEDIUM
 
 created_at: 2026-05-30 13:50:04 Europe/Paris
-updated_at: 2026-05-30 13:50:04 Europe/Paris
+updated_at: 2026-05-30 21:20:00 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
+  status: UNLOCKED
   agent: SUPERVISOR
   since: 2026-05-30 13:50:04 Europe/Paris
 
@@ -51,14 +52,15 @@ Describe the objective.
 
 Task created.
 
-Owner:
-SUPERVISOR
+Owner: SUPERVISOR
+Branch: TASK-173-flatten-organization-model-remove-extends-community-delete-community-php
+Status: IN_PROGRESS
 
-Branch:
-TASK-173-flatten-organization-model-remove-extends-community-delete-community-php
+## 2026-05-30 21:20:00 Europe/Paris
 
-Status:
-IN_PROGRESS
+MERGED per Option C (ORCHESTRATOR validation).
+Code committed as part of TASK-174 commit `8050271`.
+See TASK-174 for full changeset.
 
 # Handoffs
 
