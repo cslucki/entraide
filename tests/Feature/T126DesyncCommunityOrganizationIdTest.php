@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,7 +16,7 @@ use Tests\TestCase;
  * Vérifie le comportement du système quand community_id != organization_id
  * sur un même enregistrement.
  *
- * Source du risque : T124 audit — BelongsToTenantScope filtrait sur community_id,
+ * Source du risque : T124 audit — BelongsToOrganizationScope filtrait sur community_id,
  * mais ServicePolicy::resourceBelongsToCurrentOrganization() vérifie organization_id.
  * En cas de désync, un enregistrement pouvait être visible dans les listes (scope)
  * mais autoriser/bloquer des actions incohéremment (policy).
@@ -115,7 +115,7 @@ class T126DesyncCommunityOrganizationIdTest extends TestCase
             organizationId: $this->orgB->id,
         );
 
-        // BelongsToTenantScope filtre sur organization_id = OrgB → service invisible
+        // BelongsToOrganizationScope filtre sur organization_id = OrgB → service invisible
         $this->assertCount(0, Service::all());
     }
 

@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\PointLedger;
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -35,7 +35,7 @@ class TransactionController extends Controller
         // Determine seller and organization_id
         $organizationId = null;
         if (! empty($data['service_id'])) {
-            $service = Service::withoutGlobalScope(BelongsToTenantScope::class)->findOrFail($data['service_id']);
+            $service = Service::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($data['service_id']);
 
             if ($service->organization_id === null || $service->organization_id !== $organization->id) {
                 abort(404);
@@ -45,7 +45,7 @@ class TransactionController extends Controller
             $sellerId = $seller->id;
             $organizationId = $service->organization_id;
         } else {
-            $serviceReq = ServiceRequest::withoutGlobalScope(BelongsToTenantScope::class)->findOrFail($data['request_id']);
+            $serviceReq = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($data['request_id']);
 
             if ($serviceReq->organization_id === null || $serviceReq->organization_id !== $organization->id) {
                 abort(404);

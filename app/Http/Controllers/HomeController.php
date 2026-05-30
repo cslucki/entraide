@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -44,10 +44,10 @@ class HomeController extends Controller
 
         $members = User::where('organization_id', $organizationId)
             ->withCount([
-                'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('organization_id', $organizationId),
-                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'open')->where('organization_id', $organizationId),
+                'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->where('organization_id', $organizationId),
+                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'open')->where('organization_id', $organizationId),
             ])
-            ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToTenantScope::class)->where('status', 'active')->where('organization_id', $organizationId)->with('skills', 'category')])
+            ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->where('organization_id', $organizationId)->with('skills', 'category')])
             ->orderByDesc('created_at')
             ->paginate(16);
 
@@ -74,7 +74,7 @@ class HomeController extends Controller
 
         $organizationId = $organization->id;
 
-        $exchanges = Transaction::withoutGlobalScope(BelongsToTenantScope::class)
+        $exchanges = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->where('status', 'completed')
             ->where('organization_id', $organizationId)
             ->with(['buyer', 'seller', 'service.category', 'serviceRequest', 'reviews'])

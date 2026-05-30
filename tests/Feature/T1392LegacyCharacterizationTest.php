@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Http\Middleware\ResolveApiOrganization;
 use App\Models\Loop;
 use App\Models\Organization;
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -25,7 +25,7 @@ use Tests\TestCase;
  * Ils devront être ADAPTÉS lors des futures tâches T140.x.
  *
  * Domaines caractérisés :
- *   1. BelongsToTenantScope filtre sur organization_id (migré par T140.1)
+ *   1. BelongsToOrganizationScope filtre sur organization_id (migré par T140.1)
  *   2. CurrentOrganization::get() peut encore fallback sur current_community
  *   3. ResolveCommunity bind encore current_community + current_organization
  *   4. ResolveApiOrganization dépend encore de $user->organization_id
@@ -56,7 +56,7 @@ class T1392LegacyCharacterizationTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 1. BelongsToTenantScope filtre sur organization_id
+    // 1. BelongsToOrganizationScope filtre sur organization_id
     // ─────────────────────────────────────────────────────────────
 
     public function test_belongs_to_tenant_scope_filters_by_organization_id(): void
@@ -83,7 +83,7 @@ class T1392LegacyCharacterizationTest extends TestCase
     public function test_belongs_to_tenant_scope_uses_organization_id_column(): void
     {
         // Migrated by T140.1 — scope bascule community_id → organization_id
-        $scope = new BelongsToTenantScope;
+        $scope = new BelongsToOrganizationScope;
         $model = new Service;
 
         app()->instance('current_organization', $this->community);

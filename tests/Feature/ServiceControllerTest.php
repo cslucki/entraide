@@ -149,7 +149,7 @@ class ServiceControllerTest extends TestCase
         ]);
 
         $response->assertRedirect(route('dashboard'));
-        $service = Service::withoutGlobalScope(\App\Models\Scopes\BelongsToTenantScope::class)->where('title', 'Service with tags')->first();
+        $service = Service::withoutGlobalScope(\App\Models\Scopes\BelongsToOrganizationScope::class)->where('title', 'Service with tags')->first();
         $this->assertEquals(3, $service->tags()->count());
     }
 }

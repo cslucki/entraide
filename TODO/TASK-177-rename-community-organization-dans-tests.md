@@ -2,7 +2,7 @@
 task_id: TASK-177
 title: Rename $community → $organization dans tests/
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 

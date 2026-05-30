@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -12,7 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Tests for BelongsToTenantScope Organization-first resolution.
+ * Tests for BelongsToOrganizationScope Organization-first resolution.
  *
  * Verifies that:
  * - current_organization takes precedence (canonical)
@@ -21,7 +21,7 @@ use Tests\TestCase;
  * - behavior is identical whether community_id is set via Organization or Community
  * - cross-Organization data leakage is impossible
  */
-class BelongsToTenantScopeTest extends TestCase
+class BelongsToOrganizationScopeTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -165,7 +165,7 @@ class BelongsToTenantScopeTest extends TestCase
 
         app()->instance('current_organization', $org);
 
-        $this->assertCount(2, Service::withoutGlobalScope(BelongsToTenantScope::class)->get());
+        $this->assertCount(2, Service::withoutGlobalScope(BelongsToOrganizationScope::class)->get());
     }
 
     // -------------------------------------------------------------------------
@@ -242,7 +242,7 @@ class BelongsToTenantScopeTest extends TestCase
 
         $this->assertCount(
             2,
-            Service::withoutGlobalScope(BelongsToTenantScope::class)->get()
+            Service::withoutGlobalScope(BelongsToOrganizationScope::class)->get()
         );
     }
 }
