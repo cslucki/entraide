@@ -4,23 +4,24 @@ title: remove community_id from simple table migrations
 
 status: DONE
 
-owner: SUPERVISOR
+owner: ORCHESTRATOR
 
-contributors: []
+contributors:
+  - SUPERVISOR
 
 branch: TASK-186-remove-community-id-from-simple-table-migrations
 
 priority: MEDIUM
 
 created_at: 2026-05-31 19:15:15 Europe/Paris
-updated_at: 2026-05-31 21:00:00 Europe/Paris
+updated_at: 2026-05-31 20:13:34 Europe/Paris
 
 labels: []
 
 lock:
   status: UNLOCKED
   agent: null
-  since: 2026-05-31 21:00:00 Europe/Paris
+  since: 2026-05-31 20:13:34 Europe/Paris
 
 handoff: false
 
@@ -67,7 +68,7 @@ Task created. Owner: SUPERVISOR. Branch: TASK-186-remove-community-id-from-simpl
 
 RAA reprise réalisée. Diff partiel présent : 4 migrations no-op'd (non stagées). TASK non tracké. Fichiers restants identifiés.
 
-## 2026-05-31 21:00:00 Europe/Paris
+## 2026-05-31 20:00:00 Europe/Paris
 
 Implémentation RUN-005G complète (Claude Sonnet 4.6, SUPERVISOR) :
 - blog_posts migration : community_id → organization_id (up + down)
@@ -78,6 +79,23 @@ Implémentation RUN-005G complète (Claude Sonnet 4.6, SUPERVISOR) :
 - migrate:fresh SQLite : PASS complet
 - migrate:fresh PostgreSQL : BLOCAGE ENVIRONNEMENTAL (connexion refusée) — non bloquant
 - Pint : appliqué
+
+## 2026-05-31 20:08:54 Europe/Paris
+
+Correctif RUN-005G post-VERIFICATOR repris par ORCHESTRATOR :
+- `add_organization_id_to_tables` down : exclusion de `blog_posts` et drop défensif uniquement si `organization_id` existe.
+- `drop_community_id_from_tables` down : no-op documenté pour `blog_posts`.
+- Décision : `blog_posts.organization_id` appartient désormais à `2026_05_06_160412_add_meta_fields_to_blog_posts_table.php` sur fresh install ; après `up()`, la migration de transition ne peut pas distinguer stateless une base fresh d'une base legacy sans risquer de supprimer une colonne/FK dont elle n'est plus propriétaire.
+- Compromis accepté : ne pas restaurer `blog_posts.community_id` dans ce `down()` afin de préserver l'ownership fresh-install validé par VERIFICATOR.
+
+## 2026-05-31 20:13:34 Europe/Paris
+
+Validation RUN-005G correction (OpenCode SUPERVISOR) :
+- `git diff --check` : PASS (no whitespace errors)
+- `vendor/bin/pint --dirty` : PASS
+- `git diff --name-status develop...HEAD` : 8 files only (7 migrations + TASK)
+- `php artisan test` : 826 passed / 11 skipped / 0 failures — 1756 assertions — 31.79s
+- Commit : `fix: preserve blog post organization rollback ownership`
 
 # Handoffs
 
@@ -90,6 +108,7 @@ Implémentation RUN-005G complète (Claude Sonnet 4.6, SUPERVISOR) :
 - [ ] responsive validation
 - [ ] console inspection
 - [ ] tenant validation
+- [x] Audit ciblé rollback ownership blog_posts — `blog_posts.organization_id` n'est plus droppé/reconverti par les migrations de transition
 
 ---
 
@@ -112,6 +131,8 @@ Implémentation strictement dans le périmètre RUN-005G :
 - Compatibilité SQLite validée (foreign key handling différent — ok)
 - Compatibilité vieille DB préservée via guards hasColumn (community_id encore présent → opérations normales)
 - blog_posts : cas particulier — FK organization_id déjà créée par blog_posts migration en fresh install → bloc drop_community_id conditionnel sur hasColumn('blog_posts', 'community_id')
+- Correctif VERIFICATOR : les `down()` de transition préservent l'ownership de `blog_posts.organization_id`; seule la migration blog_posts reste responsable de son rollback.
+- `drop_community_id_from_tables` down ne tente pas de recréer `blog_posts.community_id`, car l'état post-up ne permet pas de différencier une base fresh d'une base legacy sans table de suivi dédiée.
 
 ---
 

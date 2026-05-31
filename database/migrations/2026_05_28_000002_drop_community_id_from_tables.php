@@ -114,12 +114,9 @@ return new class extends Migration
             $table->foreign('community_id')->references('id')->on('organizations')->onDelete('set null');
         });
 
-        // blog_posts
-        Schema::table('blog_posts', function (Blueprint $table) {
-            $table->dropForeign(['organization_id']);
-            $table->foreignUuid('community_id')->nullable()->after('id');
-            $table->foreign('community_id')->references('id')->on('organizations')->nullOnDelete();
-        });
+        // blog_posts.organization_id is owned by the blog_posts migration on fresh installs.
+        // After up(), this migration cannot reliably distinguish fresh installs from legacy
+        // databases, so it must not drop or recreate blog_posts tenant columns in down().
 
         // loops
         Schema::table('loops', function (Blueprint $table) {
