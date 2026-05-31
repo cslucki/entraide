@@ -106,7 +106,7 @@ Workflow closure completed:
 - `ai/scripts/finalize-task.sh TASK-185`: PASS; branch push and CI check skipped intentionally during orchestration closure.
 - `ai/scripts/merge-task.sh TASK-185`: PASS; merged into `develop` with merge commit `432849d`.
 
-TASK status set to MERGED. Push to `origin/develop` pending at the time of this log entry.
+TASK status set to MERGED and pushed to `origin/develop` with closure commit `c478af4`.
 
 # Handoffs
 
