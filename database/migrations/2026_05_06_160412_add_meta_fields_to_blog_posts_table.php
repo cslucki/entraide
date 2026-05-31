@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('blog_posts', function (Blueprint $table) {
-            $table->foreignUuid('community_id')->nullable()->constrained()->nullOnDelete()->after('user_id');
+            $table->foreignUuid('community_id')->nullable()->constrained('organizations')->nullOnDelete()->after('user_id');
             $table->string('meta_title', 255)->nullable()->after('content');
             $table->string('meta_description', 320)->nullable()->after('meta_title');
             $table->unsignedSmallInteger('read_time')->nullable()->after('meta_description');
