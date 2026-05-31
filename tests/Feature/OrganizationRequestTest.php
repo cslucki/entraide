@@ -25,7 +25,7 @@ class OrganizationRequestTest extends TestCase
             ->assertRedirect('/partenaires')
             ->assertSessionHas('success');
 
-        $this->assertDatabaseHas('community_requests', [
+        $this->assertDatabaseHas('organization_requests', [
             'boucle_name' => 'Test Organization',
             'contact_email' => 'test@example.com',
         ]);
@@ -42,7 +42,7 @@ class OrganizationRequestTest extends TestCase
         ]);
 
         $this->assertModelExists($request);
-        $this->assertEquals('community_requests', $request->getTable());
+        $this->assertEquals('organization_requests', $request->getTable());
         $this->assertEquals('Test Organization', $request->boucle_name);
     }
 }

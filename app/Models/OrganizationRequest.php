@@ -10,8 +10,6 @@ class OrganizationRequest extends Model
 {
     use HasUuids;
 
-    protected $table = 'community_requests';
-
     protected $fillable = [
         'boucle_name',
         'contact_name',

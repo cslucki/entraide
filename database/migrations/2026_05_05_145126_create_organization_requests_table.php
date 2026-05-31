@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('community_requests', function (Blueprint $table) {
+        Schema::create('organization_requests', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('boucle_name');
             $table->string('contact_name');
@@ -23,6 +23,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('community_requests');
+        Schema::dropIfExists('organization_requests');
     }
 };
