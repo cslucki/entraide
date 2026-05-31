@@ -20,7 +20,7 @@ return new class extends Migration
             $table->timestamp('activated_at')->nullable();
             $table->timestamps();
 
-            $table->foreign('community_id')->references('id')->on('communities')->cascadeOnDelete();
+            $table->foreign('community_id')->references('id')->on('organizations')->cascadeOnDelete();
             $table->foreign('referrer_user_id')->references('id')->on('users')->cascadeOnDelete();
             $table->foreign('referred_user_id')->references('id')->on('users')->cascadeOnDelete();
 
