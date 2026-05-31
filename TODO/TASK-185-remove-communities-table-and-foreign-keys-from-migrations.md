@@ -13,7 +13,7 @@ branch: TASK-185-remove-communities-table-and-foreign-keys-from-migrations
 priority: MEDIUM
 
 created_at: 2026-05-31 16:03:05 Europe/Paris
-updated_at: 2026-05-31 16:05:17 Europe/Paris
+updated_at: 2026-05-31 16:11:22 Europe/Paris
 
 labels: []
 
@@ -76,6 +76,14 @@ No `community_id` column was removed or renamed. No `add_organization_id_to_*` m
 
 Status set to DONE and lock released after validations and report update.
 
+## 2026-05-31 16:11:22 Europe/Paris
+
+Addressed VERIFICATOR `CHANGES_REQUESTED` for RUN-005F.
+
+Updated only `database/migrations/2026_05_06_160412_add_meta_fields_to_blog_posts_table.php` so the preserved legacy `community_id` column explicitly references `organizations` via `constrained('organizations')`.
+
+Reran the required explicit and implicit migration audits plus `php artisan test`; all passed. Status remains DONE and lock remains UNLOCKED.
+
 # Handoffs
 
 None. Task completed by SUPERVISOR.
@@ -93,8 +101,9 @@ None. Task completed by SUPERVISOR.
 # Test Results
 
 - `rg -n "Schema::create\('communities'\)|Schema::table\('communities'\)|on\('communities'\)|create_communities|add_.*_to_communities" database/migrations` — PASS, no output.
+- `rg -n "foreignUuid\('community_id'\).*constrained\(\)|foreignId\('community_id'\).*constrained\(\)" database/migrations` — PASS, no output.
 - `php artisan migrate:fresh --seed --env=testing` — BLOCKED by local PostgreSQL connection refused on `127.0.0.1:5432`; scope not expanded.
-- `php artisan test` — PASS, 826 passed, 11 skipped, 1756 assertions.
+- `php artisan test` — PASS, 826 passed, 11 skipped, 1756 assertions. Rerun after VERIFICATOR correction: PASS, 826 passed, 11 skipped, 1756 assertions.
 
 ---
 
@@ -102,6 +111,7 @@ None. Task completed by SUPERVISOR.
 
 - Fresh installs no longer create a `communities` table from the initial migration.
 - Fresh installs keep legacy `community_id` columns but point their FK constraints at `organizations`.
+- VERIFICATOR finding fixed: blog post `community_id` now explicitly targets `organizations` instead of relying on Laravel's implicit `communities` convention.
 - Legacy database path remains supported when `communities` exists and `organizations` does not.
 - Residual risk: PostgreSQL fresh migration could not be executed locally because the database service was unavailable.
 
