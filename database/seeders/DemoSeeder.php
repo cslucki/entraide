@@ -19,9 +19,9 @@ class DemoSeeder extends Seeder
     public function run(): void
     {
         // ── Organisation de démo : CPME ─────────────────────────────────────
-        $community = Organization::where('slug', 'cpme')->first();
-        if (! $community) {
-            $this->command->error('Organisation "cpme" introuvable. Lancez d\'abord : php artisan db:seed --class=CommunitySeeder');
+        $organization = Organization::where('slug', 'cpme')->first();
+        if (! $organization) {
+            $this->command->error('Organisation "cpme" introuvable. Lancez d\'abord : php artisan db:seed --class=OrganizationSeeder');
             return;
         }
 
@@ -29,7 +29,7 @@ class DemoSeeder extends Seeder
         $cyril = User::where('email', 'cslucki@gmail.com')->first();
         if (! $cyril) {
             $cyril = User::create([
-                'organization_id'   => $community->id,
+                'organization_id'   => $organization->id,
                 'name'           => 'Cyril',
                 'email'          => 'cslucki@gmail.com',
                 'password'       => Hash::make('ChangeMe2026!'),
@@ -41,7 +41,7 @@ class DemoSeeder extends Seeder
             $this->command->info('Utilisateur Cyril créé. Mot de passe : ChangeMe2026!');
         } else {
             $cyril->update([
-                'organization_id'   => $community->id,
+                'organization_id'   => $organization->id,
                 'points_balance' => 350,
                 'is_available'   => true,
                 'is_admin'       => true,
@@ -67,7 +67,7 @@ class DemoSeeder extends Seeder
         $alice = $this->createOrUpdateUser([
             'email'         => 'alice@bouclepro.com',
             'name'          => 'Alice Moreau',
-            'organization_id'  => $community->id,
+            'organization_id'  => $organization->id,
             'points_balance'=> 220,
             'bio'           => 'Designer UI/UX freelance avec 8 ans d\'expérience. Spécialisée identité visuelle et Figma.',
             'location'      => 'Paris (75)',
@@ -76,7 +76,7 @@ class DemoSeeder extends Seeder
         $bob = $this->createOrUpdateUser([
             'email'         => 'bob@bouclepro.com',
             'name'          => 'Bob Leclerc',
-            'organization_id'  => $community->id,
+            'organization_id'  => $organization->id,
             'points_balance'=> 180,
             'bio'           => 'Consultant marketing digital. J\'aide les indépendants à développer leur présence en ligne.',
             'location'      => 'Lyon (69)',
@@ -85,7 +85,7 @@ class DemoSeeder extends Seeder
         $carol = $this->createOrUpdateUser([
             'email'         => 'carol@bouclepro.com',
             'name'          => 'Carol Petit',
-            'organization_id'  => $community->id,
+            'organization_id'  => $organization->id,
             'points_balance'=> 90,
             'bio'           => 'Ex-DG de PME, maintenant coach et consultante en stratégie d\'entreprise.',
             'location'      => 'Bordeaux (33)',
@@ -94,14 +94,14 @@ class DemoSeeder extends Seeder
         $dave = $this->createOrUpdateUser([
             'email'         => 'dave@bouclepro.com',
             'name'          => 'Dave Nguyen',
-            'organization_id'  => $community->id,
+            'organization_id'  => $organization->id,
             'points_balance'=> 130,
             'bio'           => 'Traducteur FR/EN certifié. Relecture de documents techniques et juridiques.',
             'location'      => 'Nantes (44)',
         ]);
 
         // ── Services de Cyril ────────────────────────────────────────────────
-        $svcCyril1 = $this->service($cyril, $community, [
+        $svcCyril1 = $this->service($cyril, $organization, [
             'title'         => 'Audit de sécurité WordPress',
             'description'   => "Je réalise un audit complet de votre site WordPress : plugins vulnérables, configuration serveur, permissions fichiers. Livraison d'un rapport PDF actionnable sous 48h.",
             'category_id'   => $tech->id,
@@ -109,7 +109,7 @@ class DemoSeeder extends Seeder
             'points_cost'   => 150,
         ]);
 
-        $svcCyril2 = $this->service($cyril, $community, [
+        $svcCyril2 = $this->service($cyril, $organization, [
             'title'         => 'Formation Git & GitHub pour débutants',
             'description'   => "Session de 2h en visio pour maîtriser les bases de Git : commits, branches, pull requests, résolution de conflits. Idéal pour les freelances qui veulent versionner leur travail.",
             'category_id'   => $formation->id,
@@ -117,7 +117,7 @@ class DemoSeeder extends Seeder
             'points_cost'   => 80,
         ]);
 
-        $this->service($cyril, $community, [
+        $this->service($cyril, $organization, [
             'title'         => 'Mise en place d\'un espace Notion tout-en-un',
             'description'   => "Je configure votre Notion : pipeline commercial, tableaux de bord, automatisations et templates sur-mesure. Prise en main garantie.",
             'category_id'   => $tech->id,
@@ -126,7 +126,7 @@ class DemoSeeder extends Seeder
         ]);
 
         // ── Services d'Alice ─────────────────────────────────────────────────
-        $svcAlice1 = $this->service($alice, $community, [
+        $svcAlice1 = $this->service($alice, $organization, [
             'title'         => 'Création de logo professionnel',
             'description'   => "Identité visuelle de A à Z : 3 propositions de logo, révisions illimitées, fichiers sources livrés (AI, SVG, PNG). Délai : 5 jours ouvrés.",
             'category_id'   => $design->id,
@@ -134,7 +134,7 @@ class DemoSeeder extends Seeder
             'points_cost'   => 200,
         ]);
 
-        $this->service($alice, $community, [
+        $this->service($alice, $organization, [
             'title'         => 'Maquettes UI Figma — landing page',
             'description'   => "Conception de votre landing page sur Figma : wireframe, maquette desktop + mobile, composants réutilisables et guide de style livré.",
             'category_id'   => $design->id,
@@ -143,7 +143,7 @@ class DemoSeeder extends Seeder
         ]);
 
         // ── Services de Bob ──────────────────────────────────────────────────
-        $svcBob1 = $this->service($bob, $community, [
+        $svcBob1 = $this->service($bob, $organization, [
             'title'         => 'Stratégie LinkedIn pour indépendants',
             'description'   => "Audit de profil, ligne éditoriale, plan de contenu 4 semaines et 3 posts rédigés clés en main. Sortez enfin de l'invisibilité LinkedIn.",
             'category_id'   => $marketing->id,
@@ -151,7 +151,7 @@ class DemoSeeder extends Seeder
             'points_cost'   => 100,
         ]);
 
-        $this->service($bob, $community, [
+        $this->service($bob, $organization, [
             'title'         => 'Rédaction de newsletter mensuelle',
             'description'   => "Je rédige votre newsletter : angle éditorial, corps de texte, call-to-action, objet optimisé. Livraison sous 3 jours avec 1 révision incluse.",
             'category_id'   => $redaction->id,
@@ -160,7 +160,7 @@ class DemoSeeder extends Seeder
         ]);
 
         // ── Services de Carol ────────────────────────────────────────────────
-        $this->service($carol, $community, [
+        $this->service($carol, $organization, [
             'title'         => 'Session stratégie — définir ses offres freelance',
             'description'   => "Atelier 1h30 pour clarifier votre positionnement, structurer vos offres et fixer vos tarifs. Vous repartez avec un plan d'action concret.",
             'category_id'   => $conseil->id,
@@ -169,7 +169,7 @@ class DemoSeeder extends Seeder
         ]);
 
         // ── Services de Dave ─────────────────────────────────────────────────
-        $svcDave1 = $this->service($dave, $community, [
+        $svcDave1 = $this->service($dave, $organization, [
             'title'         => 'Traduction FR → EN de documents professionnels',
             'description'   => "Traduction certifiée de contrats, CV, présentations. 90 points par tranche de 500 mots. Délai standard : 48h.",
             'category_id'   => $traduction->id,
@@ -177,7 +177,7 @@ class DemoSeeder extends Seeder
             'points_cost'   => 90,
         ]);
 
-        $this->service($dave, $community, [
+        $this->service($dave, $organization, [
             'title'         => 'Relecture et correction de textes (FR)',
             'description'   => "Relecture orthographique, grammaticale et stylistique. Idéal avant publication d'un article, d'une proposition commerciale ou d'un rapport.",
             'category_id'   => $redaction->id,
@@ -186,7 +186,7 @@ class DemoSeeder extends Seeder
         ]);
 
         // ── Demandes ouvertes ────────────────────────────────────────────────
-        $this->request($cyril, $community, [
+        $this->request($cyril, $organization, [
             'title'       => 'Recherche coach pour préparer une levée de fonds',
             'description' => "Je prépare une présentation investisseurs pour un projet SaaS B2B. Cherche quelqu'un ayant déjà accompagné des entrepreneurs dans ce processus pour relire mon pitch deck.",
             'category_id' => $conseil->id,
@@ -195,7 +195,7 @@ class DemoSeeder extends Seeder
             'deadline'    => now()->addDays(14),
         ]);
 
-        $this->request($alice, $community, [
+        $this->request($alice, $organization, [
             'title'       => 'Besoin d\'un développeur pour intégrer Stripe',
             'description' => "J'ai un site Laravel 11 et dois intégrer Stripe Connect pour gérer des paiements entre utilisateurs. Cherche quelqu'un d'expérimenté pour du pair-programming.",
             'category_id' => $tech->id,
@@ -204,7 +204,7 @@ class DemoSeeder extends Seeder
             'deadline'    => now()->addDays(7),
         ]);
 
-        $this->request($bob, $community, [
+        $this->request($bob, $organization, [
             'title'       => 'Traduction de mes CGV en anglais',
             'description' => "Mes conditions générales de vente (3 pages, ~1500 mots) doivent être traduites en anglais pour mes clients internationaux.",
             'category_id' => $traduction->id,
@@ -219,7 +219,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $cyril->id,
             'service_id'=> $svcCyril1->id,
         ], [
-            'organization_id'        => $community->id,
+            'organization_id'        => $organization->id,
             'points_proposed'     => 150,
             'points_agreed'       => 150,
             'status'              => 'completed',
@@ -252,7 +252,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $cyril->id,
             'service_id'=> $svcCyril2->id,
         ], [
-            'organization_id'        => $community->id,
+            'organization_id'        => $organization->id,
             'points_proposed'     => 80,
             'points_agreed'       => 80,
             'status'              => 'completed',
@@ -285,7 +285,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $alice->id,
             'service_id'=> $svcAlice1->id,
         ], [
-            'organization_id'    => $community->id,
+            'organization_id'    => $organization->id,
             'points_proposed' => 200,
             'points_agreed'   => 200,
             'status'          => 'accepted',
@@ -305,7 +305,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $cyril->id,
             'service_id'=> $svcCyril2->id,
         ], [
-            'organization_id'    => $community->id,
+            'organization_id'    => $organization->id,
             'points_proposed' => 80,
             'status'          => 'pending',
         ]);
@@ -322,7 +322,7 @@ class DemoSeeder extends Seeder
             'seller_id' => $dave->id,
             'service_id'=> $svcDave1->id,
         ], [
-            'organization_id'       => $community->id,
+            'organization_id'       => $organization->id,
             'points_proposed'    => 90,
             'points_agreed'      => 90,
             'status'             => 'buyer_done',
@@ -360,19 +360,19 @@ class DemoSeeder extends Seeder
         return $user;
     }
 
-    private function service(User $user, Organization $community, array $data): Service
+    private function service(User $user, Organization $organization, array $data): Service
     {
         return Service::firstOrCreate(
             ['title' => $data['title'], 'user_id' => $user->id],
-            array_merge($data, ['organization_id' => $community->id, 'status' => 'active'])
+            array_merge($data, ['organization_id' => $organization->id, 'status' => 'active'])
         );
     }
 
-    private function request(User $user, Organization $community, array $data): ServiceRequest
+    private function request(User $user, Organization $organization, array $data): ServiceRequest
     {
         return ServiceRequest::firstOrCreate(
             ['title' => $data['title'], 'user_id' => $user->id],
-            array_merge($data, ['organization_id' => $community->id, 'status' => 'open'])
+            array_merge($data, ['organization_id' => $organization->id, 'status' => 'open'])
         );
     }
 
