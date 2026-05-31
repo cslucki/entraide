@@ -2,7 +2,7 @@
 task_id: TASK-182
 title: rename community requests table to organization requests
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-182-rename-community-requests-table-to-organization-requests
 priority: MEDIUM
 
 created_at: 2026-05-31 14:53:49 Europe/Paris
-updated_at: 2026-05-31 15:03:00 Europe/Paris
+updated_at: 2026-05-31 15:24:00 Europe/Paris
 
 labels: []
 
@@ -23,7 +23,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -101,6 +101,23 @@ Renamed database table `community_requests` to `organization_requests` with mini
 **ZERO** PHP references to `community_requests` remaining.
 `rg "community_requests" --type php` → 0 résultats
 
+## 2026-05-31 15:24:00 Europe/Paris
+
+Task merged into `develop`.
+
+### Merge Summary
+
+- `ai/scripts/check-task.sh TASK-182`: PASS
+- `ai/scripts/finalize-task.sh TASK-182`: PASS, branch push skipped intentionally
+- `ai/scripts/merge-task.sh TASK-182`: PASS
+- Merge commit: `467e74c Merge branch 'TASK-182-rename-community-requests-table-to-organization-requests' into develop`
+- Push status: pending at time of this TASK update; next step is commit this MERGED status and push `develop`
+
+### VERIFICATOR Final Validation
+
+- Verdict: ACCEPT
+- Report: `ai-local/verificator/report-from-verificator/20260531-RUN-005C-VERIFICATOR-FINAL-VALIDATION.md`
+
 ---
 
 # Handoffs
@@ -135,7 +152,11 @@ None.
 
 # Review Notes
 
-**VERIFICATOR Verdict:** CHANGES_REQUESTED (TASK file non mise à jour - contrôlable)
+**VERIFICATOR Initial Verdict:** CHANGES_REQUESTED (TASK file non mise à jour - contrôlable)
+
+**VERIFICATOR Final Verdict:** ACCEPT (2026-05-31 15:10 CEST)
+
+**Merge Status:** MERGED into `develop` via commit `467e74c`.
 
 **Renommage Correct:**
 - Table community_requests → organization_requests ✅
