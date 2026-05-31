@@ -19,7 +19,7 @@ return new class extends Migration
             $table->uuid('created_by')->nullable();
             $table->timestamps();
 
-            $table->foreign('community_id')->references('id')->on('communities')->onDelete('cascade');
+            $table->foreign('community_id')->references('id')->on('organizations')->onDelete('cascade');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
             $table->unique(['community_id', 'slug']);
         });
