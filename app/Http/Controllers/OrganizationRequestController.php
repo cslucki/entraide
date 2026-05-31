@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CommunityRequest;
+use App\Models\OrganizationRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -30,7 +30,7 @@ class OrganizationRequestController extends Controller
             $data['contact_email'] = $data['contact_email'] ?: auth()->user()->email;
         }
 
-        CommunityRequest::create($data);
+        OrganizationRequest::create($data);
 
         return redirect()->route('partenaires.index')
             ->with('success', "Votre demande de partenariat « {$data['boucle_name']} » a bien été envoyée. Nous vous répondrons sous 48h.");
