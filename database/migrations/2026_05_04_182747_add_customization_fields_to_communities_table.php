@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('communities', function (Blueprint $table) {
+        Schema::table('organizations', function (Blueprint $table) {
             $table->uuid('admin_id')->nullable()->after('is_active');
             $table->string('hero_image')->nullable()->after('admin_id');
             $table->string('hero_title')->nullable()->after('hero_image');
@@ -22,7 +22,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('communities', function (Blueprint $table) {
+        Schema::table('organizations', function (Blueprint $table) {
             $table->dropForeign(['admin_id']);
             $table->dropColumn(['admin_id', 'hero_image', 'hero_title', 'hero_description', 'accent_color', 'welcome_points']);
         });

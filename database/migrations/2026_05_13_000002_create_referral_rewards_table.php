@@ -21,7 +21,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->foreign('community_id')->references('id')->on('communities')->cascadeOnDelete();
+            $table->foreign('community_id')->references('id')->on('organizations')->cascadeOnDelete();
             $table->foreign('referral_id')->references('id')->on('referrals')->cascadeOnDelete();
             $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
             $table->foreign('source_user_id')->references('id')->on('users')->nullOnDelete();

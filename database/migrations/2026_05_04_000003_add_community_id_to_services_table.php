@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('services', function (Blueprint $table) {
             $table->uuid('community_id')->nullable()->after('id');
-            $table->foreign('community_id')->references('id')->on('communities')->onDelete('set null');
+            $table->foreign('community_id')->references('id')->on('organizations')->onDelete('set null');
         });
     }
 
