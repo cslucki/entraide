@@ -14,10 +14,10 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        $community = Organization::where('slug', 'cpme')->first()
+        $organization = Organization::where('slug', 'cpme')->first()
             ?? DefaultOrganizationResolver::resolve();
 
-        if (! $community) {
+        if (! $organization) {
             throw new RuntimeException('UserSeeder requires an active organization.');
         }
 
@@ -30,7 +30,7 @@ class UserSeeder extends Seeder
                 'is_available' => true,
                 'is_admin' => true,
                 'email_verified_at' => now(),
-                'organization_id' => $community->id,
+                'organization_id' => $organization->id,
             ]
         );
 
@@ -51,7 +51,7 @@ class UserSeeder extends Seeder
                 'points_balance' => 100,
                 'is_available' => true,
                 'email_verified_at' => now(),
-                'organization_id' => $community->id,
+                'organization_id' => $organization->id,
             ]
         );
 

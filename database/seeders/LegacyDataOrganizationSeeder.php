@@ -11,18 +11,18 @@ class LegacyDataOrganizationSeeder extends Seeder
 {
     public function run(): void
     {
-        $community = $this->resolveDefaultOrganization();
+        $organization = $this->resolveDefaultOrganization();
 
-        if (! $community) {
+        if (! $organization) {
             $this->command->warn('No active organization found. Skipping legacy data backfill.');
 
             return;
         }
 
-        $this->command->info("Default organization: {$community->name} ({$community->id})");
+        $this->command->info("Default organization: {$organization->name} ({$organization->id})");
 
         $alreadySet = Setting::get('default_organization_id');
-        if ($alreadySet === (string) $community->id) {
+        if ($alreadySet === (string) $organization->id) {
             $this->command->warn('Default organization already configured. Checking for remaining NULL records...');
         }
 
@@ -42,40 +42,40 @@ class LegacyDataOrganizationSeeder extends Seeder
             $updated = DB::table($table)
                 ->whereNull('organization_id')
                 ->update([
-                    'organization_id' => $community->id,
+                    'organization_id' => $organization->id,
                 ]);
 
             $totalUpdated += $updated;
             $this->command->info("  {$table}: {$updated} records backfilled");
         }
 
-        Setting::set('default_organization_id', (string) $community->id);
+        Setting::set('default_organization_id', (string) $organization->id);
 
         $this->command->info("Total legacy records backfilled: {$totalUpdated}");
-        $this->command->info("Default organization ID set to: {$community->id}");
+        $this->command->info("Default organization ID set to: {$organization->id}");
     }
 
     private function resolveDefaultOrganization(): ?Organization
     {
         $defaultId = Setting::get('default_organization_id');
         if ($defaultId) {
-            $community = Organization::find($defaultId);
-            if ($community) {
-                return $community;
+            $organization = Organization::find($defaultId);
+            if ($organization) {
+                return $organization;
             }
         }
 
-        $community = Organization::where('slug', 'main')->first();
-        if ($community) {
-            return $community;
+        $organization = Organization::where('slug', 'main')->first();
+        if ($organization) {
+            return $organization;
         }
 
-        $community = Organization::where('is_public', true)
+        $organization = Organization::where('is_public', true)
             ->where('is_active', true)
             ->first();
 
-        if ($community) {
-            return $community;
+        if ($organization) {
+            return $organization;
         }
 
         return Organization::where('is_active', true)->first();
