@@ -13,7 +13,7 @@ branch: TASK-183-rename-communityseeder-to-organizationseeder
 priority: MEDIUM
 
 created_at: 2026-05-31 15:41:18 Europe/Paris
-updated_at: 2026-05-31 15:43:00 Europe/Paris
+updated_at: 2026-05-31 15:50:00 Europe/Paris
 
 labels: []
 
@@ -82,6 +82,12 @@ Validation completed:
 
 Status updated to DONE and task lock released for local commit.
 
+## 2026-05-31 15:50:00 Europe/Paris
+
+VERIFICATOR reviewed commit `5eef4a2` and returned `ACCEPT` in `ai-local/verificator/report-from-verificator/20260531-RUN-005D-VERIFICATOR-REPORT.md`.
+
+Documentation clarification: the strict `CommunitySeeder` cleanup is complete. A broader seeder audit still finds `$community` / `$communityId` variables in untouched seeders (`UserSeeder`, `LegacyDataOrganizationSeeder`, `QaAccountsSeeder`). VERIFICATOR accepted those as out of scope for RUN-005D because this lot only authorized `CommunitySeeder`, `DatabaseSeeder`, and `DemoSeeder` changes.
+
 # Handoffs
 
 No handoff. Task completed locally by SUPERVISOR. Branch intentionally not pushed or merged.
@@ -99,7 +105,9 @@ No handoff. Task completed locally by SUPERVISOR. Branch intentionally not pushe
 
 # Test Results
 
-- `rg -n "CommunitySeeder|db:seed --class=CommunitySeeder|\\$communities|\\$community" database/seeders` returned no matches.
+- `rg -n "CommunitySeeder|db:seed --class=CommunitySeeder" database/seeders` returned no matches.
+- `rg -n "CommunitySeeder|db:seed --class=CommunitySeeder|\\$communities|\\$community" database/seeders/OrganizationSeeder.php database/seeders/DatabaseSeeder.php database/seeders/DemoSeeder.php` returned no matches in the files changed by this lot.
+- A broader `database/seeders` audit still finds `$community` / `$communityId` variables in untouched seeders; this is future cleanup, not a blocker for RUN-005D.
 - `php artisan test` passed: 826 passed, 11 skipped, 1756 assertions, duration 25.13s.
 
 ---
@@ -110,6 +118,7 @@ No handoff. Task completed locally by SUPERVISOR. Branch intentionally not pushe
 - No migrations, app code, or tests were changed.
 - Organization remains the tenant vocabulary; Loop was not touched.
 - No push or merge performed.
+- VERIFICATOR final verdict: `ACCEPT`.
 
 ---
 
