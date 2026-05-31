@@ -29,35 +29,35 @@ class QaAccountsSeeder extends Seeder
                 'email' => 'qa-admin@bouclepro.local',
                 'name' => 'QA Admin',
                 'is_admin' => true,
-                'community_slug' => null,
+                'organization_slug' => null,
                 'points' => 100,
             ],
             [
                 'email' => 'qa-member1@bouclepro.local',
                 'name' => 'QA Member 1',
                 'is_admin' => false,
-                'community_slug' => null,
+                'organization_slug' => null,
                 'points' => 100,
             ],
             [
                 'email' => 'qa-member2@bouclepro.local',
                 'name' => 'QA Member 2',
                 'is_admin' => false,
-                'community_slug' => null,
+                'organization_slug' => null,
                 'points' => 100,
             ],
             [
                 'email' => 'qa-cpme1@bouclepro.local',
                 'name' => 'QA CPME 1',
                 'is_admin' => false,
-                'community_slug' => 'cpme',
+                'organization_slug' => 'cpme',
                 'points' => 100,
             ],
             [
                 'email' => 'qa-cpme2@bouclepro.local',
                 'name' => 'QA CPME 2',
                 'is_admin' => false,
-                'community_slug' => 'cpme',
+                'organization_slug' => 'cpme',
                 'points' => 100,
             ],
         ];
@@ -75,11 +75,11 @@ class QaAccountsSeeder extends Seeder
         $this->ensureQaOrganizationsExist();
 
         foreach ($this->accounts as $account) {
-            $communityId = $account['community_slug']
-                ? Organization::where('slug', $account['community_slug'])->value('id')
+            $organizationId = $account['organization_slug']
+                ? Organization::where('slug', $account['organization_slug'])->value('id')
                 : DefaultOrganizationResolver::resolve()?->getKey();
 
-            if (! $communityId) {
+            if (! $organizationId) {
                 throw new RuntimeException('QaAccountsSeeder requires an active organization for every QA account.');
             }
 
@@ -92,7 +92,7 @@ class QaAccountsSeeder extends Seeder
                     'is_available' => true,
                     'email_verified_at' => now(),
                     'points_balance' => $account['points'],
-                    'organization_id' => $communityId,
+                    'organization_id' => $organizationId,
                     'bio' => 'QA test account for Playwright and PHPUnit.',
                     'location' => 'Paris',
                     'phone' => '+33600000000',
