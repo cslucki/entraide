@@ -2,7 +2,7 @@
 task_id: TASK-184
 title: rename remaining community variables in seeders
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-184-rename-remaining-community-variables-in-seeders
 priority: MEDIUM
 
 created_at: 2026-05-31 15:50:53 Europe/Paris
-updated_at: 2026-05-31 15:52:20 Europe/Paris
+updated_at: 2026-05-31 15:57:57 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -96,6 +96,20 @@ Supervisor report written to `ai-local/supervisor/report-to-orchestrator/2026053
 
 Status set to DONE and task unlocked for orchestration review. Push and merge intentionally not performed.
 
+## 2026-05-31 15:57:57 Europe/Paris
+
+VERIFICATOR final verdict: `ACCEPT`.
+
+Report written to `ai-local/verificator/report-from-verificator/20260531-RUN-005E-VERIFICATOR-REPORT.md`.
+
+Workflow closure completed:
+
+- `ai/scripts/check-task.sh TASK-184`: PASS.
+- `ai/scripts/finalize-task.sh TASK-184`: PASS; branch push and CI check skipped intentionally during orchestration closure.
+- `ai/scripts/merge-task.sh TASK-184`: PASS; merged into `develop` with merge commit `a89b767`.
+
+TASK status set to MERGED. Push to `origin/develop` pending at the time of this log entry.
+
 # Handoffs
 
 No handoff. Work completed by SUPERVISOR for RUN-005E.
@@ -126,6 +140,10 @@ Scope respected: only the three requested seeders, this TASK file, and the requi
 Risk is low because the code changes are local variable/key renames inside seeders and preserve all model lookups, database column names, IDs, messages, and seeded values.
 
 No migrations, app code, tests, push, or merge were performed.
+
+VERIFICATOR final verdict: `ACCEPT`.
+
+Merge commit: `a89b767 Merge branch 'TASK-184-rename-remaining-community-variables-in-seeders' into develop`.
 
 Modified files:
 
