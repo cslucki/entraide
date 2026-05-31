@@ -7,11 +7,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::rename('communities', 'organizations');
+        if (Schema::hasTable('communities') && ! Schema::hasTable('organizations')) {
+            Schema::rename('communities', 'organizations');
+        }
     }
 
     public function down(): void
     {
-        Schema::rename('organizations', 'communities');
+        if (Schema::hasTable('organizations') && ! Schema::hasTable('communities')) {
+            Schema::rename('organizations', 'communities');
+        }
     }
 };
