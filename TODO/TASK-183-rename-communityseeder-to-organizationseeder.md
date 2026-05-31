@@ -2,7 +2,7 @@
 task_id: TASK-183
 title: rename CommunitySeeder to OrganizationSeeder
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-183-rename-communityseeder-to-organizationseeder
 priority: MEDIUM
 
 created_at: 2026-05-31 15:41:18 Europe/Paris
-updated_at: 2026-05-31 15:50:00 Europe/Paris
+updated_at: 2026-05-31 15:55:00 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -88,6 +88,17 @@ VERIFICATOR reviewed commit `5eef4a2` and returned `ACCEPT` in `ai-local/verific
 
 Documentation clarification: the strict `CommunitySeeder` cleanup is complete. A broader seeder audit still finds `$community` / `$communityId` variables in untouched seeders (`UserSeeder`, `LegacyDataOrganizationSeeder`, `QaAccountsSeeder`). VERIFICATOR accepted those as out of scope for RUN-005D because this lot only authorized `CommunitySeeder`, `DatabaseSeeder`, and `DemoSeeder` changes.
 
+## 2026-05-31 15:55:00 Europe/Paris
+
+Task finalized and merged into `develop`.
+
+Workflow results:
+- `ai/scripts/check-task.sh TASK-183` PASS
+- `ai/scripts/finalize-task.sh TASK-183` PASS, branch push skipped intentionally
+- `ai/scripts/merge-task.sh TASK-183` PASS, merge commit `2185056`
+
+Status set to MERGED. Push to `origin/develop` pending at this log entry.
+
 # Handoffs
 
 No handoff. Task completed locally by SUPERVISOR. Branch intentionally not pushed or merged.
@@ -119,6 +130,7 @@ No handoff. Task completed locally by SUPERVISOR. Branch intentionally not pushe
 - Organization remains the tenant vocabulary; Loop was not touched.
 - No push or merge performed.
 - VERIFICATOR final verdict: `ACCEPT`.
+- Merge commit: `2185056 Merge branch 'TASK-183-rename-communityseeder-to-organizationseeder' into develop`.
 
 ---
 
