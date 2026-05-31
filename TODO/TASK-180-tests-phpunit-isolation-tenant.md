@@ -2,7 +2,7 @@
 task_id: TASK-180
 title: tests PHPUnit isolation tenant
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
