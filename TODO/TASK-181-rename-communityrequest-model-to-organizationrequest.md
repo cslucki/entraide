@@ -2,7 +2,7 @@
 task_id: TASK-181
 title: rename CommunityRequest model to OrganizationRequest
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-181-rename-communityrequest-model-to-organizationrequest
 priority: MEDIUM
 
 created_at: 2026-05-31 12:39:49 Europe/Paris
-updated_at: 2026-05-31 12:42:00 Europe/Paris
+updated_at: 2026-05-31 13:52:00 Europe/Paris
 
 labels: []
 
@@ -95,6 +95,36 @@ Renamed PHP model `App\Models\CommunityRequest` to `App\Models\OrganizationReque
 - No database structure changes
 - Table `community_requests` remains legacy
 - Model explicitly maps to legacy table via `$table` property
+
+---
+
+## 2026-05-31 13:51:00 Europe/Paris
+
+Task merged into develop.
+
+### Merge Workflow
+
+1. **Check Task**: ✅ PASS (Status DONE, Lock UNLOCKED, Clean working tree)
+2. **Finalize Task**: ✅ PASS (No uncommitted changes)
+3. **Merge Task**: ✅ PASS (Merge into develop successful)
+
+### Merge Details
+
+**Merge Commit:** `f644436`
+**Strategy:** `--no-ff` (explicit merge commit)
+**Target Branch:** `develop`
+**Files in Merge:** 4 files changed, 231 insertions(+), 4 deletions(-)
+
+**Merge Summary:**
+- `TODO/TASK-181-rename-communityrequest-model-to-organizationrequest.md` (created)
+- `app/Models/OrganizationRequest.php` (renamed from CommunityRequest.php)
+- `app/Http/Controllers/OrganizationRequestController.php` (modified)
+- `tests/Feature/OrganizationRequestTest.php` (created)
+
+### Push Status
+
+**Pending:** Push to origin/develop
+**Action Required:** `git push origin develop`
 
 ---
 
