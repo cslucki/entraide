@@ -2,7 +2,7 @@
 task_id: TASK-186
 title: remove community_id from simple table migrations
 
-status: DONE
+status: MERGED
 
 owner: ORCHESTRATOR
 
@@ -14,19 +14,19 @@ branch: TASK-186-remove-community-id-from-simple-table-migrations
 priority: MEDIUM
 
 created_at: 2026-05-31 19:15:15 Europe/Paris
-updated_at: 2026-05-31 20:13:34 Europe/Paris
+updated_at: 2026-05-31 21:34:06 Europe/Paris
 
 labels: []
 
 lock:
   status: UNLOCKED
   agent: null
-  since: 2026-05-31 20:13:34 Europe/Paris
+  since: 2026-05-31 21:34:06 Europe/Paris
 
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -96,6 +96,16 @@ Validation RUN-005G correction (OpenCode SUPERVISOR) :
 - `git diff --name-status develop...HEAD` : 8 files only (7 migrations + TASK)
 - `php artisan test` : 826 passed / 11 skipped / 0 failures — 1756 assertions — 31.79s
 - Commit : `fix: preserve blog post organization rollback ownership`
+
+## 2026-05-31 21:34:06 Europe/Paris
+
+Finalize + Merge RUN-005G (OpenCode SUPERVISOR) :
+- VERIFICATOR final : ACCEPT
+- check-task.sh : PASS
+- Push branche TASK-186 vers origin : OK
+- merge-task.sh : --no-ff merge dans develop, commit 5a9cf9a
+- Push develop vers origin : OK
+- TASK status : MERGED
 
 # Handoffs
 
