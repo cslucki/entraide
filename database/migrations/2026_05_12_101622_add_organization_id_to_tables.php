@@ -46,6 +46,10 @@ return new class extends Migration
                 continue;
             }
 
+            if ($table === 'blog_posts' || ! Schema::hasColumn($table, 'organization_id')) {
+                continue;
+            }
+
             Schema::table($table, function (Blueprint $t) {
                 $t->dropColumn('organization_id');
             });
