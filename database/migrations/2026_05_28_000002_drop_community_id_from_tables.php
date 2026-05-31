@@ -8,40 +8,50 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // services
+        // services — community_id absent on fresh install (migration was no-op'd)
         Schema::table('services', function (Blueprint $table) {
-            $table->dropForeign(['community_id']);
-            $table->dropColumn('community_id');
+            if (Schema::hasColumn('services', 'community_id')) {
+                $table->dropForeign(['community_id']);
+                $table->dropColumn('community_id');
+            }
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('set null');
         });
 
-        // service_requests
+        // service_requests — community_id absent on fresh install
         Schema::table('service_requests', function (Blueprint $table) {
-            $table->dropForeign(['community_id']);
-            $table->dropColumn('community_id');
+            if (Schema::hasColumn('service_requests', 'community_id')) {
+                $table->dropForeign(['community_id']);
+                $table->dropColumn('community_id');
+            }
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('set null');
         });
 
-        // transactions
+        // transactions — community_id absent on fresh install
         Schema::table('transactions', function (Blueprint $table) {
-            $table->dropForeign(['community_id']);
-            $table->dropColumn('community_id');
+            if (Schema::hasColumn('transactions', 'community_id')) {
+                $table->dropForeign(['community_id']);
+                $table->dropColumn('community_id');
+            }
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('set null');
         });
 
-        // users
+        // users — community_id absent on fresh install
         Schema::table('users', function (Blueprint $table) {
-            $table->dropForeign(['community_id']);
-            $table->dropColumn('community_id');
+            if (Schema::hasColumn('users', 'community_id')) {
+                $table->dropForeign(['community_id']);
+                $table->dropColumn('community_id');
+            }
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('set null');
         });
 
-        // blog_posts
-        Schema::table('blog_posts', function (Blueprint $table) {
-            $table->dropForeign(['community_id']);
-            $table->dropColumn('community_id');
-            $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('set null');
-        });
+        // blog_posts — community_id absent on fresh install; organization_id FK already set by blog_posts migration
+        if (Schema::hasColumn('blog_posts', 'community_id')) {
+            Schema::table('blog_posts', function (Blueprint $table) {
+                $table->dropForeign(['community_id']);
+                $table->dropColumn('community_id');
+                $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('set null');
+            });
+        }
 
         // loops — has unique composite index to drop and recreate
         Schema::table('loops', function (Blueprint $table) {
