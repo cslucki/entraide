@@ -2,7 +2,7 @@
 task_id: TASK-185
 title: remove communities table and foreign keys from migrations
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-185-remove-communities-table-and-foreign-keys-from-migrations
 priority: MEDIUM
 
 created_at: 2026-05-31 16:03:05 Europe/Paris
-updated_at: 2026-05-31 16:19:26 Europe/Paris
+updated_at: 2026-05-31 16:20:02 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -98,6 +98,16 @@ Validated points:
 - No `community_id` column was removed or renamed.
 - No new `add_organization_id_to_*` migration was created.
 
+## 2026-05-31 16:20:02 Europe/Paris
+
+Workflow closure completed:
+
+- `ai/scripts/check-task.sh TASK-185`: PASS.
+- `ai/scripts/finalize-task.sh TASK-185`: PASS; branch push and CI check skipped intentionally during orchestration closure.
+- `ai/scripts/merge-task.sh TASK-185`: PASS; merged into `develop` with merge commit `432849d`.
+
+TASK status set to MERGED. Push to `origin/develop` pending at the time of this log entry.
+
 # Handoffs
 
 None. Task completed by SUPERVISOR.
@@ -127,6 +137,7 @@ None. Task completed by SUPERVISOR.
 - Fresh installs keep legacy `community_id` columns but point their FK constraints at `organizations`.
 - VERIFICATOR finding fixed: blog post `community_id` now explicitly targets `organizations` instead of relying on Laravel's implicit `communities` convention.
 - VERIFICATOR final verdict: `ACCEPT`.
+- Merge commit: `432849d Merge branch 'TASK-185-remove-communities-table-and-foreign-keys-from-migrations' into develop`.
 - Legacy database path remains supported when `communities` exists and `organizations` does not.
 - Residual risk: PostgreSQL fresh migration could not be executed locally because the database service was unavailable.
 
