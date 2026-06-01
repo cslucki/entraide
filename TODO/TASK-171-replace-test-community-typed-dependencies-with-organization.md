@@ -13,7 +13,7 @@ branch: TASK-171-replace-test-community-typed-dependencies-with-organization
 priority: MEDIUM
 
 created_at: 2026-05-30 08:52:56 Europe/Paris
-updated_at: 2026-05-30 09:12:00 Europe/Paris
+updated_at: 2026-06-01 11:35:00 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -73,9 +73,11 @@ Task created.
 - Scope confirmed: tests-only; `Community.php` untouched; no runtime or inheritance changes
 - Branch ready for ORCHESTRATOR review, no merge requested
 
-# Handoffs
+## 2026-06-01 11:35:00 Europe/Paris
 
-- Ready for ORCHESTRATOR review.
+Administrative alignment (TASK-189, 2026-06-01): pr.status → MERGED (branch is ancestor of develop merged locally, no PR). pr.url → null (PR #33 is from TASK-188, not this task).
+
+# Handoffs
 - No merge requested or performed.
 - Recommended next step, if explicitly authorized later: revisit TASK-170 feasibility with the 13 former typed-test blockers now reduced.
 
@@ -105,6 +107,7 @@ Task created.
 - Preserved explicit legacy compatibility tests that intentionally assert `Organization instanceof Community` behavior.
 - `Community.php` was not touched.
 - `app/`, `routes/`, `database/`, `resources/`, `config/`, and runtime behavior were not touched.
+- Administrative alignment (TASK-189, 2026-06-01): marked as merged — branch is ancestor of develop.
 
 ---
 
