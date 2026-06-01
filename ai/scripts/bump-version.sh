@@ -31,7 +31,12 @@ TASK_ID=""
 # =========================================================
 
 if [ -n "$1" ]; then
-  TASK_ID="$1"
+  RAW="$1"
+  if [[ $RAW =~ ^TASK-([0-9]+) ]]; then
+    TASK_ID="${BASH_REMATCH[1]}"
+  else
+    TASK_ID="$RAW"
+  fi
   echo "Task ID from argument: $TASK_ID"
 else
   CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
