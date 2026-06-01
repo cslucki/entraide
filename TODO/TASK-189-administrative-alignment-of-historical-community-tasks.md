@@ -13,7 +13,7 @@ branch: TASK-189-administrative-alignment-of-historical-community-tasks
 priority: MEDIUM
 
 created_at: 2026-06-01 11:08:44 Europe/Paris
-updated_at: 2026-06-01 11:45:00 Europe/Paris
+updated_at: 2026-06-01 11:50:00 Europe/Paris
 
 labels: []
 
@@ -25,8 +25,8 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
-  url: null
+  status: OPEN
+  url: https://github.com/cslucki/entraide/pull/34
 ---
 
 # Objective
@@ -66,6 +66,10 @@ VERIFICATOR: ACCEPT_WITH_ADMIN_FIXES.
 1. TASK-167: status DONE → SUPERSEDED
 2. TASK-171: pr.url → null (PR #33 was TASK-188, not this task)
 3. TASK-189: added VERIFICATOR verdict, fixed Test Results
+
+## 2026-06-01 11:50:00 Europe/Paris
+
+Pull request opened: https://github.com/cslucki/entraide/pull/34
 
 # Handoffs
 
