@@ -15,9 +15,7 @@ class HomeController extends Controller
     public function index(): View
     {
         $stats = [
-            'users' => auth()->check()
-                ? User::where('organization_id', auth()->user()->organization_id)->count()
-                : User::count(),
+            'users' => User::count(),
             'services' => Service::where('status', 'active')->count(),
             'requests' => ServiceRequest::where('status', 'open')->count(),
             'exchanges' => Transaction::where('status', 'completed')->count(),
