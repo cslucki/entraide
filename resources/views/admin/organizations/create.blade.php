@@ -1,4 +1,4 @@
-<x-admin-layout title="Créer une communauté">
+<x-admin-layout title="Créer une organisation">
     <div class="max-w-2xl">
         <form method="POST" action="{{ route('admin.organizations.store') }}" class="space-y-6">
             @csrf
@@ -88,12 +88,12 @@
                 <input type="number" name="welcome_points" value="{{ old('welcome_points', 100) }}" min="0" max="10000"
                     class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('welcome_points') border-red-500 @enderror">
                 @error('welcome_points')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                <p class="text-xs text-gray-400 mt-1">Points offerts à chaque nouvel inscrit dans cette communauté.</p>
+                <p class="text-xs text-gray-400 mt-1">Points offerts à chaque nouvel inscrit dans cette organisation.</p>
             </div>
 
             <div class="flex items-center gap-3">
                 <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
-                    Créer la communauté
+                    Créer l'organisation
                 </button>
                 <a href="{{ route('admin.organizations') }}" class="px-5 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     Annuler

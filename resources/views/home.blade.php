@@ -167,7 +167,7 @@
     @guest
     <div class="py-16 bg-indigo-600 text-white text-center">
         <div class="max-w-xl mx-auto px-4">
-            <h2 class="text-2xl font-bold mb-3">Prêt à rejoindre la communauté ?</h2>
+            <h2 class="text-2xl font-bold mb-3">Prêt à rejoindre la boucle ?</h2>
             <p class="text-indigo-100 mb-6">Créez votre compte gratuitement et recevez 100 points de bienvenue.</p>
             <a href="{{ route('register') }}" class="px-8 py-3 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition">Rejoindre Entraide</a>
         </div>
