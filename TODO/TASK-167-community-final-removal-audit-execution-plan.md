@@ -2,7 +2,7 @@
 task_id: TASK-167
 title: Community Final Removal Audit & Execution Plan
 
-status: DONE
+status: SUPERSEDED
 
 owner: SUPERVISOR
 
@@ -13,14 +13,14 @@ branch: TASK-167-community-final-removal-audit-execution-plan
 priority: MEDIUM
 
 created_at: 2026-05-29 21:39:05 Europe/Paris
-updated_at: 2026-05-29 21:39:05 Europe/Paris
+updated_at: 2026-06-01 11:35:00 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
-  agent: SUPERVISOR
-  since: 2026-05-29 21:39:05 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
@@ -32,6 +32,17 @@ pr:
 # Objective
 
 Describe the objective.
+
+---
+
+
+## 2026-06-01 11:35:00 Europe/Paris
+
+Administrative alignment (TASK-189): SUPERSEDED_BY_LATER_TASKS.
+
+This task was a stub/placeholder for the Community final removal audit. The audit was never executed under TASK-167. The full mandate was later fulfilled by TASK-188 (final Community residue audit after migration cleanup), which reached NO_BLOCKING_RESIDUE / ACCEPT_NO_BLOCKING_RESIDUE.
+
+TASK-167 is superseded by TASK-188.
 
 ---
 
@@ -80,7 +91,7 @@ Pending.
 
 # Review Notes
 
-Pending.
+SUPERSEDED by TASK-188 (2026-06-01). The Community final removal audit mandate was fulfilled by TASK-188, not TASK-167.
 
 ---
 

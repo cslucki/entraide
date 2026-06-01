@@ -2,7 +2,7 @@
 task_id: TASK-170
 title: Community Model Removal Feasibility & Patch Plan
 
-status: BLOCKED
+status: SUPERSEDED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-170-community-model-removal-feasibility-patch-plan
 priority: MEDIUM
 
 created_at: 2026-05-30 07:33:17 Europe/Paris
-updated_at: 2026-05-30 07:33:17 Europe/Paris
+updated_at: 2026-06-01 11:35:00 Europe/Paris
 
 labels: []
 
@@ -69,6 +69,11 @@ TASK-170-community-model-removal-feasibility-patch-plan
 Status:
 IN_PROGRESS
 
+## 2026-06-01 11:35:00 Europe/Paris
+
+Administrative alignment (TASK-189): SUPERSEDED.
+All blockers resolved by TASK-171 (typed properties), TASK-173 (Community.php deleted), TASK-174 (aliases/middleware), TASK-188 (residue audit confirmed NO_BLOCKING_RESIDUE).
+
 # Handoffs
 
 # Tests
@@ -89,7 +94,7 @@ Pending.
 
 # Review Notes
 
-Pending.
+SUPERSEDED by TASK-171 (typed property fix) + TASK-173 (Community.php deletion) + TASK-174 (aliases/middleware removal) + TASK-188 (final residue audit). All blockers resolved.
 
 ---
 
