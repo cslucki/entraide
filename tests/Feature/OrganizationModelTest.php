@@ -6,9 +6,9 @@ use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
 
-class CommunityModelTest extends TestCase
+class OrganizationModelTest extends TestCase
 {
-    public function test_community_has_customization_fields(): void
+    public function test_organization_has_customization_fields(): void
     {
         $organization = Organization::factory()->create([
             'hero_title' => 'Bienvenue chez nous',
@@ -23,7 +23,7 @@ class CommunityModelTest extends TestCase
         $this->assertEquals(200, $organization->welcome_points);
     }
 
-    public function test_community_default_values(): void
+    public function test_organization_default_values(): void
     {
         $organization = Organization::factory()->create();
 
@@ -31,7 +31,7 @@ class CommunityModelTest extends TestCase
         $this->assertEquals(100, $organization->welcome_points);
     }
 
-    public function test_community_admin_relation(): void
+    public function test_organization_admin_relation(): void
     {
         $admin = User::factory()->create();
         $organization = Organization::factory()->create(['admin_id' => $admin->id]);
@@ -40,7 +40,7 @@ class CommunityModelTest extends TestCase
         $this->assertEquals($admin->id, $organization->admin->id);
     }
 
-    public function test_community_admin_null_when_deleted(): void
+    public function test_organization_admin_null_when_deleted(): void
     {
         $admin = User::factory()->create();
         $organization = Organization::factory()->create(['admin_id' => $admin->id]);
@@ -51,21 +51,21 @@ class CommunityModelTest extends TestCase
         $this->assertNull($organization->admin_id);
     }
 
-    public function test_find_by_slug_returns_active_community(): void
+    public function test_find_by_slug_returns_active_organization(): void
     {
-        Organization::factory()->create(['slug' => 'test-community', 'is_active' => true]);
-        Organization::factory()->create(['slug' => 'inactive-community', 'is_active' => false]);
+        Organization::factory()->create(['slug' => 'test-org', 'is_active' => true]);
+        Organization::factory()->create(['slug' => 'inactive-org', 'is_active' => false]);
 
-        $found = Organization::findBySlug('test-community');
+        $found = Organization::findBySlug('test-org');
         $this->assertNotNull($found);
-        $this->assertEquals('test-community', $found->slug);
+        $this->assertEquals('test-org', $found->slug);
     }
 
     public function test_find_by_slug_returns_null_for_inactive(): void
     {
-        Organization::factory()->create(['slug' => 'inactive-community', 'is_active' => false]);
+        Organization::factory()->create(['slug' => 'inactive-org', 'is_active' => false]);
 
-        $found = Organization::findBySlug('inactive-community');
+        $found = Organization::findBySlug('inactive-org');
         $this->assertNull($found);
     }
 
@@ -77,10 +77,10 @@ class CommunityModelTest extends TestCase
 
     public function test_get_hero_image_url_returns_asset_when_set(): void
     {
-        $organization = Organization::factory()->create(['hero_image' => 'communities/my-hero.jpg']);
+        $organization = Organization::factory()->create(['hero_image' => 'organizations/my-hero.jpg']);
 
         $url = $organization->getHeroImageUrl();
-        $this->assertStringContainsString('communities/my-hero.jpg', $url);
+        $this->assertStringContainsString('organizations/my-hero.jpg', $url);
     }
 
     public function test_get_hero_image_url_returns_default_when_not_set(): void
@@ -91,9 +91,9 @@ class CommunityModelTest extends TestCase
         $this->assertStringContainsString('/images/default-hero.jpg', $url);
     }
 
-    public function test_community_is_fillable(): void
+    public function test_organization_is_fillable(): void
     {
-        $organization = new Organization();
+        $organization = new Organization;
 
         $fillable = $organization->getFillable();
 

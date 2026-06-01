@@ -3,9 +3,9 @@
 namespace Tests\Feature;
 
 use App\Events\LoopMessageCreated;
-use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
@@ -18,25 +18,32 @@ class LoopMessageTest extends TestCase
     use RefreshDatabase;
 
     private Organization $organization;
-    private Organization $otherCommunity;
+
+    private Organization $otherOrganization;
+
     private User $owner;
+
     private User $member;
+
     private User $nonMember;
+
     private User $crossUser;
+
     private Loop $loop;
+
     private LoopMessageService $messageService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->community = Organization::factory()->create();
-        $this->otherCommunity = Organization::factory()->create();
+        $this->organization = Organization::factory()->create();
+        $this->otherOrganization = Organization::factory()->create();
 
-        $this->owner = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->member = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->nonMember = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->crossUser = User::factory()->create(['organization_id' => $this->otherCommunity->id]);
+        $this->owner = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->nonMember = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->crossUser = User::factory()->create(['organization_id' => $this->otherOrganization->id]);
 
         $loopService = new LoopService;
         $this->loop = $loopService->createLoop($this->owner, 'Test Loop');
@@ -114,7 +121,7 @@ class LoopMessageTest extends TestCase
         );
     }
 
-    public function test_cross_community_user_cannot_send_message(): void
+    public function test_cross_organization_user_cannot_send_message(): void
     {
         // Make crossUser an active member by inserting directly into the DB
         LoopMember::create([
@@ -131,7 +138,7 @@ class LoopMessageTest extends TestCase
         $this->messageService->sendUserMessage(
             $this->loop,
             $this->crossUser,
-            'Cross-community message',
+            'Cross-organization message',
         );
     }
 
@@ -371,7 +378,7 @@ class LoopMessageTest extends TestCase
         $this->assertChannelDenies($this->member, $this->loop->id);
     }
 
-    public function test_private_channel_denies_cross_community_user(): void
+    public function test_private_channel_denies_cross_organization_user(): void
     {
         $this->assertChannelDenies($this->crossUser, $this->loop->id);
     }

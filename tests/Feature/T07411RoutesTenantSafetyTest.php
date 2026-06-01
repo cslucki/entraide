@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Organization;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,7 +17,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
 
     private User $user;
 
-    private User $userWithoutCommunity;
+    private User $userWithoutOrganization;
 
     private User $admin;
 
@@ -27,26 +27,26 @@ class T07411RoutesTenantSafetyTest extends TestCase
     {
         parent::setUp();
 
-        $this->community = Organization::factory()->create(['is_active' => true]);
+        $this->organization = Organization::factory()->create(['is_active' => true]);
         $this->user = User::factory()->create([
-            'organization_id' => $this->community->id,
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->organization->id,
+            'organization_id' => $this->organization->id,
         ]);
-        $this->userWithoutCommunity = User::factory()->create([
+        $this->userWithoutOrganization = User::factory()->create([
             'organization_id' => null,
             'organization_id' => null,
         ]);
         $this->admin = User::factory()->create([
             'is_admin' => true,
-            'organization_id' => $this->community->id,
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->organization->id,
+            'organization_id' => $this->organization->id,
         ]);
         $this->service = new LoopService;
     }
 
     // ── /loops (global member route) ──────────────────────────────────────
 
-    public function test_loops_index_returns_200_for_user_with_community(): void
+    public function test_loops_index_returns_200_for_user_with_organization(): void
     {
         $loop = $this->service->createLoop($this->user, 'My Loop');
         $response = $this->actingAs($this->user)->get(route('loops.index'));
@@ -54,9 +54,9 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $response->assertSee('My Loop');
     }
 
-    public function test_loops_index_returns_404_for_user_without_community(): void
+    public function test_loops_index_returns_404_for_user_without_organization(): void
     {
-        $response = $this->actingAs($this->userWithoutCommunity)->get('/loops');
+        $response = $this->actingAs($this->userWithoutOrganization)->get('/loops');
         $response->assertNotFound();
     }
 
@@ -67,32 +67,32 @@ class T07411RoutesTenantSafetyTest extends TestCase
 
     // ── /loops/create ─────────────────────────────────────────────────────
 
-    public function test_loops_create_returns_200_for_user_with_community(): void
+    public function test_loops_create_returns_200_for_user_with_organization(): void
     {
         $response = $this->actingAs($this->user)->get(route('loops.create'));
         $response->assertOk();
     }
 
-    public function test_loops_create_returns_404_for_user_without_community(): void
+    public function test_loops_create_returns_404_for_user_without_organization(): void
     {
-        $response = $this->actingAs($this->userWithoutCommunity)->get('/loops/create');
+        $response = $this->actingAs($this->userWithoutOrganization)->get('/loops/create');
         $response->assertNotFound();
     }
 
-    public function test_loops_create_returns_200_for_admin_with_community(): void
+    public function test_loops_create_returns_200_for_admin_with_organization(): void
     {
         $response = $this->actingAs($this->admin)->get(route('loops.create'));
         $response->assertOk();
     }
 
-    public function test_loops_create_returns_404_for_admin_without_community(): void
+    public function test_loops_create_returns_404_for_admin_without_organization(): void
     {
-        $adminWithoutCommunity = User::factory()->create([
+        $adminWithoutOrganization = User::factory()->create([
             'is_admin' => true,
             'organization_id' => null,
             'organization_id' => null,
         ]);
-        $response = $this->actingAs($adminWithoutCommunity)->get('/loops/create');
+        $response = $this->actingAs($adminWithoutOrganization)->get('/loops/create');
         $response->assertNotFound();
     }
 
@@ -101,7 +101,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $this->get('/loops/create')->assertRedirect(route('login'));
     }
 
-    public function test_loops_index_shows_create_cta_for_user_with_community(): void
+    public function test_loops_index_shows_create_cta_for_user_with_organization(): void
     {
         $response = $this->actingAs($this->user)->get('/loops');
         $response->assertOk();
@@ -109,9 +109,9 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $response->assertSee('Créer votre première boucle');
     }
 
-    public function test_loops_index_returns_404_for_user_without_community_no_cta(): void
+    public function test_loops_index_returns_404_for_user_without_organization_no_cta(): void
     {
-        $response = $this->actingAs($this->userWithoutCommunity)->get('/loops');
+        $response = $this->actingAs($this->userWithoutOrganization)->get('/loops');
         $response->assertNotFound();
     }
 
@@ -158,41 +158,41 @@ class T07411RoutesTenantSafetyTest extends TestCase
 
     // ── Tenant isolation (member) ─────────────────────────────────────────
 
-    public function test_user_sees_only_own_community_loops_on_index(): void
+    public function test_user_sees_only_own_organization_loops_on_index(): void
     {
-        $otherCommunity = Organization::factory()->create();
-        $otherUser = User::factory()->create(['organization_id' => $otherCommunity->id]);
-        $this->service->createLoop($otherUser, 'Other Community Loop');
+        $otherOrganization = Organization::factory()->create();
+        $otherUser = User::factory()->create(['organization_id' => $otherOrganization->id]);
+        $this->service->createLoop($otherUser, 'Other Organization Loop');
 
         $this->service->createLoop($this->user, 'My Loop');
 
         $response = $this->actingAs($this->user)->get(route('loops.index'));
         $response->assertOk();
         $response->assertSee('My Loop');
-        $response->assertDontSee('Other Community Loop');
+        $response->assertDontSee('Other Organization Loop');
     }
 
     // ── Blocker 1: No community → residual membership hidden ─────────────
 
-    public function test_loops_index_returns_404_for_user_without_community_with_membership(): void
+    public function test_loops_index_returns_404_for_user_without_organization_with_membership(): void
     {
         $loop = $this->service->createLoop($this->user, 'Residual Loop');
         LoopMember::factory()->create([
             'loop_id' => $loop->id,
-            'user_id' => $this->userWithoutCommunity->id,
+            'user_id' => $this->userWithoutOrganization->id,
             'status' => 'active',
         ]);
 
-        $response = $this->actingAs($this->userWithoutCommunity)->get('/loops');
+        $response = $this->actingAs($this->userWithoutOrganization)->get('/loops');
         $response->assertNotFound();
     }
 
     // ── Blocker 2: Legacy /{community}/loops cross-tenant isolation ──────
 
-    public function test_legacy_community_loops_denies_cross_tenant_access(): void
+    public function test_legacy_organization_loops_denies_cross_tenant_access(): void
     {
-        $otherCommunity = Organization::factory()->create(['is_active' => true]);
-        $otherUser = User::factory()->create(['organization_id' => $otherCommunity->id]);
+        $otherOrganization = Organization::factory()->create(['is_active' => true]);
+        $otherUser = User::factory()->create(['organization_id' => $otherOrganization->id]);
         $loop = $this->service->createLoop($otherUser, 'Other Tenant Loop');
 
         LoopMember::factory()->create([
@@ -202,7 +202,7 @@ class T07411RoutesTenantSafetyTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->user)
-            ->get("/{$otherCommunity->slug}/loops");
+            ->get("/{$otherOrganization->slug}/loops");
         $response->assertNotFound();
     }
 

@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,22 +15,27 @@ class LoopVisibilityMembershipTest extends TestCase
     use RefreshDatabase;
 
     private Organization $organization;
-    private Organization $otherCommunity;
+
+    private Organization $otherOrganization;
+
     private User $user;
+
     private User $otherUser;
+
     private User $crossUser;
+
     private LoopService $service;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->community = Organization::factory()->create();
-        $this->otherCommunity = Organization::factory()->create();
+        $this->organization = Organization::factory()->create();
+        $this->otherOrganization = Organization::factory()->create();
 
-        $this->user = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->otherUser = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->crossUser = User::factory()->create(['organization_id' => $this->otherCommunity->id]);
+        $this->user = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->otherUser = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->crossUser = User::factory()->create(['organization_id' => $this->otherOrganization->id]);
 
         $this->service = new LoopService;
     }
@@ -52,7 +57,7 @@ class LoopVisibilityMembershipTest extends TestCase
         // are valid fail-closed behaviors — the key is that the user gets an error.
         $this->assertTrue(
             $response->isClientError(),
-            'Expected client error (4xx) for user without organization, got ' . $response->getStatusCode()
+            'Expected client error (4xx) for user without organization, got '.$response->getStatusCode()
         );
     }
 
@@ -64,7 +69,7 @@ class LoopVisibilityMembershipTest extends TestCase
     {
         $loop = $this->service->createLoop($this->user, 'Joinable Loop');
 
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->organization);
 
         $response = $this->actingAs($this->otherUser)
             ->post(route('loops.join', $loop));
@@ -88,7 +93,7 @@ class LoopVisibilityMembershipTest extends TestCase
     {
         $loop = $this->service->createLoop($this->user, 'Org A Loop');
 
-        app()->instance('current_organization', $this->otherCommunity);
+        app()->instance('current_organization', $this->otherOrganization);
 
         $response = $this->actingAs($this->crossUser)
             ->post(route('loops.join', $loop));
@@ -119,7 +124,7 @@ class LoopVisibilityMembershipTest extends TestCase
             'status' => 'active',
         ]);
 
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->organization);
 
         $response = $this->actingAs($this->otherUser)
             ->post(route('loops.leave', $loop));
@@ -143,7 +148,7 @@ class LoopVisibilityMembershipTest extends TestCase
         $loop = $this->service->createLoop($this->user, 'Public Loop');
         $loop->update(['visibility' => 'public']);
 
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->organization);
 
         $response = $this->actingAs($this->otherUser)
             ->get(route('loops.show', $loop));
@@ -161,7 +166,7 @@ class LoopVisibilityMembershipTest extends TestCase
         $loop = $this->service->createLoop($this->user, 'Private Loop');
         // visibility defaults to 'private'
 
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->organization);
 
         $response = $this->actingAs($this->otherUser)
             ->get(route('loops.show', $loop));
@@ -177,7 +182,7 @@ class LoopVisibilityMembershipTest extends TestCase
     {
         $loop = $this->service->createLoop($this->user, 'Owner Loop');
 
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->organization);
 
         $response = $this->actingAs($this->user)
             ->post(route('loops.leave', $loop));
