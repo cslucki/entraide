@@ -2,7 +2,7 @@
 task_id: TASK-193
 title: Fix member count inconsistency on homepage
 
-status: DONE
+status: MERGED
 
 owner: ORCHESTRATOR
 
