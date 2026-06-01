@@ -1,8 +1,8 @@
-<x-admin-layout title="Communautés">
+<x-admin-layout title="Organisations">
     <div class="flex justify-end mb-4">
         <a href="{{ route('admin.organizations.create') }}"
            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
-            + Créer une communauté
+            + Créer une organisation
         </a>
     </div>
 
@@ -10,7 +10,7 @@
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Communauté</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Organisation</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Slug</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Responsable</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres</th>
@@ -64,7 +64,7 @@
                                 </button>
                             </form>
                             <form method="POST" action="{{ route('admin.organizations.destroy', $c) }}" class="inline"
-                                  onsubmit="return confirm('Supprimer cette communauté ? Les utilisateurs et services associés seront remis dans la communauté globale.');">
+                                  onsubmit="return confirm('Supprimer cette organisation ? Les utilisateurs et services associés seront remis dans l\'organisation globale.');">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="text-xs font-medium text-red-600 hover:text-red-800">Supprimer</button>
@@ -74,7 +74,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Aucune communauté pour le moment.</td>
+                    <td colspan="7" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Aucune organisation pour le moment.</td>
                 </tr>
                 @endforelse
             </tbody>
