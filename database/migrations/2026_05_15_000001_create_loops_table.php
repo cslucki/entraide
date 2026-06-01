@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('loops', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->uuid('community_id');
+            $table->uuid('organization_id')->nullable()->index();
             $table->string('name');
             $table->string('slug');
             $table->text('description')->nullable();
@@ -19,9 +19,9 @@ return new class extends Migration
             $table->uuid('created_by')->nullable();
             $table->timestamps();
 
-            $table->foreign('community_id')->references('id')->on('organizations')->onDelete('cascade');
+            $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
-            $table->unique(['community_id', 'slug']);
+            $table->unique(['organization_id', 'slug']);
         });
     }
 

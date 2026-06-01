@@ -54,31 +54,37 @@ return new class extends Migration
         }
 
         // loops — has unique composite index to drop and recreate
-        Schema::table('loops', function (Blueprint $table) {
-            $table->dropUnique(['community_id', 'slug']);
-            $table->dropForeign(['community_id']);
-            $table->dropColumn('community_id');
-            $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');
-            $table->unique(['organization_id', 'slug'], 'loops_organization_id_slug_unique');
-        });
+        if (Schema::hasColumn('loops', 'community_id')) {
+            Schema::table('loops', function (Blueprint $table) {
+                $table->dropUnique(['community_id', 'slug']);
+                $table->dropForeign(['community_id']);
+                $table->dropColumn('community_id');
+                $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');
+                $table->unique(['organization_id', 'slug'], 'loops_organization_id_slug_unique');
+            });
+        }
 
         // referrals — has index + unique composite to drop and recreate
-        Schema::table('referrals', function (Blueprint $table) {
-            $table->dropIndex(['community_id']);
-            $table->dropUnique('referrals_unique_pair');
-            $table->dropForeign(['community_id']);
-            $table->dropColumn('community_id');
-            $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');
-            $table->unique(['organization_id', 'referrer_user_id', 'referred_user_id'], 'referrals_unique_pair');
-        });
+        if (Schema::hasColumn('referrals', 'community_id')) {
+            Schema::table('referrals', function (Blueprint $table) {
+                $table->dropIndex(['community_id']);
+                $table->dropUnique('referrals_unique_pair');
+                $table->dropForeign(['community_id']);
+                $table->dropColumn('community_id');
+                $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');
+                $table->unique(['organization_id', 'referrer_user_id', 'referred_user_id'], 'referrals_unique_pair');
+            });
+        }
 
         // referral_rewards — has index to drop
-        Schema::table('referral_rewards', function (Blueprint $table) {
-            $table->dropIndex(['community_id']);
-            $table->dropForeign(['community_id']);
-            $table->dropColumn('community_id');
-            $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');
-        });
+        if (Schema::hasColumn('referral_rewards', 'community_id')) {
+            Schema::table('referral_rewards', function (Blueprint $table) {
+                $table->dropIndex(['community_id']);
+                $table->dropForeign(['community_id']);
+                $table->dropColumn('community_id');
+                $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');
+            });
+        }
     }
 
     public function down(): void
