@@ -2,7 +2,7 @@
 task_id: TASK-190
 title: cosmetic rename Community references in tests
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-190-cosmetic-rename-community-references-in-tests
 priority: MEDIUM
 
 created_at: 2026-06-01 11:39:20 Europe/Paris
-updated_at: 2026-06-01 15:24:12 Europe/Paris
+updated_at: 2026-06-01 15:50:00 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: OPEN
+  status: MERGED
   url: https://github.com/cslucki/entraide/pull/35
 ---
 
