@@ -201,9 +201,29 @@ npx playwright test                 # Playwright browser tests
 ## PostgreSQL Local Setup
 
 The local PostgreSQL instance runs PostgreSQL 18 with:
-- Database: `bouclepro`
+- Database: `bouclepro` (dev)
+- Database: `bouclepro_test` (test isolation)
 - User: `bouclepro`
 - Password: stored in `.env.pgsql`
+
+## PostgreSQL Local Validation (Reproducible Command)
+
+A single, structured validation command ensures PostgreSQL is fully operational:
+
+```bash
+./ai/scripts/pg-validate.sh
+```
+
+The script runs these steps:
+1. **Prerequisites** — checks `psql`, `php`, `artisan`, config files
+2. **Connectivity** — verifies PostgreSQL is reachable on `127.0.0.1:5432`
+3. **Test database** — creates `bouclepro_test` database if missing (test isolation)
+4. **Switch mode** — ensures `.env` is configured for PostgreSQL
+5. **Migrate & seed** — runs `php artisan migrate:fresh --seed`
+6. **Test suite** — runs full PHPUnit via `phpunit.pgsql.xml`
+7. **Results** — reports pass/fail summary, returns appropriate exit code
+
+Test isolation: Local PHPUnit runs use `bouclepro_test` database (via `phpunit.pgsql.xml`), keeping test data separate from the `bouclepro` dev database. CI uses the same configuration with `bouclepro_test`.
 
 ## PostgreSQL Compatibility Rules
 
