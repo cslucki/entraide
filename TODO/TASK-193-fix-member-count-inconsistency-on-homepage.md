@@ -2,7 +2,7 @@
 task_id: TASK-193
 title: Fix member count inconsistency on homepage
 
-status: MERGED
+status: CANCELLED
 
 owner: ORCHESTRATOR
 
@@ -74,6 +74,12 @@ Implementation complete (SUPERVISOR).
 ## 2026-06-01 18:35:00 Europe/Paris
 
 CI green (PostgreSQL, 1m29s). Unlocked. Ready to merge.
+
+## 2026-06-01 18:45:00 Europe/Paris
+
+**REVERTED.** Per architecture rules, root domain (`/`) shows platform-wide global counts. Organization scoping only applies under `/org/{slug}/`. Restored `User::count()`.
+
+Marking CANCELLED — Bug 02 is not a bug, both counts are correct in context.
 
 # Handoffs
 
