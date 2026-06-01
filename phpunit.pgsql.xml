@@ -26,7 +26,8 @@
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="pgsql"/>
-        <!-- DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD are inherited
+        <env name="DB_DATABASE" value="bouclepro_test"/>
+        <!-- DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD are inherited
              from .env (local) or CI workflow env (GitHub Actions) -->
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
