@@ -7,7 +7,7 @@
         <div class="flex items-center justify-between mb-8">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Blog</h1>
-                <p class="mt-1 text-gray-500 dark:text-gray-400">Conseils, expertises et ressources de la communauté</p>
+                <p class="mt-1 text-gray-500 dark:text-gray-400">Conseils, expertises et ressources de la boucle</p>
             </div>
             @auth
             <a href="{{ route('blog.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">

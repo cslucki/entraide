@@ -1,7 +1,7 @@
 <x-guest-layout>
     <div class="px-8 pt-8 pb-2 border-b border-gray-100 dark:border-gray-700">
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Créer un compte</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Rejoignez la communauté Entraide</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Rejoignez la boucle Entraide</p>
     </div>
 
     <div class="px-8 py-6">
