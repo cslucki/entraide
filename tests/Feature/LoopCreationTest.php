@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,26 +15,28 @@ class LoopCreationTest extends TestCase
     use RefreshDatabase;
 
     private Organization $organization;
+
     private User $user;
+
     private LoopService $service;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->community = Organization::factory()->create();
-        $this->user = User::factory()->create(['organization_id' => $this->community->id]);
+        $this->organization = Organization::factory()->create();
+        $this->user = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->service = new LoopService;
     }
 
-    public function test_service_creates_loop_in_users_community(): void
+    public function test_service_creates_loop_in_users_organization(): void
     {
         $loop = $this->service->createLoop($this->user, 'My Test Loop', 'A description');
 
         $this->assertInstanceOf(Loop::class, $loop);
         $this->assertEquals('My Test Loop', $loop->name);
         $this->assertEquals('A description', $loop->description);
-        $this->assertEquals($this->community->id, $loop->organization_id);
+        $this->assertEquals($this->organization->id, $loop->organization_id);
         $this->assertEquals($this->user->id, $loop->created_by);
         $this->assertEquals('custom', $loop->type);
         $this->assertEquals('active', $loop->status);
@@ -61,7 +63,7 @@ class LoopCreationTest extends TestCase
         $this->assertNotNull($member->joined_at);
     }
 
-    public function test_service_throws_if_user_has_no_community(): void
+    public function test_service_throws_if_user_has_no_organization(): void
     {
         $userWithoutCommunity = User::factory()->create(['organization_id' => null]);
 
@@ -83,7 +85,7 @@ class LoopCreationTest extends TestCase
 
         $loop = Loop::where('slug', 'web-created-loop')->first();
         $this->assertNotNull($loop);
-        $this->assertEquals($this->community->id, $loop->organization_id);
+        $this->assertEquals($this->organization->id, $loop->organization_id);
 
         $this->assertDatabaseHas('loop_members', [
             'loop_id' => $loop->id,
@@ -134,7 +136,7 @@ class LoopCreationTest extends TestCase
         $response->assertSessionHasErrors('name');
     }
 
-    public function test_slug_is_unique_per_community_in_service(): void
+    public function test_slug_is_unique_per_organization_in_service(): void
     {
         $this->service->createLoop($this->user, 'Same Name');
 

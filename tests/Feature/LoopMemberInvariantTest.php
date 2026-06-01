@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\Referral;
 use App\Models\User;
 use App\Services\LoopService;
@@ -15,9 +15,9 @@ class LoopMemberInvariantTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Organization $communityA;
+    private Organization $organizationA;
 
-    private Organization $communityB;
+    private Organization $organizationB;
 
     private User $userA;
 
@@ -33,24 +33,24 @@ class LoopMemberInvariantTest extends TestCase
     {
         parent::setUp();
 
-        $this->communityA = Organization::factory()->create();
-        $this->communityB = Organization::factory()->create();
+        $this->organizationA = Organization::factory()->create();
+        $this->organizationB = Organization::factory()->create();
 
-        $this->userA = User::factory()->create(['organization_id' => $this->communityA->id]);
-        $this->userB = User::factory()->create(['organization_id' => $this->communityA->id]);
-        $this->crossUser = User::factory()->create(['organization_id' => $this->communityB->id]);
+        $this->userA = User::factory()->create(['organization_id' => $this->organizationA->id]);
+        $this->userB = User::factory()->create(['organization_id' => $this->organizationA->id]);
+        $this->crossUser = User::factory()->create(['organization_id' => $this->organizationB->id]);
 
         $this->service = new LoopService;
         $this->loop = $this->service->createLoop($this->userA, 'Test Loop');
 
-        app()->instance('current_organization', $this->communityA);
+        app()->instance('current_organization', $this->organizationA);
     }
 
     // -------------------------------------------------------------------------
     // Same-community invariant
     // -------------------------------------------------------------------------
 
-    public function test_can_add_member_from_same_community(): void
+    public function test_can_add_member_from_same_organization(): void
     {
         $member = $this->service->addMember($this->loop, $this->userB);
 
@@ -61,7 +61,7 @@ class LoopMemberInvariantTest extends TestCase
         $this->assertEquals('active', $member->status);
     }
 
-    public function test_cannot_add_member_from_different_community(): void
+    public function test_cannot_add_member_from_different_organization(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Cannot add member from a different organization to this loop.');
@@ -69,7 +69,7 @@ class LoopMemberInvariantTest extends TestCase
         $this->service->addMember($this->loop, $this->crossUser);
     }
 
-    public function test_cannot_add_member_from_different_community_via_web_route(): void
+    public function test_cannot_add_member_from_different_organization_via_web_route(): void
     {
         $otherLoop = $this->service->createLoop($this->crossUser, 'Other Loop');
 
@@ -93,7 +93,7 @@ class LoopMemberInvariantTest extends TestCase
         $this->service->addMember($this->loop, $this->userB);
     }
 
-    public function test_cannot_directly_create_cross_community_membership(): void
+    public function test_cannot_directly_create_cross_organization_membership(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Cannot add member from a different organization to this loop.');
@@ -101,7 +101,7 @@ class LoopMemberInvariantTest extends TestCase
         $this->service->addMember($this->loop, $this->crossUser);
     }
 
-    public function test_loop_show_is_blocked_for_cross_community_user(): void
+    public function test_loop_show_is_blocked_for_cross_organization_user(): void
     {
         $response = $this->actingAs($this->crossUser)
             ->get(route('loops.show', $this->loop));
@@ -113,13 +113,13 @@ class LoopMemberInvariantTest extends TestCase
     // Referral bridge
     // -------------------------------------------------------------------------
 
-    public function test_eligible_referrals_returns_same_community_referrals(): void
+    public function test_eligible_referrals_returns_same_organization_referrals(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityA->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationA->id]);
         $referral = Referral::factory()->create([
             'referrer_user_id' => $this->userA->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $eligible = $this->service->getEligibleReferrals($this->userA, $this->loop);
@@ -130,11 +130,11 @@ class LoopMemberInvariantTest extends TestCase
 
     public function test_eligible_referrals_excludes_existing_members(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityA->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationA->id]);
         Referral::factory()->create([
             'referrer_user_id' => $this->userA->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $this->service->addMember($this->loop, $referred);
@@ -144,13 +144,13 @@ class LoopMemberInvariantTest extends TestCase
         $this->assertCount(0, $eligible);
     }
 
-    public function test_eligible_referrals_excludes_cross_community(): void
+    public function test_eligible_referrals_excludes_cross_organization(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityB->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationB->id]);
         Referral::factory()->create([
             'referrer_user_id' => $this->userA->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityB->id,
+            'organization_id' => $this->organizationB->id,
         ]);
 
         $eligible = $this->service->getEligibleReferrals($this->userA, $this->loop);
@@ -160,11 +160,11 @@ class LoopMemberInvariantTest extends TestCase
 
     public function test_add_referral_to_loop_creates_member(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityA->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationA->id]);
         $referral = Referral::factory()->create([
             'referrer_user_id' => $this->userA->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $member = $this->service->addReferralToLoop($this->loop, $this->userA, $referral);
@@ -176,11 +176,11 @@ class LoopMemberInvariantTest extends TestCase
 
     public function test_add_referral_rejects_wrong_owner(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityA->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationA->id]);
         $referral = Referral::factory()->create([
             'referrer_user_id' => $this->userB->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $this->expectException(\RuntimeException::class);
@@ -189,13 +189,13 @@ class LoopMemberInvariantTest extends TestCase
         $this->service->addReferralToLoop($this->loop, $this->userA, $referral);
     }
 
-    public function test_add_referral_rejects_cross_community(): void
+    public function test_add_referral_rejects_cross_organization(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityB->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationB->id]);
         $referral = Referral::factory()->create([
             'referrer_user_id' => $this->crossUser->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityB->id,
+            'organization_id' => $this->organizationB->id,
         ]);
 
         $this->expectException(\RuntimeException::class);
@@ -206,11 +206,11 @@ class LoopMemberInvariantTest extends TestCase
 
     public function test_add_referral_via_web_route(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityA->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationA->id]);
         $referral = Referral::factory()->create([
             'referrer_user_id' => $this->userA->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $response = $this->actingAs($this->userA)
@@ -227,13 +227,13 @@ class LoopMemberInvariantTest extends TestCase
         ]);
     }
 
-    public function test_add_referral_via_web_route_rejects_cross_community(): void
+    public function test_add_referral_via_web_route_rejects_cross_organization(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityB->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationB->id]);
         $referral = Referral::factory()->create([
             'referrer_user_id' => $this->crossUser->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityB->id,
+            'organization_id' => $this->organizationB->id,
         ]);
 
         $response = $this->actingAs($this->crossUser)
@@ -247,11 +247,11 @@ class LoopMemberInvariantTest extends TestCase
 
     public function test_referral_bridge_loop_show_shows_eligible_referrals(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityA->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationA->id]);
         Referral::factory()->create([
             'referrer_user_id' => $this->userA->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $response = $this->actingAs($this->userA)
@@ -261,20 +261,20 @@ class LoopMemberInvariantTest extends TestCase
         $response->assertSee($referred->name);
     }
 
-    public function test_referral_bridge_loop_show_hides_cross_community_referrals(): void
+    public function test_referral_bridge_loop_show_hides_cross_organization_referrals(): void
     {
-        $referredA = User::factory()->create(['organization_id' => $this->communityA->id]);
-        $referredB = User::factory()->create(['organization_id' => $this->communityB->id]);
+        $referredA = User::factory()->create(['organization_id' => $this->organizationA->id]);
+        $referredB = User::factory()->create(['organization_id' => $this->organizationB->id]);
 
         Referral::factory()->create([
             'referrer_user_id' => $this->userA->id,
             'referred_user_id' => $referredA->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
         Referral::factory()->create([
             'referrer_user_id' => $this->userA->id,
             'referred_user_id' => $referredB->id,
-            'organization_id' => $this->communityB->id,
+            'organization_id' => $this->organizationB->id,
         ]);
 
         $response = $this->actingAs($this->userA)
@@ -289,12 +289,12 @@ class LoopMemberInvariantTest extends TestCase
     // Blocker 1: Community-prefixed route isolation
     // -------------------------------------------------------------------------
 
-    public function test_cross_community_route_prefix_is_blocked(): void
+    public function test_cross_organization_route_prefix_is_blocked(): void
     {
         // Simulate communityB context (as if accessed via /community-b/...)
         // Both bindings are set (matching ResolveCommunity middleware behavior)
-        app()->instance('current_community', $this->communityB);
-        app()->instance('current_organization', $this->communityB);
+        app()->instance('current_community', $this->organizationB);
+        app()->instance('current_organization', $this->organizationB);
 
         $response = $this->actingAs($this->userA)
             ->get(route('loops.show', $this->loop));
@@ -303,12 +303,12 @@ class LoopMemberInvariantTest extends TestCase
         $response->assertStatus(404);
     }
 
-    public function test_cross_community_creation_is_blocked(): void
+    public function test_cross_organization_creation_is_blocked(): void
     {
         // Simulate communityB context (as if accessed via /community-b/...)
         // Both bindings are set (matching ResolveCommunity middleware behavior)
-        app()->instance('current_community', $this->communityB);
-        app()->instance('current_organization', $this->communityB);
+        app()->instance('current_community', $this->organizationB);
+        app()->instance('current_organization', $this->organizationB);
 
         $response = $this->actingAs($this->userA)
             ->post(route('loops.store'), [
@@ -323,7 +323,7 @@ class LoopMemberInvariantTest extends TestCase
     // Blocker 2: LoopMember authorization
     // -------------------------------------------------------------------------
 
-    public function test_same_community_non_member_cannot_view_loop_show(): void
+    public function test_same_organization_non_member_cannot_view_loop_show(): void
     {
         $response = $this->actingAs($this->userB)
             ->get(route('loops.show', $this->loop));
@@ -332,13 +332,13 @@ class LoopMemberInvariantTest extends TestCase
         $response->assertStatus(404);
     }
 
-    public function test_same_community_non_member_cannot_add_loop_member(): void
+    public function test_same_organization_non_member_cannot_add_loop_member(): void
     {
-        $referred = User::factory()->create(['organization_id' => $this->communityA->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationA->id]);
         $referral = Referral::factory()->create([
             'referrer_user_id' => $this->userB->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $response = $this->actingAs($this->userB)
@@ -354,11 +354,11 @@ class LoopMemberInvariantTest extends TestCase
     {
         $this->service->addMember($this->loop, $this->userB, 'member');
 
-        $referred = User::factory()->create(['organization_id' => $this->communityA->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationA->id]);
         $referral = Referral::factory()->create([
             'referrer_user_id' => $this->userB->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $response = $this->actingAs($this->userB)
@@ -374,14 +374,14 @@ class LoopMemberInvariantTest extends TestCase
     // Referral: additional community_id filtering
     // -------------------------------------------------------------------------
 
-    public function test_eligible_referrals_excludes_referred_user_from_wrong_community(): void
+    public function test_eligible_referrals_excludes_referred_user_from_wrong_organization(): void
     {
         // Same referrals.community_id as loop, but referred_user is in different community
-        $referred = User::factory()->create(['organization_id' => $this->communityB->id]);
+        $referred = User::factory()->create(['organization_id' => $this->organizationB->id]);
         Referral::factory()->create([
             'referrer_user_id' => $this->userA->id,
             'referred_user_id' => $referred->id,
-            'organization_id' => $this->communityA->id,
+            'organization_id' => $this->organizationA->id,
         ]);
 
         $eligible = $this->service->getEligibleReferrals($this->userA, $this->loop);

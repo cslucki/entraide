@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Organization;
 use App\Models\Loop;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
@@ -16,7 +16,7 @@ class LoopActivityTrackingTest extends TestCase
 
     private Organization $organization;
 
-    private Organization $otherCommunity;
+    private Organization $otherOrganization;
 
     private User $owner;
 
@@ -36,13 +36,13 @@ class LoopActivityTrackingTest extends TestCase
     {
         parent::setUp();
 
-        $this->community = Organization::factory()->create();
-        $this->otherCommunity = Organization::factory()->create();
+        $this->organization = Organization::factory()->create();
+        $this->otherOrganization = Organization::factory()->create();
 
-        $this->owner = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->member = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->nonMember = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->crossUser = User::factory()->create(['organization_id' => $this->otherCommunity->id]);
+        $this->owner = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->nonMember = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->crossUser = User::factory()->create(['organization_id' => $this->otherOrganization->id]);
 
         $loopService = new LoopService;
 
@@ -110,7 +110,7 @@ class LoopActivityTrackingTest extends TestCase
     // Service: touch preserves tenant isolation
     // -------------------------------------------------------------------------
 
-    public function test_send_message_from_same_community_touches_correct_loop(): void
+    public function test_send_message_from_same_organization_touches_correct_loop(): void
     {
         $activeOriginalUpdatedAt = $this->loop->updated_at->copy();
         $inactiveOriginalUpdatedAt = $this->inactiveLoop->updated_at->copy();
@@ -174,9 +174,9 @@ class LoopActivityTrackingTest extends TestCase
     // Tenant safety: cross-community isolation
     // -------------------------------------------------------------------------
 
-    public function test_cross_community_user_cannot_see_loop_on_index(): void
+    public function test_cross_organization_user_cannot_see_loop_on_index(): void
     {
-        $this->community->update(['is_active' => false]);
+        $this->organization->update(['is_active' => false]);
 
         $response = $this->actingAs($this->crossUser)
             ->get(route('loops.index'));
@@ -196,7 +196,7 @@ class LoopActivityTrackingTest extends TestCase
         $response->assertDontSee('Inactive Loop');
     }
 
-    public function test_member_of_one_loop_does_not_see_same_community_other_loop(): void
+    public function test_member_of_one_loop_does_not_see_same_organization_other_loop(): void
     {
         $loopService = new LoopService;
         $anotherLoop = $loopService->createLoop($this->owner, 'Owner Only Loop');

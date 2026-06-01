@@ -2,9 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Organization;
 use App\Models\Loop;
-use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\LoopMessageService;
@@ -17,21 +16,26 @@ class LoopHelpRequestTest extends TestCase
     use RefreshDatabase;
 
     private Organization $organization;
+
     private User $owner;
+
     private User $member;
+
     private User $nonMember;
+
     private Loop $loop;
+
     private LoopMessageService $messageService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->community = Organization::factory()->create();
+        $this->organization = Organization::factory()->create();
 
-        $this->owner = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->member = User::factory()->create(['organization_id' => $this->community->id]);
-        $this->nonMember = User::factory()->create(['organization_id' => $this->community->id]);
+        $this->owner = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->nonMember = User::factory()->create(['organization_id' => $this->organization->id]);
 
         $loopService = new LoopService;
         $this->loop = $loopService->createLoop($this->owner, 'Test Loop');
