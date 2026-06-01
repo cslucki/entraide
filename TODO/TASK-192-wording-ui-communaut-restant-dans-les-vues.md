@@ -2,7 +2,7 @@
 task_id: TASK-192
 title: Wording UI communauté restant dans les vues
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -27,6 +27,8 @@ handoff: false
 pr:
   status: MERGED
   url: https://github.com/cslucki/entraide/pull/37
+merged_at: 2026-06-01 15:45:00 Europe/Paris
+merged_commit: 5b51915
 ---
 
 # Objective
