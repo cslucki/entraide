@@ -2,7 +2,7 @@
 task_id: TASK-189
 title: administrative alignment of historical Community tasks
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-189-administrative-alignment-of-historical-community-tasks
 priority: MEDIUM
 
 created_at: 2026-06-01 11:08:44 Europe/Paris
-updated_at: 2026-06-01 11:50:00 Europe/Paris
+updated_at: 2026-06-01 11:55:00 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: OPEN
+  status: MERGED
   url: https://github.com/cslucki/entraide/pull/34
 ---
 
@@ -70,6 +70,14 @@ VERIFICATOR: ACCEPT_WITH_ADMIN_FIXES.
 ## 2026-06-01 11:50:00 Europe/Paris
 
 Pull request opened: https://github.com/cslucki/entraide/pull/34
+
+## 2026-06-01 11:55:00 Europe/Paris
+
+Merged into develop via `ai/scripts/merge-task.sh TASK-189` after PostgreSQL CI passed on PR #34.
+
+Merge commit: `54094600c3b9bfbd37086045723ae64a32807842`.
+
+Version bumped explicitly with `ai/scripts/bump-version.sh 189` after merge script could not infer task id from `develop`.
 
 # Handoffs
 
