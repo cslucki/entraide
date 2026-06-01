@@ -2,7 +2,7 @@
 task_id: TASK-188
 title: final Community residue audit after migration cleanup
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
@@ -13,7 +13,7 @@ branch: TASK-188-final-community-residue-audit-after-migration-cleanup
 priority: MEDIUM
 
 created_at: 2026-06-01 10:27:18 Europe/Paris
-updated_at: 2026-06-01 11:25:00 Europe/Paris
+updated_at: 2026-06-01 11:30:00 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: OPEN
+  status: MERGED
   url: https://github.com/cslucki/entraide/pull/33
 ---
 
@@ -75,6 +75,13 @@ TASK unlocked, status DONE.
 ## 2026-06-01 11:25:00 Europe/Paris
 
 Pull request opened: https://github.com/cslucki/entraide/pull/33
+
+## 2026-06-01 11:30:00 Europe/Paris
+
+Merged into `develop` via `ai/scripts/merge-task.sh TASK-188`.
+GitHub PostgreSQL CI was green before merge.
+Merge commit: `01d49cf264c78379de200bd5a6519c8d8db0c95b`.
+Version bump applied explicitly with `ai/scripts/bump-version.sh 188` after merge script could not infer the task id from `develop`.
 
 # Handoffs
 
