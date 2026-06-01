@@ -10,7 +10,6 @@ return new class extends Migration
     {
         Schema::create('referrals', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->uuid('community_id')->nullable()->index();
             $table->uuid('organization_id')->nullable()->index();
             $table->uuid('referrer_user_id');
             $table->uuid('referred_user_id');
@@ -20,11 +19,10 @@ return new class extends Migration
             $table->timestamp('activated_at')->nullable();
             $table->timestamps();
 
-            $table->foreign('community_id')->references('id')->on('organizations')->cascadeOnDelete();
             $table->foreign('referrer_user_id')->references('id')->on('users')->cascadeOnDelete();
             $table->foreign('referred_user_id')->references('id')->on('users')->cascadeOnDelete();
 
-            $table->unique(['community_id', 'referrer_user_id', 'referred_user_id'], 'referrals_unique_pair');
+            $table->unique(['organization_id', 'referrer_user_id', 'referred_user_id'], 'referrals_unique_pair');
             $table->index('referrer_user_id');
             $table->index('referred_user_id');
         });
