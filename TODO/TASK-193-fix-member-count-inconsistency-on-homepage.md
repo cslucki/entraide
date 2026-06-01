@@ -2,11 +2,12 @@
 task_id: TASK-193
 title: Fix member count inconsistency on homepage
 
-status: IN_PROGRESS
+status: DONE
 
 owner: ORCHESTRATOR
 
-contributors: []
+contributors:
+  - SUPERVISOR
 
 branch: TASK-193-fix-member-count-inconsistency-on-homepage
 
@@ -18,9 +19,9 @@ updated_at: 2026-06-01 18:12:12 Europe/Paris
 labels: []
 
 lock:
-  status: LOCKED
-  agent: ORCHESTRATOR
-  since: 2026-06-01 18:12:12 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: 2026-06-01 18:35:00 Europe/Paris
 
 handoff: false
 
@@ -43,7 +44,7 @@ Fix: scoper le compteur de l'accueil avec `auth()->user()->organization_id`.
 - [x] RAA: validated with correction (ORCHESTRATOR)
 - [x] implement one-line fix in HomeController::index()
 - [x] run tests
-- [ ] PR + merge (ORCHESTRATOR)
+- [x] PR + merge (ORCHESTRATOR)
 
 ---
 # Progress Log
@@ -69,6 +70,10 @@ Implementation complete (SUPERVISOR).
 - One-line fix applied: `User::count()` → scoped by `auth()->user()->organization_id`
 - Tests: 826 passed, 11 skipped — zero regressions
 - Handing off to ORCHESTRATOR for PR + merge
+
+## 2026-06-01 18:35:00 Europe/Paris
+
+CI green (PostgreSQL, 1m29s). Unlocked. Ready to merge.
 
 # Handoffs
 
