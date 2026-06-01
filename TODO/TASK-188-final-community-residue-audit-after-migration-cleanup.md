@@ -13,7 +13,7 @@ branch: TASK-188-final-community-residue-audit-after-migration-cleanup
 priority: MEDIUM
 
 created_at: 2026-06-01 10:27:18 Europe/Paris
-updated_at: 2026-06-01 11:20:00 Europe/Paris
+updated_at: 2026-06-01 11:25:00 Europe/Paris
 
 labels: []
 
@@ -25,8 +25,8 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
-  url: null
+  status: OPEN
+  url: https://github.com/cslucki/entraide/pull/33
 ---
 
 # Objective
@@ -71,6 +71,10 @@ Summary:
 
 VERIFICATOR: ACCEPT_NO_BLOCKING_RESIDUE.
 TASK unlocked, status DONE.
+
+## 2026-06-01 11:25:00 Europe/Paris
+
+Pull request opened: https://github.com/cslucki/entraide/pull/33
 
 # Handoffs
 
