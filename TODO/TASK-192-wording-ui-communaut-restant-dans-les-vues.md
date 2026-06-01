@@ -2,7 +2,7 @@
 task_id: TASK-192
 title: Wording UI communauté restant dans les vues
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -18,14 +18,14 @@ updated_at: 2026-06-01 15:27:59 Europe/Paris
 labels: []
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-06-01 15:27:59 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: READY
   url: null
 ---
 
