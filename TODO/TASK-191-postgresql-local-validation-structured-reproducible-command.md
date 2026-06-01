@@ -2,7 +2,7 @@
 task_id: TASK-191
 title: PostgreSQL local validation structured reproducible command
 
-status: DONE
+status: MERGED
 
 owner: ORCHESTRATOR
 
@@ -13,7 +13,7 @@ branch: TASK-191-postgresql-local-validation-structured-reproducible-command
 priority: MEDIUM
 
 created_at: 2026-06-01 14:30:24 Europe/Paris
-updated_at: 2026-06-01 15:50:00 Europe/Paris
+updated_at: 2026-06-01 16:00:00 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: OPEN
+  status: MERGED
   url: https://github.com/cslucki/entraide/pull/36
 ---
 
