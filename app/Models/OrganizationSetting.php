@@ -16,15 +16,28 @@ class OrganizationSetting extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public static function get(string $organizationId, string $key, mixed $default = null): mixed
+    public static function getDefaultOrgId(): ?string
     {
+        return Organization::where('is_default', true)->value('id');
+    }
+
+    public static function get(Organization|string|null $organization = null, string $key, mixed $default = null): mixed
+    {
+        $organizationId = $organization instanceof Organization
+            ? $organization->id
+            : ($organization ?? static::getDefaultOrgId());
+
         return static::where('organization_id', $organizationId)
             ->where('key', $key)
             ->value('value') ?? $default;
     }
 
-    public static function set(string $organizationId, string $key, mixed $value): void
+    public static function set(Organization|string|null $organization = null, string $key, mixed $value): void
     {
+        $organizationId = $organization instanceof Organization
+            ? $organization->id
+            : ($organization ?? static::getDefaultOrgId());
+
         static::updateOrCreate(
             ['organization_id' => $organizationId, 'key' => $key],
             ['value' => $value]
