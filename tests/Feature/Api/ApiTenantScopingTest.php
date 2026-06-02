@@ -219,6 +219,5 @@ class ApiTenantScopingTest extends TestCase
 
         $this->assertTrue(app()->bound('current_organization'));
         $this->assertEquals($this->organizationB->id, app('current_organization')->id);
-        $this->assertFalse(app()->bound('current_community'));
     }
 }

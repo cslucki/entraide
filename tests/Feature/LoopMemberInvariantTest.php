@@ -291,9 +291,7 @@ class LoopMemberInvariantTest extends TestCase
 
     public function test_cross_organization_route_prefix_is_blocked(): void
     {
-        // Simulate communityB context (as if accessed via /community-b/...)
-        // Both bindings are set (matching ResolveCommunity middleware behavior)
-        app()->instance('current_community', $this->organizationB);
+        // current_organization is bound
         app()->instance('current_organization', $this->organizationB);
 
         $response = $this->actingAs($this->userA)
@@ -305,9 +303,7 @@ class LoopMemberInvariantTest extends TestCase
 
     public function test_cross_organization_creation_is_blocked(): void
     {
-        // Simulate communityB context (as if accessed via /community-b/...)
-        // Both bindings are set (matching ResolveCommunity middleware behavior)
-        app()->instance('current_community', $this->organizationB);
+        // current_organization is bound
         app()->instance('current_organization', $this->organizationB);
 
         $response = $this->actingAs($this->userA)

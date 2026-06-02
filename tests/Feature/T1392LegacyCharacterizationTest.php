@@ -48,10 +48,8 @@ class T1392LegacyCharacterizationTest extends TestCase
         parent::setUp();
 
         $this->org = Organization::factory()->create(['is_active' => true]);
-        $this->community = $this->org;
         $this->user = User::factory()->create([
-            'organization_id' => $this->community->id,
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
         ]);
     }
 
@@ -64,7 +62,7 @@ class T1392LegacyCharacterizationTest extends TestCase
         $other = Organization::factory()->create();
 
         Service::factory()->for($this->user)->create([
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
             'title' => 'Scoped Service',
         ]);
         Service::factory()->for($this->user)->create([
@@ -72,7 +70,7 @@ class T1392LegacyCharacterizationTest extends TestCase
             'title' => 'Other Org Service',
         ]);
 
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->org);
 
         $services = Service::where('title', 'like', '%Service')->get();
 
@@ -86,7 +84,7 @@ class T1392LegacyCharacterizationTest extends TestCase
         $scope = new BelongsToOrganizationScope;
         $model = new Service;
 
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->org);
 
         $query = Service::query();
         $scope->apply($query, $model);
@@ -98,10 +96,9 @@ class T1392LegacyCharacterizationTest extends TestCase
     public function test_belongs_to_tenant_scope_returns_empty_when_no_org_bound(): void
     {
         app()->forgetInstance('current_organization');
-        app()->forgetInstance('current_community');
 
         Service::factory()->for($this->user)->create([
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
         ]);
 
         $this->assertCount(0, Service::all());
@@ -112,7 +109,7 @@ class T1392LegacyCharacterizationTest extends TestCase
         $other = Organization::factory()->create();
 
         ServiceRequest::factory()->for($this->user)->create([
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
             'title' => 'My Request',
         ]);
         ServiceRequest::factory()->for($this->user)->create([
@@ -120,7 +117,7 @@ class T1392LegacyCharacterizationTest extends TestCase
             'title' => 'Other Request',
         ]);
 
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->org);
 
         $this->assertCount(1, ServiceRequest::all());
         $this->assertEquals('My Request', ServiceRequest::first()->title);
@@ -131,13 +128,13 @@ class T1392LegacyCharacterizationTest extends TestCase
         $other = Organization::factory()->create();
 
         Transaction::factory()->create([
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
         ]);
         Transaction::factory()->create([
             'organization_id' => $other->id,
         ]);
 
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->org);
 
         $this->assertCount(1, Transaction::all());
     }
@@ -156,66 +153,26 @@ class T1392LegacyCharacterizationTest extends TestCase
 
     public function test_current_organization_prefers_current_organization(): void
     {
-        app()->instance('current_organization', $this->community);
-        app()->instance('current_community', null);
+        app()->instance('current_organization', $this->org);
 
-        $this->assertEquals($this->community->id, CurrentOrganization::get()?->id);
+        $this->assertEquals($this->org->id, CurrentOrganization::get()?->id);
     }
 
-    public function test_current_organization_no_fallback_to_current_community(): void
+    public function test_current_organization_returns_null_when_not_bound(): void
     {
         app()->forgetInstance('current_organization');
-        app()->instance('current_community', $this->community);
 
         $this->assertNull(CurrentOrganization::get());
     }
 
-    public function test_current_organization_prioritizes_organization_over_community(): void
+    public function test_current_organization_prioritizes_organization(): void
     {
         $orgA = Organization::factory()->create();
-        $orgB = Organization::factory()->create();
 
         app()->instance('current_organization', $orgA);
-        app()->instance('current_community', $orgB);
 
         $result = CurrentOrganization::get();
         $this->assertEquals($orgA->id, $result->id);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // 3. ResolveCommunity bindings
-    // ─────────────────────────────────────────────────────────────
-
-    public function test_community_patched_route_binds_current_organization(): void
-    {
-        $org = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'slug' => 'test-bind-org']);
-
-        $this->get("/org/{$org->slug}/")
-            ->assertOk();
-
-        $this->assertTrue(app()->bound('current_organization'));
-        $this->assertEquals($org->id, app('current_organization')->id);
-    }
-
-    public function test_community_patched_route_does_not_bind_current_community(): void
-    {
-        $org = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'slug' => 'test-bind-comm']);
-
-        $this->get("/org/{$org->slug}/")
-            ->assertOk();
-
-        $this->assertFalse(app()->bound('current_community'));
-    }
-
-    public function test_community_route_binds_current_organization(): void
-    {
-        $org = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'slug' => 'test-same-instance']);
-
-        $this->get("/org/{$org->slug}/")
-            ->assertOk();
-
-        $this->assertTrue(app()->bound('current_organization'));
-        $this->assertEquals($org->id, app('current_organization')->id);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -226,7 +183,6 @@ class T1392LegacyCharacterizationTest extends TestCase
     {
         $org = Organization::factory()->create(['is_active' => true]);
         $user = User::factory()->create([
-            'organization_id' => $org->id,
             'organization_id' => $org->id,
         ]);
 
@@ -246,7 +202,6 @@ class T1392LegacyCharacterizationTest extends TestCase
     public function test_resolve_api_organization_returns_403_if_user_has_no_community(): void
     {
         $userWithoutCommunity = User::factory()->create([
-            'organization_id' => null,
             'organization_id' => null,
         ]);
 
@@ -286,17 +241,17 @@ class T1392LegacyCharacterizationTest extends TestCase
     public function test_loop_has_community_id(): void
     {
         $loop = Loop::factory()->create([
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
         ]);
 
         $this->assertNotNull($loop->organization_id);
-        $this->assertEquals($this->community->id, $loop->organization_id);
+        $this->assertEquals($this->org->id, $loop->organization_id);
     }
 
     public function test_loop_has_organization_id(): void
     {
         $loop = Loop::factory()->create([
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
         ]);
 
         $this->assertNotNull($loop->organization_id);
@@ -307,22 +262,22 @@ class T1392LegacyCharacterizationTest extends TestCase
     public function test_loop_belongs_to_community(): void
     {
         $loop = Loop::factory()->create([
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
         ]);
 
         $this->assertNotNull($loop->organization);
-        $this->assertEquals($this->community->id, $loop->organization->id);
+        $this->assertEquals($this->org->id, $loop->organization->id);
     }
 
     public function test_loop_has_organization_relation(): void
     {
         $loop = Loop::factory()->create([
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
         ]);
 
         $this->assertTrue(method_exists($loop, 'organization'));
         $this->assertNotNull($loop->organization);
-        $this->assertEquals($this->community->id, $loop->organization->id);
+        $this->assertEquals($this->org->id, $loop->organization->id);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -386,17 +341,17 @@ class T1392LegacyCharacterizationTest extends TestCase
     public function test_user_create_with_organization_id_persists(): void
     {
         $user = User::factory()->create([
-            'organization_id' => $this->community->id,
+            'organization_id' => $this->org->id,
         ]);
 
         $user->refresh();
 
-        $this->assertEquals($this->community->id, $user->organization_id);
+        $this->assertEquals($this->org->id, $user->organization_id);
     }
 
     public function test_user_create_without_organization_id_gets_default(): void
     {
-        app()->instance('current_organization', $this->community);
+        app()->instance('current_organization', $this->org);
 
         $user = User::factory()->create([
             'organization_id' => null,
@@ -404,7 +359,7 @@ class T1392LegacyCharacterizationTest extends TestCase
 
         $user->refresh();
 
-        $this->assertEquals($this->community->id, $user->organization_id);
+        $this->assertEquals($this->org->id, $user->organization_id);
     }
 
     public function test_user_create_without_org_or_context_gets_null(): void
