@@ -21,7 +21,13 @@ class EmailLog extends Model
         'status',
         'error_message',
         'data',
+        'organization_id',
     ];
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
 
     protected $casts = [
         'data' => 'array',
