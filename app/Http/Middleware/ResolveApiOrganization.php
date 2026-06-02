@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Models\Organization;
-use App\Models\Setting;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -50,19 +49,8 @@ class ResolveApiOrganization
 
     protected function resolveDefault(): ?Organization
     {
-        $defaultId = Setting::get('default_organization_id');
-
-        if ($defaultId) {
-            $org = Organization::whereKey($defaultId)
-                ->where('is_active', true)
-                ->first();
-
-            if ($org) {
-                return $org;
-            }
-        }
-
-        return Organization::where('is_active', true)->first();
+        return Organization::where('is_default', true)->first()
+            ?? Organization::where('is_active', true)->first();
     }
 
     protected function bindOrganization(Organization $organization): void

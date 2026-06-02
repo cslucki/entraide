@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Organization;
-use App\Models\Setting;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -20,11 +19,6 @@ class LegacyDataOrganizationSeeder extends Seeder
         }
 
         $this->command->info("Default organization: {$organization->name} ({$organization->id})");
-
-        $alreadySet = Setting::get('default_organization_id');
-        if ($alreadySet === (string) $organization->id) {
-            $this->command->warn('Default organization already configured. Checking for remaining NULL records...');
-        }
 
         $tables = $this->getTablesWithOrganizationColumns();
 
@@ -49,20 +43,17 @@ class LegacyDataOrganizationSeeder extends Seeder
             $this->command->info("  {$table}: {$updated} records backfilled");
         }
 
-        Setting::set('default_organization_id', (string) $organization->id);
+        $organization->update(['is_default' => true]);
 
         $this->command->info("Total legacy records backfilled: {$totalUpdated}");
-        $this->command->info("Default organization ID set to: {$organization->id}");
+        $this->command->info("Default organization set to: {$organization->name} ({$organization->id})");
     }
 
     private function resolveDefaultOrganization(): ?Organization
     {
-        $defaultId = Setting::get('default_organization_id');
-        if ($defaultId) {
-            $organization = Organization::find($defaultId);
-            if ($organization) {
-                return $organization;
-            }
+        $organization = Organization::where('is_default', true)->first();
+        if ($organization) {
+            return $organization;
         }
 
         $organization = Organization::where('slug', 'main')->first();
