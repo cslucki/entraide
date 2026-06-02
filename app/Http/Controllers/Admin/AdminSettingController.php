@@ -12,7 +12,7 @@ class AdminSettingController extends Controller
 {
     public function index(): View
     {
-        $orgId = auth()->user()->organization_id;
+        $orgId = auth()->user()->organization_id; // Admin org override
 
         $settings = [
             'platform_name'     => OrganizationSetting::get($orgId, 'platform_name', 'Entraide'),
@@ -25,7 +25,7 @@ class AdminSettingController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        $orgId = auth()->user()->organization_id;
+        $orgId = auth()->user()->organization_id; // Admin org override
 
         $data = $request->validate([
             'platform_name'    => 'required|string|max:100',

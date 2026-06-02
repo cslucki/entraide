@@ -18,10 +18,12 @@ class SettingSeeder extends Seeder
             return;
         }
 
-        OrganizationSetting::set($org->id, 'platform_name', 'Entraide');
-        OrganizationSetting::set($org->id, 'platform_tagline', 'Échangez vos talents');
-        OrganizationSetting::set($org->id, 'maintenance_mode', '0');
+        if (! $org->is_default) {
+            $org->update(['is_default' => true]);
+        }
 
-        $org->update(['is_default' => true]);
+        OrganizationSetting::set(null, 'platform_name', 'Entraide'); // Default config scope
+        OrganizationSetting::set(null, 'platform_tagline', 'Échangez vos talents');
+        OrganizationSetting::set(null, 'maintenance_mode', '0');
     }
 }

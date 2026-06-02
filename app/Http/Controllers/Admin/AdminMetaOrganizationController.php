@@ -12,7 +12,7 @@ class AdminMetaOrganizationController extends Controller
 {
     public function index(): View
     {
-        $orgId = auth()->user()->organization_id;
+        $orgId = OrganizationSetting::getDefaultOrgId(); // Uses default config scope
 
         $settings = [
             'global_color_mode' => OrganizationSetting::get($orgId, 'global_color_mode', 'dark'),
@@ -23,7 +23,7 @@ class AdminMetaOrganizationController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        $orgId = auth()->user()->organization_id;
+        $orgId = OrganizationSetting::getDefaultOrgId(); // Uses default config scope
 
         $data = $request->validate([
             'global_color_mode' => 'required|in:dark,light',
