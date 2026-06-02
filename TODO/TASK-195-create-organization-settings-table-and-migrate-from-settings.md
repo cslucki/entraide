@@ -2,7 +2,7 @@
 task_id: TASK-195
 title: Create organization_settings table and migrate from settings
 
-status: DONE
+status: MERGED
 
 owner: ORCHESTRATOR
 
