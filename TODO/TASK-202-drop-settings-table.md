@@ -1,6 +1,6 @@
 ---
 task_id: TASK-202
-status: DONE
+status: MERGED
 owner: SUPERVISOR
 
 contributors:

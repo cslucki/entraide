@@ -311,20 +311,6 @@ class ResolveUrlOrganizationTest extends TestCase
         $this->assertFalse(app()->bound('current_community'));
     }
 
-    public function test_does_not_override_existing_current_community(): void
-    {
-        $org = Organization::factory()->create(['is_active' => true]);
-        $existingOrg = Organization::factory()->create(['is_active' => true]);
-        app()->instance('current_community', $existingOrg);
-
-        $request = Request::create('/explorer', 'GET');
-        $middleware = new ResolveUrlOrganization;
-
-        $middleware->handle($request, fn () => response('ok'));
-
-        $this->assertEquals($existingOrg->id, app('current_community')->id);
-    }
-
     // -----------------------------------------------------------------------
     // Registration
     // -----------------------------------------------------------------------

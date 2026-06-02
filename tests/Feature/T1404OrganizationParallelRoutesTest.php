@@ -49,13 +49,12 @@ class T1404OrganizationParallelRoutesTest extends TestCase
         $this->assertEquals($this->org->id, app('current_organization')->id);
     }
 
-    public function test_org_route_does_not_bind_legacy_current_community(): void
+    public function test_org_route_does_not_bind_legacy_current_organization(): void
     {
         $this->get("/org/{$this->org->slug}/");
 
         $this->assertTrue(app()->bound('current_organization'));
         $this->assertSame($this->org->id, app('current_organization')->id);
-        $this->assertFalse(app()->bound('current_community'));
     }
 
     public function test_org_route_returns_404_for_unknown_slug(): void

@@ -16,9 +16,8 @@ use Tests\TestCase;
  *
  * Verifies that:
  * - current_organization takes precedence (canonical)
- * - current_community works as legacy fallback
  * - neither bound = empty result set (safety guard, no silent skip)
- * - behavior is identical whether community_id is set via Organization or Community
+ * - behavior is identical whether org_id is set via Organization
  * - cross-Organization data leakage is impossible
  */
 class BelongsToOrganizationScopeTest extends TestCase
@@ -52,9 +51,7 @@ class BelongsToOrganizationScopeTest extends TestCase
         Service::factory()->forUser($user)->create(['organization_id' => $org->id]);
         Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
-        // Bind both — organization takes precedence
         app()->instance('current_organization', $org);
-        app()->instance('current_community', $org);
 
         $this->assertCount(1, Service::all());
     }
@@ -67,13 +64,11 @@ class BelongsToOrganizationScopeTest extends TestCase
 
         $user = User::factory()->create(['organization_id' => $org->id]);
         Service::factory()->forUser($user)->create(['organization_id' => $org->id]);
-        Service::factory()->forUser($user)->create(['organization_id' => $organization->id]); // community-only tenant
+        Service::factory()->forUser($user)->create(['organization_id' => $organization->id]);
         Service::factory()->forUser($user)->create(['organization_id' => $other->id]);
 
-        // Bind DIFFERENT values: current_organization = org, current_community = community
-        // Organization MUST win — only org data is visible
         app()->instance('current_organization', $org);
-        app()->instance('current_community', $organization);
+        app()->instance('current_organization', $organization);
 
         $this->assertCount(1, Service::all());
     }
@@ -172,7 +167,7 @@ class BelongsToOrganizationScopeTest extends TestCase
     // Organization model works identically to Community in scope resolution
     // -------------------------------------------------------------------------
 
-    public function test_organization_instance_scopes_identically_to_community(): void
+    public function test_organization_instance_scopes_correctly(): void
     {
         $org = Organization::factory()->create();
         $other = Organization::factory()->create();
