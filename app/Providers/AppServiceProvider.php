@@ -102,15 +102,15 @@ class AppServiceProvider extends ServiceProvider
                     $org = app()->bound('current_organization') ? app('current_organization') : null;
                     if ($org) {
                         $settings = [
-                            'platformName' => OrganizationSetting::get($org->id, 'platform_name', config('app.name')),
-                            'platformTagline' => OrganizationSetting::get($org->id, 'platform_tagline', 'Échangez vos talents'),
-                            'globalColorMode' => OrganizationSetting::get($org->id, 'global_color_mode', 'dark'),
+                            'platformName' => OrganizationSetting::get($org, 'platform_name', config('app.name')),
+                            'platformTagline' => OrganizationSetting::get($org, 'platform_tagline', 'Échangez vos talents'),
+                            'globalColorMode' => OrganizationSetting::get($org, 'global_color_mode', 'dark'),
                         ];
                     } else {
                         $settings = [
-                            'platformName' => config('app.name'),
-                            'platformTagline' => 'Échangez vos talents',
-                            'globalColorMode' => 'dark',
+                            'platformName' => OrganizationSetting::get(null, 'platform_name', config('app.name')),
+                            'platformTagline' => OrganizationSetting::get(null, 'platform_tagline', 'Échangez vos talents'),
+                            'globalColorMode' => OrganizationSetting::get(null, 'global_color_mode', 'dark'),
                         ];
                     }
                 } catch (\Exception) {
