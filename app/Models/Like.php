@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Like extends Model
 {
-    protected $fillable = ['user_id', 'likeable_id', 'likeable_type'];
+    protected $fillable = ['user_id', 'likeable_id', 'likeable_type', 'organization_id'];
 
     public function user(): BelongsTo
     {
@@ -18,5 +18,10 @@ class Like extends Model
     public function likeable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }
