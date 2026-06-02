@@ -19,6 +19,7 @@ class LoopMessage extends Model
         'body',
         'type',
         'metadata',
+        'organization_id',
     ];
 
     protected function casts(): array
@@ -36,6 +37,11 @@ class LoopMessage extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 
     public function scopeForLoop($query, string $loopId)
