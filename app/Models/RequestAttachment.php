@@ -11,7 +11,7 @@ class RequestAttachment extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['service_request_id', 'path', 'original_name', 'mime_type', 'order'];
+    protected $fillable = ['service_request_id', 'path', 'original_name', 'mime_type', 'order', 'organization_id'];
 
     public function serviceRequest(): BelongsTo
     {
@@ -36,5 +36,10 @@ class RequestAttachment extends Model
             in_array($this->mime_type, ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']) => 'excel',
             default => 'image',
         };
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }
