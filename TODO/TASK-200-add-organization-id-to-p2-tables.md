@@ -2,7 +2,7 @@
 task_id: TASK-200
 title: Add organization_id to P2 tables (categories, skills, tags, badges, point_guidelines, email_templates, email_logs + 5 pivot tables)
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
