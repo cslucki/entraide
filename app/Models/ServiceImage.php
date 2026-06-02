@@ -12,7 +12,7 @@ class ServiceImage extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $fillable = ['service_id', 'path', 'order'];
+    protected $fillable = ['service_id', 'path', 'order', 'organization_id'];
 
     public function service(): BelongsTo
     {
@@ -27,5 +27,10 @@ class ServiceImage extends Model
     public function getThumbnailUrlAttribute(): string
     {
         return Storage::disk('public')->url('thumbnails/' . $this->path);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }

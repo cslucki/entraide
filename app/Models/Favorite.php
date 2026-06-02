@@ -13,7 +13,7 @@ class Favorite extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['user_id', 'service_id'];
+    protected $fillable = ['user_id', 'service_id', 'organization_id'];
 
     public function user(): BelongsTo
     {
@@ -23,5 +23,10 @@ class Favorite extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }

@@ -14,7 +14,7 @@ class PointLedger extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['user_id', 'transaction_id', 'delta', 'reason'];
+    protected $fillable = ['user_id', 'transaction_id', 'delta', 'reason', 'organization_id'];
 
     protected function casts(): array
     {
@@ -32,5 +32,10 @@ class PointLedger extends Model
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }
