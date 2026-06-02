@@ -13,7 +13,7 @@ class Report extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['reporter_id', 'reportable_type', 'reportable_id', 'reason', 'details', 'status'];
+    protected $fillable = ['reporter_id', 'reportable_type', 'reportable_id', 'reason', 'details', 'status', 'organization_id'];
 
     public function reporter(): BelongsTo
     {
@@ -23,5 +23,10 @@ class Report extends Model
     public function reportable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }
