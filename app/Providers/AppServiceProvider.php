@@ -6,7 +6,7 @@ use App\Models\Loop;
 use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
-use App\Models\Setting;
+use App\Models\OrganizationSetting;
 use App\Models\Transaction;
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
@@ -99,13 +99,21 @@ class AppServiceProvider extends ServiceProvider
             static $settings;
             if (! isset($settings)) {
                 try {
-                    $settings = [
-                        'platformName' => Setting::get('platform_name', config('app.name')),
-                        'platformTagline' => Setting::get('platform_tagline', 'Échangez vos talents'),
-                        'globalColorMode' => Setting::get('global_color_mode', 'dark'),
-                    ];
+                    $org = app()->bound('current_organization') ? app('current_organization') : null;
+                    if ($org) {
+                        $settings = [
+                            'platformName' => OrganizationSetting::get($org->id, 'platform_name', config('app.name')),
+                            'platformTagline' => OrganizationSetting::get($org->id, 'platform_tagline', 'Échangez vos talents'),
+                            'globalColorMode' => OrganizationSetting::get($org->id, 'global_color_mode', 'dark'),
+                        ];
+                    } else {
+                        $settings = [
+                            'platformName' => config('app.name'),
+                            'platformTagline' => 'Échangez vos talents',
+                            'globalColorMode' => 'dark',
+                        ];
+                    }
                 } catch (\Exception) {
-                    // Table absente (avant migration) : on utilise les valeurs par défaut
                     $settings = [
                         'platformName' => config('app.name'),
                         'platformTagline' => 'Échangez vos talents',
