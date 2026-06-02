@@ -22,6 +22,7 @@ class Organization extends Model
         'description',
         'is_active',
         'is_public',
+        'is_default',
         'admin_id',
         'hero_image',
         'hero_title',
@@ -35,6 +36,7 @@ class Organization extends Model
         return [
             'is_active' => 'boolean',
             'is_public' => 'boolean',
+            'is_default' => 'boolean',
             'welcome_points' => 'integer',
         ];
     }
