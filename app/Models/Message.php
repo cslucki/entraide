@@ -13,7 +13,12 @@ class Message extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['transaction_id', 'sender_id', 'body', 'type', 'read_at'];
+    protected $fillable = ['transaction_id', 'sender_id', 'body', 'type', 'read_at', 'organization_id'];
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
 
     protected function casts(): array
     {

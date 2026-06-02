@@ -13,7 +13,12 @@ class Review extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['transaction_id', 'reviewer_id', 'reviewed_id', 'rating', 'comment'];
+    protected $fillable = ['transaction_id', 'reviewer_id', 'reviewed_id', 'rating', 'comment', 'organization_id'];
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
 
     protected function casts(): array
     {
