@@ -2,31 +2,11 @@
 task_id: TASK-196
 title: Create a default config scope for OrganizationSettings
 
-status: DONE
-
-owner: ORCHESTRATOR
-
-contributors: []
-
-branch: TASK-196-create-a-default-config-scope-for-organizationsettings
-
-priority: MEDIUM
-
-created_at: 2026-06-02 09:36:35 Europe/Paris
-updated_at: 2026-06-02 09:49:00 Europe/Paris
-
-labels: []
-
-lock:
-  status: UNLOCKED
-  agent: ORCHESTRATOR
-  since: 2026-06-02 09:49:00 Europe/Paris
-
-handoff: false
+status: MERGED
 
 pr:
-  status: NOT_READY
-  url: null
+  status: MERGED
+  url: https://github.com/cslucki/entraide/pull/41
 ---
 
 # Objective
