@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\Organization;
@@ -19,7 +18,7 @@ class T0756BlogOrganizationScopingTest extends TestCase
 {
     protected function tearDown(): void
     {
-        ResolveUrlOrganization::$defaultOrganizationId = null;
+        Organization::where('is_default', true)->update(['is_default' => false]);
 
         parent::tearDown();
     }
@@ -217,7 +216,7 @@ class T0756BlogOrganizationScopingTest extends TestCase
         $organizationA = Organization::factory()->create(['is_active' => true]);
         $organizationB = Organization::factory()->create(['is_active' => true]);
 
-        ResolveUrlOrganization::$defaultOrganizationId = (string) $organizationA->id;
+        $organizationA->update(['is_default' => true]);
 
         return [$organizationA, $organizationB];
     }

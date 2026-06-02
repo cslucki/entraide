@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Models\Organization;
-use App\Models\Setting;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -68,8 +67,6 @@ class ResolveUrlOrganization
         'blog',
         'search',
     ];
-
-    public static ?string $defaultOrganizationId = null;
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -234,25 +231,11 @@ class ResolveUrlOrganization
 
     protected function resolveDefaultOrganization(): ?Organization
     {
-        if (static::$defaultOrganizationId) {
-            $org = Organization::find(static::$defaultOrganizationId);
-            if ($org) {
-                return $org;
-            }
-        }
-
-        $defaultId = Setting::get('default_organization_id');
-        if ($defaultId) {
-            $org = Organization::find($defaultId);
-            if ($org) {
-                return $org;
-            }
-        }
-
-        $org = Organization::where('is_active', true)->first();
+        $org = Organization::where('is_default', true)->first()
+            ?? Organization::where('is_active', true)->first();
 
         if (! $org) {
-            Log::warning('Default Organization resolution failed: no active organization in DB, static $defaultOrganizationId is null, and Setting default_organization_id is not set. Environment may be uninitialized.');
+            Log::warning('Default Organization resolution failed: no active organization with is_default = true in DB.');
         }
 
         return $org;

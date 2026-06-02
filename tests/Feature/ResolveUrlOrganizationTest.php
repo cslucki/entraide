@@ -344,8 +344,5 @@ class ResolveUrlOrganizationTest extends TestCase
         $this->assertContains(ResolveUrlOrganization::class, $webGroup);
     }
 
-    public function test_default_organization_id_static_is_null_by_default(): void
-    {
-        $this->assertNull(ResolveUrlOrganization::$defaultOrganizationId);
-    }
+
 }

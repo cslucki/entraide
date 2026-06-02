@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\BlogPost;
 use App\Models\Organization;
 use App\Models\User;
@@ -19,7 +18,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 {
     protected function tearDown(): void
     {
-        ResolveUrlOrganization::$defaultOrganizationId = null;
+        Organization::where('is_default', true)->update(['is_default' => false]);
 
         parent::tearDown();
     }
@@ -30,8 +29,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_membres_returns_200_and_binds_org(): void
     {
-        $org = Organization::factory()->create(['is_active' => true]);
-        ResolveUrlOrganization::$defaultOrganizationId = $org->id;
+        $org = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
 
         $response = $this->get('/membres');
 
@@ -41,9 +39,8 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_membres_shows_only_scoped_users(): void
     {
-        $orgA = Organization::factory()->create(['is_active' => true]);
+        $orgA = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
         $orgB = Organization::factory()->create(['is_active' => true]);
-        ResolveUrlOrganization::$defaultOrganizationId = $orgA->id;
 
         $userInA = User::factory()->create(['name' => 'User In Org A', 'organization_id' => $orgA->id]);
         $userInB = User::factory()->create(['name' => 'User In Org B', 'organization_id' => $orgB->id]);
@@ -60,8 +57,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_explorer_returns_200_and_binds_org(): void
     {
-        $org = Organization::factory()->create(['is_active' => true]);
-        ResolveUrlOrganization::$defaultOrganizationId = $org->id;
+        $org = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
 
         $response = $this->get('/explorer');
 
@@ -75,8 +71,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_blog_index_returns_200_with_default_org(): void
     {
-        $org = Organization::factory()->create(['is_active' => true]);
-        ResolveUrlOrganization::$defaultOrganizationId = $org->id;
+        $org = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
 
         $this->get(route('blog.index'))
             ->assertOk();
@@ -84,9 +79,8 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_blog_index_filters_by_resolved_org(): void
     {
-        $orgA = Organization::factory()->create(['is_active' => true]);
+        $orgA = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
         $orgB = Organization::factory()->create(['is_active' => true]);
-        ResolveUrlOrganization::$defaultOrganizationId = $orgA->id;
 
         $userA = User::factory()->create(['organization_id' => $orgA->id]);
         $userB = User::factory()->create(['organization_id' => $orgB->id]);
@@ -136,13 +130,12 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_membres_does_not_show_users_from_other_org_after_rebind(): void
     {
-        $orgA = Organization::factory()->create(['is_active' => true]);
+        $orgA = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
         $orgB = Organization::factory()->create(['is_active' => true]);
 
         $userInA = User::factory()->create(['name' => 'Only In A', 'organization_id' => $orgA->id]);
         $userInB = User::factory()->create(['name' => 'Only In B', 'organization_id' => $orgB->id]);
 
-        ResolveUrlOrganization::$defaultOrganizationId = $orgA->id;
         $this->get('/membres')
             ->assertOk()
             ->assertSeeText('Only In A')
@@ -150,7 +143,8 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
         app()->forgetInstance('current_organization');
 
-        ResolveUrlOrganization::$defaultOrganizationId = $orgB->id;
+        $orgA->update(['is_default' => false]);
+        $orgB->update(['is_default' => true]);
         $this->get('/membres')
             ->assertOk()
             ->assertSeeText('Only In B')

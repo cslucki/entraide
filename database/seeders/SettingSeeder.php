@@ -14,12 +14,11 @@ class SettingSeeder extends Seeder
         Setting::set('platform_tagline', 'Échangez vos talents');
         Setting::set('maintenance_mode', '0');
 
-        // Default Organization — résolue par ResolveUrlOrganization
-        // fallback #2 après static::$defaultOrganizationId.
-        $default = Organization::where('slug', 'main')->first()
+        $default = Organization::where('is_default', true)->first()
+            ?? Organization::where('slug', 'main')->first()
             ?? Organization::orderBy('created_at')->first();
         if ($default) {
-            Setting::set('default_organization_id', $default->id);
+            $default->update(['is_default' => true]);
         }
     }
 }

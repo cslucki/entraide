@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\Transaction;
@@ -13,7 +12,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
 {
     protected function tearDown(): void
     {
-        ResolveUrlOrganization::$defaultOrganizationId = null;
+        Organization::where('is_default', true)->update(['is_default' => false]);
 
         parent::tearDown();
     }
@@ -96,7 +95,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
             'is_active' => true,
         ]);
 
-        ResolveUrlOrganization::$defaultOrganizationId = (string) $organizationA->id;
+        $organizationA->update(['is_default' => true]);
 
         return [$organizationA, $organizationB];
     }
