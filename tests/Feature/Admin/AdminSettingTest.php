@@ -2,7 +2,8 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\Setting;
+use App\Models\Organization;
+use App\Models\OrganizationSetting;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -10,7 +11,9 @@ class AdminSettingTest extends TestCase
 {
     private function makeAdmin(): User
     {
-        return User::factory()->create(['is_admin' => true]);
+        $org = Organization::factory()->create(['is_active' => true]);
+
+        return User::factory()->create(['is_admin' => true, 'organization_id' => $org->id]);
     }
 
     // ── Access control ────────────────────────────────────────────────────────
@@ -32,26 +35,29 @@ class AdminSettingTest extends TestCase
         $this->actingAs($admin)->get(route('admin.settings'))->assertOk();
     }
 
-    // ── Setting model ─────────────────────────────────────────────────────────
+    // ── OrganizationSetting model ─────────────────────────────────────────────
 
     public function test_setting_get_returns_default_when_missing(): void
     {
-        $this->assertNull(Setting::get('nonexistent'));
-        $this->assertSame('default', Setting::get('nonexistent', 'default'));
+        $org = Organization::factory()->create();
+        $this->assertNull(OrganizationSetting::get($org->id, 'nonexistent'));
+        $this->assertSame('default', OrganizationSetting::get($org->id, 'nonexistent', 'default'));
     }
 
     public function test_setting_set_creates_record(): void
     {
-        Setting::set('platform_name', 'TestPlatform');
-        $this->assertDatabaseHas('settings', ['key' => 'platform_name', 'value' => 'TestPlatform']);
+        $org = Organization::factory()->create();
+        OrganizationSetting::set($org->id, 'platform_name', 'TestPlatform');
+        $this->assertDatabaseHas('organization_settings', ['organization_id' => $org->id, 'key' => 'platform_name', 'value' => 'TestPlatform']);
     }
 
     public function test_setting_set_updates_existing_record(): void
     {
-        Setting::set('platform_name', 'First');
-        Setting::set('platform_name', 'Second');
-        $this->assertSame('Second', Setting::get('platform_name'));
-        $this->assertDatabaseCount('settings', 1);
+        $org = Organization::factory()->create();
+        OrganizationSetting::set($org->id, 'platform_name', 'First');
+        OrganizationSetting::set($org->id, 'platform_name', 'Second');
+        $this->assertSame('Second', OrganizationSetting::get($org->id, 'platform_name'));
+        $this->assertDatabaseCount('organization_settings', 1);
     }
 
     // ── Update ────────────────────────────────────────────────────────────────
@@ -59,6 +65,7 @@ class AdminSettingTest extends TestCase
     public function test_admin_can_update_settings(): void
     {
         $admin = $this->makeAdmin();
+        $orgId = $admin->organization_id;
 
         $this->actingAs($admin)
             ->post(route('admin.settings.update'), [
@@ -69,9 +76,9 @@ class AdminSettingTest extends TestCase
             ->assertRedirect(route('admin.settings'))
             ->assertSessionHas('success');
 
-        $this->assertSame('Nouveau nom', Setting::get('platform_name'));
-        $this->assertSame('Nouvelle tagline', Setting::get('platform_tagline'));
-        $this->assertSame('0', Setting::get('maintenance_mode'));
+        $this->assertSame('Nouveau nom', OrganizationSetting::get($orgId, 'platform_name'));
+        $this->assertSame('Nouvelle tagline', OrganizationSetting::get($orgId, 'platform_tagline'));
+        $this->assertSame('0', OrganizationSetting::get($orgId, 'maintenance_mode'));
     }
 
     public function test_update_settings_validates_platform_name_required(): void
@@ -86,6 +93,7 @@ class AdminSettingTest extends TestCase
     public function test_admin_can_enable_maintenance_mode(): void
     {
         $admin = $this->makeAdmin();
+        $orgId = $admin->organization_id;
 
         $this->actingAs($admin)
             ->post(route('admin.settings.update'), [
@@ -93,6 +101,6 @@ class AdminSettingTest extends TestCase
                 'maintenance_mode' => '1',
             ]);
 
-        $this->assertSame('1', Setting::get('maintenance_mode'));
+        $this->assertSame('1', OrganizationSetting::get($orgId, 'maintenance_mode'));
     }
 }
