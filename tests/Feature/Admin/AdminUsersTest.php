@@ -186,7 +186,7 @@ class AdminUsersTest extends TestCase
     public function test_blank_assignment_moves_user_to_default_organization(): void
     {
         $admin = $this->makeAdmin();
-        $defaultOrganization = Organization::factory()->create(['slug' => 'main', 'is_active' => true]);
+        $defaultOrganization = Organization::factory()->create(['slug' => 'main', 'is_active' => true, 'is_default' => true]);
         $organization = Organization::factory()->create(['is_active' => true]);
         $user = User::factory()->create(['organization_id' => $organization->id]);
 

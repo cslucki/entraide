@@ -4,7 +4,6 @@ namespace Tests\Feature\Api;
 
 use App\Models\Organization;
 use App\Models\Service;
-use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
 use Tests\TestCase;
@@ -14,6 +13,12 @@ class ApiTenantScopingTest extends TestCase
     private Organization $organizationA;
 
     private Organization $organizationB;
+
+    protected function tearDown(): void
+    {
+        Organization::where('is_default', true)->update(['is_default' => false]);
+        parent::tearDown();
+    }
 
     protected function setUp(): void
     {
@@ -25,7 +30,7 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_public_services_use_default_organization(): void
     {
-        Setting::set('default_organization_id', $this->organizationA->id);
+        $this->organizationA->update(['is_default' => true]);
 
         Service::factory()->count(3)->create(['status' => 'active', 'organization_id' => $this->organizationA->id]);
         Service::factory()->count(2)->create(['status' => 'active', 'organization_id' => $this->organizationB->id]);
@@ -37,7 +42,7 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_public_services_ignore_organization_header_and_use_default_organization(): void
     {
-        Setting::set('default_organization_id', $this->organizationA->id);
+        $this->organizationA->update(['is_default' => true]);
 
         Service::factory()->count(3)->create(['status' => 'active', 'organization_id' => $this->organizationA->id]);
         Service::factory()->count(2)->create(['status' => 'active', 'organization_id' => $this->organizationB->id]);
@@ -50,7 +55,7 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_service_show_rejects_cross_organization_access(): void
     {
-        Setting::set('default_organization_id', $this->organizationB->id);
+        $this->organizationB->update(['is_default' => true]);
 
         $serviceA = Service::factory()->create(['status' => 'active', 'organization_id' => $this->organizationA->id]);
 
@@ -96,7 +101,7 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_authenticated_user_organization_wins_over_default_organization(): void
     {
-        Setting::set('default_organization_id', $this->organizationA->id);
+        $this->organizationA->update(['is_default' => true]);
 
         $user = User::factory()->create(['organization_id' => $this->organizationB->id, 'points_balance' => 500]);
         $organizationBUser = User::factory()->create(['organization_id' => $this->organizationB->id]);
@@ -122,7 +127,7 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_authenticated_user_without_organization_fails_safe(): void
     {
-        Setting::set('default_organization_id', $this->organizationA->id);
+        $this->organizationA->update(['is_default' => true]);
 
         $user = User::factory()->create(['organization_id' => null, 'points_balance' => 500]);
 
@@ -141,7 +146,7 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_authenticated_user_with_inactive_organization_fails_safe(): void
     {
-        Setting::set('default_organization_id', $this->organizationA->id);
+        $this->organizationA->update(['is_default' => true]);
 
         $inactiveOrganization = Organization::factory()->create(['is_active' => false]);
         $user = User::factory()->create(['organization_id' => $inactiveOrganization->id, 'points_balance' => 500]);
@@ -184,7 +189,7 @@ class ApiTenantScopingTest extends TestCase
 
     public function test_default_org_fallback_when_no_user_no_header(): void
     {
-        Setting::set('default_organization_id', $this->organizationB->id);
+        $this->organizationB->update(['is_default' => true]);
 
         Service::factory()->count(2)->create(['status' => 'active', 'organization_id' => $this->organizationB->id]);
         Service::factory()->count(3)->create(['status' => 'active', 'organization_id' => $this->organizationA->id]);

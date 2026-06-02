@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\ResolveUrlOrganization;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,8 +36,7 @@ class T1392RouteSmokeGatesTest extends TestCase
     {
         parent::setUp();
 
-        $this->organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
-        ResolveUrlOrganization::$defaultOrganizationId = $this->organization->id;
+        $this->organization = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'is_default' => true]);
 
         $this->user = User::factory()->create([
             'organization_id' => $this->organization->id,
@@ -53,7 +51,7 @@ class T1392RouteSmokeGatesTest extends TestCase
 
     protected function tearDown(): void
     {
-        ResolveUrlOrganization::$defaultOrganizationId = null;
+        Organization::where('is_default', true)->update(['is_default' => false]);
         parent::tearDown();
     }
 

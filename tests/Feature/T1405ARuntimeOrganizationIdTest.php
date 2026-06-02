@@ -6,7 +6,6 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\Service;
-use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -157,7 +156,7 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
 
     public function test_api_resolves_organization_by_organization_id_first(): void
     {
-        Setting::set('default_organization_id', $this->orgA->id);
+        $this->orgA->update(['is_default' => true]);
 
         $user = User::factory()->create([
             'organization_id' => $this->orgB->id,
@@ -228,7 +227,7 @@ class T1405ARuntimeOrganizationIdTest extends TestCase
 
     public function test_api_public_services_still_work(): void
     {
-        Setting::set('default_organization_id', $this->orgA->id);
+        $this->orgA->update(['is_default' => true]);
 
         Service::factory()->count(2)->create([
             'status' => 'active',
