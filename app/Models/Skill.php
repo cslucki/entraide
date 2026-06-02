@@ -12,7 +12,12 @@ class Skill extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $fillable = ['category_id', 'name', 'slug'];
+    protected $fillable = ['category_id', 'name', 'slug', 'organization_id'];
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
 
     public function category(): BelongsTo
     {

@@ -34,11 +34,11 @@ class BlogController extends Controller
             ->get();
 
         $categories = Category::withCount([
-            'blogPosts' => fn ($q) => $q->published()->where('organization_id', $organization->id),
+            'blogPosts' => fn ($q) => $q->published()->where('blog_posts.organization_id', $organization->id),
         ])->get();
 
         $popularTags = Tag::withCount([
-            'blogPosts' => fn ($q) => $q->published()->where('organization_id', $organization->id),
+            'blogPosts' => fn ($q) => $q->published()->where('blog_posts.organization_id', $organization->id),
         ])
             ->orderByDesc('blog_posts_count')
             ->limit(30)
