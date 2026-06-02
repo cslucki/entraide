@@ -19,6 +19,7 @@ class LoopMember extends Model
         'role',
         'status',
         'joined_at',
+        'organization_id',
     ];
 
     protected function casts(): array
@@ -38,5 +39,10 @@ class LoopMember extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }
