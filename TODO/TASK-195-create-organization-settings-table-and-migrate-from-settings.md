@@ -26,8 +26,8 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
-  url: null
+  status: READY
+  url: https://github.com/cslucki/entraide/pull/40
 ---
 
 # Objective
