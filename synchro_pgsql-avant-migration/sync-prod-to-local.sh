@@ -30,14 +30,14 @@
 set -euo pipefail
 
 # Configuration
-BASE_DIR="$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)"
-DUMPS_DIR="$BASE_DIR/_bash_cyril/synchro_pgsql-avant-migration/dumps"
-LOGS_DIR="$BASE_DIR/_bash_cyril/synchro_pgsql-avant-migration/logs"
-TMP_DIR="$BASE_DIR/_bash_cyril/synchro_pgsql-avant-migration/tmp"
+BASE_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+DUMPS_DIR="$BASE_DIR/synchro_pgsql-avant-migration/dumps"
+LOGS_DIR="$BASE_DIR/synchro_pgsql-avant-migration/logs"
+TMP_DIR="$BASE_DIR/synchro_pgsql-avant-migration/tmp"
 ENV_FILE="$BASE_DIR/.env"
 ENV_PGSQL="$BASE_DIR/.env.pgsql"
 PROD_CREDENTIALS_FILE="/home/cyril/.config/bouclepro/prod-db.env"
-PHP_SCRIPT="$BASE_DIR/_bash_cyril/synchro_pgsql-avant-migration/sync-prod-to-local.php"
+PHP_SCRIPT="$BASE_DIR/synchro_pgsql-avant-migration/sync-prod-to-local.php"
 
 # Local DB config (read from Laravel env)
 LOCAL_HOST="127.0.0.1"
