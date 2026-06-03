@@ -2,7 +2,7 @@
 task_id: TASK-204
 title: Dashboard demo seeder — injecter données test main+cpme
 
-status: IN_PROGRESS
+status: DONE
 
 owner: ORCHESTRATOR
 
@@ -18,9 +18,9 @@ updated_at: 2026-06-03 10:32:32 Europe/Paris
 labels: []
 
 lock:
-  status: LOCKED
-  agent: ORCHESTRATOR
-  since: 2026-06-03 10:32:32 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
@@ -41,12 +41,12 @@ Contexte : après synchro PROD→LOCAL, on a des utilisateurs mais très peu de 
 
 - [x] inspect architecture (fait)
 - [x] inspect impacted files (fait)
-- [ ] write mission brief for SUPERVISOR
-- [ ] SUPERVISOR : create DashboardDemoSeeder
-- [ ] SUPERVISOR : register seeder in DatabaseSeeder
-- [ ] SUPERVISOR : run seeder to verify
-- [ ] VERIFICATOR : review seeder
-- [ ] run tests
+- [x] write mission brief for SUPERVISOR
+- [x] SUPERVISOR : create DashboardDemoSeeder
+- [x] SUPERVISOR : register seeder in DatabaseSeeder
+- [x] SUPERVISOR : run seeder to verify
+- [x] VERIFICATOR : review seeder
+- [x] run tests
 
 ---
 # Progress Log
@@ -59,13 +59,25 @@ Task created.
 ## 2026-06-03 10:35:00 Europe/Paris
 
 Mission SUPERVISOR écrite dans ai-local/supervisor/report-from-orchestrator/20260603-TASK-204-DASHBOARD-SEEDER.md.
-Supersivor va créer DashboardDemoSeeder avec données pour main + cpme.
+Supervisor va créer DashboardDemoSeeder avec données pour main + cpme.
+
+## 2026-06-03 10:45 Europe/Paris
+
+SUPERVISOR complete. DashboardDemoSeeder créé (636 lines), commit bbb91e9, pushé sur TASK-204-dashboard-seeder.
+Couvre toutes les sections superdashboard pour main (riches) + cpme (minimal).
+293 tests pass.
+
+## 2026-06-03 ~10:50 Europe/Paris
+
+VERIFICATOR review verdict: APPROVED ✅
+3 observations non-bloquantes : non-idempotent (acceptable), null guard cpme (acceptable, org connue), $someUser cosmétique.
+Prêt pour merge dans develop.
 
 # Handoffs
 
 # Tests
 
-- [ ] feature tests
+- [x] feature tests (293 pass)
 - [ ] browser validation
 - [ ] responsive validation
 - [ ] console inspection
