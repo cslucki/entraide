@@ -3,6 +3,8 @@ task_id: TASK-205
 status: DONE
 owner: SUPERVISOR
 branch: TASK-205-fix-admin-panel-bugs
+lock:
+  status: UNLOCKED
 ---
 
 # TASK-205 — Fix 5 admin panel bugs (post-migration Organization)
