@@ -11,6 +11,9 @@ Technical architecture, Laravel conventions, migration strategy and AI operation
 - `ai/workflows/*`
 - `ai/tooling/*`
 - `docs/*`
+- `ai-local/` — multi-agent orchestration, tmux session workflow, agent roles (ORCHESTRATOR/SUPERVISOR/VERIFICATOR), task lifecycle rules, and per-agent memory
+
+**Reading order:** agents MUST read `ai-local/` first for multi-session tmux workflow rules and agent coordination context. Then read `ai/` and `docs/` for application architecture, Laravel conventions, and product documentation.
 
 ---
 
@@ -1096,6 +1099,7 @@ Agents must NEVER:
 * modify unrelated systems
 * introduce terminology drift
 * mix Loop and Organization concepts
+* run `migrate:fresh --seed` — destroys local database data (users, services, transactions). Use sync scripts in `synchro_pgsql-avant-migration/` to restore production data instead. Use targeted seeders or `migrate --seed` for additive changes only.
 
 ---
 
