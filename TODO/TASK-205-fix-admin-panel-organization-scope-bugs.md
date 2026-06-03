@@ -38,6 +38,10 @@ Report model had `$timestamps = false` but no `casts()` for `created_at` → `->
 
 - Added `casts()` method with `'created_at' => 'datetime'`
 
+## Post-review fix
+
+- `destroyCategory`: added `withoutGlobalScope(BelongsToOrganizationScope::class)` on `serviceRequests()->count()` (VERIFICATOR gap mineur)
+
 ## Tests
 
 813 passed, 0 failures (1729 assertions)
