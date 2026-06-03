@@ -11,7 +11,7 @@ Technical architecture, Laravel conventions, migration strategy and AI operation
 - `ai/workflows/*`
 - `ai/tooling/*`
 - `docs/*`
-- `ai-local/` — multi-agent orchestration, tmux session workflow, agent roles (ORCHESTRATOR/SUPERVISOR/VERIFICATOR), task lifecycle rules, and per-agent memory
+- `ai-local/` — multi-agent orchestration, tmux session workflow, agent roles (ORCHESTRATOR/CODEUR/VERIFICATOR), task lifecycle rules, and per-agent memory
 
 **Reading order:** agents MUST read `ai-local/` first for multi-session tmux workflow rules and agent coordination context. Then read `ai/` and `docs/` for application architecture, Laravel conventions, and product documentation.
 
@@ -1164,19 +1164,19 @@ A stable, understandable, organization-native V1
 
 ---
 
-# Orchestrator-Supervisor Contract Rules
+# Orchestrator-Codeur Contract Rules
 
 ## TASK File Creation (Critical Lesson — T151-T156 Gap)
 
-The ORCHESTRATOR MUST verify that the SUPERVISOR creates a TASK file in `TODO/` whenever it creates a new branch.
+The ORCHESTRATOR MUST verify that the CODEUR creates a TASK file in `TODO/` whenever it creates a new branch.
 
-**Failure mode** (observed during T151-T156 chain): The ORCHESTRATOR sent a multi-phase instruction chain to the SUPERVISOR. The SUPERVISOR created 6 branches (T151-T156) without creating corresponding TASK files in `TODO/`. This created a documentation gap where:
+**Failure mode** (observed during T151-T156 chain): The ORCHESTRATOR sent a multi-phase instruction chain to the CODEUR. The CODEUR created 6 branches (T151-T156) without creating corresponding TASK files in `TODO/`. This created a documentation gap where:
 - Git history showed all commits and merges
-- Reports existed in `.ai-local/supervisor/report-to-orchestrator/`
+- Reports existed in `.ai-local/codeur/report-to-orchestrator/`
 - But `TODO/` only had files up to TASK-150
 
-**Enforcement rule**: When the ORCHESTRATOR instructs the SUPERVISOR to create a branch, it MUST include a mandatory step: "Run `ai/scripts/create-task.sh '<title>' SUPERVISOR` before any implementation work on the new branch."
+**Enforcement rule**: When the ORCHESTRATOR instructs the CODEUR to create a branch, it MUST include a mandatory step: "Run `ai/scripts/create-task.sh '<title>' CODEUR` before any implementation work on the new branch."
 
-**Verification**: The ORCHESTRATOR must check `ls TODO/ | grep TASK-NNN` after the SUPERVISOR reports a new branch is created. If no TASK file exists, the ORCHESTRATOR blocks and requests creation.
+**Verification**: The ORCHESTRATOR must check `ls TODO/ | grep TASK-NNN` after the CODEUR reports a new branch is created. If no TASK file exists, the ORCHESTRATOR blocks and requests creation.
 
-This rule applies to ALL agents (ORCHESTRATOR, SUPERVISOR, REVIEW) — not just the SUPERVISOR. Any agent creating a branch must create the corresponding TASK file first.
+This rule applies to ALL agents (ORCHESTRATOR, CODEUR, REVIEW) — not just the CODEUR. Any agent creating a branch must create the corresponding TASK file first.
