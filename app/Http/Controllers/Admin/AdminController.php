@@ -560,7 +560,7 @@ class AdminController extends Controller
 
     public function destroyCategory(Category $category): RedirectResponse
     {
-        if ($category->services()->withoutGlobalScope(BelongsToOrganizationScope::class)->count() > 0 || $category->serviceRequests()->count() > 0) {
+        if ($category->services()->withoutGlobalScope(BelongsToOrganizationScope::class)->count() > 0 || $category->serviceRequests()->withoutGlobalScope(BelongsToOrganizationScope::class)->count() > 0) {
             return back()->with('error', 'Impossible de supprimer une catégorie utilisée par des services ou demandes.');
         }
         $category->skills()->delete();
