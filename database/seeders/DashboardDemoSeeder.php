@@ -72,13 +72,27 @@ class DashboardDemoSeeder extends Seeder
             'qa-cpme2@bouclepro.local',
         ];
 
-        $this->users = User::whereIn('email', $emails)->get()->keyBy('email')->all();
+        $existing = User::whereIn('email', $emails)->get()->keyBy('email');
+
+        foreach ($emails as $email) {
+            if (!isset($existing[$email])) {
+                $existing[$email] = User::create([
+                    'email' => $email,
+                    'name' => explode('@', $email)[0],
+                    'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                    'is_available' => true,
+                    'email_verified_at' => now(),
+                    'organization_id' => $this->main->id,
+                ]);
+            }
+        }
+
+        $this->users = $existing->all();
     }
 
     private function loadCategories(): void
     {
-        $slugs = ['visibilite-clients', 'lancer-son-activite', 'aides-demarches', 'bien-etre-equilibre', 'bricolage-projets-perso', 'outils-numeriques', 'ecrire-communiquer', 'depannage-informatique', 'entraide-locale'];
-        $this->categories = Category::whereIn('slug', $slugs)->get()->keyBy('slug')->all();
+        $this->categories = Category::all()->keyBy('slug')->all();
     }
 
     private function seedMainOrg(): void
@@ -90,7 +104,7 @@ class DashboardDemoSeeder extends Seeder
         $svcCoaching = $this->createService($u['cslucki@gmail.com'], $org, [
             'title' => 'Coaching LinkedIn',
             'description' => 'Optimisation complète de votre profil LinkedIn, stratégie de contenu et techniques de networking pour développer votre activité. Séance individuelle de 1h30 en visio.',
-            'category_id' => $this->categories['visibilite-clients']->id,
+            'category_id' => $this->categories['marketing']->id,
             'delivery_mode' => 'remote',
             'points_cost' => 120,
         ]);
@@ -98,7 +112,7 @@ class DashboardDemoSeeder extends Seeder
         $svcCreation = $this->createService($u['secretariat-assistance@proton.me'], $org, [
             'title' => 'Accompagnement création entreprise',
             'description' => 'De l\'idée au business plan, je vous accompagne dans toutes les étapes de la création de votre entreprise : études de marché, statuts juridiques, prévisionnel financier.',
-            'category_id' => $this->categories['lancer-son-activite']->id,
+            'category_id' => $this->categories['conseil']->id,
             'delivery_mode' => 'both',
             'points_cost' => 200,
         ]);
@@ -106,7 +120,7 @@ class DashboardDemoSeeder extends Seeder
         $svcImpots = $this->createService($u['jmhoussay@orange.fr'], $org, [
             'title' => 'Aide déclaration impôts',
             'description' => 'Je vous aide à remplir votre déclaration de revenus, vérifier les crédits d\'impôt et optimiser votre fiscalité. Service accessible aux débutants.',
-            'category_id' => $this->categories['aides-demarches']->id,
+            'category_id' => $this->categories['conseil']->id,
             'delivery_mode' => 'remote',
             'points_cost' => 60,
         ]);
@@ -114,7 +128,7 @@ class DashboardDemoSeeder extends Seeder
         $svcGuitare = $this->createService($u['mr.gassan@gmail.com'], $org, [
             'title' => 'Cours de guitare débutant',
             'description' => 'Apprenez les bases de la guitare : accords, rythmique, premières chansons. Cours particulier d\'1h adapté à votre niveau et vos goûts musicaux.',
-            'category_id' => $this->categories['bien-etre-equilibre']->id,
+            'category_id' => $this->categories['formation']->id,
             'delivery_mode' => 'remote',
             'points_cost' => 40,
         ]);
@@ -122,7 +136,7 @@ class DashboardDemoSeeder extends Seeder
         $svcElectro = $this->createService($u['vin.100.gay@gmail.com'], $org, [
             'title' => 'Réparation petit électroménager',
             'description' => 'Je répare vos petits appareils électroménagers : cafetière, grille-pain, aspirateur, fer à repasser. Diagnostic offert, devis avant réparation.',
-            'category_id' => $this->categories['bricolage-projets-perso']->id,
+            'category_id' => $this->categories['autre']->id,
             'delivery_mode' => 'remote',
             'points_cost' => 50,
         ]);
@@ -131,7 +145,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['helena.ds@icloud.com'], $org, [
             'title' => 'Recherche coach sportif à domicile',
             'description' => 'Je cherche un coach sportif pour des séances à domicile 2x par semaine dans le 15e. Objectif : remise en forme générale.',
-            'category_id' => $this->categories['bien-etre-equilibre']->id,
+            'category_id' => $this->categories['formation']->id,
             'delivery_mode' => 'remote',
             'budget_min' => 30,
             'budget_max' => 60,
@@ -141,7 +155,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['antoine.bidet@bmsinvest.fr'], $org, [
             'title' => 'Besoin d\'aide pour montage vidéo',
             'description' => 'J\'ai tourné une vidéo de présentation pour mon activité (5 min) et j\'ai besoin d\'aide pour le montage : coupes, habillage, sous-titres.',
-            'category_id' => $this->categories['outils-numeriques']->id,
+            'category_id' => $this->categories['tech-digital']->id,
             'delivery_mode' => 'remote',
             'budget_min' => 50,
             'budget_max' => 100,
@@ -151,7 +165,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['contact@franceportugal-traductions.com'], $org, [
             'title' => 'Traduction site web EN→FR',
             'description' => 'Mon site vitrine (5 pages) est en anglais, je souhaite le traduire en français. Contenu technique modéré, environ 2000 mots.',
-            'category_id' => $this->categories['ecrire-communiquer']->id,
+            'category_id' => $this->categories['traduction']->id,
             'delivery_mode' => 'remote',
             'budget_min' => 80,
             'budget_max' => 150,
@@ -161,7 +175,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['ericyas@gmail.com'], $org, [
             'title' => 'Relooking site vitrine',
             'description' => 'J\'ai un site WordPress que je trouve vieillot. Je cherche quelqu\'un pour me conseiller et m\'aider à le moderniser (nouveau thème, mise en page).',
-            'category_id' => $this->categories['visibilite-clients']->id,
+            'category_id' => $this->categories['design']->id,
             'delivery_mode' => 'remote',
             'budget_min' => 100,
             'budget_max' => 200,
@@ -171,7 +185,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['julieborgettopro@gmail.com'], $org, [
             'title' => 'Jardinage : taise haies et élagage',
             'description' => 'Je cherche un coup de main pour tailler mes haies et élaguer deux arbres dans mon jardin. Matériel disponible sur place.',
-            'category_id' => $this->categories['bricolage-projets-perso']->id,
+            'category_id' => $this->categories['autre']->id,
             'delivery_mode' => 'remote',
             'budget_min' => 20,
             'budget_max' => 50,
