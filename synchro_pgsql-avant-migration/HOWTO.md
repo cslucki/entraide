@@ -22,7 +22,7 @@ PostgreSQL de production vers la base PostgreSQL locale.
 
 ```bash
 LOCAL_PG_ADMIN_PASSWORD='password' \
-  ./_bash_cyril/synchro_pgsql-avant-migration/sync-prod-to-local.sh
+  ./synchro_pgsql-avant-migration/sync-prod-to-local.sh
 ```
 
 ## Tester l'environnement sans dump PROD (--self-test)
@@ -32,7 +32,7 @@ Vérifie que tout est bien configuré (outils, connexions, permissions)
 
 ```bash
 LOCAL_PG_ADMIN_PASSWORD='<mot_de_passe>' \
-  ./_bash_cyril/synchro_pgsql-avant-migration/sync-prod-to-local.sh --self-test
+  ./synchro_pgsql-avant-migration/sync-prod-to-local.sh --self-test
 ```
 
 ---
@@ -82,7 +82,7 @@ Tous les comptes QA ont le mot de passe : `password123`
 ## Structure du dossier
 
 ```
-_bash_cyril/synchro_pgsql-avant-migration/
+synchro_pgsql-avant-migration/
 ├── sync-prod-to-local.sh      # Script principal (shell)
 ├── sync-prod-to-local.php     # Moteur ETL (PHP)
 ├── HOWTO.md                   # Ce fichier
@@ -117,7 +117,7 @@ Si le dump PROD existe déjà dans `dumps/` :
 
 ```bash
 LOCAL_DB_PASSWORD='bouclepro_local_2026' \
-  php _bash_cyril/synchro_pgsql-avant-migration/sync-prod-to-local.php
+  php synchro_pgsql-avant-migration/sync-prod-to-local.php
 ```
 
 ---
