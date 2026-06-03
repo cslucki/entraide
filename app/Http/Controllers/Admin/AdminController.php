@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Report;
 use App\Models\RequestAttachment;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Skill;
@@ -33,9 +34,9 @@ class AdminController extends Controller
         $stats = [
             'users' => User::count(),
             'banned' => User::whereNotNull('banned_at')->count(),
-            'services' => Service::where('status', 'active')->count(),
-            'transactions' => Transaction::count(),
-            'completed' => Transaction::where('status', 'completed')->count(),
+            'services' => Service::withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->count(),
+            'transactions' => Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->count(),
+            'completed' => Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'completed')->count(),
             'points' => User::sum('points_balance'),
             'reports' => Report::where('status', 'pending')->count(),
         ];
@@ -291,7 +292,7 @@ class AdminController extends Controller
 
     public function services(Request $request): View
     {
-        $query = Service::withTrashed()->with(['user', 'category']);
+        $query = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->with(['user', 'category']);
 
         if ($request->filled('search')) {
             $query->where('title', 'like', '%'.$request->search.'%');
@@ -311,8 +312,9 @@ class AdminController extends Controller
         return view('admin.services', compact('services'));
     }
 
-    public function editService(Service $service): View
+    public function editService(string $service): View
     {
+        $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($service);
         $this->authorizeServiceEdit($service);
 
         $service->load(['category', 'skills', 'tags']);
@@ -322,8 +324,9 @@ class AdminController extends Controller
         return view('admin.services.edit', compact('service', 'categories', 'skills'));
     }
 
-    public function updateService(Request $request, Service $service): RedirectResponse
+    public function updateService(Request $request, string $service): RedirectResponse
     {
+        $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($service);
         $this->authorizeServiceEdit($service);
 
         $data = $request->validate([
@@ -378,7 +381,7 @@ class AdminController extends Controller
 
     public function forceDeleteService(string $id): RedirectResponse
     {
-        $service = Service::withTrashed()->findOrFail($id);
+        $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($id);
         $service->forceDelete();
 
         return back()->with('success', 'Service définitivement supprimé.');
@@ -386,7 +389,7 @@ class AdminController extends Controller
 
     public function restoreService(string $id): RedirectResponse
     {
-        $service = Service::withTrashed()->findOrFail($id);
+        $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($id);
         $service->restore();
         $service->update(['status' => 'active']);
 
@@ -397,7 +400,7 @@ class AdminController extends Controller
 
     public function transactions(Request $request): View
     {
-        $query = Transaction::with(['buyer', 'seller', 'service', 'serviceRequest']);
+        $query = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['buyer', 'seller', 'service', 'serviceRequest']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -419,7 +422,7 @@ class AdminController extends Controller
 
     public function requests(Request $request): View
     {
-        $query = ServiceRequest::with(['user', 'category']);
+        $query = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['user', 'category']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -434,8 +437,9 @@ class AdminController extends Controller
         return view('admin.requests', compact('requests'));
     }
 
-    public function editRequest(ServiceRequest $serviceRequest): View
+    public function editRequest(string $serviceRequest): View
     {
+        $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($serviceRequest);
         $this->authorizeRequestEdit($serviceRequest);
 
         $serviceRequest->load('attachments');
@@ -444,8 +448,9 @@ class AdminController extends Controller
         return view('admin.requests.edit', compact('serviceRequest', 'categories'));
     }
 
-    public function updateRequest(Request $request, ServiceRequest $serviceRequest): RedirectResponse
+    public function updateRequest(Request $request, string $serviceRequest): RedirectResponse
     {
+        $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($serviceRequest);
         $this->authorizeRequestEdit($serviceRequest);
 
         $data = $request->validate([
@@ -512,8 +517,9 @@ class AdminController extends Controller
         }
     }
 
-    public function closeRequest(ServiceRequest $serviceRequest): RedirectResponse
+    public function closeRequest(string $serviceRequest): RedirectResponse
     {
+        $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($serviceRequest);
         $serviceRequest->update(['status' => 'closed']);
 
         return back()->with('success', 'Demande clôturée.');
@@ -554,7 +560,7 @@ class AdminController extends Controller
 
     public function destroyCategory(Category $category): RedirectResponse
     {
-        if ($category->services()->count() > 0 || $category->serviceRequests()->count() > 0) {
+        if ($category->services()->withoutGlobalScope(BelongsToOrganizationScope::class)->count() > 0 || $category->serviceRequests()->withoutGlobalScope(BelongsToOrganizationScope::class)->count() > 0) {
             return back()->with('error', 'Impossible de supprimer une catégorie utilisée par des services ou demandes.');
         }
         $category->skills()->delete();
