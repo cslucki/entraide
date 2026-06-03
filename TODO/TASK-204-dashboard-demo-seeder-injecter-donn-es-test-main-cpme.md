@@ -2,7 +2,7 @@
 task_id: TASK-204
 title: Dashboard demo seeder — injecter données test main+cpme
 
-status: DONE
+status: MERGED
 
 owner: ORCHESTRATOR
 
@@ -72,6 +72,10 @@ Couvre toutes les sections superdashboard pour main (riches) + cpme (minimal).
 VERIFICATOR review verdict: APPROVED ✅
 3 observations non-bloquantes : non-idempotent (acceptable), null guard cpme (acceptable, org connue), $someUser cosmétique.
 Prêt pour merge dans develop.
+
+## 2026-06-03 ~11:00 Europe/Paris
+
+Merge dans develop réussi (commit 0d23aa5). Pushé. TASK status → MERGED.
 
 # Handoffs
 
