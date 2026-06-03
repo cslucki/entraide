@@ -70,15 +70,66 @@ Rename the orchestration role "supervisor" to "codeur" across `ai-local` and mai
 ## Étape 6 — Clarification sémantique ✅
 - [x] Ajouter note explicative dans `ai-local/` sur ancien/nouveau nom
 
-## Étape 7 — Vérification anti-erreur
-- [ ] Relire les chemins après renommage
-- [ ] Classifier occurrences restantes (historiques vs actives vs ambiguës)
-- [ ] Confirmer aucun code applicatif Laravel modifié
-- [ ] Confirmer aucune commande DB destructive
+## Étape 7 — Vérification anti-erreur ✅
+- [x] Relire les chemins après renommage
+- [x] Classifier occurrences restantes (historiques vs actives vs ambiguës)
+- [x] Confirmer aucun code applicatif Laravel modifié
+- [x] Confirmer aucune commande DB destructive
 
-## Étape 8 — Commit
-- [ ] Vérifier git diff
-- [ ] Commit: docs(orchestration): rename supervisor role to codeur
+## Étape 8 — Commit ✅
+- [x] Vérifier git diff
+- [x] Commit: docs(orchestration): rename supervisor role to codeur
+
+---
+
+# Classification des occurrences restantes
+
+**Occurrences historiques acceptables** :
+- Tous les rapports dans `ai-local/verificator/report-from-verificator/` (archives historiques)
+- Tous les rapports dans `ai-local/verificator/report-to-verificator/` (archives historiques)
+- Tous les rapports dans `ai-local/_Cyril/_Rapports_Pour_Cyril/` (archives historiques)
+
+**Occurrences actives corrigées** :
+- `ai-local/README.md` : arborescence et descriptions de roles
+- `ai-local/orchestrator/README.md` : descriptions de roles et chemins
+- `ai-local/orchestrator/SOUL.md` : identite et mission
+- `ai-local/orchestrator/skills/codeur-protocol.md` : protocol de coordination
+- `ai-local/orchestrator/skills/README.md` : index des skills
+- `ai-local/orchestrator/skills/tooling-protocol.md` : rappel des outils
+- `ai-local/orchestrator/skills/migration-plan-skill.md` : plan de migration DB
+- `ai-local/orchestrator/scripts/create-orchestrateur-report.sh` : template de rapport
+- `ai-local/orchestrator/working/current-focus.md` : focus actuel
+- `AGENTS.md` : section "Orchestrator-Codeur Contract Rules"
+
+**Occurrences ambiguës aucune** : toutes les occurrences sont soit historiques (archivées), soit actives et corrigées.
+
+---
+
+# Sécurité ✅
+
+**Aucun code applicatif Laravel modifié** : ✓
+- Aucune migration modifiée
+- Aucun contrôleur modifié
+- Aucun modèle modifié
+- Aucune vue modifiée
+- Aucun route modifiée
+
+**Aucune commande DB destructive lancée** : ✓
+- Aucune commande `migrate:fresh` lancée
+- Aucune suppression de données
+- Aucune modification de schéma DB
+
+**Aucun script officiel renommé** : ✓
+- Les scripts `create-task.sh`, `check-task.sh`, `finalize-task.sh`, `merge-task.sh` sont inchangés
+
+**TASK file mis à jour** : ✓
+- TASK-207 créée et maintenue à jour
+
+---
+
+# Prochaine étape recommandée
+
+Appliquer le protocole tmux inter-sessions avec ORCHESTRATOR / CODEUR / VERIFICATOR.
 
 ---
 # Progress Log
