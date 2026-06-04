@@ -3,7 +3,6 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\Organization;
-use App\Models\OrganizationSetting;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -18,89 +17,93 @@ class AdminSettingTest extends TestCase
 
     // ── Access control ────────────────────────────────────────────────────────
 
-    public function test_guest_cannot_access_settings(): void
+    public function test_guest_cannot_access_organizations(): void
     {
-        $this->get(route('admin.settings'))->assertRedirect(route('login'));
+        $this->get(route('admin.organizations'))->assertRedirect(route('login'));
     }
 
-    public function test_non_admin_cannot_access_settings(): void
+    public function test_non_admin_cannot_access_organizations(): void
     {
         $user = User::factory()->create();
-        $this->actingAs($user)->get(route('admin.settings'))->assertStatus(403);
+        $this->actingAs($user)->get(route('admin.organizations'))->assertStatus(403);
     }
 
-    public function test_admin_can_view_settings_page(): void
+    public function test_admin_can_view_organizations_page(): void
     {
         $admin = $this->makeAdmin();
-        $this->actingAs($admin)->get(route('admin.settings'))->assertOk();
+        $this->actingAs($admin)->get(route('admin.organizations'))->assertOk();
     }
 
-    // ── OrganizationSetting model ─────────────────────────────────────────────
+    // ── Organization settings (stored as columns) ─────────────────────────────
 
-    public function test_setting_get_returns_default_when_missing(): void
+    public function test_organization_has_default_settings_on_create(): void
     {
         $org = Organization::factory()->create();
-        $this->assertNull(OrganizationSetting::get($org->id, 'nonexistent'));
-        $this->assertSame('default', OrganizationSetting::get($org->id, 'nonexistent', 'default'));
+        $org->refresh();
+
+        $this->assertTrue($org->loops_enabled);
+        $this->assertFalse($org->maintenance_mode);
+        $this->assertSame('dark', $org->global_color_mode);
     }
 
-    public function test_setting_set_creates_record(): void
-    {
-        $org = Organization::factory()->create();
-        OrganizationSetting::set($org->id, 'platform_name', 'TestPlatform');
-        $this->assertDatabaseHas('organization_settings', ['organization_id' => $org->id, 'key' => 'platform_name', 'value' => 'TestPlatform']);
-    }
+    // ── Update settings via organization edit ─────────────────────────────────
 
-    public function test_setting_set_updates_existing_record(): void
-    {
-        $org = Organization::factory()->create();
-        OrganizationSetting::set($org->id, 'platform_name', 'First');
-        OrganizationSetting::set($org->id, 'platform_name', 'Second');
-        $this->assertSame('Second', OrganizationSetting::get($org->id, 'platform_name'));
-        $this->assertDatabaseCount('organization_settings', 1);
-    }
-
-    // ── Update ────────────────────────────────────────────────────────────────
-
-    public function test_admin_can_update_settings(): void
+    public function test_admin_can_update_organization_settings(): void
     {
         $admin = $this->makeAdmin();
-        $orgId = $admin->organization_id;
+        $org = $admin->organization;
 
         $this->actingAs($admin)
-            ->post(route('admin.settings.update'), [
-                'platform_name'    => 'Nouveau nom',
-                'platform_tagline' => 'Nouvelle tagline',
-                'maintenance_mode' => '0',
+            ->put(route('admin.organizations.update', $org), [
+                'name'              => $org->name,
+                'slug'              => $org->slug,
+                'welcome_points'    => $org->welcome_points,
+                'platform_name'     => 'Nouveau nom',
+                'platform_tagline'  => 'Nouvelle tagline',
+                'global_color_mode' => 'light',
+                'maintenance_mode'  => '1',
             ])
-            ->assertRedirect(route('admin.settings'))
+            ->assertRedirect(route('admin.organizations'))
             ->assertSessionHas('success');
 
-        $this->assertSame('Nouveau nom', OrganizationSetting::get($orgId, 'platform_name'));
-        $this->assertSame('Nouvelle tagline', OrganizationSetting::get($orgId, 'platform_tagline'));
-        $this->assertSame('0', OrganizationSetting::get($orgId, 'maintenance_mode'));
+        $org->refresh();
+
+        $this->assertSame('Nouveau nom', $org->platform_name);
+        $this->assertSame('Nouvelle tagline', $org->platform_tagline);
+        $this->assertSame('light', $org->global_color_mode);
+        $this->assertTrue($org->maintenance_mode);
     }
 
     public function test_update_settings_validates_platform_name_required(): void
     {
         $admin = $this->makeAdmin();
+        $org = $admin->organization;
 
         $this->actingAs($admin)
-            ->post(route('admin.settings.update'), ['platform_tagline' => 'ok'])
+            ->put(route('admin.organizations.update', $org), [
+                'name'           => $org->name,
+                'slug'           => $org->slug,
+                'welcome_points' => $org->welcome_points,
+                'platform_name'  => '',
+            ])
             ->assertSessionHasErrors('platform_name');
     }
 
-    public function test_admin_can_enable_maintenance_mode(): void
+    public function test_admin_can_toggle_loops_enabled(): void
     {
         $admin = $this->makeAdmin();
-        $orgId = $admin->organization_id;
+        $org = $admin->organization;
 
         $this->actingAs($admin)
-            ->post(route('admin.settings.update'), [
-                'platform_name'    => 'Entraide',
-                'maintenance_mode' => '1',
+            ->put(route('admin.organizations.update', $org), [
+                'name'              => $org->name,
+                'slug'              => $org->slug,
+                'welcome_points'    => $org->welcome_points,
+                'platform_name'     => 'Entraide',
+                'global_color_mode' => 'dark',
             ]);
 
-        $this->assertSame('1', OrganizationSetting::get($orgId, 'maintenance_mode'));
+        $org->refresh();
+        $this->assertFalse($org->loops_enabled);
     }
 }

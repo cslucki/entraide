@@ -9,10 +9,8 @@ use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminMessageController;
-use App\Http\Controllers\Admin\AdminMetaOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminReferralController;
-use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -137,16 +135,18 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Loops
-    Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
-    Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
-    Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
-    Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
-    Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
-    Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
-    Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
-    Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
-    Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
-    Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+    Route::middleware('loops.enabled')->group(function () {
+        Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
+        Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
+        Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
+        Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+        Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
+        Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
+        Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
+        Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
+        Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
+        Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+    });
 });
 
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
@@ -218,14 +218,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Referral invitations
     Route::get('/referrals', [AdminReferralController::class, 'index'])->name('referrals');
-
-    // Settings
-    Route::get('/settings', [AdminSettingController::class, 'index'])->name('settings');
-    Route::post('/settings', [AdminSettingController::class, 'update'])->name('settings.update');
-
-    // Meta-organisation (site global)
-    Route::get('/meta_organization', [AdminMetaOrganizationController::class, 'index'])->name('meta-organization');
-    Route::post('/meta_organization', [AdminMetaOrganizationController::class, 'update'])->name('meta-organization.update');
 
     Route::get('/email-test', [AdminEmailController::class, 'index'])->name('email-test');
     Route::post('/email-test', [AdminEmailController::class, 'send'])->name('email-test.send');
@@ -330,16 +322,18 @@ Route::prefix('/org/{organization}')
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-            Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
-            Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
-            Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
-            Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
-            Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
-            Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
-            Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
-            Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
-            Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
-            Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+            Route::middleware('loops.enabled')->group(function () {
+                Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
+                Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
+                Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
+                Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+                Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
+                Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
+                Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
+                Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
+                Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
+                Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+            });
         });
 
         Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');

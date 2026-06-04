@@ -70,8 +70,8 @@
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">Accès</h2>
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Configuration</h2>
 
                 <label class="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" name="is_public" value="1" {{ old('is_public') ? 'checked' : '' }}
@@ -79,6 +79,16 @@
                     <div>
                         <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Visible sans connexion</span>
                         <p class="text-xs text-gray-400 mt-0.5">La page d'accueil et l'explorateur sont accessibles aux visiteurs (vitrine). Les actions nécessitent toujours un compte.</p>
+                    </div>
+                </label>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="hidden" name="is_default" value="0">
+                    <input type="checkbox" name="is_default" value="1" {{ old('is_default') ? 'checked' : '' }}
+                        class="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
+                    <div>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Organisation par défaut</span>
+                        <p class="text-xs text-gray-400 mt-0.5">Les nouveaux utilisateurs sont automatiquement rattachés à l'organisation par défaut.</p>
                     </div>
                 </label>
             </div>

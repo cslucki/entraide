@@ -68,7 +68,7 @@ If local migration adds columns that don't exist in production:
 If local migration adds tables that don't exist in production:
 - ✅ Tables are preserved (local-only, not touched)
 - ✅ Reported as "Local tables preserved" in the sync report
-- **Example**: LOCAL `organizations_settings` → preserved, not overwritten
+- **Example**: LOCAL `organization_settings` table was merged into `organizations` (TASK-210). The sync script naturally ignores the missing temp table and preserves the local schema.
 
 ### Best Practices
 

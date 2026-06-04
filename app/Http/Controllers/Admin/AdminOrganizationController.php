@@ -39,6 +39,7 @@ class AdminOrganizationController extends Controller
             'accent_color'       => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
             'welcome_points'     => 'required|integer|min:0|max:10000',
             'is_public'          => 'nullable|boolean',
+            'is_default'         => 'nullable|boolean',
         ]);
 
         if (empty($data['slug'])) {
@@ -48,6 +49,10 @@ class AdminOrganizationController extends Controller
         $data['accent_color'] = $data['accent_color'] ?? '#6366f1';
         $data['is_active'] = true;
         $data['is_public'] = isset($data['is_public']);
+
+        if (!empty($data['is_default'])) {
+            Organization::where('is_default', true)->update(['is_default' => false]);
+        }
 
         Organization::create($data);
 
@@ -72,6 +77,12 @@ class AdminOrganizationController extends Controller
             'accent_color'       => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
             'welcome_points'     => 'required|integer|min:0|max:10000',
             'is_public'          => 'nullable|boolean',
+            'is_default'         => 'nullable|boolean',
+            'loops_enabled'      => 'nullable|boolean',
+            'maintenance_mode'   => 'nullable|boolean',
+            'platform_name'      => 'sometimes|required|string|max:100',
+            'platform_tagline'   => 'nullable|string|max:255',
+            'global_color_mode'  => 'sometimes|required|in:dark,light',
         ]);
 
         if (empty($data['slug'])) {
@@ -79,6 +90,18 @@ class AdminOrganizationController extends Controller
         }
 
         $data['is_public'] = isset($data['is_public']);
+        $data['loops_enabled'] = ($data['loops_enabled'] ?? '0') === '1';
+        $data['maintenance_mode'] = ($data['maintenance_mode'] ?? '0') === '1';
+        $data['platform_name'] = $data['platform_name'] ?? $organization->platform_name;
+        $data['platform_tagline'] = $data['platform_tagline'] ?? $organization->platform_tagline;
+        $data['global_color_mode'] = $data['global_color_mode'] ?? $organization->global_color_mode;
+        $data['is_default'] = ($data['is_default'] ?? '0') === '1';
+
+        if ($data['is_default']) {
+            Organization::where('is_default', true)
+                ->where('id', '!=', $organization->id)
+                ->update(['is_default' => false]);
+        }
 
         $organization->update($data);
 
