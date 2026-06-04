@@ -10,7 +10,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased bg-gray-100 dark:bg-gray-900">
-        <div x-data="{ sidebarOpen: false }" class="flex min-h-screen">
+        <div x-data="{ sidebarOpen: false, pinned: localStorage.getItem('admin_sidebar_pinned') === 'true', togglePin() { this.pinned = !this.pinned; localStorage.setItem('admin_sidebar_pinned', this.pinned); } }" class="flex min-h-screen">
             <!-- Overlay backdrop (mobile only) -->
             <div x-show="sidebarOpen" @click="sidebarOpen = false"
                  class="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -25,14 +25,27 @@
 
                 <!-- Brand header -->
                 <div class="px-5 py-5 border-b border-gray-700">
-                    <a href="{{ route('home') }}" class="flex items-center gap-2">
-                        <span class="text-lg font-bold text-white">Entraide</span>
-                        <span class="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded font-medium">Admin</span>
-                    </a>
+                    <div class="flex items-center justify-between">
+                        <a href="{{ route('home') }}" class="flex items-center gap-2">
+                            <span class="text-lg font-bold text-white">Entraide</span>
+                            <span class="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded font-medium">Admin</span>
+                        </a>
+                        <button @click="togglePin()"
+                                :title="pinned ? 'Désépingler le menu' : 'Épingler le menu'"
+                                class="p-1.5 rounded-lg transition hover:bg-gray-700 text-gray-400 hover:text-white"
+                                :class="pinned ? 'text-indigo-400' : ''">
+                            <svg x-show="pinned" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            <svg x-show="!pinned" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                            </svg>
+                        </button>
+                    </div>
                     <p class="text-xs text-gray-500 mt-1 truncate">{{ auth()->user()->name }}</p>
                 </div>
 
-                <nav @click="sidebarOpen = false" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                <nav @click="pinned || (sidebarOpen = false)" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
                     @php
                         $isActive = fn($route) => request()->routeIs($route);
                         $isGroupActive = fn($items) => collect($items)->contains(fn($i) => $isActive($i['route']));
