@@ -18,11 +18,13 @@
                     <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Échanges</x-nav-link>
                     <x-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-nav-link>
                     <x-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">Blog</x-nav-link>
-                    @auth
-                        <x-nav-link :href="route('loops.index')" :active="request()->routeIs('loops*')">Boucles</x-nav-link>
-                    @else
-                        <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-nav-link>
-                    @endauth
+                    @if(!$tenant || $tenant->loops_enabled)
+                        @auth
+                            <x-nav-link :href="route('loops.index')" :active="request()->routeIs('loops*')">Boucles</x-nav-link>
+                        @else
+                            <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-nav-link>
+                        @endauth
+                    @endif
                 </div>
             </div>
 
@@ -178,11 +180,13 @@
             <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Échanges</x-responsive-nav-link>
             <x-responsive-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-responsive-nav-link>
             <x-responsive-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">Blog</x-responsive-nav-link>
-            @auth
-                <x-responsive-nav-link :href="route('loops.index')" :active="request()->routeIs('loops*')">Boucles</x-responsive-nav-link>
-            @else
-                <x-responsive-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-responsive-nav-link>
-            @endauth
+            @if(!$tenant || $tenant->loops_enabled)
+                @auth
+                    <x-responsive-nav-link :href="route('loops.index')" :active="request()->routeIs('loops*')">Boucles</x-responsive-nav-link>
+                @else
+                    <x-responsive-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-responsive-nav-link>
+                @endauth
+            @endif
         </div>
 
         @auth

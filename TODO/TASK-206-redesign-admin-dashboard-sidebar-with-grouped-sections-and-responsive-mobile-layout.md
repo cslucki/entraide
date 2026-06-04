@@ -2,7 +2,7 @@
 task_id: TASK-206
 title: Redesign admin dashboard sidebar with grouped sections and responsive mobile layout
 
-status: DONE
+status: MERGED
 
 owner: SUPERVISOR
 
