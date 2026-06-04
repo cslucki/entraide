@@ -29,15 +29,24 @@ class Organization extends Model
         'hero_description',
         'accent_color',
         'welcome_points',
+        'loops_enabled',
+        'maintenance_mode',
+        'platform_name',
+        'platform_tagline',
+        'global_color_mode',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
-            'is_public' => 'boolean',
-            'is_default' => 'boolean',
-            'welcome_points' => 'integer',
+        'is_public' => 'boolean',
+        'is_default' => 'boolean',
+        'welcome_points' => 'integer',
+        'loops_enabled' => 'boolean',
+        'maintenance_mode' => 'boolean',
+            'loops_enabled' => 'boolean',
+            'maintenance_mode' => 'boolean',
         ];
     }
 

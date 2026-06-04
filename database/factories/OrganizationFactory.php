@@ -27,6 +27,7 @@ class OrganizationFactory extends Factory
             'hero_description' => null,
             'accent_color' => '#6366f1',
             'welcome_points' => 100,
+            'loops_enabled' => true,
         ];
     }
 

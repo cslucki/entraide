@@ -6,8 +6,9 @@ use App\Models\Loop;
 use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
-use App\Models\OrganizationSetting;
+use App\Models\Organization;
 use App\Models\Transaction;
+
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
 use App\Policies\MessagePolicy;
@@ -102,15 +103,16 @@ class AppServiceProvider extends ServiceProvider
                     $org = app()->bound('current_organization') ? app('current_organization') : null;
                     if ($org) {
                         $settings = [
-                            'platformName' => OrganizationSetting::get($org, 'platform_name', config('app.name')),
-                            'platformTagline' => OrganizationSetting::get($org, 'platform_tagline', 'Échangez vos talents'),
-                            'globalColorMode' => OrganizationSetting::get($org, 'global_color_mode', 'dark'),
+                            'platformName' => $org->platform_name ?: config('app.name'),
+                            'platformTagline' => $org->platform_tagline ?: 'Échangez vos talents',
+                            'globalColorMode' => $org->global_color_mode ?: 'dark',
                         ];
                     } else {
+                        $defaultOrg = Organization::where('is_default', true)->first();
                         $settings = [
-                            'platformName' => OrganizationSetting::get(null, 'platform_name', config('app.name')),
-                            'platformTagline' => OrganizationSetting::get(null, 'platform_tagline', 'Échangez vos talents'),
-                            'globalColorMode' => OrganizationSetting::get(null, 'global_color_mode', 'dark'),
+                            'platformName' => $defaultOrg?->platform_name ?: config('app.name'),
+                            'platformTagline' => $defaultOrg?->platform_tagline ?: 'Échangez vos talents',
+                            'globalColorMode' => $defaultOrg?->global_color_mode ?: 'dark',
                         ];
                     }
                 } catch (\Exception) {
