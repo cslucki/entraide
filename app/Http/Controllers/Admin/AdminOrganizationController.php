@@ -127,8 +127,8 @@ class AdminOrganizationController extends Controller
         $organization->serviceRequests()->update(['organization_id' => null]);
         $organization->transactions()->update(['organization_id' => null]);
 
-        $organization->delete();
+        $organization->forceDelete();
 
-        return back()->with('success', "Organisation « {$organization->name} » supprimée.");
+        return back()->with('success', "Organisation « {$organization->name} » supprimée définitivement.");
     }
 }
