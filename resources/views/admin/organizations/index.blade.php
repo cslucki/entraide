@@ -16,6 +16,8 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Services</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Visibilité</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Boucles</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Plateforme</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
@@ -52,7 +54,23 @@
                             @else
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">Privée</span>
                             @endif
+                            @if($c->is_default)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Défaut</span>
+                            @endif
                         </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        @if($c->loops_enabled)
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Activées</span>
+                        @else
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Désactivées</span>
+                        @endif
+                    </td>
+                    <td class="px-4 py-3 text-xs text-gray-700 dark:text-gray-300">
+                        <div class="truncate max-w-[140px]">{{ $c->platform_name }}</div>
+                        @if($c->maintenance_mode)
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Maintenance</span>
+                        @endif
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2">
@@ -74,7 +92,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Aucune organisation pour le moment.</td>
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Aucune organisation pour le moment.</td>
                 </tr>
                 @endforelse
             </tbody>

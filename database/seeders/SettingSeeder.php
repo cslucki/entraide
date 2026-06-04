@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Organization;
-use App\Models\OrganizationSetting;
 use Illuminate\Database\Seeder;
 
 class SettingSeeder extends Seeder
@@ -22,8 +21,12 @@ class SettingSeeder extends Seeder
             $org->update(['is_default' => true]);
         }
 
-        OrganizationSetting::set(null, 'platform_name', 'Entraide'); // Default config scope
-        OrganizationSetting::set(null, 'platform_tagline', 'Échangez vos talents');
-        OrganizationSetting::set(null, 'maintenance_mode', '0');
+        $org->update([
+            'platform_name' => 'Entraide',
+            'platform_tagline' => 'Échangez vos talents',
+            'maintenance_mode' => false,
+            'loops_enabled' => true,
+            'global_color_mode' => 'dark',
+        ]);
     }
 }
