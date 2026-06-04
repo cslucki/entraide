@@ -14,7 +14,7 @@ PostgreSQL de production vers la base PostgreSQL locale.
 - PostgreSQL 18 installé en local
 - Un fichier `.env.pgsql` à la racine du projet (voir `.env.pgsql.example`)
 - Le fichier de credentials PROD : `~/.config/bouclepro/prod-db.env`
-- Le mot de passe admin PostgreSQL (demander à Cyril)
+- Le mot de passe admin PostgreSQL est "password"
 
 ---
 

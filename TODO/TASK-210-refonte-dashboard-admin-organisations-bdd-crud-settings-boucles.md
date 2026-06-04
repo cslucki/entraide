@@ -2,7 +2,7 @@
 task_id: TASK-210
 title: Refonte dashboard admin organisations BDD CRUD settings Boucles
 
-status: DONE
+status: MERGED
 
 owner: ORCHESTRATOR
 
