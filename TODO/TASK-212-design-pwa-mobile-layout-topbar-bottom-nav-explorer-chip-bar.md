@@ -2,7 +2,7 @@
 task_id: TASK-212
 title: Design PWA mobile layout topbar bottom nav Explorer chip bar
 
-status: DONE
+status: MERGED
 
 owner: CODEUR
 
