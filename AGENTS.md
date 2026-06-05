@@ -424,7 +424,7 @@ Migration MUST remain:
 * incremental
 * compatibility-first
 * Playwright-safe
-* SQLite-compatible
+* PostgreSQL-compatible
 * MCP-assisted
 * architecture-safe
 
@@ -1068,20 +1068,52 @@ Prefer:
 * business-flow tests
 * Playwright validation
 
+## Test Database Safety
+
+Agents must NEVER wipe the local runtime database `bouclepro`.
+
+Important incident: Laravel tests use `RefreshDatabase`, which is destructive by design. It is safe only when the test environment points to an isolated test database. If Laravel's cached config (`bootstrap/cache/config.php`) points to PostgreSQL `bouclepro`, running `php artisan test` can refresh the real local database and delete local users, organizations, categories, services, transactions, and synced production-like data.
+
+Before running any Laravel test command, agents MUST verify the target database is safe:
+
+* PHPUnit must use PostgreSQL with `DB_DATABASE=bouclepro_test`
+* tests must NEVER run with `DB_DATABASE=bouclepro`
+
+Safe preflight examples:
+
+```bash
+APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan config:show database.default
+APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan config:show database.connections.pgsql.database
+```
+
+Expected output:
+
+```text
+database.default = pgsql
+database.connections.pgsql.database = bouclepro_test
+```
+
+The only allowed PostgreSQL test database name is:
+
+```text
+bouclepro_test
+```
+
+If a command resolves to `pgsql` + `bouclepro`, STOP immediately. Do not run tests. Fix test configuration first.
+
 ---
 
 # Runtime Stabilization Rules
 
 Current runtime state:
 
-* SQLite runtime = stable
 * PostgreSQL runtime = stable
 * PostgreSQL CI = stable
 
 All future work MUST preserve:
 
-* dual runtime compatibility
-* CI parity between SQLite and PostgreSQL
+* PostgreSQL runtime compatibility
+* CI parity with PostgreSQL production runtime
 * Playwright stability across runtime environments
 
 ---
@@ -1099,6 +1131,7 @@ Agents must NEVER:
 * modify unrelated systems
 * introduce terminology drift
 * mix Loop and Organization concepts
+* run Laravel tests against `DB_DATABASE=bouclepro` — `RefreshDatabase` can wipe the local runtime database. Tests must target PostgreSQL `bouclepro_test` only.
 * run `migrate:fresh --seed` — destroys local database data (users, services, transactions). Use sync scripts in `synchro_pgsql-avant-migration/` to restore production data instead. Use targeted seeders or `migrate --seed` for additive changes only.
 
 ---

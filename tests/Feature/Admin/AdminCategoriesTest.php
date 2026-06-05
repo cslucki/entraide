@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\Service;
 use App\Models\Skill;
 use App\Models\User;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class AdminCategoriesTest extends TestCase
@@ -45,8 +46,24 @@ class AdminCategoriesTest extends TestCase
     {
         $admin = $this->makeAdmin();
         $this->makeCategory(['name_b2c' => 'Test Cat']);
+        $otherOrg = Organization::factory()->create(['name' => 'Autre org', 'slug' => 'autre-org']);
+        Category::factory()->create(['name_b2c' => 'Autre cat', 'organization_id' => $otherOrg->id]);
 
-        $this->actingAs($admin)->get(route('admin.categories'))->assertOk();
+        $this->actingAs($admin)->get(route('admin.categories'))
+            ->assertOk()
+            ->assertSee('Test Cat')
+            ->assertDontSee('Autre cat')
+            ->assertSee('Organisation active')
+            ->assertSee($this->org->name)
+            ->assertSee($this->org->slug)
+            ->assertSee(Str::limit($this->org->id, 8, ''));
+
+        $this->actingAs($admin)->get(route('admin.categories', ['organization_id' => $otherOrg->id]))
+            ->assertOk()
+            ->assertSee('Autre cat')
+            ->assertDontSee('Test Cat')
+            ->assertSee('Autre org')
+            ->assertSee('autre-org');
     }
 
     // ── Create ────────────────────────────────────────────────────────────────
@@ -60,6 +77,7 @@ class AdminCategoriesTest extends TestCase
                 'name_b2c' => 'Dépannage informatique',
                 'name_b2b' => 'Informatique',
                 'color'    => '#3b82f6',
+                'organization_id' => $this->org->id,
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
@@ -78,7 +96,7 @@ class AdminCategoriesTest extends TestCase
         $admin = $this->makeAdmin();
 
         $this->actingAs($admin)
-            ->post(route('admin.categories.store'), ['color' => '#3b82f6'])
+            ->post(route('admin.categories.store'), ['color' => '#3b82f6', 'organization_id' => $this->org->id])
             ->assertSessionHasErrors('name_b2c');
     }
 
@@ -87,8 +105,21 @@ class AdminCategoriesTest extends TestCase
         $admin = $this->makeAdmin();
 
         $this->actingAs($admin)
-            ->post(route('admin.categories.store'), ['name_b2c' => 'Test', 'name_b2b' => 'Test', 'color' => 'not-a-color'])
+            ->post(route('admin.categories.store'), ['name_b2c' => 'Test', 'name_b2b' => 'Test', 'color' => 'not-a-color', 'organization_id' => $this->org->id])
             ->assertSessionHasErrors('color');
+    }
+
+    public function test_admin_can_view_category_skills_on_edit_form(): void
+    {
+        $admin = $this->makeAdmin();
+        $category = $this->makeCategory(['name_b2c' => 'Dépannage informatique']);
+        Skill::factory()->create(['category_id' => $category->id, 'organization_id' => $this->org->id, 'name' => 'Assistance ordinateur']);
+
+        $this->actingAs($admin)->get(route('admin.categories.edit', $category))
+            ->assertOk()
+            ->assertSee('Dépannage informatique')
+            ->assertSee('Compétences liées')
+            ->assertSee('Assistance ordinateur');
     }
 
     // ── Update ────────────────────────────────────────────────────────────────
@@ -116,7 +147,7 @@ class AdminCategoriesTest extends TestCase
         ]);
     }
 
-    public function test_admin_cannot_update_category_from_other_org(): void
+    public function test_admin_can_update_category_from_selected_org(): void
     {
         $admin = $this->makeAdmin();
         $otherOrg = Organization::factory()->create();
@@ -128,7 +159,14 @@ class AdminCategoriesTest extends TestCase
                 'name_b2b' => 'Hacked',
                 'color'    => '#000000',
             ])
-            ->assertStatus(404);
+            ->assertRedirect(route('admin.categories', ['organization_id' => $otherOrg->id]))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('categories', [
+            'id'       => $category->id,
+            'name_b2c' => 'Hacked',
+            'name_b2b' => 'Hacked',
+        ]);
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
@@ -172,7 +210,7 @@ class AdminCategoriesTest extends TestCase
         $this->assertDatabaseMissing('skills', ['id' => $skill->id]);
     }
 
-    public function test_admin_cannot_delete_category_from_other_org(): void
+    public function test_admin_can_delete_empty_category_from_selected_org(): void
     {
         $admin = $this->makeAdmin();
         $otherOrg = Organization::factory()->create();
@@ -180,7 +218,10 @@ class AdminCategoriesTest extends TestCase
 
         $this->actingAs($admin)
             ->delete(route('admin.categories.destroy', $category))
-            ->assertStatus(404);
+            ->assertRedirect(route('admin.categories', ['organization_id' => $otherOrg->id]))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('categories', ['id' => $category->id]);
     }
 
     // ── Skills ────────────────────────────────────────────────────────────────
@@ -217,7 +258,7 @@ class AdminCategoriesTest extends TestCase
         $this->assertDatabaseMissing('skills', ['id' => $skill->id]);
     }
 
-    public function test_admin_cannot_delete_skill_from_other_org(): void
+    public function test_admin_can_delete_skill_from_selected_org(): void
     {
         $admin = $this->makeAdmin();
         $otherOrg = Organization::factory()->create();
@@ -226,6 +267,9 @@ class AdminCategoriesTest extends TestCase
 
         $this->actingAs($admin)
             ->delete(route('admin.skills.destroy', $skill))
-            ->assertStatus(404);
+            ->assertRedirect(route('admin.categories', ['organization_id' => $otherOrg->id]))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('skills', ['id' => $skill->id]);
     }
 }

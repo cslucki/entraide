@@ -329,7 +329,7 @@ function getTableDependencyOrder(PDO $pdo, array $tables): array {
 }
 
 function getMainOrganizationId(PDO $pdo): ?string {
-    $stmt = $pdo->prepare("SELECT id FROM organizations WHERE slug = 'main' LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id FROM organizations WHERE slug = 'main' OR is_default = true ORDER BY CASE WHEN slug = 'main' THEN 0 ELSE 1 END LIMIT 1");
     $stmt->execute();
     return $stmt->fetchColumn() ?: null;
 }
@@ -366,8 +366,18 @@ function importTableData(PDO $sourcePdo, PDO $targetPdo, string $tableName, stri
     $sourceColNames = array_column($sourceColumns, 'column_name');
     $targetColNames = array_column($targetColumns, 'column_name');
 
-    $commonColumns = array_intersect($sourceColNames, $targetColNames);
+    $commonColumns = array_values(array_intersect($sourceColNames, $targetColNames));
     $ignoredColumns = array_diff($sourceColNames, $commonColumns);
+
+    $compatColumnMap = [];
+    if ($tableName === 'categories' && in_array('name', $sourceColNames, true)) {
+        if (in_array('name_b2c', $targetColNames, true) && !in_array('name_b2c', $commonColumns, true)) {
+            $compatColumnMap['name_b2c'] = 'name';
+        }
+        if (in_array('name_b2b', $targetColNames, true) && !in_array('name_b2b', $commonColumns, true)) {
+            $compatColumnMap['name_b2b'] = 'name';
+        }
+    }
 
     if (empty($commonColumns)) {
         return [
@@ -389,8 +399,8 @@ function importTableData(PDO $sourcePdo, PDO $targetPdo, string $tableName, stri
     $injectComm = in_array('community_id', $targetColNames, true)
         && !in_array('community_id', $sourceColNames, true);
 
-    // Build column list including injected tenant columns
-    $allTargetCols = array_values($commonColumns);
+    // Build column list including compatibility-mapped and injected tenant columns.
+    $allTargetCols = array_merge($commonColumns, array_keys($compatColumnMap));
     if ($injectOrg) {
         $allTargetCols[] = 'organization_id';
     }
@@ -403,8 +413,9 @@ function importTableData(PDO $sourcePdo, PDO $targetPdo, string $tableName, stri
     $columnList = implode(', ', array_map(fn($c) => "\"$c\"", $allTargetCols));
     $placeholderList = implode(', ', array_fill(0, count($allTargetCols), '?'));
 
-    // Select from source (only common columns)
-    $sourceColList = implode(', ', array_map(fn($c) => "\"$c\"", $commonColumns));
+    // Select from source (common columns plus source columns needed for compatibility mappings).
+    $sourceSelectColumns = array_values(array_unique(array_merge($commonColumns, array_values($compatColumnMap))));
+    $sourceColList = implode(', ', array_map(fn($c) => "\"$c\"", $sourceSelectColumns));
     $sourceSql = "SELECT $sourceColList FROM \"$tableName\"";
     $stmt = $sourcePdo->query($sourceSql);
 
@@ -432,8 +443,7 @@ function importTableData(PDO $sourcePdo, PDO $targetPdo, string $tableName, stri
         $insertStmt = $targetPdo->prepare($targetSql);
 
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $filteredRow = array_intersect_key($row, array_flip($commonColumns));
-            $values = array_values($filteredRow);
+            $values = buildTargetValues($row, $commonColumns, $compatColumnMap);
             $values = castRowValues($values, $allTargetCols, $targetTypeMap, $injectOrg ? $mainOrgId : null, $injectComm ? $mainOrgId : null);
             $insertStmt->execute($values);
             $rows++;
@@ -447,8 +457,7 @@ function importTableData(PDO $sourcePdo, PDO $targetPdo, string $tableName, stri
         $insertStmt = $targetPdo->prepare($targetSql);
 
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $filteredRow = array_intersect_key($row, array_flip($commonColumns));
-            $values = array_values($filteredRow);
+            $values = buildTargetValues($row, $commonColumns, $compatColumnMap);
             $values = castRowValues($values, $allTargetCols, $targetTypeMap, $injectOrg ? $mainOrgId : null, $injectComm ? $mainOrgId : null);
             $insertStmt->execute($values);
             $rows++;
@@ -463,6 +472,17 @@ function importTableData(PDO $sourcePdo, PDO $targetPdo, string $tableName, stri
         'strategy' => $strategy,
         'ignored_columns' => $ignoredColumns,
     ];
+}
+
+function buildTargetValues(array $row, array $commonColumns, array $compatColumnMap): array {
+    $values = [];
+    foreach ($commonColumns as $column) {
+        $values[] = $row[$column] ?? null;
+    }
+    foreach ($compatColumnMap as $sourceColumn) {
+        $values[] = $row[$sourceColumn] ?? null;
+    }
+    return $values;
 }
 
 function castRowValues(array $values, array $allTargetCols, array $typeMap, ?string $orgId, ?string $commId): array {
