@@ -112,7 +112,7 @@
                     <div class="px-5 py-3 flex items-center justify-between">
                         <div class="min-w-0">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $service->title }}</p>
-                            <p class="text-xs text-gray-500">{{ $service->points_cost }} pts · {{ $service->category->name }}</p>
+                            <p class="text-xs text-gray-500">{{ $service->points_cost }} pts · {{ $service->category->displayName('transactions') }}</p>
                         </div>
                         <div class="flex gap-3 ml-3 flex-shrink-0">
                             <a href="{{ route('services.edit', $service) }}" class="text-xs text-gray-500 hover:text-indigo-600">Modifier</a>

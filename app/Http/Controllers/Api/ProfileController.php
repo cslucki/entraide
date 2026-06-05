@@ -47,7 +47,7 @@ class ProfileController extends Controller
         }
 
         $services = $user->services()
-            ->with('category:id,name,color')
+            ->with('category:id,name_b2c,name_b2b,color')
             ->active()
             ->latest()
             ->limit(10)

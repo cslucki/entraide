@@ -45,7 +45,7 @@
                     <td class="px-4 py-3">
                         @if($req->category)
                         <span class="px-2 py-0.5 rounded-full text-xs text-white" style="background-color:{{ $req->category->color }}">
-                            {{ $req->category->name }}
+                            {{ $req->category->displayName('transactions') }}
                         </span>
                         @endif
                     </td>

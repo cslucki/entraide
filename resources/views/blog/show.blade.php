@@ -10,10 +10,10 @@
                 <!-- Breadcrumb -->
                 <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-6">
                     <a href="{{ route('blog.index') }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Blog</a>
-                    @foreach($post->categories->take(1) as $cat)
+                    @if($post->category)
                     <span>/</span>
-                    <a href="{{ route('blog.category', $cat->slug) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ $cat->name }}</a>
-                    @endforeach
+                    <a href="{{ route('blog.category', $post->category->slug) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ $post->category->displayName('blog') }}</a>
+                    @endif
                     <span>/</span>
                     <span class="text-gray-700 dark:text-gray-300 truncate max-w-xs">{{ $post->title }}</span>
                 </nav>
@@ -26,14 +26,12 @@
                 @endif
 
                 <!-- Catégories -->
-                @if($post->categories->isNotEmpty())
+                @if($post->category)
                 <div class="flex flex-wrap gap-2 mb-4">
-                    @foreach($post->categories as $cat)
-                    <a href="{{ route('blog.category', $cat->slug) }}"
+                    <a href="{{ route('blog.category', $post->category->slug) }}"
                        class="text-xs font-medium px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition">
-                        {{ $cat->name }}
+                        {{ $post->category->displayName('blog') }}
                     </a>
-                    @endforeach
                 </div>
                 @endif
 

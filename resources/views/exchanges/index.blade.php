@@ -19,7 +19,7 @@
                         <div class="flex items-center gap-2 mb-1 flex-wrap">
                             @if($exchange->service?->category)
                             <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $exchange->service->category->color }}">
-                                {{ $exchange->service->category->name }}
+                                {{ $exchange->service->category->displayName('transactions') }}
                             </span>
                             @endif
                             <span class="font-semibold text-gray-900 dark:text-gray-100 truncate">{{ $exchange->subject }}</span>

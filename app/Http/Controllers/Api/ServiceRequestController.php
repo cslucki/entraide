@@ -11,7 +11,7 @@ class ServiceRequestController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = ServiceRequest::with(['user:id,name,rating,avatar', 'category:id,name,color'])
+        $query = ServiceRequest::with(['user:id,name,rating,avatar', 'category:id,name_b2c,name_b2b,color'])
             ->open();
 
         if ($search = $request->get('q')) {
@@ -36,7 +36,7 @@ class ServiceRequestController extends Controller
     {
         $serviceRequest = ServiceRequest::with([
             'user:id,name,rating,avatar,location,bio,is_available',
-            'category:id,name,color',
+            'category:id,name_b2c,name_b2b,color',
         ])->open()->findOrFail($id);
 
         return response()->json($serviceRequest);
