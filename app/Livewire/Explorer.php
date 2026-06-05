@@ -128,7 +128,9 @@ class Explorer extends Component
         // Server-authoritative tenant ID — ignores any client-side tampering of $this->orgId
         $orgId = currentOrganization()?->id;
 
-        $categories = Category::with('skills')->get();
+        $categories = Category::with('skills')
+            ->where('organization_id', $orgId)
+            ->get();
 
         if ($this->tab === 'services') {
             $query = Service::withoutGlobalScopes()

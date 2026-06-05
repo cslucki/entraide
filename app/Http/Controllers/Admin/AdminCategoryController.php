@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Skill;
 use Illuminate\Http\RedirectResponse;
@@ -13,22 +14,26 @@ use Illuminate\View\View;
 
 class AdminCategoryController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $orgId = auth()->user()->organization_id;
+        $organizations = $this->organizations();
+        $organization = $this->selectedOrganization($request, $organizations);
 
-        $categories = Category::where('organization_id', $orgId)
+        $categories = Category::where('organization_id', $organization?->id)
             ->withCount(['services', 'skills', 'serviceRequests'])
-            ->with('skills')
+            ->with(['organization', 'skills'])
             ->orderBy('name_b2c')
             ->get();
 
-        return view('admin.categories.index', compact('categories'));
+        return view('admin.categories.index', compact('categories', 'organization', 'organizations'));
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
-        return view('admin.categories.create');
+        $organizations = $this->organizations();
+        $organization = $this->selectedOrganization($request, $organizations);
+
+        return view('admin.categories.create', compact('organization', 'organizations'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -37,51 +42,75 @@ class AdminCategoryController extends Controller
             'name_b2c'   => 'required|string|max:100',
             'name_b2b'   => 'required|string|max:100',
             'color'      => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
-            'service_1'  => 'nullable|string|max:255',
-            'service_2'  => 'nullable|string|max:255',
-            'service_3'  => 'nullable|string|max:255',
-            'service_4'  => 'nullable|string|max:255',
-            'service_5'  => 'nullable|string|max:255',
+            'organization_id' => 'required|exists:organizations,id',
+            'skills'    => 'array',
+            'skills.*'  => 'nullable|string|max:100',
         ]);
 
         $data['slug'] = Str::slug($data['name_b2c']);
-        $data['organization_id'] = auth()->user()->organization_id;
-        Category::create($data);
+        $category = Category::create($data);
 
-        return redirect()->route('admin.categories')->with('success', 'Catégorie créée.');
+        if ($request->has('skills')) {
+            $skillNames = array_filter($request->input('skills', []), fn($name) => !empty(trim($name)));
+
+            foreach ($skillNames as $skillName) {
+                $category->skills()->create([
+                    'name' => $skillName,
+                    'slug' => Str::slug($skillName),
+                    'organization_id' => $category->organization_id,
+                ]);
+            }
+        }
+
+        return redirect()->route('admin.categories', ['organization_id' => $data['organization_id']])->with('success', 'Catégorie créée.');
     }
 
     public function edit(Category $category): View
     {
-        $this->ensureOrgScope($category);
-        $category->load('skills');
+        $organizations = $this->organizations();
+        $category->load(['organization', 'skills']);
 
-        return view('admin.categories.edit', compact('category'));
+        return view('admin.categories.edit', compact('category', 'organizations'));
     }
 
     public function update(Request $request, Category $category): RedirectResponse
     {
-        $this->ensureOrgScope($category);
         $data = $request->validate([
             'name_b2c'   => 'required|string|max:100',
             'name_b2b'   => 'required|string|max:100',
             'color'      => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
-            'service_1'  => 'nullable|string|max:255',
-            'service_2'  => 'nullable|string|max:255',
-            'service_3'  => 'nullable|string|max:255',
-            'service_4'  => 'nullable|string|max:255',
-            'service_5'  => 'nullable|string|max:255',
+            'skills'    => 'array',
+            'skills.*'  => 'nullable|string|max:100',
         ]);
 
         $data['slug'] = Str::slug($data['name_b2c']);
         $category->update($data);
 
-        return redirect()->route('admin.categories')->with('success', 'Catégorie mise à jour.');
+        if ($request->has('skills')) {
+            $skillNames = array_filter($request->input('skills', []), fn($name) => !empty(trim($name)));
+
+            $existingSkills = $category->skills->keyBy('name');
+            $newSkills = array_values($skillNames);
+
+            foreach ($newSkills as $skillName) {
+                if (!$existingSkills->has($skillName)) {
+                    $category->skills()->create([
+                        'name' => $skillName,
+                        'slug' => Str::slug($skillName),
+                        'organization_id' => $category->organization_id,
+                    ]);
+                }
+            }
+
+            $skillsToDelete = $category->skills->whereNotIn('name', $newSkills);
+            $skillsToDelete->each->delete();
+        }
+
+        return redirect()->route('admin.categories', ['organization_id' => $category->organization_id])->with('success', 'Catégorie mise à jour.');
     }
 
     public function destroy(Category $category): RedirectResponse
     {
-        $this->ensureOrgScope($category);
         if (
             $category->services()->withoutGlobalScope(BelongsToOrganizationScope::class)->count() > 0
             || $category->serviceRequests()->withoutGlobalScope(BelongsToOrganizationScope::class)->count() > 0
@@ -92,12 +121,11 @@ class AdminCategoryController extends Controller
         $category->skills()->delete();
         $category->delete();
 
-        return back()->with('success', 'Catégorie supprimée.');
+        return redirect()->route('admin.categories', ['organization_id' => $category->organization_id])->with('success', 'Catégorie supprimée.');
     }
 
     public function storeSkill(Request $request, Category $category): RedirectResponse
     {
-        $this->ensureOrgScope($category);
         $data = $request->validate([
             'name' => 'required|string|max:100',
         ]);
@@ -114,19 +142,28 @@ class AdminCategoryController extends Controller
 
     public function destroySkill(Skill $skill): RedirectResponse
     {
-        if ($skill->category && $skill->category->organization_id !== auth()->user()->organization_id) {
-            abort(404);
-        }
+        $organizationId = $skill->organization_id ?: $skill->category?->organization_id;
 
         $skill->delete();
 
-        return back()->with('success', 'Compétence supprimée.');
+        return redirect()->route('admin.categories', ['organization_id' => $organizationId])->with('success', 'Compétence supprimée.');
     }
 
-    private function ensureOrgScope(Category $category): void
+    private function organizations()
     {
-        if ($category->organization_id !== auth()->user()->organization_id) {
-            abort(404);
+        return Organization::orderByDesc('is_default')->orderBy('name')->get();
+    }
+
+    private function selectedOrganization(Request $request, $organizations): ?Organization
+    {
+        $requestedId = $request->query('organization_id');
+
+        if ($requestedId && $organizations->contains('id', $requestedId)) {
+            return $organizations->firstWhere('id', $requestedId);
         }
+
+        $userOrgId = auth()->user()->organization_id;
+
+        return $organizations->firstWhere('id', $userOrgId) ?: $organizations->first();
     }
 }
