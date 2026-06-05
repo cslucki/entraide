@@ -2,7 +2,7 @@
 task_id: TASK-213
 title: Explorer mobile adaptation layout cards bottom nav
 
-status: DONE
+status: MERGED
 
 owner: ORCHESTRATOR
 
@@ -14,6 +14,7 @@ priority: MEDIUM
 
 created_at: 2026-06-05 20:26:07 Europe/Paris
 updated_at: 2026-06-05 20:26:07 Europe/Paris
+merged_at: 2026-06-05 20:39:54 Europe/Paris
 
 labels: []
 
@@ -57,6 +58,10 @@ Task created.
 ## 2026-06-05 20:34:00 Europe/Paris
 
 Implémentation terminée.
+
+## 2026-06-05 20:39:54 Europe/Paris
+
+Merged into develop. Commit 5895a3a pushed to origin/develop. Branch cleaned up.
 
 Changements:
 - `app/View/Components/AppLayout.php` : ajout `$title` property (constructor promotion)
