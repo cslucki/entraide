@@ -27,7 +27,7 @@ class HomeController extends Controller
             ->limit(6)
             ->get();
 
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::orderBy('name_b2c')->get();
 
         return view('home', compact('stats', 'featuredServices', 'categories'));
     }

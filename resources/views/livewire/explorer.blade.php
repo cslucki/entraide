@@ -71,7 +71,7 @@
             <button wire:click="toggleCategory('{{ $cat->id }}')"
                 class="px-3 py-1 rounded-full text-sm font-medium border transition {{ in_array($cat->id, $selectedCategories) ? 'text-white border-transparent' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400' }}"
                 style="{{ in_array($cat->id, $selectedCategories) ? 'background-color:'.$cat->color.';border-color:'.$cat->color : '' }}">
-                {{ $cat->name }}
+                {{ $cat->name_b2c }}
             </button>
             @endforeach
             @if(!empty($selectedCategories) || $tagFilter || $deliveryMode || $search || $minRating || !empty($selectedSkills))
@@ -124,7 +124,7 @@
                         <a href="{{ route('services.show', $service) }}" class="block p-5 flex-1">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
-                                    {{ $service->category->name }}
+                                    {{ $service->category->displayName('transactions') }}
                                 </span>
                                 <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{{ $service->points_cost }} pts</span>
                             </div>
@@ -193,7 +193,7 @@
                         <div class="p-5">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $request->category->color }}">
-                                    {{ $request->category->name }}
+                                    {{ $request->category->displayName('transactions') }}
                                 </span>
                                 <span class="text-green-600 dark:text-green-400 font-bold text-sm">
                                     {{ $request->budget_min }}{{ $request->budget_max ? '–'.$request->budget_max : '+' }} pts

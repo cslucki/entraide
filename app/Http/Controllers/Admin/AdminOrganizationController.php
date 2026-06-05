@@ -40,6 +40,8 @@ class AdminOrganizationController extends Controller
             'welcome_points'     => 'required|integer|min:0|max:10000',
             'is_public'          => 'nullable|boolean',
             'is_default'         => 'nullable|boolean',
+            'blog_naming'        => 'nullable|in:b2b,b2c',
+            'transactions_naming' => 'nullable|in:b2b,b2c',
         ]);
 
         if (empty($data['slug'])) {
@@ -49,6 +51,8 @@ class AdminOrganizationController extends Controller
         $data['accent_color'] = $data['accent_color'] ?? '#6366f1';
         $data['is_active'] = true;
         $data['is_public'] = isset($data['is_public']);
+        $data['blog_naming'] = $data['blog_naming'] ?? 'b2b';
+        $data['transactions_naming'] = $data['transactions_naming'] ?? 'b2c';
 
         if (!empty($data['is_default'])) {
             Organization::where('is_default', true)->update(['is_default' => false]);
@@ -83,6 +87,8 @@ class AdminOrganizationController extends Controller
             'platform_name'      => 'sometimes|required|string|max:100',
             'platform_tagline'   => 'nullable|string|max:255',
             'global_color_mode'  => 'sometimes|required|in:dark,light',
+            'blog_naming'        => 'nullable|in:b2b,b2c',
+            'transactions_naming' => 'nullable|in:b2b,b2c',
         ]);
 
         if (empty($data['slug'])) {
@@ -96,6 +102,8 @@ class AdminOrganizationController extends Controller
         $data['platform_tagline'] = $data['platform_tagline'] ?? $organization->platform_tagline;
         $data['global_color_mode'] = $data['global_color_mode'] ?? $organization->global_color_mode;
         $data['is_default'] = ($data['is_default'] ?? '0') === '1';
+        $data['blog_naming'] = $data['blog_naming'] ?? $organization->blog_naming ?? 'b2b';
+        $data['transactions_naming'] = $data['transactions_naming'] ?? $organization->transactions_naming ?? 'b2c';
 
         if ($data['is_default']) {
             Organization::where('is_default', true)

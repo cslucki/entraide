@@ -39,14 +39,12 @@
                         @endif
                         <div class="p-5">
                             <!-- Catégories -->
-                            @if($post->categories->isNotEmpty())
+                            @if($post->category)
                             <div class="flex flex-wrap gap-1 mb-2">
-                                @foreach($post->categories->take(2) as $cat)
-                                <a href="{{ route('blog.category', $cat->slug) }}"
+                                <a href="{{ route('blog.category', $post->category->slug) }}"
                                    class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition">
-                                    {{ $cat->name }}
+                                    {{ $post->category->displayName('blog') }}
                                 </a>
-                                @endforeach
                             </div>
                             @endif
 
@@ -123,7 +121,7 @@
                         @foreach($categories->filter(fn($c) => $c->blog_posts_count > 0) as $cat)
                         <a href="{{ route('blog.category', $cat->slug) }}"
                            class="flex items-center justify-between px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm text-gray-700 dark:text-gray-300">
-                            <span>{{ $cat->name }}</span>
+                            <span>{{ $cat->displayName('blog') }}</span>
                             <span class="text-xs text-gray-400">{{ $cat->blog_posts_count }}</span>
                         </a>
                         @endforeach

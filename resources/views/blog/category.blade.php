@@ -1,11 +1,11 @@
 <x-app-layout>
-    <x-slot name="title">{{ $category->name }} — Blog BouclePro</x-slot>
+    <x-slot name="title">{{ $category->displayName('blog') }} — Blog BouclePro</x-slot>
 
     <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="mb-6">
             <a href="{{ route('blog.index') }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Blog</a>
         </div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ $category->name }}</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ $category->displayName('blog') }}</h1>
         <p class="text-gray-500 dark:text-gray-400 mb-8">{{ $posts->total() }} article(s) dans cette catégorie</p>
 
         @if($posts->isEmpty())
