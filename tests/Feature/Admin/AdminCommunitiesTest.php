@@ -144,7 +144,7 @@ class AdminCommunitiesTest extends TestCase
         $this->assertFalse($organization->is_active);
     }
 
-    public function test_admin_can_soft_delete_organization(): void
+    public function test_admin_can_delete_organization(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
         $user = User::factory()->create();
@@ -157,10 +157,10 @@ class AdminCommunitiesTest extends TestCase
 
         $user->refresh();
         $this->assertNull($user->organization_id);
-        $this->assertSoftDeleted('organizations', ['id' => $organization->id]);
+        $this->assertDatabaseMissing('organizations', ['id' => $organization->id]);
     }
 
-    public function test_soft_delete_nullifies_organization_id_on_related_models(): void
+    public function test_delete_nullifies_organization_id_on_related_models(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
         $organization = Organization::factory()->create();
@@ -170,7 +170,7 @@ class AdminCommunitiesTest extends TestCase
         $this->actingAs($admin)->delete(route('admin.organizations.destroy', $organization));
 
         $this->assertDatabaseHas('users', ['id' => $user->id, 'organization_id' => null]);
-        $this->assertSoftDeleted('organizations', ['id' => $organization->id]);
+        $this->assertDatabaseMissing('organizations', ['id' => $organization->id]);
     }
 
     public function test_admin_can_assign_responsable(): void

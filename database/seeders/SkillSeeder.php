@@ -11,55 +11,74 @@ class SkillSeeder extends Seeder
     public function run(): void
     {
         $skillsByCategory = [
-            'tech-digital' => [
-                'Développement web',
-                'Développement mobile',
-                'DevOps & Cloud',
-                'Bases de données',
-                'API & Intégrations',
+            'depannage-informatique' => [
+                'Dépannage PC/Mac',
+                'Installation logicielle',
+                'Réseau & Wi-Fi',
+                'Sécurité informatique',
+                'Récupération de données',
             ],
-            'design' => [
-                'UI/UX Design',
-                'Identité visuelle',
-                'Motion design',
-                'Illustration',
-                'Photographie',
-            ],
-            'marketing' => [
+            'visibilite-clients' => [
                 'SEO / SEA',
                 'Réseaux sociaux',
                 'Email marketing',
                 'Stratégie digitale',
                 'Copywriting',
             ],
-            'redaction' => [
+            'creer-des-supports' => [
+                'UI/UX Design',
+                'Identité visuelle',
+                'Motion design',
+                'Illustration',
+                'Amélioration photo / image',
+            ],
+            'trouver-un-emploi' => [
+                'CV & lettre de motivation',
+                'Préparation entretien',
+                'Réseautage professionnel',
+                'Orientation professionnelle',
+            ],
+            'ecrire-communiquer' => [
                 'Articles de blog',
                 'Rédaction technique',
                 'Correction/Relecture',
                 'Scénarios & scripts',
             ],
-            'conseil' => [
+            'lancer-son-activite' => [
                 'Stratégie business',
                 'Finance & comptabilité',
                 'Juridique',
                 'RH & recrutement',
             ],
-            'formation' => [
-                'Formations techniques',
-                'Coaching professionnel',
-                'Ateliers créatifs',
-                'Tutorat',
+            'outils-numeriques' => [
+                'Formation logiciels',
+                'Sites web simples',
+                'E-commerce basique',
+                'Automatisation',
             ],
-            'traduction' => [
-                'Anglais ↔ Français',
-                'Espagnol',
-                'Allemand',
-                'Autres langues',
+            'aides-demarches' => [
+                'Aides administratives',
+                'Droits & démarches',
+                'Logement',
+                'Santé',
             ],
-            'autre' => [
-                'Administratif',
-                'Logistique',
-                'Divers',
+            'entraide-locale' => [
+                'Déménagement',
+                'Bricolage',
+                'Coursier / livraison',
+                'Garde d\'animaux',
+            ],
+            'bricolage-projets-perso' => [
+                'Bricolage maison',
+                'Jardinage',
+                'Cuisine',
+                'Loisirs créatifs',
+            ],
+            'bien-etre-equilibre' => [
+                'Coaching bien-être',
+                'Sophrologie',
+                'Activité physique',
+                'Soutien psychologique',
             ],
         ];
 

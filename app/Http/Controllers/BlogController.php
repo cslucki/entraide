@@ -21,7 +21,7 @@ class BlogController extends Controller
 
         $recentPosts = BlogPost::published()
             ->where('organization_id', $organization->id)
-            ->with(['user', 'categories', 'tags'])
+            ->with(['user', 'category', 'tags'])
             ->withCount(['comments', 'likes'])
             ->latest('published_at')
             ->paginate(12);
@@ -33,7 +33,7 @@ class BlogController extends Controller
             ->limit(5)
             ->get();
 
-        $categories = Category::withCount([
+        $categories = Category::where('organization_id', $organization->id)->withCount([
             'blogPosts' => fn ($q) => $q->published()->where('blog_posts.organization_id', $organization->id),
         ])->get();
 
@@ -56,13 +56,13 @@ class BlogController extends Controller
             abort(404);
         }
 
-        $category = Category::where('slug', $slug)->firstOrFail();
+        $category = Category::where('slug', $slug)->where('organization_id', $organization->id)->firstOrFail();
 
         $posts = BlogPost::published()
             ->where('organization_id', $organization->id)
-            ->with(['user', 'categories', 'tags'])
+            ->with(['user', 'category', 'tags'])
             ->withCount(['comments', 'likes'])
-            ->whereHas('categories', fn ($q) => $q->where('slug', $slug))
+            ->where('category_id', $category->id)
             ->latest('published_at')
             ->paginate(12);
 
@@ -80,7 +80,7 @@ class BlogController extends Controller
 
         $posts = BlogPost::published()
             ->where('organization_id', $organization->id)
-            ->with(['user', 'categories', 'tags'])
+            ->with(['user', 'category', 'tags'])
             ->withCount(['comments', 'likes'])
             ->whereHas('tags', fn ($q) => $q->where('slug', $slug))
             ->latest('published_at')
@@ -101,12 +101,11 @@ class BlogController extends Controller
         }
 
         $post->increment('views_count');
-        $post->load(['user', 'categories', 'tags', 'comments.user', 'comments.replies.user']);
+        $post->load(['user', 'category', 'tags', 'comments.user', 'comments.replies.user']);
 
         $relatedPosts = BlogPost::published()
             ->where('organization_id', $organization->id)
-            ->with('user')
-            ->whereHas('categories', fn ($q) => $q->whereIn('categories.id', $post->categories->pluck('id')))
+            ->where('category_id', $post->category_id)
             ->where('id', '!=', $post->id)
             ->latest('published_at')
             ->limit(3)
@@ -125,10 +124,10 @@ class BlogController extends Controller
         }
 
         $this->authorize('create', BlogPost::class);
-        $categories = Category::all();
+        $categories = Category::where('organization_id', $organization->id)->orderBy('name_b2c')->get();
         $tags = Tag::orderBy('name')->get();
 
-        return view('blog.create', compact('categories', 'tags'));
+        return view('blog.create', compact('organization', 'categories', 'tags'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -146,12 +145,15 @@ class BlogController extends Controller
             'content' => 'required|string|min:50',
             'image' => 'nullable|image|max:2048',
             'status' => 'required|in:draft,published',
-            'categories' => 'nullable|array',
-            'categories.*' => 'uuid|exists:categories,id',
+            'category_id' => 'required|uuid|exists:categories,id',
             'tags' => 'nullable|string',
             'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string|max:320',
         ]);
+
+        if (! Category::where('id', $data['category_id'])->where('organization_id', $organization->id)->exists()) {
+            return back()->withErrors(['category_id' => 'Catégorie invalide.'])->withInput();
+        }
 
         $data['user_id'] = auth()->id();
         $data['organization_id'] = $organization->id;
@@ -163,10 +165,6 @@ class BlogController extends Controller
         }
 
         $post = BlogPost::create($data);
-
-        if (! empty($data['categories'])) {
-            $post->categories()->sync($data['categories']);
-        }
 
         if (! empty($data['tags'])) {
             $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
@@ -186,10 +184,10 @@ class BlogController extends Controller
         }
 
         $this->authorize('update', $post);
-        $categories = Category::all();
+        $categories = Category::where('organization_id', $organization->id)->orderBy('name_b2c')->get();
         $tags = Tag::orderBy('name')->get();
 
-        return view('blog.edit', compact('post', 'categories', 'tags'));
+        return view('blog.edit', compact('organization', 'post', 'categories', 'tags'));
     }
 
     public function update(Request $request, BlogPost $post): RedirectResponse
@@ -207,12 +205,15 @@ class BlogController extends Controller
             'content' => 'required|string|min:50',
             'image' => 'nullable|image|max:2048',
             'status' => 'required|in:draft,pending,published,archived',
-            'categories' => 'nullable|array',
-            'categories.*' => 'uuid|exists:categories,id',
+            'category_id' => 'required|uuid|exists:categories,id',
             'tags' => 'nullable|string',
             'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string|max:320',
         ]);
+
+        if (! Category::where('id', $data['category_id'])->where('organization_id', $organization->id)->exists()) {
+            return back()->withErrors(['category_id' => 'Catégorie invalide.'])->withInput();
+        }
 
         if ($data['status'] === 'published' && ! $post->published_at) {
             $data['published_at'] = now();
@@ -223,7 +224,6 @@ class BlogController extends Controller
         }
 
         $post->update($data);
-        $post->categories()->sync($data['categories'] ?? []);
 
         if (isset($data['tags'])) {
             $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))

@@ -55,11 +55,11 @@ class SearchController extends Controller
             ->get();
 
         $posts = BlogPost::published()
-            ->with(['user', 'categories', 'tags'])
+            ->with(['user', 'category', 'tags'])
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('content', $likeOperator, $like)
                 ->orWhereHas('tags', fn ($q) => $q->where('name', $likeOperator, $like))
-                ->orWhereHas('categories', fn ($q) => $q->where('name', $likeOperator, $like))
+                ->orWhereHas('category', fn ($q) => $q->where('name_b2c', $likeOperator, $like)->orWhere('name_b2b', $likeOperator, $like))
             )
             ->latest('published_at')
             ->limit(5)

@@ -1,4 +1,7 @@
 <div>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
     <!-- Tabs + bouton publier -->
     <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
         <div class="flex">
@@ -66,17 +69,17 @@
         </div>
 
         <!-- Catégories -->
-        <div class="flex flex-wrap gap-2">
+        <div class="flex overflow-x-auto snap-x gap-2 pb-2 -mx-2 px-2 no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
             @foreach($categories as $cat)
             <button wire:click="toggleCategory('{{ $cat->id }}')"
-                class="px-3 py-1 rounded-full text-sm font-medium border transition {{ in_array($cat->id, $selectedCategories) ? 'text-white border-transparent' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400' }}"
+                class="shrink-0 px-4 py-2 h-10 rounded-full text-sm font-medium border transition whitespace-nowrap {{ in_array($cat->id, $selectedCategories) ? 'text-white border-transparent shadow-sm' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400 active:scale-95' }}"
                 style="{{ in_array($cat->id, $selectedCategories) ? 'background-color:'.$cat->color.';border-color:'.$cat->color : '' }}">
-                {{ $cat->name }}
+                {{ $cat->displayName('transactions') }}
             </button>
             @endforeach
             @if(!empty($selectedCategories) || $tagFilter || $deliveryMode || $search || $minRating || !empty($selectedSkills))
             <button wire:click="$set('selectedCategories', []); $set('tagFilter', ''); $set('deliveryMode', ''); $set('search', ''); $set('minRating', 0); $set('selectedSkills', [])"
-                class="px-3 py-1 rounded-full text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                class="shrink-0 px-4 py-2 h-10 rounded-full text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 whitespace-nowrap active:scale-95">
                 Réinitialiser
             </button>
             @endif
@@ -86,11 +89,11 @@
         @if(!empty($selectedCategories))
         @php $visibleSkills = $categories->whereIn('id', $selectedCategories)->flatMap(fn($c) => $c->skills); @endphp
         @if($visibleSkills->isNotEmpty())
-        <div class="flex flex-wrap gap-2 pl-3 border-l-2 border-indigo-200 dark:border-indigo-700">
-            <span class="self-center text-xs text-gray-400 dark:text-gray-500 mr-1">Compétences :</span>
+        <div class="flex overflow-x-auto snap-x gap-2 pb-2 pl-2 ml-2 border-l-2 border-indigo-200 dark:border-indigo-700 -mx-2 px-2 no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
+            <span class="self-center text-xs text-gray-400 dark:text-gray-500 mr-1 shrink-0">Compétences :</span>
             @foreach($visibleSkills as $skill)
             <button wire:click="toggleSkill('{{ $skill->id }}')"
-                class="px-2.5 py-1 rounded-full text-xs font-medium border transition {{ in_array($skill->id, $selectedSkills) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-indigo-400' }}">
+                class="shrink-0 px-3 py-1.5 h-9 rounded-full text-xs font-medium border transition whitespace-nowrap {{ in_array($skill->id, $selectedSkills) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm active:scale-95' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-indigo-400 active:scale-95' }}">
                 {{ $skill->name }}
             </button>
             @endforeach
@@ -124,7 +127,7 @@
                         <a href="{{ route('services.show', $service) }}" class="block p-5 flex-1">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
-                                    {{ $service->category->name }}
+                                    {{ $service->category->displayName('transactions') }}
                                 </span>
                                 <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{{ $service->points_cost }} pts</span>
                             </div>
@@ -193,7 +196,7 @@
                         <div class="p-5">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $request->category->color }}">
-                                    {{ $request->category->name }}
+                                    {{ $request->category->displayName('transactions') }}
                                 </span>
                                 <span class="text-green-600 dark:text-green-400 font-bold text-sm">
                                     {{ $request->budget_min }}{{ $request->budget_max ? '–'.$request->budget_max : '+' }} pts

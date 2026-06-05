@@ -78,7 +78,7 @@
                     @if($service->category)
                         <span class="inline-block px-2 py-1 text-xs font-medium rounded-full mb-3"
                               style="background-color: {{ $service->category->color }}20; color: {{ $service->category->color }};">
-                            {{ $service->category->name }}
+                            {{ $service->category->displayName('transactions') }}
                         </span>
                     @endif
                     <h3 class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">

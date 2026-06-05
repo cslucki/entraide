@@ -318,7 +318,7 @@ class AdminController extends Controller
         $this->authorizeServiceEdit($service);
 
         $service->load(['category', 'skills', 'tags']);
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::orderBy('name_b2c')->get();
         $skills = Skill::with('category')->orderBy('name')->get();
 
         return view('admin.services.edit', compact('service', 'categories', 'skills'));
@@ -443,7 +443,7 @@ class AdminController extends Controller
         $this->authorizeRequestEdit($serviceRequest);
 
         $serviceRequest->load('attachments');
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::orderBy('name_b2c')->get();
 
         return view('admin.requests.edit', compact('serviceRequest', 'categories'));
     }

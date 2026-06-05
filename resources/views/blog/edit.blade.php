@@ -44,17 +44,14 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Catégories</label>
-                    <div class="flex flex-wrap gap-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Catégorie</label>
+                    <select name="category_id"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
+                        <option value="">— Aucune —</option>
                         @foreach($categories as $cat)
-                        <label class="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 text-sm dark:text-gray-300">
-                            <input type="checkbox" name="categories[]" value="{{ $cat->id }}"
-                                {{ in_array($cat->id, old('categories', $post->categories->pluck('id')->all())) ? 'checked' : '' }}
-                                class="text-indigo-600">
-                            {{ $cat->name }}
-                        </label>
+                        <option value="{{ $cat->id }}" {{ old('category_id', $post->category_id) === $cat->id ? 'selected' : '' }}>{{ $cat->displayName('blog') }}</option>
                         @endforeach
-                    </div>
+                    </select>
                 </div>
 
                 <div>

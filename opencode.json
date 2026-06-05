@@ -5,8 +5,7 @@
             "type": "local",
             "enabled": true,
             "command": [
-                "wsl.exe",
-                "/usr/bin/php8.4",
+                "php8.4",
                 "/home/cyril/claude-code/sites/test.laravel/artisan",
                 "boost:mcp"
             ]

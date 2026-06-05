@@ -34,17 +34,17 @@ class Organization extends Model
         'platform_name',
         'platform_tagline',
         'global_color_mode',
+        'blog_naming',
+        'transactions_naming',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
-        'is_public' => 'boolean',
-        'is_default' => 'boolean',
-        'welcome_points' => 'integer',
-        'loops_enabled' => 'boolean',
-        'maintenance_mode' => 'boolean',
+            'is_public' => 'boolean',
+            'is_default' => 'boolean',
+            'welcome_points' => 'integer',
             'loops_enabled' => 'boolean',
             'maintenance_mode' => 'boolean',
         ];

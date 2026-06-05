@@ -248,14 +248,14 @@ check_local_db() {
 }
 
 check_main_org() {
-    log "Verifying 'main' organization exists locally..."
+    log "Verifying default backfill organization exists locally..."
     export PGPASSWORD="$LOCAL_DB_PASSWORD"
     local main_exists
-    main_exists=$(psql -h "$LOCAL_HOST" -p "$LOCAL_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME" -tAc "SELECT 1 FROM organizations WHERE slug = 'main' LIMIT 1")
+    main_exists=$(psql -h "$LOCAL_HOST" -p "$LOCAL_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME" -tAc "SELECT 1 FROM organizations WHERE slug = 'main' OR is_default = true LIMIT 1")
     unset PGPASSWORD
 
     if [ "$main_exists" != "1" ]; then
-        log "Organization 'main' not found. Creating it automatically..."
+        log "No default organization found. Creating 'main' automatically..."
         export PGPASSWORD="$LOCAL_DB_PASSWORD"
         local main_id
         main_id=$(psql -h "$LOCAL_HOST" -p "$LOCAL_PORT" -U "$LOCAL_DB_USER" -d "$LOCAL_DB_NAME" -tAc "

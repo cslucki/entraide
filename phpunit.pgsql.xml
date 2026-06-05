@@ -19,6 +19,7 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_CONFIG_CACHE" value="bootstrap/cache/testing-config.php"/>
         <env name="APP_KEY" value="base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI="/>
         <env name="APP_URL" value="http://localhost"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
