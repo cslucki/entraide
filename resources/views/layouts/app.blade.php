@@ -9,7 +9,7 @@
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ isset($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
+        <title>{{ filled($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
         <meta name="description" content="{{ isset($description) ? $description : 'Plateforme de troc de services entre professionnels — échangez vos compétences sans argent.' }}">
 
         @isset($ogTitle)
@@ -51,19 +51,20 @@
             /* Mobile safe areas */
             .mobile-safe-top { padding-top: 0; }
             .mobile-safe-bottom { padding-bottom: 0; }
+            .mobile-safe-bottom-auth { padding-bottom: 0; }
             @media (max-width: 767px) {
                 .mobile-safe-top { padding-top: 3.5rem; }
-                .mobile-safe-bottom { padding-bottom: 4rem; }
+                .mobile-safe-bottom-auth { padding-bottom: 4rem; }
             }
         </style>
     </head>
     <body class="font-sans antialiased">
         {{-- Mobile shell (hidden md:block) --}}
-        <x-mobile-topbar title="{{ $title ?? config('app.name', 'Entraide') }}" />
+        <x-mobile-topbar title="{{ filled($title) ? $title : config('app.name') }}" />
         <x-mobile-bottom-nav />
         <x-mobile-fab />
 
-        <div class="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 pt-0 md:pt-0 pb-0 md:pb-0 mobile-safe-top mobile-safe-bottom">
+        <div class="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 pt-0 md:pt-0 pb-0 md:pb-0 mobile-safe-top {{ auth()->check() ? 'mobile-safe-bottom-auth' : '' }}">
             {{-- Desktop nav --}}
             <div class="hidden md:block">
                 @include('layouts.navigation')

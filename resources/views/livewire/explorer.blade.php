@@ -17,14 +17,14 @@
         @auth
         <div class="pb-1">
             @if($tab === 'services')
-            <a href="{{ route('services.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Proposer un {{ $T['service'] }}
+            <a href="{{ route('services.create') }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
+                <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span class="hidden sm:inline">Proposer un {{ $T['service'] }}</span>
             </a>
             @else
-            <a href="{{ route('requests.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Faire une {{ $T['request'] }}
+            <a href="{{ route('requests.create') }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
+                <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span class="hidden sm:inline">Faire une {{ $T['request'] }}</span>
             </a>
             @endif
         </div>
@@ -34,8 +34,8 @@
     <!-- Filtres -->
     <div class="mb-6 space-y-3">
         <!-- Recherche + Tri -->
-        <div class="flex gap-3">
-            <div class="relative flex-1">
+        <div class="flex gap-3 overflow-x-auto md:overflow-visible pb-2 md:pb-0 -mx-2 md:mx-0 px-2 md:px-0 no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
+            <div class="relative shrink-0 w-48 sm:flex-1 sm:min-w-[200px]">
                 <input wire:model.live.debounce.300ms="search" type="text" placeholder="Rechercher..."
                     class="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
                 <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -43,21 +43,21 @@
                 </svg>
             </div>
             <select wire:model.live="sortBy"
-                class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm">
+                class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm">
                 <option value="latest">Plus récents</option>
                 <option value="points_asc">Points ↑</option>
                 <option value="points_desc">Points ↓</option>
                 <option value="rating">Meilleure note</option>
             </select>
             <select wire:model.live="deliveryMode"
-                class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm">
+                class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm">
                 <option value="">Tous modes</option>
                 <option value="remote">À distance</option>
                 <option value="onsite">Sur site</option>
             </select>
             @if($tab === 'services')
             <select wire:model.live="minRating"
-                class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm">
+                class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm">
                 <option value="0">Toutes notes</option>
                 <option value="1">★ ≥ 1</option>
                 <option value="2">★★ ≥ 2</option>
@@ -121,10 +121,10 @@
             @if($items->isEmpty())
                 <p class="text-center text-gray-500 dark:text-gray-400 py-16">Aucun service trouvé.</p>
             @else
-                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     @foreach($items as $service)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition overflow-hidden flex flex-col">
-                        <a href="{{ route('services.show', $service) }}" class="block p-5 flex-1">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition overflow-hidden flex flex-col active:scale-[0.98]">
+                        <a href="{{ route('services.show', $service) }}" class="block p-4 sm:p-5 flex-1">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
                                     {{ $service->category->displayName('transactions') }}
@@ -150,7 +150,7 @@
                             </div>
                             @endif
                         </a>
-                        <div class="px-5 pb-4 flex items-center justify-between">
+                        <div class="px-4 sm:px-5 pb-4 flex items-center justify-between">
                             <a href="{{ route('profile.show', $service->user) }}"
                                class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                 <img src="{{ $service->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
@@ -178,8 +178,8 @@
 
                 <!-- Scroll infini -->
                 @if($hasMore)
-                <div class="mt-8 text-center">
-                    <button wire:click="loadMore" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <div class="mt-6 sm:mt-8 text-center">
+                    <button wire:click="loadMore" class="w-full sm:w-auto px-6 py-3 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition active:scale-[0.98]">
                         <span wire:loading.remove wire:target="loadMore">Charger plus</span>
                         <span wire:loading wire:target="loadMore">Chargement...</span>
                     </button>
@@ -190,10 +190,10 @@
             @if($items->isEmpty())
                 <p class="text-center text-gray-500 dark:text-gray-400 py-16">Aucune {{ $T['request'] }} trouvée.</p>
             @else
-                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     @foreach($items as $request)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div class="p-5">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden active:scale-[0.98]">
+                        <div class="p-4 sm:p-5">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $request->category->color }}">
                                     {{ $request->category->displayName('transactions') }}
@@ -222,7 +222,7 @@
                                 @csrf
                                 <input type="hidden" name="request_id" value="{{ $request->id }}">
                                 <input type="hidden" name="points_proposed" value="{{ $request->budget_min }}">
-                                <button type="submit" class="w-full py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">
+                                <button type="submit" class="w-full py-2.5 sm:py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 active:scale-[0.98]">
                                     Proposer mon aide
                                 </button>
                             </form>
@@ -234,8 +234,8 @@
                 </div>
 
                 @if($hasMore)
-                <div class="mt-8 text-center">
-                    <button wire:click="loadMore" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <div class="mt-6 sm:mt-8 text-center">
+                    <button wire:click="loadMore" class="w-full sm:w-auto px-6 py-3 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition active:scale-[0.98]">
                         <span wire:loading.remove wire:target="loadMore">Charger plus</span>
                         <span wire:loading wire:target="loadMore">Chargement...</span>
                     </button>
@@ -247,9 +247,9 @@
 
     <!-- Skeleton loader pendant les changements de filtre -->
     <div wire:loading.flex wire:target="updatedSearch,toggleCategory,updatedDeliveryMode,updatedSortBy,switchTab"
-        class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-0">
+        class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-0">
         @for($i = 0; $i < 6; $i++)
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 animate-pulse">
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 animate-pulse {{ $i >= 3 ? 'hidden sm:block' : '' }}">
             <div class="flex justify-between mb-3">
                 <div class="h-5 bg-gray-200 dark:bg-gray-700 rounded-full w-24"></div>
                 <div class="h-5 bg-gray-200 dark:bg-gray-700 rounded w-12"></div>
