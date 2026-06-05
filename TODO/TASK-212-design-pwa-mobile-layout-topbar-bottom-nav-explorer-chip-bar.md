@@ -2,7 +2,7 @@
 task_id: TASK-212
 title: Design PWA mobile layout topbar bottom nav Explorer chip bar
 
-status: IN_PROGRESS
+status: DONE
 
 owner: CODEUR
 
@@ -13,14 +13,14 @@ branch: TASK-212-design-pwa-mobile-layout-topbar-bottom-nav-explorer-chip-bar
 priority: MEDIUM
 
 created_at: 2026-06-05 20:01:57 Europe/Paris
-updated_at: 2026-06-05 20:01:57 Europe/Paris
+updated_at: 2026-06-05 20:45:00 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
-  agent: CODEUR
-  since: 2026-06-05 20:01:57 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
@@ -83,6 +83,11 @@ Fichiers modifiés (9, +288/-10):
 - resources/views/components/mobile-fab.blade.php (nouveau)
 - TODO/TASK-212-*.md (nouveau)
 - public/build/manifest.json
+
+## 2026-06-05 20:45:00 Europe/Paris — Finalise TASK-212
+
+Pre-merge commit. TASK file mis à jour (status DONE, lock UNLOCKED).
+Prêt pour merge dans develop.
 
 # Handoffs
 
