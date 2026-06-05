@@ -23,3 +23,10 @@ document.addEventListener('alpine:init', () => {
 });
 
 Alpine.start();
+
+// Service Worker registration
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js');
+    });
+}
