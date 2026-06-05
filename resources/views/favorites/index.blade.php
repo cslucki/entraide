@@ -19,7 +19,7 @@
                 <div class="p-5">
                     <div class="flex items-center justify-between mb-3">
                         <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
-                            {{ $service->category->name }}
+                            {{ $service->category->displayName('transactions') }}
                         </span>
                         <div class="flex items-center gap-2">
                             <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{{ $service->points_cost }} pts</span>

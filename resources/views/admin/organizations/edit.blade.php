@@ -192,6 +192,29 @@
             </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Nommage des catégories</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Choisir le style de nommage affiché pour les catégories selon le contexte.</p>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Blog</label>
+                    <select name="blog_naming"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                        <option value="b2b" {{ old('blog_naming', $organization->blog_naming ?? 'b2b') === 'b2b' ? 'selected' : '' }}>B2B (entreprises)</option>
+                        <option value="b2c" {{ old('blog_naming', $organization->blog_naming ?? 'b2b') === 'b2c' ? 'selected' : '' }}>B2C (membres)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Transactions</label>
+                    <select name="transactions_naming"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                        <option value="b2c" {{ old('transactions_naming', $organization->transactions_naming ?? 'b2c') === 'b2c' ? 'selected' : '' }}>B2C (membres)</option>
+                        <option value="b2b" {{ old('transactions_naming', $organization->transactions_naming ?? 'b2c') === 'b2b' ? 'selected' : '' }}>B2B (entreprises)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Administration</h2>
 
                 <div>

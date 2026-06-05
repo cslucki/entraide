@@ -46,7 +46,7 @@
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex-1">
                         <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
-                            {{ $service->category->name }}
+                            {{ $service->category->displayName('transactions') }}
                         </span>
                         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ $service->title }}</h1>
                     </div>

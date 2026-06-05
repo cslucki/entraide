@@ -47,7 +47,7 @@
                         <option value="">— Choisir —</option>
                         @foreach($categories as $cat)
                         <option value="{{ $cat->id }}" {{ old('category_id', $serviceRequest->category_id) == $cat->id ? 'selected' : '' }}>
-                            {{ $cat->name }}
+                            {{ $cat->name_b2c }}
                         </option>
                         @endforeach
                     </select>

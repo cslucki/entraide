@@ -144,7 +144,7 @@
                    class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition group">
                     <div class="flex items-center justify-between mb-3">
                         <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
-                            {{ $service->category->name }}
+                            {{ $service->category->displayName('transactions') }}
                         </span>
                         <span class="font-bold text-indigo-600 dark:text-indigo-400 text-sm">{{ $service->points_cost }} pts</span>
                     </div>

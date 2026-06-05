@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\BlogComment;
 use App\Models\BlogPost;
+use App\Models\Category;
 use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
@@ -106,6 +107,64 @@ class T0756BlogOrganizationScopingTest extends TestCase
         $this->actingAs($user)
             ->post(route('blog.store'), $this->validPostData())
             ->assertNotFound();
+    }
+
+    public function test_blog_store_rejects_cross_organization_category_id(): void
+    {
+        [$organizationA, $organizationB] = $this->createOrganizations();
+
+        $categoryB = Category::create([
+            'name_b2c' => 'Cat B2C B',
+            'name_b2b' => 'Cat B2B B',
+            'slug' => 'cat-org-b',
+            'color' => '#ef4444',
+            'organization_id' => $organizationB->id,
+        ]);
+
+        $user = $this->createUser($organizationA);
+        $data = $this->validPostData();
+        $data['category_id'] = $categoryB->id;
+
+        $response = $this->actingAs($user)
+            ->post(route('blog.store'), $data);
+
+        $response->assertSessionHasErrors('category_id');
+        $this->assertDatabaseMissing('blog_posts', [
+            'user_id' => $user->id,
+            'category_id' => $categoryB->id,
+        ]);
+    }
+
+    public function test_blog_update_rejects_cross_organization_category_id(): void
+    {
+        [$organizationA, $organizationB] = $this->createOrganizations();
+
+        $categoryA = Category::create([
+            'name_b2c' => 'Cat A',
+            'name_b2b' => 'Cat B2B A',
+            'slug' => 'cat-org-a',
+            'color' => '#3b82f6',
+            'organization_id' => $organizationA->id,
+        ]);
+
+        $categoryB = Category::create([
+            'name_b2c' => 'Cat B',
+            'name_b2b' => 'Cat B2B B',
+            'slug' => 'cat-org-b-cross',
+            'color' => '#ef4444',
+            'organization_id' => $organizationB->id,
+        ]);
+
+        $user = $this->createUser($organizationA);
+        $post = $this->createPost($user, $organizationA, ['category_id' => $categoryA->id]);
+
+        $data = $this->validPostData();
+        $data['category_id'] = $categoryB->id;
+
+        $response = $this->actingAs($user)
+            ->put(route('blog.update', $post), $data);
+
+        $response->assertSessionHasErrors('category_id');
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -240,11 +299,17 @@ class T0756BlogOrganizationScopingTest extends TestCase
 
     private function validPostData(): array
     {
+        $org = Organization::where('is_default', true)->first();
+
         return [
             'title' => 'Article de test T075.6',
             'summary' => 'Résumé de test',
             'content' => str_repeat('Contenu de test pour valider la création scopée Organization. ', 3),
             'status' => 'draft',
+            'category_id' => Category::firstOrCreate(
+                ['slug' => 'test-category', 'organization_id' => $org?->id],
+                ['name_b2c' => 'Test', 'name_b2b' => 'Test B2B', 'color' => '#6366f1']
+            )->id,
         ];
     }
 }
