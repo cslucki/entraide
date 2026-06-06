@@ -66,3 +66,6 @@ playwright-report/
 test-results/
 .claude/projects/
 /codebase/
+
+# Design source files
+/design/

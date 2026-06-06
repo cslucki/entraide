@@ -578,6 +578,21 @@ Validation :
 - `curl https://test.laravel/login` : `<html lang="fr">` (pas de dark forcé), `body class="... bg-gray-50 dark:bg-gray-900"`.
 - `npx playwright test login-member.spec.js` : 4/4 passed (8.8s).
 
+## 2026-06-06 23:55:11 Europe/Paris
+
+Nettoyage repository — déplacement design/ + ajout PWA icons — effectué par OPENCODE.
+
+Actions :
+- `docs/design/` → `./design/` (déplacé à la racine du projet)
+- `public/icons/` supprimé (répertoire abandonné après conflit Apache)
+- `task-214-404-page.png` supprimé (screenshot Playwright)
+- `.gitignore` : ajout de `/design/`
+- `public/brand/icon-192.png`, `icon-512.png`, `maskable-192.png`, `maskable-512.png` commités (PWA icons référencées par `site.webmanifest`)
+
+Fichiers untrackés restants (backups inutilisés, build artifacts) :
+- `public/brand/apple-touch-icon.png`, `favicon*` (backups)
+- `public/build/` (généré par Vite)
+
 ---
 
 # Review Notes
