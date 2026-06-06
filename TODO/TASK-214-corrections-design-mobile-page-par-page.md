@@ -2,7 +2,7 @@
 task_id: TASK-214
 title: Corrections design mobile page par page
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
