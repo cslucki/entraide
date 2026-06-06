@@ -176,6 +176,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/password', [AdminController::class, 'changePassword'])->name('users.password');
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
     Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');
+    Route::post('/users/{user}/login-as', [AdminController::class, 'loginAsUser'])->name('users.login-as');
 
     // Services
     Route::get('/services', [AdminController::class, 'services'])->name('services');
@@ -264,6 +265,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Loops Center
     Route::get('/loops', [AdminLoopController::class, 'index'])->name('loops');
 });
+
+Route::get('/admin/back-to-admin', [\App\Http\Controllers\Admin\AdminController::class, 'backToAdmin'])
+    ->middleware('auth')
+    ->name('admin.back-to-admin');
 
 // Organization route constraint
 $organizationConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges|partenaires|partners|boucles|loops)[a-z0-9][a-z0-9\-]*';

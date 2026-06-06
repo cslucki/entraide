@@ -267,6 +267,44 @@ class AdminController extends Controller
         return back()->with('success', "{$user->name} affecté à l'organisation {$organization->name}.");
     }
 
+    public function loginAsUser(User $user): RedirectResponse
+    {
+        if ($user->banned_at) {
+            return back()->with('error', 'Impossible de se connecter sous un utilisateur banni.');
+        }
+
+        if ($user->is_admin) {
+            return back()->with('error', 'Impossible de se connecter sous un autre administrateur.');
+        }
+
+        session()->put('admin_original_id', auth()->id());
+
+        auth()->login($user);
+        session()->regenerate();
+
+        return redirect('/');
+    }
+
+    public function backToAdmin(): RedirectResponse
+    {
+        $originalAdminId = session()->pull('admin_original_id');
+
+        if (!$originalAdminId) {
+            return redirect('/')->with('error', 'Aucune session admin précédente trouvée.');
+        }
+
+        $admin = User::find($originalAdminId);
+
+        if (!$admin) {
+            return redirect('/')->with('error', 'Compte admin introuvable.');
+        }
+
+        auth()->login($admin);
+        session()->regenerate();
+
+        return redirect()->route('admin.users');
+    }
+
     private function resolveOrganizationFromInput(?string $organizationId = null): Organization
     {
         if ($organizationId) {
