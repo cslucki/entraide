@@ -3,7 +3,7 @@
 @section('content')
 <div class="min-h-screen">
     {{-- Hero Section --}}
-    <section class="relative overflow-hidden" style="background: linear-gradient(135deg, {{ $organization->accent_color }} 0%, {{ $organization->accent_color }}dd 100%);">
+    <section class="relative overflow-hidden" style="background: linear-gradient(135deg, {{ $organization->hero_gradient_start ?? $organization->accent_color ?? '#4f46e5' }} 0%, {{ $organization->hero_gradient_end }} 100%);">
         <div class="absolute inset-0 bg-black/30"></div>
         @if($organization->hero_image)
         <img src="{{ $organization->getHeroImageUrl() }}" alt="" class="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-40">

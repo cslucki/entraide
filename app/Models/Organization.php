@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Support\ColorHelper;
 use Illuminate\Support\Facades\Storage;
 
 class Organization extends Model
@@ -27,6 +28,7 @@ class Organization extends Model
         'hero_image',
         'hero_title',
         'hero_description',
+        'hero_gradient_start',
         'accent_color',
         'welcome_points',
         'loops_enabled',
@@ -48,6 +50,13 @@ class Organization extends Model
             'loops_enabled' => 'boolean',
             'maintenance_mode' => 'boolean',
         ];
+    }
+
+    public function getHeroGradientEndAttribute(): string
+    {
+        $start = $this->hero_gradient_start ?? $this->accent_color ?? '#4f46e5';
+
+        return ColorHelper::darken($start, 25);
     }
 
     public function getRouteKeyName(): string

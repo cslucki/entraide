@@ -78,6 +78,7 @@ class AdminOrganizationController extends Controller
             'admin_id'           => 'nullable|uuid|exists:users,id',
             'hero_title'         => 'nullable|string|max:100',
             'hero_description'   => 'nullable|string|max:500',
+            'hero_gradient_start' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
             'accent_color'       => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
             'welcome_points'     => 'required|integer|min:0|max:10000',
             'is_public'          => 'nullable|boolean',

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -10,9 +10,10 @@
 
         <title>{{ config('app.name', 'Entraide') }}</title>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+        <link rel="shortcut icon" href="/favicon.ico">
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
         <meta name="apple-mobile-web-app-title" content="BouclePro" />
         <link rel="manifest" href="/site.webmanifest" />
 
@@ -39,7 +40,7 @@
             }
         </style>
     </head>
-    <body class="font-sans antialiased bg-gray-900">
+    <body class="font-sans antialiased bg-gray-50 dark:bg-gray-900">
         <x-mobile-topbar title="Connexion" :brand-name="$brandOrganizationName ?? config('app.name')" />
         <x-mobile-bottom-nav />
 
