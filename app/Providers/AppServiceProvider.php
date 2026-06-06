@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Loop;
+use App\Models\BugReport;
 use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -54,6 +55,20 @@ class AppServiceProvider extends ServiceProvider
         });
     }
 
+    protected function resolveOrganizationFromRequest(): ?Organization
+    {
+        try {
+            $request = request();
+            if ($request && $request->segment(1) === 'org' && $request->segment(2)) {
+                return Organization::where('slug', $request->segment(2))->first();
+            }
+        } catch (\Exception $e) {
+            //
+        }
+
+        return null;
+    }
+
     public function boot(): void
     {
         Paginator::useTailwind();
@@ -80,6 +95,7 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
+            $view->with('pendingBugReportsCount', BugReport::where('status', 'pending')->count());
         });
 
         Route::bind('loop', function (string $value) {
@@ -101,15 +117,23 @@ class AppServiceProvider extends ServiceProvider
             if (! isset($settings)) {
                 try {
                     $org = app()->bound('current_organization') ? app('current_organization') : null;
+                    if (! $org) {
+                        $org = $this->resolveOrganizationFromRequest();
+                    }
                     if ($org) {
                         $settings = [
+                            'currentOrganization' => $org,
+                            'brandOrganizationName' => $org->name,
                             'platformName' => $org->platform_name ?: config('app.name'),
                             'platformTagline' => $org->platform_tagline ?: 'Échangez vos talents',
                             'globalColorMode' => $org->global_color_mode ?: 'dark',
                         ];
                     } else {
+                        $userOrganizationName = auth()->user()?->organization?->name;
                         $defaultOrg = Organization::where('is_default', true)->first();
                         $settings = [
+                            'currentOrganization' => $defaultOrg,
+                            'brandOrganizationName' => $userOrganizationName ?: $defaultOrg?->name ?: config('app.name'),
                             'platformName' => $defaultOrg?->platform_name ?: config('app.name'),
                             'platformTagline' => $defaultOrg?->platform_tagline ?: 'Échangez vos talents',
                             'globalColorMode' => $defaultOrg?->global_color_mode ?: 'dark',
@@ -117,6 +141,8 @@ class AppServiceProvider extends ServiceProvider
                     }
                 } catch (\Exception) {
                     $settings = [
+                        'currentOrganization' => null,
+                        'brandOrganizationName' => null,
                         'platformName' => config('app.name'),
                         'platformTagline' => 'Échangez vos talents',
                         'globalColorMode' => 'dark',

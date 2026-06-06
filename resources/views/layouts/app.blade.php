@@ -9,7 +9,7 @@
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ filled($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
+        <title>{{ isset($title) && filled($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
         <meta name="description" content="{{ isset($description) ? $description : 'Plateforme de troc de services entre professionnels — échangez vos compétences sans argent.' }}">
 
         @isset($ogTitle)
@@ -25,9 +25,10 @@
         <script type="application/ld+json">{!! $jsonLd !!}</script>
         @endisset
 
-        <!-- Favicon -->
-        <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+        <!-- Favicon BouclePro -->
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-title" content="BouclePro" />
@@ -46,6 +47,7 @@
             }
         </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @stack('head')
 
         <style>
             /* Mobile safe areas */
@@ -60,11 +62,11 @@
     </head>
     <body class="font-sans antialiased">
         {{-- Mobile shell (hidden md:block) --}}
-        <x-mobile-topbar title="{{ filled($title) ? $title : config('app.name') }}" />
+        <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" :brand-name="$brandOrganizationName ?? null" />
         <x-mobile-bottom-nav />
         <x-mobile-fab />
 
-        <div class="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 pt-0 md:pt-0 pb-0 md:pb-0 mobile-safe-top {{ auth()->check() ? 'mobile-safe-bottom-auth' : '' }}">
+        <div class="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 pt-0 md:pt-0 pb-0 md:pb-0 mobile-safe-top mobile-safe-bottom-auth">
             {{-- Desktop nav --}}
             <div class="hidden md:block">
                 @include('layouts.navigation')

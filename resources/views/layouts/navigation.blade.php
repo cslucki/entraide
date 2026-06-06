@@ -4,13 +4,17 @@
             <div class="flex">
                 <!-- Logo (desktop only) -->
                 <div class="shrink-0 flex items-center">
-                    <a href="{{ route('home') }}" class="flex items-center">
-                        <img src="/favicon.svg" alt="BouclePro" class="h-8 w-8 hidden sm:block">
+                    @php
+                        $tenant = $currentOrganization ?? (Auth::check() ? Auth::user()->organization : null);
+                        $desktopBrandName = $tenant?->name ?? ($brandOrganizationName ?? config('app.name'));
+                        $desktopBrandHref = isset($currentOrganization)
+                            ? route('organization.home', ['organization' => $currentOrganization])
+                            : route('home');
+                    @endphp
+                    <a href="{{ $desktopBrandHref }}" class="hidden sm:flex items-center gap-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800" aria-label="Accueil {{ $desktopBrandName }}">
+                        <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-10 w-10 shrink-0" aria-hidden="true">
+                        <span class="max-w-[11rem] truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ $desktopBrandName }}</span>
                     </a>
-                    @php $tenant = $currentOrganization ?? (Auth::check() ? Auth::user()->organization : null); @endphp
-                    @isset($tenant)
-                    <span class="text-sm sm:text-xs text-gray-500 dark:text-gray-400 font-medium sm:border-l sm:border-gray-300 sm:dark:border-gray-600 sm:pl-2">{{ $tenant->name }}</span>
-                    @endisset
                 </div>
 
                 <!-- Navigation Links (desktop) -->

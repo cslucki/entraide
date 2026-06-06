@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -29,7 +30,9 @@ class HomeController extends Controller
 
         $categories = Category::orderBy('name_b2c')->get();
 
-        return view('home', compact('stats', 'featuredServices', 'categories'));
+        $defaultOrganization = Organization::where('is_default', true)->first();
+
+        return view('home', compact('stats', 'featuredServices', 'categories', 'defaultOrganization'));
     }
 
     public function members(): View
