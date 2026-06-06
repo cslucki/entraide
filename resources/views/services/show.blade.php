@@ -1,5 +1,4 @@
-<x-app-layout>
-    <div class="max-w-4xl mx-auto px-4 py-8">
+<x-page :title="$service->title" width="4xl">
         <div class="mb-6">
             <a href="{{ route('explorer') }}" class="text-sm text-gray-500 hover:text-indigo-600">← Retour à l'explorateur</a>
         </div>
@@ -160,4 +159,4 @@
             </div>
         </div>
     </div>
-</x-app-layout>
+</x-page>

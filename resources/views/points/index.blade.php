@@ -1,7 +1,5 @@
-<x-app-layout>
-    <div class="max-w-3xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Historique des points</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Toutes vos transactions de points, du plus récent au plus ancien.</p>
+<x-page title="Mes points" heading="Historique des points" width="3xl">
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Toutes vos transactions de points, du plus récent au plus ancien.</p>
 
         <!-- Résumé -->
         <div class="grid grid-cols-3 gap-4 mb-8">
@@ -112,7 +110,6 @@
         </div>
 
         <div class="mt-6">{{ $entries->links() }}</div>
-    </div>
 
     @push('scripts')
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -186,4 +183,4 @@
         });
     </script>
     @endpush
-</x-app-layout>
+</x-page>

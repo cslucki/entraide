@@ -1,15 +1,10 @@
-<x-app-layout>
-    <x-slot name="title">Mes articles — Blog BouclePro</x-slot>
-
-    <div class="max-w-4xl mx-auto px-4 py-8">
-
-        <div class="flex items-center justify-between mb-6">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Mes articles</h1>
-            <a href="{{ route('blog.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Nouvel article
-            </a>
-        </div>
+<x-page title="Mes articles — Blog BouclePro" heading="Mes articles" width="4xl">
+    <x-slot name="headingActions">
+        <a href="{{ route('blog.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Nouvel article
+        </a>
+    </x-slot>
 
         @if($posts->isEmpty())
         <div class="text-center py-16 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
@@ -59,5 +54,4 @@
         </div>
         <div class="mt-4">{{ $posts->links() }}</div>
         @endif
-    </div>
-</x-app-layout>
+</x-page>

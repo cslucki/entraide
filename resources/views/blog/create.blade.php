@@ -1,7 +1,4 @@
-<x-app-layout>
-    <x-slot name="title">Écrire un article — Blog BouclePro</x-slot>
-
-    <div class="max-w-3xl mx-auto px-4 py-8">
+<x-page title="Écrire un article — Blog BouclePro" heading="Écrire un article" width="3xl">
 
         <div class="mb-6">
             <a href="{{ route('blog.index') }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Retour au blog</a>
@@ -98,5 +95,4 @@
                 </div>
             </form>
         </div>
-    </div>
-</x-app-layout>
+</x-page>
