@@ -85,6 +85,21 @@
                         class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('welcome_points') border-red-500 @enderror">
                     @error('welcome_points')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Points min par service</label>
+                        <input type="number" name="service_points_min" value="{{ old('service_points_min', $organization->service_points_min) }}" min="0" max="100000" placeholder="Aucune"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('service_points_min') border-red-500 @enderror">
+                        @error('service_points_min')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Points max par service</label>
+                        <input type="number" name="service_points_max" value="{{ old('service_points_max', $organization->service_points_max) }}" min="0" max="100000" placeholder="Aucune"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('service_points_max') border-red-500 @enderror">
+                        @error('service_points_max')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+                </div>
             </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
@@ -249,6 +264,33 @@
                         @endforeach
                     </select>
                     @error('admin_id')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Intégration</h2>
+
+                <div x-data="{ show: {{ old('header_javascript_enabled', $organization->header_javascript_enabled) ? 'true' : 'false' }} }">
+                    <input type="hidden" name="header_javascript_enabled" value="0">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" name="header_javascript_enabled" value="1" x-model="show"
+                            {{ old('header_javascript_enabled', $organization->header_javascript_enabled) ? 'checked' : '' }}
+                            class="mt-0.5 w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div class="flex-1">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Injecter du JavaScript dans le &lt;head&gt;</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">À utiliser avec précaution (Google Analytics, scripts de tracking...).</p>
+                        </div>
+                    </label>
+                    <textarea x-show="show" name="header_javascript" rows="6" placeholder="{{ '// Exemple : Google Analytics
+<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX\"><\/script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag(\"js\", new Date());
+  gtag(\"config\", \"G-XXXXXXXXXX\");
+<\/script>' }}"
+                        class="mt-3 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-900 text-green-400 font-mono text-sm @error('header_javascript') border-red-500 @enderror">{{ old('header_javascript', $organization->header_javascript) }}</textarea>
+                    @error('header_javascript')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
             </div>
 
