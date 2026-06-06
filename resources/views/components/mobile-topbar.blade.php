@@ -19,6 +19,7 @@
         'loops.index' => 'Boucles',
         'organization.loops.index' => 'Boucles',
         'blog.index' => 'Actus',
+        'mentions-legales' => 'Mentions légales',
         'dashboard' => 'Mon espace',
         'organization.dashboard' => 'Mon espace',
         'login' => 'Connexion',

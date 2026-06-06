@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="title">{{ $post->meta_title ?: $post->title }} — Blog BouclePro</x-slot>
 
-    <div class="max-w-7xl mx-auto px-4 py-8">
+    <x-page-container>
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
             <!-- Article -->
@@ -233,7 +233,7 @@
                 @endif
             </aside>
         </div>
-    </div>
+    </x-page-container>
 
     @auth
     <script>
