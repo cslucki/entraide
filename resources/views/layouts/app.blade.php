@@ -9,7 +9,7 @@
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ filled($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
+        <title>{{ isset($title) && filled($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
         <meta name="description" content="{{ isset($description) ? $description : 'Plateforme de troc de services entre professionnels — échangez vos compétences sans argent.' }}">
 
         @isset($ogTitle)
@@ -60,7 +60,7 @@
     </head>
     <body class="font-sans antialiased">
         {{-- Mobile shell (hidden md:block) --}}
-        <x-mobile-topbar title="{{ filled($title) ? $title : config('app.name') }}" />
+        <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" />
         <x-mobile-bottom-nav />
         <x-mobile-fab />
 

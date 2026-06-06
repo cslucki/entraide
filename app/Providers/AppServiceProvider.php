@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Loop;
+use App\Models\BugReport;
 use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -80,6 +81,7 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
+            $view->with('pendingBugReportsCount', BugReport::where('status', 'pending')->count());
         });
 
         Route::bind('loop', function (string $value) {

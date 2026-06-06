@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminBlogController;
+use App\Http\Controllers\Admin\AdminBugReportController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminEmailController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
@@ -78,6 +80,7 @@ Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.sho
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
+Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
 // Authenticated routes
 Route::middleware('auth')->group(function () {
@@ -128,6 +131,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
     Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->middleware('throttle:5,1')->name('reports.request');
     Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->middleware('throttle:5,1')->name('reports.user');
+    Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -219,6 +223,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('/reports/{report}/dismiss', [AdminController::class, 'dismissReport'])->name('reports.dismiss');
     Route::patch('/reports/{report}/review', [AdminController::class, 'reviewReport'])->name('reports.review');
 
+    // Bug reports
+    Route::get('/bugs-reports', [AdminBugReportController::class, 'index'])->name('bug-reports');
+    Route::patch('/bugs-reports/{bugReport}/fix', [AdminBugReportController::class, 'fix'])->name('bug-reports.fix');
+    Route::patch('/bugs-reports/{bugReport}/dismiss', [AdminBugReportController::class, 'dismiss'])->name('bug-reports.dismiss');
+
     // Referral invitations
     Route::get('/referrals', [AdminReferralController::class, 'index'])->name('referrals');
 
@@ -266,6 +275,7 @@ Route::prefix('/org/{organization}')
     ->name('organization.')
     ->group(function () {
         Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
+        Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
         Route::middleware('guest')->group(function () {
             Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -319,6 +329,7 @@ Route::prefix('/org/{organization}')
             Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->middleware('throttle:5,1')->name('reports.request');
             Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->middleware('throttle:5,1')->name('reports.user');
+            Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
             Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
