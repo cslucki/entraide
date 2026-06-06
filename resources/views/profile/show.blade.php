@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="max-w-4xl mx-auto px-4 py-8">
+    <x-page-container>
         <!-- Profile header -->
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6 relative">
             @if(auth()->check() && auth()->id() === $user->id)
@@ -189,5 +189,5 @@
             @endforeach
         </div>
         @endif
-    </div>
+    </x-page-container>
 </x-app-layout>

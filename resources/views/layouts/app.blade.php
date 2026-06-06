@@ -46,6 +46,7 @@
             }
         </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @stack('head')
 
         <style>
             /* Mobile safe areas */
@@ -60,11 +61,11 @@
     </head>
     <body class="font-sans antialiased">
         {{-- Mobile shell (hidden md:block) --}}
-        <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" />
+        <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" :brand-name="$brandOrganizationName ?? null" />
         <x-mobile-bottom-nav />
         <x-mobile-fab />
 
-        <div class="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 pt-0 md:pt-0 pb-0 md:pb-0 mobile-safe-top {{ auth()->check() ? 'mobile-safe-bottom-auth' : '' }}">
+        <div class="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 pt-0 md:pt-0 pb-0 md:pb-0 mobile-safe-top mobile-safe-bottom-auth">
             {{-- Desktop nav --}}
             <div class="hidden md:block">
                 @include('layouts.navigation')

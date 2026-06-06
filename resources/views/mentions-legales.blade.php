@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="title">Mentions légales</x-slot>
 
-    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <x-page-container>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-8">Mentions légales</h1>
 
         <div class="space-y-8 text-gray-700 dark:text-gray-300">
@@ -59,5 +59,5 @@
             </section>
 
         </div>
-    </div>
+    </x-page-container>
 </x-app-layout>

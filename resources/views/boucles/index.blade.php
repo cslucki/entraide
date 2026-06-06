@@ -18,7 +18,7 @@
         $visibleLoops = $exampleLoops;
     @endphp
 
-    <div class="max-w-5xl mx-auto px-4 py-8 sm:py-12">
+    <x-page-container>
         <div class="max-w-3xl">
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Boucles</p>
             <span class="hidden">Les Boucles sont en cours de réorganisation.</span>
@@ -86,5 +86,5 @@
         <p class="mt-8 text-sm leading-6 text-gray-500 dark:text-gray-400">
             Les Boucles aident à trouver où contribuer, avec qui avancer et dans quel contexte agir. Les contenus internes restent réservés aux Members autorisés.
         </p>
-    </div>
+    </x-page-container>
 </x-app-layout>

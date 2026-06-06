@@ -13,7 +13,7 @@ branch: TASK-214-corrections-design-mobile-page-par-page
 priority: MEDIUM
 
 created_at: 2026-06-06 09:34:05 Europe/Paris
-updated_at: 2026-06-06 19:12:56 Europe/Paris
+updated_at: 2026-06-06 21:52:44 Europe/Paris
 
 labels: []
 
@@ -59,6 +59,15 @@ Sous-tâche 011c demandée par Cyril :
 - sur smartphone, afficher une top app bar niveau 2 avec bouton retour rond + titre de la page courante ;
 - appliquer le même shell mobile header/footer à la page login.
 
+Sous-tâche 012 demandée par Cyril :
+- corriger l'instabilité du body desktop entre `Échanges`, `Annuaire` et `Blog` ;
+- créer un PageContainer commun pour aligner titres, contenus, filtres et actions ;
+- ne pas modifier la logique métier, les routes, les cartes ou le système de navigation.
+
+Sous-tâche 013 demandée par Cyril :
+- créer une page 404 customisée noire avec logo BouclePro, texte marrant, moteur de recherche, lien retour accueil
+- adapter selon l'organization ID
+
 ---
 
 # Planned Actions
@@ -75,6 +84,10 @@ Sous-tâche 011c demandée par Cyril :
 - [x] de-index internal synchro tool directory from Git
 - [x] implement subtask 011a/011b homepage-only logo and Inter prototype
 - [x] implement subtask 011c desktop brand and mobile top app bar corrections
+- [x] implement subtask 012 shared desktop page container for exchanges/members/blog
+- [x] apply PageContainer to boucles/index, profile/show, blog/show, mentions-legales
+- [x] fix homepage header to show organization.name instead of app.name
+- [x] implement subtask 013 custom dark 404 page
 - [ ] collect next page-by-page design instructions
 
 ---
@@ -341,6 +354,98 @@ Notes:
 - `public/build` remains generated/dirty from local Vite builds and must not be staged unless explicitly requested.
 - `docs/design/` remains source-resource input and must not be staged.
 
+## 2026-06-06 19:23:44 Europe/Paris
+
+Sous-tâche 012 — Alignement commun du body desktop — implemented by OPENCODE after Cyril provided `docs/design/01-alignement_body_contenu.md`.
+
+Audit findings:
+- `resources/views/explorer.blade.php` used `max-w-7xl mx-auto px-4 py-4 sm:py-8`.
+- `resources/views/members/index.blade.php` used `max-w-6xl mx-auto px-4 py-10`.
+- `resources/views/blog/index.blade.php` used `max-w-7xl mx-auto px-4 py-8`.
+- These divergent `max-width`, horizontal padding, and vertical rhythm classes caused visible X/Y jumps between desktop pages.
+
+Changes:
+- `resources/views/components/page-container.blade.php`
+  - Added a shared Blade component with `mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8`.
+- `resources/views/explorer.blade.php`
+  - Replaced the page wrapper with `<x-page-container>`.
+  - Kept the Livewire explorer logic unchanged.
+  - Normalized the desktop page title style and spacing.
+- `resources/views/members/index.blade.php`
+  - Replaced the page wrapper with `<x-page-container>`.
+  - Kept member cards, counts, pagination, and links unchanged.
+  - Normalized the desktop title size with the shared page rhythm.
+- `resources/views/blog/index.blade.php`
+  - Replaced the page wrapper with `<x-page-container>`.
+  - Kept article cards, sidebar, pagination, categories, tags, and auth action unchanged.
+
+Validation:
+- `git diff --check -- resources/views/components/page-container.blade.php resources/views/explorer.blade.php resources/views/members/index.blade.php resources/views/blog/index.blade.php` passed.
+- `npm run build` passed with Vite.
+- Playwright desktop 1280x900 measured `/explorer`, `/membres`, and `/blog`:
+  - all three page titles start at `x=32`;
+  - all three page titles start at `y=97`;
+  - no horizontal overflow (`scrollWidth === clientWidth`).
+- Playwright mobile 375x812 measured `/explorer`, `/membres`, and `/blog`:
+  - no horizontal overflow (`scrollWidth === clientWidth`) on all three pages.
+
+Notes:
+- A pre-existing 403 console error appears on `/blog` for one stored blog image (`/storage/blog/...png`). It is unrelated to this layout-only change.
+- Existing unrelated dirty files remain outside this subtask: generated `public/build` artifacts, 011 homepage/layout leftovers, untracked `docs/design/`, and untracked header wordmark assets.
+
+## 2026-06-06 19:41:44 Europe/Paris
+
+Corrections post-012 — 4 pages non adaptées + header `/` — implémentées par OPENCODE après rapport de Cyril.
+
+Problèmes signalés :
+- `/boucles` (boucles.index) — container inline `max-w-5xl`, pas de PageContainer.
+- `/profile/{user}` (profile.show) — container inline `max-w-4xl`, pas de PageContainer.
+- `/blog/{slug}` (blog.show) — container inline `max-w-7xl`, pas de PageContainer.
+- `/mentions-legales` — container inline `max-w-3xl`, pas de PageContainer.
+- `/` header — affichait `config('app.name')` au lieu du nom de l'organisation par défaut.
+
+Changements :
+- `resources/views/boucles/index.blade.php` — remplace `<div class="max-w-5xl ...">` par `<x-page-container>`.
+- `resources/views/profile/show.blade.php` — remplace `<div class="max-w-4xl ...">` par `<x-page-container>`.
+- `resources/views/blog/show.blade.php` — remplace `<div class="max-w-7xl ...">` par `<x-page-container>`.
+- `resources/views/mentions-legales.blade.php` — remplace `<div class="max-w-3xl ...">` par `<x-page-container>`.
+- `app/Providers/AppServiceProvider.php` — dans le fallback sans `current_organization`, utilise `$defaultOrg?->name` avant `config('app.name')` pour `brandOrganizationName`.
+- `resources/views/components/mobile-topbar.blade.php` — ajoute `'mentions-legales' => 'Mentions légales'` aux titres niveau 1.
+
+Validation :
+- `git diff --stat` confirmé.
+- `npm run build` validé.
+- Changements prêts à committer.
+
+## 2026-06-06 21:52:44 Europe/Paris
+
+Sous-tâche 013 — Page 404 customisée noire — implémentée par OPENCODE après demande de Cyril.
+
+Décisions de conception confirmées par Cyril :
+- Texte : « Hmm, cette boucle semble partie en vacances… »
+- Fond noir avec grand logo BouclePro
+- Formulaire de recherche en dessous du logo
+- Lien retour à l'accueil
+
+Changements :
+- `app/Providers/AppServiceProvider.php`
+  - Ajoute `resolveOrganizationFromRequest()` : détecte l'org depuis l'URL (`/org/{slug}`) pour les pages d'erreur où la middleware n'a pas pu résoudre l'Organization.
+  - Partage `currentOrganization` via View::composer('*') pour que toutes les vues (y compris 404) aient accès à l'Organization.
+- `resources/views/errors/404.blade.php`
+  - Page standalone (pas de layout) avec fond `bg-gray-950`.
+  - Logo BouclePro à 112px (mobile) / 144px (desktop).
+  - Titre « Hmm, cette boucle semble partie en vacances… » en gris clair.
+  - Barre de recherche pointant vers `/search` avec icône loupe.
+  - Lien retour à l'accueil : `/org/{slug}` si org détecté, `/dashboard` si auth, `/` sinon.
+  - Support dark mode natif, Tailwind pur.
+
+Validation :
+- `php -l app/Providers/AppServiceProvider.php` — passed.
+- `npm run build` — passed (Vite).
+- Playwright sur `GET /nonexistent-page` : rendu correct de la 404 (logo, titre 404, texte, champ recherche, lien retour).
+- Playwright sur `GET /org/main/nonexistent` : rendu correct, lien retour vers `/org/main`.
+- Console error = response 404 (attendue), pas d'erreur JS/CSS.
+
 # Handoffs
 
 # Tests
@@ -377,6 +482,9 @@ Notes:
 - 2026-06-06 18:50 Europe/Paris — Playwright mobile 375x812 on `/` confirmed one visible switch icon, 36px header wordmark, `Connexion`, `Bienvenue`, guest bottom navigation, and 0 console errors.
 - 2026-06-06 19:12 Europe/Paris — `php -l app/Providers/AppServiceProvider.php`, `git diff --check`, and `npm run build` passed after 011c.
 - 2026-06-06 19:12 Europe/Paris — Playwright mobile checks passed for `/login` and a service level-2 page; desktop `/explorer` confirmed 40px symbol + brand name in navigation; console had 0 errors.
+- 2026-06-06 19:23 Europe/Paris — `git diff --check` and `npm run build` passed after adding `x-page-container` to `/explorer`, `/membres`, and `/blog`.
+- 2026-06-06 19:23 Europe/Paris — Playwright desktop 1280x900 confirmed title alignment at `x=32`, `y=97` for `/explorer`, `/membres`, `/blog`, with no horizontal overflow.
+- 2026-06-06 19:23 Europe/Paris — Playwright mobile 375x812 confirmed no horizontal overflow on `/explorer`, `/membres`, `/blog`.
 
 ---
 
@@ -384,6 +492,7 @@ Notes:
 
 - First slice, subtask 010, and repository hygiene commits are already present on the task branch.
 - Sous-tâche 011a/011b prototype has been extended by 011c to desktop navigation, mobile route-aware top app bar, and login mobile shell. PWA icons/favicon/site manifest are still not migrated globally.
+- Sous-tâche 012 is layout-only: shared container applied to Échanges, Annuaire, and Blog without changing route/controller/model/business logic or card internals.
 - Do not merge yet; TASK remains IN_PROGRESS and locked by OPENCODE.
 
 ---
