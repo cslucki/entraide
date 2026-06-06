@@ -58,6 +58,28 @@
                 </div>
 
                 <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Couleur du dégradé hero</label>
+                    <div class="flex flex-wrap gap-2 mb-2">
+                        @php $gradientSwatches = ['#0B4DFF', '#1237C9', '#8A2CFF', '#7DFF00', '#FFC700', '#F3FAF4', '#E8EDF5', '#1C1C1E', '#667085', '#9AA3B0', '#DDE3F0']; @endphp
+                        @foreach($gradientSwatches as $swatch)
+                        <button type="button" onclick="document.getElementById('hero_gradient_start').value='{{ $swatch }}'; document.getElementById('hero_gradient_picker').value='{{ $swatch }}';"
+                            class="w-8 h-8 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                            style="background-color: {{ $swatch }};"
+                            title="{{ $swatch }}"></button>
+                        @endforeach
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="color" id="hero_gradient_picker"
+                            class="w-10 h-10 rounded border border-gray-300 dark:border-gray-600 cursor-pointer">
+                        <input type="text" name="hero_gradient_start" id="hero_gradient_start" value="{{ old('hero_gradient_start', $organization->hero_gradient_start) }}"
+                            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono @error('hero_gradient_start') border-red-500 @enderror"
+                            placeholder="#0B4DFF">
+                    </div>
+                    @error('hero_gradient_start')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    <p class="text-xs text-gray-400 mt-1">La couleur de fin du dégradé est calculée automatiquement. Laissez vide pour utiliser la couleur d'accent.</p>
+                </div>
+
+                <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Points de bienvenue</label>
                     <input type="number" name="welcome_points" value="{{ old('welcome_points', $organization->welcome_points) }}" min="0" max="10000"
                         class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('welcome_points') border-red-500 @enderror">
@@ -248,6 +270,13 @@
         });
         document.getElementById('accent_color_text').addEventListener('input', function(e) {
             document.getElementById('accent_color_picker').value = e.target.value;
+        });
+
+        document.getElementById('hero_gradient_picker').addEventListener('input', function(e) {
+            document.getElementById('hero_gradient_start').value = e.target.value;
+        });
+        document.getElementById('hero_gradient_start').addEventListener('input', function(e) {
+            document.getElementById('hero_gradient_picker').value = e.target.value;
         });
     </script>
     @endpush

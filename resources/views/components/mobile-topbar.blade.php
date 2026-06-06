@@ -88,14 +88,21 @@
 <header class="md:hidden fixed top-0 inset-x-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 pt-[env(safe-area-inset-top)]">
     <div class="flex items-center justify-between h-14 px-4 gap-3">
         <div class="flex min-w-0 items-center gap-3">
-            @if($backHref)
+            @if(request()->routeIs('login', 'organization.login'))
+            <a href="{{ url('/') }}" class="flex items-center gap-2 min-w-0" aria-label="Accueil {{ $brandOrganizationName ?? config('app.name') }}">
+                <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-9 w-9 shrink-0">
+                <span class="truncate text-base font-bold text-gray-900 dark:text-gray-100">{{ $brandOrganizationName ?? config('app.name') }}</span>
+            </a>
+            @elseif($backHref)
             <a href="{{ $backHref }}" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="Retour">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
             </a>
             @endif
+            @unless(request()->routeIs('login', 'organization.login'))
             <h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">{{ $displayTitle }}</h1>
+            @endunless
         </div>
         <div class="flex items-center gap-2.5">
             @auth

@@ -9,10 +9,18 @@
     </style>
 @endpush
 
+@inject('colorHelper', 'App\Support\ColorHelper')
+
 <x-app-layout>
     <div class="public-homepage">
     <!-- Hero -->
-    <div class="bg-gradient-to-br from-indigo-600 to-purple-700 text-white py-20">
+    @php
+        $gradientStart = $defaultOrganization?->hero_gradient_start ?? $defaultOrganization?->accent_color ?? '#4f46e5';
+        $gradientEnd = $defaultOrganization
+            ? $defaultOrganization->hero_gradient_end
+            : $colorHelper::darken('#4f46e5', 25);
+    @endphp
+    <div class="text-white py-20" style="background: linear-gradient(135deg, {{ $gradientStart }} 0%, {{ $gradientEnd }} 100%);">
         <div class="max-w-4xl mx-auto px-4 text-center">
             <h1 class="text-4xl font-bold tracking-tight text-white sm:text-5xl">Bienvenue</h1>
             <p class="text-xl text-indigo-100 mb-3">Proposez vos {{ $T['services'] }}, trouvez ce dont vous avez besoin, et échangez avec des points.</p>

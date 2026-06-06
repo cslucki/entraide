@@ -446,6 +446,38 @@ Validation :
 - Playwright sur `GET /org/main/nonexistent` : rendu correct, lien retour vers `/org/main`.
 - Console error = response 404 (attendue), pas d'erreur JS/CSS.
 
+## 2026-06-06 23:07:21 Europe/Paris
+
+Sprint final — 4 corrections design post-013 — implémentées par OPENCODE.
+
+Corrections :
+1. **Header login** — le login page affichait `Connexion` comme titre banal, sans logo BouclePro ni nom d'organisation. Le `guest.blade.php` a été modifié pour déplacer l'image + nom dans l'en-tête mobile, et le `mobile-topbar` gère déjà le routing login avec logo + lien "Accueil BouclePro".
+2. **Bottom nav visible sur desktop** — déjà corrigé : `mobile-bottom-nav.blade.php` ligne 1 a `md:hidden`.
+3. **Bottom nav absente sur /services, /messaging, /profile** — déjà inclus via `app.blade.php` ligne 66 (`<x-mobile-bottom-nav />`).
+4. **Favicon 404** — Apache a un `Alias /icons/` builtin qui intercepte `/icons/` avant le DocumentRoot. Solution : fichiers favicon déplacés de `/icons/` vers la racine `public/` (`favicon.ico`, `favicon.svg`, `favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`). Icônes PWA déplacées vers `/brand/` (`icon-192.png`, `icon-512.png`, `maskable-192.png`, `maskable-512.png`). `site.webmanifest` mis à jour. Toutes les URLs retournent 200.
+
+Changements :
+- `public/favicon.ico` — écrasé par la version BouclePro (6149 bytes)
+- `public/favicon.svg` — écrasé par la version BouclePro
+- `public/apple-touch-icon.png` — écrasé par la version BouclePro
+- `public/favicon-16x16.png` — nouvelle copie depuis le logo pack
+- `public/favicon-32x32.png` — nouvelle copie depuis le logo pack
+- `public/brand/favicon.ico` — copie pour backup
+- `public/brand/favicon.svg` — copie pour backup
+- `public/brand/apple-touch-icon.png` — copie pour backup
+- `public/brand/icon-192.png` — nouvelle copie (PWA)
+- `public/brand/icon-512.png` — nouvelle copie (PWA)
+- `public/brand/maskable-192.png` — nouvelle copie (PWA)
+- `public/brand/maskable-512.png` — nouvelle copie (PWA)
+- `public/site.webmanifest` — chemins mis à jour de `/icons/` vers `/brand/`
+- `resources/views/layouts/app.blade.php` — chemins favicon mis à jour de `/icons/` vers `/`
+- `resources/views/layouts/guest.blade.php` — chemins favicon mis à jour de `/icons/` vers `/`
+
+Validation :
+- `curl` vérifié : toutes les URLs favicon retournent 200.
+- `npx playwright test login-member.spec.js` — 4/4 passed (chromium, webkit, firefox, mobile-chrome) en 7.5s.
+- Console 0 erreurs favicon 404.
+
 # Handoffs
 
 # Tests
@@ -485,6 +517,66 @@ Validation :
 - 2026-06-06 19:23 Europe/Paris — `git diff --check` and `npm run build` passed after adding `x-page-container` to `/explorer`, `/membres`, and `/blog`.
 - 2026-06-06 19:23 Europe/Paris — Playwright desktop 1280x900 confirmed title alignment at `x=32`, `y=97` for `/explorer`, `/membres`, `/blog`, with no horizontal overflow.
 - 2026-06-06 19:23 Europe/Paris — Playwright mobile 375x812 confirmed no horizontal overflow on `/explorer`, `/membres`, `/blog`.
+
+## 2026-06-06 23:30:11 Europe/Paris
+
+Sous-tâche 015 — Couleur hero configurable par organisation — implémentée par OPENCODE après demande de Cyril.
+
+Problème :
+- Le hero background utilisait un dégradé hardcodé `from-indigo-600 to-purple-700` (homepage racine) ou un simple fade `accent_color → accent_color dd` (landing org).
+- Le champ `accent_color` dans l'admin ne servait pas au hero gradient.
+- Aucune colonne gradient dans la BDD ni champ dans le formulaire admin.
+
+Décisions de conception confirmées par Cyril :
+- Scope : chaque org + homepage racine.
+- Auto-déduction : l'application calcule la couleur de fin du dégradé automatiquement (assombrissement HSL 25%).
+- Palette de confiance : 11 couleurs swatches fournies par Cyril.
+
+Changements :
+- `database/migrations/2026_06_06_200414_add_hero_gradient_start_to_organizations_table.php`
+  - Nouvelle colonne `hero_gradient_start VARCHAR(7) NULL` après `hero_description`.
+- `app/Support/ColorHelper.php`
+  - Nouveau helper statique : `darken(hex, percent)` → convertit hex → HSL → réduit la luminosité → retourne hex assombri.
+- `app/Models/Organization.php`
+  - Ajoute `hero_gradient_start` à `$fillable`.
+  - Ajoute accesseur `heroGradientEnd` : priorité `hero_gradient_start` → `accent_color` → fallback `#4f46e5` → darken 25%.
+- `app/Http/Controllers/HomeController.php`
+  - Passe `$defaultOrganization` (première org is_default) à la vue home.
+- `app/Http/Controllers/Admin/AdminOrganizationController.php`
+  - Ajoute `hero_gradient_start` à la validation update (string, regex hex).
+- `resources/views/admin/organizations/edit.blade.php`
+  - Nouveau champ "Couleur du dégradé hero" avec 11 swatches cliquables + picker color + input hex.
+  - Sync JS bidirectionnelle picker ↔ input.
+- `resources/views/organization/landing.blade.php`
+  - Gradient inline style : utilise `hero_gradient_start ?? accent_color` + `hero_gradient_end`.
+- `resources/views/home.blade.php`
+  - Hero remplace la classe Tailwind hardcodée par inline `linear-gradient(135deg, start, end)`.
+  - Utilise les couleurs de l'org par défaut avec fallback indigo.
+
+Validation :
+- `php -l` passed sur tous les fichiers modifiés.
+- Migration additive `2026_06_06_200414` exécutée sur `bouclepro`.
+- `curl https://test.laravel/` : gradient `linear-gradient(135deg, #1237C9 0%, #081754 100%)` présent.
+- `curl https://test.laravel/org/main` : 302 redirect (org non publique) — pas d'erreur 500.
+- `npx playwright test login-member.spec.js --project=webkit` : 1 passed (4.2s).
+
+## 2026-06-06 23:45:11 Europe/Paris
+
+Correction mode light sur la page de connexion — implémentée par OPENCODE après rapport de Cyril.
+
+Problème :
+- `<html class="dark">` forcé sur la guest layout → le JS de préférence utilisateur pouvait le retirer, mais le body restait `bg-gray-900` (toujours sombre).
+- En mode light : le JS enlève `dark` → `text-gray-900` (noir) sur `bg-gray-900` (sombre) → texte illisible.
+- L'org name desktop s'affichait en noir sur fond sombre.
+
+Changements :
+- `resources/views/layouts/guest.blade.php`
+  - Retire `class="dark"` forcé sur `<html>` — le JS gère dynamiquement.
+  - Body passe de `bg-gray-900` (fixe sombre) à `bg-gray-50 dark:bg-gray-900`.
+
+Validation :
+- `curl https://test.laravel/login` : `<html lang="fr">` (pas de dark forcé), `body class="... bg-gray-50 dark:bg-gray-900"`.
+- `npx playwright test login-member.spec.js` : 4/4 passed (8.8s).
 
 ---
 
