@@ -1,11 +1,8 @@
 @php $currentLoop = $loop; @endphp
 @php $analysis = session('help_request_analysis'); @endphp
 
-<x-app-layout>
-    <div class="max-w-5xl mx-auto px-4 py-6 md:py-8">
-
-        {{-- Header --}}
-        <div class="mb-6">
+<x-page :title="$currentLoop->name" width="5xl">
+    <div class="mb-6">
             <a href="{{ route('loops.index') }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">&larr; Mes boucles</a>
             <h1 class="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ $currentLoop->name }}</h1>
             @if($currentLoop->description)
@@ -369,4 +366,4 @@
 
         </div>
     </div>
-</x-app-layout>
+</x-page>
