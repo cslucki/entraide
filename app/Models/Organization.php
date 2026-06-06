@@ -31,11 +31,15 @@ class Organization extends Model
         'hero_gradient_start',
         'accent_color',
         'welcome_points',
+        'service_points_min',
+        'service_points_max',
         'loops_enabled',
         'maintenance_mode',
         'platform_name',
         'platform_tagline',
         'global_color_mode',
+        'header_javascript_enabled',
+        'header_javascript',
         'blog_naming',
         'transactions_naming',
     ];
@@ -49,6 +53,7 @@ class Organization extends Model
             'welcome_points' => 'integer',
             'loops_enabled' => 'boolean',
             'maintenance_mode' => 'boolean',
+            'header_javascript_enabled' => 'boolean',
         ];
     }
 

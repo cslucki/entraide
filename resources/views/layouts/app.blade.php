@@ -47,6 +47,14 @@
             }
         </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+        @php
+            $org = app()->bound('current_organization') ? app('current_organization') : null;
+        @endphp
+        @if($org && $org->header_javascript_enabled && $org->header_javascript)
+            {!! $org->header_javascript !!}
+        @endif
+
         @stack('head')
 
         <style>
