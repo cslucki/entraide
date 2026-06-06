@@ -106,4 +106,112 @@ class AdminSettingTest extends TestCase
         $org->refresh();
         $this->assertFalse($org->loops_enabled);
     }
+
+    // ── Service points range ──────────────────────────────────────────────────
+
+    public function test_admin_can_set_service_points_range(): void
+    {
+        $admin = $this->makeAdmin();
+        $org = $admin->organization;
+
+        $this->actingAs($admin)
+            ->put(route('admin.organizations.update', $org), [
+                'name'               => $org->name,
+                'slug'               => $org->slug,
+                'welcome_points'     => $org->welcome_points,
+                'platform_name'      => 'Entraide',
+                'global_color_mode'  => 'dark',
+                'service_points_min' => '10',
+                'service_points_max' => '120',
+            ])
+            ->assertRedirect(route('admin.organizations'));
+
+        $org->refresh();
+        $this->assertSame(10, $org->service_points_min);
+        $this->assertSame(120, $org->service_points_max);
+    }
+
+    public function test_service_points_max_must_be_gte_min(): void
+    {
+        $admin = $this->makeAdmin();
+        $org = $admin->organization;
+
+        $this->actingAs($admin)
+            ->put(route('admin.organizations.update', $org), [
+                'name'               => $org->name,
+                'slug'               => $org->slug,
+                'welcome_points'     => $org->welcome_points,
+                'platform_name'      => 'Entraide',
+                'global_color_mode'  => 'dark',
+                'service_points_min' => '100',
+                'service_points_max' => '50',
+            ])
+            ->assertSessionHasErrors('service_points_max');
+    }
+
+    public function test_service_points_range_is_optional(): void
+    {
+        $admin = $this->makeAdmin();
+        $org = $admin->organization;
+
+        $this->actingAs($admin)
+            ->put(route('admin.organizations.update', $org), [
+                'name'               => $org->name,
+                'slug'               => $org->slug,
+                'welcome_points'     => $org->welcome_points,
+                'platform_name'      => 'Entraide',
+                'global_color_mode'  => 'dark',
+            ])
+            ->assertRedirect(route('admin.organizations'));
+
+        $org->refresh();
+        $this->assertNull($org->service_points_min);
+        $this->assertNull($org->service_points_max);
+    }
+
+    // ── Header JavaScript ─────────────────────────────────────────────────────
+
+    public function test_admin_can_enable_and_set_header_javascript(): void
+    {
+        $admin = $this->makeAdmin();
+        $org = $admin->organization;
+
+        $js = '<script>console.log("test");</script>';
+
+        $this->actingAs($admin)
+            ->put(route('admin.organizations.update', $org), [
+                'name'                     => $org->name,
+                'slug'                     => $org->slug,
+                'welcome_points'           => $org->welcome_points,
+                'platform_name'            => 'Entraide',
+                'global_color_mode'        => 'dark',
+                'header_javascript_enabled' => '1',
+                'header_javascript'        => $js,
+            ])
+            ->assertRedirect(route('admin.organizations'));
+
+        $org->refresh();
+        $this->assertTrue($org->header_javascript_enabled);
+        $this->assertSame($js, $org->header_javascript);
+    }
+
+    public function test_header_javascript_defaults_to_disabled(): void
+    {
+        $admin = $this->makeAdmin();
+        $org = $admin->organization;
+
+        $this->actingAs($admin)
+            ->put(route('admin.organizations.update', $org), [
+                'name'               => $org->name,
+                'slug'               => $org->slug,
+                'welcome_points'     => $org->welcome_points,
+                'platform_name'      => 'Entraide',
+                'global_color_mode'  => 'dark',
+            ])
+            ->assertRedirect(route('admin.organizations'));
+
+        $org->refresh();
+        $this->assertFalse($org->header_javascript_enabled);
+        $this->assertNull($org->header_javascript);
+    }
 }
