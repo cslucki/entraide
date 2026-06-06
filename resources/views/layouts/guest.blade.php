@@ -28,17 +28,30 @@
             }
         </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @stack('head')
+
+        <style>
+            .mobile-safe-top { padding-top: 0; }
+            .mobile-safe-bottom-auth { padding-bottom: 0; }
+            @media (max-width: 767px) {
+                .mobile-safe-top { padding-top: 3.5rem; }
+                .mobile-safe-bottom-auth { padding-bottom: 4rem; }
+            }
+        </style>
     </head>
     <body class="font-sans antialiased bg-gray-900">
-        <div class="min-h-screen flex flex-col">
+        <x-mobile-topbar title="Connexion" :brand-name="$brandOrganizationName ?? config('app.name')" />
+        <x-mobile-bottom-nav />
+
+        <div class="min-h-screen flex flex-col mobile-safe-top mobile-safe-bottom-auth">
 
             <!-- Header avec logo -->
-            <div class="flex justify-center pt-10 pb-6">
+            <div class="hidden md:flex justify-center pt-10 pb-6">
                 <a href="{{ route('home') }}" class="flex items-center gap-3 group">
-                    <img src="/favicon.svg" alt="{{ $platformName ?? config('app.name') }}" class="h-10 w-10">
+                    <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-10 w-10" aria-hidden="true">
                     <div class="text-left">
                         <div class="text-xl font-bold text-gray-900 dark:text-white leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
-                            {{ $platformName ?? config('app.name') }}
+                            {{ $brandOrganizationName ?? config('app.name') }}
                         </div>
                         <div class="text-xs text-gray-500 dark:text-gray-400 leading-tight">
                             {{ $platformTagline ?? 'Échangez vos talents' }}

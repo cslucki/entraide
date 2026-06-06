@@ -1,8 +1,103 @@
-@auth
+@php
+    $routeName = request()->route()?->getName() ?? '';
+    $organizationRouteParam = request()->route('organization');
+
+    $routeUrl = function (string $rootRoute, ?string $organizationRoute = null) use ($organizationRouteParam): string {
+        if ($organizationRouteParam && $organizationRoute && Route::has($organizationRoute)) {
+            return route($organizationRoute, ['organization' => $organizationRouteParam]);
+        }
+
+        return route($rootRoute);
+    };
+
+    $levelOneTitles = [
+        'home' => 'Accueil',
+        'organization.home' => 'Accueil',
+        'explorer' => 'Échanges',
+        'organization.explorer' => 'Échanges',
+        'boucles.index' => 'Boucles',
+        'loops.index' => 'Boucles',
+        'organization.loops.index' => 'Boucles',
+        'blog.index' => 'Actus',
+        'dashboard' => 'Mon espace',
+        'organization.dashboard' => 'Mon espace',
+        'login' => 'Connexion',
+        'organization.login' => 'Connexion',
+    ];
+
+    $isLevelOne = array_key_exists($routeName, $levelOneTitles);
+    $routeTitle = null;
+
+    if (! $isLevelOne) {
+        if (request()->routeIs('services.show', 'organization.services.show')) {
+            $routeTitle = request()->route('service')?->title;
+        } elseif (request()->routeIs('services.create', 'organization.services.create')) {
+            $routeTitle = 'Proposer un service';
+        } elseif (request()->routeIs('services.edit', 'organization.services.edit')) {
+            $routeTitle = 'Modifier le service';
+        } elseif (request()->routeIs('requests.show', 'organization.requests.show')) {
+            $routeTitle = request()->route('request')?->title;
+        } elseif (request()->routeIs('requests.create', 'organization.requests.create')) {
+            $routeTitle = 'Faire une demande';
+        } elseif (request()->routeIs('blog.show')) {
+            $routeTitle = request()->route('post')?->title;
+        } elseif (request()->routeIs('blog.create')) {
+            $routeTitle = 'Écrire un article';
+        } elseif (request()->routeIs('blog.edit')) {
+            $routeTitle = 'Modifier l’article';
+        } elseif (request()->routeIs('blog.my-posts')) {
+            $routeTitle = 'Mes articles';
+        } elseif (request()->routeIs('profile.show', 'organization.profile.show')) {
+            $routeTitle = request()->route('user')?->name;
+        } elseif (request()->routeIs('profile.edit', 'organization.profile.edit')) {
+            $routeTitle = 'Profil';
+        } elseif (request()->routeIs('loops.show', 'organization.loops.show')) {
+            $routeTitle = request()->route('loop')?->name;
+        } elseif (request()->routeIs('loops.create', 'organization.loops.create')) {
+            $routeTitle = 'Créer une boucle';
+        } elseif (request()->routeIs('messages.*', 'organization.messages.*')) {
+            $routeTitle = 'Messages';
+        } elseif (request()->routeIs('points.*', 'organization.points.*')) {
+            $routeTitle = 'Points';
+        } elseif (request()->routeIs('favorites.*', 'organization.favorites.*')) {
+            $routeTitle = 'Favoris';
+        } elseif (request()->routeIs('bug-reports.*', 'organization.bug-reports.*')) {
+            $routeTitle = 'Bugs signalés';
+        }
+    }
+
+    $displayTitle = $levelOneTitles[$routeName] ?? ($routeTitle ?: ($title ?? config('app.name')));
+    $backHref = null;
+
+    if (! $isLevelOne) {
+        if (request()->routeIs('services.*', 'requests.*', 'organization.services.*', 'organization.requests.*')) {
+            $backHref = $routeUrl('explorer', 'organization.explorer');
+        } elseif (request()->routeIs('blog.*')) {
+            $backHref = route('blog.index');
+        } elseif (request()->routeIs('loops.*', 'organization.loops.*')) {
+            $backHref = auth()->check() && Route::has('loops.index') ? route('loops.index') : route('boucles.index');
+        } elseif (request()->routeIs('messages.*', 'points.*', 'favorites.*', 'profile.*', 'organization.messages.*', 'organization.points.*', 'organization.favorites.*', 'organization.profile.*')) {
+            $backHref = auth()->check() ? $routeUrl('dashboard', 'organization.dashboard') : route('home');
+        } elseif (request()->routeIs('bug-reports.*', 'organization.bug-reports.*')) {
+            $backHref = $routeUrl('home', 'organization.home');
+        }
+    }
+@endphp
+
 <header class="md:hidden fixed top-0 inset-x-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 pt-[env(safe-area-inset-top)]">
-    <div class="flex items-center justify-between h-14 px-4">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">{{ $title ?? 'BouclePro' }}</h1>
+    <div class="flex items-center justify-between h-14 px-4 gap-3">
+        <div class="flex min-w-0 items-center gap-3">
+            @if($backHref)
+            <a href="{{ $backHref }}" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="Retour">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </a>
+            @endif
+            <h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">{{ $displayTitle }}</h1>
+        </div>
         <div class="flex items-center gap-2.5">
+            @auth
             <a href="{{ route('messages.index') }}" class="relative w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center" aria-label="Messages">
                 <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -52,7 +147,17 @@
                     </form>
                 </x-slot>
             </x-dropdown>
+            @else
+            <button @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="Changer de mode d'affichage">
+                <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            </button>
+            @unless(request()->routeIs('login', 'organization.login'))
+            <a href="{{ $routeUrl('login', 'organization.login') }}" class="inline-flex items-center rounded-full bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900">
+                Connexion
+            </a>
+            @endunless
+            @endauth
         </div>
     </div>
 </header>
-@endauth

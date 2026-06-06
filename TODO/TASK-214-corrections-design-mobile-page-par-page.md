@@ -13,7 +13,7 @@ branch: TASK-214-corrections-design-mobile-page-par-page
 priority: MEDIUM
 
 created_at: 2026-06-06 09:34:05 Europe/Paris
-updated_at: 2026-06-06 16:36:46 Europe/Paris
+updated_at: 2026-06-06 19:12:56 Europe/Paris
 
 labels: []
 
@@ -48,6 +48,17 @@ Parenthèse bugfix demandée par Cyril :
 Parenthèse repository hygiene demandée par Cyril :
 - empêcher `synchro_pgsql-avant-migration/` d'être publié sur GitHub car c'est un outil interne et éphémère.
 
+Sous-tâche 011a/011b demandée par Cyril :
+- tester le nouveau logo BouclePro et la police Inter sur la homepage publique uniquement avant déploiement global.
+- corriger le prototype pour placer le logo dans le screen header invité, afficher la bottom navigation invitée, et retirer le logo du hero.
+
+Sous-tâche 011c demandée par Cyril :
+- déployer le système `logo + organizations.name` sur les écrans desktop ;
+- utiliser `config('app.name')` comme fallback sur `/` quand aucune organisation courante n'est résolue ;
+- sur smartphone, afficher un titre de fonctionnalité pour les pages niveau 1 ;
+- sur smartphone, afficher une top app bar niveau 2 avec bouton retour rond + titre de la page courante ;
+- appliquer le même shell mobile header/footer à la page login.
+
 ---
 
 # Planned Actions
@@ -62,6 +73,8 @@ Parenthèse repository hygiene demandée par Cyril :
 - [x] validate subtask 010 with focused feature tests and mobile browser checks
 - [x] fix organization homepage undefined title regression
 - [x] de-index internal synchro tool directory from Git
+- [x] implement subtask 011a/011b homepage-only logo and Inter prototype
+- [x] implement subtask 011c desktop brand and mobile top app bar corrections
 - [ ] collect next page-by-page design instructions
 
 ---
@@ -193,6 +206,141 @@ Notes:
 - This does not purge the directory from historical commits already pushed previously. Full history purging would require a separate, coordinated repository rewrite and is not attempted here.
 - `public/build` artifacts and `docs/design/` remain outside this cleanup commit.
 
+## 2026-06-06 17:29:45 Europe/Paris
+
+Sous-tâche 011a/011b — Prototype logo + Inter sur homepage publique — implemented by OPENCODE after Cyril clarified this must stay limited to the public homepage before global rollout.
+
+Changes:
+- `public/brand/bouclepro-header-light.png`
+  - Copied from `docs/design/bouclepro-logo-pack-inter/brand/` for application use.
+- `public/brand/bouclepro-header-dark.png`
+  - Copied from `docs/design/bouclepro-logo-pack-inter/brand/` for application use.
+- `resources/views/layouts/app.blade.php`
+  - Added `@stack('head')` so page-specific prototype assets can be injected without changing global typography yet.
+- `resources/views/home.blade.php`
+  - Added Inter loading from Google Fonts for this public homepage prototype only.
+  - Wrapped the homepage content with `.public-homepage` so Inter applies to the whole homepage content.
+  - Replaced the visible text `BouclePro` hero title with a clickable BouclePro wordmark image and retained an `sr-only` `h1` for accessibility.
+  - Used `bouclepro-header-dark.png` in the hero because the current hero background is dark regardless of browser theme; the light file uses black text and is reserved for future light-surface placement.
+
+Scope decision:
+- `resources/views/organization/landing.blade.php`, `resources/views/layouts/navigation.blade.php`, global PWA icons, favicon, and `site.webmanifest` were intentionally left out of this prototype.
+- The organization badge idea is kept for the later rollout/top-app-bar phase, not applied to the root public homepage.
+
+Validation:
+- `git diff --check -- resources/views/layouts/app.blade.php resources/views/home.blade.php resources/views/organization/landing.blade.php` passed.
+- `npm run build` passed with Vite.
+- Playwright mobile 375x812 on `https://test.laravel/` confirmed:
+  - the homepage renders without console errors;
+  - the prototype wordmark is `/brand/bouclepro-header-dark.png`;
+  - the wordmark renders at 48px high on mobile;
+  - Inter is applied to `.public-homepage`;
+  - screenshot review found no obvious logo/typography rendering issue.
+
+## 2026-06-06 17:51:20 Europe/Paris
+
+Sous-tâche 011 — Correction homepage mobile invitée — implemented by OPENCODE after Cyril clarified the desired placement from screenshots.
+
+Changes:
+- `resources/views/components/mobile-topbar.blade.php`
+  - Removed the auth-only wrapper so the mobile screen header also renders for guests.
+  - On the root homepage, replaced the text app name with the BouclePro wordmark in the top-left screen header.
+  - Added guest controls on the right side: dark/light mode toggle and `Connexion` button.
+  - Preserved the authenticated messages/avatar dropdown behavior.
+- `resources/views/components/mobile-bottom-nav.blade.php`
+  - Removed the auth-only wrapper so the bottom navigation renders for guests.
+  - Kept the same visible tabs as authenticated mode: `Boucles`, `Échanges`, `Objectifs`, `Actus`.
+  - Uses public-safe guest routes where needed (`boucles.index`, `explorer`, `login`, `blog.index`).
+- `resources/views/layouts/app.blade.php`
+  - Applies mobile bottom safe-area spacing for guests too, because the bottom navigation is now visible in guest mode.
+- `resources/views/home.blade.php`
+  - Removed the BouclePro wordmark from the hero.
+  - Replaced the hero title with visible text `Bienvenue`.
+
+Validation:
+- `git diff --check` passed on changed mobile/homepage views.
+- `npm run build` passed with Vite.
+- Playwright mobile 375x812 on `https://test.laravel/` confirmed:
+  - topbar wordmark is visible from `/brand/bouclepro-header-light.png` at 32px high;
+  - header contains a theme toggle and `Connexion` button;
+  - hero title is `Bienvenue` and contains no BouclePro logo image;
+  - bottom navigation labels are `Boucles`, `Échanges`, `Objectifs`, `Actus`;
+  - Inter remains applied to `.public-homepage`;
+  - console has 0 errors.
+
+## 2026-06-06 18:50:26 Europe/Paris
+
+Sous-tâche 011 — Micro-correction header mobile invité — implemented by OPENCODE after Cyril reported the dark/light toggle icon was not visible and requested a slightly larger logo.
+
+Changes:
+- `resources/views/components/mobile-topbar.blade.php`
+  - Increased the homepage header wordmark from `h-8` to `h-9`.
+  - Replaced Alpine `x-show`/`template`-dependent theme icons with Tailwind `dark:` visibility classes so the switch icon is visible even before/without Alpine expression rendering.
+
+Validation:
+- `git diff --check -- resources/views/components/mobile-topbar.blade.php` passed.
+- `npm run build` passed with Vite.
+- Playwright mobile 375x812 on `https://test.laravel/` confirmed:
+  - visible header logo is `/brand/bouclepro-header-dark.png` at 36px high;
+  - exactly one theme switch icon is visible at 20px;
+  - `Connexion`, hero `Bienvenue`, and guest bottom navigation remain present;
+  - console has 0 errors.
+
+## 2026-06-06 19:12:56 Europe/Paris
+
+Sous-tâche 011c — Correction logo desktop et top app bar mobile — implemented by OPENCODE after Cyril switched back to build mode.
+
+Decisions confirmed by Cyril:
+- Desktop logo picto uses the 40px variant (`h-10 w-10`) for visual confirmation.
+- Mobile level 2 uses the current page title and a round arrow button for navigation back toward the parent feature.
+- Root `/` fallback, when no current organization exists, uses the app name from `.env` through `config('app.name')`, not the default organization name.
+
+Changes:
+- `app/Providers/AppServiceProvider.php`
+  - Kept `brandOrganizationName` as current organization name when an organization is bound.
+  - Changed fallback to authenticated user organization name when available, otherwise `config('app.name')`.
+- `resources/views/layouts/navigation.blade.php`
+  - Replaced the old desktop favicon mark with `/brand/bouclepro-symbol-64.png` at `h-10 w-10`.
+  - Displays the resolved organization/app name directly next to the symbol.
+  - Links to the current organization homepage when an organization is bound, otherwise to root `/`.
+- `resources/views/components/mobile-topbar.blade.php`
+  - Replaced homepage-only logo behavior with a route-aware mobile app bar.
+  - Level 1 routes display feature titles such as `Accueil`, `Échanges`, `Boucles`, `Actus`, `Mon espace`, and `Connexion`.
+  - Level 2 routes display a round `Retour` button plus the current page title.
+  - Service/request pages return to `Échanges`, blog pages return to `Actus`, loop pages return to `Boucles`, and account pages return to `Mon espace`.
+  - Deduces titles from route models when available: service title, request title, blog post title, user name, loop name.
+  - Removes the redundant `Connexion` button when already on login.
+- `resources/views/components/mobile-bottom-nav.blade.php`
+  - Keeps organization-prefixed navigation inside `/org/{organization}` where parallel organization routes exist.
+  - Supports active state for `organization.*` route names.
+- `resources/views/layouts/guest.blade.php`
+  - Adds the same fixed mobile topbar and bottom navigation as the app layout.
+  - Keeps the previous desktop login brand block hidden from mobile to avoid header position jumps.
+  - Adds the same mobile safe-area spacing and `@stack('head')` support.
+
+Validation:
+- `php -l app/Providers/AppServiceProvider.php` passed.
+- `git diff --check` passed.
+- `npm run build` passed with Vite.
+- Playwright mobile 375x812 on `/login` confirmed:
+  - fixed topbar title `Connexion`;
+  - visible theme switch;
+  - no duplicate `Connexion` button in the topbar;
+  - bottom navigation labels `Boucles`, `Échanges`, `Objectifs`, `Actus`;
+  - console has 0 errors.
+- Playwright mobile 375x812 on a service level-2 page confirmed:
+  - round `Retour` button points to `/explorer`;
+  - topbar title is the service title `Relecture et correction orthographique de vos exposés ou dissertations.`;
+  - bottom navigation remains present;
+  - console has 0 errors.
+- Playwright desktop 1280x900 on `/explorer` confirmed:
+  - desktop nav shows `/brand/bouclepro-symbol-64.png` plus brand name `BouclePro` at left;
+  - console has 0 errors.
+
+Notes:
+- `public/build` remains generated/dirty from local Vite builds and must not be staged unless explicitly requested.
+- `docs/design/` remains source-resource input and must not be staged.
+
 # Handoffs
 
 # Tests
@@ -221,13 +369,21 @@ Notes:
 - 2026-06-06 16:24 Europe/Paris — Playwright confirmed `https://test.laravel/org/cpme` no longer returns 500; guest redirects to `/org/cpme/login` with 0 console errors.
 - 2026-06-06 16:24 Europe/Paris — `APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan test --filter='T1404OrganizationParallelRoutesTest|T1392RouteSmokeGatesTest::test_organization_home_returns_200'` passed: 16 tests, 24 assertions.
 - 2026-06-06 16:36 Europe/Paris — `git rm --cached -r synchro_pgsql-avant-migration` staged removal from Git tracking while keeping local files available because the directory is ignored.
+- 2026-06-06 17:29 Europe/Paris — `npm run build` passed after the homepage logo/Inter prototype.
+- 2026-06-06 17:29 Europe/Paris — Playwright mobile 375x812 on `/` confirmed wordmark `/brand/bouclepro-header-dark.png`, 48px logo height, Inter font family on `.public-homepage`, and 0 console errors.
+- 2026-06-06 17:51 Europe/Paris — `npm run build` passed after moving the logo to the guest mobile screen header and enabling guest bottom navigation.
+- 2026-06-06 17:51 Europe/Paris — Playwright mobile 375x812 on `/` confirmed screen-header logo, theme toggle, `Connexion`, hero `Bienvenue`, guest bottom navigation, Inter, and 0 console errors.
+- 2026-06-06 18:50 Europe/Paris — `npm run build` passed after increasing the mobile header logo and making the theme icon visible via Tailwind `dark:` classes.
+- 2026-06-06 18:50 Europe/Paris — Playwright mobile 375x812 on `/` confirmed one visible switch icon, 36px header wordmark, `Connexion`, `Bienvenue`, guest bottom navigation, and 0 console errors.
+- 2026-06-06 19:12 Europe/Paris — `php -l app/Providers/AppServiceProvider.php`, `git diff --check`, and `npm run build` passed after 011c.
+- 2026-06-06 19:12 Europe/Paris — Playwright mobile checks passed for `/login` and a service level-2 page; desktop `/explorer` confirmed 40px symbol + brand name in navigation; console had 0 errors.
 
 ---
 
 # Review Notes
 
-- First slice only. Awaiting Cyril's next page-by-page design instructions before broadening the scope.
-- Sous-tâche 010 is implemented and validated, but not committed yet in this update batch.
+- First slice, subtask 010, and repository hygiene commits are already present on the task branch.
+- Sous-tâche 011a/011b prototype has been extended by 011c to desktop navigation, mobile route-aware top app bar, and login mobile shell. PWA icons/favicon/site manifest are still not migrated globally.
 - Do not merge yet; TASK remains IN_PROGRESS and locked by OPENCODE.
 
 ---
