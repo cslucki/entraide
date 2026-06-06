@@ -13,7 +13,7 @@ branch: TASK-214-corrections-design-mobile-page-par-page
 priority: MEDIUM
 
 created_at: 2026-06-06 09:34:05 Europe/Paris
-updated_at: 2026-06-06 16:24:38 Europe/Paris
+updated_at: 2026-06-06 16:36:46 Europe/Paris
 
 labels: []
 
@@ -45,6 +45,9 @@ Sous-tâche 010 demandée par Cyril :
 Parenthèse bugfix demandée par Cyril :
 - corriger le 500 sur `GET /org/cpme` causé par `Undefined variable $title` dans `resources/views/layouts/app.blade.php`.
 
+Parenthèse repository hygiene demandée par Cyril :
+- empêcher `synchro_pgsql-avant-migration/` d'être publié sur GitHub car c'est un outil interne et éphémère.
+
 ---
 
 # Planned Actions
@@ -58,6 +61,7 @@ Parenthèse bugfix demandée par Cyril :
 - [x] add organization-scoped bug report model/routes/views
 - [x] validate subtask 010 with focused feature tests and mobile browser checks
 - [x] fix organization homepage undefined title regression
+- [x] de-index internal synchro tool directory from Git
 - [ ] collect next page-by-page design instructions
 
 ---
@@ -177,6 +181,18 @@ Validation:
   - `APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan test --filter='T1404OrganizationParallelRoutesTest|T1392RouteSmokeGatesTest::test_organization_home_returns_200'`
   - Result: 16 tests, 24 assertions.
 
+## 2026-06-06 16:36:46 Europe/Paris
+
+Parenthèse repository hygiene — internal sync tooling — implemented by OPENCODE after Cyril clarified that `/synchro_pgsql-avant-migration` must not be published to GitHub.
+
+Decision:
+- The directory was already present in `.gitignore`, but files were already tracked by Git, so `.gitignore` alone could not prevent publication.
+- Staged `git rm --cached -r synchro_pgsql-avant-migration` to remove the directory from Git tracking while preserving local files on disk.
+
+Notes:
+- This does not purge the directory from historical commits already pushed previously. Full history purging would require a separate, coordinated repository rewrite and is not attempted here.
+- `public/build` artifacts and `docs/design/` remain outside this cleanup commit.
+
 # Handoffs
 
 # Tests
@@ -204,6 +220,7 @@ Validation:
 - 2026-06-06 16:24 Europe/Paris — `php -l resources/views/layouts/app.blade.php` passed after the `/org/cpme` title guard fix.
 - 2026-06-06 16:24 Europe/Paris — Playwright confirmed `https://test.laravel/org/cpme` no longer returns 500; guest redirects to `/org/cpme/login` with 0 console errors.
 - 2026-06-06 16:24 Europe/Paris — `APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan test --filter='T1404OrganizationParallelRoutesTest|T1392RouteSmokeGatesTest::test_organization_home_returns_200'` passed: 16 tests, 24 assertions.
+- 2026-06-06 16:36 Europe/Paris — `git rm --cached -r synchro_pgsql-avant-migration` staged removal from Git tracking while keeping local files available because the directory is ignored.
 
 ---
 
