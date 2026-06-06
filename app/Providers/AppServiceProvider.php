@@ -105,13 +105,16 @@ class AppServiceProvider extends ServiceProvider
                     $org = app()->bound('current_organization') ? app('current_organization') : null;
                     if ($org) {
                         $settings = [
+                            'brandOrganizationName' => $org->name,
                             'platformName' => $org->platform_name ?: config('app.name'),
                             'platformTagline' => $org->platform_tagline ?: 'Échangez vos talents',
                             'globalColorMode' => $org->global_color_mode ?: 'dark',
                         ];
                     } else {
+                        $userOrganizationName = auth()->user()?->organization?->name;
                         $defaultOrg = Organization::where('is_default', true)->first();
                         $settings = [
+                            'brandOrganizationName' => $userOrganizationName ?: config('app.name'),
                             'platformName' => $defaultOrg?->platform_name ?: config('app.name'),
                             'platformTagline' => $defaultOrg?->platform_tagline ?: 'Échangez vos talents',
                             'globalColorMode' => $defaultOrg?->global_color_mode ?: 'dark',
@@ -119,6 +122,7 @@ class AppServiceProvider extends ServiceProvider
                     }
                 } catch (\Exception) {
                     $settings = [
+                        'brandOrganizationName' => null,
                         'platformName' => config('app.name'),
                         'platformTagline' => 'Échangez vos talents',
                         'globalColorMode' => 'dark',
