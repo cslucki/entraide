@@ -80,17 +80,27 @@ class AdminOrganizationController extends Controller
             'hero_description'   => 'nullable|string|max:500',
             'hero_gradient_start' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
             'accent_color'       => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
-            'welcome_points'     => 'required|integer|min:0|max:10000',
-            'is_public'          => 'nullable|boolean',
-            'is_default'         => 'nullable|boolean',
-            'loops_enabled'      => 'nullable|boolean',
-            'maintenance_mode'   => 'nullable|boolean',
-            'platform_name'      => 'sometimes|required|string|max:100',
-            'platform_tagline'   => 'nullable|string|max:255',
-            'global_color_mode'  => 'sometimes|required|in:dark,light',
-            'blog_naming'        => 'nullable|in:b2b,b2c',
-            'transactions_naming' => 'nullable|in:b2b,b2c',
+            'welcome_points'         => 'required|integer|min:0|max:10000',
+            'service_points_min'     => 'nullable|integer|min:0|max:100000',
+            'service_points_max'     => 'nullable|integer|min:0|max:100000',
+            'is_public'              => 'nullable|boolean',
+            'is_default'             => 'nullable|boolean',
+            'loops_enabled'          => 'nullable|boolean',
+            'maintenance_mode'       => 'nullable|boolean',
+            'platform_name'          => 'sometimes|required|string|max:100',
+            'platform_tagline'       => 'nullable|string|max:255',
+            'global_color_mode'      => 'sometimes|required|in:dark,light',
+            'header_javascript_enabled' => 'nullable|boolean',
+            'header_javascript'      => 'nullable|string',
+            'blog_naming'            => 'nullable|in:b2b,b2c',
+            'transactions_naming'    => 'nullable|in:b2b,b2c',
         ]);
+
+        $min = $data['service_points_min'] ?? null;
+        $max = $data['service_points_max'] ?? null;
+        if ($min !== null && $max !== null && $max < $min) {
+            return back()->withErrors(['service_points_max' => 'Le maximum doit être supérieur ou égal au minimum.'])->withInput();
+        }
 
         if (empty($data['slug'])) {
             $data['slug'] = Str::slug($data['name']);
@@ -98,6 +108,7 @@ class AdminOrganizationController extends Controller
 
         $data['is_public'] = isset($data['is_public']);
         $data['loops_enabled'] = ($data['loops_enabled'] ?? '0') === '1';
+        $data['header_javascript_enabled'] = ($data['header_javascript_enabled'] ?? '0') === '1';
         $data['maintenance_mode'] = ($data['maintenance_mode'] ?? '0') === '1';
         $data['platform_name'] = $data['platform_name'] ?? $organization->platform_name;
         $data['platform_tagline'] = $data['platform_tagline'] ?? $organization->platform_tagline;
