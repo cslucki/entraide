@@ -15,11 +15,10 @@
         @foreach($tabs as $tab)
         @php $isActive = str_starts_with($currentRoute, $tab['route']); @endphp
         <a href="{{ route($tab['route']) }}"
-           class="flex flex-col items-center gap-0.5 flex-1 py-1 transition"
-           :class="{ 'opacity-100': {{ $isActive ? 'true' : 'false' }} }">
+           class="flex flex-col items-center gap-0.5 flex-1 py-1 transition">
             <span class="relative">
-                <svg class="w-5.5 h-5.5 {{ $isActive ? 'text-indigo-600' : 'text-gray-400 dark:text-gray-500' }}" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24">
-                    <path d="{{ $tab['icon'] }}"/>
+                <svg class="block w-6 h-6 {{ $isActive ? 'text-indigo-600' : 'text-gray-400 dark:text-gray-500' }}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="{{ $tab['icon'] }}" />
                 </svg>
             </span>
             <span class="text-[10px] font-medium {{ $isActive ? 'text-indigo-600 font-semibold' : 'text-gray-400 dark:text-gray-500' }}">{{ $tab['label'] }}</span>
