@@ -234,4 +234,91 @@ class AdminUsersTest extends TestCase
             ->assertSee('Test Communauté')
             ->assertSee('Communauté');
     }
+
+    // ── Login as user ─────────────────────────────────────────────────────────
+
+    public function test_admin_can_login_as_another_user(): void
+    {
+        $admin = $this->makeAdmin();
+        $user = User::factory()->create(['is_admin' => false, 'banned_at' => null]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.login-as', $user))
+            ->assertRedirect('/');
+
+        $this->assertEquals(auth()->id(), $user->id);
+        $this->assertEquals(session('admin_original_id'), $admin->id);
+    }
+
+    public function test_guest_cannot_login_as_user(): void
+    {
+        $user = User::factory()->create();
+
+        $this->post(route('admin.users.login-as', $user))
+            ->assertRedirect(route('login'));
+    }
+
+    public function test_non_admin_cannot_login_as_user(): void
+    {
+        $regular = User::factory()->create();
+        $target = User::factory()->create();
+
+        $this->actingAs($regular)
+            ->post(route('admin.users.login-as', $target))
+            ->assertStatus(403);
+    }
+
+    public function test_admin_cannot_login_as_banned_user(): void
+    {
+        $admin = $this->makeAdmin();
+        $banned = User::factory()->create(['banned_at' => now()]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.login-as', $banned))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertEquals(auth()->id(), $admin->id);
+    }
+
+    public function test_admin_cannot_login_as_another_admin(): void
+    {
+        $admin = $this->makeAdmin();
+        $otherAdmin = User::factory()->create(['is_admin' => true]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.login-as', $otherAdmin))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertEquals(auth()->id(), $admin->id);
+    }
+
+    public function test_admin_can_switch_back_to_admin_after_login_as(): void
+    {
+        $admin = $this->makeAdmin();
+        $user = User::factory()->create(['is_admin' => false, 'banned_at' => null]);
+
+        // Login as user
+        $this->actingAs($admin)
+            ->post(route('admin.users.login-as', $user));
+        $this->assertEquals(auth()->id(), $user->id);
+
+        // Switch back
+        $this->get(route('admin.back-to-admin'))
+            ->assertRedirect(route('admin.users'));
+
+        $this->assertEquals(auth()->id(), $admin->id);
+        $this->assertNull(session('admin_original_id'));
+    }
+
+    public function test_back_to_admin_requires_existing_session(): void
+    {
+        $user = User::factory()->create(['is_admin' => false]);
+
+        $this->actingAs($user)
+            ->get(route('admin.back-to-admin'))
+            ->assertRedirect('/')
+            ->assertSessionHas('error');
+    }
 }
