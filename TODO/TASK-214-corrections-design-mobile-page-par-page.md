@@ -2,7 +2,7 @@
 task_id: TASK-214
 title: Corrections design mobile page par page
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -13,14 +13,14 @@ branch: TASK-214-corrections-design-mobile-page-par-page
 priority: MEDIUM
 
 created_at: 2026-06-06 09:34:05 Europe/Paris
-updated_at: 2026-06-06 21:52:44 Europe/Paris
+updated_at: 2026-06-06 23:56:00 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-06-06 09:34:05 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
