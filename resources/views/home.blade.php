@@ -1,8 +1,28 @@
+@push('head')
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400;1,14..32,700&display=swap" rel="stylesheet">
+    <style>
+        .public-homepage {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+    </style>
+@endpush
+
+@inject('colorHelper', 'App\Support\ColorHelper')
+
 <x-app-layout>
+    <div class="public-homepage">
     <!-- Hero -->
-    <div class="bg-gradient-to-br from-indigo-600 to-purple-700 text-white py-20">
+    @php
+        $gradientStart = $defaultOrganization?->hero_gradient_start ?? $defaultOrganization?->accent_color ?? '#4f46e5';
+        $gradientEnd = $defaultOrganization
+            ? $defaultOrganization->hero_gradient_end
+            : $colorHelper::darken('#4f46e5', 25);
+    @endphp
+    <div class="text-white py-20" style="background: linear-gradient(135deg, {{ $gradientStart }} 0%, {{ $gradientEnd }} 100%);">
         <div class="max-w-4xl mx-auto px-4 text-center">
-            <h1 class="text-4xl md:text-5xl font-bold mb-4">BouclePro</h1>
+            <h1 class="text-4xl font-bold tracking-tight text-white sm:text-5xl">Bienvenue</h1>
             <p class="text-xl text-indigo-100 mb-3">Proposez vos {{ $T['services'] }}, trouvez ce dont vous avez besoin, et échangez avec des points.</p>
             <p class="text-indigo-200 mb-10 text-base">Créez votre réseau professionnel local — votre <span class="font-semibold text-white">boucle</span>.</p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
@@ -173,4 +193,5 @@
         </div>
     </div>
     @endguest
+    </div>
 </x-app-layout>

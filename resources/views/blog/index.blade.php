@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="title">Blog — BouclePro</x-slot>
 
-    <div class="max-w-7xl mx-auto px-4 py-8">
+    <x-page-container>
 
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
@@ -146,5 +146,5 @@
 
             </aside>
         </div>
-    </div>
+    </x-page-container>
 </x-app-layout>
