@@ -1,7 +1,7 @@
 ---
 task_id: TASK-215
 title: Uniformiser gabarit body desktop sur toutes les pages
-status: DONE
+status: MERGED
 owner: OPENCODE
 contributors: []
 branch: TASK-215-uniformiser-gabarit-body-desktop-sur-toutes-les-pages
