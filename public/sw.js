@@ -1,8 +1,7 @@
 // BouclePro — Service Worker (PWA shell offline)
-const CACHE_NAME = 'bouclepro-v1';
+const CACHE_NAME = 'bouclepro-v2';
 
 const SHELL_ASSETS = [
-  '/',
   '/site.webmanifest',
   '/web-app-manifest-192x192.png',
   '/web-app-manifest-512x512.png',
@@ -43,20 +42,49 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const isDocument = request.destination === 'document';
+  const isAsset = url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|webp|woff2?)$/);
+
+  if (isDocument) {
+    // Network-first for HTML — always serve fresh, fallback to cache
+    event.respondWith(
+      fetch(request).then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        return response;
+      }).catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
+    );
+    return;
+  }
+
+  if (isAsset) {
+    // Cache-first for versioned assets
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for other requests
   event.respondWith(
     caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
+      const fetchPromise = fetch(request).then((response) => {
         if (response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return response;
-      }).catch(() => {
-        if (request.destination === 'document') {
-          return caches.match('/');
-        }
-      });
+      }).catch(() => cached);
+      return cached || fetchPromise;
     })
   );
 });
