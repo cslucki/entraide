@@ -99,6 +99,14 @@
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex gap-2 items-center flex-wrap">
+                            @if($u->id !== auth()->id() && !$u->banned_at)
+                            <form method="POST" action="{{ route('admin.users.login-as', $u) }}">
+                                @csrf
+                                <button class="text-xs font-medium text-amber-600 hover:underline">
+                                    Se connecter sous
+                                </button>
+                            </form>
+                            @endif
                             <a href="{{ route('admin.users.edit', $u) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
                             <a href="{{ route('profile.show', $u) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
 
