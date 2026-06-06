@@ -1,6 +1,5 @@
-<x-app-layout>
-    <x-page-container>
-        <!-- Profile header -->
+<x-page :title="'Profil de '.$user->name" width="4xl">
+    <!-- Profile header -->
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6 relative">
             @if(auth()->check() && auth()->id() === $user->id)
             <div class="absolute top-4 right-4">
@@ -189,5 +188,4 @@
             @endforeach
         </div>
         @endif
-    </x-page-container>
-</x-app-layout>
+</x-page>

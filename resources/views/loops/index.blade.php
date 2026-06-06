@@ -1,20 +1,17 @@
-<x-app-layout>
-    <div class="max-w-7xl mx-auto px-4 py-6 md:py-8">
-        <div class="flex items-center justify-between mb-6 md:mb-8">
-            <div>
-                <h1 class="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">Mes boucles</h1>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mt-0.5">Vos espaces de collaboration</p>
-            </div>
-            @if($canCreate)
-                <a href="{{ route('loops.create') }}"
-                   class="inline-flex items-center gap-1.5 px-4 py-2.5 md:py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl md:rounded-lg transition whitespace-nowrap">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    <span>Nouvelle</span>
-                </a>
-            @endif
-        </div>
+<x-page title="Mes boucles" heading="Mes boucles" width="5xl">
+    <x-slot name="headingActions">
+        @if($canCreate)
+            <a href="{{ route('loops.create') }}"
+               class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span>Nouvelle</span>
+            </a>
+        @endif
+    </x-slot>
+
+    <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Vos espaces de collaboration</p>
 
         @if(session('success'))
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
@@ -75,4 +72,4 @@
             </div>
         @endif
     </div>
-</x-app-layout>
+</x-page>

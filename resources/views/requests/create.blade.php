@@ -1,6 +1,4 @@
-<x-app-layout>
-    <div class="max-w-3xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Faire une {{ $T['request'] }}</h1>
+<x-page :heading="'Faire une '.($T['request'] ?? 'demande')" width="3xl">
 
         <!-- Note pédagogique -->
         <div class="mb-6 flex gap-3 bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-sm text-green-700 dark:text-green-300">
@@ -167,5 +165,4 @@
                 <a href="{{ route('dashboard') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</a>
             </div>
         </form>
-    </div>
-</x-app-layout>
+</x-page>
