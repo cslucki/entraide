@@ -2,7 +2,7 @@
 task_id: TASK-220
 title: Organization Loop Mode & Primary Loop
 
-status: DONE
+status: MERGED
 
 owner: CODEUR
 
@@ -15,7 +15,7 @@ branch: TASK-220-organization-loop-mode-primary-loop
 priority: HIGH
 
 created_at: 2026-06-07 13:38:58 Europe/Paris
-updated_at: 2026-06-07 14:30:00 Europe/Paris
+updated_at: 2026-06-07 14:45:00 Europe/Paris
 
 labels: []
 
@@ -27,7 +27,7 @@ lock:
 handoff: true
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
