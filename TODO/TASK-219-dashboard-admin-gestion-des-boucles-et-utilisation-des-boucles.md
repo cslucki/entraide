@@ -2,7 +2,7 @@
 task_id: TASK-219
 title: Dashboard Admin — Gestion des boucles et utilisation des boucles
 
-status: DONE
+status: MERGED
 
 owner: CODEUR
 
@@ -14,7 +14,7 @@ branch: TASK-219-dashboard-admin-gestion-des-boucles-et-utilisation-des-boucles
 priority: HIGH
 
 created_at: 2026-06-07 09:30:54 Europe/Paris
-updated_at: 2026-06-07 13:36:16 Europe/Paris
+updated_at: 2026-06-07 13:37:44 Europe/Paris
 
 labels: []
 
@@ -101,7 +101,7 @@ Scope final TASK-219 : MVP admin/frontend/chat texte. Les replies, fichiers, cop
 
 - [x] check-task.sh
 - [x] finalize-task.sh
-- [ ] merge-task.sh
+- [x] merge-task.sh
 
 ---
 
@@ -163,6 +163,12 @@ Retours screenshots ORCHESTRATOR corrigés par CODEUR — alignement desktop com
 - [x] Show (chat) : `x-page-container width="5xl"` → `x-page-container` (default 7xl, aligné sur Explorer/Membres/Blog)
 - [x] Toast global "Message envoyé." supprimé — condition `session('success') !== 'Message envoyé.'` ajoutée dans app.blade.php
 - [x] 152 tests verts (1 intermittent pré-existant LoopCreationTest ordering, passe en isolation)
+
+## 2026-06-07 13:37:44 Europe/Paris
+TASK-219 mergée dans `develop` via `ai/scripts/merge-task.sh TASK-219`.
+- [x] Merge commit : `27fcb2e`
+- [x] `develop` poussé vers `origin/develop`
+- [x] Statut TASK passé à `MERGED`
 
 ---
 
