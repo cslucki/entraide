@@ -29,8 +29,8 @@
 @endpush
 
 <x-app-layout :title="$currentLoop->name">
-    <x-page-container width="5xl" class="loops-show-wrapper">
-        <div class="loops-show-container h-dvh md:h-auto flex flex-col bg-white dark:bg-gray-800 md:rounded-xl md:border md:border-gray-200 md:dark:border-gray-700 md:shadow-sm md:overflow-hidden">
+    <x-page-container class="loops-show-wrapper">
+        <div class="loops-show-container h-dvh flex flex-col bg-white dark:bg-gray-800">
 
         {{-- Topbar --}}
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
