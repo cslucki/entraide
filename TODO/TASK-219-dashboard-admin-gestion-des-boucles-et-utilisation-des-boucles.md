@@ -146,6 +146,14 @@ Retours UX post-review corrigés par CODEUR (OpenCode) :
 - [x] Footer global masqué sur la page chat — CSS `body:has(.loops-show-container) .min-h-screen > footer { display: none }`
 - [x] 153 tests loop + tenant safety verts (345 assertions), plus de fail intermittent
 
+## 2026-06-07 11:19:00 Europe/Paris
+Desktop container aligné sur Explorer/Membres/Blog par CODEUR :
+- [x] Custom `<div>` remplacé par `<x-page-container width="5xl">` (comme Boucles index)
+- [x] Classes `md:mx-auto md:max-w-3xl md:mt-4` retirées du chat card (gérées par le container)
+- [x] CSS mobile reset padding pour `loops-show-wrapper` (préserve full-height mobile)
+- [x] Chat card `bg-white rounded-xl border shadow-sm` conservée pour lecture desktop
+- [x] 152 tests verts (1 intermittent pré-existant LoopCreationTest ordering)
+
 ---
 
 # Handoffs
