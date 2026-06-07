@@ -15,7 +15,7 @@ class AdminOrganizationController extends Controller
 {
     public function index(): View
     {
-        $organizations = Organization::withCount(['users', 'services'])->with('admin')
+        $organizations = Organization::withCount(['users', 'services'])->with(['admin', 'primaryLoop'])
             ->latest()
             ->paginate(20);
 

@@ -14,6 +14,7 @@
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Nom</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Organisation</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Visibilité</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">Statut</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">Créateur</th>
@@ -32,6 +33,16 @@
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{{ Str::limit($orgLoop->description, 80) }}</p>
                             @endif
                         </div>
+                    </td>
+                    <td class="px-4 py-3 hidden sm:table-cell">
+                        @if($orgLoop->organization)
+                            <a href="{{ route('admin.organizations.edit', $orgLoop->organization) }}" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 hover:underline">
+                                {{ $orgLoop->organization->name }}
+                            </a>
+                        @else
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">Organisation inconnue</span>
+                        @endif
+                        <p class="mt-1 max-w-[160px] truncate font-mono text-[11px] text-gray-400 dark:text-gray-500">{{ $orgLoop->organization_id }}</p>
                     </td>
                     <td class="px-4 py-3 hidden sm:table-cell">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -82,7 +93,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                         Aucune boucle dans cette Organisation.
                     </td>
                 </tr>
