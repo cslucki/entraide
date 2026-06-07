@@ -136,6 +136,22 @@ class LoopOrganizationModeTest extends TestCase
         ]));
     }
 
+    public function test_organization_prefixed_loop_show_resolves_loop_parameter(): void
+    {
+        $this->organization->update(['slug' => 'main']);
+        $loop = $this->service->createLoop($this->user, 'Boucle1');
+        $loop->update(['visibility' => 'private']);
+
+        $response = $this->actingAs($this->user)
+            ->get(route('organization.loops.show', [
+                'organization' => 'main',
+                'loop' => $loop,
+            ]));
+
+        $response->assertOk();
+        $response->assertSee('Boucle1');
+    }
+
     // -------------------------------------------------------------------------
     // Multi-loop mode: shows list (default)
     // -------------------------------------------------------------------------

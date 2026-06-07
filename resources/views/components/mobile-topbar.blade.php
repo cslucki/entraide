@@ -76,7 +76,12 @@
         } elseif (request()->routeIs('blog.*')) {
             $backHref = route('blog.index');
         } elseif (request()->routeIs('loops.*', 'organization.loops.*')) {
-            $backHref = auth()->check() && Route::has('loops.index') ? route('loops.index') : route('boucles.index');
+            $_org = app()->bound('current_organization') ? app('current_organization') : null;
+            if ($_org && $_org->isMonoLoop()) {
+                $backHref = auth()->check() ? $routeUrl('home', 'organization.home') : route('home');
+            } else {
+                $backHref = auth()->check() && Route::has('loops.index') ? route('loops.index') : route('boucles.index');
+            }
         } elseif (request()->routeIs('messages.*', 'points.*', 'favorites.*', 'profile.*', 'organization.messages.*', 'organization.points.*', 'organization.favorites.*', 'organization.profile.*')) {
             $backHref = auth()->check() ? $routeUrl('dashboard', 'organization.dashboard') : route('home');
         } elseif (request()->routeIs('bug-reports.*', 'organization.bug-reports.*')) {
