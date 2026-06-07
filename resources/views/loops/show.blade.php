@@ -16,6 +16,9 @@
         body:has(.loops-show-container) .min-h-screen > footer {
             display: none !important;
         }
+        body:has(.loops-show-container) .loops-show-wrapper {
+            padding: 0 !important;
+        }
     }
     @media (min-width: 768px) {
         .loops-show-container {
@@ -26,7 +29,8 @@
 @endpush
 
 <x-app-layout :title="$currentLoop->name">
-    <div class="loops-show-container h-dvh md:h-auto flex flex-col bg-white dark:bg-gray-800 md:mx-auto md:max-w-3xl md:mt-4 md:rounded-xl md:border md:border-gray-200 md:dark:border-gray-700 md:shadow-sm md:overflow-hidden">
+    <x-page-container width="5xl" class="loops-show-wrapper">
+        <div class="loops-show-container h-dvh md:h-auto flex flex-col bg-white dark:bg-gray-800 md:rounded-xl md:border md:border-gray-200 md:dark:border-gray-700 md:shadow-sm md:overflow-hidden">
 
         {{-- Topbar --}}
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
@@ -324,4 +328,5 @@
             @endif
         </div>
     </div>
+    </x-page-container>
 </x-app-layout>
