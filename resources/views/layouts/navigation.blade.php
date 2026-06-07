@@ -10,6 +10,11 @@
                         $desktopBrandHref = isset($currentOrganization)
                             ? route('organization.home', ['organization' => $currentOrganization])
                             : route('home');
+                        $organizationRouteParam = request()->route('organization');
+                        $loopsIndexHref = $organizationRouteParam && request()->routeIs('organization.*')
+                            ? route('organization.loops.index', ['organization' => $organizationRouteParam])
+                            : route('loops.index');
+                        $loopsIsActive = request()->routeIs('loops*', 'organization.loops*');
                     @endphp
                     <a href="{{ $desktopBrandHref }}" class="hidden sm:flex items-center gap-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800" aria-label="Accueil {{ $desktopBrandName }}">
                         <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-10 w-10 shrink-0" aria-hidden="true">
@@ -24,7 +29,7 @@
                     <x-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">Blog</x-nav-link>
                     @if(!$tenant || $tenant->loops_enabled)
                         @auth
-                            <x-nav-link :href="route('loops.index')" :active="request()->routeIs('loops*')">Boucles</x-nav-link>
+                            <x-nav-link :href="$loopsIndexHref" :active="$loopsIsActive">Boucles</x-nav-link>
                         @else
                             <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-nav-link>
                         @endauth
@@ -186,7 +191,7 @@
             <x-responsive-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">Blog</x-responsive-nav-link>
             @if(!$tenant || $tenant->loops_enabled)
                 @auth
-                    <x-responsive-nav-link :href="route('loops.index')" :active="request()->routeIs('loops*')">Boucles</x-responsive-nav-link>
+                    <x-responsive-nav-link :href="$loopsIndexHref" :active="$loopsIsActive">Boucles</x-responsive-nav-link>
                 @else
                     <x-responsive-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-responsive-nav-link>
                 @endauth

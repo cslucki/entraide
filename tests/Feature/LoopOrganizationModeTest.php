@@ -82,6 +82,60 @@ class LoopOrganizationModeTest extends TestCase
         $response->assertSee('Boucle par défaut');
     }
 
+    public function test_organization_prefixed_mono_loop_without_primary_shows_warning(): void
+    {
+        $defaultOrganization = Organization::factory()->create([
+            'is_default' => true,
+            'loop_mode' => 'mono',
+        ]);
+        $defaultUser = User::factory()->create(['organization_id' => $defaultOrganization->id]);
+        $defaultLoop = $this->service->createLoop($defaultUser, 'Default Organization Loop');
+        $defaultOrganization->update(['primary_loop_id' => $defaultLoop->id]);
+
+        $this->organization->update([
+            'slug' => 'cpme',
+            'loop_mode' => 'mono',
+            'primary_loop_id' => null,
+        ]);
+        $this->service->createLoop($this->user, 'CPME Accessible Loop');
+
+        $response = $this->actingAs($this->otherUser)
+            ->get(route('organization.loops.index', ['organization' => 'cpme']));
+
+        $response->assertOk();
+        $response->assertSee('Boucle par défaut');
+        $response->assertDontSee('Default Organization Loop');
+    }
+
+    public function test_organization_prefixed_header_links_to_organization_loops(): void
+    {
+        $this->organization->update(['slug' => 'cpme']);
+
+        $response = $this->actingAs($this->user)
+            ->get(route('organization.dashboard', ['organization' => 'cpme']));
+
+        $response->assertOk();
+        $response->assertSee(route('organization.loops.index', ['organization' => 'cpme']), false);
+    }
+
+    public function test_organization_prefixed_mono_loop_redirect_stays_organization_scoped(): void
+    {
+        $this->organization->update(['slug' => 'cpme']);
+        $loop = $this->service->createLoop($this->user, 'CPME Primary Loop');
+        $this->organization->update([
+            'loop_mode' => 'mono',
+            'primary_loop_id' => $loop->id,
+        ]);
+
+        $response = $this->actingAs($this->otherUser)
+            ->get(route('organization.loops.index', ['organization' => 'cpme']));
+
+        $response->assertRedirect(route('organization.loops.show', [
+            'organization' => 'cpme',
+            'loop' => $loop,
+        ]));
+    }
+
     // -------------------------------------------------------------------------
     // Multi-loop mode: shows list (default)
     // -------------------------------------------------------------------------

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Loop;
-use App\Models\Organization;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\Referral;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\LoopMessageService;
@@ -70,6 +70,20 @@ class LoopController extends Controller
         abort(403);
     }
 
+    private function loopRoute(string $route, Loop $loop): string
+    {
+        $organization = request()->route('organization');
+
+        if ($organization && request()->routeIs('organization.*')) {
+            return route('organization.'.$route, [
+                'organization' => $organization,
+                'loop' => $loop,
+            ]);
+        }
+
+        return route($route, $loop);
+    }
+
     public function index(): View|RedirectResponse
     {
         $organizationId = $this->resolveOrganizationId();
@@ -84,7 +98,7 @@ class LoopController extends Controller
                 $primaryLoop = $organization->primaryLoop;
 
                 if ($primaryLoop && $primaryLoop->organization_id === $organization->id) {
-                    return redirect()->route('loops.show', $primaryLoop);
+                    return redirect($this->loopRoute('loops.show', $primaryLoop));
                 }
             }
 
@@ -98,7 +112,7 @@ class LoopController extends Controller
         $loops = $this->getAccessibleLoopsQuery($organizationId, $user)->get();
 
         if ($loops->count() === 1) {
-            return redirect()->route('loops.show', $loops->first());
+            return redirect($this->loopRoute('loops.show', $loops->first()));
         }
 
         return view('loops.index', compact('loops'))->with('canCreate', true);
