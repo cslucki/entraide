@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
@@ -229,5 +230,63 @@ class AdminCommunitiesTest extends TestCase
         $this->actingAs($admin)->get(route('admin.organizations'))
             ->assertSee('Publique')
             ->assertSee('Privée');
+    }
+
+    public function test_organization_index_shows_loop_mode_and_primary_loop(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $monoOrganization = Organization::factory()->create([
+            'name' => 'Mono Organization',
+            'loop_mode' => 'mono',
+        ]);
+        Organization::factory()->create([
+            'name' => 'Multi Organization',
+            'loop_mode' => 'multi',
+            'primary_loop_id' => null,
+        ]);
+        $creator = User::factory()->create(['organization_id' => $monoOrganization->id]);
+        $primaryLoop = Loop::factory()->create([
+            'organization_id' => $monoOrganization->id,
+            'created_by' => $creator->id,
+            'name' => 'Primary Admin Loop',
+        ]);
+
+        $monoOrganization->update(['primary_loop_id' => $primaryLoop->id]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.organizations'))
+            ->assertOk()
+            ->assertSee('Mono')
+            ->assertSee('Multi')
+            ->assertSee('Principale')
+            ->assertSee('Primary Admin Loop')
+            ->assertSee('— Aucune —');
+    }
+
+    public function test_admin_cannot_set_primary_loop_from_another_organization(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $organization = Organization::factory()->create();
+        $foreignOrganization = Organization::factory()->create();
+        $foreignCreator = User::factory()->create(['organization_id' => $foreignOrganization->id]);
+        $foreignLoop = Loop::factory()->create([
+            'organization_id' => $foreignOrganization->id,
+            'created_by' => $foreignCreator->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('admin.organizations.edit', $organization))
+            ->put(route('admin.organizations.update', $organization), [
+                'name' => $organization->name,
+                'slug' => $organization->slug,
+                'welcome_points' => 100,
+                'loops_enabled' => '1',
+                'loop_mode' => 'mono',
+                'primary_loop_id' => $foreignLoop->id,
+            ])
+            ->assertRedirect(route('admin.organizations.edit', $organization))
+            ->assertSessionHasErrors('primary_loop_id');
+
+        $this->assertNull($organization->fresh()->primary_loop_id);
     }
 }
