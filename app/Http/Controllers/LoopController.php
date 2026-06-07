@@ -78,7 +78,35 @@ class LoopController extends Controller
 
         $user = auth()->user();
 
-        $loops = Loop::query()
+        // Mono-loop mode: redirect to primary loop if defined
+        if ($organization->isMonoLoop()) {
+            if ($organization->primary_loop_id) {
+                $primaryLoop = $organization->primaryLoop;
+
+                if ($primaryLoop && $primaryLoop->organization_id === $organization->id) {
+                    return redirect()->route('loops.show', $primaryLoop);
+                }
+            }
+
+            $loops = $this->getAccessibleLoopsQuery($organizationId, $user)->get();
+            $noPrimaryLoopWarning = true;
+
+            return view('loops.index', compact('loops', 'noPrimaryLoopWarning'))->with('canCreate', true);
+        }
+
+        // Multi-loop mode: show list, redirect if single accessible loop
+        $loops = $this->getAccessibleLoopsQuery($organizationId, $user)->get();
+
+        if ($loops->count() === 1) {
+            return redirect()->route('loops.show', $loops->first());
+        }
+
+        return view('loops.index', compact('loops'))->with('canCreate', true);
+    }
+
+    private function getAccessibleLoopsQuery(string $organizationId, $user)
+    {
+        return Loop::query()
             ->where('organization_id', $organizationId)
             ->where(function ($q) use ($user) {
                 $q->where('visibility', 'public')
@@ -90,16 +118,7 @@ class LoopController extends Controller
             })
             ->withCount('activeMembers')
             ->withMax('messages as last_message_at', 'created_at')
-            ->latest('updated_at')
-            ->get();
-
-        if ($loops->count() === 1) {
-            return redirect()->route('loops.show', $loops->first());
-        }
-
-        $canCreate = true;
-
-        return view('loops.index', compact('loops', 'canCreate'));
+            ->latest('updated_at');
     }
 
     public function create(): View
@@ -146,7 +165,9 @@ class LoopController extends Controller
             ->where('status', 'active')
             ->exists();
 
-        if ($loop->isPrivate() && ! $isMember) {
+        $isPrimaryLoop = $organization->primary_loop_id === $loop->id;
+
+        if ($loop->isPrivate() && ! $isMember && ! $isPrimaryLoop) {
             abort(404);
         }
 
