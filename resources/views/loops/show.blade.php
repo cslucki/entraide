@@ -13,6 +13,9 @@
             padding-top: 0 !important;
             padding-bottom: 0 !important;
         }
+        body:has(.loops-show-container) .min-h-screen > footer {
+            display: none !important;
+        }
     }
     @media (min-width: 768px) {
         .loops-show-container {
@@ -47,7 +50,7 @@
         </div>
 
         {{-- Session messages --}}
-        @if(session('success'))
+        @if(session('success') && session('success') !== 'Message envoyé.')
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
                  class="flex-shrink-0 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-2 text-sm">
                 {{ session('success') }}
@@ -67,7 +70,7 @@
         @endif
 
         {{-- Messages --}}
-        <div class="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-4">
+        <div x-data x-init="$nextTick(() => $el.scrollTop = $el.scrollHeight)" class="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-4">
             @forelse($messages as $msg)
                 @php $isOwn = $msg->sender_id === auth()->id(); @endphp
                 @if($msg->type === 'help_request')

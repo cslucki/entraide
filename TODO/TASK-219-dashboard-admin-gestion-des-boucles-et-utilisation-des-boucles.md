@@ -139,6 +139,13 @@ UI/UX Chat WhatsApp-like implémenté par CODEUR (OpenCode) — scope fonctionne
 - [x] LoopMessageTest mis à jour : `assertSee('Discussion')` → `assertSee($this->loop->name)`, `assertSee('Envoyer')` → `assertSee('Écrivez un message')`
 - [x] 152 tests loop + tenant safety verts (1 fail pré-existant intermittent LoopCreationTest)
 
+## 2026-06-07 10:59:00 Europe/Paris
+Retours UX post-review corrigés par CODEUR (OpenCode) :
+- [x] Scroll automatique au dernier message — Alpine `x-init` avec `$nextTick` sur le conteneur messages
+- [x] Flash "Message envoyé" supprimé — condition `session('success') !== 'Message envoyé.'` sur le bloc success
+- [x] Footer global masqué sur la page chat — CSS `body:has(.loops-show-container) .min-h-screen > footer { display: none }`
+- [x] 153 tests loop + tenant safety verts (345 assertions), plus de fail intermittent
+
 ---
 
 # Handoffs
@@ -186,6 +193,10 @@ Total: 153 tests, 0 failures (345 assertions)
 - LoopMessageTest: 21 passed (1 updated: message area assertions)
 - All other suites unchanged: 152 passed, 1 pre-existing intermittent failure
 Total: 152 passed, 1 intermittent (341 assertions)
+
+2026-06-07 10:59 — Post-review UX fixes (scroll, flash, footer), same filter "Loop|T07411":
+- All suites unchanged
+- 153 passed, 0 failures (345 assertions) — intermittent éliminé
 
 ---
 
