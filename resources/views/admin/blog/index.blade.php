@@ -77,7 +77,11 @@
                     <td class="px-4 py-3 text-gray-400 hidden lg:table-cell text-xs">
                         {{ $post->published_at?->format('d/m/Y') ?? $post->created_at->format('d/m/Y') }}
                     </td>
-                    <td class="px-4 py-3 text-right">
+                    <td class="px-4 py-3 text-right whitespace-nowrap">
+                        <a href="{{ route('admin.blog.edit', $post) }}"
+                           class="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline mr-2">Modifier</a>
+                        <a href="{{ route('blog.show', $post) }}" target="_blank"
+                           class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mr-2">Aperçu ⬀</a>
                         <form action="{{ route('admin.blog.destroy', $post) }}" method="POST" class="inline"
                               onsubmit="return confirm('Supprimer « {{ addslashes($post->title) }} » ?')">
                             @csrf @method('DELETE')
