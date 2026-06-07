@@ -145,4 +145,31 @@ class LoopCreationTest extends TestCase
         $this->assertNotEquals($loop2->slug, 'same-name');
         $this->assertEquals('same-name-1', $loop2->slug);
     }
+
+    public function test_redirects_to_show_when_only_one_accessible_loop(): void
+    {
+        $loop = $this->service->createLoop($this->user, 'Only Loop');
+
+        app()->instance('current_organization', $this->organization);
+
+        $response = $this->actingAs($this->user)
+            ->get(route('loops.index'));
+
+        $response->assertRedirect(route('loops.show', $loop));
+    }
+
+    public function test_shows_index_when_multiple_accessible_loops(): void
+    {
+        $this->service->createLoop($this->user, 'Loop A');
+        $this->service->createLoop($this->user, 'Loop B');
+
+        app()->instance('current_organization', $this->organization);
+
+        $response = $this->actingAs($this->user)
+            ->get(route('loops.index'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Loop A');
+        $response->assertSee('Loop B');
+    }
 }
