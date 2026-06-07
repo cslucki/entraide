@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
@@ -110,6 +111,25 @@ class AdminCommunitiesTest extends TestCase
             ->get(route('admin.organizations.edit', $organization))
             ->assertOk()
             ->assertSee('Old Name');
+    }
+
+    public function test_admin_can_edit_organization_with_primary_loop_options(): void
+    {
+        $this->withoutVite();
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $organization = Organization::factory()->create(['name' => 'Looped Organization']);
+        $creator = User::factory()->create(['organization_id' => $organization->id]);
+        $loop = Loop::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $creator->id,
+            'name' => 'Boucle principale QA',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.organizations.edit', $organization))
+            ->assertOk()
+            ->assertSee($loop->name);
     }
 
     public function test_admin_can_update_organization(): void

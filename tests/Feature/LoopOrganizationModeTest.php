@@ -177,6 +177,32 @@ class LoopOrganizationModeTest extends TestCase
         $this->assertEquals($loop->id, $this->organization->primary_loop_id);
     }
 
+    public function test_admin_cannot_set_primary_loop_from_another_organization(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $foreignLoop = $this->service->createLoop($this->crossUser, 'Foreign Primary');
+
+        $response = $this->actingAs($admin)->from(route('admin.organizations.edit', $this->organization))
+            ->put(route('admin.organizations.update', $this->organization), [
+                'name' => $this->organization->name,
+                'slug' => $this->organization->slug,
+                'welcome_points' => 100,
+                'loops_enabled' => '1',
+                'loop_mode' => 'mono',
+                'primary_loop_id' => $foreignLoop->id,
+                'platform_name' => $this->organization->platform_name ?? 'Test',
+                'global_color_mode' => 'light',
+                'blog_naming' => 'b2b',
+                'transactions_naming' => 'b2c',
+            ]);
+
+        $response->assertRedirect(route('admin.organizations.edit', $this->organization));
+        $response->assertSessionHasErrors('primary_loop_id');
+
+        $this->organization->refresh();
+        $this->assertNull($this->organization->primary_loop_id);
+    }
+
     // -------------------------------------------------------------------------
     // Default loop_mode is 'multi'
     // -------------------------------------------------------------------------
