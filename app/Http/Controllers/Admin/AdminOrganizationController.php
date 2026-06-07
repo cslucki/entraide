@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminOrganizationController extends Controller
@@ -24,23 +25,24 @@ class AdminOrganizationController extends Controller
     public function create(): View
     {
         $admins = User::orderBy('name')->get();
+
         return view('admin.organizations.create', compact('admins'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name'               => 'required|string|max:100|unique:organizations,name',
-            'slug'               => 'nullable|string|max:100|unique:organizations,slug|regex:/^[a-z0-9\-]+$/',
-            'description'        => 'nullable|string|max:500',
-            'admin_id'           => 'nullable|uuid|exists:users,id',
-            'hero_title'         => 'nullable|string|max:100',
-            'hero_description'   => 'nullable|string|max:500',
-            'accent_color'       => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
-            'welcome_points'     => 'required|integer|min:0|max:10000',
-            'is_public'          => 'nullable|boolean',
-            'is_default'         => 'nullable|boolean',
-            'blog_naming'        => 'nullable|in:b2b,b2c',
+            'name' => 'required|string|max:100|unique:organizations,name',
+            'slug' => 'nullable|string|max:100|unique:organizations,slug|regex:/^[a-z0-9\-]+$/',
+            'description' => 'nullable|string|max:500',
+            'admin_id' => 'nullable|uuid|exists:users,id',
+            'hero_title' => 'nullable|string|max:100',
+            'hero_description' => 'nullable|string|max:500',
+            'accent_color' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
+            'welcome_points' => 'required|integer|min:0|max:10000',
+            'is_public' => 'nullable|boolean',
+            'is_default' => 'nullable|boolean',
+            'blog_naming' => 'nullable|in:b2b,b2c',
             'transactions_naming' => 'nullable|in:b2b,b2c',
         ]);
 
@@ -54,7 +56,7 @@ class AdminOrganizationController extends Controller
         $data['blog_naming'] = $data['blog_naming'] ?? 'b2b';
         $data['transactions_naming'] = $data['transactions_naming'] ?? 'b2c';
 
-        if (!empty($data['is_default'])) {
+        if (! empty($data['is_default'])) {
             Organization::where('is_default', true)->update(['is_default' => false]);
         }
 
@@ -67,36 +69,41 @@ class AdminOrganizationController extends Controller
     {
         $admins = User::orderBy('name')->get();
         $loops = $organization->loops()->orderBy('name')->get();
+
         return view('admin.organizations.edit', compact('organization', 'admins', 'loops'));
     }
 
     public function update(Request $request, Organization $organization): RedirectResponse
     {
         $data = $request->validate([
-            'name'               => 'required|string|max:100|unique:organizations,name,' . $organization->id,
-            'slug'               => 'nullable|string|max:100|unique:organizations,slug,' . $organization->id . '|regex:/^[a-z0-9\-]+$/',
-            'description'        => 'nullable|string|max:500',
-            'admin_id'           => 'nullable|uuid|exists:users,id',
-            'hero_title'         => 'nullable|string|max:100',
-            'hero_description'   => 'nullable|string|max:500',
+            'name' => 'required|string|max:100|unique:organizations,name,'.$organization->id,
+            'slug' => 'nullable|string|max:100|unique:organizations,slug,'.$organization->id.'|regex:/^[a-z0-9\-]+$/',
+            'description' => 'nullable|string|max:500',
+            'admin_id' => 'nullable|uuid|exists:users,id',
+            'hero_title' => 'nullable|string|max:100',
+            'hero_description' => 'nullable|string|max:500',
             'hero_gradient_start' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
-            'accent_color'       => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
-            'welcome_points'         => 'required|integer|min:0|max:10000',
-            'service_points_min'     => 'nullable|integer|min:0|max:100000',
-            'service_points_max'     => 'nullable|integer|min:0|max:100000',
-            'is_public'              => 'nullable|boolean',
-            'is_default'             => 'nullable|boolean',
-            'loops_enabled'          => 'nullable|boolean',
-            'loop_mode'              => 'nullable|in:mono,multi',
-            'primary_loop_id'        => 'nullable|uuid|exists:loops,id',
-            'maintenance_mode'       => 'nullable|boolean',
-            'platform_name'          => 'sometimes|required|string|max:100',
-            'platform_tagline'       => 'nullable|string|max:255',
-            'global_color_mode'      => 'sometimes|required|in:dark,light',
+            'accent_color' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
+            'welcome_points' => 'required|integer|min:0|max:10000',
+            'service_points_min' => 'nullable|integer|min:0|max:100000',
+            'service_points_max' => 'nullable|integer|min:0|max:100000',
+            'is_public' => 'nullable|boolean',
+            'is_default' => 'nullable|boolean',
+            'loops_enabled' => 'nullable|boolean',
+            'loop_mode' => 'nullable|in:mono,multi',
+            'primary_loop_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists('loops', 'id')->where('organization_id', $organization->id),
+            ],
+            'maintenance_mode' => 'nullable|boolean',
+            'platform_name' => 'sometimes|required|string|max:100',
+            'platform_tagline' => 'nullable|string|max:255',
+            'global_color_mode' => 'sometimes|required|in:dark,light',
             'header_javascript_enabled' => 'nullable|boolean',
-            'header_javascript'      => 'nullable|string',
-            'blog_naming'            => 'nullable|in:b2b,b2c',
-            'transactions_naming'    => 'nullable|in:b2b,b2c',
+            'header_javascript' => 'nullable|string',
+            'blog_naming' => 'nullable|in:b2b,b2c',
+            'transactions_naming' => 'nullable|in:b2b,b2c',
         ]);
 
         $min = $data['service_points_min'] ?? null;
@@ -112,7 +119,7 @@ class AdminOrganizationController extends Controller
         $data['is_public'] = isset($data['is_public']);
         $data['loops_enabled'] = ($data['loops_enabled'] ?? '0') === '1';
         $data['loop_mode'] = $data['loop_mode'] ?? 'multi';
-        $data['primary_loop_id'] = $data['primary_loop_id'] ?: null;
+        $data['primary_loop_id'] = ($data['primary_loop_id'] ?? null) ?: null;
         $data['header_javascript_enabled'] = ($data['header_javascript_enabled'] ?? '0') === '1';
         $data['maintenance_mode'] = ($data['maintenance_mode'] ?? '0') === '1';
         $data['platform_name'] = $data['platform_name'] ?? $organization->platform_name;
@@ -139,7 +146,7 @@ class AdminOrganizationController extends Controller
             return back()->with('error', 'Vous ne pouvez pas désactiver votre propre organisation.');
         }
 
-        $organization->update(['is_active' => !$organization->is_active]);
+        $organization->update(['is_active' => ! $organization->is_active]);
         $status = $organization->is_active ? 'activée' : 'désactivée';
 
         return back()->with('success', "Organisation « {$organization->name} » {$status}.");
