@@ -20,6 +20,12 @@
             </div>
         @endif
 
+        @if(isset($noPrimaryLoopWarning) && $noPrimaryLoopWarning)
+            <div class="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 px-4 py-3 rounded-lg text-sm">
+                <strong>Attention :</strong> La Boucle par défaut n'est pas définie. Un administrateur doit configurer la Boucle principale dans les paramètres de l'organisation.
+            </div>
+        @endif
+
         @if($loops->isEmpty())
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 py-16 px-6 text-center">
                 <svg class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

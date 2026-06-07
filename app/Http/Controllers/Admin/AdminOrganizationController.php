@@ -66,7 +66,8 @@ class AdminOrganizationController extends Controller
     public function edit(Organization $organization): View
     {
         $admins = User::orderBy('name')->get();
-        return view('admin.organizations.edit', ['organization' => $organization, 'admins' => $admins]);
+        $loops = $organization->loops()->orderBy('name')->get();
+        return view('admin.organizations.edit', compact('organization', 'admins', 'loops'));
     }
 
     public function update(Request $request, Organization $organization): RedirectResponse
@@ -86,6 +87,8 @@ class AdminOrganizationController extends Controller
             'is_public'              => 'nullable|boolean',
             'is_default'             => 'nullable|boolean',
             'loops_enabled'          => 'nullable|boolean',
+            'loop_mode'              => 'nullable|in:mono,multi',
+            'primary_loop_id'        => 'nullable|uuid|exists:loops,id',
             'maintenance_mode'       => 'nullable|boolean',
             'platform_name'          => 'sometimes|required|string|max:100',
             'platform_tagline'       => 'nullable|string|max:255',
@@ -108,6 +111,8 @@ class AdminOrganizationController extends Controller
 
         $data['is_public'] = isset($data['is_public']);
         $data['loops_enabled'] = ($data['loops_enabled'] ?? '0') === '1';
+        $data['loop_mode'] = $data['loop_mode'] ?? 'multi';
+        $data['primary_loop_id'] = $data['primary_loop_id'] ?: null;
         $data['header_javascript_enabled'] = ($data['header_javascript_enabled'] ?? '0') === '1';
         $data['maintenance_mode'] = ($data['maintenance_mode'] ?? '0') === '1';
         $data['platform_name'] = $data['platform_name'] ?? $organization->platform_name;
