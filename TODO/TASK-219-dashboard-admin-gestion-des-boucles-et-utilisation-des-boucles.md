@@ -14,7 +14,7 @@ branch: TASK-219-dashboard-admin-gestion-des-boucles-et-utilisation-des-boucles
 priority: HIGH
 
 created_at: 2026-06-07 09:30:54 Europe/Paris
-updated_at: 2026-06-07 09:48:00 Europe/Paris
+updated_at: 2026-06-07 13:25:49 Europe/Paris
 
 labels: []
 
@@ -236,6 +236,31 @@ Total: 152 passed, 1 intermittent (341 assertions)
 ## ORCHESTRATOR (2026-06-07 10:50) — Décision
 
 Réserve VERIFICATOR acceptée. Non bloquante.
+
+---
+
+## ORCHESTRATOR (2026-06-07 13:16) — Future task recommandée
+
+Complément produit reçu avant merge, explicitement **hors scope TASK-219**.
+
+**Décision :** ne pas intégrer dans TASK-219, ne pas rouvrir le scope MVP, ne pas modifier maintenant `/admin/organizations/main/`, ne pas ajouter maintenant de champs `Organization`, ne pas modifier maintenant le comportement global `/loops` au-delà de ce qui est déjà livré.
+
+**Tâche future recommandée :** `TASK-220 — Organization Loop Mode & Primary Loop`.
+
+**Formulation canonique :** “Boucle principale = Boucle accessible par défaut à tous les membres de l'Organization.”
+
+**Objectif futur :**
+- définir au niveau `Organization` si l'organisation est en mono-boucle ou multi-boucles ;
+- définir une Boucle principale / Boucle par défaut ;
+- en mono-boucle, rediriger `/loops` vers la Boucle principale pour les users connectés ;
+- en multi-boucles, afficher la liste des Boucles ;
+- si aucune Boucle principale n'est définie, afficher un warning “La Boucle par défaut n'est pas définie” puis l'écran d'explication existant ;
+- pour les visiteurs non connectés, afficher l'écran d'explication existant ;
+- rendre la Boucle principale accessible à tous les membres de l'Organization sans invitation manuelle ;
+- ne pas confondre accès automatique et auto-join silencieux non documenté ;
+- traiter ce sujet plus tard avec tests dédiés.
+
+**Impact TASK-219 :** aucun. Ne bloque pas la finalisation de TASK-219.
 
 ---
 
