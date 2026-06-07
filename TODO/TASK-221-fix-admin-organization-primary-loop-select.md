@@ -2,7 +2,7 @@
 task_id: TASK-221
 title: Fix admin organization primary loop select
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-221-fix-admin-organization-primary-loop-select
 priority: MEDIUM
 
 created_at: 2026-06-07 19:25:22 Europe/Paris
-updated_at: 2026-06-07 19:43:15 Europe/Paris
+updated_at: 2026-06-07 20:54:00 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -61,6 +61,20 @@ TASK-221-fix-admin-organization-primary-loop-select
 
 Status:
 IN_PROGRESS
+
+## 2026-06-07 20:54:00 Europe/Paris
+
+Merged into `develop` with `ai/scripts/merge-task.sh TASK-221`.
+
+Merge notes:
+
+- Source branch: `TASK-221-fix-admin-organization-primary-loop-select`
+- Target branch: `develop`
+- Merge successful and pushed to `origin/develop`
+- Version bump script failed inside `merge-task.sh` because it ran after checkout to `develop` without explicit task ID; merge continued successfully.
+
+Status:
+MERGED.
 
 ## 2026-06-07 19:28:30 Europe/Paris
 
