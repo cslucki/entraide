@@ -1,7 +1,21 @@
 <x-page title="Mes boucles" heading="Mes boucles">
+    @php
+        $organizationRouteParam = request()->route('organization');
+        $loopsCreateHref = $organizationRouteParam && request()->routeIs('organization.*')
+            ? route('organization.loops.create', ['organization' => $organizationRouteParam])
+            : route('loops.create');
+        $loopShowHref = function ($loop) use ($organizationRouteParam) {
+            if ($organizationRouteParam && request()->routeIs('organization.*')) {
+                return route('organization.loops.show', ['organization' => $organizationRouteParam, 'loop' => $loop]);
+            }
+
+            return route('loops.show', $loop);
+        };
+    @endphp
+
     <x-slot name="headingActions">
         @if($canCreate)
-            <a href="{{ route('loops.create') }}"
+            <a href="{{ $loopsCreateHref }}"
                class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -33,7 +47,7 @@
                 </svg>
                 <p class="text-gray-400 dark:text-gray-500 mb-4">Vous n'avez encore aucune boucle.</p>
                 @if($canCreate)
-                    <a href="{{ route('loops.create') }}"
+                    <a href="{{ $loopsCreateHref }}"
                        class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -45,7 +59,7 @@
         @else
             <div class="grid gap-3 md:gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach($loops as $item)
-                    <a href="{{ route('loops.show', $item) }}"
+                    <a href="{{ $loopShowHref($item) }}"
                        class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition block active:scale-[0.98]">
                         <h3 class="font-semibold text-gray-900 dark:text-gray-100 truncate">{{ $item->name }}</h3>
                         @if($item->description)
