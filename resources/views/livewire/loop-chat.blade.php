@@ -1,4 +1,4 @@
-<div wire:poll.3s>
+<div wire:poll.3s class="flex flex-col min-h-0">
     <div x-data="{ atBottom: true }"
          x-init="$nextTick(() => { $el.scrollTop = $el.scrollHeight; atBottom = true; })"
          x-on:scroll="atBottom = ($el.scrollHeight - $el.scrollTop - $el.clientHeight) < 60"
@@ -76,7 +76,7 @@
                     <textarea wire:model="body" id="livewire-body" rows="1"
                               placeholder="Écrivez un message..."
                               class="block w-full resize-none px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-full bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent overflow-hidden"
-                              @keydown.enter.prevent="if(!$event.shiftKey){ $event.target.closest('form').dispatchEvent(new Event('submit', {cancelable: true})) }"></textarea>
+                              @keydown.enter.prevent="if(!$event.shiftKey){ $event.target.closest('form').dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})) }"></textarea>
                     @error('body') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <button type="submit"
