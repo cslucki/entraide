@@ -147,7 +147,7 @@
 
         @stack('scripts')
 
-        <!-- Alpine store global pour les modals de confirmation -->
+        <!-- Alpine stores globaux -->
         <script>
         document.addEventListener('alpine:init', () => {
             Alpine.store('modal', {
@@ -156,6 +156,21 @@
                 open(id, form) { this.active = id; this._form = form; },
                 close() { this.active = null; this._form = null; },
                 confirm() { if (this._form) this._form.submit(); this.close(); }
+            });
+
+            Alpine.store('darkMode', {
+                on: document.documentElement.classList.contains('dark'),
+
+                toggle() {
+                    this.on = !this.on;
+                    if (this.on) {
+                        document.documentElement.classList.add('dark');
+                        localStorage.theme = 'dark';
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                        localStorage.theme = 'light';
+                    }
+                }
             });
         });
         </script>
