@@ -257,12 +257,12 @@
                          <select name="primary_loop_id"
                              class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
                              <option value="">— Aucune —</option>
-                             @foreach ($loops as $loop)
-                                 <option value="{{ $loop->id }}"
-                                     {{ old('primary_loop_id', $organization->primary_loop_id) === $loop->id ? 'selected' : '' }}>
-                                     {{ $loop->name }}
-                                 </option>
-                             @endforeach
+                              @foreach ($loops as $availableLoop)
+                                  <option value="{{ $availableLoop->id }}"
+                                      {{ old('primary_loop_id', $organization->primary_loop_id) === $availableLoop->id ? 'selected' : '' }}>
+                                      {{ $availableLoop->name }}
+                                  </option>
+                              @endforeach
                          </select>
                          <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Boucle accessible par défaut à tous les membres de l'organisation.</p>
                      </label>
