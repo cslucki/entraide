@@ -214,19 +214,60 @@
                     </label>
                 </div>
 
-                <div>
-                    <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="hidden" name="maintenance_mode" value="0">
-                        <input type="checkbox" name="maintenance_mode" value="1"
-                            {{ old('maintenance_mode', $organization->maintenance_mode) ? 'checked' : '' }}
-                            class="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500">
-                        <div>
-                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Mode maintenance</span>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Quand activé, seuls les admins peuvent accéder à la plateforme de cette organisation.</p>
-                        </div>
-                    </label>
-                </div>
-            </div>
+                 <div>
+                     <label class="flex items-center gap-3 cursor-pointer">
+                         <input type="hidden" name="maintenance_mode" value="0">
+                         <input type="checkbox" name="maintenance_mode" value="1"
+                             {{ old('maintenance_mode', $organization->maintenance_mode) ? 'checked' : '' }}
+                             class="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500">
+                         <div>
+                             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Mode maintenance</span>
+                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Quand activé, seuls les admins peuvent accéder à la plateforme de cette organisation.</p>
+                         </div>
+                     </label>
+                 </div>
+
+                 <div class="pt-2">
+                     <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Mode des boucles</span>
+                     <div class="mt-2 space-y-2">
+                         <label class="flex items-center gap-3 cursor-pointer">
+                             <input type="radio" name="loop_mode" value="multi"
+                                 {{ old('loop_mode', $organization->loop_mode ?? 'multi') === 'multi' ? 'checked' : '' }}
+                                 class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                             <div>
+                                 <span class="text-sm text-gray-700 dark:text-gray-300">Multi-boucles</span>
+                                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Plusieurs boucles accessibles aux membres.</p>
+                             </div>
+                         </label>
+                         <label class="flex items-center gap-3 cursor-pointer">
+                             <input type="radio" name="loop_mode" value="mono"
+                                 {{ old('loop_mode', $organization->loop_mode ?? 'multi') === 'mono' ? 'checked' : '' }}
+                                 class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                             <div>
+                                 <span class="text-sm text-gray-700 dark:text-gray-300">Mono-boucle</span>
+                                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Une seule boucle principale accessible à tous les membres.</p>
+                             </div>
+                         </label>
+                     </div>
+                 </div>
+
+                 <div>
+                     <label class="block">
+                         <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Boucle principale</span>
+                         <select name="primary_loop_id"
+                             class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                             <option value="">— Aucune —</option>
+                             @foreach ($loops as $loop)
+                                 <option value="{{ $loop->id }}"
+                                     {{ old('primary_loop_id', $organization->primary_loop_id) === $loop->id ? 'selected' : '' }}>
+                                     {{ $loop->name }}
+                                 </option>
+                             @endforeach
+                         </select>
+                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Boucle accessible par défaut à tous les membres de l'organisation.</p>
+                     </label>
+                 </div>
+             </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Nommage des catégories</h2>
