@@ -14,7 +14,7 @@ branch: TASK-219-dashboard-admin-gestion-des-boucles-et-utilisation-des-boucles
 priority: HIGH
 
 created_at: 2026-06-07 09:30:54 Europe/Paris
-updated_at: 2026-06-07 13:25:49 Europe/Paris
+updated_at: 2026-06-07 13:36:16 Europe/Paris
 
 labels: []
 
@@ -45,9 +45,11 @@ Frontend (`/loops`) :
 6. Boucle publique : tout user connecté de la même organisation peut rejoindre
 7. Boucle privée : uniquement les membres/invités
 8. Chat UI WhatsApp-like responsive
-9. Joindre fichiers (image/PDF/Office)
-10. Copier/coller images
-11. Répondre à un message avec mini-bulle de citation
+9. Joindre fichiers (image/PDF/Office) — HORS SCOPE TASK-219, tâche future
+10. Copier/coller images — HORS SCOPE TASK-219, tâche future
+11. Répondre à un message avec mini-bulle de citation — HORS SCOPE TASK-219, tâche future
+
+Scope final TASK-219 : MVP admin/frontend/chat texte. Les replies, fichiers, copier/coller images, previews YouTube/OpenGraph, Reverb/Echo/WebSocket, boucle primaire/mode mono-boucle/multi-boucles et shell bêta Chat/Flux/Journal/Agents sont des tâches futures distinctes.
 
 ---
 
@@ -97,8 +99,8 @@ Frontend (`/loops`) :
 
 ## Phase 9 — Finalisation
 
-- [ ] check-task.sh
-- [ ] finalize-task.sh
+- [x] check-task.sh
+- [x] finalize-task.sh
 - [ ] merge-task.sh
 
 ---
