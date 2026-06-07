@@ -18,6 +18,21 @@
                 <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Informations</h2>
 
                 <div>
+                    <span class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Organisation liée</span>
+                    <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-sm">
+                        @if($boucle->organization)
+                            <a href="{{ route('admin.organizations.edit', $boucle->organization) }}" class="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                                {{ $boucle->organization->name }}
+                            </a>
+                        @else
+                            <span class="font-medium text-gray-500 dark:text-gray-400">Organisation inconnue</span>
+                        @endif
+                        <p class="mt-1 truncate font-mono text-[11px] text-gray-500 dark:text-gray-400">{{ $boucle->organization_id }}</p>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Lecture seule : la réaffectation d'organisation est désactivée pour préserver l'isolation tenant.</p>
+                </div>
+
+                <div>
                     <label for="name" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nom</label>
                     <input type="text" name="name" id="name" value="{{ old('name', $boucle->name) }}" required maxlength="255"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">

@@ -60,11 +60,28 @@
                         </div>
                     </td>
                     <td class="px-4 py-3">
-                        @if($c->loops_enabled)
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Activées</span>
-                        @else
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Désactivées</span>
-                        @endif
+                        <div class="flex flex-col items-start gap-1">
+                            @if($c->loops_enabled)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Activées</span>
+                            @else
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Désactivées</span>
+                            @endif
+                            @if($c->isMonoLoop())
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Mono</span>
+                            @else
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Multi</span>
+                            @endif
+                            <div class="max-w-[180px] text-xs text-gray-600 dark:text-gray-400">
+                                <span class="text-gray-500 dark:text-gray-500">Principale :</span>
+                                @if($c->primaryLoop)
+                                    <a href="{{ route('admin.loops.edit', $c->primaryLoop) }}" class="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                                        {{ $c->primaryLoop->name }}
+                                    </a>
+                                @else
+                                    <span class="text-gray-400 dark:text-gray-500">— Aucune —</span>
+                                @endif
+                            </div>
+                        </div>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-700 dark:text-gray-300">
                         <div class="truncate max-w-[140px]">{{ $c->platform_name }}</div>
