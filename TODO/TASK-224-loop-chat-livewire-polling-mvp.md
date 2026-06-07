@@ -305,6 +305,71 @@ VERIFICATOR is mandatory before merge. Review must focus on tenant safety, Livew
 
 ---
 
+## 2026-06-07 23:22:00 Europe/Paris
+
+Post-validation debug suite (bugs found after first DONE, before merge):
+
+### Bug 1: Double Alpine Instance (composer disappeared)
+User applied "version 2" fix (import Alpine + Alpine.start()) for existing double Alpine warning. This broke chat — composer completely disappeared.
+
+Root cause: Vite module `<script type="module">` is deferred — executes AFTER Livewire's synchronous Alpine-bundled script. So Livewire Alpine fired `alpine:init` before the Vite module's `alpine:init` event listener was registered. The darkMode store was never registered; the composer was never hidden (timing bug unrelated to composer).
+
+Fix applied by ORCHESTRATOR:
+- `resources/js/app.js` — Removed `import Alpine from 'alpinejs'`, `window.Alpine = Alpine`, `Alpine.start()`
+- `resources/views/layouts/app.blade.php` — Moved darkMode store registration from deferred Vite module to inline `<script>` tag BEFORE Livewire's Alpine scripts (alongside existing modal store)
+- Build: `npm run build` → v8.0.10, 37.65KB JS
+
+### Bug 2: Message Send Broken (after Alpine fix)
+Composer visible, typing works, but clicking Send does nothing.
+
+Root causes (3):
+1. `<div wire:poll.3s>` not `flex` → messages area overflowed flex container → "Qui peut m'aider?" button visually overlapped send button (pointer events blocked)
+2. `new Event('submit', {cancelable: true})` defaults to `bubbles: false` → Livewire didn't capture the submit event
+3. Poll race condition (theoretical) — poll response could overwrite sendMessage response state
+
+Fixes applied by CODEUR:
+- `resources/views/livewire/loop-chat.blade.php:1` — `class="flex flex-col min-h-0"`
+- `resources/views/livewire/loop-chat.blade.php:79` — `new Event('submit', {bubbles: true, cancelable: true})`
+- `$this->skipRender()` reported added but NOT committed — actually beneficial as immediate render solves scroll-to-bottom
+
+### Bug 3a: Last sent message not visible (scroll)
+Reported: user must manually scroll to see last sent message.
+
+Status: No fix needed. Without `skipRender()`, Livewire re-renders immediately after sendMessage, and `x-on:livewire:updated.window` Alpine handler scrolls to bottom. Already works.
+
+### Bug 3b: Back button context (mono vs multi-loop)
+Back button always went to `loops.index`. In mono-loop mode should go home.
+
+Fixes applied by CODEUR:
+- `resources/views/loops/show.blade.php:37` — `app('current_organization')->isMonoLoop()` → `route('home')` / `route('loops.index')`
+- `resources/views/components/mobile-topbar.blade.php:79-84` — Same logic for mobile topbar
+
+### Files modified (final count)
+```
+resources/js/app.js                                | 24 ----------------------
+resources/views/components/mobile-topbar.blade.php |  7 ++++++-
+resources/views/layouts/app.blade.php              | 17 ++++++++++++++-
+resources/views/livewire/loop-chat.blade.php       |  4 ++--
+resources/views/loops/show.blade.php               |  5 +++--
+ 5 files changed, 27 insertions(+), 30 deletions(-)
+```
+
+### VERIFICATOR Final Verdict
+```
+[TASK-224][VERIF→ORCH][OK] Playwright 4/4 browsers PASS.
+Chat send OK, textaire clear OK, message immediat OK.
+Back button context-aware OK (mono-loop → home).
+Dark mode toggle OK.
+Aucun warning Alpine/Livewire en console.
+Firefox signale [Page Error] Object (non-bloquant, non-Alpine/Livewire).
+```
+
+### Tests
+LoopChatTest: 10/10 passed (17 assertions)
+LoopOrganizationModeTest: 14/14 passed (35 assertions)
+
+---
+
 # Version Notes
 
 **IMPORTANT:**

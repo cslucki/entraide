@@ -34,9 +34,10 @@
 
         {{-- Topbar --}}
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-            <a href="{{ route('loops.index') }}"
+            @php $backRoute = app()->bound('current_organization') && app('current_organization')->isMonoLoop() ? 'home' : 'loops.index'; @endphp
+            <a href="{{ route($backRoute) }}"
                class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-               aria-label="Retour aux boucles">
+               aria-label="{{ $backRoute === 'home' ? 'Retour à l\'accueil' : 'Retour aux boucles' }}">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
