@@ -104,7 +104,7 @@ class DashboardDemoSeeder extends Seeder
         $svcCoaching = $this->createService($u['cslucki@gmail.com'], $org, [
             'title' => 'Coaching LinkedIn',
             'description' => 'Optimisation complète de votre profil LinkedIn, stratégie de contenu et techniques de networking pour développer votre activité. Séance individuelle de 1h30 en visio.',
-            'category_id' => $this->categories['marketing']->id,
+            'category_id' => $this->categories['visibilite-clients']->id,
             'delivery_mode' => 'remote',
             'points_cost' => 120,
         ]);
