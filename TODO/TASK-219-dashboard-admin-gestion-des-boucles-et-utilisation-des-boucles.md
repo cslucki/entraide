@@ -4,25 +4,26 @@ title: Dashboard Admin — Gestion des boucles et utilisation des boucles
 
 status: IN_PROGRESS
 
-owner: OPENCODE
+owner: CODEUR
 
-contributors: []
+contributors:
+  - OPENCODE
 
 branch: TASK-219-dashboard-admin-gestion-des-boucles-et-utilisation-des-boucles
 
 priority: HIGH
 
 created_at: 2026-06-07 09:30:54 Europe/Paris
-updated_at: 2026-06-07 09:30:54 Europe/Paris
+updated_at: 2026-06-07 09:48:00 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-06-07 09:30:54 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
-handoff: false
+handoff: true
 
 pr:
   status: NOT_READY
@@ -52,21 +53,13 @@ Frontend (`/loops`) :
 
 # Planned Actions
 
-## Phase 1 — Admin CRUD boucles ✅
+## Phase 1 — Admin CRUD boucles ✅ (OPENCODE)
 
-- [x] Ajouter routes admin :
-  - GET /admin/loops/create
-  - POST /admin/loops
-  - GET /admin/loops/{loop}/edit
-  - PUT /admin/loops/{loop}
-  - POST /admin/loops/{loop}/members (inviter)
-  - DELETE /admin/loops/{loop}/members/{member} (retirer)
-  - GET /admin/loops/{loop}/files (lister pièces jointes)
-  - DELETE /admin/loops/{loop}
-- [x] Étendre AdminLoopController : create, store, edit, update, addMember, removeMember, files, destroy
-- [x] Vue admin/loops/create.blade.php (nom, description, visibilité, propriétaire)
-- [x] Vue admin/loops/edit.blade.php (champs + gestion membres + visibilité)
-- [x] Index affiche toutes les boucles de l'org avec compteurs
+- [x] Routes admin : create, store, edit, update, members.add, members.remove, files, destroy
+- [x] AdminLoopController : create, store, edit, update, addMember, removeMember, files, destroy
+- [x] Vue admin/loops/create.blade.php
+- [x] Vue admin/loops/edit.blade.php + bug fix `$loop` → `$boucle` (Blade conflict)
+- [x] Vue admin/loops/files.blade.php (stub)
 
 ## Phase 2 — Frontend auto-redirect + accès public
 
@@ -85,56 +78,42 @@ Frontend (`/loops`) :
 
 ## Phase 4 — File uploads
 
-- [ ] Migration : créer `loop_message_attachments` (id uuid, message_id uuid FK, path, original_name, mime_type, size, metadata json)
+- [ ] Migration : créer `loop_message_attachments`
 - [ ] Model LoopMessageAttachment
 - [ ] Storage : public disk, loop-attachments/
 - [ ] LoopMessageService : upload files + create attachments
 - [ ] Validation : mimes jpg,png,gif,webp,pdf,doc,docx,xls,xlsx, max 10MB
 - [ ] Vue loops.show : input fichier + zone drop/paste
 - [ ] Alpine.js paste handler pour coller images
-- [ ] Affichage attachments dans les messages (image preview, fichier lien)
+- [ ] Affichage attachments dans les messages
 
 ## Phase 5 — Link previews (YouTube + Open Graph)
 
-- [ ] Service LinkPreviewService : détection URL dans body
-- [ ] YouTube : extract video ID, fetch oEmbed API pour titre/thumbnail
-- [ ] Sites web : HTTP client timeout 3s, parse meta OG
-- [ ] Stocker preview dans metadata du message
-- [ ] Affichage carte preview sous le message
+- [ ] Service LinkPreviewService
+- [ ] YouTube oEmbed
+- [ ] Sites web OG parse
+- [ ] Stocker preview dans metadata
+- [ ] Affichage carte preview
 
 ## Phase 6 — Chat UI WhatsApp-like
 
-- [ ] Layout full-height mobile (h-screen, flex-col)
-- [ ] Header sticky : nom boucle, statut, icône membres, bouton quitter
-- [ ] Zone messages scrollable flex-1 overflow-y-auto, fond gris clair pattern
-- [ ] Bulles : max-w-[80%] md:max-w-[60%], arrondies, ombre légère
-- [ ] Bulles user à droite (indigo), autres à gauche (blanc/gris)
-- [ ] Avatar + nom pour les autres
-- [ ] Input bar sticky bottom : textarea auto-resize + bouton envoi + icône fichier
-- [ ] Sidebar membres desktop (colonne droite)
-- [ ] Drawer membres mobile (slide-in)
-- [ ] Scroll to bottom automatique
-- [ ] Timestamps relatifs dans les bulles
-- [ ] Dark mode partout
+- [ ] Layout full-height responsive
+- [ ] Header sticky
+- [ ] Zone messages scrollable
+- [ ] Bulles alternées
+- [ ] Input bar sticky
+- [ ] Sidebar membres desktop
+- [ ] Drawer membres mobile
+- [ ] Scroll to bottom
+- [ ] Dark mode
 
 ## Phase 7 — Admin files list
 
-- [ ] AdminLoopController.files : lister attachments paginés par loop
-- [ ] Vue admin/loops/files.blade.php
+- [ ] Vue admin/loops/files.blade.php complète
 
 ## Phase 8 — Tests
 
-- [ ] Admin peut créer une boucle avec owner + visibility
-- [ ] Admin peut éditer visibility d'une boucle
-- [ ] Admin peut inviter un membre de la même org
-- [ ] Admin ne peut pas inviter cross-org
-- [ ] Frontend : index redirige si 1 boucle
-- [ ] Frontend : public loop auto-join
-- [ ] Frontend : private loop 404 pour non-member
-- [ ] Reply message stocke reply_to_id
-- [ ] Upload fichier crée attachment
-- [ ] Non-connecté redirigé login
-- [ ] Guests sans org 404
+- [ ] Tous les tests definis dans le brief CODEUR
 
 ## Phase 9 — Finalisation
 
@@ -147,28 +126,23 @@ Frontend (`/loops`) :
 # Progress Log
 
 ## 2026-06-07 09:30:54 Europe/Paris
-
 Task created. Branch: TASK-219-dashboard-admin-gestion-des-boucles-et-utilisation-des-boucles.
 
-Owner: OPENCODE
-Status: IN_PROGRESS
-
-## 2026-06-07 11:07:00 Europe/Paris
-
-Phase 1 — Admin CRUD boucles terminée (non commitée encore).
-
-Files modified:
-- `app/Http/Controllers/Admin/AdminLoopController.php` — Full CRUD: index, create, store, edit, update, addMember, removeMember, files, destroy. Org-scoped via `assertOrgAccess()`.
-- `app/Services/LoopService.php` — Added `updateLoop()`, `addMemberByUserId()`, `removeMember()`. `createLoop()` now accepts `$visibility`.
-- `routes/web.php` — 8 admin routes for loops CRUD + members + files.
-- `resources/views/admin/loops/index.blade.php` — Action buttons (Modifier, Fichiers, Supprimer).
-- `resources/views/admin/loops/create.blade.php` — NEW: form with name, description, visibility, owner selection.
-- `resources/views/admin/loops/edit.blade.php` — NEW: infos editing, visibility, member management (add/remove), danger zone.
-- `resources/views/admin/loops/files.blade.php` — NEW: stub for files list by message.
+## 2026-06-07 09:48:00 Europe/Paris
+Phase 1 terminée par OPENCODE.
+Bug fix: `$loop` → `$boucle` dans AdminLoopController::edit() et edit.blade.php (conflit avec variable Blade `$loop` dans @foreach).
+Handoff à CODEUR pour phases 2-8.
+Conversation file: ai-local/conversations/20260607-09h48-TASK-220-loops-chat-frontend-et-fichiers.md
 
 ---
 
 # Handoffs
+
+## OPENCODE → CODEUR (2026-06-07 09:48)
+TASK-219 phases 2-8 confiées à CODEUR.
+Brief complet dans ai-local/conversations/20260607-09h48-TASK-220-loops-chat-frontend-et-fichiers.md
+
+---
 
 # Tests
 

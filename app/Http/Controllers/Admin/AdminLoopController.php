@@ -97,7 +97,9 @@ class AdminLoopController extends Controller
 
         $loop->load(['members.user', 'creator']);
 
-        return view('admin.loops.edit', compact('loop', 'users'));
+        $boucle = $loop;
+
+        return view('admin.loops.edit', compact('boucle', 'users'));
     }
 
     public function update(Request $request, Loop $loop): RedirectResponse

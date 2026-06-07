@@ -1,13 +1,7 @@
-@php $loopModel = $loop; @endphp
-
 <x-admin-layout title="Modifier la boucle">
     <div class="max-w-3xl">
-            <a href="{{ route('admin.loops') }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">&larr; Retour aux boucles</a>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100 mt-2 mb-6">{{ $loopModel->name }}</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 -mt-4 mb-6">
-                @if($loopModel->isPublic())<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Publique</span>
-                @else<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Privée</span>@endif
-            </p>
+        <a href="{{ route('admin.loops') }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">&larr; Retour aux boucles</a>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100 mt-2 mb-6">{{ $boucle->name }}</h1>
 
         @if(session('success'))
         <div class="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg text-sm">{{ session('success') }}</div>
@@ -18,14 +12,14 @@
 
         <div class="space-y-6">
             {{-- Informations --}}
-            <form method="POST" action="{{ route('admin.loops.update', $loop) }}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-5">
+            <form method="POST" action="{{ route('admin.loops.update', $boucle) }}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-5">
                 @csrf @method('PUT')
 
                 <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Informations</h2>
 
                 <div>
                     <label for="name" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nom</label>
-                    <input type="text" name="name" id="name" value="{{ old('name', $loopModel->name) }}" required maxlength="255"
+                    <input type="text" name="name" id="name" value="{{ old('name', $boucle->name) }}" required maxlength="255"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                     @error('name')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -33,7 +27,7 @@
                 <div>
                     <label for="description" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                     <textarea name="description" id="description" rows="3" maxlength="5000"
-                        class="w-full resize-none px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">{{ old('description', $loopModel->description) }}</textarea>
+                        class="w-full resize-none px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">{{ old('description', $boucle->description) }}</textarea>
                     @error('description')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                 </div>
 
@@ -41,8 +35,8 @@
                     <label for="visibility" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Visibilité</label>
                     <select name="visibility" id="visibility" required
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
-                        <option value="private" @selected(old('visibility', $loopModel->visibility) === 'private')>Privée — uniquement les membres invités</option>
-                        <option value="public" @selected(old('visibility', $loopModel->visibility) === 'public')>Publique — tous les membres de l'organisation peuvent rejoindre</option>
+                        <option value="private" @selected(old('visibility', $boucle->visibility) === 'private')>Privée — uniquement les membres invités</option>
+                        <option value="public" @selected(old('visibility', $boucle->visibility) === 'public')>Publique — tous les membres de l'organisation peuvent rejoindre</option>
                     </select>
                     @error('visibility')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -57,10 +51,10 @@
 
             {{-- Membres --}}
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-                <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres ({{ $loopModel->members->count() }})</h2>
+                <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres ({{ $boucle->members->count() }})</h2>
 
                 {{-- Ajouter un membre --}}
-                <form method="POST" action="{{ route('admin.loops.members.add', $loop) }}" class="flex gap-2 items-end">
+                <form method="POST" action="{{ route('admin.loops.members.add', $boucle) }}" class="flex gap-2 items-end">
                     @csrf
                     <div class="flex-1">
                         <label for="user_id" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Ajouter un membre</label>
@@ -68,7 +62,7 @@
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                             <option value="">— Sélectionner un utilisateur —</option>
                             @foreach($users as $u)
-                            <option value="{{ $u->id }}" @disabled($loopModel->members->pluck('user_id')->contains($u->id))>
+                            <option value="{{ $u->id }}" @disabled($boucle->members->pluck('user_id')->contains($u->id))>
                                 {{ $u->name }} ({{ $u->email }})
                             </option>
                             @endforeach
@@ -82,7 +76,7 @@
 
                 {{-- Liste des membres --}}
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @forelse($loopModel->members as $member)
+                    @forelse($boucle->members as $member)
                     <div class="py-3 flex items-center gap-3">
                         <img src="{{ $member->user->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                         <div class="min-w-0 flex-1">
@@ -99,7 +93,7 @@
                             {{ $member->status === 'active' ? 'Actif' : ($member->status === 'invited' ? 'Invité' : 'Parti') }}
                         </span>
                         @if($member->role !== 'owner')
-                        <form method="POST" action="{{ route('admin.loops.members.remove', [$loop, $member]) }}"
+                        <form method="POST" action="{{ route('admin.loops.members.remove', [$boucle, $member]) }}"
                               onsubmit="return confirm('Retirer {{ addslashes($member->user->name) }} de la boucle ?')">
                             @csrf @method('DELETE')
                             <button class="text-xs text-red-500 hover:underline">Retirer</button>
@@ -116,8 +110,8 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 p-6">
                 <h2 class="text-sm font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide mb-2">Zone dangereuse</h2>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Supprimer définitivement cette boucle et tous ses messages. Action irréversible.</p>
-                <form method="POST" action="{{ route('admin.loops.destroy', $loop) }}"
-                      onsubmit="return confirm('Supprimer définitivement la boucle « {{ addslashes($loopModel->name) }} » ? Cette action est irréversible.')">
+                <form method="POST" action="{{ route('admin.loops.destroy', $boucle) }}"
+                      onsubmit="return confirm('Supprimer définitivement la boucle « {{ addslashes($boucle->name) }} » ? Cette action est irréversible.')">
                     @csrf @method('DELETE')
                     <button type="submit"
                         class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition">
