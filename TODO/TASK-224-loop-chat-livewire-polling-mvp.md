@@ -368,6 +368,11 @@ Firefox signale [Page Error] Object (non-bloquant, non-Alpine/Livewire).
 LoopChatTest: 10/10 passed (17 assertions)
 LoopOrganizationModeTest: 14/14 passed (35 assertions)
 
+### CI Fix
+Pre-existing CI failure: `DashboardDemoSeeder` line 107 referenced `$this->categories['marketing']` but `CategorySeeder` creates slug `'visibilite-clients'` (not `'marketing'`). This blocked all CI runs (not just this branch).
+
+Fixed: `database/seeders/DashboardDemoSeeder.php:107` — changed `'marketing'` → `'visibilite-clients'`
+
 ---
 
 # Version Notes
