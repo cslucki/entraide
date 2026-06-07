@@ -112,7 +112,7 @@
             @include('partials.footer')
         </div>
         <!-- Toast notifications globales -->
-        @if(session('success') || session('error') || session('info'))
+        @if((session('success') && session('success') !== 'Message envoyé.') || session('error') || session('info'))
         <div x-data="{ show: true }" x-show="show"
              x-init="setTimeout(() => show = false, 4500)"
              x-transition:enter="transition ease-out duration-300"
