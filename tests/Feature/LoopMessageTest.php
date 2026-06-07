@@ -307,8 +307,8 @@ class LoopMessageTest extends TestCase
             ->get(route('loops.show', $this->loop));
 
         $response->assertStatus(200);
-        $response->assertSee('Discussion');
-        $response->assertSee('Envoyer');
+        $response->assertSee($this->loop->name);
+        $response->assertSee('Écrivez un message');
     }
 
     // -------------------------------------------------------------------------

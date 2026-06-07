@@ -267,6 +267,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Loops Center
     Route::get('/loops', [AdminLoopController::class, 'index'])->name('loops');
+    Route::get('/loops/create', [AdminLoopController::class, 'create'])->name('loops.create');
+    Route::post('/loops', [AdminLoopController::class, 'store'])->name('loops.store');
+    Route::get('/loops/{loop}/edit', [AdminLoopController::class, 'edit'])->name('loops.edit');
+    Route::put('/loops/{loop}', [AdminLoopController::class, 'update'])->name('loops.update');
+    Route::post('/loops/{loop}/members', [AdminLoopController::class, 'addMember'])->name('loops.members.add');
+    Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
+    Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
+    Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
 });
 
 Route::get('/admin/back-to-admin', [\App\Http\Controllers\Admin\AdminController::class, 'backToAdmin'])

@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 
 class LoopService
 {
-    public function createLoop(User $user, string $name, ?string $description = null): Loop
+    public function createLoop(User $user, string $name, ?string $description = null, string $visibility = 'private'): Loop
     {
         $orgId = $user->organization_id;
 
@@ -28,12 +28,60 @@ class LoopService
             'description' => $description,
             'type' => 'custom',
             'status' => 'active',
+            'visibility' => $visibility,
             'created_by' => $user->id,
         ]);
 
         $this->addMember($loop, $user, 'owner');
 
         return $loop;
+    }
+
+    public function updateLoop(Loop $loop, array $data): Loop
+    {
+        $loop->update($data);
+
+        return $loop;
+    }
+
+    public function addMemberByUserId(Loop $loop, string $userId, string $role = 'member'): LoopMember
+    {
+        $user = User::findOrFail($userId);
+
+        if ($loop->organization_id !== $user->organization_id) {
+            throw new \RuntimeException('Cannot add member from a different organization to this loop.');
+        }
+
+        $existing = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if ($existing) {
+            if ($existing->status === 'active') {
+                throw new \RuntimeException('User is already a member of this loop.');
+            }
+
+            $existing->update(['status' => 'active', 'joined_at' => now()]);
+
+            return $existing;
+        }
+
+        return LoopMember::create([
+            'loop_id' => $loop->id,
+            'user_id' => $userId,
+            'role' => $role,
+            'status' => 'active',
+            'joined_at' => now(),
+        ]);
+    }
+
+    public function removeMember(LoopMember $member): void
+    {
+        if ($member->role === 'owner') {
+            throw new \RuntimeException('Cannot remove the owner of a loop.');
+        }
+
+        $member->update(['status' => 'left']);
     }
 
     public function addMember(Loop $loop, User $user, string $role = 'member'): LoopMember

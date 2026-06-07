@@ -1,18 +1,25 @@
 <x-admin-layout title="Boucles">
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
-        Boucles actives dans votre Organisation.
-    </p>
+    <div class="flex items-center justify-between mb-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+            Boucles dans votre Organisation.
+        </p>
+        <a href="{{ route('admin.loops.create') }}"
+           class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
+            + Créer une boucle
+        </a>
+    </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Nom</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Type</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Visibilité</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">Statut</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">Créateur</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">Dernière activité</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -28,11 +35,8 @@
                     </td>
                     <td class="px-4 py-3 hidden sm:table-cell">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                            {{ $orgLoop->type === 'team' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : '' }}
-                            {{ $orgLoop->type === 'project' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' : '' }}
-                            {{ $orgLoop->type === 'social' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : '' }}
-                            {{ !in_array($orgLoop->type, ['team', 'project', 'social']) ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' : '' }}">
-                            {{ $orgLoop->type }}
+                            {{ $orgLoop->isPublic() ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
+                            {{ $orgLoop->isPublic() ? 'Publique' : 'Privée' }}
                         </span>
                     </td>
                     <td class="px-4 py-3 hidden md:table-cell">
@@ -64,10 +68,21 @@
                         <span class="text-gray-400">—</span>
                         @endif
                     </td>
+                    <td class="px-4 py-3">
+                        <div class="flex gap-2 items-center">
+                            <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
+                            <a href="{{ route('admin.loops.files', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Fichiers</a>
+                            <form method="POST" action="{{ route('admin.loops.destroy', $orgLoop) }}"
+                                  onsubmit="return confirm('Supprimer la boucle « {{ addslashes($orgLoop->name) }} » ? Cette action est irréversible.')">
+                                @csrf @method('DELETE')
+                                <button class="text-xs text-red-500 hover:underline">Supprimer</button>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                         Aucune boucle dans cette Organisation.
                     </td>
                 </tr>

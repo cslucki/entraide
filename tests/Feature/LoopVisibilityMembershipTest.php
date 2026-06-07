@@ -178,6 +178,21 @@ class LoopVisibilityMembershipTest extends TestCase
     // Owner cannot leave loop
     // -------------------------------------------------------------------------
 
+    public function test_public_loop_shows_join_button_to_non_member(): void
+    {
+        $loop = $this->service->createLoop($this->user, 'Public Joinable');
+        $loop->update(['visibility' => 'public']);
+
+        app()->instance('current_organization', $this->organization);
+
+        $response = $this->actingAs($this->otherUser)
+            ->get(route('loops.show', $loop));
+
+        $response->assertStatus(200);
+        $response->assertSee('Rejoindre cette boucle');
+        $response->assertSee(route('loops.join', $loop));
+    }
+
     public function test_owner_cannot_leave_loop(): void
     {
         $loop = $this->service->createLoop($this->user, 'Owner Loop');

@@ -46,12 +46,11 @@ class T07411RoutesTenantSafetyTest extends TestCase
 
     // ── /loops (global member route) ──────────────────────────────────────
 
-    public function test_loops_index_returns_200_for_user_with_organization(): void
+    public function test_loops_index_redirects_to_show_for_single_accessible_loop(): void
     {
         $loop = $this->service->createLoop($this->user, 'My Loop');
         $response = $this->actingAs($this->user)->get(route('loops.index'));
-        $response->assertOk();
-        $response->assertSee('My Loop');
+        $response->assertRedirect(route('loops.show', $loop));
     }
 
     public function test_loops_index_returns_404_for_user_without_organization(): void
@@ -164,12 +163,10 @@ class T07411RoutesTenantSafetyTest extends TestCase
         $otherUser = User::factory()->create(['organization_id' => $otherOrganization->id]);
         $this->service->createLoop($otherUser, 'Other Organization Loop');
 
-        $this->service->createLoop($this->user, 'My Loop');
+        $loop = $this->service->createLoop($this->user, 'My Loop');
 
         $response = $this->actingAs($this->user)->get(route('loops.index'));
-        $response->assertOk();
-        $response->assertSee('My Loop');
-        $response->assertDontSee('Other Organization Loop');
+        $response->assertRedirect(route('loops.show', $loop));
     }
 
     // ── Blocker 1: No community → residual membership hidden ─────────────

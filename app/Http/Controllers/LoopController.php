@@ -70,7 +70,7 @@ class LoopController extends Controller
         abort(403);
     }
 
-    public function index(): View
+    public function index(): View|RedirectResponse
     {
         $organizationId = $this->resolveOrganizationId();
         $organization = $this->resolveOrganization();
@@ -92,6 +92,10 @@ class LoopController extends Controller
             ->withMax('messages as last_message_at', 'created_at')
             ->latest('updated_at')
             ->get();
+
+        if ($loops->count() === 1) {
+            return redirect()->route('loops.show', $loops->first());
+        }
 
         $canCreate = true;
 
