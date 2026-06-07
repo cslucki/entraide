@@ -2,7 +2,7 @@
 task_id: TASK-223
 title: Fix organization scoped loops navigation
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-223-fix-organization-scoped-loops-navigation
 priority: MEDIUM
 
 created_at: 2026-06-07 20:34:47 Europe/Paris
-updated_at: 2026-06-07 20:38:39 Europe/Paris
+updated_at: 2026-06-07 20:59:00 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -47,6 +47,22 @@ Comportement attendu : depuis `/org/{organization}`, le lien `Boucles` doit mene
 
 ---
 # Progress Log
+
+
+## 2026-06-07 20:59:00 Europe/Paris
+
+Merged into `develop` with `ai/scripts/merge-task.sh TASK-223`.
+
+Merge notes:
+
+- Source branch: `TASK-223-fix-organization-scoped-loops-navigation`
+- Target branch: `develop`
+- Merge successful and pushed to `origin/develop`.
+- Git auto-merged overlap in `tests/Feature/LoopOrganizationModeTest.php` successfully.
+- Version bump script failed inside `merge-task.sh` because it ran after checkout to `develop` without explicit task ID; explicit version bump will be run separately with `TASK-223`.
+
+Status:
+MERGED.
 
 
 ## 2026-06-07 20:34:47 Europe/Paris
