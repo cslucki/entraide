@@ -2,7 +2,7 @@
 task_id: TASK-222
 title: Admin loop organization visibility
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-222-admin-loop-organization-visibility
 priority: MEDIUM
 
 created_at: 2026-06-07 20:10:27 Europe/Paris
-updated_at: 2026-06-07 20:24:22 Europe/Paris
+updated_at: 2026-06-07 20:56:00 Europe/Paris
 
 labels: []
 
@@ -25,7 +25,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -46,6 +46,21 @@ Afficher clairement le mode boucle et la boucle principale dans l'admin des Orga
 ---
 # Progress Log
 
+
+## 2026-06-07 20:56:00 Europe/Paris
+
+Merged into `develop` with `ai/scripts/merge-task.sh TASK-222`.
+
+Merge notes:
+
+- Source branch: `TASK-222-admin-loop-organization-visibility`
+- Target branch: `develop`
+- Merge successful and pushed to `origin/develop`
+- Git auto-merged overlaps with TASK-221 successfully.
+- Version bump script failed inside `merge-task.sh` because it ran after checkout to `develop` without explicit task ID; merge continued successfully.
+
+Status:
+MERGED.
 
 ## 2026-06-07 20:10:27 Europe/Paris
 
