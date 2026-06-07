@@ -84,6 +84,19 @@ class LoopController extends Controller
         return route($route, $loop);
     }
 
+    private function resolveRouteLoop(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): Loop
+    {
+        if ($loopOrOrganization instanceof Loop) {
+            return $loopOrOrganization;
+        }
+
+        if ($loop instanceof Loop) {
+            return $loop;
+        }
+
+        abort(404);
+    }
+
     public function index(): View|RedirectResponse
     {
         $organizationId = $this->resolveOrganizationId();
@@ -163,8 +176,9 @@ class LoopController extends Controller
             ->with('success', 'Boucle créée avec succès.');
     }
 
-    public function show(Loop $loop): View
+    public function show(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View
     {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
         $this->assertUserBelongsToOrganization($organization);
 
@@ -187,18 +201,14 @@ class LoopController extends Controller
 
         $loop->load(['members.user']);
 
-        $messages = $loop->messages()
-            ->with('sender')
-            ->oldest()
-            ->get();
-
         $eligibleReferrals = $this->loopService->getEligibleReferrals($user, $loop);
 
-        return view('loops.show', compact('loop', 'messages', 'eligibleReferrals', 'isMember'));
+        return view('loops.show', compact('loop', 'eligibleReferrals', 'isMember'));
     }
 
-    public function join(Request $request, Loop $loop): RedirectResponse
+    public function join(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
     {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
         $this->assertUserBelongsToOrganization($organization);
 
@@ -236,8 +246,9 @@ class LoopController extends Controller
             ->with('success', 'Vous avez rejoint la boucle.');
     }
 
-    public function leave(Request $request, Loop $loop): RedirectResponse
+    public function leave(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
     {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
         $this->assertUserBelongsToOrganization($organization);
 
@@ -268,8 +279,9 @@ class LoopController extends Controller
             ->with('success', 'Vous avez quitté la boucle.');
     }
 
-    public function analyzeHelpIntention(Request $request, Loop $loop): RedirectResponse
+    public function analyzeHelpIntention(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
     {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
         $this->assertUserBelongsToOrganization($organization);
 
@@ -304,8 +316,9 @@ class LoopController extends Controller
             ->with('help_request_intention', $data['intention']);
     }
 
-    public function publishHelpRequest(Request $request, Loop $loop): RedirectResponse
+    public function publishHelpRequest(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
     {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
         $this->assertUserBelongsToOrganization($organization);
 
@@ -362,8 +375,9 @@ class LoopController extends Controller
             ->with('success', 'Votre demande d\'aide a été publiée dans la boucle.');
     }
 
-    public function addMember(Request $request, Loop $loop): RedirectResponse
+    public function addMember(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
     {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
         $this->assertUserBelongsToOrganization($organization);
 
@@ -398,8 +412,9 @@ class LoopController extends Controller
             ->with('success', 'Membre ajouté à la boucle.');
     }
 
-    public function storeMessage(Request $request, Loop $loop): RedirectResponse
+    public function storeMessage(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
     {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
         $this->assertUserBelongsToOrganization($organization);
 
