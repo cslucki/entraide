@@ -34,6 +34,8 @@ class Organization extends Model
         'service_points_min',
         'service_points_max',
         'loops_enabled',
+        'loop_mode',
+        'primary_loop_id',
         'maintenance_mode',
         'platform_name',
         'platform_tagline',
@@ -111,5 +113,20 @@ class Organization extends Model
     public function loops(): HasMany
     {
         return $this->hasMany(Loop::class, 'organization_id');
+    }
+
+    public function primaryLoop(): BelongsTo
+    {
+        return $this->belongsTo(Loop::class, 'primary_loop_id');
+    }
+
+    public function isMonoLoop(): bool
+    {
+        return $this->loop_mode === 'mono';
+    }
+
+    public function isMultiLoop(): bool
+    {
+        return $this->loop_mode !== 'mono';
     }
 }
