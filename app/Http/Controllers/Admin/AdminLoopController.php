@@ -27,7 +27,7 @@ class AdminLoopController extends Controller
         }
 
         $loops = Loop::where('organization_id', $orgId)
-            ->with('creator:id,name,email')
+            ->with(['creator:id,name,email', 'organization:id,name,slug'])
             ->withCount('activeMembers')
             ->latest()
             ->paginate(25);
@@ -95,7 +95,7 @@ class AdminLoopController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
-        $loop->load(['members.user', 'creator']);
+        $loop->load(['members.user', 'creator', 'organization']);
 
         $boucle = $loop;
 

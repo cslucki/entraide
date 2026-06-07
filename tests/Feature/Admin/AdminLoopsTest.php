@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\Organization;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -127,6 +127,43 @@ class AdminLoopsTest extends TestCase
             ->assertOk()
             ->assertSee('Boucle créée par admin')
             ->assertSee($admin->name);
+    }
+
+    public function test_admin_loops_page_shows_linked_organization(): void
+    {
+        $org = Organization::factory()->create([
+            'name' => 'Visible Loop Organization',
+            'is_active' => true,
+        ]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id]);
+
+        $this->makeLoop($org, $admin);
+
+        $this->actingAs($admin)
+            ->get(route('admin.loops'))
+            ->assertOk()
+            ->assertSee('Organisation')
+            ->assertSee('Visible Loop Organization')
+            ->assertSee($org->id);
+    }
+
+    public function test_admin_loop_edit_shows_read_only_organization_without_reassignment_field(): void
+    {
+        $org = Organization::factory()->create([
+            'name' => 'Read Only Loop Organization',
+            'is_active' => true,
+        ]);
+        $admin = $this->makeAdmin(['organization_id' => $org->id]);
+        $loop = $this->makeLoop($org, $admin);
+
+        $this->actingAs($admin)
+            ->get(route('admin.loops.edit', $loop))
+            ->assertOk()
+            ->assertSee('Organisation liée')
+            ->assertSee('Read Only Loop Organization')
+            ->assertSee($org->id)
+            ->assertSee('Lecture seule')
+            ->assertDontSee('name="organization_id"', false);
     }
 
     public function test_admin_cannot_see_other_organization_loops(): void
