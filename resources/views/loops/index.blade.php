@@ -1,4 +1,4 @@
-<x-page title="Mes boucles" heading="Mes boucles" width="5xl">
+<x-page title="Mes boucles" heading="Mes boucles">
     <x-slot name="headingActions">
         @if($canCreate)
             <a href="{{ route('loops.create') }}"

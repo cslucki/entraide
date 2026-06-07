@@ -154,6 +154,14 @@ Desktop container aligné sur Explorer/Membres/Blog par CODEUR :
 - [x] Chat card `bg-white rounded-xl border shadow-sm` conservée pour lecture desktop
 - [x] 152 tests verts (1 intermittent pré-existant LoopCreationTest ordering)
 
+## 2026-06-07 11:39:00 Europe/Paris
+Retours screenshots ORCHESTRATOR corrigés par CODEUR — alignement desktop complet :
+- [x] Chat desktop card styling retiré — `md:rounded-xl md:border md:border-gray-200 md:dark:border-gray-700 md:shadow-sm md:overflow-hidden` supprimé, contenu à plat comme les autres pages
+- [x] Index (Mes boucles) : `x-page width="5xl"` → `x-page` (default 7xl, aligné sur Explorer/Membres/Blog)
+- [x] Show (chat) : `x-page-container width="5xl"` → `x-page-container` (default 7xl, aligné sur Explorer/Membres/Blog)
+- [x] Toast global "Message envoyé." supprimé — condition `session('success') !== 'Message envoyé.'` ajoutée dans app.blade.php
+- [x] 152 tests verts (1 intermittent pré-existant LoopCreationTest ordering, passe en isolation)
+
 ---
 
 # Handoffs
