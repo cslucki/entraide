@@ -326,11 +326,42 @@ class AdminController extends Controller
         ]);
     }
 
+    private function adminOrganizations(): \Illuminate\Support\Collection
+    {
+        return Organization::orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'is_default']);
+    }
+
+    private function selectedAdminOrganizationId(Request $request): string
+    {
+        if ($request->input('organization_id') === 'all') {
+            return 'all';
+        }
+
+        if ($request->filled('organization_id')) {
+            return (string) $request->input('organization_id');
+        }
+
+        return (string) (DefaultOrganizationResolver::resolve()?->getKey() ?? 'all');
+    }
+
+    private function applyAdminOrganizationFilter($query, string $organizationId): void
+    {
+        if ($organizationId !== 'all') {
+            $query->where('organization_id', $organizationId);
+        }
+    }
+
     // ── Services ─────────────────────────────────────────────────────────────
 
     public function services(Request $request): View
     {
-        $query = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->with(['user', 'category']);
+        $query = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->with(['user', 'category', 'organization']);
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
 
         if ($request->filled('search')) {
             $query->where('title', 'like', '%'.$request->search.'%');
@@ -347,7 +378,7 @@ class AdminController extends Controller
 
         $services = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.services', compact('services'));
+        return view('admin.services', compact('organizations', 'selectedOrganizationId', 'services'));
     }
 
     public function editService(string $service): View
@@ -438,7 +469,11 @@ class AdminController extends Controller
 
     public function transactions(Request $request): View
     {
-        $query = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['buyer', 'seller', 'service', 'serviceRequest']);
+        $query = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['buyer', 'seller', 'service', 'serviceRequest', 'organization']);
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -453,14 +488,18 @@ class AdminController extends Controller
 
         $transactions = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.transactions', compact('transactions'));
+        return view('admin.transactions', compact('organizations', 'selectedOrganizationId', 'transactions'));
     }
 
     // ── Requests ──────────────────────────────────────────────────────────────
 
     public function requests(Request $request): View
     {
-        $query = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['user', 'category']);
+        $query = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['user', 'category', 'organization']);
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -472,7 +511,7 @@ class AdminController extends Controller
 
         $requests = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.requests', compact('requests'));
+        return view('admin.requests', compact('organizations', 'selectedOrganizationId', 'requests'));
     }
 
     public function editRequest(string $serviceRequest): View

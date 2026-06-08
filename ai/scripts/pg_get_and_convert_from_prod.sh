@@ -2,12 +2,18 @@
 # =========================================================
 # PG GET & CONVERT FROM PROD
 # =========================================================
-# Synchronise les DONNÉES de production dans le Schéma 2 local.
-# NE touche PAS à la structure de la base locale.
-# Les tables propres à Schéma 2 (loops, referals) sont
-# préservées intactes.
+# ATTENTION : CE SCRIPT EST OBSOLÈTE / CASSÉ
 #
-# Usage:
+# Raison : référence le fichier transform qui n'existe plus :
+#   .ai-local/orchestrator/scripts-orchestrator/pg-sync-transform.php
+#
+# Le workflow de remplacement est :
+#   _bash_cyril/synchro_pgsql-avant-migration/sync-prod-to-local.sh
+#
+# Ce script est conservé pour référence historique uniquement.
+# Ne pas lancer.
+#
+# Usage (non fonctionnel) :
 #   ./pg_get_and_convert_from_prod.sh
 #
 # =========================================================
