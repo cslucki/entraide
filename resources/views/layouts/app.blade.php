@@ -147,6 +147,8 @@
 
         @stack('scripts')
 
+        <livewire:styles />
+
         <!-- Alpine stores globaux -->
         <script>
         document.addEventListener('alpine:init', () => {
@@ -174,5 +176,7 @@
             });
         });
         </script>
+
+        <livewire:scripts />
     </body>
 </html>
