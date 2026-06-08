@@ -695,6 +695,16 @@ Discipline:
 
 ---
 
+# Internal Backup Script
+
+`ai/scripts/backup-internal.sh` — backs up `.git/info/exclude`-ignored directories to a local Git repository at `/home/cyril/claude-code/local-backups/test.laravel-internal/`.
+
+**When to run**: after modifying or restoring any file under `_bash_cyril/`, `ai-local/`, `@DOCS/`, `live-documentation/`, or other internal directories listed in `.git/info/exclude`.
+
+This backup repo has **no remote** — it cannot be pushed to GitHub. Run once at the end of any task that touches these internal directories.
+
+---
+
 # Preferred MCP Tools
 
 Preferred Laravel Boost tools:
