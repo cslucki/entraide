@@ -69,3 +69,7 @@ test-results/
 
 # Design source files
 /design/
+/design/public/vendor/
+
+# Published vendor assets
+/public/vendor/
