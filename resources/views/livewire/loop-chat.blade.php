@@ -1,6 +1,9 @@
 <div wire:poll.3s class="flex flex-col min-h-0">
     <div x-data="{ atBottom: true }"
-         x-init="$nextTick(() => { $el.scrollTop = $el.scrollHeight; atBottom = true; })"
+         x-init="$nextTick(() => { $el.scrollTop = $el.scrollHeight; atBottom = true; });
+                 let mo = new MutationObserver(() => { if (Alpine.$data($el).atBottom) requestAnimationFrame(() => $el.scrollTop = $el.scrollHeight); });
+                 mo.observe($el, { childList: true });
+                 $cleanup(() => mo.disconnect())"
          x-on:scroll="atBottom = ($el.scrollHeight - $el.scrollTop - $el.clientHeight) < 60"
          x-on:message-sent.window="$nextTick(() => $el.scrollTop = $el.scrollHeight)"
          class="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-1"
