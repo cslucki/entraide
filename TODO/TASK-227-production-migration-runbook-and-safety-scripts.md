@@ -2,7 +2,7 @@
 task_id: TASK-227
 title: Production migration runbook and safety scripts
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-227-production-migration-runbook-and-safety-scripts
 priority: HIGH
 
 created_at: 2026-06-08 23:35:35 Europe/Paris
-updated_at: 2026-06-08 23:53:38 Europe/Paris
+updated_at: 2026-06-08 23:54:59 Europe/Paris
 
 labels:
   - production
@@ -29,7 +29,7 @@ lock:
 handoff: false
 
 pr:
-  status: READY
+  status: MERGED
   url: null
 ---
 
@@ -116,6 +116,17 @@ Décision finale :
 - `entraide_rehearsal` reste la référence rehearsal.
 - `bouclepro` redevient la base locale quotidienne, issue de la copie rehearsal validée.
 - Avant PROD, refaire un nouveau `entraide_rehearsal` depuis un dump PROD frais.
+
+## 2026-06-08 23:54:59 Europe/Paris
+
+TASK-227 mergée dans `develop` via `ai/scripts/merge-task.sh TASK-227`.
+
+Actions de clôture :
+- Branche TASK-227 poussée sur `origin` via `finalize-task.sh`.
+- Merge `--no-ff` vers `develop` exécuté avec succès.
+- `develop` poussé sur `origin`.
+- Bump version corrigé manuellement après merge : `v0.226-alpha` → `v0.227-alpha` via `ai/scripts/bump-version.sh TASK-227`.
+- Statut TASK passé à `MERGED`.
 
 # Handoffs
 
