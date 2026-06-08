@@ -2,7 +2,7 @@
 task_id: TASK-226
 title: Prod-local sync safety and release readiness strategy
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -13,7 +13,7 @@ branch: TASK-226-prod-local-sync-safety-and-release-readiness-strategy
 priority: HIGH
 
 created_at: 2026-06-08 12:22:47 Europe/Paris
-updated_at: 2026-06-08 23:27:31 Europe/Paris
+updated_at: 2026-06-08 23:31:16 Europe/Paris
 
 labels:
   - safety
@@ -28,7 +28,7 @@ lock:
 handoff: false
 
 pr:
-  status: READY
+  status: MERGED
   url: null
 ---
 
@@ -411,6 +411,17 @@ Actions finales :
 - Tous les fichiers modifiés de la tâche sont conservés pour staging/commit.
 - Validation finale déjà exécutée : syntaxe PHP, routes admin, cache Blade, puis `optimize:clear`.
 - Aucun déploiement PROD, aucune commande Laravel Cloud, aucune commande destructive.
+
+## 2026-06-08 23:31:16 Europe/Paris
+
+TASK-226 mergée dans `develop` via `ai/scripts/merge-task.sh TASK-226`.
+
+Actions de clôture :
+- Branche TASK-226 poussée sur `origin` via `finalize-task.sh`.
+- Merge `--no-ff` vers `develop` exécuté avec succès.
+- `develop` poussé sur `origin`.
+- Bump version corrigé manuellement après merge : `v0.223-alpha` → `v0.226-alpha` via `ai/scripts/bump-version.sh TASK-226`.
+- Statut TASK passé à `MERGED`.
 
 ---
 
