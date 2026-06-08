@@ -13,7 +13,7 @@ branch: TASK-227-production-migration-runbook-and-safety-scripts
 priority: HIGH
 
 created_at: 2026-06-08 23:35:35 Europe/Paris
-updated_at: 2026-06-08 23:37:25 Europe/Paris
+updated_at: 2026-06-08 23:53:38 Europe/Paris
 
 labels:
   - production
@@ -93,6 +93,30 @@ Moment recommandé :
 - Recréer `entraide_rehearsal` depuis un dump PROD frais juste avant le vrai passage PROD.
 - Après migration PROD réussie, réaligner `bouclepro` depuis la PROD migrée pour retrouver un miroir local fidèle.
 
+## 2026-06-08 23:53:38 Europe/Paris
+
+Correction de stratégie validée par Cyril : dupliquer `entraide_rehearsal` vers `bouclepro`, ne pas renommer.
+
+Actions exécutées :
+- Backup de l'ancienne base locale `bouclepro` : `migration/bouclepro_before_rehearsal_copy_20260608_2340.dump`.
+- Dump de `entraide_rehearsal` : `migration/entraide_rehearsal_to_bouclepro_20260608_2340.dump`.
+- Connexions actives à `bouclepro` terminées.
+- `bouclepro` supprimée/recréée localement.
+- Dump `entraide_rehearsal` restauré dans `bouclepro`.
+- `.env` repointé vers `DB_DATABASE=bouclepro`.
+- `php artisan config:clear` exécuté.
+
+Validations :
+- `php artisan config:show database.connections.pgsql.database` → `bouclepro`.
+- Compteurs : users=25, organizations=2, services=7, service_requests=4, transactions=2, messages=2, blog_posts=2, point_ledger=24.
+- Null `organization_id` = 0 sur les tables vérifiées.
+- `php artisan migrate:status` : migrations attendues `Ran`.
+
+Décision finale :
+- `entraide_rehearsal` reste la référence rehearsal.
+- `bouclepro` redevient la base locale quotidienne, issue de la copie rehearsal validée.
+- Avant PROD, refaire un nouveau `entraide_rehearsal` depuis un dump PROD frais.
+
 # Handoffs
 
 # Tests
@@ -101,6 +125,10 @@ Moment recommandé :
 - [x] `bash -n migration/scripts/generate-prod-org-backfill-sql.sh`
 - [x] `migration/scripts/prod-migration-preflight.sh` exécuté en read-only
 - [x] `migration/scripts/generate-prod-org-backfill-sql.sh` exécuté en generation-only
+- [x] Backup local de `bouclepro` avant remplacement
+- [x] Copie locale `entraide_rehearsal` → `bouclepro`
+- [x] `.env` repointé sur `DB_DATABASE=bouclepro`
+- [x] `php artisan migrate:status` vérifié
 
 ---
 
@@ -110,6 +138,7 @@ Moment recommandé :
 - Preflight OK, avec avertissement attendu : working tree non clean car TASK-227 non encore commitée.
 - Cible Laravel actuelle confirmée : `DB_DATABASE=entraide_rehearsal`.
 - SQL review-only généré sans exécution DB.
+- `bouclepro` restaurée depuis `entraide_rehearsal` et validée.
 
 ---
 
@@ -120,6 +149,7 @@ Moment recommandé :
 - Aucun secret ajouté.
 - Aucune commande PROD exécutée.
 - Aucune commande destructive exécutée.
+- Commandes destructives uniquement locales sur `bouclepro`, après backup local et validation Cyril explicite.
 
 ---
 
