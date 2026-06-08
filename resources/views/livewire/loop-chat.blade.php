@@ -2,7 +2,7 @@
     <div x-data="{ atBottom: true }"
          x-init="$nextTick(() => { $el.scrollTop = $el.scrollHeight; atBottom = true; })"
          x-on:scroll="atBottom = ($el.scrollHeight - $el.scrollTop - $el.clientHeight) < 60"
-         x-on:livewire:updated.window="if (atBottom) $nextTick(() => $el.scrollTop = $el.scrollHeight)"
+         x-on:message-sent.window="$nextTick(() => $el.scrollTop = $el.scrollHeight)"
          class="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-1"
          style="max-height: inherit; height: 100%;">
         @forelse($messages as $msg)

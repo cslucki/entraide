@@ -40,6 +40,7 @@ class LoopChat extends Component
         try {
             $service->sendUserMessage($this->loop, $user, $this->body);
             $this->body = '';
+            $this->dispatch('message-sent');
         } catch (\RuntimeException) {
             $this->addError('body', 'Impossible d\'envoyer le message.');
         }
