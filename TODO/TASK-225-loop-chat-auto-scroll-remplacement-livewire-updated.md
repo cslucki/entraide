@@ -2,7 +2,7 @@
 task_id: TASK-225
 title: Loop chat auto-scroll (remplacement livewire:updated)
 
-status: DONE
+status: IN_PROGRESS
 
 owner: OPENCODE
 
@@ -18,9 +18,9 @@ updated_at: 2026-06-08 09:38:23 Europe/Paris
 labels: []
 
 lock:
-  status: UNLOCKED
+  status: LOCKED
   agent: OPENCODE
-  since: 2026-06-08 09:38:23 Europe/Paris
+  since: 2026-06-08 11:48:00 Europe/Paris
 
 handoff: false
 
@@ -56,28 +56,31 @@ After sending, always scroll to bottom (no `atBottom` guard — user triggered t
 
 # Planned Actions
 
-- [ ] inspect architecture
-- [ ] inspect impacted files
-- [ ] implement changes
-- [ ] run tests
-- [ ] validate UI
+- [x] inspect architecture (LW4 dispatch, hooks, events)
+- [x] inspect impacted files (LoopChat.php, loop-chat.blade.php)
+- [x] implement fix: `$this->dispatch('message-sent')` + `x-on:message-sent.window` (émetteur)
+- [x] implement fix: MutationObserver conteneur messages (destinataire via polling)
+- [x] run tests (10/10 pass)
+- [ ] validate UI + Playwright (pending VERIFICATOR)
+- [x] commit + push
 
 ---
 # Progress Log
 
 
-## 2026-06-08 09:38:23 Europe/Paris
+## 2026-06-08 11:48:00 Europe/Paris
 
-Task created.
+Scope élargi : le bug auto-scroll concerne aussi le destinataire.
+- Constat : Alice en bas du chat, Bob envoie un message, Alice reçoit via polling, bulle sous viewport.
+- Livewire 4 ne dispatche pas `livewire:updated` — aucun événement DOM après polling.
+- Solution : MutationObserver local sur le conteneur messages, check `atBottom` avant scroll.
+- Correctif émetteur existant conservé (`$this->dispatch('message-sent')` + `x-on:message-sent.window`).
 
-Owner:
-OPENCODE
+# Planned Actions
 
-Branch:
-TASK-225-loop-chat-auto-scroll-remplacement-livewire-updated
-
-Status:
-IN_PROGRESS
+- [ ] inspect architecture
+- [ ] inspect impacted files
+- [ ] implement changes
 
 # Handoffs
 
