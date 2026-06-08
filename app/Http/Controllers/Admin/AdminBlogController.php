@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\BlogPost;
 use App\Models\Category;
+use App\Models\Organization;
 use App\Models\Tag;
 use App\Models\User;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,7 +22,13 @@ class AdminBlogController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = BlogPost::with('user')->withCount(['comments', 'likes']);
+        $query = BlogPost::with(['user', 'organization'])->withCount(['comments', 'likes']);
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        if ($selectedOrganizationId !== 'all') {
+            $query->where('organization_id', $selectedOrganizationId);
+        }
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
@@ -35,7 +43,27 @@ class AdminBlogController extends Controller
 
         $posts = $query->latest()->paginate(20)->withQueryString();
 
-        return view('admin.blog.index', compact('posts'));
+        return view('admin.blog.index', compact('organizations', 'posts', 'selectedOrganizationId'));
+    }
+
+    private function adminOrganizations(): \Illuminate\Support\Collection
+    {
+        return Organization::orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'is_default']);
+    }
+
+    private function selectedAdminOrganizationId(Request $request): string
+    {
+        if ($request->input('organization_id') === 'all') {
+            return 'all';
+        }
+
+        if ($request->filled('organization_id')) {
+            return (string) $request->input('organization_id');
+        }
+
+        return (string) (DefaultOrganizationResolver::resolve()?->getKey() ?? 'all');
     }
 
     public function edit(BlogPost $post): View

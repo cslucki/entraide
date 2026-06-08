@@ -70,6 +70,7 @@
                             ['route' => 'admin.reports', 'label' => 'Signalements', 'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'],
                             ['route' => 'admin.bug-reports', 'label' => 'Bugs', 'icon' => 'M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83M11.42 15.17l2.5-2.5a3.375 3.375 0 00-4.773-4.773l-2.5 2.5m4.773 4.773l-4.773-4.773m0 0L3 6.75m3.647 3.647L3 14.25'],
                             ['route' => 'admin.referrals', 'label' => 'Invitations', 'icon' => 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z'],
+                            ['route' => 'admin.organization-requests', 'label' => 'Demandes plateforme', 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z'],
                         ];
                     @endphp
 
@@ -190,6 +191,50 @@
                                 @if($item['route'] === 'admin.bug-reports' && ($pendingBugReportsCount ?? 0) > 0)
                                 <span class="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{{ $pendingBugReportsCount }}</span>
                                 @endif
+                                @if($item['route'] === 'admin.organization-requests' && ($pendingOrganizationRequestsCount ?? 0) > 0)
+                                <span class="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{{ $pendingOrganizationRequestsCount }}</span>
+                                @endif
+                            </a>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <!-- Outils group -->
+                    @php
+                        $outilsItems = [
+                            ['route' => 'admin.outils.assign-data', 'label' => 'Affecter données', 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
+                            ['route' => 'admin.outils.fix-categories', 'label' => 'Fix catégories', 'icon' => 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
+                        ];
+                        $outilsGroupActive = $isGroupActive($outilsItems);
+                    @endphp
+                    <div x-data="{ open: true }">
+                        <button @click="open = !open"
+                                class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
+                                       {{ $outilsGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                            <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
+                                 :class="{'rotate-180': !open}"
+                                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                            <span class="text-xs font-semibold uppercase tracking-wider">Outils</span>
+                        </button>
+                        <div x-show="open"
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 scale-y-95"
+                             x-transition:enter-end="opacity-100 scale-y-100"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 scale-y-100"
+                             x-transition:leave-end="opacity-0 scale-y-95"
+                             class="origin-top">
+                            @foreach($outilsItems as $item)
+                            @php $itemActive = $isActive($item['route']); @endphp
+                            <a href="{{ route($item['route']) }}"
+                               class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
+                                      {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                                <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                                </svg>
+                                {{ $item['label'] }}
                             </a>
                             @endforeach
                         </div>
@@ -307,5 +352,7 @@
             @endif
         </div>
         @endif
+
+        @stack('scripts')
     </body>
 </html>

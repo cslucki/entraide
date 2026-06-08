@@ -55,7 +55,17 @@
                     </p>
                 </div>
 
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <div class="flex items-center gap-2">
+                        <label for="model" class="text-xs text-gray-500 dark:text-gray-400">Modèle :</label>
+                        <select name="model" id="model"
+                                class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                            @foreach($models as $key => $label)
+                            <option value="{{ $key }}" {{ $key === $model ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <button type="submit"
                             {{ $enabled ? '' : 'disabled' }}
                             class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition">

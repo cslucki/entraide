@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -17,24 +19,44 @@ class AdminLoopController extends Controller
         private readonly LoopService $loopService,
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $user = auth()->user();
-        $orgId = $user->organization_id;
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
 
-        if (! $orgId) {
-            abort(404);
+        $query = Loop::with(['creator:id,name,email', 'organization:id,name,slug'])
+            ->withCount('activeMembers')
+            ->latest();
+
+        if ($selectedOrganizationId !== 'all') {
+            $query->where('organization_id', $selectedOrganizationId);
         }
 
-        $loops = Loop::where('organization_id', $orgId)
-            ->with(['creator:id,name,email', 'organization:id,name,slug'])
-            ->withCount('activeMembers')
-            ->latest()
-            ->paginate(25);
+        $loops = $query->paginate(25)->withQueryString();
 
         $loops->load(['messages' => fn ($q) => $q->latest()->limit(1)]);
 
-        return view('admin.loops.index', compact('loops'));
+        return view('admin.loops.index', compact('loops', 'organizations', 'selectedOrganizationId'));
+    }
+
+    private function adminOrganizations(): \Illuminate\Support\Collection
+    {
+        return Organization::orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'is_default']);
+    }
+
+    private function selectedAdminOrganizationId(Request $request): string
+    {
+        if ($request->input('organization_id') === 'all') {
+            return 'all';
+        }
+
+        if ($request->filled('organization_id')) {
+            return (string) $request->input('organization_id');
+        }
+
+        return (string) (DefaultOrganizationResolver::resolve()?->getKey() ?? 'all');
     }
 
     public function create(): View

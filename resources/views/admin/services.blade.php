@@ -9,8 +9,14 @@
             <option value="paused" {{ request('status') === 'paused' ? 'selected' : '' }}>En pause</option>
             <option value="deleted" {{ request('status') === 'deleted' ? 'selected' : '' }}>Supprimés</option>
         </select>
+        <select name="organization_id" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+            <option value="all" {{ $selectedOrganizationId === 'all' ? 'selected' : '' }}>Toutes les organisations</option>
+            @foreach($organizations as $org)
+            <option value="{{ $org->id }}" {{ $selectedOrganizationId === $org->id ? 'selected' : '' }}>{{ $org->name }} {{ $org->is_default ? '(par défaut)' : '' }}</option>
+            @endforeach
+        </select>
         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
-        @if(request()->hasAny(['search', 'status']))
+        @if(request()->hasAny(['search', 'status', 'organization_id']))
         <a href="{{ route('admin.services') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
         @endif
     </form>
@@ -21,6 +27,7 @@
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Service</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Auteur</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">Organisation</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Catégorie</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Points</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Statut</th>
@@ -41,6 +48,9 @@
                         @else
                         <span class="text-xs text-gray-400">Supprimé</span>
                         @endif
+                    </td>
+                    <td class="px-4 py-3 hidden md:table-cell">
+                        <span class="text-xs text-gray-600 dark:text-gray-400">{{ $service->organization?->name ?? '—' }}</span>
                     </td>
                     <td class="px-4 py-3">
                         @if($service->category)
@@ -87,7 +97,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">Aucun service trouvé.</td>
+                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-400">Aucun service trouvé.</td>
                 </tr>
                 @endforelse
             </tbody>

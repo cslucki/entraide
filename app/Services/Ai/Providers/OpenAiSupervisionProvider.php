@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Http;
 
 class OpenAiSupervisionProvider implements SupervisionProvider
 {
+    private const MAX_RETRIES = 3;
+    private const RETRY_DELAY_MS = 1000;
+
     private const BASE_SYSTEM_PROMPT = <<<'PROMPT'
 Tu es un assistant de supervision pour des administrateurs d'une plateforme
 collaborative française. Tu reçois un extrait de contenu produit par un membre
@@ -43,31 +46,57 @@ PROMPT;
         private readonly float $outputPricePer1M,
     ) {}
 
-    public function supervise(string $content): AiSupervisionResult
+    public function supervise(string $content, ?string $model = null): AiSupervisionResult
     {
         if ($this->apiKey === '') {
             throw new SupervisionException('Clé API OpenAI manquante.');
         }
 
-        $payload = $this->buildPayload($content);
+        $payload = $this->buildPayload($content, $model ?? $this->model);
 
         $startedAt = (int) (microtime(true) * 1000);
 
-        try {
-            $response = Http::withToken($this->apiKey)
-                ->timeout($this->timeout)
-                ->acceptJson()
-                ->asJson()
-                ->post(rtrim($this->baseUrl, '/').'/responses', $payload);
-        } catch (ConnectionException $e) {
-            throw new SupervisionException('Connexion OpenAI impossible.', 0, $e);
+        $attempt = 0;
+        $response = null;
+
+        while ($attempt < self::MAX_RETRIES) {
+            try {
+                $response = Http::withToken($this->apiKey)
+                    ->timeout($this->timeout)
+                    ->acceptJson()
+                    ->asJson()
+                    ->post(rtrim($this->baseUrl, '/').'/responses', $payload);
+            } catch (ConnectionException $e) {
+                throw new SupervisionException('Connexion OpenAI impossible.', 0, $e);
+            }
+
+            if ($response->successful()) {
+                break;
+            }
+
+            if ($response->status() === 429 && $attempt < self::MAX_RETRIES - 1) {
+                $attempt++;
+                $delay = self::RETRY_DELAY_MS * (2 ** $attempt);
+                usleep($delay * 1000);
+                continue;
+            }
+
+            throw new SupervisionException(
+                sprintf(
+                    'Réponse OpenAI invalide (HTTP %d). %s',
+                    $response->status(),
+                    $response->status() === 429
+                        ? 'Taux de requêtes dépassé. Essayez un modèle plus rapide (GPT-4o Mini) ou réessayez plus tard.'
+                        : ''
+                )
+            );
         }
 
         $latencyMs = (int) (microtime(true) * 1000) - $startedAt;
 
-        if ($response->failed()) {
+        if ($response === null || $response->failed()) {
             throw new SupervisionException(
-                sprintf('Réponse OpenAI invalide (HTTP %d).', $response->status())
+                'Réponse OpenAI invalide après plusieurs tentatives (HTTP 429). Réessayez plus tard ou passez à GPT-4o Mini.'
             );
         }
 
@@ -116,10 +145,10 @@ PROMPT;
         );
     }
 
-    private function buildPayload(string $content): array
+    private function buildPayload(string $content, string $model): array
     {
         return [
-            'model' => $this->model,
+            'model' => $model,
             'max_output_tokens' => $this->maxOutputTokens,
             'store' => false,
             'input' => [
@@ -143,10 +172,38 @@ PROMPT;
         ];
     }
 
+    private function loadTaxonomyFromDb(): array
+    {
+        $categories = [];
+        $skills = [];
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('categories')) {
+            $categories = \App\Models\Category::select('slug', 'name_b2c as label')
+                ->orderBy('slug')
+                ->get()
+                ->each(fn ($c) => $c->label = $c->label ?? '')
+                ->toArray();
+        }
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('skills')) {
+            $skills = \App\Models\Skill::select('slug', 'name as label')
+                ->orderBy('slug')
+                ->get()
+                ->each(fn ($s) => $s->label = $s->label ?? '')
+                ->toArray();
+        }
+
+        return [
+            'categories' => $categories ?: config('ai.supervision.taxonomy.categories', []),
+            'skills' => $skills ?: config('ai.supervision.taxonomy.skills', []),
+        ];
+    }
+
     private function buildSystemPrompt(): string
     {
-        $categories = config('ai.supervision.taxonomy.categories', []);
-        $skills = config('ai.supervision.taxonomy.skills', []);
+        $taxonomy = $this->loadTaxonomyFromDb();
+        $categories = $taxonomy['categories'];
+        $skills = $taxonomy['skills'];
 
         $categoryLines = implode("\n", array_map(
             fn ($c) => '- '.($c['slug'] ?? '').' : '.($c['label'] ?? ''),
@@ -167,19 +224,15 @@ PROMPT;
 
     private function jsonSchema(): array
     {
-        $categorySlugs = array_values(array_column(
-            config('ai.supervision.taxonomy.categories', []),
-            'slug'
-        ));
+        $taxonomy = $this->loadTaxonomyFromDb();
+
+        $categorySlugs = array_values(array_column($taxonomy['categories'], 'slug'));
 
         if ($categorySlugs === []) {
             $categorySlugs = ['tech-digital', 'design', 'marketing', 'redaction', 'conseil', 'formation', 'traduction', 'autre'];
         }
 
-        $skillSlugs = array_values(array_column(
-            config('ai.supervision.taxonomy.skills', []),
-            'slug'
-        ));
+        $skillSlugs = array_values(array_column($taxonomy['skills'], 'slug'));
 
         if ($skillSlugs === []) {
             $skillSlugs = ['articles-de-blog', 'redaction-technique', 'correctionrelecture', 'copywriting', 'ateliers-creatifs'];
