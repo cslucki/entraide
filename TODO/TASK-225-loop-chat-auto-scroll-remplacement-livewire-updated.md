@@ -2,7 +2,7 @@
 task_id: TASK-225
 title: Loop chat auto-scroll (remplacement livewire:updated)
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
