@@ -8,6 +8,7 @@ use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Organization;
+use App\Models\OrganizationRequest;
 use App\Models\Transaction;
 
 use App\Observers\ServiceObserver;
@@ -96,6 +97,7 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
             $view->with('pendingBugReportsCount', BugReport::where('status', 'pending')->count());
+            $view->with('pendingOrganizationRequestsCount', OrganizationRequest::where('status', 'pending')->count());
         });
 
         Route::bind('loop', function (string $value) {

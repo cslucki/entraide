@@ -132,8 +132,42 @@ else
         fail "Failed to switch to PostgreSQL mode"
 fi
 
-# ---- Step 5: Migrate and seed ----
-step "Running migrate:fresh --seed"
+# ---- Step 5: Safety guard — never migrate:fresh on bouclepro ----
+step "Verifying target database is NOT bouclepro"
+
+# Clear cached config to ensure we read fresh values
+php artisan config:clear
+
+# Check both .env (raw) and Laravel's actual config (after bootstrap)
+CURRENT_DB_ENV=$(grep '^DB_DATABASE=' .env 2>/dev/null | cut -d '=' -f2)
+CURRENT_DB_ARTISAN=$(php artisan config:show database.connections.pgsql.database 2>/dev/null | awk -F'= ' '{print $2}')
+
+if [ -z "$CURRENT_DB_ENV" ] || [ -z "$CURRENT_DB_ARTISAN" ] || \
+   [ "$CURRENT_DB_ENV" != "bouclepro_test" ] || [ "$CURRENT_DB_ARTISAN" != "bouclepro_test" ]; then
+    echo ""
+    echo "  ❌ SAFETY BLOCK: Refusing to run destructive operations."
+    echo ""
+    echo "     Target from .env:    '$CURRENT_DB_ENV'"
+    echo "     Target from artisan: '$CURRENT_DB_ARTISAN'"
+    echo "     Allowed target:      'bouclepro_test'"
+    echo ""
+    echo "     This script runs migrate:fresh --seed --force which DESTROYS"
+    echo "     all data in the target database."
+    echo ""
+    echo "     To run PostgreSQL validation safely:"
+    echo "       1. Use phpunit.pgsql.xml (tests use bouclepro_test)"
+    echo "       2. Set DB_DATABASE=bouclepro_test in .env"
+    echo "       3. Or run: php artisan migrate:fresh --seed --force --env=testing"
+    echo ""
+    echo "     See ai/playwright/ for browser-level validation."
+    echo ""
+    exit 1
+fi
+
+ok "Target database confirmed: bouclepro_test (env + artisan config)"
+
+# ---- Step 5 (conditional): Migrate and seed ----
+step "Running migrate:fresh --seed on bouclepro_test"
 
 if php artisan migrate:fresh --seed --force 2>&1; then
     ok "migrate:fresh --seed completed"
