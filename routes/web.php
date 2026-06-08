@@ -12,6 +12,8 @@ use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
+use App\Http\Controllers\Admin\AdminOrganizationRequestController;
+use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -212,6 +214,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/organizations/{organization}', [AdminOrganizationController::class, 'update'])->name('organizations.update');
     Route::post('/organizations/{organization}/toggle-active', [AdminOrganizationController::class, 'toggleActive'])->name('organizations.toggle-active');
     Route::delete('/organizations/{organization}', [AdminOrganizationController::class, 'destroy'])->name('organizations.destroy');
+    Route::get('/organization-requests', [AdminOrganizationRequestController::class, 'index'])->name('organization-requests');
 
     // Messages moderation
     Route::get('/messages', [AdminMessageController::class, 'index'])->name('messages');
@@ -275,6 +278,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
+
+    // Outils
+    Route::get('/outils/assign-data', [AdminOutilsController::class, 'assignData'])->name('outils.assign-data');
+    Route::post('/outils/assign-data', [AdminOutilsController::class, 'doAssignData'])->name('outils.assign-data.do');
+    Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
+    Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 });
 
 Route::get('/admin/back-to-admin', [\App\Http\Controllers\Admin\AdminController::class, 'backToAdmin'])

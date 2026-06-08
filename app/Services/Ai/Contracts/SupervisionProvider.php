@@ -6,5 +6,5 @@ use App\Services\Ai\DTO\AiSupervisionResult;
 
 interface SupervisionProvider
 {
-    public function supervise(string $content): AiSupervisionResult;
+    public function supervise(string $content, ?string $model = null): AiSupervisionResult;
 }

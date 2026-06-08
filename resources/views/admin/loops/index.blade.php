@@ -1,12 +1,26 @@
 <x-admin-layout title="Boucles">
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex flex-col gap-4 mb-4 lg:flex-row lg:items-center lg:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">
-            Boucles dans votre Organisation.
+            Boucles filtrées par organisation. Par défaut : organisation principale.
         </p>
-        <a href="{{ route('admin.loops.create') }}"
-           class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
-            + Créer une boucle
-        </a>
+        <div class="flex flex-wrap items-center gap-3">
+            <form method="GET" class="flex flex-wrap items-center gap-3">
+                <select name="organization_id" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                    <option value="all" {{ $selectedOrganizationId === 'all' ? 'selected' : '' }}>Toutes les organisations</option>
+                    @foreach($organizations as $org)
+                    <option value="{{ $org->id }}" {{ $selectedOrganizationId === $org->id ? 'selected' : '' }}>{{ $org->name }} {{ $org->is_default ? '(par défaut)' : '' }}</option>
+                    @endforeach
+                </select>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
+                @if(request()->has('organization_id'))
+                <a href="{{ route('admin.loops') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
+                @endif
+            </form>
+            <a href="{{ route('admin.loops.create') }}"
+               class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
+                + Créer une boucle
+            </a>
+        </div>
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">

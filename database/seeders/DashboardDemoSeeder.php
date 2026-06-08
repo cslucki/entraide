@@ -33,6 +33,20 @@ class DashboardDemoSeeder extends Seeder
 
     private array $categories = [];
 
+    private ?Category $_fallback = null;
+
+    private function fallbackCategory(): Category
+    {
+        if (! $this->_fallback) {
+            $this->_fallback = Category::first();
+            if (! $this->_fallback) {
+                $this->command->error('Aucune catégorie trouvée dans la base.');
+                throw new \RuntimeException('No categories available for DashboardDemoSeeder');
+            }
+        }
+        return $this->_fallback;
+    }
+
     public function run(): void
     {
         $this->main = Organization::where('slug', 'main')->first();
@@ -112,7 +126,7 @@ class DashboardDemoSeeder extends Seeder
         $svcCreation = $this->createService($u['secretariat-assistance@proton.me'], $org, [
             'title' => 'Accompagnement création entreprise',
             'description' => 'De l\'idée au business plan, je vous accompagne dans toutes les étapes de la création de votre entreprise : études de marché, statuts juridiques, prévisionnel financier.',
-            'category_id' => $this->categories['conseil']->id,
+            'category_id' => ($this->categories['lancer-son-activite'] ?? $this->categories['conseil'] ?? $this->fallbackCategory())->id,
             'delivery_mode' => 'both',
             'points_cost' => 200,
         ]);
@@ -120,7 +134,7 @@ class DashboardDemoSeeder extends Seeder
         $svcImpots = $this->createService($u['jmhoussay@orange.fr'], $org, [
             'title' => 'Aide déclaration impôts',
             'description' => 'Je vous aide à remplir votre déclaration de revenus, vérifier les crédits d\'impôt et optimiser votre fiscalité. Service accessible aux débutants.',
-            'category_id' => $this->categories['conseil']->id,
+            'category_id' => ($this->categories['aides-demarches'] ?? $this->categories['conseil'] ?? $this->fallbackCategory())->id,
             'delivery_mode' => 'remote',
             'points_cost' => 60,
         ]);
@@ -128,7 +142,7 @@ class DashboardDemoSeeder extends Seeder
         $svcGuitare = $this->createService($u['mr.gassan@gmail.com'], $org, [
             'title' => 'Cours de guitare débutant',
             'description' => 'Apprenez les bases de la guitare : accords, rythmique, premières chansons. Cours particulier d\'1h adapté à votre niveau et vos goûts musicaux.',
-            'category_id' => $this->categories['formation']->id,
+            'category_id' => ($this->categories['bien-etre-equilibre'] ?? $this->categories['formation'] ?? $this->fallbackCategory())->id,
             'delivery_mode' => 'remote',
             'points_cost' => 40,
         ]);
@@ -136,7 +150,7 @@ class DashboardDemoSeeder extends Seeder
         $svcElectro = $this->createService($u['vin.100.gay@gmail.com'], $org, [
             'title' => 'Réparation petit électroménager',
             'description' => 'Je répare vos petits appareils électroménagers : cafetière, grille-pain, aspirateur, fer à repasser. Diagnostic offert, devis avant réparation.',
-            'category_id' => $this->categories['autre']->id,
+            'category_id' => ($this->categories['bricolage-projets-perso'] ?? $this->categories['autre'] ?? $this->fallbackCategory())->id,
             'delivery_mode' => 'remote',
             'points_cost' => 50,
         ]);
@@ -145,7 +159,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['helena.ds@icloud.com'], $org, [
             'title' => 'Recherche coach sportif à domicile',
             'description' => 'Je cherche un coach sportif pour des séances à domicile 2x par semaine dans le 15e. Objectif : remise en forme générale.',
-            'category_id' => $this->categories['formation']->id,
+            'category_id' => ($this->categories['bien-etre-equilibre'] ?? $this->categories['formation'] ?? $this->fallbackCategory())->id,
             'delivery_mode' => 'remote',
             'budget_min' => 30,
             'budget_max' => 60,
@@ -155,7 +169,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['antoine.bidet@bmsinvest.fr'], $org, [
             'title' => 'Besoin d\'aide pour montage vidéo',
             'description' => 'J\'ai tourné une vidéo de présentation pour mon activité (5 min) et j\'ai besoin d\'aide pour le montage : coupes, habillage, sous-titres.',
-            'category_id' => $this->categories['tech-digital']->id,
+            'category_id' => ($this->categories['creer-des-supports'] ?? $this->categories['tech-digital'] ?? $this->fallbackCategory())->id,
             'delivery_mode' => 'remote',
             'budget_min' => 50,
             'budget_max' => 100,
@@ -165,7 +179,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['contact@franceportugal-traductions.com'], $org, [
             'title' => 'Traduction site web EN→FR',
             'description' => 'Mon site vitrine (5 pages) est en anglais, je souhaite le traduire en français. Contenu technique modéré, environ 2000 mots.',
-            'category_id' => $this->categories['traduction']->id,
+            'category_id' => ($this->categories['ecrire-communiquer'] ?? $this->categories['traduction'] ?? $this->fallbackCategory())->id,
             'delivery_mode' => 'remote',
             'budget_min' => 80,
             'budget_max' => 150,
@@ -175,7 +189,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['ericyas@gmail.com'], $org, [
             'title' => 'Relooking site vitrine',
             'description' => 'J\'ai un site WordPress que je trouve vieillot. Je cherche quelqu\'un pour me conseiller et m\'aider à le moderniser (nouveau thème, mise en page).',
-            'category_id' => $this->categories['design']->id,
+            'category_id' => ($this->categories['creer-des-supports'] ?? $this->categories['design'] ?? $this->fallbackCategory())->id,
             'delivery_mode' => 'remote',
             'budget_min' => 100,
             'budget_max' => 200,
@@ -185,7 +199,7 @@ class DashboardDemoSeeder extends Seeder
         $this->createRequest($u['julieborgettopro@gmail.com'], $org, [
             'title' => 'Jardinage : taise haies et élagage',
             'description' => 'Je cherche un coup de main pour tailler mes haies et élaguer deux arbres dans mon jardin. Matériel disponible sur place.',
-            'category_id' => $this->categories['autre']->id,
+            'category_id' => ($this->categories['bricolage-projets-perso'] ?? $this->categories['autre'] ?? $this->fallbackCategory())->id,
             'delivery_mode' => 'remote',
             'budget_min' => 20,
             'budget_max' => 50,
