@@ -2,7 +2,7 @@
 task_id: TASK-224
 title: Loop Chat Livewire Polling MVP
 
-status: DONE
+status: MERGED
 
 owner: CODEUR
 
@@ -27,7 +27,7 @@ lock:
 handoff: true
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
