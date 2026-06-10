@@ -1,5 +1,5 @@
 <x-app-layout title="Aide">
-    <section class="min-h-screen bg-[var(--bp-page)] px-4 py-6 text-[var(--bp-text)] md:px-8 md:py-8">
+    <x-page-container>
         <div class="mx-auto max-w-4xl rounded-[2rem] border border-[var(--bp-border)] bg-[var(--bp-surface)]/90 p-6 shadow-sm backdrop-blur md:p-10">
             <div class="mb-8">
                 <p class="mb-3 inline-flex rounded-full bg-[color-mix(in_srgb,var(--bp-primary)_12%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--bp-primary)]">
@@ -41,5 +41,5 @@
                 </article>
             </div>
         </div>
-    </section>
+    </x-page-container>
 </x-app-layout>
