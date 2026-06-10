@@ -1,12 +1,19 @@
-<x-page title="Mes articles — Blog BouclePro" heading="Mes articles" width="4xl">
-    <x-slot name="headingActions">
-        <a href="{{ route('blog.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            Nouvel article
-        </a>
-    </x-slot>
+<x-app-layout>
+    <x-slot name="title">Mes articles — Blog BouclePro</x-slot>
 
-    <div x-data="{ tab: 'drafts' }">
+    <x-page-container>
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Mes articles</h1>
+                <p class="mt-1 text-gray-500 dark:text-gray-400">Gérez vos brouillons, articles publiés et commentaires</p>
+            </div>
+            <a href="{{ route('blog.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Nouvel article
+            </a>
+        </div>
+
+        <div x-data="{ tab: 'drafts' }">
         <div class="flex gap-1 mb-6 border-b border-gray-200 dark:border-gray-700">
             <button @click="tab = 'drafts'" :class="tab === 'drafts' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
                     class="px-4 py-3 text-sm font-medium border-b-2 transition -mb-px">
@@ -140,4 +147,5 @@
             @endif
         </div>
     </div>
-</x-page>
+    </x-page-container>
+</x-app-layout>

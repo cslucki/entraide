@@ -1,10 +1,15 @@
 <x-app-layout>
     <x-slot name="title">{{ $tag->name }} — Blog BouclePro</x-slot>
 
-    <div class="max-w-7xl mx-auto px-4 py-8">
-        <div class="mb-6">
-            <a href="{{ route('blog.index') }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Blog</a>
-        </div>
+    <!-- Desktop topbar -->
+    <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
+        <a href="{{ route('blog.index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour au blog">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">#{{ $tag->name }}</span>
+    </div>
+
+    <x-page-container>
         <div class="flex items-center gap-3 mb-2">
             <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">#{{ $tag->name }}</span>
         </div>
@@ -37,5 +42,5 @@
         </div>
         <div class="mt-8">{{ $posts->links() }}</div>
         @endif
-    </div>
+    </x-page-container>
 </x-app-layout>
