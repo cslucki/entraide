@@ -115,7 +115,11 @@ class LoopController extends Controller
                 }
             }
 
-            return view('loops.mono-setup-required');
+            return view('loops.index', [
+                'loops' => collect(),
+                'canCreate' => false,
+                'noPrimaryLoopWarning' => true,
+            ]);
         }
 
         // Multi-loop mode: show list, redirect if single accessible loop
