@@ -139,6 +139,14 @@ Implémentation terminée.
 - Pas de changement OpenAiSupervisionProvider
 - Pas de DB/migration
 
+## 2026-06-10 21:22:00 Europe/Paris
+
+Commit et push effectués.
+- Commit : `5331b9b` — task: scenario routing foundation
+- Branche poussée sur origin
+- Verdict VERIFICATOR : OK_WITH_RESERVES (réserves documentées dans Review Notes)
+- Prochaine étape : merge dans develop
+
 # Handoffs
 
 # Tests
