@@ -24,6 +24,7 @@ use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\Ai\Providers\OpenAiSupervisionProvider;
 use App\Services\Ai\Providers\OllamaSupervisionProvider;
+use App\Services\Ai\Providers\OpenRouterSupervisionProvider;
 use App\Services\Ai\Logging\AiBenchmarkLogger;
 use App\Services\Ai\Providers\LoggingSupervisionProvider;
 use App\Services\Ai\Scenarios\ClarifyHelpRequestScenario;
@@ -72,6 +73,19 @@ class AppServiceProvider extends ServiceProvider
                 baseUrl: (string) ($config['base_url'] ?? ''),
                 model: (string) ($config['model'] ?? 'llama3.2'),
                 timeout: (int) ($config['timeout'] ?? 30),
+            );
+        });
+
+        $this->app->singleton(OpenRouterSupervisionProvider::class, function ($app) {
+            $config = $app['config']->get('ai.openrouter');
+            return new OpenRouterSupervisionProvider(
+                apiKey: (string) ($config['api_key'] ?? ''),
+                baseUrl: (string) ($config['base_url'] ?? 'https://openrouter.ai/api/v1'),
+                model: (string) ($config['model'] ?? 'openai/gpt-4o-mini'),
+                maxOutputTokens: (int) ($config['max_output_tokens'] ?? 900),
+                timeout: (int) ($config['timeout'] ?? 30),
+                siteName: (string) ($config['site_name'] ?? ''),
+                siteUrl: (string) ($config['site_url'] ?? ''),
             );
         });
 
