@@ -83,4 +83,26 @@ return [
         'timeout' => (int) env('OLLAMA_TIMEOUT', 30),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | OpenRouter — Multi-model proxy (admin AI lab only, experimental)
+    |--------------------------------------------------------------------------
+    |
+    | Provider expérimental pour exécuter la supervision via l'API OpenRouter
+    | (proxy multi-modèles). Désactivé par défaut. Usage exclusif au centre de
+    | supervision IA admin (/admin/ai-supervision).
+    |
+    */
+
+    'openrouter' => [
+        'enabled' => (bool) env('OPENROUTER_ENABLED', false),
+        'api_key' => env('OPENROUTER_API_KEY'),
+        'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+        'model' => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini'),
+        'max_output_tokens' => (int) env('OPENROUTER_MAX_OUTPUT_TOKENS', 900),
+        'timeout' => (int) env('OPENROUTER_TIMEOUT', 30),
+        'site_name' => env('APP_NAME', 'BouclePro'),
+        'site_url' => env('APP_URL', 'http://localhost'),
+    ],
+
 ];

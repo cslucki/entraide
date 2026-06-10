@@ -19,6 +19,7 @@ class AdminAiSupervisionController extends Controller
         'gpt-4.1-mini' => 'GPT-4.1 Mini',
         'gpt-4.1-nano' => 'GPT-4.1 Nano',
         'o4-mini' => 'o4-mini (raisonnement)',
+        'openrouter' => 'OpenRouter (multi-modèles)',
     ];
 
     public function __construct(
