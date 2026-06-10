@@ -2,7 +2,7 @@
 task_id: TASK-233
 title: AI Supervision Scenarios & Member Profile Agent Blueprint
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
