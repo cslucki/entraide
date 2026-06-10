@@ -2,7 +2,7 @@
 task_id: TASK-234
 title: Scenario Routing — AiScenarioDefinition & AiScenarioFactory
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -146,6 +146,14 @@ Commit et push effectués.
 - Branche poussée sur origin
 - Verdict VERIFICATOR : OK_WITH_RESERVES (réserves documentées dans Review Notes)
 - Prochaine étape : merge dans develop
+
+## 2026-06-10 21:25:00 Europe/Paris
+
+Merge dans develop effectué.
+- Merge commit : `849223a` (branche TASK-234) -> develop
+- Version bump : v0.227-alpha -> v0.234-alpha
+- Status : MERGED
+- Branch : prête à suppression
 
 # Handoffs
 
