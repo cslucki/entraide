@@ -20,7 +20,7 @@ class RegisterOrganizationAssignmentTest extends TestCase
             'email' => 'alice@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
-        ])->assertRedirect(route('organization.home', ['organization' => $organization->slug]));
+        ])->assertRedirect(route('loops.index'));
 
         $this->assertDatabaseHas('users', [
             'email' => 'alice@example.com',

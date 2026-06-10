@@ -1,4 +1,4 @@
-<x-page title="Écrire un article — Blog BouclePro" heading="Écrire un article" width="3xl">
+<x-page title="Écrire un article — Blog BouclePro" heading="Écrire un article" width="7xl">
 
         <div class="mb-6">
             <a href="{{ route('blog.index') }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Retour au blog</a>

@@ -115,10 +115,7 @@ class LoopController extends Controller
                 }
             }
 
-            $loops = $this->getAccessibleLoopsQuery($organizationId, $user)->get();
-            $noPrimaryLoopWarning = true;
-
-            return view('loops.index', compact('loops', 'noPrimaryLoopWarning'))->with('canCreate', true);
+            return view('loops.mono-setup-required');
         }
 
         // Multi-loop mode: show list, redirect if single accessible loop

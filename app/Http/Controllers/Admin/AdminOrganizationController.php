@@ -104,6 +104,7 @@ class AdminOrganizationController extends Controller
             'header_javascript' => 'nullable|string',
             'blog_naming' => 'nullable|in:b2b,b2c',
             'transactions_naming' => 'nullable|in:b2b,b2c',
+            'theme_id' => 'nullable|exists:themes,id',
         ]);
 
         $min = $data['service_points_min'] ?? null;
