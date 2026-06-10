@@ -1,7 +1,7 @@
 ---
 task_id: TASK-229
 title: Fix blog posting, images, author pages + edition button + simulator link
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
