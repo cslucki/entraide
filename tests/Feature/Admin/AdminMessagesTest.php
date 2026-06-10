@@ -48,6 +48,7 @@ class AdminMessagesTest extends TestCase
             'loop_id' => $loop->id,
             'sender_id' => $sender?->id ?? User::factory(),
             'body' => $body,
+            'organization_id' => $loop->organization_id,
         ]);
     }
 
@@ -60,7 +61,6 @@ class AdminMessagesTest extends TestCase
             'buyer_id' => $buyer->id,
             'seller_id' => $seller->id,
             'organization_id' => $org->id,
-            'organization_id' => $org->id,
         ]);
 
         return $tx;
@@ -72,6 +72,7 @@ class AdminMessagesTest extends TestCase
             'transaction_id' => $transaction->id,
             'sender_id' => $sender?->id ?? User::factory(),
             'body' => $body,
+            'organization_id' => $transaction->organization_id,
         ]);
     }
 

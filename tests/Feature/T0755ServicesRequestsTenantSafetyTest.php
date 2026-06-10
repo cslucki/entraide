@@ -57,8 +57,13 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
         // Aucune Organization active en base — middleware et controller doivent bloquer.
         $user = User::factory()->create(['organization_id' => null]);
 
+        // Category::factory()->create() génère une Organization dans sa definition,
+        // on la supprime pour que le middleware ne trouve pas d'org.
+        $category = Category::factory()->create();
+        Organization::query()->delete();
+
         $this->actingAs($user)
-            ->post(route('services.store'), $this->validServiceData(Category::factory()->create()))
+            ->post(route('services.store'), $this->validServiceData($category))
             ->assertNotFound();
     }
 
@@ -94,8 +99,11 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
     {
         $user = User::factory()->create(['organization_id' => null]);
 
+        $category = Category::factory()->create();
+        Organization::query()->delete();
+
         $this->actingAs($user)
-            ->post(route('requests.store'), $this->validRequestData(Category::factory()->create()))
+            ->post(route('requests.store'), $this->validRequestData($category))
             ->assertNotFound();
     }
 
