@@ -65,4 +65,22 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Ollama — Local LLM (admin AI lab only, experimental)
+    |--------------------------------------------------------------------------
+    |
+    | Provider expérimental pour exécuter la supervision via un modèle local
+    | Ollama. Désactivé par défaut. Usage exclusif au centre de supervision IA
+    | admin (/admin/ai-supervision).
+    |
+    */
+
+    'ollama' => [
+        'enabled' => (bool) env('OLLAMA_ENABLED', false),
+        'base_url' => env('OLLAMA_BASE_URL', 'http://localhost:11434'),
+        'model' => env('OLLAMA_MODEL', 'llama3.2'),
+        'timeout' => (int) env('OLLAMA_TIMEOUT', 30),
+    ],
+
 ];
