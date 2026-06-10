@@ -2,7 +2,7 @@
 task_id: TASK-231
 title: Profil: articles utilisateur, bouton message, fix présentation + favoris title + menu messagerie
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
