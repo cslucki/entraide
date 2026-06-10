@@ -271,12 +271,26 @@ class BlogController extends Controller
             abort(404);
         }
 
-        $posts = BlogPost::where('user_id', auth()->id())
+        $drafts = BlogPost::where('user_id', auth()->id())
             ->where('organization_id', $organization->id)
+            ->whereIn('status', ['draft', 'pending'])
             ->withCount(['comments', 'likes'])
             ->latest()
-            ->paginate(15);
+            ->paginate(15, ['*'], 'drafts');
 
-        return view('blog.my-posts', compact('posts'));
+        $publishedPosts = BlogPost::where('user_id', auth()->id())
+            ->where('organization_id', $organization->id)
+            ->where('status', 'published')
+            ->withCount(['comments', 'likes'])
+            ->latest()
+            ->paginate(15, ['*'], 'published');
+
+        $comments = \App\Models\BlogComment::where('user_id', auth()->id())
+            ->whereHas('post', fn($q) => $q->where('organization_id', $organization->id))
+            ->with('post')
+            ->latest()
+            ->paginate(15, ['*'], 'comments');
+
+        return view('blog.my-posts', compact('drafts', 'publishedPosts', 'comments'));
     }
 }

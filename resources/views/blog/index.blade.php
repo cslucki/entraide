@@ -64,6 +64,11 @@
                                     <span>{{ $post->user->name }}</span>
                                 </div>
                                 <div class="flex items-center gap-3">
+                                    @auth
+                                    @if(auth()->id() === $post->user_id)
+                                    <a href="{{ route('blog.edit', $post) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">Modifier</a>
+                                    @endif
+                                    @endauth
                                     @if($post->read_time)
                                     <span>{{ $post->read_time }} min</span>
                                     @endif
