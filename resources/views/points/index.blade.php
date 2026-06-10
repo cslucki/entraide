@@ -1,5 +1,9 @@
-<x-page title="Mes points" heading="Historique des points" width="3xl">
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Toutes vos transactions de points, du plus récent au plus ancien.</p>
+<x-app-layout>
+    <x-slot name="title">Mes points</x-slot>
+
+    <x-page-container>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Historique des points</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Toutes vos transactions de points, du plus récent au plus ancien.</p>
 
         <!-- Résumé -->
         <div class="grid grid-cols-3 gap-4 mb-8">
@@ -183,4 +187,5 @@
         });
     </script>
     @endpush
-</x-page>
+    </x-page-container>
+</x-app-layout>

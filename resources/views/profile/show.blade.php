@@ -1,4 +1,15 @@
-<x-page :title="'Profil de '.$user->name" width="4xl">
+<x-app-layout>
+    <x-slot name="title">Profil de {{ $user->name }}</x-slot>
+
+    <!-- Desktop topbar -->
+    <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
+        <a href="{{ route('members.index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour à l'annuaire">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $user->name }}</span>
+    </div>
+
+    <x-page-container>
     <!-- Profile header -->
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6 relative">
             @if(auth()->check() && auth()->id() === $user->id)
@@ -188,4 +199,5 @@
             @endforeach
         </div>
         @endif
-</x-page>
+    </x-page-container>
+</x-app-layout>
