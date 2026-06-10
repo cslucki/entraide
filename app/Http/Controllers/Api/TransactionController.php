@@ -225,6 +225,7 @@ class TransactionController extends Controller
             'sender_id' => null,
             'body' => $body,
             'type' => 'system',
+            'organization_id' => $transaction->organization_id,
         ]);
     }
 }
