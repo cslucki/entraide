@@ -19,16 +19,19 @@ class LoggingSupervisionProvider implements SupervisionProvider
 
         $result = $this->inner->supervise($content, $model);
 
+        $endMs = round(microtime(true) * 1000, 2);
+        $latencyMs = round($endMs - $startedAt, 2);
+
         $this->logger->log([
             'timestamp' => now()->toIso8601String(),
             'scenario_id' => 'supervision_content',
-            'model' => $model ?? config('ai.openai.model'),
-            'input_content' => $content,
-            'output' => $result->output,
+            'model' => $result->model,
             'input_tokens' => $result->inputTokens,
             'output_tokens' => $result->outputTokens,
-            'latency_ms' => round(microtime(true) * 1000 - $startedAt, 2),
+            'latency_ms' => $latencyMs,
             'cost_usd' => $result->estimatedCostUsd,
+            'content_length' => mb_strlen($content),
+            'status' => 'success',
         ]);
 
         return $result;
