@@ -3,6 +3,60 @@ import './bootstrap';
 import Alpine from 'alpinejs';
 window.Alpine = Alpine;
 
+document.addEventListener('alpine:init', () => {
+    Alpine.store('modal', {
+        active: null,
+        _form: null,
+        open(id, form) { this.active = id; this._form = form; },
+        close() { this.active = null; this._form = null; },
+        confirm() { if (this._form) this._form.submit(); this.close(); },
+    });
+
+    Alpine.store('darkMode', {
+        on: document.documentElement.classList.contains('dark'),
+
+        toggle() {
+            this.on = !this.on;
+            document.documentElement.classList.toggle('dark', this.on);
+            localStorage.theme = this.on ? 'dark' : 'light';
+        },
+    });
+
+    Alpine.store('visualTheme', {
+        current: document.documentElement.dataset.bpTheme || window.bpDefaultTheme || 'zen',
+        themes: window.bpThemes || { zen: { label: 'Zen' }, sable: { label: 'Sable' } },
+
+        next() {
+            const themeKeys = Object.keys(this.themes);
+            const currentIndex = themeKeys.indexOf(this.current);
+            this.current = themeKeys[(currentIndex + 1) % themeKeys.length] || window.bpDefaultTheme || 'zen';
+            this.apply();
+        },
+
+        set(theme) {
+            if (!this.themes[theme]) {
+                return;
+            }
+
+            this.current = theme;
+            this.apply();
+        },
+
+        apply() {
+            document.documentElement.dataset.bpTheme = this.current;
+            localStorage.bpTheme = this.current;
+        },
+
+        is(theme) {
+            return this.current === theme;
+        },
+
+        label() {
+            return this.themes[this.current]?.label || 'Zen';
+        },
+    });
+});
+
 // Service Worker registration
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

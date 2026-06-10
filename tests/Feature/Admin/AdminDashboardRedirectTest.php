@@ -94,7 +94,7 @@ class AdminDashboardRedirectTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_admin_with_organization_login_defaults_to_dashboard_url(): void
+    public function test_admin_with_organization_login_defaults_to_chatloop_url(): void
     {
         $organization = Organization::factory()->create(['is_active' => true]);
         $admin = User::factory()->create([
@@ -106,7 +106,7 @@ class AdminDashboardRedirectTest extends TestCase
         $this->post(route('login'), [
             'email' => $admin->email,
             'password' => 'password',
-        ])->assertRedirect(route('dashboard', absolute: false));
+        ])->assertRedirect(route('loops.index', absolute: false));
     }
 
     public function test_tenantless_admin_login_defaults_to_admin_dashboard_url(): void

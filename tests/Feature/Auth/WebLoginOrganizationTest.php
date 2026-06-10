@@ -23,7 +23,7 @@ class WebLoginOrganizationTest extends TestCase
         ])->assertRedirect('/');
     }
 
-    public function test_non_admin_with_organization_lands_on_organization_home_on_login(): void
+    public function test_non_admin_with_organization_lands_on_chatloop_on_login(): void
     {
         $organization = Organization::factory()->create(['is_active' => true, 'slug' => 'test-org']);
         $user = User::factory()->create([
@@ -35,7 +35,7 @@ class WebLoginOrganizationTest extends TestCase
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertRedirect(route('organization.home', ['organization' => $organization->slug]));
+        ])->assertRedirect(route('loops.index'));
     }
 
     public function test_non_admin_with_inactive_organization_is_redirected_to_home_on_login(): void

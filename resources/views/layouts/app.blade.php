@@ -38,8 +38,25 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
+        @php
+            $cachePath = storage_path('app/bouclepro-themes.php');
+
+            if (file_exists($cachePath)) {
+                $bpThemes = require $cachePath;
+                $bpDefaultTheme = $bpThemes['_meta']['default'] ?? config('bouclepro_themes.default', 'zen');
+                unset($bpThemes['_meta']);
+            } else {
+                $bpThemes = config('bouclepro_themes.themes');
+                $bpDefaultTheme = config('bouclepro_themes.default', 'zen');
+            }
+        @endphp
+
         <!-- Scripts -->
         <script>
+            window.bpThemes = @json(collect($bpThemes)->map(fn ($theme) => ['label' => $theme['label']])->all());
+            window.bpDefaultTheme = @json($bpDefaultTheme);
+            document.documentElement.dataset.bpTheme = localStorage.bpTheme || window.bpDefaultTheme;
+
             if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
             } else {
@@ -58,6 +75,34 @@
         @stack('head')
 
         <style>
+            :root {
+                @foreach($bpThemes[$bpDefaultTheme]['tokens'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+
+            @foreach($bpThemes as $key => $theme)
+            [data-bp-theme="{{ $key }}"] {
+                @foreach($theme['tokens'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+            @endforeach
+
+            .dark {
+                @foreach($bpThemes[$bpDefaultTheme]['dark'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+
+            @foreach($bpThemes as $key => $theme)
+            .dark[data-bp-theme="{{ $key }}"] {
+                @foreach($theme['dark'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+            @endforeach
+
             /* Mobile safe areas */
             .mobile-safe-top { padding-top: 0; }
             .mobile-safe-bottom { padding-bottom: 0; }
@@ -85,11 +130,9 @@
         <x-mobile-bottom-nav />
         <x-mobile-fab />
 
-        <div class="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 pt-0 md:pt-0 pb-0 md:pb-0 mobile-safe-top mobile-safe-bottom-auth">
-            {{-- Desktop nav --}}
-            <div class="hidden md:block">
-                @include('layouts.navigation')
-            </div>
+        <x-app-side-nav />
+
+        <div class="min-h-screen flex flex-col bg-[var(--bp-page)] pt-0 md:pl-20 pb-0 md:pb-0 mobile-safe-top mobile-safe-bottom-auth">
 
             <!-- Page Heading -->
             @isset($header)
@@ -101,7 +144,7 @@
             @endisset
 
             <!-- Page Content -->
-            <main class="flex-1">
+            <main class="flex-1 md:min-h-screen">
                 @hasSection('content')
                     @yield('content')
                 @else
@@ -109,7 +152,9 @@
                 @endif
             </main>
 
-            @include('partials.footer')
+            <div class="md:hidden">
+                @include('partials.footer')
+            </div>
         </div>
         <!-- Toast notifications globales -->
         @if((session('success') && session('success') !== 'Message envoyé.') || session('error') || session('info'))
@@ -148,34 +193,6 @@
         @stack('scripts')
 
         <livewire:styles />
-
-        <!-- Alpine stores globaux -->
-        <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.store('modal', {
-                active: null,
-                _form: null,
-                open(id, form) { this.active = id; this._form = form; },
-                close() { this.active = null; this._form = null; },
-                confirm() { if (this._form) this._form.submit(); this.close(); }
-            });
-
-            Alpine.store('darkMode', {
-                on: document.documentElement.classList.contains('dark'),
-
-                toggle() {
-                    this.on = !this.on;
-                    if (this.on) {
-                        document.documentElement.classList.add('dark');
-                        localStorage.theme = 'dark';
-                    } else {
-                        document.documentElement.classList.remove('dark');
-                        localStorage.theme = 'light';
-                    }
-                }
-            });
-        });
-        </script>
 
         <livewire:scripts />
     </body>
