@@ -1,4 +1,4 @@
-<x-page :title="$request->title" width="4xl">
+<x-page :title="$request->title" width="7xl">
         <div class="mb-6">
             <a href="{{ route('explorer') }}" class="text-sm text-gray-500 hover:text-indigo-600">← Retour à l'explorateur</a>
         </div>

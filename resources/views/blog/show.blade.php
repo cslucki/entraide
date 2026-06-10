@@ -1,22 +1,21 @@
 <x-app-layout>
     <x-slot name="title">{{ $post->meta_title ?: $post->title }} — Blog BouclePro</x-slot>
 
+    <!-- Desktop topbar -->
+    <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
+        <a href="{{ route('blog.index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour au blog">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $post->title }}</span>
+    </div>
+
     <x-page-container>
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
             <!-- Article -->
             <article class="lg:col-span-3">
 
-                <!-- Breadcrumb -->
-                <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-6">
-                    <a href="{{ route('blog.index') }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Blog</a>
-                    @if($post->category)
-                    <span>/</span>
-                    <a href="{{ route('blog.category', $post->category->slug) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ $post->category->displayName('blog') }}</a>
-                    @endif
-                    <span>/</span>
-                    <span class="text-gray-700 dark:text-gray-300 truncate max-w-xs">{{ $post->title }}</span>
-                </nav>
+
 
                 <!-- Image de couverture -->
                 @if($post->image)
@@ -124,7 +123,7 @@
                 </div>
 
                 <!-- Commentaires -->
-                <section id="commentaires">
+                <section id="commentaires" class="scroll-mt-28">
                     <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
                         Commentaires ({{ $post->comments->count() }})
                     </h2>
@@ -203,20 +202,6 @@
 
             <!-- Sidebar -->
             <aside class="space-y-6">
-                <!-- Auteur -->
-                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 text-center">
-                    <img src="{{ $post->user->avatar_url }}" alt="" class="w-16 h-16 rounded-full mx-auto mb-3">
-                    <a href="{{ route('profile.show', $post->user) }}" class="font-semibold text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
-                        {{ $post->user->name }}
-                    </a>
-                    @if($post->user->bio)
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-3">{{ $post->user->bio }}</p>
-                    @endif
-                    @if($post->user->location)
-                    <p class="text-xs text-gray-400 mt-1">{{ $post->user->location }}</p>
-                    @endif
-                </div>
-
                 <!-- Articles liés -->
                 @if($relatedPosts->isNotEmpty())
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">

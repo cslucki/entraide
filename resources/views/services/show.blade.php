@@ -1,8 +1,14 @@
-<x-page :title="$service->title" width="4xl">
-        <div class="mb-6">
-            <a href="{{ route('explorer') }}" class="text-sm text-gray-500 hover:text-indigo-600">← Retour à l'explorateur</a>
-        </div>
+<x-app-layout :title="$service->title">
+    {{-- Desktop topbar --}}
+    <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
+        <a href="{{ route('explorer') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour à l'explorateur">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $service->title }}</span>
+        <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-medium text-white shrink-0" style="background-color:{{ $service->category->color }}">{{ $service->category->displayName('transactions') }}</span>
+    </div>
 
+    <x-page-container width="7xl">
         @if($isPaused)
         <div class="mb-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -158,5 +164,5 @@
                 @endauth
             </div>
         </div>
-    </div>
-</x-page>
+    </x-page-container>
+</x-app-layout>

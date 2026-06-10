@@ -5,19 +5,22 @@
 <style>
     @media (max-width: 767px) {
         body:has(.loops-show-container) > header[class*="fixed"],
-        body:has(.loops-show-container) > nav[class*="fixed"],
-        body:has(.loops-show-container) > [class*="md:hidden"]:has([class*="fixed"]) {
+        body:has(.loops-show-container) > [class*="md:hidden"]:has(button[class*="bottom-20"]) {
             display: none !important;
         }
         body:has(.loops-show-container) > .min-h-screen {
             padding-top: 0 !important;
-            padding-bottom: 0 !important;
+            padding-bottom: 4rem !important;
         }
+        body:has(.loops-show-container) .min-h-screen > .md\:hidden,
         body:has(.loops-show-container) .min-h-screen > footer {
             display: none !important;
         }
         body:has(.loops-show-container) .loops-show-wrapper {
             padding: 0 !important;
+        }
+        body:has(.loops-show-container) .loops-show-container {
+            height: calc(100dvh - 4rem);
         }
     }
     @media (min-width: 768px) {
@@ -75,7 +78,9 @@
         @endif
 
         {{-- Messages + Composer (Livewire) --}}
-        @livewire('loop-chat', ['loop' => $loop], key('loop-chat-'.$loop->id))
+        <div class="flex-1 flex flex-col min-h-0">
+            @livewire('loop-chat', ['loop' => $loop], key('loop-chat-'.$loop->id))
+        </div>
 
         {{-- Composer --}}
         <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
