@@ -270,7 +270,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
-    Route::get('/blog/{post}/edit', [AdminBlogController::class, 'edit'])->name('blog.edit');
+    Route::get('/blog/{post}/edit', [AdminBlogController::class, 'edit'])->name('admin.blog.edit');
     Route::put('/blog/{post}', [AdminBlogController::class, 'update'])->name('blog.update');
     Route::patch('/blog/{post}/status', [AdminBlogController::class, 'updateStatus'])->name('blog.status');
     Route::post('/blog/preview-markdown', [AdminBlogController::class, 'previewMarkdown'])->name('blog.preview-markdown');
