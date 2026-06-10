@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\Exceptions\SupervisionException;
+use App\Services\Ai\Logging\AiBenchmarkLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
@@ -87,6 +88,8 @@ class AdminAiSupervisionController extends Controller
                         ],
                     ];
 
+                    $startedAt = microtime(true) * 1000;
+
                     $response = Http::withToken($apiKey)
                         ->timeout($timeout)
                         ->acceptJson()
@@ -119,6 +122,23 @@ class AdminAiSupervisionController extends Controller
                     if (! is_array($parsed)) {
                         throw new SupervisionException('Sortie JSON OpenAI non décodable.');
                     }
+
+                    $latencyMs = round(microtime(true) * 1000 - $startedAt, 2);
+
+                    $inputTokens = $body['usage']['input_tokens'] ?? 0;
+                    $outputTokens = $body['usage']['output_tokens'] ?? 0;
+
+                    app(AiBenchmarkLogger::class)->log([
+                        'timestamp' => now()->toIso8601String(),
+                        'scenario_id' => 'clarify_help_request',
+                        'model' => $selectedModel,
+                        'input_tokens' => $inputTokens,
+                        'output_tokens' => $outputTokens,
+                        'latency_ms' => $latencyMs,
+                        'cost_usd' => 0,
+                        'content_length' => mb_strlen($data['content']),
+                        'status' => 'success',
+                    ]);
 
                     $result = $parsed;
                 }
