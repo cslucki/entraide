@@ -2,7 +2,7 @@
 task_id: TASK-228
 title: WhatsApp Web inspired application shell
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
