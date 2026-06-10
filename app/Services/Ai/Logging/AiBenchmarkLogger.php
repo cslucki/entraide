@@ -8,6 +8,12 @@ class AiBenchmarkLogger
 {
     private readonly string $basePath;
 
+    private const STRIP_KEYS = [
+        'input_content', 'content', 'output',
+        'prompt', 'response', 'raw_response',
+        'system_prompt', 'user_prompt',
+    ];
+
     public function __construct(
         string $basePath = '',
     ) {
@@ -17,7 +23,9 @@ class AiBenchmarkLogger
     public function log(array $entry): void
     {
         try {
-            $scenarioId = $entry['scenario_id'] ?? 'unknown';
+            $filtered = array_diff_key($entry, array_flip(self::STRIP_KEYS));
+
+            $scenarioId = $filtered['scenario_id'] ?? 'unknown';
 
             if (!is_dir($this->basePath)) {
                 @mkdir($this->basePath, 0755, true);
@@ -28,7 +36,7 @@ class AiBenchmarkLogger
 
             file_put_contents(
                 $filePath,
-                json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
+                json_encode($filtered, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
                 FILE_APPEND | LOCK_EX
             );
         } catch (\Throwable $e) {
