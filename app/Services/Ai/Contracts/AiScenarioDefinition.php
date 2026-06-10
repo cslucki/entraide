@@ -11,4 +11,8 @@ interface AiScenarioDefinition
     public function description(): ?string;
 
     public function providerHint(): string;
+
+    public function systemPrompt(): string;
+
+    public function jsonSchema(): array;
 }
