@@ -2,7 +2,7 @@
 task_id: TASK-237
 title: AI benchmark JSONL logger
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
