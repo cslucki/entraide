@@ -64,6 +64,16 @@ jobs:
       - name: Install dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend assets
+        run: |
+          npm ci
+          npm run build
+
       - name: Run migrations
         run: php artisan migrate --force
 
