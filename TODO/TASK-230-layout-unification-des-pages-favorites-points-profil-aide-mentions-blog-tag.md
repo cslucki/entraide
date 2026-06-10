@@ -2,7 +2,7 @@
 task_id: TASK-230
 title: Layout unification des pages (favorites, points, profil, aide, mentions, blog tag)
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
