@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\Exceptions\SupervisionException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
 
 class AdminAiSupervisionController extends Controller
@@ -24,10 +26,13 @@ class AdminAiSupervisionController extends Controller
 
     public function index(): View
     {
+        $factory = app(AiScenarioFactory::class);
         return view('admin.ai-supervision.index', [
             'models' => self::AVAILABLE_MODELS,
             'model' => (string) config('ai.openai.model'),
             'enabled' => (bool) config('ai.supervision.enabled', true),
+            'scenarios' => $factory->all(),
+            'scenario' => 'supervision_content',
         ]);
     }
 
@@ -40,18 +45,91 @@ class AdminAiSupervisionController extends Controller
         $data = $request->validate([
             'content' => ['required', 'string', 'min:3', 'max:5000'],
             'model' => ['nullable', 'string', 'in:' . implode(',', array_keys(self::AVAILABLE_MODELS))],
+            'scenario' => ['nullable', 'string', 'in:supervision_content,clarify_help_request'],
         ]);
 
         $selectedModel = $data['model'] ?? (string) config('ai.openai.model');
+        $selectedScenario = $data['scenario'] ?? 'supervision_content';
 
         $error = null;
         $result = null;
 
         try {
-            $result = $this->provider->supervise($data['content'], $selectedModel);
+            if ($selectedScenario === 'clarify_help_request') {
+                $scenarioDefinition = app(AiScenarioFactory::class)->resolve('clarify_help_request');
+                if (! $scenarioDefinition) {
+                    $error = 'Scénario clarify_help_request non trouvé.';
+                } else {
+                    $apiKey = (string) config('ai.openai.api_key');
+                    $baseUrl = (string) config('ai.openai.base_url', 'https://api.openai.com/v1');
+                    $maxTokens = (int) config('ai.openai.max_output_tokens', 900);
+                    $timeout = (int) config('ai.openai.timeout', 15);
+
+                    if ($apiKey === '') {
+                        throw new SupervisionException('Clé API OpenAI manquante.');
+                    }
+
+                    $payload = [
+                        'model' => $selectedModel,
+                        'max_output_tokens' => $maxTokens,
+                        'store' => false,
+                        'input' => [
+                            ['role' => 'system', 'content' => $scenarioDefinition->systemPrompt()],
+                            ['role' => 'user', 'content' => $data['content']],
+                        ],
+                        'text' => [
+                            'format' => [
+                                'type' => 'json_schema',
+                                'name' => 'clarify_help_request',
+                                'strict' => true,
+                                'schema' => $scenarioDefinition->jsonSchema(),
+                            ],
+                        ],
+                    ];
+
+                    $response = Http::withToken($apiKey)
+                        ->timeout($timeout)
+                        ->acceptJson()
+                        ->asJson()
+                        ->post(rtrim($baseUrl, '/') . '/responses', $payload);
+
+                    if ($response->failed()) {
+                        throw new SupervisionException(
+                            'Réponse OpenAI invalide (HTTP ' . $response->status() . ').'
+                        );
+                    }
+
+                    $body = $response->json();
+
+                    $text = $body['output_text'] ?? '';
+                    if ($text === '') {
+                        $output = $body['output'] ?? [];
+                        foreach ($output as $item) {
+                            $contents = $item['content'] ?? [];
+                            foreach ($contents as $piece) {
+                                if (($piece['type'] ?? null) === 'output_text' && isset($piece['text'])) {
+                                    $text = (string) $piece['text'];
+                                    break 2;
+                                }
+                            }
+                        }
+                    }
+
+                    $parsed = json_decode($text, true);
+                    if (! is_array($parsed)) {
+                        throw new SupervisionException('Sortie JSON OpenAI non décodable.');
+                    }
+
+                    $result = $parsed;
+                }
+            } else {
+                $result = $this->provider->supervise($data['content'], $selectedModel);
+            }
         } catch (SupervisionException $e) {
             $error = $e->getMessage();
         }
+
+        $factory = app(AiScenarioFactory::class);
 
         return view('admin.ai-supervision.index', [
             'models' => self::AVAILABLE_MODELS,
@@ -60,6 +138,8 @@ class AdminAiSupervisionController extends Controller
             'content' => $data['content'],
             'result' => $result,
             'supervisionError' => $error,
+            'scenarios' => $factory->all(),
+            'scenario' => $selectedScenario,
         ]);
     }
 }

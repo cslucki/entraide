@@ -408,4 +408,130 @@ class AdminAiSupervisionTest extends TestCase
         // The controlled slug must be present
         $response->assertSee('redaction');
     }
+
+    public function test_admin_can_use_clarify_help_request_scenario(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response($this->fakeOpenAiResponse([
+                'title' => 'Aide pour rédaction CV',
+                'clarified_request' => 'Le membre cherche de l\'aide pour rédiger un CV professionnel.',
+                'help_type' => 'service_offer',
+                'suggested_category' => 'redaction',
+                'suggested_loop' => 'Rédaction pro',
+                'questions_for_user' => [],
+                'publishable_draft' => 'Je propose mon aide pour la rédaction de CV.',
+                'confidence' => 0.9,
+                'needs_human_review' => false,
+            ]), 200),
+        ]);
+
+        $admin = $this->makeAdmin();
+
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Je voudrais de l\'aide pour faire mon CV.',
+            'scenario' => 'clarify_help_request',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Aide pour rédaction CV');
+        $response->assertSee('service_offer');
+        $response->assertSee('Confiance');
+        $response->assertSee('90%');
+    }
+
+    public function test_clarify_help_request_vague_input_generates_questions(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response($this->fakeOpenAiResponse([
+                'title' => 'Demande vague',
+                'clarified_request' => 'Le membre a un besoin non spécifié.',
+                'help_type' => 'other',
+                'suggested_category' => 'autre',
+                'suggested_loop' => '',
+                'questions_for_user' => [
+                    'Quel type d\'aide recherchez-vous précisément ?',
+                    'Dans quel domaine ?',
+                ],
+                'publishable_draft' => '',
+                'confidence' => 0.3,
+                'needs_human_review' => true,
+            ]), 200),
+        ]);
+
+        $admin = $this->makeAdmin();
+
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Bonjour, j\'ai besoin d\'aide.',
+            'scenario' => 'clarify_help_request',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Questions de clarification');
+        $response->assertSee('Quel type d\'aide');
+        $response->assertSee('Relecture humaine suggérée');
+        $response->assertSee('30%');
+    }
+
+    public function test_clarify_help_request_payload_uses_store_false_and_json_schema(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response($this->fakeOpenAiResponse([
+                'title' => 'Test',
+                'clarified_request' => 'Test.',
+                'help_type' => 'information',
+                'suggested_category' => 'autre',
+                'suggested_loop' => '',
+                'questions_for_user' => [],
+                'publishable_draft' => '',
+                'confidence' => 0.5,
+                'needs_human_review' => false,
+            ]), 200),
+        ]);
+
+        $admin = $this->makeAdmin();
+
+        $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test payload.',
+            'scenario' => 'clarify_help_request',
+        ])->assertOk();
+
+        Http::assertSent(function ($request) {
+            if ($request->url() !== 'https://api.openai.com/v1/responses') {
+                return false;
+            }
+            $body = $request->data();
+            $this->assertFalse($body['store'] ?? true);
+            $this->assertSame('json_schema', data_get($body, 'text.format.type'));
+            $this->assertTrue(data_get($body, 'text.format.strict'));
+            $this->assertSame('clarify_help_request', data_get($body, 'text.format.name'));
+            $props = data_get($body, 'text.format.schema.properties');
+            $this->assertArrayHasKey('title', $props);
+            $this->assertArrayHasKey('clarified_request', $props);
+            $this->assertArrayHasKey('help_type', $props);
+            $this->assertArrayHasKey('questions_for_user', $props);
+            $this->assertArrayHasKey('confidence', $props);
+            $this->assertArrayHasKey('needs_human_review', $props);
+            $this->assertArrayNotHasKey('risk_level', $props); // différent du schema supervision_content
+            return true;
+        });
+    }
+
+    public function test_supervision_content_still_works_after_adding_new_scenario(): void
+    {
+        // Vérifie que le scénario par défaut (supervision_content) n'est pas cassé
+        Http::fake([
+            'api.openai.com/*' => Http::response($this->fakeOpenAiResponse($this->basePayload()), 200),
+        ]);
+
+        $admin = $this->makeAdmin();
+
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test de contenu pour supervision.',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Message neutre demandant de l\'aide.');
+        $response->assertSee('Risque faible');
+        $response->assertSee('Rédaction');
+    }
 }

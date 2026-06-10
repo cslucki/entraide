@@ -66,6 +66,18 @@
                         </select>
                     </div>
 
+                    <div class="flex items-center gap-2">
+                        <label for="scenario" class="text-xs text-gray-500 dark:text-gray-400">Scénario :</label>
+                        <select name="scenario" id="scenario"
+                                class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                            @foreach($scenarios as $key => $s)
+                            <option value="{{ $key }}" {{ $key === ($scenario ?? 'supervision_content') ? 'selected' : '' }}>
+                                {{ $s->name() }}
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <button type="submit"
                             {{ $enabled ? '' : 'disabled' }}
                             class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition">
@@ -81,110 +93,192 @@
 
         {{-- Result --}}
         @isset($result)
-            @php
-                $riskColor = match ($result->riskLevel) {
-                    'high' => 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
-                    'medium' => 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
-                    default => 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
-                };
-                $riskLabel = match ($result->riskLevel) {
-                    'high' => 'Risque élevé',
-                    'medium' => 'Risque modéré',
-                    default => 'Risque faible',
-                };
-            @endphp
-
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-3 flex-wrap">
-                    <h3 class="font-semibold text-gray-900 dark:text-gray-100">Résultat de supervision</h3>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs px-2 py-1 rounded font-medium {{ $riskColor }}">{{ $riskLabel }}</span>
-                        @if ($result->moderationFlag)
-                            <span class="text-xs px-2 py-1 rounded font-medium bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300">
-                                Modération suggérée
-                            </span>
+            @if (is_array($result))
+                {{-- Clarify help request result --}}
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="font-semibold text-gray-900 dark:text-gray-100">
+                            Résultat — Clarification de demande d'aide
+                        </h3>
+                    </div>
+                    <div class="p-5 space-y-5 text-sm text-gray-800 dark:text-gray-200">
+                        @if(!empty($result['title']))
+                        <div>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Titre</h4>
+                            <p>{{ $result['title'] }}</p>
+                        </div>
                         @endif
-                    </div>
-                </div>
 
-                <div class="p-5 space-y-5 text-sm text-gray-800 dark:text-gray-200">
+                        @if(!empty($result['clarified_request']))
+                        <div>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Demande clarifiée</h4>
+                            <p>{{ $result['clarified_request'] }}</p>
+                        </div>
+                        @endif
 
-                    <div>
-                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Résumé</h4>
-                        <p>{{ $result->summary }}</p>
-                    </div>
-
-                    <div>
-                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Catégorie principale</h4>
-                        <div class="flex flex-wrap items-center gap-2">
+                        @if(!empty($result['help_type']))
+                        <div>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Type d'aide</h4>
                             <span class="text-xs px-2 py-1 rounded font-medium bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
-                                {{ $result->category['label'] ?? $result->category['slug'] }}
+                                {{ $result['help_type'] }}
                             </span>
-                            <code class="text-xs text-gray-400 dark:text-gray-500">{{ $result->category['slug'] }}</code>
-                            @if ($result->needsHumanCategoryReview)
-                                <span class="text-xs px-2 py-1 rounded font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                                    Validation humaine suggérée
-                                </span>
-                            @endif
                         </div>
-                        @if ($result->needsHumanCategoryReview && $result->categoryReviewReason !== '')
-                            <p class="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{{ $result->categoryReviewReason }}</p>
                         @endif
-                    </div>
 
-                    @if (!empty($result->skills))
+                        @if(!empty($result['suggested_category']))
                         <div>
-                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Compétences associées</h4>
-                            <div class="flex flex-wrap gap-1.5">
-                                @foreach ($result->skills as $skill)
-                                    <span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                                        {{ $skill['label'] ?? $skill['slug'] }}
-                                    </span>
-                                @endforeach
-                            </div>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Catégorie suggérée</h4>
+                            <p>{{ $result['suggested_category'] }}</p>
                         </div>
-                    @endif
+                        @endif
 
-                    @if (!empty($result->unmatchedTerms))
+                        @if(!empty($result['suggested_loop']))
                         <div>
-                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Termes non mappés</h4>
-                            <div class="flex flex-wrap gap-1.5">
-                                @foreach ($result->unmatchedTerms as $term)
-                                    <span class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 italic">
-                                        {{ $term }}
-                                    </span>
-                                @endforeach
-                            </div>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Loop suggéré</h4>
+                            <p>{{ $result['suggested_loop'] }}</p>
                         </div>
-                    @endif
+                        @endif
 
-                    @if (!empty($result->recommendations))
+                        @if(!empty($result['questions_for_user']))
                         <div>
-                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Recommandations</h4>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Questions de clarification</h4>
                             <ul class="list-disc list-inside space-y-1">
-                                @foreach ($result->recommendations as $recommendation)
-                                    <li>{{ $recommendation }}</li>
+                                @foreach($result['questions_for_user'] as $q)
+                                <li>{{ $q }}</li>
                                 @endforeach
                             </ul>
                         </div>
-                    @endif
+                        @endif
 
-                    @if ($result->notes !== '')
+                        @if(!empty($result['publishable_draft']))
                         <div>
-                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Notes</h4>
-                            <p class="text-gray-600 dark:text-gray-400">{{ $result->notes }}</p>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Version publiable</h4>
+                            <p class="text-gray-600 dark:text-gray-400 italic">{{ $result['publishable_draft'] }}</p>
                         </div>
-                    @endif
-                </div>
+                        @endif
 
-                {{-- Telemetry --}}
-                <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-6 gap-y-1">
-                    <span>Modèle : <strong>{{ $result->model }}</strong></span>
-                    <span>Tokens : {{ $result->inputTokens }} in / {{ $result->outputTokens }} out</span>
-                    <span>Coût estimé : ${{ number_format($result->estimatedCostUsd, 6) }}</span>
-                    <span>Latence : {{ $result->latencyMs }} ms</span>
+                        @if(isset($result['needs_human_review']) && $result['needs_human_review'])
+                        <div>
+                            <span class="text-xs px-2 py-1 rounded font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                                Relecture humaine suggérée
+                            </span>
+                        </div>
+                        @endif
+
+                        <div class="flex items-center gap-4 pt-2">
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                Confiance : <strong>{{ number_format((float)($result['confidence'] ?? 0) * 100, 0) }}%</strong>
+                            </span>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            @else
+                {{-- Existing AiSupervisionResult display --}}
+                @php
+                    $riskColor = match ($result->riskLevel) {
+                        'high' => 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+                        'medium' => 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
+                        default => 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+                    };
+                    $riskLabel = match ($result->riskLevel) {
+                        'high' => 'Risque élevé',
+                        'medium' => 'Risque modéré',
+                        default => 'Risque faible',
+                    };
+                @endphp
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-3 flex-wrap">
+                        <h3 class="font-semibold text-gray-900 dark:text-gray-100">Résultat de supervision</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs px-2 py-1 rounded font-medium {{ $riskColor }}">{{ $riskLabel }}</span>
+                            @if ($result->moderationFlag)
+                                <span class="text-xs px-2 py-1 rounded font-medium bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300">
+                                    Modération suggérée
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="p-5 space-y-5 text-sm text-gray-800 dark:text-gray-200">
+
+                        <div>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Résumé</h4>
+                            <p>{{ $result->summary }}</p>
+                        </div>
+
+                        <div>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Catégorie principale</h4>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs px-2 py-1 rounded font-medium bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
+                                    {{ $result->category['label'] ?? $result->category['slug'] }}
+                                </span>
+                                <code class="text-xs text-gray-400 dark:text-gray-500">{{ $result->category['slug'] }}</code>
+                                @if ($result->needsHumanCategoryReview)
+                                    <span class="text-xs px-2 py-1 rounded font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                                        Validation humaine suggérée
+                                    </span>
+                                @endif
+                            </div>
+                            @if ($result->needsHumanCategoryReview && $result->categoryReviewReason !== '')
+                                <p class="text-xs text-amber-600 dark:text-amber-400 mt-1.5">{{ $result->categoryReviewReason }}</p>
+                            @endif
+                        </div>
+
+                        @if (!empty($result->skills))
+                            <div>
+                                <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Compétences associées</h4>
+                                <div class="flex flex-wrap gap-1.5">
+                                    @foreach ($result->skills as $skill)
+                                        <span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                                            {{ $skill['label'] ?? $skill['slug'] }}
+                                        </span>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+
+                        @if (!empty($result->unmatchedTerms))
+                            <div>
+                                <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Termes non mappés</h4>
+                                <div class="flex flex-wrap gap-1.5">
+                                    @foreach ($result->unmatchedTerms as $term)
+                                        <span class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 italic">
+                                            {{ $term }}
+                                        </span>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+
+                        @if (!empty($result->recommendations))
+                            <div>
+                                <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Recommandations</h4>
+                                <ul class="list-disc list-inside space-y-1">
+                                    @foreach ($result->recommendations as $recommendation)
+                                        <li>{{ $recommendation }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
+
+                        @if ($result->notes !== '')
+                            <div>
+                                <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Notes</h4>
+                                <p class="text-gray-600 dark:text-gray-400">{{ $result->notes }}</p>
+                            </div>
+                        @endif
+                    </div>
+
+                    {{-- Telemetry --}}
+                    <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-6 gap-y-1">
+                        <span>Modèle : <strong>{{ $result->model }}</strong></span>
+                        <span>Tokens : {{ $result->inputTokens }} in / {{ $result->outputTokens }} out</span>
+                        <span>Coût estimé : ${{ number_format($result->estimatedCostUsd, 6) }}</span>
+                        <span>Latence : {{ $result->latencyMs }} ms</span>
+                    </div>
+                </div>
+            @endif
         @endisset
     </div>
 </x-admin-layout>
