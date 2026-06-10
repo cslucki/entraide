@@ -44,6 +44,7 @@ class Organization extends Model
         'header_javascript',
         'blog_naming',
         'transactions_naming',
+        'theme_id',
     ];
 
     protected function casts(): array
@@ -118,6 +119,11 @@ class Organization extends Model
     public function primaryLoop(): BelongsTo
     {
         return $this->belongsTo(Loop::class, 'primary_loop_id');
+    }
+
+    public function theme(): BelongsTo
+    {
+        return $this->belongsTo(Theme::class);
     }
 
     public function isMonoLoop(): bool

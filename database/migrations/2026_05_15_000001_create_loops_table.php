@@ -8,7 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('loops', function (Blueprint $table) {
+        $organizationTable = Schema::hasTable('communities') ? 'communities' : 'organizations';
+
+        Schema::create('loops', function (Blueprint $table) use ($organizationTable) {
             $table->uuid('id')->primary();
             $table->uuid('organization_id')->nullable()->index();
             $table->string('name');
@@ -19,7 +21,7 @@ return new class extends Migration
             $table->uuid('created_by')->nullable();
             $table->timestamps();
 
-            $table->foreign('organization_id')->references('id')->on('communities')->onDelete('cascade');
+            $table->foreign('organization_id')->references('id')->on($organizationTable)->onDelete('cascade');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
             $table->unique(['organization_id', 'slug']);
         });

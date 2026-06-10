@@ -1,9 +1,18 @@
-<div wire:poll.3s class="flex flex-col min-h-0">
-    <div x-data="{ atBottom: true }"
-         x-init="$nextTick(() => { $el.scrollTop = $el.scrollHeight; atBottom = true; });
-                 let mo = new MutationObserver(() => { if (Alpine.$data($el).atBottom) requestAnimationFrame(() => $el.scrollTop = $el.scrollHeight); });
-                 mo.observe($el, { childList: true });
-                 $cleanup(() => mo.disconnect())"
+<div wire:poll.3s class="flex-1 flex flex-col min-h-0">
+    <div x-data="{
+            atBottom: true,
+            observer: null,
+            init() {
+                this.$nextTick(() => { this.$el.scrollTop = this.$el.scrollHeight; this.atBottom = true; });
+                this.observer = new MutationObserver(() => {
+                    if (this.atBottom) requestAnimationFrame(() => this.$el.scrollTop = this.$el.scrollHeight);
+                });
+                this.observer.observe(this.$el, { childList: true });
+            },
+            destroy() {
+                this.observer?.disconnect();
+            },
+        }"
          x-on:scroll="atBottom = ($el.scrollHeight - $el.scrollTop - $el.clientHeight) < 60"
          x-on:message-sent.window="$nextTick(() => $el.scrollTop = $el.scrollHeight)"
          class="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-1"

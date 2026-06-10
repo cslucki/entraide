@@ -6,6 +6,7 @@ use App\Models\BlogComment;
 use App\Models\BlogPost;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 
 class BlogCommentController extends Controller
 {
@@ -34,7 +35,7 @@ class BlogCommentController extends Controller
             'is_approved' => true,
         ]);
 
-        return back()->with('success', 'Commentaire ajouté.');
+        return redirect(URL::previous() . '#commentaires')->with('success', 'Commentaire ajouté.');
     }
 
     public function destroy(BlogComment $comment): RedirectResponse
@@ -48,6 +49,6 @@ class BlogCommentController extends Controller
         abort_unless(auth()->id() === $comment->user_id || auth()->user()->is_admin, 403);
         $comment->delete();
 
-        return back()->with('success', 'Commentaire supprimé.');
+        return redirect(URL::previous() . '#commentaires')->with('success', 'Commentaire supprimé.');
     }
 }

@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
+use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -81,6 +82,7 @@ Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.sho
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
+Route::view('/aide', 'help')->name('help');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
 Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
@@ -163,6 +165,12 @@ Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+    Route::get('/themes', [AdminThemeController::class, 'index'])->name('themes');
+    Route::get('/themes/create', [AdminThemeController::class, 'create'])->name('themes.create');
+    Route::post('/themes', [AdminThemeController::class, 'store'])->name('themes.store');
+    Route::get('/themes/{theme}/edit', [AdminThemeController::class, 'edit'])->name('themes.edit');
+    Route::put('/themes/{theme}', [AdminThemeController::class, 'update'])->name('themes.update');
+    Route::delete('/themes/{theme}', [AdminThemeController::class, 'destroy'])->name('themes.destroy');
 
     // Users
     Route::get('/users', [AdminController::class, 'users'])->name('users');
