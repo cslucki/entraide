@@ -126,4 +126,51 @@ class AiScenarioFactoryTest extends TestCase
         $this->assertArrayHasKey('category', $schema['properties']);
         $this->assertArrayHasKey('skills', $schema['properties']);
     }
+
+    public function test_scenario_definition_has_system_prompt_method(): void
+    {
+        $reflection = new \ReflectionClass(AiScenarioDefinition::class);
+
+        $this->assertTrue(
+            $reflection->hasMethod('systemPrompt'),
+            'AiScenarioDefinition interface must require systemPrompt() method'
+        );
+
+        $method = $reflection->getMethod('systemPrompt');
+        $this->assertSame('string', $method->getReturnType()?->getName());
+    }
+
+    public function test_scenario_definition_has_json_schema_method(): void
+    {
+        $reflection = new \ReflectionClass(AiScenarioDefinition::class);
+
+        $this->assertTrue(
+            $reflection->hasMethod('jsonSchema'),
+            'AiScenarioDefinition interface must require jsonSchema() method'
+        );
+
+        $method = $reflection->getMethod('jsonSchema');
+        $this->assertSame('array', $method->getReturnType()?->getName());
+    }
+
+    public function test_supervision_content_scenario_implements_full_contract(): void
+    {
+        $scenario = new SupervisionContentScenario();
+
+        $this->assertInstanceOf(AiScenarioDefinition::class, $scenario);
+
+        // Verify all interface methods are callable and return expected types
+        $this->assertSame('supervision_content', $scenario->id());
+        $this->assertSame('Supervision de contenu', $scenario->name());
+        $this->assertNotNull($scenario->description());
+        $this->assertSame('openai', $scenario->providerHint());
+
+        $prompt = $scenario->systemPrompt();
+        $this->assertIsString($prompt);
+        $this->assertNotEmpty($prompt);
+
+        $schema = $scenario->jsonSchema();
+        $this->assertIsArray($schema);
+        $this->assertNotEmpty($schema);
+    }
 }
