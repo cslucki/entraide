@@ -1,4 +1,8 @@
-<x-page title="Mes favoris" heading="Mes favoris" width="5xl">
+<x-app-layout>
+    <x-slot name="title">Mes favoris</x-slot>
+
+    <x-page-container>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Mes favoris</h1>
 
         @if($favorites->isEmpty())
         <div class="text-center py-16 text-gray-400">
@@ -50,4 +54,5 @@
         </div>
         <div class="mt-6">{{ $favorites->links() }}</div>
         @endif
-</x-page>
+    </x-page-container>
+</x-app-layout>

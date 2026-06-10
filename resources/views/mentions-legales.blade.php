@@ -1,5 +1,10 @@
-<x-page title="Mentions légales" heading="Mentions légales" width="4xl">
-    <div class="space-y-8 text-gray-700 dark:text-gray-300">
+<x-app-layout>
+    <x-slot name="title">Mentions légales</x-slot>
+
+    <x-page-container>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Mentions légales</h1>
+
+        <div class="space-y-8 text-gray-700 dark:text-gray-300">
 
             {{-- Éditeur --}}
             <section>
@@ -53,5 +58,6 @@
                 </a>
             </section>
 
-    </div>
-</x-page>
+        </div>
+    </x-page-container>
+</x-app-layout>
