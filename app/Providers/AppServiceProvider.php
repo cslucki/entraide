@@ -23,6 +23,7 @@ use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\Ai\Providers\OpenAiSupervisionProvider;
+use App\Services\Ai\Scenarios\ClarifyHelpRequestScenario;
 use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
@@ -60,6 +61,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AiScenarioFactory::class, function ($app) {
             $factory = new AiScenarioFactory();
             $factory->register(new SupervisionContentScenario());
+            $factory->register(new ClarifyHelpRequestScenario());
             return $factory;
         });
     }

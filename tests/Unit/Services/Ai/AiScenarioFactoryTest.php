@@ -32,13 +32,14 @@ class AiScenarioFactoryTest extends TestCase
         $this->assertNull($factory->resolve('unknown_scenario'));
     }
 
-    public function test_factory_contains_only_supervision_content_scenario(): void
+    public function test_factory_contains_registered_scenarios(): void
     {
         $factory = app(AiScenarioFactory::class);
         $all = $factory->all();
 
-        $this->assertCount(1, $all);
+        $this->assertCount(2, $all);
         $this->assertArrayHasKey('supervision_content', $all);
+        $this->assertArrayHasKey('clarify_help_request', $all);
     }
 
     public function test_scenario_result_wraps_supervision_result(): void
