@@ -23,6 +23,7 @@ use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\Ai\Providers\OpenAiSupervisionProvider;
+use App\Services\Ai\Providers\OllamaSupervisionProvider;
 use App\Services\Ai\Logging\AiBenchmarkLogger;
 use App\Services\Ai\Providers\LoggingSupervisionProvider;
 use App\Services\Ai\Scenarios\ClarifyHelpRequestScenario;
@@ -62,6 +63,15 @@ class AppServiceProvider extends ServiceProvider
             return new LoggingSupervisionProvider(
                 $inner,
                 $app->make(AiBenchmarkLogger::class),
+            );
+        });
+
+        $this->app->singleton(OllamaSupervisionProvider::class, function ($app) {
+            $config = $app['config']->get('ai.ollama');
+            return new OllamaSupervisionProvider(
+                baseUrl: (string) ($config['base_url'] ?? ''),
+                model: (string) ($config['model'] ?? 'llama3.2'),
+                timeout: (int) ($config['timeout'] ?? 30),
             );
         });
 
