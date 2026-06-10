@@ -27,7 +27,10 @@ class T07411RoutesTenantSafetyTest extends TestCase
     {
         parent::setUp();
 
-        $this->organization = Organization::factory()->create(['is_active' => true]);
+        $this->organization = Organization::factory()->create([
+            'is_active' => true,
+            'is_default' => true,
+        ]);
         $this->user = User::factory()->create([
             'organization_id' => $this->organization->id,
             'organization_id' => $this->organization->id,

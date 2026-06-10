@@ -2,7 +2,7 @@
 task_id: TASK-232
 title: Fix CI — 11 test failures
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
