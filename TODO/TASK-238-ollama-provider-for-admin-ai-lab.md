@@ -2,7 +2,7 @@
 task_id: TASK-238
 title: Ollama provider for admin AI lab
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
