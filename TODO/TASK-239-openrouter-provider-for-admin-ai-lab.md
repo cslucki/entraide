@@ -2,7 +2,7 @@
 task_id: TASK-239
 title: OpenRouter provider for admin AI lab
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
