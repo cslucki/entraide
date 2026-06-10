@@ -2,7 +2,7 @@
 task_id: TASK-235
 title: Align AiScenarioDefinition contract before second scenario
 
-status: TESTING
+status: DONE
 
 owner: OPENCODE
 
@@ -14,14 +14,13 @@ branch: TASK-235-align-aiscenariodefinition-contract-before-second-scenario
 priority: MEDIUM
 
 created_at: 2026-06-10 21:17:11 Europe/Paris
-updated_at: 2026-06-10 21:40:00 Europe/Paris
+updated_at: 2026-06-10 21:50:00 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
-  agent: VERIFICATOR
-  since: 2026-06-10 21:40:00 Europe/Paris
+  status: UNLOCKED
+  since: 2026-06-10 21:50:00 Europe/Paris
 
 handoff: false
 
@@ -198,6 +197,18 @@ Phase 5 — Validation compatibilité : COMPLETE.
 
 ---
 
+## 2026-06-10 21:50:00 Europe/Paris
+
+- VERIFICATOR verdict : OK — scope respecté, tests verts, pas de régression
+- Cockpit validation partielle : fond technique OK
+- Corrections gouvernance appliquées :
+  - Conversation dupliquée supprimée : `20260610-21h30-TASK-235-align-aiscenariodefinition-contract.md` (obsolète, non trackée git)
+  - TASK file nettoyé : sections "Pending" et "Verdict attendu" supprimées
+  - Status passé de TESTING à DONE, lock UNLOCKED
+- Prochaine étape : check-task.sh → finalize-task.sh → validation Cyril pour merge
+
+---
+
 # Test Results
 
 - [x] Tests unitaires existants préservés — `AiScenarioFactoryTest` (10 tests, 43 assertions, +3 tests)
@@ -227,35 +238,11 @@ Critères de validation :
 - [x] Tests verts — 27 tests, 109 assertions totales
 - [x] Pas de régression détectée
 
-# Handoffs
+# Verdict final
 
-# Tests
-
-- [ ] Tests unitaires existants préservés — `AiScenarioFactoryTest` (7 tests)
-- [ ] Tests feature existants préservés — `AdminAiSupervisionTest` (17 tests)
-- [ ] Tests ciblés interface ajoutés — 3 tests attendus
-- [ ] Pas de changement UI / route
-- [ ] Pas de changement tenant scope
-
----
-
-# Test Results
-
-Pending — tests à exécuter après validation plan et passage en exécution.
-
----
-
-# Review Notes
-
-**Verdict attendu** : Cyril / Cockpit validation du plan avant exécution.
-
-Critères de validation :
-- Scope suffisamment minimal ?
-- `parseResponse()` doit-il être inclus maintenant ou différé ?
-- `resolve()` null vs exception — décision confirmée ?
-- Build nécessaire ou non ?
-
----
+- **CODEUR** : DONE — interface étendue, 3 tests ajoutés, 27 tests verts
+- **VERIFICATOR** : OK — scope respecté, provider non modifié, route/UI non modifié
+- **Cockpit** : Validation partielle reçue — corrections gouvernance appliquées, prêt pour merge
 
 # Version Notes
 
