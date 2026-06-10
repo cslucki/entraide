@@ -2,7 +2,7 @@
 task_id: TASK-236
 title: Add clarify_help_request scenario to admin AI lab
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -15,7 +15,7 @@ branch: TASK-236-add-clarify-help-request-scenario-to-admin-ai-lab
 priority: MEDIUM
 
 created_at: 2026-06-10 21:42:22 Europe/Paris
-updated_at: 2026-06-10 22:30:00 Europe/Paris
+updated_at: 2026-06-10 23:30:00 Europe/Paris
 
 labels: []
 
