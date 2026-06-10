@@ -125,7 +125,7 @@ Cette TASK est une **réponse directe aux réserves VERIFICATOR** de TASK-234 :
 
 # Recommandation Build
 
-**NON** — pas de Build nécessaire.
+**OUI** — Build recommandé, mais uniquement par CODEUR, sous coordination ORCH.
 
 Justification :
 - Pas de changement UI/asset
@@ -158,8 +158,16 @@ Plan détaillé rédigé. Mode PLAN uniquement — attente validation Cyril / Co
 - Fichiers à modifier : 1 (interface) + 1 (tests)
 - Fichiers en lecture seule : 4 (SupervisionContentScenario, Factory, DTO, Provider)
 - Risques : documentés, faibles
-- Build : NON recommandé
+- Build : recommandé, par CODEUR sous coordination ORCH (validé Cockpit)
 - Prochaine étape : validation Cyril / Cockpit → passage en mode exécution (CODEUR)
+
+## 2026-06-10 21:35:00 Europe/Paris
+
+Validation Cyril / Cockpit reçue.
+- Plan TASK-235 validé.
+- Correction : "Build non recommandé" → "Build recommandé, par CODEUR sous coordination ORCH".
+- Dérive `OutilsCoversables.md` signalée et ignorée (hors scope, fichier non créé).
+- Prochaine étape : GO CODEUR pour exécution bornée.
 
 # Handoffs
 
