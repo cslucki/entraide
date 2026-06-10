@@ -18,10 +18,12 @@ use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
+use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\Ai\Providers\OpenAiSupervisionProvider;
+use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -53,6 +55,12 @@ class AppServiceProvider extends ServiceProvider
                 inputPricePer1M: (float) ($config['input_price_per_1m'] ?? 0.15),
                 outputPricePer1M: (float) ($config['output_price_per_1m'] ?? 0.60),
             );
+        });
+
+        $this->app->singleton(AiScenarioFactory::class, function ($app) {
+            $factory = new AiScenarioFactory();
+            $factory->register(new SupervisionContentScenario());
+            return $factory;
         });
     }
 
