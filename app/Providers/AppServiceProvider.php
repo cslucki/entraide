@@ -23,6 +23,8 @@ use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\Ai\Providers\OpenAiSupervisionProvider;
+use App\Services\Ai\Logging\AiBenchmarkLogger;
+use App\Services\Ai\Providers\LoggingSupervisionProvider;
 use App\Services\Ai\Scenarios\ClarifyHelpRequestScenario;
 use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\ReferralCodeGenerator;
@@ -44,10 +46,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(RewardDispatcher::class);
         $this->app->bind(AiProvider::class, FakeAIProvider::class);
 
-        $this->app->bind(SupervisionProvider::class, function ($app) {
+        $this->app->singleton(SupervisionProvider::class, function ($app) {
             $config = $app['config']->get('ai.openai');
 
-            return new OpenAiSupervisionProvider(
+            $inner = new OpenAiSupervisionProvider(
                 apiKey: (string) ($config['api_key'] ?? ''),
                 baseUrl: (string) ($config['base_url'] ?? 'https://api.openai.com/v1'),
                 model: (string) ($config['model'] ?? 'gpt-4o-mini'),
@@ -55,6 +57,11 @@ class AppServiceProvider extends ServiceProvider
                 timeout: (int) ($config['timeout'] ?? 15),
                 inputPricePer1M: (float) ($config['input_price_per_1m'] ?? 0.15),
                 outputPricePer1M: (float) ($config['output_price_per_1m'] ?? 0.60),
+            );
+
+            return new LoggingSupervisionProvider(
+                $inner,
+                $app->make(AiBenchmarkLogger::class),
             );
         });
 
