@@ -1,8 +1,8 @@
 <x-app-layout>
-    <x-slot name="title">Mes favoris</x-slot>
+    <x-slot name="title">Mes services favoris</x-slot>
 
     <x-page-container>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Mes favoris</h1>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Mes services favoris</h1>
 
         @if($favorites->isEmpty())
         <div class="text-center py-16 text-gray-400">
