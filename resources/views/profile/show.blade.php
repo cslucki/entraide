@@ -64,7 +64,7 @@
                         @endif
                     </div>
                     @if($user->bio)
-                    <div class="mt-4 text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm leading-relaxed max-w-2xl">
+                    <div class="mt-4 text-gray-700 dark:text-gray-300 whitespace-pre-line text-sm leading-relaxed max-w-2xl">
                         {{ $user->bio }}
                     </div>
                     @endif
@@ -99,8 +99,13 @@
                 </div>
                 @auth
                 @if(auth()->id() !== $user->id)
-                <div x-data="{ open: false }" class="flex-shrink-0">
-                    <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler</button>
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <a href="{{ route('messages.index') }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        Écrire à
+                    </a>
+                    <div x-data="{ open: false }" class="relative">
+                        <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler</button>
                     <div x-show="open" x-cloak class="absolute right-6 mt-2 w-72 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 shadow-lg z-10">
                         <form method="POST" action="{{ route('reports.user', $user) }}">
                             @csrf
@@ -119,6 +124,7 @@
                                 <button type="button" @click="open = false" class="px-3 py-1.5 border border-red-200 text-red-600 text-xs rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30">Annuler</button>
                             </div>
                         </form>
+                    </div>
                     </div>
                 </div>
                 @endif
@@ -194,6 +200,31 @@
                 <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $req->title }}</p>
                 @if($req->deadline)
                 <p class="text-xs text-gray-400">⏰ Avant le {{ $req->deadline->format('d/m/Y') }}</p>
+                @endif
+            </a>
+            @endforeach
+        </div>
+        @endif
+
+        <!-- Articles de blog -->
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mt-8 mb-4">Articles publiés</h2>
+        @if($blogPosts->isEmpty())
+        <p class="text-gray-400 text-sm">Cet utilisateur n'a pas encore publié d'article.</p>
+        @else
+        <div class="grid sm:grid-cols-2 gap-4">
+            @foreach($blogPosts as $post)
+            <a href="{{ route('blog.show', $post) }}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
+                <div class="flex items-center justify-between mb-2">
+                    @if($post->category)
+                    <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $post->category->color }}">
+                        {{ $post->category->displayName('blog') }}
+                    </span>
+                    @endif
+                    <span class="text-xs text-gray-400">{{ $post->published_at?->format('d/m/Y') }}</span>
+                </div>
+                <p class="font-medium text-gray-900 dark:text-gray-100 mb-1 line-clamp-2">{{ $post->title }}</p>
+                @if($post->summary)
+                <p class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{{ $post->summary }}</p>
                 @endif
             </a>
             @endforeach

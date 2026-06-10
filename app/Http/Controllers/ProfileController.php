@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BlogPost;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -33,6 +34,15 @@ class ProfileController extends Controller
             ->latest('created_at')
             ->get();
         $badges = $user->badges()->get();
+        $blogPosts = BlogPost::where('user_id', $user->id)
+            ->where('organization_id', $organization->id)
+            ->where('status', 'published')
+            ->whereNotNull('published_at')
+            ->where('published_at', '<=', now())
+            ->with('category')
+            ->latest('published_at')
+            ->limit(6)
+            ->get();
 
         $ogTitle = $user->name;
         $ogDescription = $user->bio
@@ -47,7 +57,7 @@ class ProfileController extends Controller
             'description' => $user->bio,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
+        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
     }
 
     public function edit(Request $request): View

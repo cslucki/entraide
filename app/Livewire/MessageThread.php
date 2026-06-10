@@ -38,6 +38,7 @@ class MessageThread extends Component
             'sender_id' => $user->id,
             'body' => $this->newMessage,
             'type' => 'user',
+            'organization_id' => $this->transaction->organization_id,
         ]);
 
         $this->newMessage = '';

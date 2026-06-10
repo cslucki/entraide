@@ -22,6 +22,7 @@ class LoopMessageService
                 'body' => $body,
                 'type' => 'user',
                 'metadata' => $metadata,
+                'organization_id' => $loop->organization_id,
             ]);
 
             event(new LoopMessageCreated($message));
@@ -59,6 +60,7 @@ class LoopMessageService
                     'deadline' => $deadline,
                     'urgency' => $urgency,
                 ],
+                'organization_id' => $loop->organization_id,
             ]);
 
             event(new LoopMessageCreated($message));
