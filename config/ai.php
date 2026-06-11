@@ -122,4 +122,20 @@ return [
         'clarify_help_request' => (float) env('AI_BUDGET_CLARIFY_HELP_REQUEST', 2.00),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | User-facing clarification — Loop help request AI analysis
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, user help request intentions are analyzed via the real
+    | ClarifyHelpRequestScenario (OpenAI/Ollama/OpenRouter) instead of the
+    | keyword-matching FakeAIProvider. Disabled by default to avoid API costs
+    | in development.
+    |
+    */
+
+    'clarify' => [
+        'enabled' => (bool) env('AI_CLARIFY_ENABLED', false),
+    ],
+
 ];
