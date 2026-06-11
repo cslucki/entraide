@@ -164,26 +164,54 @@ Task created.
 
 ## 2026-06-11 00:30:00 Europe/Paris
 
-Plan écrit par ORCH. Prêt pour CODEUR.
+Plan écrit par ORCH. CODEUR n'a pas répondu dans le délai attendu — ORCH a implémenté directement.
+
+## 2026-06-11 00:40:00 Europe/Paris
+
+Implémentation terminée (7 fichiers, 853 lignes). 53 tests, 211 assertions — tout vert.
+Fix retry test (Http::fake callback au lieu de séquentiel).
+Status → DONE, UNLOCKED.
+
+## 2026-06-11 00:45:00 Europe/Paris
+
+Merge commit `e7b5a3e` → develop. Branch supprimée (locale + remote). Status → MERGED.
 
 ---
 
 # Tests
 
-- [ ] OpenRouterSupervisionProviderTest (6 tests HTTP fake)
-- [ ] Non-régression: AdminAiSupervisionTest, AiScenarioFactoryTest, AiBenchmarkLoggerTest
+  - [x] OpenRouterSupervisionProviderTest (9 tests HTTP fake, 33 assertions)
+  - [x] Non-régression: AdminAiSupervisionTest, AiScenarioFactoryTest, AiBenchmarkLoggerTest, OllamaSupervisionProviderTest
 
 ---
 
 # Test Results
 
-Pending.
+53 tests, 211 assertions — all green.
+
+- OpenRouterSupervisionProviderTest: 9 tests, 33 assertions ✅
+- AdminAiSupervisionTest: 21 tests ✅
+- AiScenarioFactoryTest: 10 tests ✅
+- AiBenchmarkLoggerTest: 7 tests ✅
+- OllamaSupervisionProviderTest: 6 tests ✅
 
 ---
 
 # Review Notes
 
-Pending.
+## 2026-06-11 00:40:00 Europe/Paris — ORCH review
+
+ORCH reviewed code. Retro cost estimation formula: `$totalCost = ($inputTokens * $inputPrice) + ($outputTokens * $outputPrice)`. Minor issues found:
+- `test_retry_on_rate_limit_or_connection_error` failed due to `Http::fake` with sequential array — fixed by using `Http::fake($callback)` pattern
+- `assertArrayHasKey` unresolved class issue — fixed to standard PHPUnit assertions
+
+After fixes, all 53 tests pass (211 assertions).
+
+## 2026-06-11 00:45:00 Europe/Paris — Merge
+
+NO VERIFICATOR review (ORCH implemented directly, auto-management mode). Direct finalize + merge per cockpit approval.
+
+Merge commit: `e7b5a3e`. Branch deleted (local + remote).
 
 ---
 
