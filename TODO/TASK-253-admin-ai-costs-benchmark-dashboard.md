@@ -2,7 +2,7 @@
 task_id: TASK-253
 title: Admin AI costs & benchmark dashboard
 
-status: DONE
+status: MERGED
 
 owner: VERIFICATOR
 
