@@ -2,7 +2,7 @@
 task_id: TASK-244
 title: Harden AI JSON protocol for Ollama and OpenAI-compatible providers
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
