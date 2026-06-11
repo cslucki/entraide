@@ -14,7 +14,7 @@ branch: TASK-248-fix-admin-ai-interaction-input-hash-fallback
 priority: HIGH
 
 created_at: 2026-06-11 15:46:12 Europe/Paris
-updated_at: 2026-06-11 16:05:00 Europe/Paris
+updated_at: 2026-06-11 16:08:00 Europe/Paris
 
 labels:
   - ai
@@ -30,7 +30,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: READY_TO_MERGE
   url: null
 ---
 
@@ -168,6 +168,17 @@ CODEUR implementation DONE report:
 - Modified: `app/Services/Ai/Persistence/AdminAiInteractionPersistence.php` (1 line)
 - Added: `tests/Unit/Services/Ai/Persistence/AdminAiInteractionPersistenceTest.php`
 - No migration, schema, `.env`, `config/ai.php`, provider, model, or UI changes.
+
+## 2026-06-11 16:08:00 Europe/Paris
+
+### VERIFICATOR OK — no reserves
+
+- 52/52 tests pass (191 assertions)
+- Fallback `input_excerpt` correct
+- `input_hash` provided preserved as-is
+- No migration/config/provider/model/UI changes
+- DB-safe preflight `bouclepro_test`
+- Verdict: OK, ready to merge
 
 # Handoffs
 
