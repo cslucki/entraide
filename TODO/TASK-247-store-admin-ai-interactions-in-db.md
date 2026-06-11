@@ -2,19 +2,20 @@
 task_id: TASK-247
 title: Store admin AI interactions in DB
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
 contributors:
   - CODEUR
+  - VERIFICATOR
 
 branch: TASK-247-store-admin-ai-interactions-in-db
 
 priority: HIGH
 
 created_at: 2026-06-11 15:03:12 Europe/Paris
-updated_at: 2026-06-11 15:48:00 Europe/Paris
+updated_at: 2026-06-11 16:00:00 Europe/Paris
 
 labels:
   - ai
@@ -24,9 +25,9 @@ labels:
   - additive-migration
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-06-11 15:03:12 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: 2026-06-11 16:00:00 Europe/Paris
 
 handoff: false
 
