@@ -68,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
                 $inner,
                 $app->make(AiBenchmarkLogger::class),
                 $app->make(AdminAiInteractionPersistence::class),
+                'openai',
             );
         });
 
