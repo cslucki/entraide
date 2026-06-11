@@ -2,7 +2,7 @@
 task_id: TASK-251
 title: Align Ollama local model config with tested Ministral model
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
