@@ -2,7 +2,7 @@
 task_id: TASK-251
 title: Align Ollama local model config with tested Ministral model
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-251-align-ollama-local-model-config
 priority: HIGH
 
 created_at: 2026-06-11 17:35:00 Europe/Paris
-updated_at: 2026-06-11 17:35:00 Europe/Paris
+updated_at: 2026-06-11 17:42:00 Europe/Paris
 
 labels:
   - ai
@@ -23,9 +23,9 @@ labels:
   - ollama
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-06-11 17:35:00 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: 2026-06-11 17:42:00 Europe/Paris
 
 handoff: false
 
@@ -115,16 +115,16 @@ tests/Feature/Admin/AdminAiSupervisionTest.php
 
 # Planned Actions
 
-- [ ] read mandatory docs (AGENTS.md, SMT skill, ai-local/README, tooling)
-- [ ] inspect current config, env.example, view, resolver
-- [ ] modify `config/ai.php` — default model
-- [ ] modify `.env.example` — default model
-- [ ] modify `views/admin/ai-supervision/index.blade.php` — recommendation
-- [ ] modify `SupervisionProviderResolver.php` — fallback
-- [ ] run DB-safe preflight `bouclepro_test`
-- [ ] run regression `AdminAiSupervisionTest`
-- [ ] update TASK and conversation
-- [ ] handoff to VERIFICATOR
+- [x] read mandatory docs (AGENTS.md, SMT skill, ai-local/README, tooling)
+- [x] inspect current config, env.example, view, resolver
+- [x] modify `config/ai.php` — default model
+- [x] modify `.env.example` — default model
+- [x] modify `views/admin/ai-supervision/index.blade.php` — recommendation
+- [x] modify `SupervisionProviderResolver.php` — fallback
+- [x] run DB-safe preflight `bouclepro_test`
+- [x] run regression `AdminAiSupervisionTest`
+- [x] update TASK and conversation
+- [x] handoff to VERIFICATOR
 
 ---
 
@@ -139,6 +139,17 @@ Task created. Branch `TASK-251-align-ollama-local-model-config`.
 ORCH created conversation file, committed TASK+conversation, pushed branch, sent SMT to CODEUR.
 Awaiting CODEUR DONE.
 
+## 2026-06-11 17:42:00 Europe/Paris
+
+CODEUR DONE report:
+- 4 files modified: `config/ai.php`, `.env.example`, `views/admin/ai-supervision/index.blade.php`, `SupervisionProviderResolver.php`
+- `llama3.2` → `ministral-3:3b` in all 4 files
+- `pint --dirty` passed (2 files, no issues)
+- DB preflight: `database.default = pgsql`, `database.connections.pgsql.database = bouclepro_test` — safe
+- `AdminAiSupervisionTest`: 48 passed, 187 assertions, 6.09s
+- No other files modified (scope strict respected)
+- Commit ready for push
+
 ---
 
 # Handoffs
@@ -152,13 +163,16 @@ SMT sent via tmux with full scope instructions. Conversation:
 
 # Tests
 
-- [ ] regression: AdminAiSupervisionTest (48 tests, 187 assertions)
+- [x] regression: AdminAiSupervisionTest (48 tests, 187 assertions)
 
 ---
 
 # Test Results
 
-TODO — after CODEUR execution.
+2026-06-11 17:42 Europe/Paris
+
+- `AdminAiSupervisionTest`: 48 passed, 187 assertions, 6.09s
+- DB preflight: `database.default = pgsql`, `database.connections.pgsql.database = bouclepro_test` — safe
 
 ---
 

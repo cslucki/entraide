@@ -62,7 +62,7 @@ class SupervisionProviderResolver
                 'label' => 'Ollama (local)',
                 'type' => 'local',
                 'models' => [
-                    config('ai.ollama.model', 'llama3.2') => config('ai.ollama.model', 'llama3.2'),
+                    config('ai.ollama.model', 'ministral-3:3b') => config('ai.ollama.model', 'ministral-3:3b'),
                 ],
             ];
         }
@@ -110,7 +110,7 @@ class SupervisionProviderResolver
             'ollama' => [
                 'base_url' => config('ai.ollama.base_url', 'http://localhost:11434'),
                 'api_key' => null,
-                'model' => config('ai.ollama.model', 'llama3.2'),
+                'model' => config('ai.ollama.model', 'ministral-3:3b'),
                 'timeout' => config('ai.ollama.timeout', 30),
                 'max_output_tokens' => 900,
             ],
