@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminAiInteractionController;
+use App\Http\Controllers\Admin\AdminAiBenchmarkController;
 use App\Http\Controllers\Admin\AdminAiPromptController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminBlogController;
@@ -282,6 +283,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-prompts/{prompt}/edit', [AdminAiPromptController::class, 'edit'])->name('ai-prompts.edit');
     Route::put('/ai-prompts/{prompt}', [AdminAiPromptController::class, 'update'])->name('ai-prompts.update');
     Route::delete('/ai-prompts/{prompt}', [AdminAiPromptController::class, 'destroy'])->name('ai-prompts.destroy');
+
+    // Admin AI costs & benchmark dashboard (TASK-253)
+    Route::get('/ai-benchmark', [AdminAiBenchmarkController::class, 'index'])->name('ai-benchmark');
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
