@@ -2,7 +2,7 @@
 task_id: TASK-256
 title: Admin AI budget alerts
 
-status: DONE
+status: MERGED
 
 owner: ORCH
 
