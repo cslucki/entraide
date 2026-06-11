@@ -584,6 +584,7 @@ class AdminAiSupervisionTest extends TestCase
             $this->assertArrayHasKey('confidence', $props);
             $this->assertArrayHasKey('needs_human_review', $props);
             $this->assertArrayNotHasKey('risk_level', $props); // différent du schema supervision_content
+
             return true;
         });
     }
@@ -675,7 +676,7 @@ class AdminAiSupervisionTest extends TestCase
         $response->assertSee('Ollama (local)');
     }
 
-    public function test_clarify_help_request_hidden_when_openai_supervision_disabled(): void
+    public function test_clarify_help_request_visible_when_ollama_enabled_without_openai(): void
     {
         config([
             'ai.ollama.enabled' => true,
@@ -685,7 +686,7 @@ class AdminAiSupervisionTest extends TestCase
         $admin = $this->makeAdmin();
         $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
         $response->assertOk();
-        $response->assertDontSee('Clarification de demande');
+        $response->assertSee('Clarification de demande');
     }
 
     public function test_clarify_help_request_visible_when_openai_supervision_enabled(): void
@@ -700,23 +701,90 @@ class AdminAiSupervisionTest extends TestCase
         $response->assertSee('Clarification de demande');
     }
 
-    public function test_analyze_rejects_clarify_when_openai_supervision_disabled(): void
+    public function test_clarify_help_request_works_with_ollama(): void
     {
         config([
             'ai.ollama.enabled' => true,
             'ai.openai.supervision_enabled' => false,
         ]);
 
-        $admin = $this->makeAdmin();
-        $response = $this->actingAs($admin)->from(route('admin.ai-supervision'))
-            ->post(route('admin.ai-supervision.analyze'), [
-                'content' => 'Test clarify.',
-                'provider' => 'ollama',
-                'scenario' => 'clarify_help_request',
-            ]);
+        Http::fake([
+            'localhost:11434/*' => Http::response([
+                'model' => 'llama3.2',
+                'response' => json_encode([
+                    'title' => 'Aide pour rédaction CV',
+                    'clarified_request' => 'Le membre cherche de l\'aide pour rédiger un CV professionnel.',
+                    'help_type' => 'service_offer',
+                    'suggested_category' => 'redaction',
+                    'suggested_loop' => 'Rédaction pro',
+                    'questions_for_user' => [],
+                    'publishable_draft' => 'Je propose mon aide pour la rédaction de CV.',
+                    'confidence' => 0.9,
+                    'needs_human_review' => false,
+                ]),
+                'done' => true,
+            ], 200),
+        ]);
 
-        $response->assertRedirect(route('admin.ai-supervision'));
-        $response->assertSessionHas('error');
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Je voudrais de l\'aide pour faire mon CV.',
+            'provider' => 'ollama',
+            'scenario' => 'clarify_help_request',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Aide pour rédaction CV');
+        $response->assertSee('service_offer');
+        $response->assertSee('Confiance');
+        $response->assertSee('90%');
+    }
+
+    public function test_clarify_help_request_works_with_openrouter(): void
+    {
+        config([
+            'ai.openrouter.enabled' => true,
+            'ai.openrouter.api_key' => 'test-key',
+            'ai.openai.supervision_enabled' => false,
+        ]);
+
+        Http::fake([
+            'openrouter.ai/*' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode([
+                            'title' => 'Aide pour rédaction CV',
+                            'clarified_request' => 'Le membre cherche de l\'aide pour rédiger un CV professionnel.',
+                            'help_type' => 'service_offer',
+                            'suggested_category' => 'redaction',
+                            'suggested_loop' => 'Rédaction pro',
+                            'questions_for_user' => [],
+                            'publishable_draft' => 'Je propose mon aide pour la rédaction de CV.',
+                            'confidence' => 0.9,
+                            'needs_human_review' => false,
+                        ]),
+                    ],
+                ]],
+                'model' => 'openai/gpt-4o-mini',
+                'usage' => [
+                    'prompt_tokens' => 100,
+                    'completion_tokens' => 80,
+                ],
+            ], 200),
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Je voudrais de l\'aide pour faire mon CV.',
+            'provider' => 'openrouter',
+            'scenario' => 'clarify_help_request',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Aide pour rédaction CV');
+        $response->assertSee('service_offer');
+        $response->assertSee('Confiance');
+        $response->assertSee('90%');
     }
 
     public function test_openrouter_visible_when_enabled(): void
@@ -731,52 +799,6 @@ class AdminAiSupervisionTest extends TestCase
         $response->assertOk();
         $response->assertSee('OpenRouter');
         $response->assertDontSee('OpenAI');
-    }
-
-    public function test_clarify_help_request_is_not_supported_with_ollama(): void
-    {
-        config([
-            'ai.ollama.enabled' => true,
-            'ai.openai.supervision_enabled' => true,
-        ]);
-
-        Http::fake([
-            'localhost:11434/*' => Http::response([
-                'model' => 'llama3.2',
-                'response' => json_encode($this->basePayload()),
-                'done' => true,
-            ], 200),
-        ]);
-
-        config(['ai.ollama.enabled' => true]);
-
-        $admin = $this->makeAdmin();
-        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
-            'content' => 'Test avec Ollama.',
-            'provider' => 'ollama',
-            'scenario' => 'clarify_help_request',
-        ]);
-
-        $response->assertOk();
-        $response->assertSee('nécessite OpenAI');
-    }
-
-    public function test_clarify_help_request_is_not_supported_with_openrouter(): void
-    {
-        config([
-            'ai.openrouter.enabled' => true,
-            'ai.openai.supervision_enabled' => true,
-        ]);
-
-        $admin = $this->makeAdmin();
-        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
-            'content' => 'Test avec OpenRouter.',
-            'provider' => 'openrouter',
-            'scenario' => 'clarify_help_request',
-        ]);
-
-        $response->assertOk();
-        $response->assertSee('nécessite OpenAI');
     }
 
     public function test_supervision_content_with_ollama_provider(): void
@@ -840,7 +862,7 @@ class AdminAiSupervisionTest extends TestCase
         Http::fake([
             'localhost:11434/*' => Http::response([
                 'model' => 'llama3.2',
-                'response' => "Voici l'analyse :\n\n```json\n" . json_encode($this->basePayload()) . "\n```",
+                'response' => "Voici l'analyse :\n\n```json\n".json_encode($this->basePayload())."\n```",
                 'done' => true,
             ], 200),
         ]);
@@ -863,7 +885,7 @@ class AdminAiSupervisionTest extends TestCase
         Http::fake([
             'localhost:11434/*' => Http::response([
                 'model' => 'llama3.2',
-                'response' => "Analyse complète : " . json_encode($this->basePayload()) . " Fin.",
+                'response' => 'Analyse complète : '.json_encode($this->basePayload()).' Fin.',
                 'done' => true,
             ], 200),
         ]);
@@ -910,7 +932,7 @@ class AdminAiSupervisionTest extends TestCase
             'openrouter.ai/*' => Http::response([
                 'choices' => [[
                     'message' => [
-                        'content' => "Résultat :\n\n```json\n" . json_encode($this->basePayload()) . "\n```",
+                        'content' => "Résultat :\n\n```json\n".json_encode($this->basePayload())."\n```",
                     ],
                 ]],
                 'model' => 'openai/gpt-4o-mini',

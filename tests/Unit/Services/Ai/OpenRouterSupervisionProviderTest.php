@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services\Ai;
 
+use App\Services\Ai\Contracts\AiScenarioDefinition;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AiSupervisionResult;
 use App\Services\Ai\Exceptions\SupervisionException;
@@ -237,6 +238,7 @@ class OpenRouterSupervisionProviderTest extends TestCase
 
         Http::assertSent(function ($request) {
             $body = json_decode($request->body(), true);
+
             return ($body['model'] ?? '') === 'anthropic/claude-3-haiku';
         });
     }
@@ -298,5 +300,81 @@ class OpenRouterSupervisionProviderTest extends TestCase
         $this->expectExceptionMessage('Sortie JSON non décodable');
 
         $provider->supervise('test');
+    }
+
+    public function test_run_scenario_returns_decoded_json(): void
+    {
+        $scenario = new class implements AiScenarioDefinition
+        {
+            public function id(): string
+            {
+                return 'clarify_help_request';
+            }
+
+            public function name(): string
+            {
+                return 'Clarification';
+            }
+
+            public function description(): ?string
+            {
+                return null;
+            }
+
+            public function providerHint(): string
+            {
+                return '';
+            }
+
+            public function systemPrompt(): string
+            {
+                return 'You are a helpful assistant.';
+            }
+
+            public function jsonSchema(): array
+            {
+                return [
+                    'type' => 'object',
+                    'required' => ['title'],
+                    'properties' => ['title' => ['type' => 'string']],
+                ];
+            }
+        };
+
+        Http::fake([
+            'openrouter.ai/api/v1/chat/completions' => function ($request) use ($scenario) {
+                $body = json_decode($request->body(), true);
+
+                $this->assertSame('json_schema', $body['response_format']['type']);
+                $this->assertSame($scenario->id(), $body['response_format']['json_schema']['name']);
+                $this->assertTrue($body['response_format']['json_schema']['strict']);
+                $this->assertSame('system', $body['messages'][0]['role']);
+                $this->assertSame($scenario->systemPrompt(), $body['messages'][0]['content']);
+                $this->assertSame('user', $body['messages'][1]['role']);
+                $this->assertSame('Contenu à clarifier', $body['messages'][1]['content']);
+
+                return Http::response([
+                    'choices' => [[
+                        'message' => [
+                            'content' => json_encode(['title' => 'Test clarify']),
+                        ],
+                    ]],
+                    'usage' => [
+                        'prompt_tokens' => 50,
+                        'completion_tokens' => 30,
+                    ],
+                ]);
+            },
+        ]);
+
+        $provider = new OpenRouterSupervisionProvider(
+            apiKey: 'sk-test',
+            baseUrl: 'https://openrouter.ai/api/v1',
+            model: 'openai/gpt-4o-mini',
+        );
+
+        $result = $provider->runScenario($scenario, 'Contenu à clarifier');
+
+        $this->assertSame(['title' => 'Test clarify'], $result);
     }
 }

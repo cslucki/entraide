@@ -2,6 +2,9 @@
 
 namespace App\Services\Ai\Providers;
 
+use App\Models\Category;
+use App\Models\Skill;
+use App\Services\Ai\Contracts\AiScenarioDefinition;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AiSupervisionResult;
 use App\Services\Ai\Exceptions\SupervisionException;
@@ -86,19 +89,20 @@ PROMPT;
 
             try {
                 $response = Http::withHeaders([
-                    'Authorization' => 'Bearer ' . $this->apiKey,
+                    'Authorization' => 'Bearer '.$this->apiKey,
                     'HTTP-Referer' => $this->siteUrl,
                     'X-Title' => $this->siteName,
                 ])
                     ->timeout($this->timeout)
                     ->acceptJson()
                     ->asJson()
-                    ->post(rtrim($this->baseUrl, '/') . '/chat/completions', $payload);
+                    ->post(rtrim($this->baseUrl, '/').'/chat/completions', $payload);
 
                 $status = $response->status();
 
                 if ($status === 429) {
                     usleep(($attempts ** 2) * 100000);
+
                     continue;
                 }
 
@@ -114,6 +118,7 @@ PROMPT;
                     throw new SupervisionException('Connexion OpenRouter impossible après plusieurs tentatives.', 0, $e);
                 }
                 usleep(($attempts ** 2) * 100000);
+
                 continue;
             }
         }
@@ -152,13 +157,93 @@ PROMPT;
         );
     }
 
+    public function runScenario(AiScenarioDefinition $scenario, string $content, ?string $model = null): array
+    {
+        if ($this->apiKey === '') {
+            throw new SupervisionException('Clé API OpenRouter manquante.');
+        }
+
+        $resolvedModel = $model ?? $this->model;
+
+        $payload = [
+            'model' => $resolvedModel,
+            'messages' => [
+                ['role' => 'system', 'content' => $scenario->systemPrompt()],
+                ['role' => 'user', 'content' => $content],
+            ],
+            'max_tokens' => $this->maxOutputTokens,
+            'temperature' => 0,
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => $scenario->id(),
+                    'strict' => true,
+                    'schema' => $scenario->jsonSchema(),
+                ],
+            ],
+        ];
+
+        $attempts = 0;
+
+        while ($attempts < self::MAX_RETRIES) {
+            $attempts++;
+
+            try {
+                $response = Http::withHeaders([
+                    'Authorization' => 'Bearer '.$this->apiKey,
+                    'HTTP-Referer' => $this->siteUrl,
+                    'X-Title' => $this->siteName,
+                ])
+                    ->timeout($this->timeout)
+                    ->acceptJson()
+                    ->asJson()
+                    ->post(rtrim($this->baseUrl, '/').'/chat/completions', $payload);
+
+                $status = $response->status();
+
+                if ($status === 429) {
+                    usleep(($attempts ** 2) * 100000);
+
+                    continue;
+                }
+
+                if (! $response->successful()) {
+                    throw new SupervisionException(sprintf(
+                        'Réponse OpenRouter invalide (HTTP %d).', $status
+                    ));
+                }
+
+                break;
+            } catch (ConnectionException $e) {
+                if ($attempts >= self::MAX_RETRIES) {
+                    throw new SupervisionException('Connexion OpenRouter impossible après plusieurs tentatives.', 0, $e);
+                }
+                usleep(($attempts ** 2) * 100000);
+
+                continue;
+            }
+        }
+
+        $body = $response->json();
+        $text = $body['choices'][0]['message']['content'] ?? '';
+
+        $jsonText = JsonResponseParser::extractJsonFromText($text);
+        $parsed = json_decode($jsonText, true);
+
+        if (! is_array($parsed)) {
+            throw new SupervisionException('Sortie JSON OpenRouter non décodable pour le scénario '.$scenario->id().'.');
+        }
+
+        return $parsed;
+    }
+
     private function loadTaxonomyFromDb(): array
     {
         $categories = [];
         $skills = [];
 
         if (Schema::hasTable('categories')) {
-            $categories = \App\Models\Category::select('slug', 'name_b2c as label')
+            $categories = Category::select('slug', 'name_b2c as label')
                 ->orderBy('slug')
                 ->get()
                 ->each(fn ($c) => $c->label = $c->label ?? '')
@@ -166,7 +251,7 @@ PROMPT;
         }
 
         if (Schema::hasTable('skills')) {
-            $skills = \App\Models\Skill::select('slug', 'name as label')
+            $skills = Skill::select('slug', 'name as label')
                 ->orderBy('slug')
                 ->get()
                 ->each(fn ($s) => $s->label = $s->label ?? '')
@@ -185,20 +270,20 @@ PROMPT;
         $skills = $taxonomy['skills'];
 
         $categoryLines = implode("\n", array_map(
-            fn ($c) => '- ' . ($c['slug'] ?? '') . ' : ' . ($c['label'] ?? ''),
+            fn ($c) => '- '.($c['slug'] ?? '').' : '.($c['label'] ?? ''),
             $categories
         ));
 
         $skillLines = implode("\n", array_map(
-            fn ($s) => '- ' . ($s['slug'] ?? '') . ' : ' . ($s['label'] ?? ''),
+            fn ($s) => '- '.($s['slug'] ?? '').' : '.($s['label'] ?? ''),
             $skills
         ));
 
         return self::BASE_SYSTEM_PROMPT
-            . "\n\nTaxonomie officielle des catégories (utilise UNIQUEMENT ces slugs exacts) :\n"
-            . $categoryLines
-            . "\n\nCompétences secondaires disponibles (enrichissement uniquement, liste non exhaustive) :\n"
-            . $skillLines;
+            ."\n\nTaxonomie officielle des catégories (utilise UNIQUEMENT ces slugs exacts) :\n"
+            .$categoryLines
+            ."\n\nCompétences secondaires disponibles (enrichissement uniquement, liste non exhaustive) :\n"
+            .$skillLines;
     }
 
     private function buildJsonSchema(array $taxonomy): array

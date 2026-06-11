@@ -2,16 +2,21 @@
 
 namespace App\Services\Ai\Providers;
 
+use App\Models\Category;
+use App\Models\Skill;
+use App\Services\Ai\Contracts\AiScenarioDefinition;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AiSupervisionResult;
 use App\Services\Ai\Exceptions\SupervisionException;
 use App\Services\Ai\JsonResponseParser;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 
 class OpenAiSupervisionProvider implements SupervisionProvider
 {
     private const MAX_RETRIES = 3;
+
     private const RETRY_DELAY_MS = 1000;
 
     private const BASE_SYSTEM_PROMPT = <<<'PROMPT'
@@ -79,6 +84,7 @@ PROMPT;
                 $attempt++;
                 $delay = self::RETRY_DELAY_MS * (2 ** $attempt);
                 usleep($delay * 1000);
+
                 continue;
             }
 
@@ -128,6 +134,86 @@ PROMPT;
         );
     }
 
+    public function runScenario(AiScenarioDefinition $scenario, string $content, ?string $model = null): array
+    {
+        if ($this->apiKey === '') {
+            throw new SupervisionException('Clé API OpenAI manquante.');
+        }
+
+        $payload = [
+            'model' => $model ?: $this->model,
+            'max_output_tokens' => $this->maxOutputTokens,
+            'store' => false,
+            'input' => [
+                ['role' => 'system', 'content' => $scenario->systemPrompt()],
+                ['role' => 'user', 'content' => $content],
+            ],
+            'text' => [
+                'format' => [
+                    'type' => 'json_schema',
+                    'name' => $scenario->id(),
+                    'strict' => true,
+                    'schema' => $scenario->jsonSchema(),
+                ],
+            ],
+        ];
+
+        $attempt = 0;
+        $response = null;
+
+        while ($attempt < self::MAX_RETRIES) {
+            try {
+                $response = Http::withToken($this->apiKey)
+                    ->timeout($this->timeout)
+                    ->acceptJson()
+                    ->asJson()
+                    ->post(rtrim($this->baseUrl, '/').'/responses', $payload);
+            } catch (ConnectionException $e) {
+                throw new SupervisionException('Connexion OpenAI impossible.', 0, $e);
+            }
+
+            if ($response->successful()) {
+                break;
+            }
+
+            if ($response->status() === 429 && $attempt < self::MAX_RETRIES - 1) {
+                $attempt++;
+                $delay = self::RETRY_DELAY_MS * (2 ** $attempt);
+                usleep($delay * 1000);
+
+                continue;
+            }
+
+            throw new SupervisionException(
+                sprintf(
+                    'Réponse OpenAI invalide (HTTP %d). %s',
+                    $response->status(),
+                    $response->status() === 429
+                        ? 'Taux de requêtes dépassé. Essayez un modèle plus rapide (GPT-4o Mini) ou réessayez plus tard.'
+                        : ''
+                )
+            );
+        }
+
+        if ($response === null || $response->failed()) {
+            throw new SupervisionException(
+                'Réponse OpenAI invalide après plusieurs tentatives (HTTP 429). Réessayez plus tard ou passez à GPT-4o Mini.'
+            );
+        }
+
+        $body = $response->json();
+        $text = $this->extractOutputText($body);
+
+        $jsonText = JsonResponseParser::extractJsonFromText($text);
+        $parsed = json_decode($jsonText, true);
+
+        if (! is_array($parsed)) {
+            throw new SupervisionException('Sortie JSON OpenAI non décodable pour le scénario '.$scenario->id().'.');
+        }
+
+        return $parsed;
+    }
+
     private function buildPayload(string $content, string $model): array
     {
         return [
@@ -160,16 +246,16 @@ PROMPT;
         $categories = [];
         $skills = [];
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('categories')) {
-            $categories = \App\Models\Category::select('slug', 'name_b2c as label')
+        if (Schema::hasTable('categories')) {
+            $categories = Category::select('slug', 'name_b2c as label')
                 ->orderBy('slug')
                 ->get()
                 ->each(fn ($c) => $c->label = $c->label ?? '')
                 ->toArray();
         }
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('skills')) {
-            $skills = \App\Models\Skill::select('slug', 'name as label')
+        if (Schema::hasTable('skills')) {
+            $skills = Skill::select('slug', 'name as label')
                 ->orderBy('slug')
                 ->get()
                 ->each(fn ($s) => $s->label = $s->label ?? '')

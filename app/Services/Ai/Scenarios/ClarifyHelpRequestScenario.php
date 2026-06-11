@@ -46,7 +46,7 @@ PROMPT;
 
     public function providerHint(): string
     {
-        return 'openai';
+        return '';
     }
 
     public function systemPrompt(): string
