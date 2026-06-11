@@ -160,6 +160,8 @@ Détails :
 
 ## ORCH NOTES
 
-Date :
+Date : 2026-06-11 17:38
+
+SMT envoyé à CODEUR. En attente CODEUR DONE.
 
 Décision :
