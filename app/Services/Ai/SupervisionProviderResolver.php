@@ -17,7 +17,7 @@ class SupervisionProviderResolver
         };
     }
 
-    public function defaultProvider(): string
+    public function defaultProvider(): ?string
     {
         if (config('ai.ollama.enabled')) {
             return 'ollama';
@@ -27,7 +27,11 @@ class SupervisionProviderResolver
             return 'openrouter';
         }
 
-        return 'openai';
+        if (config('ai.openai.supervision_enabled')) {
+            return 'openai';
+        }
+
+        return null;
     }
 
     public function availableProviders(): array
@@ -37,6 +41,7 @@ class SupervisionProviderResolver
         if (config('ai.ollama.enabled')) {
             $providers['ollama'] = [
                 'label' => 'Ollama (local)',
+                'type' => 'local',
                 'models' => [
                     config('ai.ollama.model', 'llama3.2') => config('ai.ollama.model', 'llama3.2'),
                 ],
@@ -46,22 +51,26 @@ class SupervisionProviderResolver
         if (config('ai.openrouter.enabled')) {
             $providers['openrouter'] = [
                 'label' => 'OpenRouter',
+                'type' => 'cloud_proxy',
                 'models' => [
-                    config('ai.openrouter.model', 'openai/gpt-4o-mini') => config('ai.openrouter.model', 'openai/gpt-4o-mini'),
+                    config('ai.openrouter.model', 'deepseek/deepseek-chat-v3-0324') => config('ai.openrouter.model', 'deepseek/deepseek-chat-v3-0324'),
                 ],
             ];
         }
 
-        $providers['openai'] = [
-            'label' => 'OpenAI',
-            'models' => [
-                'gpt-4o-mini' => 'GPT-4o Mini',
-                'gpt-4o' => 'GPT-4o',
-                'gpt-4.1-mini' => 'GPT-4.1 Mini',
-                'gpt-4.1-nano' => 'GPT-4.1 Nano',
-                'o4-mini' => 'o4-mini',
-            ],
-        ];
+        if (config('ai.openai.supervision_enabled')) {
+            $providers['openai'] = [
+                'label' => 'OpenAI',
+                'type' => 'cloud',
+                'models' => [
+                    'gpt-4o-mini' => 'GPT-4o Mini',
+                    'gpt-4o' => 'GPT-4o',
+                    'gpt-4.1-mini' => 'GPT-4.1 Mini',
+                    'gpt-4.1-nano' => 'GPT-4.1 Nano',
+                    'o4-mini' => 'o4-mini',
+                ],
+            ];
+        }
 
         return $providers;
     }

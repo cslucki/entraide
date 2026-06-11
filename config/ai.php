@@ -15,6 +15,7 @@ return [
     */
 
     'openai' => [
+        'supervision_enabled' => (bool) env('OPENAI_SUPERVISION_ENABLED', false),
         'api_key' => env('OPENAI_API_KEY'),
         'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
         'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
@@ -98,7 +99,7 @@ return [
         'enabled' => (bool) env('OPENROUTER_ENABLED', false),
         'api_key' => env('OPENROUTER_API_KEY'),
         'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
-        'model' => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini'),
+        'model' => env('OPENROUTER_MODEL', 'deepseek/deepseek-chat-v3-0324'),
         'max_output_tokens' => (int) env('OPENROUTER_MAX_OUTPUT_TOKENS', 900),
         'timeout' => (int) env('OPENROUTER_TIMEOUT', 30),
         'site_name' => env('APP_NAME', 'BouclePro'),
