@@ -5,6 +5,7 @@ namespace App\Services\Ai\Providers;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AiSupervisionResult;
 use App\Services\Ai\Exceptions\SupervisionException;
+use App\Services\Ai\JsonResponseParser;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
@@ -69,39 +70,21 @@ PROMPT;
         $body = $response->json();
         $rawResponse = $body['response'] ?? '';
 
-        $parsed = json_decode($rawResponse, true);
-
-        if (! is_array($parsed)) {
-            throw new SupervisionException('Sortie JSON Ollama non décodable.');
-        }
+        $parsed = JsonResponseParser::parseSupervisionResult($rawResponse);
 
         $outputTokens = (int) ($body['eval_count'] ?? 0);
 
-        $rawCategory = $parsed['category'] ?? [];
-        $category = [
-            'slug' => (string) ($rawCategory['slug'] ?? 'autre'),
-            'label' => (string) ($rawCategory['label'] ?? 'Autre'),
-        ];
-
-        $skills = array_values(array_map(
-            fn ($s) => [
-                'slug' => (string) ($s['slug'] ?? ''),
-                'label' => (string) ($s['label'] ?? ''),
-            ],
-            array_filter((array) ($parsed['skills'] ?? []), 'is_array')
-        ));
-
         return new AiSupervisionResult(
-            summary: (string) ($parsed['summary'] ?? ''),
-            riskLevel: (string) ($parsed['risk_level'] ?? 'low'),
-            category: $category,
-            skills: $skills,
-            unmatchedTerms: array_values(array_map('strval', (array) ($parsed['unmatched_terms'] ?? []))),
-            needsHumanCategoryReview: (bool) ($parsed['needs_human_category_review'] ?? false),
-            categoryReviewReason: (string) ($parsed['category_review_reason'] ?? ''),
-            recommendations: array_values(array_map('strval', (array) ($parsed['recommendations'] ?? []))),
-            moderationFlag: (bool) ($parsed['moderation_flag'] ?? false),
-            notes: (string) ($parsed['notes'] ?? ''),
+            summary: $parsed['summary'],
+            riskLevel: $parsed['risk_level'],
+            category: $parsed['category'],
+            skills: $parsed['skills'],
+            unmatchedTerms: $parsed['unmatched_terms'],
+            needsHumanCategoryReview: $parsed['needs_human_category_review'],
+            categoryReviewReason: $parsed['category_review_reason'],
+            recommendations: $parsed['recommendations'],
+            moderationFlag: $parsed['moderation_flag'],
+            notes: $parsed['notes'],
             inputTokens: 0,
             outputTokens: $outputTokens,
             model: (string) ($body['model'] ?? $this->model),
