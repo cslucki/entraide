@@ -66,6 +66,19 @@ class SupervisionProviderResolver
         return $providers;
     }
 
+    public function supportedScenarios(string $provider): array
+    {
+        return match ($provider) {
+            'openai' => ['supervision_content', 'clarify_help_request'],
+            default => ['supervision_content'],
+        };
+    }
+
+    public function scenarioSupportsProvider(string $scenario, string $provider): bool
+    {
+        return in_array($scenario, $this->supportedScenarios($provider), true);
+    }
+
     public function providerConfig(string $provider): array
     {
         return match ($provider) {
