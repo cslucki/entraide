@@ -97,7 +97,7 @@
 
                     <!-- Email group -->
                     @php $groupActive = $isGroupActive($emailItems); @endphp
-                    <div x-data="{ open: true }">
+                    <div x-data="{ open: localStorage.getItem('sidebar_email_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_email_open', open)">
                         <button @click="open = !open"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $groupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
@@ -132,7 +132,7 @@
 
                     <!-- Échanges group -->
                     @php $groupActive = $isGroupActive($echangesItems); @endphp
-                    <div x-data="{ open: true }">
+                    <div x-data="{ open: localStorage.getItem('sidebar_echanges_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_echanges_open', open)">
                         <button @click="open = !open"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $groupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
@@ -167,7 +167,7 @@
 
                     <!-- Organisations group -->
                     @php $groupActive = $isGroupActive($orgItems); @endphp
-                    <div x-data="{ open: true }">
+                    <div x-data="{ open: localStorage.getItem('sidebar_org_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_org_open', open)">
                         <button @click="open = !open"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $groupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
@@ -217,7 +217,7 @@
                         ];
                         $outilsGroupActive = $isGroupActive($outilsItems);
                     @endphp
-                    <div x-data="{ open: true }">
+                    <div x-data="{ open: localStorage.getItem('sidebar_outils_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_outils_open', open)">
                         <button @click="open = !open"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $outilsGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
@@ -261,9 +261,10 @@
                         $iaItems[] = ['route' => 'admin.ai-benchmark', 'label' => 'Benchmark IA', 'icon' => 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6'];
                         $iaItems[] = ['route' => 'admin.ai-prompts', 'label' => 'Prompts IA', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'];
                         $iaItems[] = ['route' => 'admin.ai-interactions', 'label' => 'Historique IA', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'];
+                        $iaItems[] = ['route' => 'admin.ai-config', 'label' => 'Réglages IA', 'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'];
                         $iaGroupActive = $isGroupActive($iaItems);
                     @endphp
-                    <div x-data="{ open: true }">
+                    <div x-data="{ open: localStorage.getItem('sidebar_ia_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_ia_open', open)">
                         <button @click="open = !open"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $iaGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
