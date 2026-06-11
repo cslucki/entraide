@@ -51,14 +51,24 @@ class JsonResponseParser
      */
     public static function parseSupervisionResult(string $jsonText): array
     {
-        $jsonText = self::extractJsonFromText($jsonText);
+        $extracted = self::extractJsonFromText($jsonText);
 
-        $decoded = json_decode($jsonText, true);
+        if (trim($extracted) === '') {
+            throw new SupervisionException('Aucune réponse JSON reçue du modèle. Vérifiez que le modèle est compatible et que Ollama est en cours d\'exécution.');
+        }
+
+        $decoded = json_decode($extracted, true);
 
         if (! is_array($decoded)) {
             $error = json_last_error_msg();
+            // Detect truncated JSON (starts with { but json_decode failed)
+            if (str_starts_with($extracted, '{') && $error === 'Syntax error') {
+                throw new SupervisionException(
+                    sprintf('Réponse JSON tronquée ou incomplète. Extrait : %.200s', $extracted)
+                );
+            }
             throw new SupervisionException(
-                sprintf('Sortie JSON non décodable : %s. Extrait brut : %.500s', $error, $jsonText)
+                sprintf('Sortie JSON non décodable : %s. Extrait : %.200s', $error, $extracted)
             );
         }
 

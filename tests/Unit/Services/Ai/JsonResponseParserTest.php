@@ -127,4 +127,20 @@ class JsonResponseParserTest extends TestCase
 
         $this->assertSame([['slug' => 'valid', 'label' => 'Valid']], $result['skills']);
     }
+
+    public function test_parse_empty_string_throws_no_response_exception(): void
+    {
+        $this->expectException(SupervisionException::class);
+        $this->expectExceptionMessage('Aucune réponse JSON reçue');
+
+        JsonResponseParser::parseSupervisionResult('');
+    }
+
+    public function test_parse_truncated_json_throws_specific_error(): void
+    {
+        $this->expectException(SupervisionException::class);
+        $this->expectExceptionMessage('Réponse JSON tronquée ou incomplète');
+
+        JsonResponseParser::parseSupervisionResult('{"summary": "test", "risk_level": ');
+    }
 }
