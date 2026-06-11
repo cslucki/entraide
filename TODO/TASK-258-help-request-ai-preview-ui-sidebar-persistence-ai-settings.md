@@ -2,7 +2,7 @@
 task_id: TASK-258
 title: Help request AI preview UI + sidebar persistence + AI settings
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 

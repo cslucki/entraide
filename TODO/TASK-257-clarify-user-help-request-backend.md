@@ -1,6 +1,6 @@
 ---
 task_id: TASK-257
-status: DONE
+status: MERGED
 owner: ORCH
 
 contributors:
