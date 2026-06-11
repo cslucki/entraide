@@ -15,7 +15,7 @@ branch: TASK-247-store-admin-ai-interactions-in-db
 priority: HIGH
 
 created_at: 2026-06-11 15:03:12 Europe/Paris
-updated_at: 2026-06-11 16:00:00 Europe/Paris
+updated_at: 2026-06-11 16:02:00 Europe/Paris
 
 labels:
   - ai
@@ -135,9 +135,9 @@ Expected, not exhaustive:
 - [x] Read planning/tooling docs
 - [x] Create TASK-247 branch and TASK file
 - [x] Prepare conversation file and SMT for CODEUR
-- [ ] CODEUR reads mandatory docs and implements additive DB persistence
-- [ ] CODEUR runs DB-safe targeted tests only
-- [ ] VERIFICATOR performs read-only verification
+- [x] CODEUR reads mandatory docs and implements additive DB persistence
+- [x] CODEUR runs DB-safe targeted tests only
+- [x] VERIFICATOR performs read-only verification
 - [ ] ORCH finalizes and merges only after VERIFICATOR OK
 
 ---
@@ -349,6 +349,23 @@ ORCH launched VERIFICATOR read-only re-review for CODEUR fix commit `6ab9939`:
 
 Next state: wait for VERIFICATOR verdict after re-review.
 
+## 2026-06-11 15:52:00 Europe/Paris
+
+VERIFICATOR returned final `OK_WITH_RESERVES` after re-review of fix commit `6ab9939`:
+
+- Blocking gap 1 resolved: Ollama and OpenRouter now pass through `LoggingSupervisionProvider`.
+- Blocking gap 2 resolved: `provider` is persisted as non-null for `openai`, `ollama`, and `openrouter`.
+- Tests: 48 passed, 187 assertions.
+- Runtime validation with Ollama + `qwen2.5-coder:7b`: PASS. DB row created with `scenario_id=supervision_content`, `provider=ollama`, `model=qwen2.5-coder:7b`, `latency_ms=6946`, sanitized result payload present.
+- Additive runtime DB migration applied; no destructive DB operation.
+- No `.env`, `config/ai.php`, provider behavior, prompt, or schema change.
+
+Minor non-blocking reserve:
+
+- `input_hash` remains `NULL` because callers pass `input_excerpt`, not `content`, to persistence. VERIFICATOR explicitly marked this as minor and post-merge fixable.
+
+Merge accepted by ORCH because the reserve is non-blocking and the core TASK-247 scope is validated.
+
 ---
 
 # Handoffs
@@ -363,7 +380,7 @@ CODEUR implementation launched via SMT at 2026-06-11 15:10 Europe/Paris.
 - [x] migration/model tests
 - [x] admin AI persistence feature tests
 - [x] targeted AI regression tests if touched
-- [ ] runtime validation with Ollama + `qwen2.5-coder:7b`
+- [x] runtime validation with Ollama + `qwen2.5-coder:7b`
 
 ---
 
@@ -383,6 +400,13 @@ CODEUR implementation launched via SMT at 2026-06-11 15:10 Europe/Paris.
   - `test_supervision_content_with_ollama_provider` — 0.05s
   - `test_supervision_content_with_openrouter_provider` — 0.04s
 - Runtime validation: pending (CODEUR environment has no Ollama runtime).
+
+2026-06-11 15:52 Europe/Paris (VERIFICATOR runtime validation)
+
+- VERIFICATOR final verdict: `OK_WITH_RESERVES`.
+- Runtime Ollama + `qwen2.5-coder:7b`: PASS, DB row created.
+- DB persisted values included `provider=ollama`, `model=qwen2.5-coder:7b`, `scenario_id=supervision_content`, `latency_ms=6946`.
+- Minor reserve: `input_hash` is `NULL`; accepted as non-blocking/post-merge follow-up.
 
 2026-06-11 15:46 Europe/Paris (after VERIFICATOR blocking fix)
 
@@ -407,6 +431,7 @@ CODEUR implementation launched via SMT at 2026-06-11 15:10 Europe/Paris.
 - VERIFICATOR must verify no destructive DB command was used.
 - VERIFICATOR must verify all providers (openai/ollama/openrouter) are wrapped with `LoggingSupervisionProvider` and `provider` column is non-null.
 - Previous VERIFICATOR verdict (15:36): BLOCKED 8/10 → gaps fixed at 15:46.
+- Final VERIFICATOR verdict (15:52): OK_WITH_RESERVES; reserve is `input_hash NULL`, explicitly minor/non-blocking.
 
 ---
 
