@@ -37,7 +37,7 @@
                 Aucun provider IA actif. Activez Ollama local dans <code>.env</code> :<br>
                 <code class="text-xs">OLLAMA_ENABLED=true</code>,
                 <code class="text-xs">OLLAMA_BASE_URL=http://localhost:11434</code>,
-                <code class="text-xs">OLLAMA_MODEL=votre_modèle</code>.<br>
+                <code class="text-xs">OLLAMA_MODEL=ministral-3:3b</code>.<br>
                 Ou activez OpenRouter avec <code class="text-xs">OPENROUTER_ENABLED=true</code>,
                 ou OpenAI avec <code class="text-xs">OPENAI_SUPERVISION_ENABLED=true</code>.
             </div>
