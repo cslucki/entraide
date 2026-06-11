@@ -14,7 +14,7 @@ branch: TASK-247-store-admin-ai-interactions-in-db
 priority: HIGH
 
 created_at: 2026-06-11 15:03:12 Europe/Paris
-updated_at: 2026-06-11 15:34:00 Europe/Paris
+updated_at: 2026-06-11 15:38:00 Europe/Paris
 
 labels:
   - ai
@@ -285,6 +285,23 @@ ORCH launched VERIFICATOR read-only review after CODEUR DONE:
 
 Next state: wait for VERIFICATOR verdict in active conversation.
 
+## 2026-06-11 15:36:00 Europe/Paris
+
+VERIFICATOR returned BLOCKED verdict: 8/10 OK, 2 blocking gaps:
+
+- Ollama and OpenRouter are returned raw by `SupervisionProviderResolver::resolve()`, bypassing `LoggingSupervisionProvider`; therefore no DB persistence happens outside OpenAI.
+- `admin_ai_interactions.provider` remains `NULL` because `LoggingSupervisionProvider` does not know/pass the provider name.
+
+VERIFICATOR reported 46 tests passing (174 assertions), DB-safe, migration additive, no config/provider behavior changes, sanitization/failure isolation OK. Runtime Ollama with `qwen2.5-coder:7b` is available locally but would not create rows until wrapper gap is fixed.
+
+## 2026-06-11 15:38:00 Europe/Paris
+
+ORCH sent CODEUR targeted fix SMT:
+
+`[2026-06-11 15:38][TASK-247][branch:TASK-247-store-admin-ai-interactions-in-db][ORCH→CODEUR][ACTION] VERIFICATOR BLOCKED 8/10. Fix ciblé requis: (1) wrapper Ollama/OpenRouter dans SupervisionProviderResolver avec LoggingSupervisionProvider, (2) ajouter providerName au LoggingSupervisionProvider, (3) passer openai/ollama/openrouter, (4) persister provider non NULL, (5) tests + runtime Ollama qwen2.5-coder:7b si possible. Lire Entry 9 conversation. Pas de scope creep, pas DB destructive. Répondre DONE.`
+
+Next state: wait for CODEUR DONE after blocking fixes.
+
 ---
 
 # Handoffs
@@ -329,6 +346,7 @@ CODEUR implementation launched via SMT at 2026-06-11 15:10 Europe/Paris.
 - VERIFICATOR must verify no raw provider response, system prompt, secret, or API key is persisted.
 - VERIFICATOR must verify DB write failure cannot break successful AI responses.
 - VERIFICATOR must verify no destructive DB command was used.
+- Current VERIFICATOR verdict: BLOCKED pending CODEUR fix for provider wrapping and `provider` persistence.
 
 ---
 
