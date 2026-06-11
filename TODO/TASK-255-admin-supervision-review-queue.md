@@ -2,7 +2,7 @@
 task_id: TASK-255
 title: Admin supervision review queue
 
-status: DONE
+status: MERGED
 
 owner: ORCH
 
