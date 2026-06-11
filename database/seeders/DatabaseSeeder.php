@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             SettingSeeder::class,
             BackfillUsersOrganizationSeeder::class,
             EmailTemplateSeeder::class,
+            AiPromptSeeder::class,
             DashboardDemoSeeder::class,
         ]);
     }

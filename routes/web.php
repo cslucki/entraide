@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminAiInteractionController;
+use App\Http\Controllers\Admin\AdminAiPromptController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminBlogController;
 use App\Http\Controllers\Admin\AdminBugReportController;
@@ -272,6 +273,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Historique des interactions IA (TASK-249)
     Route::get('/ai-interactions', [AdminAiInteractionController::class, 'index'])->name('ai-interactions');
     Route::get('/ai-interactions/{interaction}', [AdminAiInteractionController::class, 'show'])->name('ai-interactions.show');
+
+    // Admin AI prompts registry (TASK-252)
+    Route::get('/ai-prompts', [AdminAiPromptController::class, 'index'])->name('ai-prompts');
+    Route::get('/ai-prompts/create', [AdminAiPromptController::class, 'create'])->name('ai-prompts.create');
+    Route::post('/ai-prompts', [AdminAiPromptController::class, 'store'])->name('ai-prompts.store');
+    Route::get('/ai-prompts/{prompt}', [AdminAiPromptController::class, 'show'])->name('ai-prompts.show');
+    Route::get('/ai-prompts/{prompt}/edit', [AdminAiPromptController::class, 'edit'])->name('ai-prompts.edit');
+    Route::put('/ai-prompts/{prompt}', [AdminAiPromptController::class, 'update'])->name('ai-prompts.update');
+    Route::delete('/ai-prompts/{prompt}', [AdminAiPromptController::class, 'destroy'])->name('ai-prompts.destroy');
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
