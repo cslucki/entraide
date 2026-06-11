@@ -2,7 +2,7 @@
 task_id: TASK-249
 title: Admin AI interactions history UI
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-249-admin-ai-interactions-history-ui
 priority: HIGH
 
 created_at: 2026-06-11 16:52:01 Europe/Paris
-updated_at: 2026-06-11 16:52:01 Europe/Paris
+updated_at: 2026-06-11 17:15:00 Europe/Paris
 
 labels:
   - ai
@@ -23,9 +23,9 @@ labels:
   - history
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-06-11 16:52:01 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: 2026-06-11 17:15:00 Europe/Paris
 
 handoff: false
 
@@ -138,21 +138,20 @@ routes/web.php                                   (add 2 routes)
 
 # Planned Actions
 
-- [ ] read mandatory docs (AGENTS.md, SMT skill, ai-local/README, tooling, task/conversation)
-- [ ] inspect existing admin patterns (controller, view, routes, sidebar)
-- [ ] create `AdminAiInteractionController` with index + show
-- [ ] add routes to `routes/web.php`
-- [ ] create list view `admin/ai-interactions/index.blade.php`
-- [ ] create detail view `admin/ai-interactions/show.blade.php`
-- [ ] add sidebar nav item in `admin.blade.php`
-- [ ] create feature test `AdminAiInteractionTest.php`
-- [ ] run targeted tests + regression
-- [ ] update TASK and conversation
+- [x] read mandatory docs (AGENTS.md, SMT skill, ai-local/README, tooling, task/conversation)
+- [x] inspect existing admin patterns (controller, view, routes, sidebar)
+- [x] create `AdminAiInteractionController` with index + show
+- [x] add routes to `routes/web.php`
+- [x] create list view `admin/ai-interactions/index.blade.php`
+- [x] create detail view `admin/ai-interactions/show.blade.php`
+- [x] add sidebar nav item in `admin.blade.php`
+- [x] create feature test `AdminAiInteractionTest.php`
+- [x] run targeted tests + regression
+- [x] update TASK and conversation
 
 ---
 
 # Progress Log
-
 
 ## 2026-06-11 16:52:01 Europe/Paris
 
@@ -162,6 +161,22 @@ Task created. Branch `TASK-249-admin-ai-interactions-history-ui`.
 
 ORCH created conversation file, committed TASK file, sent SMT to CODEUR.
 Awaiting CODEUR DONE.
+
+## 2026-06-11 17:15:00 Europe/Paris
+
+CODEUR DONE report:
+
+- `AdminAiInteractionController` created with index + show, filters (provider, scenario, status, date_from, date_to, search), pagination 25/page.
+- Routes added: `admin.ai-interactions` (GET /admin/ai-interactions), `admin.ai-interactions.show` (GET /admin/ai-interactions/{interaction}).
+- List view created with paginated table, filters, empty state.
+- Detail view created with full record display + formatted JSON payload.
+- Sidebar nav item `Historique IA` added in IA group after `Supervision IA`.
+- Feature test `AdminAiInteractionTest.php` created with 13 tests covering access, pagination, filters, detail, sidebar.
+- Date filter fixed in controller to use `where('created_at', '>=', ...)` instead of `whereDate`.
+- `pint --dirty` passed (style fixes in controller and routes).
+- All targeted tests green: AdminAiInteractionTest (13 passed, 38 assertions), AdminAiSupervisionTest regression (48 passed, 187 assertions).
+- DB preflight confirmed safe (`bouclepro_test`).
+- No forbidden files modified (no migration, config, provider, model, schema changes).
 
 ---
 
@@ -176,20 +191,27 @@ SMT sent via tmux with full scope instructions. Conversation:
 
 # Tests
 
-- [ ] feature tests for list + detail + filters
-- [ ] regression: AdminAiSupervisionTest
+- [x] feature tests for list + detail + filters
+- [x] regression: AdminAiSupervisionTest
 
 ---
 
 # Test Results
 
-Pending.
+2026-06-11 17:15 Europe/Paris
+
+- `AdminAiInteractionTest`: 13 passed, 38 assertions
+- `AdminAiSupervisionTest` regression: 48 passed, 187 assertions
+- DB preflight: `database.default = pgsql`, `database.connections.pgsql.database = bouclepro_test` — safe.
 
 ---
 
 # Review Notes
 
-Pending.
+- VERIFICATOR must confirm scope strict: no supervision/provider/config/schema/model changes.
+- VERIFICATOR must confirm sidebar active state on new routes.
+- VERIFICATOR must confirm filters preserve GET params in pagination links.
+- VERIFICATOR must confirm empty state message when no interactions exist.
 
 ---
 
