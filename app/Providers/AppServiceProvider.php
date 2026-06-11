@@ -22,6 +22,7 @@ use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\FakeAIProvider;
+use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\Ai\Providers\OpenAiSupervisionProvider;
 use App\Services\Ai\Providers\OllamaSupervisionProvider;
 use App\Services\Ai\Providers\OpenRouterSupervisionProvider;
@@ -46,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(ReferralCodeGenerator::class);
         $this->app->singleton(RewardDispatcher::class);
+        $this->app->singleton(SupervisionProviderResolver::class);
         $this->app->bind(AiProvider::class, FakeAIProvider::class);
 
         $this->app->singleton(SupervisionProvider::class, function ($app) {
