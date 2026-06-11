@@ -2,7 +2,7 @@
 task_id: TASK-241
 title: Admin AI provider selector with Ollama default
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
