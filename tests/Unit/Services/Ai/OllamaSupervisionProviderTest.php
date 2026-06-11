@@ -132,6 +132,7 @@ class OllamaSupervisionProviderTest extends TestCase
                 $this->assertArrayHasKey('prompt', $body);
                 $this->assertArrayHasKey('options', $body);
                 $this->assertSame(900, $body['options']['num_predict']);
+                $this->assertFalse($body['think']);
 
                 return Http::response([
                     'model' => 'llama3.2',
@@ -158,5 +159,36 @@ class OllamaSupervisionProviderTest extends TestCase
 
         // Assertions are inside the fake closure
         $this->assertTrue(true);
+    }
+
+    public function test_ollama_fallback_on_thinking_when_response_empty(): void
+    {
+        Http::fake([
+            'localhost:11434/api/generate' => Http::response([
+                'model' => 'qwen3.5',
+                'response' => '',
+                'thinking' => json_encode([
+                    'summary' => 'Fallback thinking test',
+                    'risk_level' => 'low',
+                    'category' => ['slug' => 'design', 'label' => 'Design'],
+                    'skills' => [],
+                    'unmatched_terms' => [],
+                    'needs_human_category_review' => false,
+                    'category_review_reason' => '',
+                    'recommendations' => [],
+                    'moderation_flag' => false,
+                    'notes' => '',
+                ]),
+                'done' => true,
+                'eval_count' => 200,
+            ]),
+        ]);
+
+        $provider = new OllamaSupervisionProvider('http://localhost:11434', 'qwen3.5', 30);
+        $result = $provider->supervise('test');
+
+        $this->assertSame('Fallback thinking test', $result->summary);
+        $this->assertSame('design', $result->category['slug']);
+        $this->assertSame(200, $result->outputTokens);
     }
 }
