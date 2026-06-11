@@ -85,7 +85,57 @@ class AdminAiSupervisionTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.ai-supervision'))
             ->assertOk()
-            ->assertSee('Laboratoire IA interne BouclePro');
+            ->assertSee('Laboratoire IA interne BouclePro')
+            ->assertSee('Testez un scénario avec un provider et un modèle configurés');
+    }
+
+    public function test_default_scenario_is_supervision_content(): void
+    {
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('value="supervision_content"', false);
+    }
+
+    public function test_index_passes_scenario_compatibility_to_view(): void
+    {
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('scenarioCompat', false);
+    }
+
+    public function test_fallback_banner_shown_when_no_local_provider(): void
+    {
+        config([
+            'ai.ollama.enabled' => false,
+            'ai.openrouter.enabled' => false,
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('Fallback — aucun provider local configuré');
+    }
+
+    public function test_no_fallback_banner_when_ollama_enabled(): void
+    {
+        config(['ai.ollama.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertDontSee('Fallback — aucun provider local configuré');
+    }
+
+    public function test_scenario_options_include_supported_providers(): void
+    {
+        config(['ai.ollama.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('data-supported-providers', false);
     }
 
     public function test_admin_can_analyze_content_with_mocked_openai_response(): void
@@ -590,7 +640,7 @@ class AdminAiSupervisionTest extends TestCase
         ]);
 
         $response->assertOk();
-        $response->assertSee('Le scénario clarify_help_request n\'est pas encore supporté avec le provider ollama.');
+        $response->assertSee('nécessite OpenAI');
     }
 
     public function test_clarify_help_request_is_not_supported_with_openrouter(): void
@@ -605,7 +655,7 @@ class AdminAiSupervisionTest extends TestCase
         ]);
 
         $response->assertOk();
-        $response->assertSee('Le scénario clarify_help_request n\'est pas encore supporté avec le provider openrouter.');
+        $response->assertSee('nécessite OpenAI');
     }
 
     public function test_supervision_content_with_ollama_provider(): void

@@ -27,13 +27,26 @@ class AdminAiSupervisionController extends Controller
             ? array_key_first($providers[$defaultProvider]['models'])
             : '';
 
+        $scenarioCompat = [];
+        foreach ($factory->all() as $id => $scenario) {
+            $supportedBy = [];
+            foreach (array_keys($providers) as $providerKey) {
+                if ($this->resolver->scenarioSupportsProvider($id, $providerKey)) {
+                    $supportedBy[] = $providerKey;
+                }
+            }
+            $scenarioCompat[$id] = $supportedBy;
+        }
+
         return view('admin.ai-supervision.index', [
             'providers' => $providers,
             'provider' => $defaultProvider,
             'model' => $defaultModel,
             'enabled' => (bool) config('ai.supervision.enabled', true),
             'scenarios' => $factory->all(),
-            'scenario' => 'clarify_help_request',
+            'scenario' => 'supervision_content',
+            'scenarioCompat' => $scenarioCompat,
+            'defaultProvider' => $defaultProvider,
         ]);
     }
 
@@ -68,7 +81,7 @@ class AdminAiSupervisionController extends Controller
             if ($selectedScenario === 'clarify_help_request') {
                 if ($selectedProvider !== 'openai') {
                     throw new SupervisionException(
-                        'Le scénario clarify_help_request n\'est pas encore supporté avec le provider ' . $selectedProvider . '.'
+                        'Le scénario « Clarification de demande d\'aide » nécessite OpenAI (Responses API avec json_schema strict). Les providers locaux et proxy ne supportent pas encore ce scénario.'
                     );
                 }
 
@@ -83,6 +96,17 @@ class AdminAiSupervisionController extends Controller
 
         $factory = app(AiScenarioFactory::class);
 
+        $scenarioCompat = [];
+        foreach ($factory->all() as $id => $scenario) {
+            $supportedBy = [];
+            foreach (array_keys($providers) as $providerKey) {
+                if ($this->resolver->scenarioSupportsProvider($id, $providerKey)) {
+                    $supportedBy[] = $providerKey;
+                }
+            }
+            $scenarioCompat[$id] = $supportedBy;
+        }
+
         return view('admin.ai-supervision.index', [
             'providers' => $providers,
             'provider' => $selectedProvider,
@@ -93,6 +117,8 @@ class AdminAiSupervisionController extends Controller
             'supervisionError' => $error,
             'scenarios' => $factory->all(),
             'scenario' => $selectedScenario,
+            'scenarioCompat' => $scenarioCompat,
+            'defaultProvider' => $this->resolver->defaultProvider(),
         ]);
     }
 
@@ -101,7 +127,7 @@ class AdminAiSupervisionController extends Controller
         $scenarioDefinition = app(AiScenarioFactory::class)->resolve('clarify_help_request');
 
         if (! $scenarioDefinition) {
-            throw new SupervisionException('Scénario clarify_help_request non trouvé.');
+            throw new SupervisionException('Scénario « Clarification de demande d\'aide » non trouvé.');
         }
 
         $config = $this->resolver->providerConfig('openai');

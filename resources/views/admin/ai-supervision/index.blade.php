@@ -12,11 +12,18 @@
                     Les appels sont journalisés pour benchmark interne.
                 </p>
             </div>
-            @unless($enabled)
-                <span class="text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-2 py-1 rounded font-medium flex-shrink-0">
-                    Désactivé
-                </span>
-            @endunless
+            <div class="flex items-center gap-2 flex-shrink-0">
+                @unless($enabled)
+                    <span class="text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-2 py-1 rounded font-medium">
+                        Désactivé
+                    </span>
+                @endunless
+                @if($defaultProvider === 'openai' && !config('ai.ollama.enabled') && !config('ai.openrouter.enabled'))
+                    <span class="text-xs bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-2 py-1 rounded font-medium">
+                        Fallback — aucun provider local configuré
+                    </span>
+                @endif
+            </div>
         </div>
 
         {{-- Errors --}}
@@ -38,7 +45,7 @@
 
         {{-- Form --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-            <form method="POST" action="{{ route('admin.ai-supervision.analyze') }}" class="space-y-4">
+            <form method="POST" action="{{ route('admin.ai-supervision.analyze') }}" class="space-y-4" id="ai-supervision-form">
                 @csrf
 
                 <div>
@@ -60,7 +67,7 @@
                         <select name="provider" id="provider"
                                 class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
                             @foreach($providers as $key => $p)
-                            <option value="{{ $key }}" {{ $key === ($provider ?? '') ? 'selected' : '' }}>{{ $p['label'] }}</option>
+                            <option value="{{ $key }}" {{ $key === ($provider ?? 'openai') ? 'selected' : '' }}>{{ $p['label'] }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -80,7 +87,8 @@
                         <select name="scenario" id="scenario"
                                 class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
                             @foreach($scenarios as $key => $s)
-                            <option value="{{ $key }}" {{ $key === ($scenario ?? 'supervision_content') ? 'selected' : '' }}>
+                            <option value="{{ $key }}" {{ $key === ($scenario ?? 'supervision_content') ? 'selected' : '' }}
+                                    data-supported-providers="{{ implode(',', $scenarioCompat[$key] ?? []) }}">
                                 {{ $s->name() }}
                             </option>
                             @endforeach
@@ -96,6 +104,14 @@
                        class="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition">
                         Réinitialiser
                     </a>
+                </div>
+
+                {{-- Provider type info --}}
+                <div id="provider-info" class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                </div>
+
+                {{-- Scenario compatibility warning --}}
+                <div id="scenario-warning" class="hidden text-xs bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 px-3 py-2 rounded-lg">
                 </div>
             </form>
         </div>
@@ -290,4 +306,72 @@
             @endif
         @endisset
     </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const providerSelect = document.getElementById('provider');
+        const modelSelect = document.getElementById('model');
+        const scenarioSelect = document.getElementById('scenario');
+        const providerInfo = document.getElementById('provider-info');
+        const scenarioWarning = document.getElementById('scenario-warning');
+
+        const providersData = @json($providers);
+        const scenarioCompat = @json($scenarioCompat);
+
+        const providerLabels = {
+            ollama: { badge: 'Local · Gratuit', color: 'text-green-600 dark:text-green-400' },
+            openrouter: { badge: 'Cloud proxy · Payant', color: 'text-blue-600 dark:text-blue-400' },
+            openai: { badge: 'Cloud · Payant', color: 'text-purple-600 dark:text-purple-400' },
+        };
+
+        function updateModels() {
+            const provider = providerSelect.value;
+            const models = providersData[provider]?.models || {};
+            modelSelect.innerHTML = '';
+            for (const [value, label] of Object.entries(models)) {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = label;
+                modelSelect.appendChild(opt);
+            }
+        }
+
+        function updateProviderInfo() {
+            const provider = providerSelect.value;
+            const info = providerLabels[provider];
+            if (info) {
+                providerInfo.innerHTML = '<span class="' + info.color + '">' + info.badge + '</span>';
+            } else {
+                providerInfo.innerHTML = '';
+            }
+        }
+
+        function updateScenarioWarning() {
+            const provider = providerSelect.value;
+            const scenario = scenarioSelect.value;
+            const supported = scenarioCompat[scenario] || [];
+
+            if (!supported.includes(provider)) {
+                scenarioWarning.classList.remove('hidden');
+                scenarioWarning.textContent = 'Le scénario « ' + scenarioSelect.options[scenarioSelect.selectedIndex].text + ' » n\'est pas compatible avec le provider « ' + providerSelect.options[providerSelect.selectedIndex].text + ' ». Sélectionnez un provider compatible ou changez de scénario.';
+            } else {
+                scenarioWarning.classList.add('hidden');
+            }
+        }
+
+        providerSelect.addEventListener('change', function () {
+            updateModels();
+            updateProviderInfo();
+            updateScenarioWarning();
+        });
+
+        scenarioSelect.addEventListener('change', function () {
+            updateScenarioWarning();
+        });
+
+        updateModels();
+        updateProviderInfo();
+        updateScenarioWarning();
+    });
+    </script>
 </x-admin-layout>
