@@ -2,12 +2,16 @@
 
 namespace App\Services\Ai\Providers;
 
+use App\Models\Category;
+use App\Models\Skill;
+use App\Services\Ai\Contracts\AiScenarioDefinition;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AiSupervisionResult;
 use App\Services\Ai\Exceptions\SupervisionException;
 use App\Services\Ai\JsonResponseParser;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 
 class OllamaSupervisionProvider implements SupervisionProvider
 {
@@ -98,6 +102,65 @@ PROMPT;
         );
     }
 
+    public function runScenario(AiScenarioDefinition $scenario, string $content, ?string $model = null): array
+    {
+        if ($this->baseUrl === '') {
+            throw new SupervisionException('Ollama non configuré.');
+        }
+
+        $schemaJson = json_encode($scenario->jsonSchema(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        $prompt = $scenario->systemPrompt()
+            ."\n\nRéponds UNIQUEMENT en JSON valide conforme au schéma suivant :\n"
+            .$schemaJson
+            ."\n\nContenu à analyser :\n"
+            .$content;
+
+        $payload = [
+            'model' => $model ?? $this->model,
+            'prompt' => $prompt,
+            'stream' => false,
+            'format' => 'json',
+            'think' => false,
+            'options' => [
+                'num_predict' => 900,
+                'temperature' => 0,
+            ],
+        ];
+
+        try {
+            $response = Http::timeout($this->timeout)
+                ->acceptJson()
+                ->asJson()
+                ->post(rtrim($this->baseUrl, '/').'/api/generate', $payload);
+        } catch (ConnectionException $e) {
+            throw new SupervisionException('Connexion Ollama impossible.', 0, $e);
+        }
+
+        if (! $response->successful()) {
+            throw new SupervisionException(sprintf(
+                'Réponse Ollama invalide (HTTP %d).', $response->status()
+            ));
+        }
+
+        $body = $response->json();
+        $rawResponse = $body['response'] ?? '';
+
+        // Fallback: some models put the JSON in the "thinking" field
+        if ($rawResponse === '' && isset($body['thinking']) && is_string($body['thinking']) && $body['thinking'] !== '') {
+            $rawResponse = $body['thinking'];
+        }
+
+        $jsonText = JsonResponseParser::extractJsonFromText($rawResponse);
+        $parsed = json_decode($jsonText, true);
+
+        if (! is_array($parsed)) {
+            throw new SupervisionException('Sortie JSON Ollama non décodable pour le scénario '.$scenario->id().'.');
+        }
+
+        return $parsed;
+    }
+
     private function buildPayload(string $content, string $model): array
     {
         return [
@@ -123,16 +186,16 @@ PROMPT;
         $categories = [];
         $skills = [];
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('categories')) {
-            $categories = \App\Models\Category::select('slug', 'name_b2c as label')
+        if (Schema::hasTable('categories')) {
+            $categories = Category::select('slug', 'name_b2c as label')
                 ->orderBy('slug')
                 ->get()
                 ->each(fn ($c) => $c->label = $c->label ?? '')
                 ->toArray();
         }
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('skills')) {
-            $skills = \App\Models\Skill::select('slug', 'name as label')
+        if (Schema::hasTable('skills')) {
+            $skills = Skill::select('slug', 'name as label')
                 ->orderBy('slug')
                 ->get()
                 ->each(fn ($s) => $s->label = $s->label ?? '')
