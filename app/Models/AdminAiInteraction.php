@@ -31,6 +31,10 @@ class AdminAiInteraction extends Model
         'output_tokens',
         'latency_ms',
         'cost_usd',
+        'review_status',
+        'reviewed_by',
+        'reviewed_at',
+        'review_notes',
     ];
 
     protected function casts(): array
@@ -43,6 +47,7 @@ class AdminAiInteraction extends Model
             'input_length' => 'integer',
             'latency_ms' => 'integer',
             'cost_usd' => 'decimal:8',
+            'reviewed_at' => 'datetime',
         ];
     }
 
@@ -54,5 +59,20 @@ class AdminAiInteraction extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function scopeNeedsReview($query): void
+    {
+        $query->whereNull('review_status')
+            ->where(function ($q) {
+                $q->whereRaw("CAST(result_payload->>'moderation_flag' AS boolean) = true")
+                  ->orWhereRaw("result_payload->>'risk_level' = 'high'")
+                  ->orWhereRaw("CAST(result_payload->>'needs_human_category_review' AS boolean) = true");
+            });
     }
 }
