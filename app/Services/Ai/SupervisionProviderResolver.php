@@ -77,10 +77,7 @@ class SupervisionProviderResolver
 
     public function supportedScenarios(string $provider): array
     {
-        return match ($provider) {
-            'openai' => ['supervision_content', 'clarify_help_request'],
-            default => ['supervision_content'],
-        };
+        return ['supervision_content', 'clarify_help_request'];
     }
 
     public function scenarioSupportsProvider(string $scenario, string $provider): bool
