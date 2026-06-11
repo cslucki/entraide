@@ -18,6 +18,7 @@ use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
 use App\Services\Ai\AiScenarioFactory;
+use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\FakeAIProvider;
@@ -49,7 +50,13 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(RewardDispatcher::class);
         $this->app->singleton(SupervisionProviderResolver::class);
         $this->app->singleton(AdminAiInteractionPersistence::class);
-        $this->app->bind(AiProvider::class, FakeAIProvider::class);
+        $this->app->bind(AiProvider::class, function ($app) {
+            return new ClarifyUserHelpRequestService(
+                $app->make(SupervisionProviderResolver::class),
+                $app->make(AiScenarioFactory::class),
+                $app->make(FakeAIProvider::class),
+            );
+        });
 
         $this->app->singleton(SupervisionProvider::class, function ($app) {
             $config = $app['config']->get('ai.openai');
