@@ -2,7 +2,7 @@
 task_id: TASK-240
 title: AI interactions storage strategy plan
 
-status: PLAN_COMPLETE
+status: MERGED
 
 owner: OPENCODE
 
@@ -318,4 +318,16 @@ N/A — PLAN ONLY. Aucun code, aucun test à exécuter.
 
 # Review Notes
 
-En attente VERIFICATOR. Read-only review du plan stratégique demandée.
+## 2026-06-11 06:00 Europe/Paris — VERIFICATOR review
+
+Verdict : **OK** — 9 points vérifiés, tous PASS.
+- PLAN ONLY confirmé : aucun code, aucune migration, aucune DB
+- Recommandation Option A cohérente avec MVP/bêta
+- Règle de confidentialité STRIP_KEYS documentée comme permanente
+- Schéma prospectif respecte "no raw prompt/content/output stored"
+- Plan de migration future réaliste (8 étapes, déclencheur clair, rollback)
+- 10 questions du brief toutes traitées
+- Cohérent avec AGENTS.md (multi-tenant, Organization scoping, migration-safe)
+- main/PROD non touchés
+- DB/migration non touchées
+- Réserves : aucune
