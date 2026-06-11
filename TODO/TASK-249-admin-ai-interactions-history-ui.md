@@ -158,9 +158,21 @@ routes/web.php                                   (add 2 routes)
 
 Task created. Branch `TASK-249-admin-ai-interactions-history-ui`.
 
+## 2026-06-11 16:52:30 Europe/Paris
+
+ORCH created conversation file, committed TASK file, sent SMT to CODEUR.
+Awaiting CODEUR DONE.
+
 ---
 
 # Handoffs
+
+## 2026-06-11 16:52:30 Europe/Paris — ORCH to CODEUR
+
+SMT sent via tmux with full scope instructions. Conversation:
+`ai-local/conversations/20260611-16h52-TASK-249-ai-interactions-history-ui.md`
+
+---
 
 # Tests
 
