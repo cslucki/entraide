@@ -2,7 +2,7 @@
 task_id: TASK-246
 title: Make clarify_help_request provider-agnostic for Ollama and OpenRouter
 
-status: IN_REVIEW
+status: DONE
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-246-make-clarify-help-request-provider-agnostic-for-ollama-and-open
 priority: HIGH
 
 created_at: 2026-06-11 13:46:01 Europe/Paris
-updated_at: 2026-06-11 14:24:25 Europe/Paris
+updated_at: 2026-06-11 14:42:00 Europe/Paris
 
 labels:
   - ai
@@ -30,7 +30,7 @@ lock:
 handoff: false
 
 pr:
-  status: READY_FOR_VERIFICATION
+  status: READY_TO_MERGE
   url: null
 ---
 
@@ -152,6 +152,10 @@ CODEUR: DB safety confirmation. Testing configuration was checked before test ex
 
 CODEUR: UI runtime validation with real provider call was not repeated during this finalization pass because ORCH explicitly requested stopping long tests and using targeted sequential validation only. Feature coverage confirms visibility and execution paths with Ollama/OpenRouter fakes; runtime Ollama `supervision_content` had already passed at 14:02 before this implementation.
 
+## 2026-06-11 14:42:00 Europe/Paris
+
+VERIFICATOR: OK with no reserve. 8/8 verification points passed. 155/155 tests passed. Verified `LoggingSupervisionProvider::runScenario()`, Ollama/OpenRouter HTTP fake coverage for `clarify_help_request`, OpenAI guards removed while OpenAI remains disabled by default, JSONL safe with no raw content leak, no DB/migration changes, and `migrate:fresh` incident documented as limited to `bouclepro_test`. ORCHESTRATOR marked TASK-246 `DONE` for finalization gates.
+
 # Handoffs
 
 - 2026-06-11 14:24:25 Europe/Paris — CODEUR implementation complete. Branch ready for ORCH/VERIFICATOR read-only review. Lock released. Do not run long tests, parallel tests, `migrate:fresh`, `db:wipe`, DB resets, or TASK-247 from this handoff.
@@ -182,6 +186,7 @@ CODEUR: UI runtime validation with real provider call was not repeated during th
 
 - 2026-06-11 14:10 Europe/Paris — Incident to verify: `migrate:fresh` reportedly executed by CODEUR on `bouclepro_test`. Must be documented in final verification. No destructive DB command may be relaunched. VERIFICATOR must specifically check `LoggingSupervisionProvider::runScenario()`, no DB/migration additions, no raw content in JSONL, OpenAI disabled by default, HTTP fake coverage for Ollama/OpenRouter, and runtime Ollama clarify validation if possible.
 - 2026-06-11 14:24 Europe/Paris — CODEUR confirmation: finalization pass did not run any destructive DB command. The earlier `migrate:fresh` incident was in the explicit testing environment targeting `bouclepro_test`; no command targeting runtime `bouclepro` was run in this finalization pass. No further destructive DB command will be relaunched for TASK-246. Remaining review item: VERIFICATOR read-only check before finalize/merge.
+- 2026-06-11 14:40 Europe/Paris — VERIFICATOR review: **OK** — aucune réserve. 8/8 points vérifiés (LoggingSupervisionProvider::runScenario, HTTP fakes Ollama+OpenRouter, OpenAI désactivé, JSONL safe, 0 DB/migration, migrate:fresh documenté). 155/155 tests pass (513 assertions). 0 scope creep.
 
 ---
 # Modified Files
