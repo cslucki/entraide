@@ -13,7 +13,7 @@ branch: TASK-254-integration-prompts-registry-scenarios
 priority: MEDIUM
 
 created_at: 2026-06-11 19:56:59 Europe/Paris
-updated_at: 2026-06-11 19:56:59 Europe/Paris
+updated_at: 2026-06-11 20:06:00 Europe/Paris
 
 labels: []
 
