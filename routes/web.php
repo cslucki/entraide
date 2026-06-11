@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminAiInteractionController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminBlogController;
 use App\Http\Controllers\Admin\AdminBugReportController;
@@ -14,8 +15,8 @@ use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
-use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -268,6 +269,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-supervision', [AdminAiSupervisionController::class, 'index'])->name('ai-supervision');
     Route::post('/ai-supervision', [AdminAiSupervisionController::class, 'analyze'])->name('ai-supervision.analyze');
 
+    // Historique des interactions IA (TASK-249)
+    Route::get('/ai-interactions', [AdminAiInteractionController::class, 'index'])->name('ai-interactions');
+    Route::get('/ai-interactions/{interaction}', [AdminAiInteractionController::class, 'show'])->name('ai-interactions.show');
+
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
     Route::get('/blog/{post}/edit', [AdminBlogController::class, 'edit'])->name('blog.edit');
@@ -294,7 +299,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 });
 
-Route::get('/admin/back-to-admin', [\App\Http\Controllers\Admin\AdminController::class, 'backToAdmin'])
+Route::get('/admin/back-to-admin', [AdminController::class, 'backToAdmin'])
     ->middleware('auth')
     ->name('admin.back-to-admin');
 

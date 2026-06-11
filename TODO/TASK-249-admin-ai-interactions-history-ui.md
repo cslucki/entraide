@@ -14,7 +14,7 @@ branch: TASK-249-admin-ai-interactions-history-ui
 priority: HIGH
 
 created_at: 2026-06-11 16:52:01 Europe/Paris
-updated_at: 2026-06-11 17:15:00 Europe/Paris
+updated_at: 2026-06-11 17:16:00 Europe/Paris
 
 labels:
   - ai
