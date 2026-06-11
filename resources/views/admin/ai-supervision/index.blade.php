@@ -5,12 +5,11 @@
         <div class="flex items-start justify-between gap-4">
             <div>
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    Centre de supervision IA
+                    Laboratoire IA interne BouclePro
                 </h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Analyse structurée d'un extrait de contenu via OpenAI
-                    <code class="text-indigo-600 bg-indigo-50 dark:bg-indigo-900 dark:text-indigo-300 px-1 rounded">{{ $model }}</code>.
-                    Aucune donnée n'est conservée côté OpenAI (<code>store: false</code>).
+                    Testez un scénario avec un provider et un modèle configurés.
+                    Les appels sont journalisés pour benchmark interne.
                 </p>
             </div>
             @unless($enabled)
@@ -57,11 +56,21 @@
 
                 <div class="flex items-center gap-3 flex-wrap">
                     <div class="flex items-center gap-2">
+                        <label for="provider" class="text-xs text-gray-500 dark:text-gray-400">Provider :</label>
+                        <select name="provider" id="provider"
+                                class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                            @foreach($providers as $key => $p)
+                            <option value="{{ $key }}" {{ $key === ($provider ?? '') ? 'selected' : '' }}>{{ $p['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2">
                         <label for="model" class="text-xs text-gray-500 dark:text-gray-400">Modèle :</label>
                         <select name="model" id="model"
                                 class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
-                            @foreach($models as $key => $label)
-                            <option value="{{ $key }}" {{ $key === $model ? 'selected' : '' }}>{{ $label }}</option>
+                            @foreach(($providers[$provider ?? 'openai']['models'] ?? []) as $key => $label)
+                            <option value="{{ $key }}" {{ $key === ($model ?? '') ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
