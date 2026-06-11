@@ -80,7 +80,7 @@ return [
     'ollama' => [
         'enabled' => (bool) env('OLLAMA_ENABLED', false),
         'base_url' => env('OLLAMA_BASE_URL', 'http://localhost:11434'),
-        'model' => env('OLLAMA_MODEL', 'llama3.2'),
+        'model' => env('OLLAMA_MODEL', 'ministral-3:3b'),
         'timeout' => (int) env('OLLAMA_TIMEOUT', 30),
     ],
 
