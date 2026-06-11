@@ -2,7 +2,7 @@
 task_id: TASK-242
 title: Fix admin AI lab provider UX and Ollama-first behavior
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
