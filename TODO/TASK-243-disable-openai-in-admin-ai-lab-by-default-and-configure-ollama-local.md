@@ -2,7 +2,7 @@
 task_id: TASK-243
 title: Disable OpenAI in admin AI lab by default and configure Ollama local
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
