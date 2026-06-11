@@ -100,11 +100,21 @@
 
             @elseif($analysis)
                 <div class="px-4 py-3 space-y-4">
-                    <div class="flex items-center gap-2">
-                        <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                        </svg>
-                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Votre demande clarifiée</h3>
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                            </svg>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Votre demande clarifiée</h3>
+                        </div>
+                        @php $confidence = (float) ($analysis['confidence'] ?? 0); @endphp
+                        @if($confidence > 0)
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
+                                {{ $confidence >= 0.65 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' }}">
+                                <span class="w-1.5 h-1.5 rounded-full {{ $confidence >= 0.65 ? 'bg-green-500' : 'bg-amber-500' }}"></span>
+                                {{ number_format($confidence * 100, 0) }}%
+                            </span>
+                        @endif
                     </div>
 
                     @php
@@ -114,9 +124,25 @@
                         $needsFallback = $analysis['fallback']['needed'] ?? false;
                         $fallbackReason = $analysis['fallback']['reason'] ?? null;
                         $fallbackQuestions = $analysis['fallback']['questions'] ?? [];
+                        $needsHumanReview = $analysis['safety']['needs_human_review'] ?? false;
+                        $hasSensitiveData = $analysis['safety']['contains_sensitive_data'] ?? false;
                     @endphp
 
-                    @if($needsFallback)
+                    @if($hasSensitiveData)
+                        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
+                            <p class="font-medium mb-1">Données sensibles détectées</p>
+                            <p>Vérifiez que le message ne contient pas d'informations personnelles ou confidentielles avant publication.</p>
+                        </div>
+                    @endif
+
+                    @if($needsHumanReview)
+                        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-3 text-sm text-amber-700 dark:text-amber-300">
+                            <p class="font-medium mb-1">Relecture recommandée</p>
+                            <p>L'IA recommande une vérification humaine avant publication. Vous pouvez modifier les champs ci-dessous.</p>
+                        </div>
+                    @endif
+
+                    @if($needsFallback && !$hasSensitiveData)
                         <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700/50 rounded-lg p-3 text-sm text-orange-700 dark:text-orange-300">
                             <p class="font-medium mb-1">Précision nécessaire</p>
                             <p>{{ $fallbackReason }}</p>
