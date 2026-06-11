@@ -1013,6 +1013,7 @@ class AdminAiSupervisionTest extends TestCase
 
         $this->assertDatabaseHas('admin_ai_interactions', [
             'scenario_id' => 'supervision_content',
+            'provider' => 'openai',
             'model' => 'gpt-4o-mini',
             'status' => 'success',
             'user_id' => $admin->id,
@@ -1020,6 +1021,7 @@ class AdminAiSupervisionTest extends TestCase
 
         $interaction = AdminAiInteraction::where('scenario_id', 'supervision_content')->first();
         $this->assertNotNull($interaction);
+        $this->assertSame('openai', $interaction->provider);
         $this->assertSame('gpt-4o-mini', $interaction->model);
         $this->assertSame('success', $interaction->status);
         $this->assertSame(120, $interaction->input_tokens);
@@ -1059,12 +1061,14 @@ class AdminAiSupervisionTest extends TestCase
 
         $this->assertDatabaseHas('admin_ai_interactions', [
             'scenario_id' => 'clarify_help_request',
+            'provider' => 'openai',
             'status' => 'success',
             'user_id' => $admin->id,
         ]);
 
         $interaction = AdminAiInteraction::where('scenario_id', 'clarify_help_request')->first();
         $this->assertNotNull($interaction);
+        $this->assertSame('openai', $interaction->provider);
         $this->assertSame('success', $interaction->status);
         $this->assertNotNull($interaction->result_payload);
         $this->assertArrayHasKey('title', $interaction->result_payload);
@@ -1096,5 +1100,90 @@ class AdminAiSupervisionTest extends TestCase
         $this->assertStringNotContainsString('sk-test-secret-1234567890', $payload);
         $this->assertStringNotContainsString('Bearer ', $payload);
         $this->assertStringNotContainsString('OPENAI_API_KEY', $metadata);
+    }
+
+    public function test_ollama_supervision_content_persists_with_provider_name(): void
+    {
+        Http::fake([
+            'localhost:11434/*' => Http::response([
+                'model' => 'llama3.2',
+                'response' => json_encode($this->basePayload()),
+                'done' => true,
+            ], 200),
+        ]);
+
+        config(['ai.ollama.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec Ollama.',
+            'provider' => 'ollama',
+            'scenario' => 'supervision_content',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('admin_ai_interactions', [
+            'scenario_id' => 'supervision_content',
+            'provider' => 'ollama',
+            'status' => 'success',
+            'user_id' => $admin->id,
+        ]);
+
+        $interaction = AdminAiInteraction::where('provider', 'ollama')->first();
+        $this->assertNotNull($interaction);
+        $this->assertSame('ollama', $interaction->provider);
+        $this->assertNotNull($interaction->result_payload);
+    }
+
+    public function test_openrouter_clarify_help_request_persists_with_provider_name(): void
+    {
+        config([
+            'ai.openrouter.enabled' => true,
+            'ai.openrouter.api_key' => 'test-key',
+        ]);
+
+        Http::fake([
+            'openrouter.ai/*' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode([
+                            'title' => 'Aide CV',
+                            'clarified_request' => 'Besoin CV.',
+                            'help_type' => 'service_offer',
+                            'suggested_category' => 'redaction',
+                            'suggested_loop' => '',
+                            'questions_for_user' => [],
+                            'publishable_draft' => 'Je propose aide CV.',
+                            'confidence' => 0.85,
+                            'needs_human_review' => false,
+                        ]),
+                    ],
+                ]],
+                'model' => 'openai/gpt-4o-mini',
+                'usage' => [
+                    'prompt_tokens' => 100,
+                    'completion_tokens' => 80,
+                ],
+            ], 200),
+        ]);
+
+        $admin = $this->makeAdmin();
+        $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Aide pour mon CV.',
+            'provider' => 'openrouter',
+            'scenario' => 'clarify_help_request',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('admin_ai_interactions', [
+            'scenario_id' => 'clarify_help_request',
+            'provider' => 'openrouter',
+            'status' => 'success',
+            'user_id' => $admin->id,
+        ]);
+
+        $interaction = AdminAiInteraction::where('provider', 'openrouter')->first();
+        $this->assertNotNull($interaction);
+        $this->assertSame('openrouter', $interaction->provider);
+        $this->assertNotNull($interaction->result_payload);
+        $this->assertArrayHasKey('title', $interaction->result_payload);
     }
 }

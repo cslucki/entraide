@@ -14,6 +14,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
         private readonly SupervisionProvider $inner,
         private readonly AiBenchmarkLogger $logger,
         private readonly AdminAiInteractionPersistence $persistence,
+        private readonly string $providerName = 'unknown',
     ) {}
 
     public function supervise(string $content, ?string $model = null): AiSupervisionResult
@@ -39,6 +40,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
 
         $this->persistence->persist([
             'scenario_id' => 'supervision_content',
+            'provider' => $this->providerName,
             'model' => $result->model,
             'status' => 'success',
             'input_excerpt' => $content,
@@ -82,6 +84,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
 
         $this->persistence->persist([
             'scenario_id' => $scenario->id(),
+            'provider' => $this->providerName,
             'model' => $model,
             'status' => 'success',
             'input_excerpt' => $content,

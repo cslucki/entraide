@@ -302,6 +302,44 @@ ORCH sent CODEUR targeted fix SMT:
 
 Next state: wait for CODEUR DONE after blocking fixes.
 
+## 2026-06-11 15:46:00 Europe/Paris
+
+CODEUR blocking fix DONE report:
+
+### Fixes applied
+
+1. **`LoggingSupervisionProvider`** — added `string $providerName` constructor parameter (default `'unknown'`); passed as `'provider'` in both `persist()` calls.
+2. **`SupervisionProviderResolver::resolve()`** — Ollama and OpenRouter now wrapped with `LoggingSupervisionProvider` via new private `wrapWithLogging()` method. OpenAI remains resolved via singleton `SupervisionProvider::class` (already wrapped in `AppServiceProvider`).
+3. **`AppServiceProvider`** — OpenAI `LoggingSupervisionProvider` instantiation now passes `'openai'` as 4th argument.
+4. **Tests updated** — existing 3 persistence tests now assert `provider === 'openai'`; 2 new tests added:
+   - `test_ollama_supervision_content_persists_with_provider_name`
+   - `test_openrouter_clarify_help_request_persists_with_provider_name`
+5. **`./vendor/bin/pint --dirty`** — passed (4 files).
+
+### Test results after fix
+
+- Full `AdminAiSupervisionTest` suite: **48 passed, 187 assertions, 3.29s**
+- New persistence tests (5 passed, 37 assertions):
+  - `test_supervision_content_persists_admin_ai_interaction` — provider `openai` asserted
+  - `test_clarify_help_request_persists_admin_ai_interaction` — provider `openai` asserted
+  - `test_persistence_does_not_store_api_keys_or_secrets`
+  - `test_ollama_supervision_content_persists_with_provider_name` — provider `ollama` asserted
+  - `test_openrouter_clarify_help_request_persists_with_provider_name` — provider `openrouter` asserted
+- Regression tests (43 passed, 150 assertions) — all green, no breakage.
+
+### Runtime validation
+
+- Ollama runtime + `qwen2.5-coder:7b` not available in CODEUR environment; pending ORCH/VERIFICATOR validation.
+
+### Forbidden items verified absent
+
+- No `.env` changes.
+- No `config/ai.php` changes.
+- No new provider.
+- No prompt/schema/provider behavior changes.
+- No destructive DB command.
+- No OpenAI default reactivation.
+
 ---
 
 # Handoffs
@@ -337,6 +375,18 @@ CODEUR implementation launched via SMT at 2026-06-11 15:10 Europe/Paris.
   - `test_supervision_content_with_openrouter_provider` — 0.04s
 - Runtime validation: pending (CODEUR environment has no Ollama runtime).
 
+2026-06-11 15:46 Europe/Paris (after VERIFICATOR blocking fix)
+
+- Full `AdminAiSupervisionTest` suite: **48 passed, 187 assertions, 3.29s**
+- New persistence tests (5 passed, 37 assertions):
+  - `test_supervision_content_persists_admin_ai_interaction` — provider `openai` asserted
+  - `test_clarify_help_request_persists_admin_ai_interaction` — provider `openai` asserted
+  - `test_persistence_does_not_store_api_keys_or_secrets`
+  - `test_ollama_supervision_content_persists_with_provider_name` — provider `ollama` asserted
+  - `test_openrouter_clarify_help_request_persists_with_provider_name` — provider `openrouter` asserted
+- Regression tests: all 43 remaining tests pass (150 assertions), no breakage.
+- Runtime validation: pending (CODEUR environment has no Ollama runtime).
+
 ---
 
 # Review Notes
@@ -346,7 +396,8 @@ CODEUR implementation launched via SMT at 2026-06-11 15:10 Europe/Paris.
 - VERIFICATOR must verify no raw provider response, system prompt, secret, or API key is persisted.
 - VERIFICATOR must verify DB write failure cannot break successful AI responses.
 - VERIFICATOR must verify no destructive DB command was used.
-- Current VERIFICATOR verdict: BLOCKED pending CODEUR fix for provider wrapping and `provider` persistence.
+- VERIFICATOR must verify all providers (openai/ollama/openrouter) are wrapped with `LoggingSupervisionProvider` and `provider` column is non-null.
+- Previous VERIFICATOR verdict (15:36): BLOCKED 8/10 → gaps fixed at 15:46.
 
 ---
 
