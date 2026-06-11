@@ -14,7 +14,7 @@ branch: TASK-247-store-admin-ai-interactions-in-db
 priority: HIGH
 
 created_at: 2026-06-11 15:03:12 Europe/Paris
-updated_at: 2026-06-11 15:10:00 Europe/Paris
+updated_at: 2026-06-11 15:20:00 Europe/Paris
 
 labels:
   - ai
@@ -235,6 +235,22 @@ Cockpit/Cyril confirmed `qwen2.5-coder:7b` for runtime validation. ORCH sent COD
 `[2026-06-11 15:10][TASK-247][branch:TASK-247-store-admin-ai-interactions-in-db][ORCH→CODEUR][ACTION] Lire AGENTS.md, tmux SMT skill, ai-local/README.md, ai/tooling docs, TASK file et ai-local/conversations/20260611-15h10-TASK-247-admin-ai-interactions-db.md. Implémenter uniquement persistance DB additive admin AI interactions. Pas de config/provider, pas de DB destructive, modèle runtime qwen2.5-coder:7b. Répondre DONE dans la conversation.`
 
 Next state: waiting for CODEUR DONE report in the active conversation.
+
+## 2026-06-11 15:18:00 Europe/Paris
+
+CODEUR role clarification and ACK sequence documented:
+
+- Cockpit reported role confusion in the target tmux session.
+- ORCH sent clarification SMT to `codeur`, explicitly assigning TASK-247 CODEUR role and asking implementation to start now.
+- CODEUR acknowledged: reading files and implementation in progress.
+
+Next state: wait for CODEUR DONE report in `ai-local/conversations/20260611-15h10-TASK-247-admin-ai-interactions-db.md`.
+
+## 2026-06-11 15:20:00 Europe/Paris
+
+Cyril clarified that VERIFICATOR mentions and old pane titles in tmux session `codeur` are stale metadata from a previous task. ORCH sent an additional SMT to `codeur` asking the agent to ignore those vestiges, assume CODEUR role for TASK-247, and start/continue implementation now.
+
+Next state: wait for CODEUR DONE report in the active conversation.
 
 ---
 
