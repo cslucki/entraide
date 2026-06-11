@@ -2,7 +2,7 @@
 task_id: TASK-250
 title: Provider benchmark dataset
 
-status: DONE
+status: MERGED
 
 owner: CODEUR
 
