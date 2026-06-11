@@ -2,7 +2,7 @@
 task_id: TASK-245
 title: Fix runtime Ollama JSON failure in admin AI lab
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
