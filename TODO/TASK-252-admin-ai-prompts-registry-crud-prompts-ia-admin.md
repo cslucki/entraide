@@ -2,7 +2,7 @@
 task_id: TASK-252
 title: Admin AI prompts registry (CRUD prompts IA admin)
 
-status: DONE
+status: MERGED
 
 owner: CODEUR
 
