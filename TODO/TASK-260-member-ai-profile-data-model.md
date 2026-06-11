@@ -2,7 +2,7 @@
 task_id: TASK-260
 title: Member AI profile data model
 
-status: DONE
+status: MERGED
 
 owner: OPENGINE
 
