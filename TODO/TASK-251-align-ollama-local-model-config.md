@@ -2,7 +2,7 @@
 task_id: TASK-251
 title: Align Ollama local model config with tested Ministral model
 
-status: DONE
+status: IN_REVIEW
 
 owner: OPENCODE
 
@@ -23,9 +23,9 @@ labels:
   - ollama
 
 lock:
-  status: UNLOCKED
-  agent: null
-  since: 2026-06-11 17:42:00 Europe/Paris
+  status: LOCKED
+  agent: VERIFICATOR
+  since: 2026-06-11 17:45:00 Europe/Paris
 
 handoff: false
 

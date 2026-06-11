@@ -129,16 +129,17 @@ tmux send-keys -t orch ENTER && tmux send-keys -t orch "SMT VERIFICATOR OK TASK-
 
 ## CODEUR DONE
 
-> (CODEUR écrit son rapport ici après exécution)
-
-Date :
+Date : 2026-06-11 17:42:00 Europe/Paris
 
 Rapport :
 - 4 fichiers modifiés : config/ai.php, .env.example, index.blade.php, SupervisionProviderResolver.php
-- Résultat tests AdminAiSupervisionTest :
-- DB preflight :
-- Commit SHA :
-- Statut TASK :
+- `llama3.2` → `ministral-3:3b` dans les 4 fichiers
+- `pint --dirty` passé (2 files, no issues)
+- DB preflight : `database.default = pgsql`, `database.connections.pgsql.database = bouclepro_test` — safe
+- Résultat tests AdminAiSupervisionTest : 48 passed, 187 assertions, 6.09s
+- Commit SHA : `3f6e9ff`
+- Statut TASK : DONE, lock UNLOCKED
+- Aucun autre fichier modifié (scope strict respecté)
 
 ---
 
@@ -163,5 +164,9 @@ Détails :
 Date : 2026-06-11 17:38
 
 SMT envoyé à CODEUR. En attente CODEUR DONE.
+
+## 2026-06-11 17:45
+
+CODEUR DONE. Diff vérifié — 4 fichiers exacts, changements corrects. VERIFICATOR lancé.
 
 Décision :
