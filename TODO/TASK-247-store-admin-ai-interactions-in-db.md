@@ -14,7 +14,7 @@ branch: TASK-247-store-admin-ai-interactions-in-db
 priority: HIGH
 
 created_at: 2026-06-11 15:03:12 Europe/Paris
-updated_at: 2026-06-11 15:38:00 Europe/Paris
+updated_at: 2026-06-11 15:48:00 Europe/Paris
 
 labels:
   - ai
@@ -339,6 +339,14 @@ CODEUR blocking fix DONE report:
 - No prompt/schema/provider behavior changes.
 - No destructive DB command.
 - No OpenAI default reactivation.
+
+## 2026-06-11 15:48:00 Europe/Paris
+
+ORCH launched VERIFICATOR read-only re-review for CODEUR fix commit `6ab9939`:
+
+`[2026-06-11 15:48][TASK-247][branch:TASK-247-store-admin-ai-interactions-in-db][ORCH→VERIF][REVIEW] CODEUR DONE fix commit 6ab9939. Revue read-only ciblée des 2 blockers: Ollama/OpenRouter doivent être wrappés par LoggingSupervisionProvider, provider doit être non NULL pour openai/ollama/openrouter. Vérifier aussi tests 48/187, pas config/env/provider behavior, pas DB destructive. Runtime Ollama qwen2.5-coder:7b si dispo sans download/config. Verdict dans conversation/TASK.`
+
+Next state: wait for VERIFICATOR verdict after re-review.
 
 ---
 
