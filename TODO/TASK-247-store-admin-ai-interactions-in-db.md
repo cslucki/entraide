@@ -14,7 +14,7 @@ branch: TASK-247-store-admin-ai-interactions-in-db
 priority: HIGH
 
 created_at: 2026-06-11 15:03:12 Europe/Paris
-updated_at: 2026-06-11 15:20:00 Europe/Paris
+updated_at: 2026-06-11 15:34:00 Europe/Paris
 
 labels:
   - ai
@@ -274,6 +274,16 @@ CODEUR implementation DONE report:
 - No provider behavior/prompt/schema changes.
 - No destructive DB command used.
 - Runtime validation with Ollama + `qwen2.5-coder:7b` pending (CODEUR environment has no Ollama runtime).
+
+## 2026-06-11 15:34:00 Europe/Paris
+
+ORCH launched VERIFICATOR read-only review after CODEUR DONE:
+
+- Correct current tmux mapping confirmed: `orchestrator`, `codeur`, `verificator`.
+- ORCH sent VERIFICATOR SMT to `verificator` at 15:32.
+- Pane capture confirmed VERIFICATOR is actively reviewing TASK-247, checking persistence behavior, tests, `basePayload`, and fake OpenAI response details before verdict.
+
+Next state: wait for VERIFICATOR verdict in active conversation.
 
 ---
 
