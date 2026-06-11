@@ -119,6 +119,20 @@ Cockpit confirmed strict scope and authorized creation of:
 ORCH role remains coordination only. CODEUR must implement. VERIFICATOR must
 verify read-only after CODEUR DONE.
 
+## 2026-06-11 15:48:00 Europe/Paris
+
+ORCH created conversation file:
+
+`ai-local/conversations/20260611-15h46-TASK-248-input-hash-fallback.md`
+
+Short SMT sent to tmux session `codeur` with strict implementation scope:
+
+- fallback `input_hash` from `input_excerpt` only when needed;
+- no DB/schema/migrations changes;
+- no `.env`, `config/ai.php`, provider, model, or UI changes;
+- DB preflight to `bouclepro_test` before targeted tests;
+- CODEUR must update TASK + conversation and reply DONE via SMT.
+
 # Handoffs
 
 # Tests
