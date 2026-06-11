@@ -2,15 +2,14 @@
 
 namespace App\Providers;
 
-use App\Models\Loop;
 use App\Models\BugReport;
+use App\Models\Loop;
+use App\Models\Organization;
+use App\Models\OrganizationRequest;
 use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
-use App\Models\Organization;
-use App\Models\OrganizationRequest;
 use App\Models\Transaction;
-
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
 use App\Policies\MessagePolicy;
@@ -22,14 +21,15 @@ use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\FakeAIProvider;
-use App\Services\Ai\SupervisionProviderResolver;
-use App\Services\Ai\Providers\OpenAiSupervisionProvider;
-use App\Services\Ai\Providers\OllamaSupervisionProvider;
-use App\Services\Ai\Providers\OpenRouterSupervisionProvider;
 use App\Services\Ai\Logging\AiBenchmarkLogger;
+use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
 use App\Services\Ai\Providers\LoggingSupervisionProvider;
+use App\Services\Ai\Providers\OllamaSupervisionProvider;
+use App\Services\Ai\Providers\OpenAiSupervisionProvider;
+use App\Services\Ai\Providers\OpenRouterSupervisionProvider;
 use App\Services\Ai\Scenarios\ClarifyHelpRequestScenario;
 use App\Services\Ai\Scenarios\SupervisionContentScenario;
+use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -37,8 +37,8 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -48,6 +48,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ReferralCodeGenerator::class);
         $this->app->singleton(RewardDispatcher::class);
         $this->app->singleton(SupervisionProviderResolver::class);
+        $this->app->singleton(AdminAiInteractionPersistence::class);
         $this->app->bind(AiProvider::class, FakeAIProvider::class);
 
         $this->app->singleton(SupervisionProvider::class, function ($app) {
@@ -66,11 +67,14 @@ class AppServiceProvider extends ServiceProvider
             return new LoggingSupervisionProvider(
                 $inner,
                 $app->make(AiBenchmarkLogger::class),
+                $app->make(AdminAiInteractionPersistence::class),
+                'openai',
             );
         });
 
         $this->app->singleton(OllamaSupervisionProvider::class, function ($app) {
             $config = $app['config']->get('ai.ollama');
+
             return new OllamaSupervisionProvider(
                 baseUrl: (string) ($config['base_url'] ?? ''),
                 model: (string) ($config['model'] ?? 'llama3.2'),
@@ -80,6 +84,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(OpenRouterSupervisionProvider::class, function ($app) {
             $config = $app['config']->get('ai.openrouter');
+
             return new OpenRouterSupervisionProvider(
                 apiKey: (string) ($config['api_key'] ?? ''),
                 baseUrl: (string) ($config['base_url'] ?? 'https://openrouter.ai/api/v1'),
@@ -92,9 +97,10 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(AiScenarioFactory::class, function ($app) {
-            $factory = new AiScenarioFactory();
-            $factory->register(new SupervisionContentScenario());
-            $factory->register(new ClarifyHelpRequestScenario());
+            $factory = new AiScenarioFactory;
+            $factory->register(new SupervisionContentScenario);
+            $factory->register(new ClarifyHelpRequestScenario);
+
             return $factory;
         });
     }
