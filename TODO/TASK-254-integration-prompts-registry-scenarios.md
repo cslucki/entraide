@@ -2,7 +2,7 @@
 task_id: TASK-254
 title: Integration prompts registry scenarios
 
-status: DONE
+status: MERGED
 
 owner: CODEUR
 
