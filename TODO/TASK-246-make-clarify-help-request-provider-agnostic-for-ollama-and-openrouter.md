@@ -2,7 +2,7 @@
 task_id: TASK-246
 title: Make clarify_help_request provider-agnostic for Ollama and OpenRouter
 
-status: IN_PROGRESS
+status: IN_REVIEW
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-246-make-clarify-help-request-provider-agnostic-for-ollama-and-open
 priority: HIGH
 
 created_at: 2026-06-11 13:46:01 Europe/Paris
-updated_at: 2026-06-11 14:10:00 Europe/Paris
+updated_at: 2026-06-11 14:24:25 Europe/Paris
 
 labels:
   - ai
@@ -23,14 +23,14 @@ labels:
   - clarify_help_request
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-06-11 13:46:01 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: null
 
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: READY_FOR_VERIFICATION
   url: null
 ---
 
@@ -61,17 +61,17 @@ This is simpler than Option B (new `ScenarioRunner` service) and aligns with the
 
 # Planned Actions
 
-- [ ] 1. Add `runScenario()` method to `SupervisionProvider` interface
-- [ ] 2. Implement `runScenario()` in `OllamaSupervisionProvider` (uses `/api/generate` + `format: 'json'` + `think: false` + `JsonResponseParser`)
-- [ ] 3. Implement `runScenario()` in `OpenRouterSupervisionProvider` (uses `/chat/completions` + `response_format: json_schema` + `JsonResponseParser`)
-- [ ] 4. Implement `runScenario()` in `OpenAiSupervisionProvider` (refactored from current `runClarifyHelpRequest()` logic, uses `/responses` + `text.format.json_schema strict`)
-- [ ] 5. Replace `runClarifyHelpRequest()` in controller with `$provider->runScenario($scenario, $content, $model)`
-- [ ] 6. Update `SupervisionProviderResolver::supportedScenarios()` — `clarify_help_request` available for all providers
-- [ ] 7. Update `ClarifyHelpRequestScenario::providerHint()` — return empty string or `null` (no provider preference)
-- [ ] 8. Remove OpenAI-only guards in controller (lines 44-47, 85-89, 101-108)
-- [ ] 9. Remove `test_clarify_help_request_is_not_supported_with_ollama` and `test_clarify_help_request_is_not_supported_with_openrouter` (no longer true)
-- [ ] 10. Add new tests: `test_clarify_help_request_works_with_ollama`, `test_clarify_help_request_works_with_openrouter`
-- [ ] 11. Update Blade template scenario compatibility (remove Ollama/OpenRouter exclusion)
+- [x] 1. Add `runScenario()` method to `SupervisionProvider` interface
+- [x] 2. Implement `runScenario()` in `OllamaSupervisionProvider` (uses `/api/generate` + `format: 'json'` + `think: false` + `JsonResponseParser`)
+- [x] 3. Implement `runScenario()` in `OpenRouterSupervisionProvider` (uses `/chat/completions` + `response_format: json_schema` + `JsonResponseParser`)
+- [x] 4. Implement `runScenario()` in `OpenAiSupervisionProvider` (refactored from current `runClarifyHelpRequest()` logic, uses `/responses` + `text.format.json_schema strict`)
+- [x] 5. Replace `runClarifyHelpRequest()` in controller with `$provider->runScenario($scenario, $content, $model)`
+- [x] 6. Update `SupervisionProviderResolver::supportedScenarios()` — `clarify_help_request` available for all providers
+- [x] 7. Update `ClarifyHelpRequestScenario::providerHint()` — return empty string or `null` (no provider preference)
+- [x] 8. Remove OpenAI-only guards in controller (lines 44-47, 85-89, 101-108)
+- [x] 9. Remove `test_clarify_help_request_is_not_supported_with_ollama` and `test_clarify_help_request_is_not_supported_with_openrouter` (no longer true)
+- [x] 10. Add new tests: `test_clarify_help_request_works_with_ollama`, `test_clarify_help_request_works_with_openrouter`
+- [x] 11. Update Blade template scenario compatibility (no Blade edit needed; scenario compatibility is resolver-driven and existing rendering already supports array results)
 - [ ] 12. Validate UI at `/admin/ai-supervision` with all three providers
 
 # Impacted Files
@@ -142,27 +142,63 @@ ORCHESTRATOR: Controlled recovery after suspected CODEUR test blockage. Checked 
 
 Blocker/risk note: Awaiting CODEUR report confirming patch state, modified files, tests, git status, and confirmation that `migrate:fresh` affected only `bouclepro_test`.
 
+## 2026-06-11 14:24:25 Europe/Paris
+
+CODEUR: Implementation complete and ready for read-only verification. Added provider-agnostic `SupervisionProvider::runScenario(AiScenarioDefinition $scenario, string $content, ?string $model = null): array` and implemented it in `OllamaSupervisionProvider`, `OpenRouterSupervisionProvider`, `OpenAiSupervisionProvider`, and `LoggingSupervisionProvider`. Refactored `AdminAiSupervisionController` so `clarify_help_request` resolves the selected provider and calls `runScenario()` instead of making a direct OpenAI `/responses` call. Removed OpenAI-only visibility/POST/provider guards. Updated `SupervisionProviderResolver::supportedScenarios()` to expose `clarify_help_request` for all providers and changed `ClarifyHelpRequestScenario::providerHint()` to return an empty string.
+
+CODEUR: Test coverage updated. Replaced old negative Ollama/OpenRouter clarify tests with positive feature tests for `clarify_help_request` via HTTP fakes. Added provider unit coverage for Ollama `/api/generate` payload (`format: json`, `think: false`, schema in prompt) and OpenRouter `/chat/completions` payload (`response_format.json_schema`, strict schema). Ran `./vendor/bin/pint --dirty` after implementation and re-ran the targeted tests sequentially.
+
+CODEUR: DB safety confirmation. Testing configuration was checked before test execution and resolved to `database.default = pgsql` and `database.connections.pgsql.database = bouclepro_test`. The earlier `migrate:fresh` incident was limited to the testing command context using `DB_DATABASE=bouclepro_test`; no runtime `bouclepro` database command was run by this finalization pass. No `migrate:fresh`, `db:wipe`, reset DB, or other destructive DB command will be relaunched for TASK-246.
+
+CODEUR: UI runtime validation with real provider call was not repeated during this finalization pass because ORCH explicitly requested stopping long tests and using targeted sequential validation only. Feature coverage confirms visibility and execution paths with Ollama/OpenRouter fakes; runtime Ollama `supervision_content` had already passed at 14:02 before this implementation.
+
 # Handoffs
+
+- 2026-06-11 14:24:25 Europe/Paris — CODEUR implementation complete. Branch ready for ORCH/VERIFICATOR read-only review. Lock released. Do not run long tests, parallel tests, `migrate:fresh`, `db:wipe`, DB resets, or TASK-247 from this handoff.
 
 # Tests
 
-- [ ] Feature tests for clarify_help_request with Ollama
-- [ ] Feature tests for clarify_help_request with OpenRouter
-- [ ] Unit tests for OllamaSupervisionProvider::runScenario()
-- [ ] Unit tests for OpenRouterSupervisionProvider::runScenario()
+- [x] Feature tests for clarify_help_request with Ollama
+- [x] Feature tests for clarify_help_request with OpenRouter
+- [x] Unit tests for OllamaSupervisionProvider::runScenario()
+- [x] Unit tests for OpenRouterSupervisionProvider::runScenario()
 - [ ] Browser validation at /admin/ai-supervision
-- [ ] Remove test_clarify_help_request_is_not_supported_with_ollama
-- [ ] Remove test_clarify_help_request_is_not_supported_with_openrouter
+- [x] Remove test_clarify_help_request_is_not_supported_with_ollama
+- [x] Remove test_clarify_help_request_is_not_supported_with_openrouter
 
 ---
 # Test Results
 
 - 2026-06-11 14:02 Europe/Paris — Runtime checkpoint PASS: `/admin/ai-supervision`, Ollama, `qwen3.5:latest`, `supervision_content`, input `Je fais une demande de devis pour un logo`, structured result rendered, no JSON decode error.
+- 2026-06-11 14:24 Europe/Paris — DB test preflight PASS: `APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan config:show database.default` returned `pgsql`; `php artisan config:show database.connections.pgsql.database` returned `bouclepro_test`.
+- 2026-06-11 14:24 Europe/Paris — PASS: `APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan test --filter=AdminAiSupervisionTest` — 43 passed, 148 assertions.
+- 2026-06-11 14:24 Europe/Paris — PASS: `APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan test --filter=OllamaSupervisionProviderTest` — 8 passed, 35 assertions.
+- 2026-06-11 14:24 Europe/Paris — PASS: `APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan test --filter=OpenRouterSupervisionProviderTest` — 10 passed, 41 assertions.
+- 2026-06-11 14:24 Europe/Paris — PASS: `APP_ENV=testing APP_CONFIG_CACHE=bootstrap/cache/testing-config.php DB_CONNECTION=pgsql DB_DATABASE=bouclepro_test php artisan test --filter=AiScenarioFactoryTest` — 10 passed, 44 assertions.
+- 2026-06-11 14:24 Europe/Paris — PASS: `./vendor/bin/pint --dirty` completed and fixed formatting on modified PHP files; targeted tests above were re-run after formatting and stayed green.
 
 ---
 # Review Notes
 
 - 2026-06-11 14:10 Europe/Paris — Incident to verify: `migrate:fresh` reportedly executed by CODEUR on `bouclepro_test`. Must be documented in final verification. No destructive DB command may be relaunched. VERIFICATOR must specifically check `LoggingSupervisionProvider::runScenario()`, no DB/migration additions, no raw content in JSONL, OpenAI disabled by default, HTTP fake coverage for Ollama/OpenRouter, and runtime Ollama clarify validation if possible.
+- 2026-06-11 14:24 Europe/Paris — CODEUR confirmation: finalization pass did not run any destructive DB command. The earlier `migrate:fresh` incident was in the explicit testing environment targeting `bouclepro_test`; no command targeting runtime `bouclepro` was run in this finalization pass. No further destructive DB command will be relaunched for TASK-246. Remaining review item: VERIFICATOR read-only check before finalize/merge.
+
+---
+# Modified Files
+
+- `app/Http/Controllers/Admin/AdminAiSupervisionController.php`
+- `app/Services/Ai/Contracts/SupervisionProvider.php`
+- `app/Services/Ai/Providers/LoggingSupervisionProvider.php`
+- `app/Services/Ai/Providers/OllamaSupervisionProvider.php`
+- `app/Services/Ai/Providers/OpenAiSupervisionProvider.php`
+- `app/Services/Ai/Providers/OpenRouterSupervisionProvider.php`
+- `app/Services/Ai/Scenarios/ClarifyHelpRequestScenario.php`
+- `app/Services/Ai/SupervisionProviderResolver.php`
+- `tests/Feature/Admin/AdminAiSupervisionTest.php`
+- `tests/Unit/Services/Ai/OllamaSupervisionProviderTest.php`
+- `tests/Unit/Services/Ai/OpenRouterSupervisionProviderTest.php`
+- `TODO/TASK-246-make-clarify-help-request-provider-agnostic-for-ollama-and-openrouter.md`
+- `ai-local/conversations/20260611-13h55-TASK-246-clarify-provider-agnostic.md`
 
 ---
 # Version Notes

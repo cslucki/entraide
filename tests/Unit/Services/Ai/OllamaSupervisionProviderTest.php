@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services\Ai;
 
+use App\Services\Ai\Contracts\AiScenarioDefinition;
 use App\Services\Ai\DTO\AiSupervisionResult;
 use App\Services\Ai\Exceptions\SupervisionException;
 use App\Services\Ai\Providers\OllamaSupervisionProvider;
@@ -190,5 +191,69 @@ class OllamaSupervisionProviderTest extends TestCase
         $this->assertSame('Fallback thinking test', $result->summary);
         $this->assertSame('design', $result->category['slug']);
         $this->assertSame(200, $result->outputTokens);
+    }
+
+    public function test_ollama_run_scenario_returns_decoded_json(): void
+    {
+        $scenario = new class implements AiScenarioDefinition
+        {
+            public function id(): string
+            {
+                return 'clarify_help_request';
+            }
+
+            public function name(): string
+            {
+                return 'Clarification';
+            }
+
+            public function description(): ?string
+            {
+                return null;
+            }
+
+            public function providerHint(): string
+            {
+                return '';
+            }
+
+            public function systemPrompt(): string
+            {
+                return 'You are a helpful assistant.';
+            }
+
+            public function jsonSchema(): array
+            {
+                return [
+                    'type' => 'object',
+                    'required' => ['title'],
+                    'properties' => ['title' => ['type' => 'string']],
+                ];
+            }
+        };
+
+        Http::fake([
+            'localhost:11434/api/generate' => function ($request) use ($scenario) {
+                $body = json_decode($request->body(), true);
+
+                $this->assertFalse($body['stream']);
+                $this->assertSame('json', $body['format']);
+                $this->assertFalse($body['think']);
+                $this->assertStringContainsString($scenario->systemPrompt(), $body['prompt']);
+                $this->assertStringContainsString('title', $body['prompt']);
+                $this->assertStringContainsString('Contenu à clarifier', $body['prompt']);
+
+                return Http::response([
+                    'model' => 'llama3.2',
+                    'response' => json_encode(['title' => 'Test clarify']),
+                    'done' => true,
+                ]);
+            },
+        ]);
+
+        $provider = new OllamaSupervisionProvider('http://localhost:11434', 'llama3.2', 30);
+        $result = $provider->runScenario($scenario, 'Contenu à clarifier');
+
+        $this->assertSame(['title' => 'Test clarify'], $result);
     }
 }
