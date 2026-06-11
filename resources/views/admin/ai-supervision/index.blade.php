@@ -18,13 +18,30 @@
                         Désactivé
                     </span>
                 @endunless
-                @if($defaultProvider === 'openai' && !config('ai.ollama.enabled') && !config('ai.openrouter.enabled'))
+                @if(!$hasActiveProvider)
+                    <span class="text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-2 py-1 rounded font-medium">
+                        Aucun provider IA actif
+                    </span>
+                @endif
+                @if($hasActiveProvider && $defaultProvider === 'openai' && !config('ai.ollama.enabled') && !config('ai.openrouter.enabled'))
                     <span class="text-xs bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-2 py-1 rounded font-medium">
-                        Fallback — aucun provider local configuré
+                        Cloud uniquement — aucun provider local configuré
                     </span>
                 @endif
             </div>
         </div>
+
+        {{-- No active provider message --}}
+        @if(!$hasActiveProvider)
+            <div class="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 px-4 py-3 rounded-lg text-sm">
+                Aucun provider IA actif. Activez Ollama local dans <code>.env</code> :<br>
+                <code class="text-xs">OLLAMA_ENABLED=true</code>,
+                <code class="text-xs">OLLAMA_BASE_URL=http://localhost:11434</code>,
+                <code class="text-xs">OLLAMA_MODEL=votre_modèle</code>.<br>
+                Ou activez OpenRouter avec <code class="text-xs">OPENROUTER_ENABLED=true</code>,
+                ou OpenAI avec <code class="text-xs">OPENAI_SUPERVISION_ENABLED=true</code>.
+            </div>
+        @endif
 
         {{-- Errors --}}
         @if (!empty($supervisionError))
@@ -44,7 +61,7 @@
         @endif
 
         {{-- Form --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5{{ !$hasActiveProvider ? ' opacity-60 pointer-events-none' : '' }}">
             <form method="POST" action="{{ route('admin.ai-supervision.analyze') }}" class="space-y-4" id="ai-supervision-form">
                 @csrf
 
@@ -323,6 +340,8 @@
             openrouter: { badge: 'Cloud proxy · Payant', color: 'text-blue-600 dark:text-blue-400' },
             openai: { badge: 'Cloud · Payant', color: 'text-purple-600 dark:text-purple-400' },
         };
+
+        const providerTypeData = @json(collect($providers)->mapWithKeys(fn ($p, $k) => [$k => $p['type'] ?? 'cloud'])->toArray());
 
         function updateModels() {
             const provider = providerSelect.value;
