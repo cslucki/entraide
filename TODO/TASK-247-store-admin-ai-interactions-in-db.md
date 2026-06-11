@@ -14,7 +14,7 @@ branch: TASK-247-store-admin-ai-interactions-in-db
 priority: HIGH
 
 created_at: 2026-06-11 15:03:12 Europe/Paris
-updated_at: 2026-06-11 15:08:00 Europe/Paris
+updated_at: 2026-06-11 15:10:00 Europe/Paris
 
 labels:
   - ai
@@ -133,7 +133,7 @@ Expected, not exhaustive:
 - [x] Checkpoint `develop` clean and synced before branch creation
 - [x] Read planning/tooling docs
 - [x] Create TASK-247 branch and TASK file
-- [ ] Prepare conversation file and SMT for CODEUR
+- [x] Prepare conversation file and SMT for CODEUR
 - [ ] CODEUR reads mandatory docs and implements additive DB persistence
 - [ ] CODEUR runs DB-safe targeted tests only
 - [ ] VERIFICATOR performs read-only verification
@@ -228,11 +228,19 @@ ORCH checkpoint completed before launch:
 - Scope fixed as additive DB persistence only.
 - Runtime validation model set to `qwen2.5-coder:7b` per Cockpit directive.
 
+## 2026-06-11 15:10:00 Europe/Paris
+
+Cockpit/Cyril confirmed `qwen2.5-coder:7b` for runtime validation. ORCH sent CODEUR SMT:
+
+`[2026-06-11 15:10][TASK-247][branch:TASK-247-store-admin-ai-interactions-in-db][ORCH→CODEUR][ACTION] Lire AGENTS.md, tmux SMT skill, ai-local/README.md, ai/tooling docs, TASK file et ai-local/conversations/20260611-15h10-TASK-247-admin-ai-interactions-db.md. Implémenter uniquement persistance DB additive admin AI interactions. Pas de config/provider, pas de DB destructive, modèle runtime qwen2.5-coder:7b. Répondre DONE dans la conversation.`
+
+Next state: waiting for CODEUR DONE report in the active conversation.
+
 ---
 
 # Handoffs
 
-Pending CODEUR SMT confirmation.
+CODEUR implementation launched via SMT at 2026-06-11 15:10 Europe/Paris.
 
 ---
 
