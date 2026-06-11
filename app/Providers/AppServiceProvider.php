@@ -17,6 +17,7 @@ use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
+use App\Models\AiConfig;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiProvider;
@@ -129,6 +130,19 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Paginator::useTailwind();
+
+        try {
+            $dbProvider = AiConfig::get('default_provider');
+            if ($dbProvider) {
+                config(['ai.default_provider' => $dbProvider]);
+            }
+            $dbModel = AiConfig::get('default_model');
+            if ($dbModel) {
+                config(['ai.default_model' => $dbModel]);
+            }
+        } catch (\Exception) {
+            // ai_configs table may not exist yet (migrations pending)
+        }
 
         Transaction::observe(TransactionObserver::class);
         Service::observe(ServiceObserver::class);
