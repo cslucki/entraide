@@ -2,7 +2,7 @@
 task_id: TASK-247
 title: Store admin AI interactions in DB
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -15,7 +15,7 @@ branch: TASK-247-store-admin-ai-interactions-in-db
 priority: HIGH
 
 created_at: 2026-06-11 15:03:12 Europe/Paris
-updated_at: 2026-06-11 16:02:00 Europe/Paris
+updated_at: 2026-06-11 16:06:00 Europe/Paris
 
 labels:
   - ai
@@ -32,7 +32,7 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: MERGED
   url: null
 ---
 
@@ -365,6 +365,16 @@ Minor non-blocking reserve:
 - `input_hash` remains `NULL` because callers pass `input_excerpt`, not `content`, to persistence. VERIFICATOR explicitly marked this as minor and post-merge fixable.
 
 Merge accepted by ORCH because the reserve is non-blocking and the core TASK-247 scope is validated.
+
+## 2026-06-11 16:06:00 Europe/Paris
+
+TASK-247 merged into `develop` with no-ff merge commit `95b94a6`.
+
+Post-merge cleanup pending at this log entry:
+
+- push `develop`
+- delete local branch
+- delete remote branch
 
 ---
 
