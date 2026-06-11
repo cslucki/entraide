@@ -2,7 +2,7 @@
 task_id: TASK-249
 title: Admin AI interactions history UI
 
-status: IN_REVIEW
+status: DONE
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-249-admin-ai-interactions-history-ui
 priority: HIGH
 
 created_at: 2026-06-11 16:52:01 Europe/Paris
-updated_at: 2026-06-11 17:17:00 Europe/Paris
+updated_at: 2026-06-11 17:25:00 Europe/Paris
 
 labels:
   - ai
@@ -177,10 +177,20 @@ CODEUR DONE report:
 - All targeted tests green: AdminAiInteractionTest (13 passed, 38 assertions), AdminAiSupervisionTest regression (48 passed, 187 assertions).
 - DB preflight confirmed safe (`bouclepro_test`).
 - No forbidden files modified (no migration, config, provider, model, schema changes).
+- Status set to DONE by CODEUR.
 
 ## 2026-06-11 17:17:00 Europe/Paris
 
 Verification launched. STATUS IN_REVIEW. SMT sent to VERIFICATOR. Awaiting verdict.
+
+## 2026-06-11 17:22:00 Europe/Paris
+
+VERIFICATOR verdict: OK (no reserves). Checklist complete — 13/13 critères verts.
+- 7 fichiers, 769 insertions
+- 13 nouveaux tests + 48 regression = 61 total, 225 assertions
+- Scope strict respecté
+- Commit `da9c48d` (orchestrator), `fbf034c` + `1008f11` (codeur)
+- STATUS DONE. Ready for merge.
 
 ---
 

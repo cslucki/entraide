@@ -206,3 +206,77 @@ or `BLOCKED` / `OK_WITH_RESERVES` with clear details.
 ```text
 [2026-06-11 17:17][TASK-249][ORCH→VERIFICATOR][ACTION] VERIFICATOR checklist dans conversation + TASK file. Lire tout. Vérifier scope strict + tests + sidebar + UI. Répondre OK/BLOCKED/OK_WITH_RESERVES dans conversation + SMT court.
 ```
+
+### 2026-06-11 17:22 Europe/Paris — VERIFICATOR OK
+
+Commit: `fbf034c` (routes) + `1008f11` (main implementation)
+
+**SMT:** `[2026-06-11 17:22][TASK-249][branch:TASK-249-admin-ai-interactions-history-ui][VERIF→ORCH][OK] Vérification OK. 7 fichiers, 769 insertions. 61/225 passent. Tableau + filtres + sidebar OK. Scope strict respecté (pas supervision/config/provider/schema/model). DB-safe bouclepro_test. Détails ci-dessous.`
+
+**FROM:** VERIFICATOR
+
+**TO:** ORCH
+
+**DATE:** 2026-06-11
+
+**HOUR:** 17:22 Europe/Paris
+
+**OBJECT:** TASK-249 read-only verification — OK
+
+**ATTACH:** `TODO/TASK-249-admin-ai-interactions-history-ui.md`, commits `1008f11` + `fbf034c`
+
+**MESSAGE:**
+
+VERIFICATOR read-only verification of CODEUR commits — OK, no reserves.
+
+### Checklist détaillée
+
+| # | Critère | Statut | Détail |
+|---|---------|--------|--------|
+| 1 | List page `/admin/ai-interactions` | ✅ OK | Route GET avec controller index(), assertOk |
+| 2 | Table columns correct | ✅ OK | Date, scénario, provider, modèle, statut, excerpt, latence, coût — 8 colonnes |
+| 3 | Pagination 25/page + appends GET | ✅ OK | `paginate(25)->withQueryString()` dans controller |
+| 4 | Detail page full record + JSON | ✅ OK | Metadata cards, input/result/meta sections, `JSON_PRETTY_PRINT` |
+| 5 | Filters: provider, scenario, status, search | ✅ OK | 6 filtres dans controller + form GET |
+| 6 | Date filter (date_from, date_to) | ✅ OK | `where('created_at', '>=', ...)` / `'<='` avec `00:00:00` / `23:59:59` |
+| 7 | Empty state | ✅ OK | "Aucune interaction IA trouvée." + lien Supervision IA |
+| 8 | Filter reset link | ✅ OK | `<a href="{{ route(...) }}">Réinit.</a>` sans params |
+| 9 | Sidebar "Historique IA" in IA group | ✅ OK | Icône horloge, actif sur routes ai-interactions |
+| 10 | No supervision/provider/config/schema/model changes | ✅ OK | Aucun fichier exclu modifié |
+| 11 | AdminAiSupervisionTest regression | ✅ OK | 48/48 pass (187 assertions) |
+| 12 | DB preflight bouclepro_test | ✅ OK | `database.connections.pgsql.database = bouclepro_test` |
+| 13 | No destructive DB command | ✅ OK | Aucune migration, migrate:fresh, db:wipe |
+
+### Détails par fichier
+
+**Controller** (`AdminAiInteractionController.php`, 72 lignes):
+- `index()`: query `orderBy('created_at', 'desc')`, 6 filtres (provider, scenario_id, status, date_from, date_to, search/ilike), `paginate(25)->withQueryString()`, dropdown options depuis DISTINCT
+- `show()`: route model binding `AdminAiInteraction $interaction`
+
+**List view** (`index.blade.php`, 145 lignes):
+- Compteur `$interactions->total()` + filtres en form GET
+- Tableau 8 colonnes, excerpt tronqué à 60 chars
+- Badge vert/rouge pour status, `Str::limit()` + `number_format()` + `format('d/m/Y H:i')`
+- `$interactions->links()` pour pagination Laravel
+
+**Detail view** (`show.blade.php`, 129 lignes):
+- Grid 4 cartes metadata + 3 cartes telemetry + input/hash/longueur
+- `json_encode(..., JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE)` dans `<pre>`
+- Sections conditionnelles: result_summary, result_payload, metadata, organization/user
+
+**Routes** (`routes/web.php`, +2 routes):
+- `GET /admin/ai-interactions` → `admin.ai-interactions`
+- `GET /admin/ai-interactions/{interaction}` → `admin.ai-interactions.show` (route model binding implicite)
+- Note: `pint` a réorganisé 2 imports + simplifié 1 FQN (cosmétique, pas d'impact fonctionnel)
+
+**Sidebar** (`admin.blade.php`, +1 ligne):
+- `$iaItems[]` avec route `admin.ai-interactions`, label `Historique IA`, icône horloge
+- Placé après `Supervision IA`
+
+**Tests** (`AdminAiInteractionTest.php`, 190 lignes):
+- 13 tests ciblés: access admin/non-admin, pagination (30 items, 25/page), 5 filtres, empty state, detail page, JSON payload, sidebar
+- Factory via `makeInteraction()` helper
+
+### Verdict final: OK
+
+Scope strict parfaitement respecté. Aucun fichier interdit touché. UI claire, conforme aux patterns admin existants (inline table, `<x-admin-layout>`, sidebar IA collapsible). Tests complets : 13 nouveaux + 48 régression = 61/225 pass. Merge OK.
