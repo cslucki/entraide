@@ -2,18 +2,19 @@
 task_id: TASK-248
 title: Fix admin AI interaction input_hash fallback
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
-contributors: []
+contributors:
+  - CODEUR
 
 branch: TASK-248-fix-admin-ai-interaction-input-hash-fallback
 
 priority: HIGH
 
 created_at: 2026-06-11 15:46:12 Europe/Paris
-updated_at: 2026-06-11 15:46:12 Europe/Paris
+updated_at: 2026-06-11 16:05:00 Europe/Paris
 
 labels:
   - ai
@@ -22,9 +23,9 @@ labels:
   - bugfix
 
 lock:
-  status: LOCKED
-  agent: OPENCODE
-  since: 2026-06-11 15:46:12 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: 2026-06-11 16:05:00 Europe/Paris
 
 handoff: false
 
@@ -133,27 +134,69 @@ Short SMT sent to tmux session `codeur` with strict implementation scope:
 - DB preflight to `bouclepro_test` before targeted tests;
 - CODEUR must update TASK + conversation and reply DONE via SMT.
 
+## 2026-06-11 16:05:00 Europe/Paris
+
+CODEUR implementation DONE report:
+
+### Fix applied
+
+- `AdminAiInteractionPersistence::persist()` line 21:
+  - **Before**: `'input_hash' => $this->hashInput($data['input_hash'] ?? ($data['content'] ?? null)),`
+  - **After**: `'input_hash' => $data['input_hash'] ?? $this->hashInput($data['content'] ?? ($data['input_excerpt'] ?? null)),`
+- This ensures:
+  1. A provided `input_hash` is preserved as-is (no re-hashing).
+  2. If no `input_hash` is provided, `content` is hashed first.
+  3. If no `content` is provided, `input_excerpt` is hashed as fallback.
+  4. If nothing is available, `input_hash` remains `NULL`.
+
+### Tests
+
+- Created `tests/Unit/Services/Ai/Persistence/AdminAiInteractionPersistenceTest.php` with 4 focused tests:
+  - `test_provided_input_hash_is_preserved_not_re_hashed` — asserts provided hash is stored as-is.
+  - `test_input_hash_fallback_uses_input_excerpt_when_content_is_missing` — asserts `input_excerpt` is hashed when `content` absent.
+  - `test_input_hash_fallback_uses_content_before_input_excerpt` — asserts `content` takes precedence over `input_excerpt`.
+  - `test_input_hash_is_null_when_no_input_available` — asserts `NULL` when no input data.
+
+### Test results
+
+- `AdminAiInteractionPersistenceTest`: **4 passed, 4 assertions, 3.57s**
+- `AdminAiSupervisionTest` persistence regression (5 targeted tests): **5 passed, 39 assertions, 2.21s**
+- DB preflight: `database.default = pgsql`, `database.connections.pgsql.database = bouclepro_test` — safe.
+
+### Diff check
+
+- Modified: `app/Services/Ai/Persistence/AdminAiInteractionPersistence.php` (1 line)
+- Added: `tests/Unit/Services/Ai/Persistence/AdminAiInteractionPersistenceTest.php`
+- No migration, schema, `.env`, `config/ai.php`, provider, model, or UI changes.
+
 # Handoffs
 
 # Tests
 
-- [ ] DB-safe preflight confirms `pgsql` + `bouclepro_test`
-- [ ] targeted `AdminAiSupervisionTest` persistence coverage or more focused test
-- [ ] test proves `input_hash` fallback uses `input_excerpt` when needed
-- [ ] test proves provided `input_hash` is preserved as-is
-- [ ] explicit diff check confirms no migration/config/provider/model/UI changes
+- [x] DB-safe preflight confirms `pgsql` + `bouclepro_test`
+- [x] targeted persistence unit tests (4 focused)
+- [x] test proves `input_hash` fallback uses `input_excerpt` when needed
+- [x] test proves provided `input_hash` is preserved as-is
+- [x] explicit diff check confirms no migration/config/provider/model/UI changes
 
 ---
 
 # Test Results
 
-Pending.
+2026-06-11 16:05 Europe/Paris
+
+- `AdminAiInteractionPersistenceTest`: 4 passed, 4 assertions, 3.57s
+- `AdminAiSupervisionTest` persistence regression: 5 passed, 39 assertions, 2.21s
+- DB preflight: safe (`bouclepro_test`)
 
 ---
 
 # Review Notes
 
-Pending.
+- VERIFICATOR must confirm the diff is exactly 1 line in `AdminAiInteractionPersistence` + 1 new test file.
+- VERIFICATOR must confirm no migration/schema/config/provider/model/UI changes.
+- VERIFICATOR must confirm `input_hash` is preserved as-is when provided.
+- VERIFICATOR must confirm `input_excerpt` is hashed only when `input_hash` and `content` are absent.
 
 ---
 

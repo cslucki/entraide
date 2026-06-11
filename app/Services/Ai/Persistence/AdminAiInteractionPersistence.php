@@ -18,7 +18,7 @@ class AdminAiInteractionPersistence
                 'model' => $data['model'] ?? null,
                 'status' => $data['status'] ?? 'success',
                 'input_excerpt' => $this->sanitizeExcerpt($data['input_excerpt'] ?? ($data['content'] ?? null)),
-                'input_hash' => $this->hashInput($data['input_hash'] ?? ($data['content'] ?? null)),
+                'input_hash' => $data['input_hash'] ?? $this->hashInput($data['content'] ?? ($data['input_excerpt'] ?? null)),
                 'input_length' => $data['input_length'] ?? ($data['content_length'] ?? 0),
                 'result_summary' => $this->sanitizeExcerpt($data['result_summary'] ?? null, 2000),
                 'result_payload' => $this->sanitizePayload($data['result_payload'] ?? null),
