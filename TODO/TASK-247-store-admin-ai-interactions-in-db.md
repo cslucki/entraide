@@ -252,6 +252,29 @@ Cyril clarified that VERIFICATOR mentions and old pane titles in tmux session `c
 
 Next state: wait for CODEUR DONE report in the active conversation.
 
+## 2026-06-11 15:26:00 Europe/Paris
+
+CODEUR implementation DONE report:
+
+- Migration `2026_06_11_150000_create_admin_ai_interactions_table.php` created and migrated on test DB.
+- Model `AdminAiInteraction` created with UUID PK, fillable, casts, and BelongsTo relations.
+- Persistence service `AdminAiInteractionPersistence` created with safe-excerpt, hash, payload/metadata sanitization, organization/user resolution, and failure-isolation (try/catch + warning log).
+- `LoggingSupervisionProvider` refactored to inject `AdminAiInteractionPersistence` and call `persist()` in both `supervise()` and `runScenario()`.
+- `AppServiceProvider` updated to register `AdminAiInteractionPersistence` as singleton and inject it into `LoggingSupervisionProvider`.
+- Existing `AiBenchmarkLogger` JSONL logging preserved; dual-write pattern used.
+- `tests/Feature/Admin/AdminAiSupervisionTest.php` updated with 3 new persistence tests:
+  - `test_supervision_content_persists_admin_ai_interaction`
+  - `test_clarify_help_request_persists_admin_ai_interaction`
+  - `test_persistence_does_not_store_api_keys_or_secrets`
+- `./vendor/bin/pint --dirty` run; style fixed.
+- Targeted tests run and pass:
+  - 3 new persistence tests: 3 passed (26 assertions)
+  - 5 existing regression tests: 5 passed (19 assertions)
+- No `.env` / `config/ai.php` changes.
+- No provider behavior/prompt/schema changes.
+- No destructive DB command used.
+- Runtime validation with Ollama + `qwen2.5-coder:7b` pending (CODEUR environment has no Ollama runtime).
+
 ---
 
 # Handoffs
@@ -262,17 +285,30 @@ CODEUR implementation launched via SMT at 2026-06-11 15:10 Europe/Paris.
 
 # Tests
 
-- [ ] DB-safe preflight
-- [ ] migration/model tests
-- [ ] admin AI persistence feature tests
-- [ ] targeted AI regression tests if touched
+- [x] DB-safe preflight
+- [x] migration/model tests
+- [x] admin AI persistence feature tests
+- [x] targeted AI regression tests if touched
 - [ ] runtime validation with Ollama + `qwen2.5-coder:7b`
 
 ---
 
 # Test Results
 
-Pending.
+2026-06-11 15:26 Europe/Paris
+
+- DB-safe preflight: `database.default = pgsql`, `database.connections.pgsql.database = bouclepro_test` — confirmed safe.
+- New persistence tests (3 passed, 26 assertions):
+  - `test_supervision_content_persists_admin_ai_interaction` — 1.21s
+  - `test_clarify_help_request_persists_admin_ai_interaction` — 0.05s
+  - `test_persistence_does_not_store_api_keys_or_secrets` — 0.05s
+- Regression tests (5 passed, 19 assertions):
+  - `test_admin_can_analyze_content_with_mocked_openai_response` — 1.21s
+  - `test_admin_can_use_clarify_help_request_scenario` — 0.04s
+  - `test_clarify_help_request_works_with_ollama` — 0.04s
+  - `test_supervision_content_with_ollama_provider` — 0.05s
+  - `test_supervision_content_with_openrouter_provider` — 0.04s
+- Runtime validation: pending (CODEUR environment has no Ollama runtime).
 
 ---
 
