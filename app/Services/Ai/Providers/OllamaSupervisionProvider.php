@@ -70,6 +70,11 @@ PROMPT;
         $body = $response->json();
         $rawResponse = $body['response'] ?? '';
 
+        // Fallback: some models (e.g. qwen3.5 with thinking enabled) put the JSON in the "thinking" field
+        if ($rawResponse === '' && isset($body['thinking']) && is_string($body['thinking']) && $body['thinking'] !== '') {
+            $rawResponse = $body['thinking'];
+        }
+
         $parsed = JsonResponseParser::parseSupervisionResult($rawResponse);
 
         $outputTokens = (int) ($body['eval_count'] ?? 0);
@@ -100,6 +105,7 @@ PROMPT;
             'prompt' => $this->buildPrompt($content),
             'stream' => false,
             'format' => 'json',
+            'think' => false,
             'options' => [
                 'num_predict' => 900,
                 'temperature' => 0,
