@@ -85,7 +85,7 @@ class AdminAiSupervisionTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.ai-supervision'))
             ->assertOk()
-            ->assertSee('Centre de supervision IA');
+            ->assertSee('Laboratoire IA interne BouclePro');
     }
 
     public function test_admin_can_analyze_content_with_mocked_openai_response(): void
@@ -98,6 +98,8 @@ class AdminAiSupervisionTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => "J'aimerais aider quelqu'un cette semaine.",
+            'provider' => 'openai',
+            'scenario' => 'supervision_content',
         ]);
 
         $response->assertOk();
@@ -117,6 +119,8 @@ class AdminAiSupervisionTest extends TestCase
 
         $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => 'Contenu de test à analyser.',
+            'provider' => 'openai',
+            'scenario' => 'supervision_content',
         ])->assertOk();
 
         Http::assertSent(function ($request) {
@@ -244,6 +248,7 @@ class AdminAiSupervisionTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => 'Je propose mes services pour la relecture/correction de tout document, la rédaction d\'articles pour sites ou blog, la transcription de documents oraux. Je suis écrivain public depuis 2011 avec LA PLUME ALERTE.',
+            'scenario' => 'supervision_content',
         ]);
 
         $response->assertOk();
@@ -266,6 +271,7 @@ class AdminAiSupervisionTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => 'Je propose transcription et récits de vie comme services.',
+            'scenario' => 'supervision_content',
         ]);
 
         $response->assertOk();
@@ -289,6 +295,7 @@ class AdminAiSupervisionTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => 'Je peux faire du coaching, de la traduction, du développement web et des ateliers de poterie.',
+            'scenario' => 'supervision_content',
         ]);
 
         $response->assertOk();
@@ -315,6 +322,7 @@ class AdminAiSupervisionTest extends TestCase
 
         $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => 'Contenu de test skills enum override.',
+            'scenario' => 'supervision_content',
         ])->assertOk();
 
         Http::assertSent(function ($request) use ($customSkills) {
@@ -344,6 +352,7 @@ class AdminAiSupervisionTest extends TestCase
 
         $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => 'Contenu de test slugs non audités.',
+            'scenario' => 'supervision_content',
         ])->assertOk();
 
         Http::assertSent(function ($request) use ($forbiddenSlugs) {
@@ -377,6 +386,7 @@ class AdminAiSupervisionTest extends TestCase
 
         $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => 'Contenu de test taxonomy override.',
+            'scenario' => 'supervision_content',
         ])->assertOk();
 
         Http::assertSent(function ($request) use ($customCategories) {
@@ -398,6 +408,7 @@ class AdminAiSupervisionTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => 'Je propose des services de relecture et transcription.',
+            'scenario' => 'supervision_content',
         ]);
 
         $response->assertOk();
@@ -527,11 +538,129 @@ class AdminAiSupervisionTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
             'content' => 'Test de contenu pour supervision.',
+            'scenario' => 'supervision_content',
         ]);
 
         $response->assertOk();
         $response->assertSee('Message neutre demandant de l\'aide.');
         $response->assertSee('Risque faible');
         $response->assertSee('Rédaction');
+    }
+
+    public function test_default_provider_is_ollama_when_enabled(): void
+    {
+        config(['ai.ollama.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('Ollama (local)');
+    }
+
+    public function test_default_provider_is_openai_when_ollama_disabled(): void
+    {
+        config([
+            'ai.ollama.enabled' => false,
+            'ai.openrouter.enabled' => false,
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('OpenAI');
+    }
+
+    public function test_clarify_help_request_is_not_supported_with_ollama(): void
+    {
+        Http::fake([
+            'localhost:11434/*' => Http::response([
+                'model' => 'llama3.2',
+                'response' => json_encode($this->basePayload()),
+                'done' => true,
+            ], 200),
+        ]);
+
+        config(['ai.ollama.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec Ollama.',
+            'provider' => 'ollama',
+            'scenario' => 'clarify_help_request',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Le scénario clarify_help_request n\'est pas encore supporté avec le provider ollama.');
+    }
+
+    public function test_clarify_help_request_is_not_supported_with_openrouter(): void
+    {
+        config(['ai.openrouter.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec OpenRouter.',
+            'provider' => 'openrouter',
+            'scenario' => 'clarify_help_request',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Le scénario clarify_help_request n\'est pas encore supporté avec le provider openrouter.');
+    }
+
+    public function test_supervision_content_with_ollama_provider(): void
+    {
+        Http::fake([
+            'localhost:11434/*' => Http::response([
+                'model' => 'llama3.2',
+                'response' => json_encode($this->basePayload()),
+                'done' => true,
+            ], 200),
+        ]);
+
+        config(['ai.ollama.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec Ollama.',
+            'provider' => 'ollama',
+            'scenario' => 'supervision_content',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Message neutre demandant de l\'aide.');
+    }
+
+    public function test_supervision_content_with_openrouter_provider(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode($this->basePayload()),
+                    ],
+                ]],
+                'model' => 'openai/gpt-4o-mini',
+                'usage' => [
+                    'prompt_tokens' => 100,
+                    'completion_tokens' => 80,
+                ],
+            ], 200),
+        ]);
+
+        config([
+            'ai.openrouter.enabled' => true,
+            'ai.openrouter.api_key' => 'test-key',
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec OpenRouter.',
+            'provider' => 'openrouter',
+            'scenario' => 'supervision_content',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Message neutre demandant de l\'aide.');
     }
 }
