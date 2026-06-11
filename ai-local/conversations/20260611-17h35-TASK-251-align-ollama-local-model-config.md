@@ -145,17 +145,23 @@ Rapport :
 
 ## VERIFICATOR RESULT
 
-> (VERIFICATOR écrit son verdict ici)
+Date : 2026-06-11 17:50:00 Europe/Paris
 
-Date :
-
-Verdict : OK / RÉSERVES
+Verdict : OK
 
 Détails :
-- Checklist points verts/rouges
-- Tests :
-- Scope :
-- Décision finale :
+- [x] `config/ai.php` ligne 83 : `'llama3.2'` → `'ministral-3:3b'` (git diff 3f6e9ff confirmé)
+- [x] `.env.example` ligne 71 : `OLLAMA_MODEL=llama3.2` → `OLLAMA_MODEL=ministral-3:3b` (git diff 3f6e9ff confirmé)
+- [x] `views/admin/ai-supervision/index.blade.php` ligne 40 : `OLLAMA_MODEL=votre_modèle` → `OLLAMA_MODEL=ministral-3:3b` (git diff 3f6e9ff confirmé)
+- [x] `SupervisionProviderResolver.php` lignes 65 et 113 : fallback `'llama3.2'` → `'ministral-3:3b'` (git diff 3f6e9ff confirmé)
+- [x] Aucun autre fichier modifié — git diff --stat montre 4 fichiers code + TASK uniquement
+- [x] Tests : 48/48 green, 187 assertions, 5.28s
+- [x] Aucun fichier provider modifié (`app/Services/Ai/Providers/*` intact)
+- [x] Aucune migration/schema DB
+- [x] Aucun nouveau test créé
+- [x] Préflight DB : `database.default = pgsql`, `database.connections.pgsql.database = bouclepro_test`
+- Scope strict : 4 fichiers comme spécifié, rien d'autre. Sans réserve.
+- Décision finale : OK, sans réserve.
 
 ---
 
@@ -168,5 +174,9 @@ SMT envoyé à CODEUR. En attente CODEUR DONE.
 ## 2026-06-11 17:45
 
 CODEUR DONE. Diff vérifié — 4 fichiers exacts, changements corrects. VERIFICATOR lancé.
+
+## 2026-06-11 17:50
+
+VERIFICATOR OK — 10/10, sans réserves.
 
 Décision :

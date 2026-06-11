@@ -2,7 +2,7 @@
 task_id: TASK-251
 title: Align Ollama local model config with tested Ministral model
 
-status: IN_REVIEW
+status: DONE
 
 owner: OPENCODE
 
@@ -23,9 +23,9 @@ labels:
   - ollama
 
 lock:
-  status: LOCKED
-  agent: VERIFICATOR
-  since: 2026-06-11 17:45:00 Europe/Paris
+  status: UNLOCKED
+  agent: null
+  since: 2026-06-11 17:50:00 Europe/Paris
 
 handoff: false
 
@@ -150,6 +150,14 @@ CODEUR DONE report:
 - No other files modified (scope strict respected)
 - Commit ready for push
 
+## 2026-06-11 17:50:00 Europe/Paris
+
+VERIFICATOR verdict: OK (no reserves). Checklist 10/10 verts.
+- 4 fichiers modifiés, scope strict respecté
+- 48 tests regression (187 assertions) green
+- Pas de fichier provider, pas de migration, pas de destructive DB
+- STATUS DONE. Ready for merge.
+
 ---
 
 # Handoffs
@@ -181,6 +189,15 @@ SMT sent via tmux with full scope instructions. Conversation:
 - VERIFICATOR must confirm scope strict: no provider logic, no migration, no destructive DB.
 - VERIFICATOR must confirm ONLY the 4 specified files were modified.
 - VERIFICATOR must confirm `AdminAiSupervisionTest` regression green.
+
+## 2026-06-11 17:50:00 Europe/Paris
+
+VERIFICATOR verdict: OK, sans réserve. 10/10 checklist green.
+- git diff 3f6e9ff confirms exact 4 code files changed + TASK file
+- All 4 replacements (`llama3.2` / `votre_modèle` → `ministral-3:3b`) confirmed correct
+- No provider files touched, no migrations, no new tests
+- AdminAiSupervisionTest: 48/48 green (187 assertions, 5.28s)
+- DB preflight: pgsql + bouclepro_test safe
 
 ---
 
