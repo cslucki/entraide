@@ -14,7 +14,7 @@ branch: TASK-246-make-clarify-help-request-provider-agnostic-for-ollama-and-open
 priority: HIGH
 
 created_at: 2026-06-11 13:46:01 Europe/Paris
-updated_at: 2026-06-11 14:02:00 Europe/Paris
+updated_at: 2026-06-11 14:10:00 Europe/Paris
 
 labels:
   - ai
@@ -136,6 +136,12 @@ ORCHESTRATOR: SMT conversation file created for CODEUR at `ai-local/conversation
 
 ORCHESTRATOR: Post TASK-245 checkpoint confirmed. Git worktree clean before new edits, current branch `TASK-246-make-clarify-help-request-provider-agnostic-for-ollama-and-openrouter`, `develop` and `origin/develop` both at `bb1b22e`. Runtime validation `/admin/ai-supervision` with provider Ollama, model `qwen3.5:latest`, scenario `supervision_content`, input `Je fais une demande de devis pour un logo`: SUCCESS. Structured result rendered with risk low, category `creer-des-supports`, latency 11422 ms, no `Sortie JSON non décodable`. Planning file `ai-local/PLANNING_TRAVAUX_MODULES_IA_T244àT265.md` read; user instruction renumbers provider-agnostic clarify work as TASK-246. Active conversation updated with mandatory CODEUR/VERIFICATOR reading list and agent protocol.
 
+## 2026-06-11 14:10:00 Europe/Paris
+
+ORCHESTRATOR: Controlled recovery after suspected CODEUR test blockage. Checked running processes with `ps -ef | grep -E "php artisan test|vendor/bin/phpunit|phpunit" | grep -v grep || true`; no PHPUnit/Laravel test process was active, so no Escape interruption was sent. Sent SMT QUESTION to CODEUR asking for exact TASK-246 state, to stop long tests, to never relaunch `migrate:fresh`, and to finalize report/tests/TASK/conversation/commit if clean. Documented incident: CODEUR reportedly launched `php artisan migrate:fresh` on `bouclepro_test`; even if limited to the test DB, this is destructive and must not be repeated without explicit Cyril/Cockpit validation.
+
+Blocker/risk note: Awaiting CODEUR report confirming patch state, modified files, tests, git status, and confirmation that `migrate:fresh` affected only `bouclepro_test`.
+
 # Handoffs
 
 # Tests
@@ -156,7 +162,7 @@ ORCHESTRATOR: Post TASK-245 checkpoint confirmed. Git worktree clean before new 
 ---
 # Review Notes
 
-Pending.
+- 2026-06-11 14:10 Europe/Paris — Incident to verify: `migrate:fresh` reportedly executed by CODEUR on `bouclepro_test`. Must be documented in final verification. No destructive DB command may be relaunched. VERIFICATOR must specifically check `LoggingSupervisionProvider::runScenario()`, no DB/migration additions, no raw content in JSONL, OpenAI disabled by default, HTTP fake coverage for Ollama/OpenRouter, and runtime Ollama clarify validation if possible.
 
 ---
 # Version Notes
