@@ -2,7 +2,9 @@
 
 namespace App\Services\Ai\Scenarios;
 
+use App\Models\AdminAiPrompt;
 use App\Services\Ai\Contracts\AiScenarioDefinition;
+use Illuminate\Support\Facades\Schema;
 
 class ClarifyHelpRequestScenario implements AiScenarioDefinition
 {
@@ -51,6 +53,13 @@ PROMPT;
 
     public function systemPrompt(): string
     {
+        if (Schema::hasTable('admin_ai_prompts')) {
+            $prompt = AdminAiPrompt::active()->byScenario($this->id())->orderByDesc('version')->first();
+            if ($prompt) {
+                return $prompt->prompt_text;
+            }
+        }
+
         return self::SYSTEM_PROMPT;
     }
 

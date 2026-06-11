@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai\Scenarios;
 
+use App\Models\AdminAiPrompt;
 use App\Services\Ai\Contracts\AiScenarioDefinition;
 use Illuminate\Support\Facades\Schema;
 
@@ -52,6 +53,16 @@ PROMPT;
 
     public function systemPrompt(): string
     {
+        $prompt = null;
+        if (Schema::hasTable('admin_ai_prompts')) {
+            $found = AdminAiPrompt::active()->byScenario($this->id())->orderByDesc('version')->first();
+            if ($found) {
+                $prompt = $found->prompt_text;
+            }
+        }
+
+        $basePrompt = $prompt ?? self::BASE_SYSTEM_PROMPT;
+
         $taxonomy = $this->loadTaxonomy();
         $categories = $taxonomy['categories'];
         $skills = $taxonomy['skills'];
@@ -66,7 +77,7 @@ PROMPT;
             $skills
         ));
 
-        return self::BASE_SYSTEM_PROMPT
+        return $basePrompt
             ."\n\nTaxonomie officielle des catégories (utilise UNIQUEMENT ces slugs exacts) :\n"
             .$categoryLines
             ."\n\nCompétences secondaires disponibles (enrichissement uniquement, liste non exhaustive) :\n"
