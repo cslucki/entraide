@@ -834,4 +834,143 @@ class AdminAiSupervisionTest extends TestCase
         $response->assertOk();
         $response->assertSee('Message neutre demandant de l\'aide.');
     }
+
+    public function test_ollama_handles_markdown_json_fence(): void
+    {
+        Http::fake([
+            'localhost:11434/*' => Http::response([
+                'model' => 'llama3.2',
+                'response' => "Voici l'analyse :\n\n```json\n" . json_encode($this->basePayload()) . "\n```",
+                'done' => true,
+            ], 200),
+        ]);
+
+        config(['ai.ollama.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec markdown fence.',
+            'provider' => 'ollama',
+            'scenario' => 'supervision_content',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Message neutre demandant de l\'aide.');
+    }
+
+    public function test_ollama_handles_preamble_before_json(): void
+    {
+        Http::fake([
+            'localhost:11434/*' => Http::response([
+                'model' => 'llama3.2',
+                'response' => "Analyse complète : " . json_encode($this->basePayload()) . " Fin.",
+                'done' => true,
+            ], 200),
+        ]);
+
+        config(['ai.ollama.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec préambule.',
+            'provider' => 'ollama',
+            'scenario' => 'supervision_content',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Message neutre demandant de l\'aide.');
+    }
+
+    public function test_ollama_handles_invalid_json_with_error(): void
+    {
+        Http::fake([
+            'localhost:11434/*' => Http::response([
+                'model' => 'llama3.2',
+                'response' => 'Ceci n\'est pas du JSON',
+                'done' => true,
+            ], 200),
+        ]);
+
+        config(['ai.ollama.enabled' => true]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec JSON invalide.',
+            'provider' => 'ollama',
+            'scenario' => 'supervision_content',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Sortie JSON non décodable');
+    }
+
+    public function test_openrouter_handles_markdown_json_fence(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => "Résultat :\n\n```json\n" . json_encode($this->basePayload()) . "\n```",
+                    ],
+                ]],
+                'model' => 'openai/gpt-4o-mini',
+                'usage' => [
+                    'prompt_tokens' => 100,
+                    'completion_tokens' => 80,
+                ],
+            ], 200),
+        ]);
+
+        config([
+            'ai.openrouter.enabled' => true,
+            'ai.openrouter.api_key' => 'test-key',
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec markdown fence.',
+            'provider' => 'openrouter',
+            'scenario' => 'supervision_content',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Message neutre demandant de l\'aide.');
+    }
+
+    public function test_openai_handles_missing_fields_gracefully(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'id' => 'resp_test',
+                'object' => 'response',
+                'status' => 'completed',
+                'model' => 'gpt-4o-mini',
+                'output' => [[
+                    'type' => 'message',
+                    'content' => [[
+                        'type' => 'output_text',
+                        'text' => json_encode([
+                            'summary' => 'Résumé partiel',
+                            'risk_level' => 'low',
+                            'category' => ['slug' => 'redaction', 'label' => 'Rédaction'],
+                        ]),
+                    ]],
+                ]],
+                'usage' => [
+                    'input_tokens' => 120,
+                    'output_tokens' => 80,
+                ],
+            ], 200),
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [
+            'content' => 'Test avec champs manquants.',
+            'provider' => 'openai',
+            'scenario' => 'supervision_content',
+        ]);
+
+        $response->assertOk();
+        $response->assertSee('Résumé partiel');
+    }
 }
