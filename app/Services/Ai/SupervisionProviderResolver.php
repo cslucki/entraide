@@ -3,6 +3,9 @@
 namespace App\Services\Ai;
 
 use App\Services\Ai\Contracts\SupervisionProvider;
+use App\Services\Ai\Logging\AiBenchmarkLogger;
+use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
+use App\Services\Ai\Providers\LoggingSupervisionProvider;
 use App\Services\Ai\Providers\OllamaSupervisionProvider;
 use App\Services\Ai\Providers\OpenRouterSupervisionProvider;
 
@@ -11,10 +14,26 @@ class SupervisionProviderResolver
     public function resolve(string $provider): SupervisionProvider
     {
         return match ($provider) {
-            'ollama' => app(OllamaSupervisionProvider::class),
-            'openrouter' => app(OpenRouterSupervisionProvider::class),
+            'ollama' => $this->wrapWithLogging(
+                app(OllamaSupervisionProvider::class),
+                'ollama',
+            ),
+            'openrouter' => $this->wrapWithLogging(
+                app(OpenRouterSupervisionProvider::class),
+                'openrouter',
+            ),
             default => app(SupervisionProvider::class),
         };
+    }
+
+    private function wrapWithLogging(SupervisionProvider $inner, string $providerName): LoggingSupervisionProvider
+    {
+        return new LoggingSupervisionProvider(
+            $inner,
+            app(AiBenchmarkLogger::class),
+            app(AdminAiInteractionPersistence::class),
+            $providerName,
+        );
     }
 
     public function defaultProvider(): ?string
