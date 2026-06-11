@@ -13,6 +13,7 @@ class AdminAiSupervisionTest extends TestCase
         parent::setUp();
 
         config([
+            'ai.openai.supervision_enabled' => true,
             'ai.openai.api_key' => 'sk-test-secret-1234567890',
             'ai.openai.base_url' => 'https://api.openai.com/v1',
             'ai.openai.model' => 'gpt-4o-mini',
@@ -20,6 +21,8 @@ class AdminAiSupervisionTest extends TestCase
             'ai.openai.timeout' => 15,
             'ai.openai.input_price_per_1m' => 0.15,
             'ai.openai.output_price_per_1m' => 0.60,
+            'ai.ollama.enabled' => false,
+            'ai.openrouter.enabled' => false,
             'ai.supervision.enabled' => true,
         ]);
 
@@ -105,27 +108,29 @@ class AdminAiSupervisionTest extends TestCase
         $response->assertSee('scenarioCompat', false);
     }
 
-    public function test_fallback_banner_shown_when_no_local_provider(): void
+    public function test_cloud_only_banner_shown_when_only_openai_enabled(): void
     {
         config([
             'ai.ollama.enabled' => false,
             'ai.openrouter.enabled' => false,
+            'ai.openai.supervision_enabled' => true,
         ]);
 
         $admin = $this->makeAdmin();
         $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
         $response->assertOk();
-        $response->assertSee('Fallback — aucun provider local configuré');
+        $response->assertSee('Cloud uniquement');
     }
 
-    public function test_no_fallback_banner_when_ollama_enabled(): void
+    public function test_no_cloud_only_banner_when_ollama_enabled(): void
     {
         config(['ai.ollama.enabled' => true]);
 
         $admin = $this->makeAdmin();
         $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
         $response->assertOk();
-        $response->assertDontSee('Fallback — aucun provider local configuré');
+        $response->assertDontSee('Cloud uniquement');
+        $response->assertDontSee('Aucun provider IA actif');
     }
 
     public function test_scenario_options_include_supported_providers(): void
@@ -472,6 +477,8 @@ class AdminAiSupervisionTest extends TestCase
 
     public function test_admin_can_use_clarify_help_request_scenario(): void
     {
+        config(['ai.openai.supervision_enabled' => true]);
+
         Http::fake([
             'api.openai.com/*' => Http::response($this->fakeOpenAiResponse([
                 'title' => 'Aide pour rédaction CV',
@@ -502,6 +509,8 @@ class AdminAiSupervisionTest extends TestCase
 
     public function test_clarify_help_request_vague_input_generates_questions(): void
     {
+        config(['ai.openai.supervision_enabled' => true]);
+
         Http::fake([
             'api.openai.com/*' => Http::response($this->fakeOpenAiResponse([
                 'title' => 'Demande vague',
@@ -535,6 +544,8 @@ class AdminAiSupervisionTest extends TestCase
 
     public function test_clarify_help_request_payload_uses_store_false_and_json_schema(): void
     {
+        config(['ai.openai.supervision_enabled' => true]);
+
         Http::fake([
             'api.openai.com/*' => Http::response($this->fakeOpenAiResponse([
                 'title' => 'Test',
@@ -607,11 +618,12 @@ class AdminAiSupervisionTest extends TestCase
         $response->assertSee('Ollama (local)');
     }
 
-    public function test_default_provider_is_openai_when_ollama_disabled(): void
+    public function test_default_provider_is_openai_when_ollama_disabled_but_openai_supervision_enabled(): void
     {
         config([
             'ai.ollama.enabled' => false,
             'ai.openrouter.enabled' => false,
+            'ai.openai.supervision_enabled' => true,
         ]);
 
         $admin = $this->makeAdmin();
@@ -620,8 +632,114 @@ class AdminAiSupervisionTest extends TestCase
         $response->assertSee('OpenAI');
     }
 
+    public function test_openai_not_shown_when_supervision_disabled(): void
+    {
+        config([
+            'ai.ollama.enabled' => false,
+            'ai.openrouter.enabled' => false,
+            'ai.openai.supervision_enabled' => false,
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertDontSee('value="openai"', false);
+        $response->assertSee('Aucun provider IA actif');
+    }
+
+    public function test_no_active_provider_shows_message(): void
+    {
+        config([
+            'ai.ollama.enabled' => false,
+            'ai.openrouter.enabled' => false,
+            'ai.openai.supervision_enabled' => false,
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('Aucun provider IA actif');
+        $response->assertSee('OLLAMA_ENABLED=true');
+    }
+
+    public function test_ollama_is_first_provider_when_enabled(): void
+    {
+        config([
+            'ai.ollama.enabled' => true,
+            'ai.openai.supervision_enabled' => true,
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('Ollama (local)');
+    }
+
+    public function test_clarify_help_request_hidden_when_openai_supervision_disabled(): void
+    {
+        config([
+            'ai.ollama.enabled' => true,
+            'ai.openai.supervision_enabled' => false,
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertDontSee('Clarification de demande');
+    }
+
+    public function test_clarify_help_request_visible_when_openai_supervision_enabled(): void
+    {
+        config([
+            'ai.openai.supervision_enabled' => true,
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('Clarification de demande');
+    }
+
+    public function test_analyze_rejects_clarify_when_openai_supervision_disabled(): void
+    {
+        config([
+            'ai.ollama.enabled' => true,
+            'ai.openai.supervision_enabled' => false,
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->from(route('admin.ai-supervision'))
+            ->post(route('admin.ai-supervision.analyze'), [
+                'content' => 'Test clarify.',
+                'provider' => 'ollama',
+                'scenario' => 'clarify_help_request',
+            ]);
+
+        $response->assertRedirect(route('admin.ai-supervision'));
+        $response->assertSessionHas('error');
+    }
+
+    public function test_openrouter_visible_when_enabled(): void
+    {
+        config([
+            'ai.openrouter.enabled' => true,
+            'ai.openai.supervision_enabled' => false,
+        ]);
+
+        $admin = $this->makeAdmin();
+        $response = $this->actingAs($admin)->get(route('admin.ai-supervision'));
+        $response->assertOk();
+        $response->assertSee('OpenRouter');
+        $response->assertDontSee('OpenAI');
+    }
+
     public function test_clarify_help_request_is_not_supported_with_ollama(): void
     {
+        config([
+            'ai.ollama.enabled' => true,
+            'ai.openai.supervision_enabled' => true,
+        ]);
+
         Http::fake([
             'localhost:11434/*' => Http::response([
                 'model' => 'llama3.2',
@@ -645,7 +763,10 @@ class AdminAiSupervisionTest extends TestCase
 
     public function test_clarify_help_request_is_not_supported_with_openrouter(): void
     {
-        config(['ai.openrouter.enabled' => true]);
+        config([
+            'ai.openrouter.enabled' => true,
+            'ai.openai.supervision_enabled' => true,
+        ]);
 
         $admin = $this->makeAdmin();
         $response = $this->actingAs($admin)->post(route('admin.ai-supervision.analyze'), [

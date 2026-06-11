@@ -8,6 +8,7 @@ use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\Exceptions\SupervisionException;
 use App\Services\Ai\Logging\AiBenchmarkLogger;
 use App\Services\Ai\SupervisionProviderResolver;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
@@ -23,7 +24,8 @@ class AdminAiSupervisionController extends Controller
         $factory = app(AiScenarioFactory::class);
         $defaultProvider = $this->resolver->defaultProvider();
         $providers = $this->resolver->availableProviders();
-        $defaultModel = $providers[$defaultProvider]['models']
+
+        $defaultModel = ($defaultProvider && isset($providers[$defaultProvider]))
             ? array_key_first($providers[$defaultProvider]['models'])
             : '';
 
@@ -38,25 +40,37 @@ class AdminAiSupervisionController extends Controller
             $scenarioCompat[$id] = $supportedBy;
         }
 
+        $scenariosToShow = $factory->all();
+        $openaiEnabled = (bool) config('ai.openai.supervision_enabled', false);
+        if (! $openaiEnabled) {
+            unset($scenariosToShow['clarify_help_request']);
+        }
+
         return view('admin.ai-supervision.index', [
             'providers' => $providers,
-            'provider' => $defaultProvider,
+            'provider' => $defaultProvider ?? '',
             'model' => $defaultModel,
             'enabled' => (bool) config('ai.supervision.enabled', true),
-            'scenarios' => $factory->all(),
+            'scenarios' => $scenariosToShow,
             'scenario' => 'supervision_content',
             'scenarioCompat' => $scenarioCompat,
             'defaultProvider' => $defaultProvider,
+            'hasActiveProvider' => $defaultProvider !== null,
         ]);
     }
 
-    public function analyze(Request $request): View
+    public function analyze(Request $request): View|RedirectResponse
     {
         if (! config('ai.supervision.enabled', true)) {
             abort(403, 'Centre de supervision IA désactivé.');
         }
 
         $providerNames = array_keys($this->resolver->availableProviders());
+
+        if (empty($providerNames)) {
+            return redirect()->route('admin.ai-supervision')
+                ->with('error', 'Aucun provider IA actif. Activez Ollama, OpenRouter ou OpenAI dans la configuration.');
+        }
 
         $data = $request->validate([
             'content' => ['required', 'string', 'min:3', 'max:5000'],
@@ -65,8 +79,14 @@ class AdminAiSupervisionController extends Controller
             'scenario' => ['nullable', 'string', 'in:supervision_content,clarify_help_request'],
         ]);
 
-        $selectedProvider = $data['provider'] ?? $this->resolver->defaultProvider();
-        $selectedScenario = $data['scenario'] ?? 'clarify_help_request';
+        $selectedProvider = $data['provider'] ?? $this->resolver->defaultProvider() ?? 'ollama';
+        $selectedScenario = $data['scenario'] ?? 'supervision_content';
+
+        $openaiEnabled = (bool) config('ai.openai.supervision_enabled', false);
+        if ($selectedScenario === 'clarify_help_request' && ! $openaiEnabled) {
+            return redirect()->route('admin.ai-supervision')
+                ->with('error', 'Le scénario « Clarification de demande d\'aide » nécessite OpenAI (Responses API). Activez OPENAI_SUPERVISION_ENABLED pour l\'utiliser.');
+        }
 
         $providers = $this->resolver->availableProviders();
         $selectedModel = $data['model']
@@ -107,6 +127,11 @@ class AdminAiSupervisionController extends Controller
             $scenarioCompat[$id] = $supportedBy;
         }
 
+        $scenariosToShow = $factory->all();
+        if (! $openaiEnabled) {
+            unset($scenariosToShow['clarify_help_request']);
+        }
+
         return view('admin.ai-supervision.index', [
             'providers' => $providers,
             'provider' => $selectedProvider,
@@ -115,10 +140,11 @@ class AdminAiSupervisionController extends Controller
             'content' => $data['content'],
             'result' => $result,
             'supervisionError' => $error,
-            'scenarios' => $factory->all(),
+            'scenarios' => $scenariosToShow,
             'scenario' => $selectedScenario,
             'scenarioCompat' => $scenarioCompat,
             'defaultProvider' => $this->resolver->defaultProvider(),
+            'hasActiveProvider' => $this->resolver->defaultProvider() !== null,
         ]);
     }
 
