@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminAiInteractionController;
 use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiBenchmarkController;
+use App\Http\Controllers\Admin\AdminAiConfigController;
 use App\Http\Controllers\Admin\AdminAiPromptController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminBlogController;
@@ -291,6 +292,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // File de modération IA (TASK-255)
     Route::get('/ai-review-queue', [AdminAiReviewQueueController::class, 'index'])->name('ai-review-queue');
     Route::patch('/ai-review-queue/{interaction}', [AdminAiReviewQueueController::class, 'update'])->name('ai-review-queue.update');
+
+    // Réglages IA (TASK-258)
+    Route::get('/ai-config', [AdminAiConfigController::class, 'index'])->name('ai-config');
+    Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
