@@ -2,7 +2,7 @@
 task_id: TASK-248
 title: Fix admin AI interaction input_hash fallback
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-248-fix-admin-ai-interaction-input-hash-fallback
 priority: HIGH
 
 created_at: 2026-06-11 15:46:12 Europe/Paris
-updated_at: 2026-06-11 16:08:00 Europe/Paris
+updated_at: 2026-06-11 16:12:00 Europe/Paris
 
 labels:
   - ai
@@ -30,7 +30,7 @@ lock:
 handoff: false
 
 pr:
-  status: READY_TO_MERGE
+  status: MERGED
   url: null
 ---
 
@@ -179,6 +179,10 @@ CODEUR implementation DONE report:
 - No migration/config/provider/model/UI changes
 - DB-safe preflight `bouclepro_test`
 - Verdict: OK, ready to merge
+
+### 2026-06-11 16:12:00 Europe/Paris — MERGED
+
+Merged into develop with `--no-ff` (merge commit: `a9a98be`).
 
 # Handoffs
 
