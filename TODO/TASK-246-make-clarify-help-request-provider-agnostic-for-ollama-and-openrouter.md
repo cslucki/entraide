@@ -2,7 +2,7 @@
 task_id: TASK-246
 title: Make clarify_help_request provider-agnostic for Ollama and OpenRouter
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -14,7 +14,7 @@ branch: TASK-246-make-clarify-help-request-provider-agnostic-for-ollama-and-open
 priority: HIGH
 
 created_at: 2026-06-11 13:46:01 Europe/Paris
-updated_at: 2026-06-11 14:42:00 Europe/Paris
+updated_at: 2026-06-11 14:46:00 Europe/Paris
 
 labels:
   - ai
@@ -30,7 +30,7 @@ lock:
 handoff: false
 
 pr:
-  status: READY_TO_MERGE
+  status: MERGED
   url: null
 ---
 
@@ -155,6 +155,10 @@ CODEUR: UI runtime validation with real provider call was not repeated during th
 ## 2026-06-11 14:42:00 Europe/Paris
 
 VERIFICATOR: OK with no reserve. 8/8 verification points passed. 155/155 tests passed. Verified `LoggingSupervisionProvider::runScenario()`, Ollama/OpenRouter HTTP fake coverage for `clarify_help_request`, OpenAI guards removed while OpenAI remains disabled by default, JSONL safe with no raw content leak, no DB/migration changes, and `migrate:fresh` incident documented as limited to `bouclepro_test`. ORCHESTRATOR marked TASK-246 `DONE` for finalization gates.
+
+## 2026-06-11 14:46:00 Europe/Paris
+
+ORCHESTRATOR: TASK-246 merged into `develop` with no-ff merge commit `d0a3abd`. `develop` pushed to origin. TASK status marked `MERGED`; branch cleanup pending immediately after this TASK status commit.
 
 # Handoffs
 
