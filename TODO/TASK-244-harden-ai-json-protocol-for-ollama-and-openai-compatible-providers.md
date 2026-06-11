@@ -88,6 +88,14 @@ Tests verts :
 
 Task DONE.
 
+## 2026-06-11 08:20:00 Europe/Paris
+
+Corrections demandées par VERIFICATOR appliquées :
+- 2 tests unitaires : messages d'exception corrigés (Ollama + OpenRouter)
+- temperature=0 ajouté pour Ollama et OpenRouter
+
+Tests verts : 151 passed (487 assertions), 0 failed, 0 errors.
+
 # Handoffs
 
 # Tests
@@ -106,6 +114,9 @@ Task DONE.
 - JsonResponseParserTest : 8 passed (32 assertions), 0 failed, 0 errors
 - AdminAiSupervisionTest : 44 passed (145 assertions), 0 failed, 0 errors
 
+2026-06-11 08:20:00 Europe/Paris
+- Suite complète : 151 passed (487 assertions), 0 failed, 0 errors
+
 ---
 
 # Review Notes
@@ -114,14 +125,13 @@ Task DONE.
 
 Verdict : **OK_WITH_RESERVES**
 
-### Réserves
+### Réserves (corrigées)
 
 1. **2 tests unitaires échouent** — messages d'exception à corriger :
-   - `OllamaSupervisionProviderTest::test_ollama_provider_handles_invalid_json_response` (L90) : `'Sortie JSON Ollama non décodable.'` → `'Sortie JSON non décodable'`
-   - `OpenRouterSupervisionProviderTest::test_supervise_handles_invalid_json_response` (L298) : `'Sortie JSON OpenRouter non décodable.'` → `'Sortie JSON non décodable'`
-   - Cause : `JsonResponseParser` produit un message générique avec détails d'erreur.
+   - `OllamaSupervisionProviderTest::test_ollama_provider_handles_invalid_json_response` (L90) : `'Sortie JSON Ollama non décodable.'` → `'Sortie JSON non décodable'` ✅
+   - `OpenRouterSupervisionProviderTest::test_supervise_handles_invalid_json_response` (L298) : `'Sortie JSON OpenRouter non décodable.'` → `'Sortie JSON non décodable'` ✅
 
-2. **temperature=0 non appliqué** — Ollama : pas de `temperature` dans `options` (défaut modèle). OpenRouter : `0.3`. Si besoin déterministe, ajouter `temperature => 0`.
+2. **temperature=0 non appliqué** — Ollama : ajouté `'temperature' => 0` dans `options`. OpenRouter : changé `0.3` → `0`. ✅
 
 ### Points validés
 
@@ -129,7 +139,7 @@ Verdict : **OK_WITH_RESERVES**
 - Les 3 providers utilisent `JsonResponseParser::parseSupervisionResult()`
 - Prompt Ollama inclut format JSON complet explicite + `format: 'json'` payload
 - 8 tests unitaires parser passent, 5 tests feature passent
-- 149 tests passent, pas de régression (hors les 2 UT)
+- 151 tests passent, 0 régression
 
 ---
 
