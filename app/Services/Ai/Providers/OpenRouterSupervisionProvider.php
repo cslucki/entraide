@@ -66,7 +66,7 @@ PROMPT;
                 ['role' => 'user', 'content' => $content],
             ],
             'max_tokens' => $this->maxOutputTokens,
-            'temperature' => 0.3,
+            'temperature' => 0,
             'response_format' => [
                 'type' => 'json_schema',
                 'json_schema' => [
