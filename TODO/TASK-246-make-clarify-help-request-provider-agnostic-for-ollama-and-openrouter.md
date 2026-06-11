@@ -14,7 +14,7 @@ branch: TASK-246-make-clarify-help-request-provider-agnostic-for-ollama-and-open
 priority: HIGH
 
 created_at: 2026-06-11 13:46:01 Europe/Paris
-updated_at: 2026-06-11 13:50:00 Europe/Paris
+updated_at: 2026-06-11 13:58:00 Europe/Paris
 
 labels:
   - ai
@@ -127,6 +127,10 @@ Status: IN_PROGRESS
 ## 2026-06-11 13:50:00 Europe/Paris
 
 ORCHESTRATOR: Full codebase analysis complete. Root cause identified: `runClarifyHelpRequest()` bypasses `SupervisionProvider` interface with direct OpenAI Responses API call. Solution designed: add `runScenario()` method to interface, implement in all three providers, refactor controller. SMT instructions ready for CODEUR.
+
+## 2026-06-11 13:58:00 Europe/Paris
+
+ORCHESTRATOR: SMT conversation file created for CODEUR at `ai-local/conversations/20260611-13h55-TASK-246-clarify-provider-agnostic.md`. Instructions include architecture decision, impacted files, implementation constraints, required tests, UI validation, forbidden changes, and acceptance criteria.
 
 # Handoffs
 
