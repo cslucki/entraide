@@ -106,4 +106,20 @@ return [
         'site_url' => env('APP_URL', 'http://localhost'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Budget Alerts — Monthly AI cost thresholds per scenario
+    |--------------------------------------------------------------------------
+    |
+    | Monthly cost limits per scenario_id. When the current month's cost exceeds
+    | the threshold, an email alert is sent to all admin users.
+    | Values are in USD. Set to 0 or omit to disable alerts for a scenario.
+    |
+    */
+
+    'budget_alerts' => [
+        'supervision_content' => (float) env('AI_BUDGET_SUPERVISION_CONTENT', 5.00),
+        'clarify_help_request' => (float) env('AI_BUDGET_CLARIFY_HELP_REQUEST', 2.00),
+    ],
+
 ];
