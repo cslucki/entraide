@@ -295,7 +295,7 @@ class OpenRouterSupervisionProviderTest extends TestCase
         );
 
         $this->expectException(SupervisionException::class);
-        $this->expectExceptionMessage('Sortie JSON OpenRouter non décodable.');
+        $this->expectExceptionMessage('Sortie JSON non décodable');
 
         $provider->supervise('test');
     }

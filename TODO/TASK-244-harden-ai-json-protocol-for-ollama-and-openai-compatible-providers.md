@@ -110,10 +110,26 @@ Task DONE.
 
 # Review Notes
 
-- Aucune régression détectée
-- Tous les providers utilisent maintenant JsonResponseParser
-- Les cas d'erreur JSON sont testés et gérés gracieusement
-- Les champs manquants reçoivent des valeurs par défaut sensibles
+## 2026-06-11 08:10 Europe/Paris — VERIFICATOR review
+
+Verdict : **OK_WITH_RESERVES**
+
+### Réserves
+
+1. **2 tests unitaires échouent** — messages d'exception à corriger :
+   - `OllamaSupervisionProviderTest::test_ollama_provider_handles_invalid_json_response` (L90) : `'Sortie JSON Ollama non décodable.'` → `'Sortie JSON non décodable'`
+   - `OpenRouterSupervisionProviderTest::test_supervise_handles_invalid_json_response` (L298) : `'Sortie JSON OpenRouter non décodable.'` → `'Sortie JSON non décodable'`
+   - Cause : `JsonResponseParser` produit un message générique avec détails d'erreur.
+
+2. **temperature=0 non appliqué** — Ollama : pas de `temperature` dans `options` (défaut modèle). OpenRouter : `0.3`. Si besoin déterministe, ajouter `temperature => 0`.
+
+### Points validés
+
+- `JsonResponseParser` bien structuré (4 méthodes, extraction robuste, defaults, coercion)
+- Les 3 providers utilisent `JsonResponseParser::parseSupervisionResult()`
+- Prompt Ollama inclut format JSON complet explicite + `format: 'json'` payload
+- 8 tests unitaires parser passent, 5 tests feature passent
+- 149 tests passent, pas de régression (hors les 2 UT)
 
 ---
 

@@ -87,7 +87,7 @@ class OllamaSupervisionProviderTest extends TestCase
         $provider = new OllamaSupervisionProvider('http://localhost:11434', 'llama3.2', 30);
 
         $this->expectException(SupervisionException::class);
-        $this->expectExceptionMessage('Sortie JSON Ollama non décodable.');
+        $this->expectExceptionMessage('Sortie JSON non décodable');
 
         $provider->supervise('test');
     }

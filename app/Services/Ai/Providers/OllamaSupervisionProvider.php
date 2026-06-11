@@ -102,6 +102,7 @@ PROMPT;
             'format' => 'json',
             'options' => [
                 'num_predict' => 900,
+                'temperature' => 0,
             ],
         ];
     }
