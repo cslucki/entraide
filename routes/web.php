@@ -148,6 +148,14 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // Member AI Profile wizard
+    Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
+    Route::delete('/agent-ia/profile', function () {
+        \App\Models\MemberAiProfile::where('user_id', auth()->id())->delete();
+
+        return response()->json(['ok' => true]);
+    })->name('agent-ia.profile.reset');
+
     // Loops
     Route::middleware('loops.enabled')->group(function () {
         Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
@@ -397,6 +405,9 @@ Route::prefix('/org/{organization}')
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+            // Member AI Profile wizard
+            Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
 
             Route::middleware('loops.enabled')->group(function () {
                 Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
