@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\AdminAiInteraction;
 use App\Models\MemberAiProfile;
+use App\Models\MemberAiProfileInteraction;
 use App\Models\User;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Support\Str;
@@ -49,11 +50,13 @@ class InlineMemberAgent extends Component
 
         if (! $this->profile) {
             $this->error = "Ce membre n'a pas encore publié son profil IA.";
+
             return;
         }
 
         if (trim($this->question) === '') {
             $this->error = 'Veuillez poser une question.';
+
             return;
         }
 
@@ -72,6 +75,7 @@ class InlineMemberAgent extends Component
             ['e', 'e', 'e', 'e', 'a', 'a', 'a', 'u', 'u', 'u', 'o', 'o', 'i', 'i', 'c'],
             $text
         );
+
         return $text;
     }
 
@@ -86,6 +90,11 @@ class InlineMemberAgent extends Component
             'aide' => ['help_types', 'service_scope'],
             'help' => ['help_types', 'service_scope'],
             'service' => ['help_types', 'service_scope'],
+            'prestation' => ['help_types', 'service_scope', 'member_profile_summary'],
+            'offre' => ['help_types', 'service_scope', 'member_profile_summary'],
+            'activite' => ['help_types', 'service_scope', 'member_profile_summary'],
+            'metier' => ['help_types', 'service_scope', 'member_profile_summary'],
+            'intervention' => ['help_types', 'service_scope', 'member_profile_summary'],
             'propose' => ['help_types', 'service_scope'],
             'limite' => ['boundaries'],
             'boundary' => ['boundaries'],
@@ -115,7 +124,8 @@ class InlineMemberAgent extends Component
         $matchedFields = array_unique($matchedFields);
 
         if (empty($matchedFields)) {
-            $response = "Ceci dépasse mon périmètre de présentation. Je peux uniquement vous renseigner sur les informations que le membre a partagées dans son profil IA.";
+            $response = 'Ceci dépasse mon périmètre de présentation. Je peux uniquement vous renseigner sur les informations que le membre a partagées dans son profil IA.';
+
             return ['response' => $response, 'fields' => []];
         }
 
@@ -160,6 +170,7 @@ class InlineMemberAgent extends Component
                     $options = config('member_ai_profile.contact_options', []);
                     $formatted = $options[$value] ?? $value;
                     $parts[] = "**{$label} :** {$formatted}";
+
                     continue;
                 }
                 if ($field === 'problems_helped') {
@@ -181,6 +192,7 @@ class InlineMemberAgent extends Component
 
         if (empty($parts)) {
             $response = "Je n'ai pas trouvé d'information correspondant à votre question dans le profil publié de ce membre.";
+
             return ['response' => $response, 'fields' => $matchedFields];
         }
 
@@ -209,6 +221,20 @@ class InlineMemberAgent extends Component
                 'member_user_id' => $this->targetUser->id,
                 'matched_fields' => $matchedFields,
             ],
+            'metadata' => ['scenario' => 'inline_member_presentation'],
+        ]);
+
+        MemberAiProfileInteraction::create([
+            'organization_id' => $organization?->id ?? $this->profile?->organization_id,
+            'member_ai_profile_id' => $this->profile?->id,
+            'profile_owner_user_id' => $this->targetUser->id,
+            'visitor_user_id' => auth()->id(),
+            'visitor_type' => auth()->check() ? 'user' : 'guest',
+            'provider' => 'rule_based',
+            'status' => 'success',
+            'question' => $this->question,
+            'response' => $response,
+            'matched_fields' => $matchedFields,
             'metadata' => ['scenario' => 'inline_member_presentation'],
         ]);
     }

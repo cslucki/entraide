@@ -121,6 +121,7 @@
                         <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')"><span class="font-medium">Tableau de bord</span></x-dropdown-link>
                         <x-dropdown-link :href="route('profile.show', Auth::user())">Mon profil public</x-dropdown-link>
                         <x-dropdown-link :href="route('agent-ia.wizard')">Mon profil IA</x-dropdown-link>
+                        <x-dropdown-link :href="route('agent-ia.interactions')">Échanges agent IA</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-dropdown-link>
                         <x-dropdown-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-dropdown-link>
@@ -211,6 +212,8 @@
             <div class="mt-1 space-y-1">
                 <x-responsive-nav-link :href="route('dashboard')">Tableau de bord</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.show', Auth::user())">Mon profil public</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('agent-ia.wizard')">Mon profil IA</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('agent-ia.interactions')">Échanges agent IA</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('points.index')">Historique des points</x-responsive-nav-link>

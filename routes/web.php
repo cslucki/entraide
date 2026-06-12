@@ -1,10 +1,10 @@
 <?php
 
-use App\Http\Controllers\Admin\AdminAiInteractionController;
-use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiBenchmarkController;
 use App\Http\Controllers\Admin\AdminAiConfigController;
+use App\Http\Controllers\Admin\AdminAiInteractionController;
 use App\Http\Controllers\Admin\AdminAiPromptController;
+use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminBlogController;
 use App\Http\Controllers\Admin\AdminBugReportController;
@@ -15,12 +15,14 @@ use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminLoopController;
+use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminThemeController;
+use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -34,6 +36,7 @@ use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LoopController;
+use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\OrganizationLandingController;
 use App\Http\Controllers\OrganizationRequestController;
@@ -46,6 +49,8 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
+use App\Livewire\BoundedMemberAgent;
+use App\Models\MemberAiProfile;
 use Illuminate\Support\Facades\Route;
 
 // Auth routes (loaded early so they take priority over {community} prefix)
@@ -150,14 +155,16 @@ Route::middleware('auth')->group(function () {
 
     // Member AI Profile wizard
     Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
+    Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
+
     Route::delete('/agent-ia/profile', function () {
-        \App\Models\MemberAiProfile::where('user_id', auth()->id())->delete();
+        MemberAiProfile::where('user_id', auth()->id())->delete();
 
         return response()->json(['ok' => true]);
     })->name('agent-ia.profile.reset');
 
     // Bounded member AI agent
-    Route::get('/agent-ia/member/{user}', \App\Livewire\BoundedMemberAgent::class)
+    Route::get('/agent-ia/member/{user}', BoundedMemberAgent::class)
         ->name('agent-ia.member.presentation');
 
     // Loops
@@ -178,6 +185,7 @@ Route::middleware('auth')->group(function () {
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
 Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
 Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
+Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
 
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
@@ -305,6 +313,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-review-queue', [AdminAiReviewQueueController::class, 'index'])->name('ai-review-queue');
     Route::patch('/ai-review-queue/{interaction}', [AdminAiReviewQueueController::class, 'update'])->name('ai-review-queue.update');
 
+    // Agents profil IA
+    Route::get('/member-ai-profiles', [AdminMemberAiProfileController::class, 'index'])->name('member-ai-profiles');
+    Route::get('/member-ai-profiles/{memberAiProfile}/edit', [AdminMemberAiProfileController::class, 'edit'])->name('member-ai-profiles.edit');
+    Route::put('/member-ai-profiles/{memberAiProfile}', [AdminMemberAiProfileController::class, 'update'])->name('member-ai-profiles.update');
+    Route::post('/member-ai-profiles/{memberAiProfile}/test-llm', [AdminMemberAiProfileController::class, 'testLlm'])->name('member-ai-profiles.test-llm');
+    Route::patch('/member-ai-profiles/{memberAiProfile}/publish', [AdminMemberAiProfileController::class, 'publish'])->name('member-ai-profiles.publish');
+    Route::patch('/member-ai-profiles/{memberAiProfile}/disable', [AdminMemberAiProfileController::class, 'disable'])->name('member-ai-profiles.disable');
+
     // Réglages IA (TASK-258)
     Route::get('/ai-config', [AdminAiConfigController::class, 'index'])->name('ai-config');
     Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
@@ -412,6 +428,7 @@ Route::prefix('/org/{organization}')
 
             // Member AI Profile wizard
             Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
+            Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
 
             Route::middleware('loops.enabled')->group(function () {
                 Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
@@ -430,6 +447,7 @@ Route::prefix('/org/{organization}')
         Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
         Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
+        Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
         Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
         Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
         Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
