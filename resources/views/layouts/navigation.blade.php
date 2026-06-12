@@ -120,6 +120,7 @@
                     <x-slot name="content">
                         <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')"><span class="font-medium">Tableau de bord</span></x-dropdown-link>
                         <x-dropdown-link :href="route('profile.show', Auth::user())">Mon profil public</x-dropdown-link>
+                        <x-dropdown-link :href="route('agent-ia.wizard')">Mon profil IA</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-dropdown-link>
                         <x-dropdown-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-dropdown-link>

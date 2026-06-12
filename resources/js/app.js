@@ -1,10 +1,7 @@
 import './bootstrap';
 
-import Alpine from 'alpinejs';
-window.Alpine = Alpine;
-
 document.addEventListener('alpine:init', () => {
-    Alpine.store('modal', {
+    window.Alpine.store('modal', {
         active: null,
         _form: null,
         open(id, form) { this.active = id; this._form = form; },
@@ -12,7 +9,7 @@ document.addEventListener('alpine:init', () => {
         confirm() { if (this._form) this._form.submit(); this.close(); },
     });
 
-    Alpine.store('darkMode', {
+    window.Alpine.store('darkMode', {
         on: document.documentElement.classList.contains('dark'),
 
         toggle() {
@@ -22,7 +19,7 @@ document.addEventListener('alpine:init', () => {
         },
     });
 
-    Alpine.store('visualTheme', {
+    window.Alpine.store('visualTheme', {
         current: document.documentElement.dataset.bpTheme || window.bpDefaultTheme || 'zen',
         themes: window.bpThemes || { zen: { label: 'Zen' }, sable: { label: 'Sable' } },
 
@@ -63,5 +60,3 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js');
     });
 }
-
-Alpine.start();

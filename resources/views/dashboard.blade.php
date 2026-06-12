@@ -100,6 +100,36 @@
         </div>
         @endif
 
+        @if(! $aiProfile || $aiProfile->status !== 'published')
+        <div class="mb-6 bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/30 dark:to-gray-800 rounded-2xl border border-indigo-200 dark:border-indigo-800 p-6">
+            <div class="flex items-start gap-4 sm:items-center flex-col sm:flex-row">
+                <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl flex items-center justify-center shrink-0">
+                    <svg class="w-6 h-6 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+                </div>
+                <div class="flex-1">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        @if($aiProfile && $aiProfile->status === 'draft')
+                            Reprenez votre profil IA
+                        @else
+                            Créez votre profil IA
+                        @endif
+                    </h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        @if($aiProfile && $aiProfile->status === 'draft')
+                            Vous avez commencé à renseigner votre profil. Finalisez-le pour être mieux orienté.
+                        @else
+                            Configurez votre profil pour être mieux orienté par l'IA et apparaître dans les recherches.
+                        @endif
+                    </p>
+                </div>
+                <a href="{{ route('agent-ia.wizard') }}"
+                   class="inline-flex items-center px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition active:scale-95 shadow-sm whitespace-nowrap">
+                    {{ $aiProfile && $aiProfile->status === 'draft' ? 'Continuer' : 'Configurer' }}
+                </a>
+            </div>
+        </div>
+        @endif
+
         <div class="grid md:grid-cols-2 gap-6">
             <!-- Mes micro-services -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
