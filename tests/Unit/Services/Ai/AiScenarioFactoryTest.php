@@ -37,9 +37,10 @@ class AiScenarioFactoryTest extends TestCase
         $factory = app(AiScenarioFactory::class);
         $all = $factory->all();
 
-        $this->assertCount(2, $all);
+        $this->assertCount(3, $all);
         $this->assertArrayHasKey('supervision_content', $all);
         $this->assertArrayHasKey('clarify_help_request', $all);
+        $this->assertArrayHasKey('bounded_member_presentation', $all);
     }
 
     public function test_scenario_result_wraps_supervision_result(): void

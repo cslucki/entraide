@@ -108,6 +108,7 @@ class AppServiceProvider extends ServiceProvider
             $factory = new AiScenarioFactory;
             $factory->register(new SupervisionContentScenario);
             $factory->register(new ClarifyHelpRequestScenario);
+            $factory->register(new \App\Scenarios\BoundedMemberScenario);
 
             return $factory;
         });
