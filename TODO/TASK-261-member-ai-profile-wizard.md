@@ -2,7 +2,7 @@
 task_id: TASK-261
 title: Member AI profile wizard UI
 
-status: DONE
+status: MERGED
 
 owner: OPENGINE
 
