@@ -28,6 +28,7 @@ test.describe('Bounded Member Agent', () => {
 
     test('shows fallback when member has no published profile', async ({ page }) => {
         await loginAsMember(page);
+        await resetMemberProfile(page);
 
         // Get the current user's ID from the meta tag
         const userId = await page.evaluate(() => {
@@ -162,7 +163,7 @@ test.describe('Bounded Member Agent', () => {
 
         // Wait for response to appear
         await expect(page.getByText('Réponse')).toBeVisible({ timeout: 10000 });
-        await expect(page.getByText('SEO')).toBeVisible();
+        await expect(page.locator('.prose')).toContainText('SEO');
 
         const errors = getConsoleErrors();
         expect(errors.filter(e => !e.message.includes('chrome-extension'))).toEqual([]);

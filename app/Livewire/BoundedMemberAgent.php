@@ -7,7 +7,10 @@ use App\Models\MemberAiProfile;
 use App\Models\User;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
+
+#[Layout('layouts.app')]
 
 class BoundedMemberAgent extends Component
 {

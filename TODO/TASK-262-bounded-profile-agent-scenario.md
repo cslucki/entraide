@@ -196,16 +196,31 @@ CODEUR DONE report:
 - Regression AdminAiSupervisionTest: 48 passed, 187 assertions, 4.23s
 - Playwright: navigated, wizard publish step failed (local env issue, not core to task)
 
+## 2026-06-12 08:55:00 Europe/Paris
+
+ORCH action: fix Playwright test 3 assertion scoper.
+- Changed `getByText('SEO')` to `page.locator('.prose').toContainText('SEO')` on line 165
+
+## 2026-06-12 08:57:00 Europe/Paris
+
+CODEUR fix: Playwright test 1 also missing `resetMemberProfile(page)`.
+- Added `resetMemberProfile(page)` before navigating to agent page in test 1
+- Playwright re-run: 3 passed (14.1s)
+
 # Handoffs
 
 ## 2026-06-12 08:30:00 Europe/Paris — CODEUR → ORCH
 
 SMT sent via tmux. Conversation updated.
 
+## 2026-06-12 08:57:00 Europe/Paris — CODEUR → ORCH
+
+SMT sent via tmux. Conversation updated.
+
 # Tests
 
 - [x] feature tests (10 passed, 26 assertions)
-- [x] browser validation (Playwright navigated)
+- [x] browser validation (Playwright 3/3 passed)
 - [x] responsive validation (layout x-app-layout + x-page-container)
 - [x] console inspection (0 errors in core tests)
 - [x] tenant validation (3-level org fallback)
@@ -214,10 +229,11 @@ SMT sent via tmux. Conversation updated.
 
 # Test Results
 
-2026-06-12 08:30 Europe/Paris
+2026-06-12 08:57 Europe/Paris
 
 - `BoundedMemberAgentTest`: 10 passed, 26 assertions, 1.97s
 - `AdminAiSupervisionTest` regression: 48 passed, 187 assertions, 4.23s
+- Playwright `bounded-member-agent.spec.js`: 3 passed, 14.1s
 - DB preflight: `bouclepro_test` — safe
 
 ---
@@ -229,6 +245,47 @@ SMT sent via tmux. Conversation updated.
 - VERIFICATOR must confirm: 3-level org fallback present
 - VERIFICATOR must confirm: interaction logging in admin_ai_interactions
 - VERIFICATOR must confirm: scope strict — no files outside the 7 created/modified
+
+## 2026-06-12 09:00 Europe/Paris
+
+VERIFICATOR analysis — Playwright failures root cause:
+
+**PHPUnit:** 10 passed (BoundedMemberAgentTest) + 48 passed (regression) = 58 tests OK.
+
+**Playwright:** 2 échecs (`shows profile data` + `ask question`), 1 OK (`shows fallback`).
+
+Cause racine : bug TASK-261 dans `views/livewire/member-ai-profile-wizard.blade.php:454`.
+Le bouton "Publier" step 5 appelle `submitForValidation` (→ `STATUS_PENDING_VALIDATION`)
+au lieu de `publish` (→ `STATUS_PUBLISHED`). La méthode `publish()` existe depuis
+TASK-261 (commit `ea8ff65`) mais n'a jamais été câblée au bouton.
+
+Fix 1 ligne : `wire:click="submitForValidation"` → `wire:click="publish"`.
+
+Points vérifiés OK :
+- [x] Pas d'appel LLM — rule-based seulement
+- [x] Pas d'accès données privées (messages, transactions, loops)
+- [x] Fallback organisation 3 niveaux
+- [x] Logging admin_ai_interactions (provider=rule_based)
+- [x] Scope strict — 5 créés + 3 modifiés (conforme TASK)
+- [x] DB safe: bouclepro_test
+
+## 2026-06-12 08:52 Europe/Paris — VERIFICATOR Playwright re-run
+
+Après application du fix `wire:click="publish"` (non commité):
+
+| Test | Résultat |
+|------|----------|
+| Test 1 — fallback no published profile | PASS |
+| Test 2 — profile display after publish | PASS |
+| Test 3 — ask question and get response | FAIL |
+
+**Test 3 failure analysis**: PAS un bug code. Le flux publish → agent → question → réponse fonctionne correctement (la vérification `getByText('Réponse')` est OK à ligne 164). L'échec ligne 165 est une `strict mode violation` sur `getByText('SEO')` qui match 2 éléments:
+1. `<span>` badge "SEO" dans la grille de profil (Compétences affichées)
+2. `<div class="prose">` contenant le texte de réponse `**Compétences :** SEO, Marketing, Rédaction`
+
+Le fix test serait: `page.locator('.prose').getByText('SEO')` ou `page.getByText('SEO', { exact: true })`.
+
+Aucune action requise côté code — le fix publish corrige le blocage réel. Résidu test selector uniquement.
 
 ---
 

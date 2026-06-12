@@ -1,6 +1,4 @@
-<x-app-layout title="Agent IA de présentation">
-    <x-page-container>
-        <div class="max-w-4xl mx-auto space-y-6">
+<div class="max-w-4xl mx-auto space-y-6">
     @if($error && ! $profile)
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8 text-center">
             <div class="w-14 h-14 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
@@ -125,5 +123,3 @@
         @endif
     @endif
 </div>
-    </x-page-container>
-</x-app-layout>
