@@ -8,6 +8,7 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @livewireStyles
     </head>
     <body class="font-sans antialiased bg-gray-100 dark:bg-gray-900">
         <div x-data="{ sidebarOpen: false, pinned: localStorage.getItem('admin_sidebar_pinned') === 'true', togglePin() { this.pinned = !this.pinned; localStorage.setItem('admin_sidebar_pinned', this.pinned); } }" class="flex min-h-screen">
@@ -34,10 +35,10 @@
                                 :title="pinned ? 'Désépingler le menu' : 'Épingler le menu'"
                                 class="p-1.5 rounded-lg transition hover:bg-gray-700 text-gray-400 hover:text-white"
                                 :class="pinned ? 'text-indigo-400' : ''">
-                            <svg x-show="pinned" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg x-show="pinned" x-cloak class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                             </svg>
-                            <svg x-show="!pinned" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg x-show="!pinned" x-cloak class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
                             </svg>
                         </button>
@@ -45,9 +46,9 @@
                     <p class="text-xs text-gray-500 mt-1 truncate">{{ auth()->user()->name }}</p>
                 </div>
 
-                <nav @click="pinned || (sidebarOpen = false)" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                <nav @click="if ($event.target.closest('a')) { pinned || (sidebarOpen = false) }" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
                     @php
-                        $isActive = fn($route) => request()->routeIs($route);
+                        $isActive = fn($route) => request()->routeIs($route, $route.'.*');
                         $isGroupActive = fn($items) => collect($items)->contains(fn($i) => $isActive($i['route']));
 
                         $emailItems = [
@@ -97,8 +98,8 @@
 
                     <!-- Email group -->
                     @php $groupActive = $isGroupActive($emailItems); @endphp
-                    <div x-data="{ open: localStorage.getItem('sidebar_email_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_email_open', open)">
-                        <button @click="open = !open"
+                    <div x-data="{ open: {{ $groupActive ? 'true' : "localStorage.getItem('sidebar_email_open') !== 'false'" }} }">
+                        <button @click.stop="open = !open; localStorage.setItem('sidebar_email_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $groupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
@@ -108,7 +109,7 @@
                             </svg>
                             <span class="text-xs font-semibold uppercase tracking-wider">Email</span>
                         </button>
-                        <div x-show="open"
+                        <div x-show="open" x-cloak
                              x-transition:enter="transition ease-out duration-200"
                              x-transition:enter-start="opacity-0 scale-y-95"
                              x-transition:enter-end="opacity-100 scale-y-100"
@@ -132,8 +133,8 @@
 
                     <!-- Échanges group -->
                     @php $groupActive = $isGroupActive($echangesItems); @endphp
-                    <div x-data="{ open: localStorage.getItem('sidebar_echanges_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_echanges_open', open)">
-                        <button @click="open = !open"
+                    <div x-data="{ open: {{ $groupActive ? 'true' : "localStorage.getItem('sidebar_echanges_open') !== 'false'" }} }">
+                        <button @click.stop="open = !open; localStorage.setItem('sidebar_echanges_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $groupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
@@ -143,7 +144,7 @@
                             </svg>
                             <span class="text-xs font-semibold uppercase tracking-wider">Échanges</span>
                         </button>
-                        <div x-show="open"
+                        <div x-show="open" x-cloak
                              x-transition:enter="transition ease-out duration-200"
                              x-transition:enter-start="opacity-0 scale-y-95"
                              x-transition:enter-end="opacity-100 scale-y-100"
@@ -167,8 +168,8 @@
 
                     <!-- Organisations group -->
                     @php $groupActive = $isGroupActive($orgItems); @endphp
-                    <div x-data="{ open: localStorage.getItem('sidebar_org_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_org_open', open)">
-                        <button @click="open = !open"
+                    <div x-data="{ open: {{ $groupActive ? 'true' : "localStorage.getItem('sidebar_org_open') !== 'false'" }} }">
+                        <button @click.stop="open = !open; localStorage.setItem('sidebar_org_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $groupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
@@ -178,7 +179,7 @@
                             </svg>
                             <span class="text-xs font-semibold uppercase tracking-wider">Organisations</span>
                         </button>
-                        <div x-show="open"
+                        <div x-show="open" x-cloak
                              x-transition:enter="transition ease-out duration-200"
                              x-transition:enter-start="opacity-0 scale-y-95"
                              x-transition:enter-end="opacity-100 scale-y-100"
@@ -217,8 +218,8 @@
                         ];
                         $outilsGroupActive = $isGroupActive($outilsItems);
                     @endphp
-                    <div x-data="{ open: localStorage.getItem('sidebar_outils_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_outils_open', open)">
-                        <button @click="open = !open"
+                    <div x-data="{ open: {{ $outilsGroupActive ? 'true' : "localStorage.getItem('sidebar_outils_open') !== 'false'" }} }">
+                        <button @click.stop="open = !open; localStorage.setItem('sidebar_outils_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $outilsGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
@@ -228,7 +229,7 @@
                             </svg>
                             <span class="text-xs font-semibold uppercase tracking-wider">Outils</span>
                         </button>
-                        <div x-show="open"
+                        <div x-show="open" x-cloak
                              x-transition:enter="transition ease-out duration-200"
                              x-transition:enter-start="opacity-0 scale-y-95"
                              x-transition:enter-end="opacity-100 scale-y-100"
@@ -257,6 +258,7 @@
                             $iaItems[] = ['route' => 'admin.ia-design-lab', 'label' => 'Lab IA', 'icon' => 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'];
                         }
                         $iaItems[] = ['route' => 'admin.ai-supervision', 'label' => 'Supervision IA', 'icon' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'];
+                        $iaItems[] = ['route' => 'admin.member-ai-profiles', 'label' => 'Agents profil IA', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'];
                         $iaItems[] = ['route' => 'admin.ai-review-queue', 'label' => 'File modération', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4'];
                         $iaItems[] = ['route' => 'admin.ai-benchmark', 'label' => 'Benchmark IA', 'icon' => 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6'];
                         $iaItems[] = ['route' => 'admin.ai-prompts', 'label' => 'Prompts IA', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'];
@@ -264,8 +266,8 @@
                         $iaItems[] = ['route' => 'admin.ai-config', 'label' => 'Réglages IA', 'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'];
                         $iaGroupActive = $isGroupActive($iaItems);
                     @endphp
-                    <div x-data="{ open: localStorage.getItem('sidebar_ia_open') !== 'false' }" x-effect="localStorage.setItem('sidebar_ia_open', open)">
-                        <button @click="open = !open"
+                    <div x-data="{ open: {{ $iaGroupActive ? 'true' : "localStorage.getItem('sidebar_ia_open') !== 'false'" }} }">
+                        <button @click.stop="open = !open; localStorage.setItem('sidebar_ia_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
                                        {{ $iaGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
@@ -275,7 +277,7 @@
                             </svg>
                             <span class="text-xs font-semibold uppercase tracking-wider">IA</span>
                         </button>
-                        <div x-show="open"
+                        <div x-show="open" x-cloak
                              x-transition:enter="transition ease-out duration-200"
                              x-transition:enter-start="opacity-0 scale-y-95"
                              x-transition:enter-end="opacity-100 scale-y-100"
@@ -369,5 +371,6 @@
         @endif
 
         @stack('scripts')
+        @livewireScripts
     </body>
 </html>

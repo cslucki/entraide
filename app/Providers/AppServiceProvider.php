@@ -34,9 +34,11 @@ use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
+use App\Jobs\GenerateAiAgentResponse;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
@@ -147,6 +149,27 @@ class AppServiceProvider extends ServiceProvider
 
         Transaction::observe(TransactionObserver::class);
         Service::observe(ServiceObserver::class);
+
+        Event::listen(
+            \App\Events\LoopMessageCreated::class,
+            function (\App\Events\LoopMessageCreated $event) {
+                $loop = \App\Models\Loop::with('memberAiProfile')
+                    ->where('id', $event->loopId)
+                    ->first();
+
+                if (! $loop?->isAiAgent()) {
+                    return;
+                }
+
+                $message = \App\Models\LoopMessage::find($event->id);
+
+                if (! $message) {
+                    return;
+                }
+
+                dispatch(new GenerateAiAgentResponse($loop, $message));
+            },
+        );
 
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
