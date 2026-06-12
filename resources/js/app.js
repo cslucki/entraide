@@ -1,6 +1,12 @@
 import './bootstrap';
 
-document.addEventListener('alpine:init', () => {
+function registerAlpineStores() {
+    if (!window.Alpine || window.__boucleProAlpineStoresRegistered) {
+        return;
+    }
+
+    window.__boucleProAlpineStoresRegistered = true;
+
     window.Alpine.store('modal', {
         active: null,
         _form: null,
@@ -52,7 +58,10 @@ document.addEventListener('alpine:init', () => {
             return this.themes[this.current]?.label || 'Zen';
         },
     });
-});
+}
+
+document.addEventListener('alpine:init', registerAlpineStores);
+registerAlpineStores();
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {

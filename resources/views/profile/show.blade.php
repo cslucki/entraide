@@ -132,6 +132,55 @@
             </div>
         </div>
 
+        <!-- Agent IA conversation -->
+        @auth
+            @if(auth()->id() !== $user->id && $memberAiProfile)
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30">
+                            <svg class="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Discuter avec l'agent IA de {{ $user->name }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Posez vos questions, l'agent vous répond à partir de son profil.</p>
+                        </div>
+                    </div>
+                    <form method="POST" action="{{ route('agent-ia.conversation.start', $user) }}">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition">
+                            Démarrer
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            @elseif(auth()->id() === $user->id && $memberAiProfile)
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+                            <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent IA activé</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Les visiteurs peuvent interagir avec votre profil via l'agent IA.</p>
+                        </div>
+                    </div>
+                    <a href="{{ route('agent-ia.interactions') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        Voir les échanges
+                    </a>
+                </div>
+            </div>
+            @endif
+        @else
+            @livewire('inline-member-agent', ['user' => $user])
+        @endauth
+
         <!-- Évaluations reçues -->
         @if($reviews->isNotEmpty())
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Évaluations reçues</h2>

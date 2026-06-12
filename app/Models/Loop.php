@@ -24,6 +24,7 @@ class Loop extends Model
         'status',
         'visibility',
         'created_by',
+        'member_ai_profile_id',
     ];
 
     protected function casts(): array
@@ -78,5 +79,15 @@ class Loop extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(LoopMessage::class);
+    }
+
+    public function memberAiProfile(): BelongsTo
+    {
+        return $this->belongsTo(MemberAiProfile::class);
+    }
+
+    public function isAiAgent(): bool
+    {
+        return $this->type === 'ai_agent';
     }
 }
