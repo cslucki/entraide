@@ -51,6 +51,9 @@ class MemberAiProfile extends Model
         'wizard_state',
         'metadata',
         'validated_at',
+        'published_at',
+        'generated_at',
+        'disabled_at',
         'last_saved_at',
     ];
 
@@ -67,6 +70,9 @@ class MemberAiProfile extends Model
             'wizard_state' => 'array',
             'metadata' => 'array',
             'validated_at' => 'datetime',
+            'published_at' => 'datetime',
+            'generated_at' => 'datetime',
+            'disabled_at' => 'datetime',
             'last_saved_at' => 'datetime',
         ];
     }
