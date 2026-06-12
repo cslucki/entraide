@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BlogPost;
+use App\Models\MemberAiProfile;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +23,10 @@ class ProfileController extends Controller
         if (! $organization || $user->organization_id !== $organization->id) {
             abort(404);
         }
+
+        $memberAiProfile = MemberAiProfile::where('user_id', $user->id)
+            ->where('status', MemberAiProfile::STATUS_PUBLISHED)
+            ->first();
 
         $services = $user->services()->where('status', 'active')->with('category', 'skills')->latest()->get();
         $openRequests = $user->serviceRequests()->where('status', 'open')->with('category')->latest()->get();
@@ -57,7 +62,7 @@ class ProfileController extends Controller
             'description' => $user->bio,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
+        return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile'));
     }
 
     public function edit(Request $request): View

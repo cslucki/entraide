@@ -132,6 +132,13 @@
             </div>
         </div>
 
+        <!-- Agent IA inline -->
+        @auth
+        @if(auth()->id() !== $user->id)
+            @livewire('inline-member-agent', ['user' => $user])
+        @endif
+        @endauth
+
         <!-- Évaluations reçues -->
         @if($reviews->isNotEmpty())
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Évaluations reçues</h2>
