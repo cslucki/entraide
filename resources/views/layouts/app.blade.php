@@ -8,6 +8,9 @@
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        @auth
+        <meta name="user-id" content="{{ auth()->id() }}">
+        @endauth
 
         <title>{{ isset($title) && filled($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
         <meta name="description" content="{{ isset($description) ? $description : 'Plateforme de troc de services entre professionnels — échangez vos compétences sans argent.' }}">
