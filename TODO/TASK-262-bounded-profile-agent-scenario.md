@@ -2,7 +2,7 @@
 task_id: TASK-262
 title: Bounded profile agent scenario
 
-status: DONE
+status: MERGED
 
 owner: CODEUR
 
