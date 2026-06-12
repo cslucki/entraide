@@ -140,6 +140,7 @@
 
                     <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">Tableau de bord</x-dropdown-link>
                     <x-dropdown-link :href="route('profile.show', auth()->user())">Mon profil public</x-dropdown-link>
+                    <x-dropdown-link :href="route('agent-ia.wizard')">Mon profil IA</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('services.create')">Proposer un {{ $T['service'] ?? 'service' }}</x-dropdown-link>
                     <x-dropdown-link :href="route('requests.create')">Faire une {{ $T['request'] ?? 'demande' }}</x-dropdown-link>

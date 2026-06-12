@@ -35,6 +35,7 @@ class ResolveUrlOrganization
     public static array $defaultOrganizationRoutes = [
         'dashboard',
         'explorer',
+        'agent-ia',
         'membres',
         'echanges',
         'boucles',

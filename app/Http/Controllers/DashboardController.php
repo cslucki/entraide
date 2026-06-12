@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\MemberAiProfile;
 use App\Models\Transaction;
 use Illuminate\View\View;
 
@@ -47,6 +48,10 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
+        $aiProfile = MemberAiProfile::forUser($user)
+            ->forOrganization($organization)
+            ->first();
+
         $referralCode = $user->referral_code;
         $referralLink = $user->organization?->slug && $user->referral_code
             ? route('organization.register', ['organization' => $user->organization->slug, 'ref' => $user->referral_code])
@@ -59,6 +64,7 @@ class DashboardController extends Controller
             'user', 'earned', 'spent', 'completedCount',
             'myServices', 'myRequests', 'myProposals', 'activeExchanges', 'recentMessages',
             'referralCode', 'referralLink', 'sentReferralsCount', 'activatedReferralsCount', 'referralPointsEarned',
+            'aiProfile',
         ));
     }
 }
