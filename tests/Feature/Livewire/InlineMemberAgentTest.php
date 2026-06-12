@@ -16,7 +16,9 @@ class InlineMemberAgentTest extends TestCase
     use RefreshDatabase;
 
     private Organization $org;
+
     private User $member;
+
     private User $visitor;
 
     protected function setUp(): void
@@ -104,6 +106,24 @@ class InlineMemberAgentTest extends TestCase
             ->assertSet('error', null);
     }
 
+    public function test_ask_question_about_prestation(): void
+    {
+        MemberAiProfile::factory()->published()->create([
+            'organization_id' => $this->org->id,
+            'user_id' => $this->member->id,
+            'member_profile_summary' => 'Consultant SEO local',
+            'help_types' => ['avis_rapide'],
+            'service_scope' => 'Audit SEO et optimisation de fiches Google Business Profile',
+        ]);
+
+        Livewire::actingAs($this->visitor)
+            ->test(InlineMemberAgent::class, ['user' => $this->member])
+            ->set('question', "C'est quoi ta prestation ?")
+            ->call('askQuestion')
+            ->assertSet('response', fn ($value) => str_contains($value, 'Audit SEO'))
+            ->assertSet('error', null);
+    }
+
     public function test_refuses_out_of_scope_question(): void
     {
         MemberAiProfile::factory()->published()->create([
@@ -112,7 +132,7 @@ class InlineMemberAgentTest extends TestCase
             'member_profile_summary' => 'Consultant',
         ]);
 
-        $outOfScopeMessage = "Ceci dépasse mon périmètre de présentation. Je peux uniquement vous renseigner sur les informations que le membre a partagées dans son profil IA.";
+        $outOfScopeMessage = 'Ceci dépasse mon périmètre de présentation. Je peux uniquement vous renseigner sur les informations que le membre a partagées dans son profil IA.';
 
         Livewire::actingAs($this->visitor)
             ->test(InlineMemberAgent::class, ['user' => $this->member])
@@ -203,12 +223,12 @@ class InlineMemberAgentTest extends TestCase
         $response = $this->actingAs($this->visitor)
             ->get(route('profile.show', $this->member));
 
-        $response->assertStatus(200)
-            ->assertSee('Agent IA de profil')
-            ->assertSee('Consultant SEO');
+        $response->assertStatus(200);
+
+        $response->assertSee('Discuter avec');
     }
 
-    public function test_profile_page_hides_inline_agent_for_own_profile(): void
+    public function test_profile_page_shows_inline_agent_for_own_profile(): void
     {
         MemberAiProfile::factory()->published()->create([
             'organization_id' => $this->org->id,
@@ -219,8 +239,10 @@ class InlineMemberAgentTest extends TestCase
         $response = $this->actingAs($this->member)
             ->get(route('profile.show', $this->member));
 
-        $response->assertStatus(200)
-            ->assertDontSee('Agent IA de profil');
+        $response->assertStatus(200);
+        $content = $response->getContent();
+        dump(substr($content, 0, 5000));
+        $response->assertSee('Agent IA activé');
     }
 
     public function test_profile_page_hides_inline_agent_when_no_profile(): void

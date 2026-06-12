@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MemberAiProfile extends Model
 {
@@ -110,5 +111,10 @@ class MemberAiProfile extends Model
     public function scopeForOrganization($query, Organization $organization): void
     {
         $query->where('organization_id', $organization->id);
+    }
+
+    public function loops(): HasMany
+    {
+        return $this->hasMany(Loop::class, 'member_ai_profile_id');
     }
 }
