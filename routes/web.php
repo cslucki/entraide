@@ -156,6 +156,10 @@ Route::middleware('auth')->group(function () {
         return response()->json(['ok' => true]);
     })->name('agent-ia.profile.reset');
 
+    // Bounded member AI agent
+    Route::get('/agent-ia/member/{user}', \App\Livewire\BoundedMemberAgent::class)
+        ->name('agent-ia.member.presentation');
+
     // Loops
     Route::middleware('loops.enabled')->group(function () {
         Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
