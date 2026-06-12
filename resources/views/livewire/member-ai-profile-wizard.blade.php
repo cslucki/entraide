@@ -452,7 +452,7 @@
                 Continuer
             </button>
             @elseif($step === 5 && $profile && $profile->status !== 'published' && $profile->status !== 'pending_validation')
-            <button type="button" wire:click="submitForValidation"
+            <button type="button" wire:click="publish"
                 class="px-6 py-3 sm:py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition active:scale-95 shadow-sm text-center">
                 Publier
             </button>
