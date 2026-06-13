@@ -5,8 +5,14 @@
 
 <div
     @if($autoScroll)
-        x-data="{ atBottom: true }"
-        x-init="$el.scrollTop = $el.scrollHeight; $watch('atBottom', value => { if(value) $nextTick(() => $el.scrollTop = $el.scrollHeight) })"
+        x-data="{ atBottom: true, observer: null }"
+        x-init="
+            $el.scrollTop = $el.scrollHeight;
+            observer = new MutationObserver(() => {
+                if (atBottom) requestAnimationFrame(() => $el.scrollTop = $el.scrollHeight);
+            });
+            observer.observe($el, { childList: true, subtree: true });
+        "
         x-on:scroll="atBottom = ($el.scrollTop + $el.clientHeight >= $el.scrollHeight - 10)"
     @endif
     {{ $attributes->merge(['class' => 'flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-1', 'style' => 'scrollbar-width: thin;']) }}
