@@ -94,8 +94,19 @@ class Transaction extends Model
         return $user->id === $this->buyer_id ? $this->seller : $this->buyer;
     }
 
+    public function isDirectConversation(): bool
+    {
+        return $this->service_id === null
+            && $this->request_id === null
+            && (int) $this->points_proposed === 0;
+    }
+
     public function getSubjectAttribute(): string
     {
+        if ($this->isDirectConversation()) {
+            return 'Conversation directe';
+        }
+
         if ($this->service) {
             return $this->service->title;
         }

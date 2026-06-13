@@ -132,6 +132,7 @@ Route::middleware('auth')->group(function () {
 
     // Messages
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+    Route::get('/messages/with/{user}', [MessageController::class, 'showWithUser'])->name('messages.with');
     Route::get('/messages/{transaction}', [MessageController::class, 'show'])->name('messages.show');
 
     // Points history
@@ -185,6 +186,7 @@ Route::middleware('auth')->group(function () {
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
 Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
 Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
+Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
 Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
 
 // Admin routes
@@ -447,6 +449,7 @@ Route::prefix('/org/{organization}')
         Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
         Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
+        Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
         Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
         Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
         Route::get('/membres', [HomeController::class, 'members'])->name('members.index');

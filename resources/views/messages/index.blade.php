@@ -1,60 +1,164 @@
-<x-app-layout>
-    <div class="max-w-7xl mx-auto px-4 py-6" style="height: calc(100vh - 64px)">
-        <div class="flex h-full border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800">
-            <!-- Conversation list -->
-            <div class="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
+@push('head')
+<style>
+    @media (max-width: 767px) {
+        .messages-index-wrapper {
+            padding: 0 !important;
+        }
+
+        .messages-index-container {
+            height: calc(100dvh - 3.5rem);
+        }
+    }
+
+    @media (min-width: 768px) {
+        .messages-index-container {
+            height: calc(100vh - 5rem);
+        }
+    }
+</style>
+@endpush
+
+<x-app-layout title="Messages">
+    <x-page-container class="messages-index-wrapper">
+        <div class="messages-index-container flex flex-col md:flex-row border-0 md:border border-gray-200 dark:border-gray-700 md:rounded-xl overflow-hidden bg-white dark:bg-gray-800">
+
+            {{-- Mobile: conversation list when no thread selected --}}
+            <div class="md:hidden flex-1 flex flex-col min-h-0 @isset($transaction) hidden @endisset">
+                <div class="flex-1 overflow-y-auto">
+                    @forelse($transactions as $conv)
+                        @php
+                            $other = auth()->id() === $conv->buyer_id ? $conv->seller : $conv->buyer;
+                            $lastMsg = $conv->messages->first();
+                            $isActive = isset($transaction) && $transaction->id === $conv->id;
+                            $isDirectConversation = $conv->isDirectConversation();
+                            $unread = $unreadCounts[$conv->id] ?? 0;
+                        @endphp
+                        <a href="{{ route('messages.show', $conv) }}"
+                            class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
+                            <div class="relative flex-shrink-0">
+                                <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
+                                @if($unread > 0 && !$isActive)
+                                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                    {{ $unread > 9 ? '9+' : $unread }}
+                                </span>
+                                @endif
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center justify-between gap-1">
+                                    <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other->name }}</p>
+                                    @unless($isDirectConversation)
+                                        <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
+                                            {{ match($conv->status) {
+                                                'pending' => 'bg-orange-100 text-orange-700',
+                                                'accepted' => 'bg-blue-100 text-blue-700',
+                                                'buyer_done' => 'bg-purple-100 text-purple-700',
+                                                'completed' => 'bg-green-100 text-green-700',
+                                                default => 'bg-gray-100 text-gray-600',
+                                            } }}">
+                                            {{ $conv->status_label }}
+                                        </span>
+                                    @endunless
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $conv->subject }}</p>
+                                @if($lastMsg)
+                                <p class="text-xs {{ $unread > 0 && !$isActive ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400' }} truncate mt-0.5">
+                                    {{ Str::limit($lastMsg->body, 40) }}
+                                </p>
+                                @endif
+                            </div>
+                        </a>
+                    @empty
+                        <div class="p-8 text-center text-gray-400 text-sm">Aucune conversation</div>
+                    @endforelse
+                </div>
+            </div>
+
+            {{-- Mobile: thread view --}}
+            @isset($transaction)
+            @php $other = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer; @endphp
+            <div class="md:hidden flex-1 flex flex-col min-h-0">
+                <div class="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                    <a href="{{ route('messages.index') }}"
+                       class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
+                       aria-label="Retour aux conversations">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                    </a>
+                    <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
+                    <div class="min-w-0 flex-1">
+                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ $other->name }}</p>
+                        <p class="text-xs text-gray-500 truncate">
+                            @if($transaction->service)
+                            <a href="{{ route('services.show', $transaction->service) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
+                            @elseif($transaction->serviceRequest)
+                            <a href="{{ route('requests.show', $transaction->serviceRequest) }}" class="hover:underline text-indigo-500">{{ $transaction->serviceRequest->title }}</a>
+                            @endif
+                        </p>
+                    </div>
+                </div>
+                <div class="flex-1 min-h-0 flex flex-col">
+                    @livewire('message-thread', ['transaction' => $transaction])
+                </div>
+            </div>
+            @endisset
+
+            {{-- Desktop: conversation list sidebar --}}
+            <div class="hidden md:flex w-80 flex-shrink-0 flex-col border-r border-gray-200 dark:border-gray-700">
                 <div class="p-4 border-b border-gray-200 dark:border-gray-700">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100">Messages</h2>
                 </div>
-                @forelse($transactions as $conv)
-                    @php
-                        $other = auth()->id() === $conv->buyer_id ? $conv->seller : $conv->buyer;
-                        $lastMsg = $conv->messages->first();
-                        $isActive = isset($transaction) && $transaction->id === $conv->id;
-                        $unread = $unreadCounts[$conv->id] ?? 0;
-                    @endphp
-                    <a href="{{ route('messages.show', $conv) }}"
-                        class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
-                        <div class="relative flex-shrink-0">
-                            <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
-                            @if($unread > 0 && !$isActive)
-                            <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                                {{ $unread > 9 ? '9+' : $unread }}
-                            </span>
-                            @endif
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <div class="flex items-center justify-between gap-1">
-                                <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other->name }}</p>
-                                <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
-                                    {{ match($conv->status) {
-                                        'pending' => 'bg-orange-100 text-orange-700',
-                                        'accepted' => 'bg-blue-100 text-blue-700',
-                                        'buyer_done' => 'bg-purple-100 text-purple-700',
-                                        'completed' => 'bg-green-100 text-green-700',
-                                        default => 'bg-gray-100 text-gray-600',
-                                    } }}">
-                                    {{ $conv->status_label }}
+                <div class="flex-1 overflow-y-auto">
+                    @forelse($transactions as $conv)
+                        @php
+                            $other = auth()->id() === $conv->buyer_id ? $conv->seller : $conv->buyer;
+                            $lastMsg = $conv->messages->first();
+                            $isActive = isset($transaction) && $transaction->id === $conv->id;
+                            $isDirectConversation = $conv->isDirectConversation();
+                            $unread = $unreadCounts[$conv->id] ?? 0;
+                        @endphp
+                        <a href="{{ route('messages.show', $conv) }}"
+                            class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
+                            <div class="relative flex-shrink-0">
+                                <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
+                                @if($unread > 0 && !$isActive)
+                                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                    {{ $unread > 9 ? '9+' : $unread }}
                                 </span>
+                                @endif
                             </div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $conv->subject }}</p>
-                            @if($lastMsg)
-                            <p class="text-xs {{ $unread > 0 && !$isActive ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400' }} truncate mt-0.5">
-                                {{ Str::limit($lastMsg->body, 40) }}
-                            </p>
-                            @endif
-                        </div>
-                    </a>
-                @empty
-                    <div class="p-8 text-center text-gray-400 text-sm">Aucune conversation</div>
-                @endforelse
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center justify-between gap-1">
+                                    <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other->name }}</p>
+                                    @unless($isDirectConversation)
+                                        <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
+                                            {{ match($conv->status) {
+                                                'pending' => 'bg-orange-100 text-orange-700',
+                                                'accepted' => 'bg-blue-100 text-blue-700',
+                                                'buyer_done' => 'bg-purple-100 text-purple-700',
+                                                'completed' => 'bg-green-100 text-green-700',
+                                                default => 'bg-gray-100 text-gray-600',
+                                            } }}">
+                                            {{ $conv->status_label }}
+                                        </span>
+                                    @endunless
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $conv->subject }}</p>
+                                @if($lastMsg)
+                                <p class="text-xs {{ $unread > 0 && !$isActive ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400' }} truncate mt-0.5">
+                                    {{ Str::limit($lastMsg->body, 40) }}
+                                </p>
+                                @endif
+                            </div>
+                        </a>
+                    @empty
+                        <div class="p-8 text-center text-gray-400 text-sm">Aucune conversation</div>
+                    @endforelse
+                </div>
             </div>
 
-            <!-- Message thread -->
-            <div class="flex-1 flex flex-col min-h-0">
+            {{-- Desktop: message thread panel --}}
+            <div class="hidden md:flex flex-1 flex-col min-h-0">
                 @isset($transaction)
                     @php $other = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer; @endphp
-                    <!-- Thread header -->
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
                         <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
                         <div>
@@ -68,7 +172,6 @@
                             </p>
                         </div>
                     </div>
-                    <!-- Livewire thread -->
                     <div class="flex-1 min-h-0 flex flex-col">
                         @livewire('message-thread', ['transaction' => $transaction])
                     </div>
@@ -83,6 +186,7 @@
                     </div>
                 @endisset
             </div>
+
         </div>
-    </div>
+    </x-page-container>
 </x-app-layout>
