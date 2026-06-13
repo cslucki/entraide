@@ -1,6 +1,13 @@
 <x-app-layout>
     <x-slot name="title">Profil de {{ $user->name }}</x-slot>
 
+    @php
+        $organizationRouteParam = request()->route('organization');
+        $agentAiChatUrl = $organizationRouteParam && Route::has('organization.agent-ia.profile.chat')
+            ? route('organization.agent-ia.profile.chat', ['organization' => $organizationRouteParam, 'user' => $user])
+            : route('agent-ia.profile.chat', $user);
+    @endphp
+
     <!-- Desktop topbar -->
     <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
         <a href="{{ route('members.index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour à l'annuaire">
@@ -21,9 +28,9 @@
                 </a>
             </div>
             @endif
-            <div class="flex items-start gap-5">
+            <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
                 <div class="relative flex-shrink-0">
-                    <img src="{{ $user->avatar_url }}" class="w-20 h-20 rounded-full" alt="">
+                    <img src="{{ $user->avatar_url }}" class="h-20 w-20 rounded-full object-cover" alt="">
                     @if(auth()->check() && auth()->id() === $user->id)
                     <a href="{{ route('profile.edit') }}"
                        class="absolute bottom-0 right-0 w-6 h-6 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center shadow-md transition"
@@ -32,7 +39,7 @@
                     </a>
                     @endif
                 </div>
-                <div class="flex-1">
+                <div class="w-full flex-1">
                     <div class="flex items-center gap-3 flex-wrap">
                         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $user->name }}</h1>
                         @if($user->is_available)
@@ -96,90 +103,82 @@
                         @endforeach
                     </div>
                     @endif
-                </div>
-                @auth
-                @if(auth()->id() !== $user->id)
-                <div class="flex items-center gap-3 flex-shrink-0">
-                    <a href="{{ route('messages.index') }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                        Écrire à
-                    </a>
-                    <div x-data="{ open: false }" class="relative">
+                    @if(auth()->guest() || auth()->id() !== $user->id)
+                    <div class="mt-5 grid gap-3 sm:grid-cols-2">
+                        @if($memberAiProfile)
+                        <a href="{{ $agentAiChatUrl }}" class="group flex min-h-24 items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-left transition hover:border-violet-300 hover:bg-violet-100 dark:border-violet-900/60 dark:bg-violet-950/30 dark:hover:bg-violet-950/50" title="Discuter avec l'agent de profil IA de {{ $user->name }}">
+                            <span class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-white shadow-sm transition group-hover:scale-105">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            </span>
+                            <span class="min-w-0">
+                                <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">Agent de profil IA</span>
+                                <span class="mt-1 block text-sm leading-5 text-gray-600 dark:text-gray-300">Lancer l'agent IA pour poser des questions sur ce profil.</span>
+                            </span>
+                        </a>
+                        @endif
+
+                        <a href="{{ auth()->check() ? route('messages.with', $user) : route('login') }}" class="group flex min-h-24 items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-100 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50">
+                            <span class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm transition group-hover:scale-105">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                            </span>
+                            <span class="min-w-0">
+                                <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">Écrire à {{ $user->name }}</span>
+                                <span class="mt-1 block text-sm leading-5 text-gray-600 dark:text-gray-300">Démarrer une conversation humaine directe.</span>
+                            </span>
+                        </a>
+                    </div>
+
+                    @auth
+                    <div x-data="{ open: false }" class="mt-4 text-right">
                         <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler</button>
-                    <div x-show="open" x-cloak class="absolute right-6 mt-2 w-72 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 shadow-lg z-10">
-                        <form method="POST" action="{{ route('reports.user', $user) }}">
-                            @csrf
-                            <p class="text-xs font-semibold text-red-700 dark:text-red-300 mb-2">Signaler cet utilisateur</p>
-                            <select name="reason" required class="w-full mb-2 px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
-                                <option value="">Motif...</option>
-                                <option value="Comportement abusif">Comportement abusif</option>
-                                <option value="Arnaque ou fraude">Arnaque ou fraude</option>
-                                <option value="Faux profil">Faux profil</option>
-                                <option value="Autre">Autre</option>
-                            </select>
-                            <textarea name="details" rows="2" placeholder="Détails (optionnel)..."
-                                class="w-full px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm mb-2 resize-none"></textarea>
-                            <div class="flex gap-2">
-                                <button type="submit" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700">Envoyer</button>
-                                <button type="button" @click="open = false" class="px-3 py-1.5 border border-red-200 text-red-600 text-xs rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30">Annuler</button>
-                            </div>
-                        </form>
+                        <div x-show="open" x-cloak class="mt-2 rounded-xl border border-red-200 bg-red-50 p-4 text-left shadow-lg dark:border-red-800 dark:bg-red-900/20">
+                            <form method="POST" action="{{ route('reports.user', $user) }}">
+                                @csrf
+                                <p class="mb-2 text-xs font-semibold text-red-700 dark:text-red-300">Signaler cet utilisateur</p>
+                                <select name="reason" required class="mb-2 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-red-700 dark:bg-gray-800 dark:text-gray-100">
+                                    <option value="">Motif...</option>
+                                    <option value="Comportement abusif">Comportement abusif</option>
+                                    <option value="Arnaque ou fraude">Arnaque ou fraude</option>
+                                    <option value="Faux profil">Faux profil</option>
+                                    <option value="Autre">Autre</option>
+                                </select>
+                                <textarea name="details" rows="2" placeholder="Détails (optionnel)..." class="mb-2 w-full resize-none rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-red-700 dark:bg-gray-800 dark:text-gray-100"></textarea>
+                                <div class="flex gap-2">
+                                    <button type="submit" class="flex-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs text-white hover:bg-red-700">Envoyer</button>
+                                    <button type="button" @click="open = false" class="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">Annuler</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                    </div>
+                    @endauth
+                    @endif
                 </div>
-                @endif
-                @endauth
             </div>
         </div>
 
-        <!-- Agent IA conversation -->
-        @auth
-            @if(auth()->id() !== $user->id && $memberAiProfile)
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
-                <div class="flex items-center justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30">
-                            <svg class="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-                            </svg>
+        <!-- Agent de profil IA -->
+        @if($memberAiProfile)
+            @if(auth()->check() && auth()->id() === $user->id)
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+                                <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent IA activé</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Les visiteurs peuvent interagir avec votre profil via l'agent IA.</p>
+                            </div>
                         </div>
-                        <div>
-                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Discuter avec l'agent IA de {{ $user->name }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Posez vos questions, l'agent vous répond à partir de son profil.</p>
-                        </div>
+                        <a href="{{ route('agent-ia.interactions') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                            Voir les échanges
+                        </a>
                     </div>
-                    <form method="POST" action="{{ route('agent-ia.conversation.start', $user) }}">
-                        @csrf
-                        <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition">
-                            Démarrer
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                        </button>
-                    </form>
                 </div>
-            </div>
-            @elseif(auth()->id() === $user->id && $memberAiProfile)
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
-                <div class="flex items-center justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
-                            <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent IA activé</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Les visiteurs peuvent interagir avec votre profil via l'agent IA.</p>
-                        </div>
-                    </div>
-                    <a href="{{ route('agent-ia.interactions') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        Voir les échanges
-                    </a>
-                </div>
-            </div>
             @endif
-        @else
-            @livewire('inline-member-agent', ['user' => $user])
-        @endauth
+        @endif
 
         <!-- Évaluations reçues -->
         @if($reviews->isNotEmpty())

@@ -1,25 +1,33 @@
 <div class="flex flex-col h-full" wire:poll.3000ms>
     <!-- Status banner -->
+    @php $isDirectConversation = $transaction->isDirectConversation(); @endphp
+
     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <div class="flex items-center justify-between flex-wrap gap-2">
             <div class="flex items-center gap-2">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                    {{ match($transaction->status) {
-                        'pending' => 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-                        'accepted' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-                        'buyer_done' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-                        'completed' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-                        default => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-                    } }}">
-                    {{ $transaction->status_label }}
-                </span>
-                <span class="text-sm text-gray-600 dark:text-gray-400">
-                    {{ $transaction->points_agreed ?? $transaction->points_proposed }} pts
-                </span>
+                @if($isDirectConversation)
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-indigo-100 text-xs font-medium text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                        Conversation directe
+                    </span>
+                @else
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {{ match($transaction->status) {
+                            'pending' => 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+                            'accepted' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+                            'buyer_done' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+                            'completed' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+                            default => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+                        } }}">
+                        {{ $transaction->status_label }}
+                    </span>
+                    <span class="text-sm text-gray-600 dark:text-gray-400">
+                        {{ $transaction->points_agreed ?? $transaction->points_proposed }} pts
+                    </span>
+                @endif
             </div>
 
             <!-- Action buttons -->
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap gap-2 {{ $isDirectConversation ? 'hidden' : '' }}">
                 @php $user = auth()->user(); @endphp
 
                 @if($transaction->status === 'pending' && $user->id === $transaction->seller_id)

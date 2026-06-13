@@ -1,6 +1,7 @@
 @php
     $currentRoute = request()->route()?->getName() ?? '';
     $organizationRouteParam = request()->route('organization');
+    $unreadMessagesCount = auth()->check() ? auth()->user()->unreadMessagesCount() : 0;
 
     $routeUrl = function (string $rootRoute, ?string $organizationRoute = null) use ($organizationRouteParam): string {
         if ($organizationRouteParam && $organizationRoute && Route::has($organizationRoute)) {
@@ -20,10 +21,18 @@
         ],
         [
             'url' => $routeUrl('explorer', 'organization.explorer'),
-            'active' => ['explorer', 'organization.explorer', 'messages'],
+            'active' => ['explorer', 'organization.explorer'],
             'label' => 'Échanges',
             'hint' => 'Services',
             'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
+        ],
+        [
+            'url' => route('messages.index'),
+            'active' => ['messages'],
+            'label' => 'Messagerie',
+            'hint' => 'Messages',
+            'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z',
+            'badge' => $unreadMessagesCount,
         ],
         [
             'url' => $routeUrl('members.index', 'organization.members.index'),
@@ -55,10 +64,10 @@
             'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
         ],
         [
-            'url' => route('login'),
-            'active' => ['login', 'register'],
+            'url' => $routeUrl('members.index', 'organization.members.index'),
+            'active' => ['members', 'organization.members', 'profile.show'],
             'label' => 'Annuaire',
-            'hint' => 'Connexion',
+            'hint' => 'Membres',
             'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
         ],
         [
@@ -89,21 +98,21 @@
             <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-8 w-8" aria-hidden="true">
         </a>
 
-        <button type="button" @click="$store.visualTheme.next()" class="mt-3 flex w-14 flex-col items-center rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="Changer de thème">
-            <span class="h-3 w-3 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
-            <span class="mt-1 leading-none" x-text="$store.visualTheme.label()">Sable</span>
-        </button>
-
         <nav class="mt-6 flex w-full flex-1 flex-col items-center gap-2" aria-label="Navigation principale">
             @foreach($items as $item)
                 @php $active = $isActive($item['active']); @endphp
                 <a href="{{ $item['url'] }}"
                    class="group relative flex w-full flex-col items-center gap-1 px-2 py-2 text-[11px] font-medium transition {{ $active ? 'text-[var(--bp-primary)]' : 'text-[var(--bp-muted)] hover:text-[var(--bp-text)]' }}"
                    title="{{ $item['label'] }}">
-                    <span class="flex h-11 w-11 items-center justify-center rounded-2xl transition {{ $active ? 'bg-[color-mix(in_srgb,var(--bp-primary)_14%,transparent)] text-[var(--bp-primary)] shadow-sm' : 'bg-transparent group-hover:bg-[var(--bp-panel)] group-hover:shadow-sm' }}">
+                    <span class="relative flex h-11 w-11 items-center justify-center rounded-2xl transition {{ $active ? 'bg-[color-mix(in_srgb,var(--bp-primary)_14%,transparent)] text-[var(--bp-primary)] shadow-sm' : 'bg-transparent group-hover:bg-[var(--bp-panel)] group-hover:shadow-sm' }}">
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <path d="{{ $item['icon'] }}" />
                         </svg>
+                        @if(($item['badge'] ?? 0) > 0)
+                            <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]">
+                                {{ $item['badge'] > 9 ? '9+' : $item['badge'] }}
+                            </span>
+                        @endif
                     </span>
                     <span class="leading-none">{{ $item['label'] }}</span>
                     @if($active)
@@ -114,6 +123,11 @@
         </nav>
 
         <div class="flex flex-col items-center gap-3 border-t border-[var(--bp-border)] pt-4">
+            <button type="button" @click="$store.visualTheme.next()" class="flex w-14 flex-col items-center rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="Changer de thème">
+                <span class="h-3 w-3 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
+                <span class="mt-1 leading-none" x-text="$store.visualTheme.label()">Sable</span>
+            </button>
+
             <button type="button" @click="$store.darkMode.toggle()" class="flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]" aria-label="Mode sombre">
                 <template x-if="!$store.darkMode.on">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1012 21a9.003 9.003 0 008.354-5.646z"/></svg>
