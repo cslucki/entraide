@@ -13,20 +13,18 @@ branch: TASK-264-aiagentchat-embarqu-navigation-publique
 priority: MEDIUM
 
 created_at: 2026-06-12 19:39:07 Europe/Paris
-updated_at: 2026-06-13 14:30:00 Europe/Paris
+updated_at: 2026-06-13 16:38:00 Europe/Paris
 
 labels: []
 
 lock:
   status: UNLOCKED
-  agent: null
-  since: null
 
 handoff: false
 
 pr:
-  status: NOT_READY
-  url: null
+  status: READY
+  url: https://github.com/cslucki/entraide/pull/50
 ---
 
 # Objective
@@ -142,6 +140,58 @@ Modified files:
 - `app/Http/Controllers/ProfileController.php`
 - `tests/Feature/Livewire/InlineMemberAgentTest.php`
 
+## 2026-06-13 15:57:06 Europe/Paris
+
+Fixed profile AI-agent CTA icon contrast:
+
+- Replaced `violet` utility classes on the `Agent de profil IA` CTA with `indigo` classes already present in the compiled CSS.
+- Confirmed via Playwright computed styles that the icon badge now has an opaque indigo background (`rgb(79, 70, 229)`) and white icon text.
+- Applied the fix to both mobile and desktop CTA variants in `resources/views/profile/show.blade.php`.
+
+## 2026-06-13 16:38:00 Europe/Paris
+
+UX polish — Gradient removal, mobile footer, mentions légales, mobile messages:
+
+**Gradient removal from profile AI CTA cards (request 8):**
+- Replaced `bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/40 dark:to-gray-800` with `bg-white dark:bg-gray-800` on both mobile and desktop `Agent de profil IA` CTA cards in `resources/views/profile/show.blade.php`.
+
+**Mobile footer removal (request 8):**
+- Removed `<div class="md:hidden"> @include('partials.footer') </div>` from `resources/views/layouts/app.blade.php`.
+- Added separator + `<x-dropdown-link :href="route('mentions-legales')">Mentions légales</x-dropdown-link>` to `resources/views/components/mobile-topbar.blade.php` (mobile user menu).
+
+**Mentions légales page reformat (request 9):**
+- Refactored `resources/views/mentions-legales.blade.php` to match `/aide` layout: `x-app-layout`, `x-page-container`, same `--bp-*` CSS variable cards, badge `Informations légales`, title, explanatory paragraph, and four rounded section cards preserving existing legal content and GitHub link.
+
+**Messages mobile adaptation + desktop height fix (requests 10, 11, 12):**
+- Added `@push('head')` CSS for mobile (`calc(100dvh - 3.5rem)`) and desktop (`calc(100vh - 5rem)`) height matching Boucles `/loops` pattern.
+- Switched outer wrapper to `x-page-container` with CSS override class for padding removal on mobile.
+- Split mobile into two full-screen views: conversation list (no `$transaction`) and thread with back button (when `$transaction` exists).
+- Kept desktop as sidebar (`w-80`) + thread panel (`flex-1`), always `hidden md:flex`.
+- Removed duplicate mobile "Messages" title to save space (topbar already says it).
+- Desktop height verified via Playwright: viewport 900px, container 820px (`y=32` → `y=852`), matching Boucles behavior.
+- Mobile height verified via Playwright: viewport 844px, container 788px (`y=56` → bottom), correct.
+
+**Test adjustments:**
+- Updated `tests/Feature/Livewire/InlineMemberAgentTest.php` assertions: `"Lancer l'agent IA"` → `"Posez une question sur ce que ce membre peut vous apporter"` (profile card copy change).
+- `php artisan view:clear`: passed.
+- `php artisan test tests/Feature/Livewire/InlineMemberAgentTest.php`: 11 passed (29 assertions).
+- `php artisan test tests/Feature/MessageControllerTest.php`: 2 failed (pre-existing — `point_ledger` migration missing on `bouclepro_test`).
+- `php artisan test tests/Feature/Livewire/MessageThreadTest.php`: 7/8 passed, 1 failed (pre-existing — `migrations` table issue on `bouclepro_test`).
+
+**Component unification note:**
+The user requested unified chat components for Boucles, Messages, and AiAgentChat. After analysis, the three Livewire components have different business logic (Transaction state machine, Loop membership/help-request, AI agent flow) but share UI patterns (scrollable message list, composer, bubbles). Full unification inside TASK-264 was rejected to keep scope contained.
+
+**→ Future task: TASK-265 — Shared ConversationShell foundation.**
+Extract a common UI shell (ConversationShell) from LoopChat, MessageThread, and AiAgentChat: shared message list rendering, composer with textarea + submit, auto-scroll, future image upload. Keep domain-specific orchestration in separate Livewire classes.
+
+Modified files in this UX pass:
+- `resources/views/profile/show.blade.php`
+- `resources/views/layouts/app.blade.php`
+- `resources/views/components/mobile-topbar.blade.php`
+- `resources/views/mentions-legales.blade.php`
+- `resources/views/messages/index.blade.php`
+- `tests/Feature/Livewire/InlineMemberAgentTest.php`
+
 # Handoffs
 
 # Tests
@@ -181,6 +231,15 @@ Modified files:
 - 2026-06-13 14:26:39 Europe/Paris — Safe DB preflight passed with `DB_DATABASE=bouclepro_test`.
 - 2026-06-13 14:26:39 Europe/Paris — `php artisan test tests/Feature/Livewire/InlineMemberAgentTest.php`: 11 passed (29 assertions).
 - 2026-06-13 14:26:39 Europe/Paris — Broader suite: `tests/Feature/Livewire/InlineMemberAgentTest.php tests/Feature/MessageControllerTest.php tests/Feature/Livewire/MessageThreadTest.php`: 21 passed (52 assertions). No regressions.
+- 2026-06-13 15:57:06 Europe/Paris — `php artisan view:clear`: passed.
+- 2026-06-13 15:57:06 Europe/Paris — Playwright desktop validation: `Agent de profil IA` icon badge computed background is `rgb(79, 70, 229)`, icon color is white, no console errors.
+- 2026-06-13 15:57:06 Europe/Paris — `php artisan test tests/Feature/Livewire/InlineMemberAgentTest.php`: 11 passed (29 assertions).
+- 2026-06-13 16:38:00 Europe/Paris — `php artisan view:clear`: passed.
+- 2026-06-13 16:38:00 Europe/Paris — `php artisan test tests/Feature/Livewire/InlineMemberAgentTest.php`: 11 passed (29 assertions).
+- 2026-06-13 16:38:00 Europe/Paris — `php artisan test tests/Feature/MessageControllerTest.php`: 2 failed (pre-existing — `point_ledger` / `migrations` table missing on `bouclepro_test`, no link to TASK-264 changes).
+- 2026-06-13 16:38:00 Europe/Paris — `php artisan test tests/Feature/Livewire/MessageThreadTest.php`: 7/8 passed, 1 failed (same pre-existing infrastructure issue).
+- 2026-06-13 16:38:00 Europe/Paris — Playwright desktop validation (1280x900): messages container height = 820px, fills viewport below topbar, matches Boucles pattern. No console errors.
+- 2026-06-13 16:38:00 Europe/Paris — Playwright mobile validation (390x844): messages container = 788px, fills viewport below mobile topbar. No console errors.
 
 ---
 
@@ -192,8 +251,23 @@ Modified files:
 - Direct conversations currently reuse the existing `transactions` table as a lightweight messaging container to avoid a larger schema change during TASK-264.
 - Profile page now intentionally exposes two separate contact modes: AI profile agent (`Agent de profil IA`) and human direct messaging (`Écrire à`).
 - The definitive profile UI pattern is now mobile-first action cards in the profile header flow, not small top-right action buttons or a separate below-header CTA block.
+- `violet` utilities were not present in the currently served CSS; prefer existing `indigo` utilities for this CTA unless the frontend build pipeline is refreshed to include violet classes.
 
 ---
+
+## 2026-06-13 14:31:00 Europe/Paris
+
+Previously finalized TASK-264 (before UX polish pass):
+- check-task.sh: PASSED (DONE, UNLOCKED)
+- Committed: 17 files, 1068 insertions, 369 deletions
+- Pushed: origin TASK-264-aiagentchat-embarqu-navigation-publique
+- PR created: https://github.com/cslucki/entraide/pull/50
+- All 21 PHPUnit tests passed; Playwright validated mobile and desktop
+
+## 2026-06-13 16:38:00 Europe/Paris
+
+UX polish pass added (gradient removal, mobile footer, mentions-legales reformat, messages mobile+desktop fix).
+Branch re-opened for final commit of these additional changes.
 
 # Version Notes
 

@@ -155,9 +155,7 @@
                 @endif
             </main>
 
-            <div class="md:hidden">
-                @include('partials.footer')
-            </div>
+            
         </div>
         <!-- Toast notifications globales -->
         @if((session('success') && session('success') !== 'Message envoyé.') || session('error') || session('info'))

@@ -147,7 +147,7 @@ class InlineMemberAgentTest extends TestCase
         $response->assertStatus(200);
 
         $response->assertSee('Agent de profil IA');
-        $response->assertSeeText("Lancer l'agent IA");
+        $response->assertSeeText('Posez une question sur ce que ce membre peut vous apporter');
         $response->assertSee(route('agent-ia.profile.chat', $this->member), false);
     }
 
@@ -205,7 +205,7 @@ class InlineMemberAgentTest extends TestCase
 
         $response->assertStatus(200)
             ->assertSee('Agent de profil IA')
-            ->assertSeeText("Lancer l'agent IA")
+            ->assertSeeText('Posez une question sur ce que ce membre peut vous apporter')
             ->assertSee(route('agent-ia.profile.chat', $this->member), false);
     }
 }
