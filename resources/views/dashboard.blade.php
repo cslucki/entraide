@@ -19,6 +19,47 @@
             </form>
         </div>
 
+        <!-- Onboarding progressif beta -->
+        <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6 mb-5">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Onboarding beta</p>
+                    <h2 class="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">Votre progression dans la boucle</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Avancez étape par étape pour demander de l’aide, proposer votre aide et commencer à interagir.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                @foreach($onboardingSteps as $step)
+                <div class="rounded-xl border {{ $step['status'] === 'done' ? 'border-green-200 bg-green-50/70 dark:border-green-900 dark:bg-green-950/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40' }} p-4">
+                    <div class="flex items-start gap-3">
+                        <div class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full {{ $step['status'] === 'done' ? 'bg-green-600 text-white' : 'bg-white text-gray-400 ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700' }}">
+                            @if($step['status'] === 'done')
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                            @else
+                            <span class="h-2 w-2 rounded-full bg-current"></span>
+                            @endif
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $step['title'] }}</h3>
+                                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $step['description'] }}</p>
+                                </div>
+                                <span class="inline-flex w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-medium {{ $step['status'] === 'done' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-white text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700' }}">
+                                    {{ $step['status_label'] }}
+                                </span>
+                            </div>
+                            <a href="{{ $step['cta_url'] }}" class="mt-3 inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300">
+                                {{ $step['cta_label'] }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                @endforeach
+            </div>
+        </div>
+
         <!-- Metrics -->
         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
             <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-center">
