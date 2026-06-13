@@ -150,6 +150,8 @@
                     <x-dropdown-link :href="route('favorites.index')">Mes favoris</x-dropdown-link>
                     <x-dropdown-link :href="route('blog.my-posts')">Mes articles</x-dropdown-link>
                     <x-dropdown-link :href="route('profile.edit')">Profil et paramètres</x-dropdown-link>
+                    <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                    <x-dropdown-link :href="route('mentions-legales')">Mentions légales</x-dropdown-link>
                     @if(auth()->user()->is_admin)
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">Administration</span></x-dropdown-link>
