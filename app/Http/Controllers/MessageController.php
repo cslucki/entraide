@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -45,5 +46,47 @@ class MessageController extends Controller
         [$transactions, $unreadCounts] = $this->loadConversations();
 
         return view('messages.index', compact('transactions', 'transaction', 'unreadCounts'));
+    }
+
+    public function showWithUser(User $user): View|RedirectResponse
+    {
+        $currentUser = auth()->user();
+
+        if ($currentUser->is($user)) {
+            return redirect()->route('messages.index');
+        }
+
+        $transaction = Transaction::where(function ($q) use ($currentUser, $user) {
+            $q->where('buyer_id', $currentUser->id)->where('seller_id', $user->id);
+        })->orWhere(function ($q) use ($currentUser, $user) {
+            $q->where('buyer_id', $user->id)->where('seller_id', $currentUser->id);
+        })->first();
+
+        if ($transaction) {
+            return redirect()->route('messages.show', $transaction);
+        }
+
+        $organization = currentOrganization() ?? $currentUser->organization ?? $user->organization;
+
+        if ($organization === null || $currentUser->organization_id !== $user->organization_id) {
+            return redirect()->route('messages.index');
+        }
+
+        $transaction = Transaction::create([
+            'organization_id' => $organization->id,
+            'buyer_id' => $currentUser->id,
+            'seller_id' => $user->id,
+            'points_proposed' => 0,
+            'status' => 'pending',
+        ]);
+
+        Message::create([
+            'transaction_id' => $transaction->id,
+            'body' => 'Conversation directe démarrée.',
+            'type' => 'system',
+            'organization_id' => $organization->id,
+        ]);
+
+        return redirect()->route('messages.show', $transaction);
     }
 }

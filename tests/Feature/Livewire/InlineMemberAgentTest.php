@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Livewire;
 
-use App\Livewire\InlineMemberAgent;
-use App\Models\AdminAiInteraction;
+use App\Livewire\AiAgentChat;
 use App\Models\MemberAiProfile;
+use App\Models\MemberAiProfileInteraction;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -32,47 +32,29 @@ class InlineMemberAgentTest extends TestCase
         app()->instance('current_organization', $this->org);
     }
 
-    public function test_card_hidden_when_no_profile(): void
+    public function test_chat_hidden_when_no_profile(): void
     {
         Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->assertSet('showCard', false)
-            ->assertDontSee('Agent IA de profil');
+            ->test(AiAgentChat::class, ['user' => $this->member])
+            ->assertSet('profile', null);
     }
 
-    public function test_card_hidden_when_profile_not_published(): void
-    {
-        MemberAiProfile::factory()->create([
-            'organization_id' => $this->org->id,
-            'user_id' => $this->member->id,
-            'status' => MemberAiProfile::STATUS_DRAFT,
-        ]);
-
-        Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->assertSet('showCard', false)
-            ->assertDontSee('Agent IA de profil');
-    }
-
-    public function test_card_visible_when_profile_published(): void
+    public function test_chat_visible_when_profile_published(): void
     {
         MemberAiProfile::factory()->published()->create([
             'organization_id' => $this->org->id,
             'user_id' => $this->member->id,
             'member_profile_summary' => 'Consultant en marketing digital',
-            'skills' => ['SEO', 'Marketing', 'Rédaction'],
         ]);
 
         Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->assertSet('showCard', true)
+            ->test(AiAgentChat::class, ['user' => $this->member])
             ->assertSet('profile.id', fn ($id) => is_string($id))
-            ->assertSee('Agent IA de profil')
-            ->assertSee('Consultant en marketing digital')
-            ->assertSee('SEO');
+            ->assertSee('Agent IA de')
+            ->assertSee('Bonjour');
     }
 
-    public function test_ask_question_about_skills(): void
+    public function test_send_message(): void
     {
         MemberAiProfile::factory()->published()->create([
             'organization_id' => $this->org->id,
@@ -82,67 +64,54 @@ class InlineMemberAgentTest extends TestCase
         ]);
 
         Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
+            ->test(AiAgentChat::class, ['user' => $this->member])
             ->set('question', 'Quelles sont ses compétences ?')
-            ->call('askQuestion')
-            ->assertSet('response', fn ($value) => str_contains($value, 'SEO'))
-            ->assertSet('error', null);
+            ->call('sendMessage')
+            ->assertSet('error', null)
+            ->assertSet('isTyping', false);
     }
 
-    public function test_ask_question_about_help_types(): void
+    public function test_empty_question_does_nothing(): void
     {
         MemberAiProfile::factory()->published()->create([
             'organization_id' => $this->org->id,
             'user_id' => $this->member->id,
-            'help_types' => ['avis_rapide', 'repondre_question'],
-            'service_scope' => 'Accompagnement sur mesure',
         ]);
 
-        Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->set('question', 'Quelle aide propose-t-il ?')
-            ->call('askQuestion')
-            ->assertSet('response', fn ($value) => str_contains($value, 'avis_rapide') || str_contains($value, 'Avis'))
-            ->assertSet('error', null);
+        $c = Livewire::actingAs($this->visitor)
+            ->test(AiAgentChat::class, ['user' => $this->member]);
+
+        $initialCount = count($c->messages);
+
+        $c->set('question', '   ')
+            ->call('sendMessage')
+            ->assertSet('isTyping', false);
+
+        $this->assertCount($initialCount, $c->messages);
     }
 
-    public function test_ask_question_about_prestation(): void
+    public function test_send_message_logs_interaction(): void
     {
-        MemberAiProfile::factory()->published()->create([
+        $profile = MemberAiProfile::factory()->published()->create([
             'organization_id' => $this->org->id,
             'user_id' => $this->member->id,
-            'member_profile_summary' => 'Consultant SEO local',
-            'help_types' => ['avis_rapide'],
-            'service_scope' => 'Audit SEO et optimisation de fiches Google Business Profile',
+            'skills' => ['SEO'],
         ]);
 
         Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->set('question', "C'est quoi ta prestation ?")
-            ->call('askQuestion')
-            ->assertSet('response', fn ($value) => str_contains($value, 'Audit SEO'))
-            ->assertSet('error', null);
-    }
+            ->test(AiAgentChat::class, ['user' => $this->member])
+            ->set('question', 'Quelles compétences ?')
+            ->call('sendMessage');
 
-    public function test_refuses_out_of_scope_question(): void
-    {
-        MemberAiProfile::factory()->published()->create([
-            'organization_id' => $this->org->id,
-            'user_id' => $this->member->id,
-            'member_profile_summary' => 'Consultant',
+        $this->assertDatabaseHas('member_ai_profile_interactions', [
+            'member_ai_profile_id' => $profile->id,
+            'profile_owner_user_id' => $this->member->id,
+            'visitor_user_id' => $this->visitor->id,
+            'status' => 'success',
         ]);
-
-        $outOfScopeMessage = 'Ceci dépasse mon périmètre de présentation. Je peux uniquement vous renseigner sur les informations que le membre a partagées dans son profil IA.';
-
-        Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->set('question', 'Quel est son salaire ?')
-            ->call('askQuestion')
-            ->assertSet('response', $outOfScopeMessage)
-            ->assertSet('error', null);
     }
 
-    public function test_logs_interaction(): void
+    public function test_reset_conversation(): void
     {
         MemberAiProfile::factory()->published()->create([
             'organization_id' => $this->org->id,
@@ -150,69 +119,21 @@ class InlineMemberAgentTest extends TestCase
             'skills' => ['SEO'],
         ]);
 
-        Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->set('question', 'Quelles compétences ?')
-            ->call('askQuestion');
+        $c = Livewire::actingAs($this->visitor)
+            ->test(AiAgentChat::class, ['user' => $this->member]);
 
-        $this->assertDatabaseHas('admin_ai_interactions', [
-            'organization_id' => $this->org->id,
-            'user_id' => $this->visitor->id,
-            'scenario_id' => 'inline_member_presentation',
-            'provider' => 'rule_based',
-            'status' => 'success',
-        ]);
+        $c->set('question', 'Quelles compétences ?')
+            ->call('sendMessage');
 
-        $this->assertEquals(1, AdminAiInteraction::count());
+        $this->assertGreaterThan(1, count($c->messages));
+
+        $c->call('resetConversation');
+
+        $this->assertCount(1, $c->messages);
+        $this->assertEquals('assistant', $c->messages[0]['role']);
     }
 
-    public function test_empty_question_shows_error(): void
-    {
-        MemberAiProfile::factory()->published()->create([
-            'organization_id' => $this->org->id,
-            'user_id' => $this->member->id,
-        ]);
-
-        Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->set('question', '   ')
-            ->call('askQuestion')
-            ->assertSet('error', 'Veuillez poser une question.');
-    }
-
-    public function test_ask_question_about_boundaries(): void
-    {
-        MemberAiProfile::factory()->published()->create([
-            'organization_id' => $this->org->id,
-            'user_id' => $this->member->id,
-            'boundaries' => ['pas_urgence', 'pas_travail_gratuit'],
-        ]);
-
-        Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->set('question', 'Quelles sont ses limites ?')
-            ->call('askQuestion')
-            ->assertSet('response', fn ($value) => str_contains($value, 'Limites'))
-            ->assertSet('error', null);
-    }
-
-    public function test_ask_question_about_contact(): void
-    {
-        MemberAiProfile::factory()->published()->create([
-            'organization_id' => $this->org->id,
-            'user_id' => $this->member->id,
-            'preferred_contact_action' => 'envoyer_message',
-        ]);
-
-        Livewire::actingAs($this->visitor)
-            ->test(InlineMemberAgent::class, ['user' => $this->member])
-            ->set('question', 'Comment le contacter ?')
-            ->call('askQuestion')
-            ->assertSet('response', fn ($value) => str_contains($value, 'Contact préféré'))
-            ->assertSet('error', null);
-    }
-
-    public function test_profile_page_shows_inline_agent(): void
+    public function test_profile_page_shows_ai_agent_chat_entrypoint(): void
     {
         MemberAiProfile::factory()->published()->create([
             'organization_id' => $this->org->id,
@@ -225,10 +146,30 @@ class InlineMemberAgentTest extends TestCase
 
         $response->assertStatus(200);
 
-        $response->assertSee('Discuter avec');
+        $response->assertSee('Agent de profil IA');
+        $response->assertSeeText("Lancer l'agent IA");
+        $response->assertSee(route('agent-ia.profile.chat', $this->member), false);
     }
 
-    public function test_profile_page_shows_inline_agent_for_own_profile(): void
+    public function test_ai_agent_chat_page_shows_chat_interface(): void
+    {
+        MemberAiProfile::factory()->published()->create([
+            'organization_id' => $this->org->id,
+            'user_id' => $this->member->id,
+            'member_profile_summary' => 'Consultant SEO',
+        ]);
+
+        $response = $this->actingAs($this->visitor)
+            ->get(route('agent-ia.profile.chat', $this->member));
+
+        $response->assertStatus(200);
+        $response->assertSee('Agent de profil IA');
+        $response->assertSee('Agent IA de');
+        $response->assertSee('Posez votre question');
+        $response->assertSee('Écrire à');
+    }
+
+    public function test_profile_page_shows_agent_active_for_own_profile(): void
     {
         MemberAiProfile::factory()->published()->create([
             'organization_id' => $this->org->id,
@@ -240,17 +181,31 @@ class InlineMemberAgentTest extends TestCase
             ->get(route('profile.show', $this->member));
 
         $response->assertStatus(200);
-        $content = $response->getContent();
-        dump(substr($content, 0, 5000));
         $response->assertSee('Agent IA activé');
     }
 
-    public function test_profile_page_hides_inline_agent_when_no_profile(): void
+    public function test_profile_page_hides_agent_when_no_profile(): void
     {
         $response = $this->actingAs($this->visitor)
             ->get(route('profile.show', $this->member));
 
         $response->assertStatus(200)
-            ->assertDontSee('Agent IA de profil');
+            ->assertDontSee('Agent IA de');
+    }
+
+    public function test_guest_sees_ai_agent_chat_entrypoint_on_profile(): void
+    {
+        MemberAiProfile::factory()->published()->create([
+            'organization_id' => $this->org->id,
+            'user_id' => $this->member->id,
+            'member_profile_summary' => 'Consultant SEO',
+        ]);
+
+        $response = $this->get(route('profile.show', $this->member));
+
+        $response->assertStatus(200)
+            ->assertSee('Agent de profil IA')
+            ->assertSeeText("Lancer l'agent IA")
+            ->assertSee(route('agent-ia.profile.chat', $this->member), false);
     }
 }

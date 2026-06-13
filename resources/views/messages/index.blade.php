@@ -11,6 +11,7 @@
                         $other = auth()->id() === $conv->buyer_id ? $conv->seller : $conv->buyer;
                         $lastMsg = $conv->messages->first();
                         $isActive = isset($transaction) && $transaction->id === $conv->id;
+                        $isDirectConversation = $conv->isDirectConversation();
                         $unread = $unreadCounts[$conv->id] ?? 0;
                     @endphp
                     <a href="{{ route('messages.show', $conv) }}"
@@ -26,16 +27,18 @@
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center justify-between gap-1">
                                 <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other->name }}</p>
-                                <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
-                                    {{ match($conv->status) {
-                                        'pending' => 'bg-orange-100 text-orange-700',
-                                        'accepted' => 'bg-blue-100 text-blue-700',
-                                        'buyer_done' => 'bg-purple-100 text-purple-700',
-                                        'completed' => 'bg-green-100 text-green-700',
-                                        default => 'bg-gray-100 text-gray-600',
-                                    } }}">
-                                    {{ $conv->status_label }}
-                                </span>
+                                @unless($isDirectConversation)
+                                    <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
+                                        {{ match($conv->status) {
+                                            'pending' => 'bg-orange-100 text-orange-700',
+                                            'accepted' => 'bg-blue-100 text-blue-700',
+                                            'buyer_done' => 'bg-purple-100 text-purple-700',
+                                            'completed' => 'bg-green-100 text-green-700',
+                                            default => 'bg-gray-100 text-gray-600',
+                                        } }}">
+                                        {{ $conv->status_label }}
+                                    </span>
+                                @endunless
                             </div>
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $conv->subject }}</p>
                             @if($lastMsg)

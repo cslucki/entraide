@@ -2,7 +2,7 @@
 task_id: TASK-263
 title: Affichage agent IA sur fiche membre — Loop privé par visiteur
 
-status: DONE
+status: MERGED
 
 owner: CODEUR
 

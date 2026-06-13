@@ -65,6 +65,20 @@ class ProfileController extends Controller
         return view('profile.show', compact('user', 'services', 'openRequests', 'completedCount', 'reviews', 'badges', 'blogPosts', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd', 'memberAiProfile'));
     }
 
+    public function aiAgentChat(User $user): View
+    {
+        $organization = currentOrganization();
+        if (! $organization || $user->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $memberAiProfile = MemberAiProfile::where('user_id', $user->id)
+            ->where('status', MemberAiProfile::STATUS_PUBLISHED)
+            ->firstOrFail();
+
+        return view('profile.ai-agent-chat', compact('user', 'memberAiProfile'));
+    }
+
     public function edit(Request $request): View
     {
         return view('profile.edit', [
