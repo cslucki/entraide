@@ -11,6 +11,7 @@ use App\Services\LoopService;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class AdminLoopController extends Controller
@@ -39,7 +40,7 @@ class AdminLoopController extends Controller
         return view('admin.loops.index', compact('loops', 'organizations', 'selectedOrganizationId'));
     }
 
-    private function adminOrganizations(): \Illuminate\Support\Collection
+    private function adminOrganizations(): Collection
     {
         return Organization::orderByDesc('is_default')
             ->orderBy('name')
@@ -56,7 +57,9 @@ class AdminLoopController extends Controller
             return (string) $request->input('organization_id');
         }
 
-        return (string) (DefaultOrganizationResolver::resolve()?->getKey() ?? 'all');
+        return (string) (auth()->user()?->organization_id
+            ?? DefaultOrganizationResolver::resolve()?->getKey()
+            ?? 'all');
     }
 
     public function create(): View
