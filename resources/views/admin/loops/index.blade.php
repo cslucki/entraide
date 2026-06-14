@@ -1,7 +1,7 @@
 <x-admin-layout title="Boucles">
     <div class="flex flex-col gap-4 mb-4 lg:flex-row lg:items-center lg:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">
-            Boucles filtrées par organisation. Par défaut : organisation principale.
+            Boucles filtrées par organisation. Par défaut : votre organisation.
         </p>
         <div class="flex flex-wrap items-center gap-3">
             <form method="GET" class="flex flex-wrap items-center gap-3">
