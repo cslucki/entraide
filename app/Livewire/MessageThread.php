@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Message;
+use App\Models\Reaction;
 use App\Models\Transaction;
 use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
@@ -168,6 +169,48 @@ class MessageThread extends Component
             ->update(['pinned_at' => null, 'pinned_by_id' => null]);
     }
 
+    public function toggleReaction(string $messageId, string $reactionType): void
+    {
+        $user = auth()->user();
+
+        if (! in_array($user->id, [$this->transaction->buyer_id, $this->transaction->seller_id])) {
+            return;
+        }
+
+        if (! in_array($reactionType, Reaction::REACTION_TYPES, true)) {
+            return;
+        }
+
+        $message = Message::where('id', $messageId)
+            ->where('transaction_id', $this->transaction->id)
+            ->first();
+
+        if (! $message) {
+            return;
+        }
+
+        $existing = Reaction::where('user_id', $user->id)
+            ->where('reactionable_id', $message->id)
+            ->where('reactionable_type', Message::class)
+            ->first();
+
+        if ($existing) {
+            if ($existing->reaction_type === $reactionType) {
+                $existing->delete();
+            } else {
+                $existing->update(['reaction_type' => $reactionType]);
+            }
+        } else {
+            Reaction::create([
+                'organization_id' => $message->organization_id,
+                'user_id' => $user->id,
+                'reactionable_id' => $message->id,
+                'reactionable_type' => Message::class,
+                'reaction_type' => $reactionType,
+            ]);
+        }
+    }
+
     private function storeImage($file): string
     {
         $img = Image::decode($file);
@@ -198,12 +241,33 @@ class MessageThread extends Component
         $messages = $this->transaction->messages()
             ->with('sender')
             ->with('replyTo.sender')
+            ->with('reactions')
             ->orderBy('created_at')
             ->get();
 
         $pinnedMessage = $this->pinnedMessage();
         $unreadCount = auth()->user()->unreadMessagesCount();
 
-        return view('livewire.message-thread', compact('messages', 'pinnedMessage', 'unreadCount'));
+        $reactionData = [];
+        $myReactions = [];
+        $userId = auth()->id();
+
+        foreach ($messages as $msg) {
+            $counts = [];
+            $myReaction = null;
+
+            foreach ($msg->reactions as $reaction) {
+                $type = $reaction->reaction_type;
+                $counts[$type] = ($counts[$type] ?? 0) + 1;
+                if ($reaction->user_id === $userId) {
+                    $myReaction = $type;
+                }
+            }
+
+            $reactionData[$msg->id] = $counts;
+            $myReactions[$msg->id] = $myReaction;
+        }
+
+        return view('livewire.message-thread', compact('messages', 'pinnedMessage', 'unreadCount', 'reactionData', 'myReactions'));
     }
 }

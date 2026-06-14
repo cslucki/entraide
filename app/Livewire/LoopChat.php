@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\Reaction;
 use App\Services\LoopMessageService;
 use App\Services\UrlPreviewService;
 use Illuminate\Support\Facades\Storage;
@@ -148,6 +149,47 @@ class LoopChat extends Component
             ->update(['pinned_at' => null, 'pinned_by_id' => null]);
     }
 
+    public function toggleReaction(string $messageId, string $reactionType): void
+    {
+        $user = auth()->user();
+        if (! $user || ! $this->isMember) {
+            return;
+        }
+
+        if (! in_array($reactionType, Reaction::REACTION_TYPES, true)) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $messageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if (! $message) {
+            return;
+        }
+
+        $existing = Reaction::where('user_id', $user->id)
+            ->where('reactionable_id', $message->id)
+            ->where('reactionable_type', LoopMessage::class)
+            ->first();
+
+        if ($existing) {
+            if ($existing->reaction_type === $reactionType) {
+                $existing->delete();
+            } else {
+                $existing->update(['reaction_type' => $reactionType]);
+            }
+        } else {
+            Reaction::create([
+                'organization_id' => $message->organization_id,
+                'user_id' => $user->id,
+                'reactionable_id' => $message->id,
+                'reactionable_type' => LoopMessage::class,
+                'reaction_type' => $reactionType,
+            ]);
+        }
+    }
+
     private function storeImage($file, string $subdirectory): string
     {
         $img = Image::decode($file);
@@ -166,11 +208,32 @@ class LoopChat extends Component
         $messages = $this->loop->messages()
             ->with('sender')
             ->with('replyTo.sender')
+            ->with('reactions')
             ->oldest()
             ->get();
 
         $pinnedMessage = $this->pinnedMessage();
 
-        return view('livewire.loop-chat', compact('messages', 'pinnedMessage'));
+        $reactionData = [];
+        $myReactions = [];
+        $userId = auth()->id();
+
+        foreach ($messages as $msg) {
+            $counts = [];
+            $myReaction = null;
+
+            foreach ($msg->reactions as $reaction) {
+                $type = $reaction->reaction_type;
+                $counts[$type] = ($counts[$type] ?? 0) + 1;
+                if ($reaction->user_id === $userId) {
+                    $myReaction = $type;
+                }
+            }
+
+            $reactionData[$msg->id] = $counts;
+            $myReactions[$msg->id] = $myReaction;
+        }
+
+        return view('livewire.loop-chat', compact('messages', 'pinnedMessage', 'reactionData', 'myReactions'));
     }
 }

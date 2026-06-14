@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Storage;
 
 class LoopMessage extends Model
@@ -64,6 +65,11 @@ class LoopMessage extends Model
     public function pinnedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'pinned_by_id');
+    }
+
+    public function reactions(): MorphMany
+    {
+        return $this->morphMany(Reaction::class, 'reactionable');
     }
 
     public function imageUrl(): ?string
