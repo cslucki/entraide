@@ -25,8 +25,8 @@ $timeClasses = $isSent
 @endphp
 
 <div {{ $attributes->merge(['class' => $containerClasses . ' ' . $class]) }}>
-    <div class="max-w-[90%] sm:max-w-md md:max-w-lg {{ $bubbleClasses }} px-4 py-2.5">
-        @if($avatar || $name)
+    <div class="max-w-[90%] sm:max-w-md md:max-w-lg {{ $bubbleClasses }} px-3 py-2">
+        @if(!$isSent && ($avatar || $name))
         <div class="flex items-center gap-2 mb-1">
             @if($avatar)
             <img src="{{ $avatar }}" alt="" class="w-5 h-5 rounded-full">
@@ -38,7 +38,7 @@ $timeClasses = $isSent
         @endif
 
         @if($replyTo)
-        <div class="{{ $isSent ? 'bg-indigo-500/40' : 'bg-gray-200 dark:bg-gray-600' }} rounded-lg px-3 py-1.5 mb-2 text-xs leading-relaxed">
+        <div class="{{ $isSent ? 'bg-indigo-500/40' : 'bg-gray-200 dark:bg-gray-600' }} rounded px-2.5 py-1 mb-1.5 text-xs">
             <span class="font-medium">{{ $replyTo['sender_name'] ?? '' }}</span>
             <p class="truncate {{ $isSent ? 'text-indigo-100' : 'text-gray-500 dark:text-gray-400' }}">{{ $replyTo['body'] }}</p>
         </div>
@@ -46,18 +46,19 @@ $timeClasses = $isSent
 
         <div class="text-sm whitespace-pre-wrap">{{ $slot }}</div>
 
-        @if($time)
-        <p class="text-[10px] {{ $timeClasses }} mt-1 {{ $isSent ? 'text-right' : '' }}">{{ $time }}</p>
-        @endif
-
-        @if($messageId && $showReplyButton)
-        <div class="mt-1 {{ $isSent ? 'text-right' : '' }}">
+        @if($time || ($messageId && $showReplyButton))
+        <div class="flex items-center gap-3 mt-1 {{ $isSent ? 'justify-end' : 'justify-start' }}">
+            @if($time)
+            <span class="text-[10px] {{ $timeClasses }}">{{ $time }}</span>
+            @endif
+            @if($messageId && $showReplyButton)
             <button
                 x-on:click="$dispatch('reply-to-message', { messageId: '{{ $messageId }}' })"
                 class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' }} transition"
             >
                 Répondre
             </button>
+            @endif
         </div>
         @endif
     </div>
