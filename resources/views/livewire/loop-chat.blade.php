@@ -1,5 +1,5 @@
 <div wire:poll.3s class="flex-1 flex flex-col min-h-0">
-    <x-conversation.message-list>
+    <x-conversation.message-list :has-messages="$messages->isNotEmpty()">
         <x-slot:messages>
             @forelse($messages as $msg)
                 @php $isOwn = $msg->sender_id === auth()->id(); @endphp
