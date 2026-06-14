@@ -9,6 +9,8 @@
     'showReplyButton' => false,
     'imagePath' => null,
     'urlPreview' => null,
+    'showPinButton' => false,
+    'isPinned' => false,
 ])
 
 @php
@@ -61,7 +63,7 @@ $timeClasses = $isSent
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />
         @endif
 
-        @if($time || ($messageId && $showReplyButton))
+        @if($time || ($messageId && ($showReplyButton || $showPinButton)))
         <div class="flex items-center gap-3 mt-1 {{ $isSent ? 'justify-end' : 'justify-start' }}">
             @if($time)
             <span class="text-[10px] {{ $timeClasses }}">{{ $time }}</span>
@@ -73,6 +75,29 @@ $timeClasses = $isSent
             >
                 Répondre
             </button>
+            @endif
+            @if($messageId && $showPinButton)
+                @if($isPinned)
+                <button
+                    wire:click="unpinMessage"
+                    class="text-[11px] {{ $isSent ? 'text-amber-200 hover:text-white' : 'text-amber-500 hover:text-amber-700 dark:hover:text-amber-300' }} transition"
+                    title="Désépingler"
+                >
+                    <svg class="w-3.5 h-3.5 inline-block fill-current" viewBox="0 0 24 24">
+                        <path d="M16 12V4l4-2v2l-4 2v6l-2 2H8l-2-2V8l-4 2v2l4 4v4h6v-4l4-4z"/>
+                    </svg>
+                </button>
+                @else
+                <button
+                    wire:click="pinMessage('{{ $messageId }}')"
+                    class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' }} transition"
+                    title="Épingler"
+                >
+                    <svg class="w-3.5 h-3.5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 4v12l4 2V4l-4 2zM8 4v12l-4 2V4l4 2z"/>
+                    </svg>
+                </button>
+                @endif
             @endif
         </div>
         @endif

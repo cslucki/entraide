@@ -124,6 +124,50 @@ class MessageThread extends Component
         $this->photo = null;
     }
 
+    public function pinnedMessage(): ?Message
+    {
+        return $this->transaction->messages()
+            ->pinned()
+            ->with('sender')
+            ->first();
+    }
+
+    public function pinMessage(string $messageId): void
+    {
+        $user = auth()->user();
+
+        if (! in_array($user->id, [$this->transaction->buyer_id, $this->transaction->seller_id])) {
+            return;
+        }
+
+        $message = Message::where('id', $messageId)
+            ->where('transaction_id', $this->transaction->id)
+            ->first();
+
+        if (! $message) {
+            return;
+        }
+
+        Message::where('transaction_id', $this->transaction->id)
+            ->whereNotNull('pinned_at')
+            ->update(['pinned_at' => null, 'pinned_by_id' => null]);
+
+        $message->pin($user);
+    }
+
+    public function unpinMessage(): void
+    {
+        $user = auth()->user();
+
+        if (! in_array($user->id, [$this->transaction->buyer_id, $this->transaction->seller_id])) {
+            return;
+        }
+
+        Message::where('transaction_id', $this->transaction->id)
+            ->whereNotNull('pinned_at')
+            ->update(['pinned_at' => null, 'pinned_by_id' => null]);
+    }
+
     private function storeImage($file): string
     {
         $img = Image::decode($file);
@@ -157,8 +201,9 @@ class MessageThread extends Component
             ->orderBy('created_at')
             ->get();
 
+        $pinnedMessage = $this->pinnedMessage();
         $unreadCount = auth()->user()->unreadMessagesCount();
 
-        return view('livewire.message-thread', compact('messages', 'unreadCount'));
+        return view('livewire.message-thread', compact('messages', 'pinnedMessage', 'unreadCount'));
     }
 }
