@@ -47,6 +47,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -198,15 +199,33 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Route::bind('loop', function (string $value) {
-            $currentOrg = app()->bound('current_organization') ? app('current_organization') : null;
-            $orgId = $currentOrg?->id
-                ?? auth()->user()?->organization_id;
+            $orgSlug = request()->route('organization');
 
-            if ($orgId) {
-                return Loop::where('organization_id', $orgId)->findOrFail($value);
+            if (Str::isUuid($value)) {
+                $query = Loop::query();
+                if ($orgSlug) {
+                    $org = Organization::findBySlug($orgSlug);
+                    if (! $org) {
+                        abort(404);
+                    }
+                    $query->where('organization_id', $org->id);
+                }
+
+                return $query->findOrFail($value);
             }
 
-            return Loop::findOrFail($value);
+            if (! $orgSlug) {
+                abort(404);
+            }
+
+            $org = Organization::findBySlug($orgSlug);
+            if (! $org) {
+                abort(404);
+            }
+
+            return Loop::where('slug', $value)
+                ->where('organization_id', $org->id)
+                ->firstOrFail();
         });
 
         View::share('T', config('terms'));
