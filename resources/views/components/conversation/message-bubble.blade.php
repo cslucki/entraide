@@ -25,7 +25,7 @@ $timeClasses = $isSent
 @endphp
 
 <div {{ $attributes->merge(['class' => $containerClasses . ' ' . $class]) }}>
-    <div class="max-w-[85%] md:max-w-[75%] {{ $bubbleClasses }} px-4 py-2.5">
+    <div class="max-w-[90%] sm:max-w-md md:max-w-lg {{ $bubbleClasses }} px-4 py-2.5">
         @if($avatar || $name)
         <div class="flex items-center gap-2 mb-1">
             @if($avatar)
