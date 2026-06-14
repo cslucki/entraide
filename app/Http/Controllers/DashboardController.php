@@ -52,6 +52,14 @@ class DashboardController extends Controller
             ->forOrganization($organization)
             ->first();
 
+        $requestCreateUrl = (function () use ($organization): string {
+            if (request()->routeIs('organization.*')) {
+                return route('organization.requests.create', ['organization' => $organization->slug]);
+            }
+
+            return route('requests.create');
+        })();
+
         $referralCode = $user->referral_code;
         $referralLink = $user->organization?->slug && $user->referral_code
             ? route('organization.register', ['organization' => $user->organization->slug, 'ref' => $user->referral_code])
@@ -136,7 +144,7 @@ class DashboardController extends Controller
             'user', 'earned', 'spent', 'completedCount',
             'myServices', 'myRequests', 'myProposals', 'activeExchanges', 'recentMessages',
             'referralCode', 'referralLink', 'sentReferralsCount', 'activatedReferralsCount', 'referralPointsEarned',
-            'aiProfile', 'onboardingSteps',
+            'aiProfile', 'onboardingSteps', 'requestCreateUrl',
         ));
     }
 }
