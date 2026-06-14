@@ -10,6 +10,7 @@ class ExplorerController extends Controller
     public function index(): View
     {
         $categories = Category::all();
+
         return view('explorer', compact('categories'));
     }
 }

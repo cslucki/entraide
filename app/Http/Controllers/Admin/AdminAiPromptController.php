@@ -15,9 +15,9 @@ class AdminAiPromptController extends Controller
         $search = $request->input('search');
         $scenarioId = $request->input('scenario_id');
 
-        $prompts = AdminAiPrompt::when($search, fn($q) => $q->where('name', 'like', "%{$search}%")
+        $prompts = AdminAiPrompt::when($search, fn ($q) => $q->where('name', 'like', "%{$search}%")
             ->orWhere('description', 'like', "%{$search}%"))
-            ->when($scenarioId, fn($q) => $q->where('scenario_id', $scenarioId))
+            ->when($scenarioId, fn ($q) => $q->where('scenario_id', $scenarioId))
             ->orderBy('scenario_id')
             ->orderBy('version', 'desc')
             ->paginate(25);

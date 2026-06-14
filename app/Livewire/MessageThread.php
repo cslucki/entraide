@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Message;
 use App\Models\Transaction;
 use App\Notifications\NewMessageReceived;
+use App\Services\UrlPreviewService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
@@ -92,12 +93,16 @@ class MessageThread extends Component
             $this->photo = null;
         }
 
+        $url = UrlPreviewService::extractFirstUrl($this->newMessage);
+        $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
+
         $msg = Message::create([
             'transaction_id' => $this->transaction->id,
             'sender_id' => $user->id,
             'reply_to_id' => $replyToId,
             'body' => $this->newMessage,
             'image_path' => $imagePath,
+            'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
             'type' => 'user',
             'organization_id' => $this->transaction->organization_id,
         ]);

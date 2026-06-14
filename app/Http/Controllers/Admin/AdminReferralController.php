@@ -35,8 +35,8 @@ class AdminReferralController extends Controller
             ->get();
 
         $contributors = User::whereHas('sentReferrals', function ($q) {
-                $q->withoutGlobalScope(BelongsToOrganizationScope::class);
-            })
+            $q->withoutGlobalScope(BelongsToOrganizationScope::class);
+        })
             ->withCount(['sentReferrals as invitations_count' => function ($q) {
                 $q->withoutGlobalScope(BelongsToOrganizationScope::class);
             }])

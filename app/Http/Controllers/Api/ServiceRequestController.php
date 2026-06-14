@@ -15,8 +15,8 @@ class ServiceRequestController extends Controller
             ->open();
 
         if ($search = $request->get('q')) {
-            $like = '%' . $search . '%';
-            $query->where(fn($q) => $q->where('title', 'like', $like)->orWhere('description', 'like', $like));
+            $like = '%'.$search.'%';
+            $query->where(fn ($q) => $q->where('title', 'like', $like)->orWhere('description', 'like', $like));
         }
 
         if ($category = $request->get('category_id')) {

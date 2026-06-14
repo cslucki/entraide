@@ -40,9 +40,15 @@ class SupervisionProviderResolver
     {
         $override = config('ai.default_provider');
         if ($override) {
-            if ($override === 'ollama' && config('ai.ollama.enabled')) return 'ollama';
-            if ($override === 'openrouter' && config('ai.openrouter.enabled')) return 'openrouter';
-            if ($override === 'openai' && config('ai.openai.supervision_enabled')) return 'openai';
+            if ($override === 'ollama' && config('ai.ollama.enabled')) {
+                return 'ollama';
+            }
+            if ($override === 'openrouter' && config('ai.openrouter.enabled')) {
+                return 'openrouter';
+            }
+            if ($override === 'openai' && config('ai.openai.supervision_enabled')) {
+                return 'openai';
+            }
         }
 
         if (config('ai.ollama.enabled')) {

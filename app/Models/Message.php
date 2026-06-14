@@ -15,7 +15,7 @@ class Message extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['transaction_id', 'sender_id', 'reply_to_id', 'body', 'image_path', 'type', 'read_at', 'organization_id'];
+    protected $fillable = ['transaction_id', 'sender_id', 'reply_to_id', 'body', 'image_path', 'metadata', 'type', 'read_at', 'organization_id'];
 
     public function organization(): BelongsTo
     {
@@ -27,6 +27,7 @@ class Message extends Model
         return [
             'created_at' => 'datetime',
             'read_at' => 'datetime',
+            'metadata' => 'array',
         ];
     }
 

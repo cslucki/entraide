@@ -72,7 +72,7 @@ class AdminThemeController extends Controller
 
         Theme::regenerateCache();
 
-        return redirect()->route('admin.themes')->with('success', 'Thème « ' . $data['label'] . ' » créé.');
+        return redirect()->route('admin.themes')->with('success', 'Thème « '.$data['label'].' » créé.');
     }
 
     public function edit(Theme $theme): View
@@ -115,7 +115,7 @@ class AdminThemeController extends Controller
 
         Theme::regenerateCache();
 
-        return redirect()->route('admin.themes', ['theme' => $theme->key])->with('success', 'Thème « ' . $theme->label . ' » mis à jour.');
+        return redirect()->route('admin.themes', ['theme' => $theme->key])->with('success', 'Thème « '.$theme->label.' » mis à jour.');
     }
 
     public function destroy(Theme $theme): RedirectResponse
@@ -130,6 +130,6 @@ class AdminThemeController extends Controller
 
         Theme::regenerateCache();
 
-        return redirect()->route('admin.themes')->with('success', 'Thème « ' . $theme->label . ' » supprimé.');
+        return redirect()->route('admin.themes')->with('success', 'Thème « '.$theme->label.' » supprimé.');
     }
 }

@@ -98,6 +98,7 @@ class JsonResponseParser
         foreach ($requiredFields as $field => $meta) {
             if (! array_key_exists($field, $data)) {
                 $data[$field] = $meta['default'];
+
                 continue;
             }
 
@@ -167,6 +168,7 @@ class JsonResponseParser
     private static function looksLikeJsonObject(string $text): bool
     {
         $text = trim($text);
+
         return str_starts_with($text, '{') && str_ends_with($text, '}');
     }
 }

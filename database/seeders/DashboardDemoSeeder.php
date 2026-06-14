@@ -22,6 +22,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class DashboardDemoSeeder extends Seeder
 {
@@ -44,6 +45,7 @@ class DashboardDemoSeeder extends Seeder
                 throw new \RuntimeException('No categories available for DashboardDemoSeeder');
             }
         }
+
         return $this->_fallback;
     }
 
@@ -54,6 +56,7 @@ class DashboardDemoSeeder extends Seeder
 
         if (! $this->main) {
             $this->command->error('Organisation "main" introuvable.');
+
             return;
         }
 
@@ -89,11 +92,11 @@ class DashboardDemoSeeder extends Seeder
         $existing = User::whereIn('email', $emails)->get()->keyBy('email');
 
         foreach ($emails as $email) {
-            if (!isset($existing[$email])) {
+            if (! isset($existing[$email])) {
                 $existing[$email] = User::create([
                     'email' => $email,
                     'name' => explode('@', $email)[0],
-                    'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                    'password' => Hash::make('password'),
                     'is_available' => true,
                     'email_verified_at' => now(),
                     'organization_id' => $this->main->id,

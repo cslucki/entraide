@@ -16,10 +16,15 @@ class MemberAiProfile extends Model
     protected $table = 'member_ai_profiles';
 
     const STATUS_DRAFT = 'draft';
+
     const STATUS_READY_FOR_GENERATION = 'ready_for_generation';
+
     const STATUS_GENERATED = 'generated';
+
     const STATUS_PENDING_VALIDATION = 'pending_validation';
+
     const STATUS_PUBLISHED = 'published';
+
     const STATUS_DISABLED = 'disabled';
 
     public static array $statuses = [

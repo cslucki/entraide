@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Category;
 use App\Models\Skill;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class SkillSeeder extends Seeder
 {
@@ -84,10 +85,12 @@ class SkillSeeder extends Seeder
 
         foreach ($skillsByCategory as $categorySlug => $skills) {
             $category = Category::where('slug', $categorySlug)->first();
-            if (!$category) continue;
+            if (! $category) {
+                continue;
+            }
 
             foreach ($skills as $skillName) {
-                $slug = \Illuminate\Support\Str::slug($skillName);
+                $slug = Str::slug($skillName);
                 Skill::firstOrCreate(
                     ['slug' => $slug],
                     ['category_id' => $category->id, 'name' => $skillName, 'slug' => $slug]

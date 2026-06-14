@@ -52,11 +52,13 @@ class BoundedMemberAgent extends Component
 
         if (! $this->profile) {
             $this->error = "Ce membre n'a pas encore publié son profil IA.";
+
             return;
         }
 
         if (trim($this->question) === '') {
             $this->error = 'Veuillez poser une question.';
+
             return;
         }
 
@@ -80,6 +82,7 @@ class BoundedMemberAgent extends Component
             ['e', 'e', 'e', 'e', 'a', 'a', 'a', 'u', 'u', 'u', 'o', 'o', 'i', 'i', 'c'],
             $text
         );
+
         return $text;
     }
 
@@ -123,7 +126,8 @@ class BoundedMemberAgent extends Component
         $matchedFields = array_unique($matchedFields);
 
         if (empty($matchedFields)) {
-            $response = "Ceci dépasse mon périmètre de présentation. Je peux uniquement vous renseigner sur les informations que le membre a partagées dans son profil IA.";
+            $response = 'Ceci dépasse mon périmètre de présentation. Je peux uniquement vous renseigner sur les informations que le membre a partagées dans son profil IA.';
+
             return ['response' => $response, 'fields' => []];
         }
 
@@ -168,6 +172,7 @@ class BoundedMemberAgent extends Component
                     $options = config('member_ai_profile.contact_options', []);
                     $formatted = $options[$value] ?? $value;
                     $parts[] = "**{$label} :** {$formatted}";
+
                     continue;
                 }
                 if ($field === 'problems_helped') {
@@ -189,6 +194,7 @@ class BoundedMemberAgent extends Component
 
         if (empty($parts)) {
             $response = "Je n'ai pas trouvé d'information correspondant à votre question dans le profil publié de ce membre.";
+
             return ['response' => $response, 'fields' => $matchedFields];
         }
 

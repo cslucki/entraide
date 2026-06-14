@@ -13,10 +13,15 @@ class LoopMessageCreated implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets;
 
     public string $id;
+
     public string $loopId;
+
     public ?string $senderId;
+
     public string $body;
+
     public string $type;
+
     public string $createdAt;
 
     public function __construct(LoopMessage $message)

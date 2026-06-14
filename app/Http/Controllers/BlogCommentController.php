@@ -35,7 +35,7 @@ class BlogCommentController extends Controller
             'is_approved' => true,
         ]);
 
-        return redirect(URL::previous() . '#commentaires')->with('success', 'Commentaire ajouté.');
+        return redirect(URL::previous().'#commentaires')->with('success', 'Commentaire ajouté.');
     }
 
     public function destroy(BlogComment $comment): RedirectResponse
@@ -49,6 +49,6 @@ class BlogCommentController extends Controller
         abort_unless(auth()->id() === $comment->user_id || auth()->user()->is_admin, 403);
         $comment->delete();
 
-        return redirect(URL::previous() . '#commentaires')->with('success', 'Commentaire supprimé.');
+        return redirect(URL::previous().'#commentaires')->with('success', 'Commentaire supprimé.');
     }
 }

@@ -89,6 +89,7 @@
                         </span>
                     </div>
                 @elseif($message->sender_id === auth()->id())
+                    @php $meta = $message->metadata ?? []; @endphp
                     <x-conversation.message-bubble
                         type="sent"
                         :time="$message->created_at->format('H:i')"
@@ -96,10 +97,12 @@
                         :show-reply-button="true"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
                         :image-path="$message->imageUrl()"
+                        :url-preview="$meta['url_preview'] ?? null"
                     >
                         {{ $message->body }}
                     </x-conversation.message-bubble>
                 @else
+                    @php $meta = $message->metadata ?? []; @endphp
                     <x-conversation.message-bubble
                         type="received"
                         :time="$message->created_at->format('H:i')"
@@ -108,6 +111,7 @@
                         :show-reply-button="true"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
                         :image-path="$message->imageUrl()"
+                        :url-preview="$meta['url_preview'] ?? null"
                     >
                         {{ $message->body }}
                     </x-conversation.message-bubble>

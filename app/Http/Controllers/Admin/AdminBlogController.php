@@ -12,7 +12,7 @@ use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use League\CommonMark\CommonMarkConverter;
@@ -33,7 +33,7 @@ class AdminBlogController extends Controller
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
                 $q->where('title', 'like', '%'.$request->search.'%')
-                  ->orWhere('content', 'like', '%'.$request->search.'%');
+                    ->orWhere('content', 'like', '%'.$request->search.'%');
             });
         }
 
@@ -46,7 +46,7 @@ class AdminBlogController extends Controller
         return view('admin.blog.index', compact('organizations', 'posts', 'selectedOrganizationId'));
     }
 
-    private function adminOrganizations(): \Illuminate\Support\Collection
+    private function adminOrganizations(): Collection
     {
         return Organization::orderByDesc('is_default')
             ->orderBy('name')
@@ -123,7 +123,7 @@ class AdminBlogController extends Controller
     {
         $request->validate(['status' => 'required|in:draft,pending,published,archived']);
 
-        if ($request->status === 'published' && !$post->published_at) {
+        if ($request->status === 'published' && ! $post->published_at) {
             $post->published_at = now();
         }
 
@@ -136,6 +136,7 @@ class AdminBlogController extends Controller
     public function destroy(BlogPost $post): RedirectResponse
     {
         $post->delete();
+
         return back()->with('success', 'Article supprimé.');
     }
 

@@ -21,7 +21,7 @@ class AiBudgetExceeded extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Alerte budget IA — ' . $this->scenarioId)
+            ->subject('Alerte budget IA — '.$this->scenarioId)
             ->markdown('emails.ai_budget_exceeded', [
                 'user' => $notifiable,
                 'scenarioId' => $this->scenarioId,

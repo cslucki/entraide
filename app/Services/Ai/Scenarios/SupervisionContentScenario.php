@@ -3,6 +3,8 @@
 namespace App\Services\Ai\Scenarios;
 
 use App\Models\AdminAiPrompt;
+use App\Models\Category;
+use App\Models\Skill;
 use App\Services\Ai\Contracts\AiScenarioDefinition;
 use Illuminate\Support\Facades\Schema;
 
@@ -181,7 +183,7 @@ PROMPT;
         $skills = [];
 
         if (Schema::hasTable('categories')) {
-            $categories = \App\Models\Category::select('slug', 'name_b2c as label')
+            $categories = Category::select('slug', 'name_b2c as label')
                 ->orderBy('slug')
                 ->get()
                 ->each(fn ($c) => $c->label = $c->label ?? '')
@@ -189,7 +191,7 @@ PROMPT;
         }
 
         if (Schema::hasTable('skills')) {
-            $skills = \App\Models\Skill::select('slug', 'name as label')
+            $skills = Skill::select('slug', 'name as label')
                 ->orderBy('slug')
                 ->get()
                 ->each(fn ($s) => $s->label = $s->label ?? '')

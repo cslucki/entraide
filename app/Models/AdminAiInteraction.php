@@ -71,8 +71,8 @@ class AdminAiInteraction extends Model
         $query->whereNull('review_status')
             ->where(function ($q) {
                 $q->whereRaw("CAST(result_payload->>'moderation_flag' AS boolean) = true")
-                  ->orWhereRaw("result_payload->>'risk_level' = 'high'")
-                  ->orWhereRaw("CAST(result_payload->>'needs_human_category_review' AS boolean) = true");
+                    ->orWhereRaw("result_payload->>'risk_level' = 'high'")
+                    ->orWhereRaw("CAST(result_payload->>'needs_human_category_review' AS boolean) = true");
             });
     }
 }

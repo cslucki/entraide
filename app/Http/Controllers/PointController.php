@@ -16,7 +16,7 @@ class PointController extends Controller
             ->paginate(20);
 
         $earned = $user->pointLedger()->where('delta', '>', 0)->sum('delta');
-        $spent  = abs($user->pointLedger()->where('delta', '<', 0)->sum('delta'));
+        $spent = abs($user->pointLedger()->where('delta', '<', 0)->sum('delta'));
 
         // Chart data: last 60 entries to calculate cumulative balance
         $chartEntries = $user->pointLedger()

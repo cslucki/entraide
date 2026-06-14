@@ -13,10 +13,10 @@ class LikeController extends Controller
     {
         $request->validate([
             'likeable_type' => 'required|in:blog_post',
-            'likeable_id'   => 'required|uuid',
+            'likeable_id' => 'required|uuid',
         ]);
 
-        $modelClass = match($request->likeable_type) {
+        $modelClass = match ($request->likeable_type) {
             'blog_post' => BlogPost::class,
         };
 
@@ -32,9 +32,9 @@ class LikeController extends Controller
             $liked = false;
         } else {
             Like::create([
-                'user_id'       => auth()->id(),
+                'user_id' => auth()->id(),
                 'likeable_type' => $modelClass,
-                'likeable_id'   => $model->id,
+                'likeable_id' => $model->id,
             ]);
             $liked = true;
         }

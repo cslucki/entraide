@@ -8,6 +8,7 @@
     'messageId' => null,
     'showReplyButton' => false,
     'imagePath' => null,
+    'urlPreview' => null,
 ])
 
 @php
@@ -55,6 +56,10 @@ $timeClasses = $isSent
         @endif
 
         <div class="text-sm whitespace-pre-wrap">{{ $slot }}</div>
+
+        @if($urlPreview)
+            <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />
+        @endif
 
         @if($time || ($messageId && $showReplyButton))
         <div class="flex items-center gap-3 mt-1 {{ $isSent ? 'justify-end' : 'justify-start' }}">

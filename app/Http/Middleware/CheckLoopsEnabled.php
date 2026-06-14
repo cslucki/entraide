@@ -12,7 +12,7 @@ class CheckLoopsEnabled
     {
         $organization = currentOrganization();
 
-        if ($organization && !$organization->loops_enabled) {
+        if ($organization && ! $organization->loops_enabled) {
             abort(404);
         }
 

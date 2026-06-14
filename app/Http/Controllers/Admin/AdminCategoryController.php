@@ -39,19 +39,19 @@ class AdminCategoryController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name_b2c'   => 'required|string|max:100',
-            'name_b2b'   => 'required|string|max:100',
-            'color'      => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
+            'name_b2c' => 'required|string|max:100',
+            'name_b2b' => 'required|string|max:100',
+            'color' => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
             'organization_id' => 'required|exists:organizations,id',
-            'skills'    => 'array',
-            'skills.*'  => 'nullable|string|max:100',
+            'skills' => 'array',
+            'skills.*' => 'nullable|string|max:100',
         ]);
 
         $data['slug'] = Str::slug($data['name_b2c']);
         $category = Category::create($data);
 
         if ($request->has('skills')) {
-            $skillNames = array_filter($request->input('skills', []), fn($name) => !empty(trim($name)));
+            $skillNames = array_filter($request->input('skills', []), fn ($name) => ! empty(trim($name)));
 
             foreach ($skillNames as $skillName) {
                 $category->skills()->create([
@@ -76,24 +76,24 @@ class AdminCategoryController extends Controller
     public function update(Request $request, Category $category): RedirectResponse
     {
         $data = $request->validate([
-            'name_b2c'   => 'required|string|max:100',
-            'name_b2b'   => 'required|string|max:100',
-            'color'      => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
-            'skills'    => 'array',
-            'skills.*'  => 'nullable|string|max:100',
+            'name_b2c' => 'required|string|max:100',
+            'name_b2b' => 'required|string|max:100',
+            'color' => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
+            'skills' => 'array',
+            'skills.*' => 'nullable|string|max:100',
         ]);
 
         $data['slug'] = Str::slug($data['name_b2c']);
         $category->update($data);
 
         if ($request->has('skills')) {
-            $skillNames = array_filter($request->input('skills', []), fn($name) => !empty(trim($name)));
+            $skillNames = array_filter($request->input('skills', []), fn ($name) => ! empty(trim($name)));
 
             $existingSkills = $category->skills->keyBy('name');
             $newSkills = array_values($skillNames);
 
             foreach ($newSkills as $skillName) {
-                if (!$existingSkills->has($skillName)) {
+                if (! $existingSkills->has($skillName)) {
                     $category->skills()->create([
                         'name' => $skillName,
                         'slug' => Str::slug($skillName),
@@ -131,9 +131,9 @@ class AdminCategoryController extends Controller
         ]);
 
         Skill::create([
-            'category_id'     => $category->id,
-            'name'            => $data['name'],
-            'slug'            => Str::slug($data['name']),
+            'category_id' => $category->id,
+            'name' => $data['name'],
+            'slug' => Str::slug($data['name']),
             'organization_id' => $category->organization_id,
         ]);
 

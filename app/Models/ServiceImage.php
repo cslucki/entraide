@@ -26,7 +26,7 @@ class ServiceImage extends Model
 
     public function getThumbnailUrlAttribute(): string
     {
-        return Storage::disk('public')->url('thumbnails/' . $this->path);
+        return Storage::disk('public')->url('thumbnails/'.$this->path);
     }
 
     public function organization(): BelongsTo
