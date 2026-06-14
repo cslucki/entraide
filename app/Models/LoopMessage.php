@@ -7,15 +7,17 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LoopMessage extends Model
 {
     /** @use HasFactory<LoopMessageFactory> */
-    use HasUuids, HasFactory;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'loop_id',
         'sender_id',
+        'reply_to_id',
         'body',
         'type',
         'metadata',
@@ -42,6 +44,16 @@ class LoopMessage extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reply_to_id');
+    }
+
+    public function replies(): HasMany
+    {
+        return $this->hasMany(self::class, 'reply_to_id');
     }
 
     public function scopeForLoop($query, string $loopId)

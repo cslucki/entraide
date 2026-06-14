@@ -5,9 +5,31 @@
     'loading' => false,
     'error' => null,
     'rows' => 1,
+    'replyingTo' => null,
+    'onCancelReply' => null,
 ])
 
 <div class="border-t border-gray-200 dark:border-gray-700 px-5 py-4">
+    @if($replyingTo)
+    <div class="flex items-center justify-between mb-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-xs">
+        <span class="text-gray-600 dark:text-gray-300 truncate">
+            <span class="font-medium text-indigo-600 dark:text-indigo-400">Réponse à</span>
+            <span class="text-gray-500 dark:text-gray-400">{{ $replyingTo['sender_name'] ?? '' }} :</span>
+            <span class="text-gray-400 dark:text-gray-500 truncate ml-1">{{ $replyingTo['body'] }}</span>
+        </span>
+        @if($onCancelReply)
+        <button
+            wire:click="{{ $onCancelReply }}"
+            class="flex-shrink-0 ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
+        >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+        @endif
+    </div>
+    @endif
+
     <form wire:submit="sendMessage" class="flex items-center gap-3">
         <textarea
             wire:model="{{ $model }}"
