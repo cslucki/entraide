@@ -102,7 +102,8 @@ class BlogController extends Controller
         }
 
         $post->increment('views_count');
-        $post->load(['user', 'category', 'tags', 'comments.user', 'comments.replies.user']);
+        $post->load(['user', 'category', 'tags', 'comments.user', 'comments.replies.user'])
+            ->loadCount('likes');
 
         $relatedPosts = BlogPost::published()
             ->where('organization_id', $organization->id)
