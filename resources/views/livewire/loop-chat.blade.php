@@ -1,6 +1,11 @@
 <div wire:poll.3s class="flex-1 flex flex-col min-h-0" x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
     <x-conversation.message-list :has-messages="$messages->isNotEmpty()">
         <x-slot:messages>
+            <x-conversation.pinned-message-banner
+                :pinned-message="$pinnedMessage"
+                :can-unpin="$isMember"
+            />
+
             @forelse($messages as $msg)
                 @php $isOwn = $msg->sender_id === auth()->id(); @endphp
                 <div wire:key="msg-{{ $msg->id }}">
@@ -37,6 +42,8 @@
                             :avatar="$msg->sender?->avatar_url"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
+                            :show-pin-button="$isMember"
+                            :is-pinned="$pinnedMessage?->id === $msg->id"
                             :reply-to="$msg->replyTo ? ['body' => mb_substr($msg->replyTo->body, 0, 120), 'sender_name' => ($msg->replyTo->sender?->name ?? 'BouclePro')] : null"
                             :image-path="$msg->imageUrl()"
                             :url-preview="$msg->metadata['url_preview'] ?? null"

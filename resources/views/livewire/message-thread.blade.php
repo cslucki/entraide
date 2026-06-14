@@ -79,9 +79,17 @@
     </div>
 
     <!-- Messages -->
+    @php $canPin = in_array(auth()->id(), [$transaction->buyer_id, $transaction->seller_id]); @endphp
+
     <x-conversation.message-list>
         <x-slot:messages>
+            <x-conversation.pinned-message-banner
+                :pinned-message="$pinnedMessage"
+                :can-unpin="$canPin"
+            />
+
             @foreach($messages as $message)
+                @php $isPinned = $pinnedMessage?->id === $message->id; @endphp
                 @if($message->isSystem())
                     <div class="flex justify-center">
                         <span class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded-full">
@@ -95,6 +103,8 @@
                         :time="$message->created_at->format('H:i')"
                         :message-id="$message->id"
                         :show-reply-button="true"
+                        :show-pin-button="$canPin"
+                        :is-pinned="$isPinned"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
                         :image-path="$message->imageUrl()"
                         :url-preview="$meta['url_preview'] ?? null"
@@ -109,6 +119,8 @@
                         :avatar="$message->sender?->avatar_url"
                         :message-id="$message->id"
                         :show-reply-button="true"
+                        :show-pin-button="$canPin"
+                        :is-pinned="$isPinned"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
                         :image-path="$message->imageUrl()"
                         :url-preview="$meta['url_preview'] ?? null"

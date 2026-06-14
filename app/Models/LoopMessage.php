@@ -24,12 +24,15 @@ class LoopMessage extends Model
         'type',
         'metadata',
         'organization_id',
+        'pinned_at',
+        'pinned_by_id',
     ];
 
     protected function casts(): array
     {
         return [
             'metadata' => 'array',
+            'pinned_at' => 'datetime',
         ];
     }
 
@@ -58,6 +61,11 @@ class LoopMessage extends Model
         return $this->hasMany(self::class, 'reply_to_id');
     }
 
+    public function pinnedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'pinned_by_id');
+    }
+
     public function imageUrl(): ?string
     {
         return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
@@ -71,5 +79,29 @@ class LoopMessage extends Model
     public function scopeUserMessages($query, string $userId)
     {
         return $query->where('sender_id', $userId);
+    }
+
+    public function scopePinned($query)
+    {
+        return $query->whereNotNull('pinned_at');
+    }
+
+    public function isPinned(): bool
+    {
+        return $this->pinned_at !== null;
+    }
+
+    public function pin(User $user): void
+    {
+        $this->pinned_at = now();
+        $this->pinned_by_id = $user->id;
+        $this->save();
+    }
+
+    public function unpin(): void
+    {
+        $this->pinned_at = null;
+        $this->pinned_by_id = null;
+        $this->save();
     }
 }

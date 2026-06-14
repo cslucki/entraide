@@ -106,6 +106,48 @@ class LoopChat extends Component
         $this->photo = null;
     }
 
+    public function pinnedMessage(): ?LoopMessage
+    {
+        return $this->loop->messages()
+            ->pinned()
+            ->with('sender')
+            ->first();
+    }
+
+    public function pinMessage(string $messageId): void
+    {
+        $user = auth()->user();
+        if (! $user || ! $this->isMember) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $messageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if (! $message) {
+            return;
+        }
+
+        LoopMessage::where('loop_id', $this->loop->id)
+            ->whereNotNull('pinned_at')
+            ->update(['pinned_at' => null, 'pinned_by_id' => null]);
+
+        $message->pin($user);
+    }
+
+    public function unpinMessage(): void
+    {
+        $user = auth()->user();
+        if (! $user || ! $this->isMember) {
+            return;
+        }
+
+        LoopMessage::where('loop_id', $this->loop->id)
+            ->whereNotNull('pinned_at')
+            ->update(['pinned_at' => null, 'pinned_by_id' => null]);
+    }
+
     private function storeImage($file, string $subdirectory): string
     {
         $img = Image::decode($file);
@@ -127,6 +169,8 @@ class LoopChat extends Component
             ->oldest()
             ->get();
 
-        return view('livewire.loop-chat', compact('messages'));
+        $pinnedMessage = $this->pinnedMessage();
+
+        return view('livewire.loop-chat', compact('messages', 'pinnedMessage'));
     }
 }
