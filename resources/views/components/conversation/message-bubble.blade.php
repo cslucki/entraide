@@ -7,6 +7,7 @@
     'replyTo' => null,
     'messageId' => null,
     'showReplyButton' => false,
+    'imagePath' => null,
 ])
 
 @php
@@ -42,6 +43,15 @@ $timeClasses = $isSent
             <span class="font-medium">{{ $replyTo['sender_name'] ?? '' }}</span>
             <p class="truncate {{ $isSent ? 'text-indigo-100' : 'text-gray-500 dark:text-gray-400' }}">{{ $replyTo['body'] }}</p>
         </div>
+        @endif
+
+        @if($imagePath)
+        <button
+            x-on:click="$dispatch('open-image', { url: '{{ $imagePath }}' })"
+            class="block mb-1.5 w-full max-w-[200px] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+            <img src="{{ $imagePath }}" alt="Image" class="w-full h-auto object-cover rounded-lg hover:opacity-90 transition">
+        </button>
         @endif
 
         <div class="text-sm whitespace-pre-wrap">{{ $slot }}</div>

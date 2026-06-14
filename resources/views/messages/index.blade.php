@@ -95,11 +95,13 @@
                         </p>
                     </div>
                 </div>
-                <div class="flex-1 min-h-0 flex flex-col">
-                    @livewire('message-thread', ['transaction' => $transaction])
+                    <div class="flex-1 min-h-0 flex flex-col">
+                        @livewire('message-thread', ['transaction' => $transaction])
+                    </div>
                 </div>
-            </div>
-            @endisset
+                @endisset
+
+            <x-conversation.image-lightbox key="messages" />
 
             {{-- Desktop: conversation list sidebar --}}
             <div class="hidden md:flex w-80 flex-shrink-0 flex-col border-r border-gray-200 dark:border-gray-700">

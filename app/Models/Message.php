@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Message extends Model
 {
@@ -14,7 +15,7 @@ class Message extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['transaction_id', 'sender_id', 'reply_to_id', 'body', 'type', 'read_at', 'organization_id'];
+    protected $fillable = ['transaction_id', 'sender_id', 'reply_to_id', 'body', 'image_path', 'type', 'read_at', 'organization_id'];
 
     public function organization(): BelongsTo
     {
@@ -37,6 +38,11 @@ class Message extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    public function imageUrl(): ?string
+    {
+        return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
     }
 
     public function isSystem(): bool

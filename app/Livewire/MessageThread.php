@@ -5,10 +5,17 @@ namespace App\Livewire;
 use App\Models\Message;
 use App\Models\Transaction;
 use App\Notifications\NewMessageReceived;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Intervention\Image\Encoders\WebpEncoder;
+use Intervention\Image\Laravel\Facades\Image;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class MessageThread extends Component
 {
+    use WithFileUploads;
+
     public Transaction $transaction;
 
     public string $newMessage = '';
@@ -16,6 +23,8 @@ class MessageThread extends Component
     public ?string $replyToMessageId = null;
 
     public ?array $replyingTo = null;
+
+    public $photo = null;
 
     public function mount(Transaction $transaction): void
     {
@@ -49,7 +58,10 @@ class MessageThread extends Component
 
     public function sendMessage(): void
     {
-        $this->validate(['newMessage' => 'required|string|max:5000']);
+        $this->validate([
+            'newMessage' => 'required|string|max:5000',
+            'photo' => 'nullable|image|max:10240',
+        ]);
 
         $user = auth()->user();
 
@@ -73,11 +85,19 @@ class MessageThread extends Component
             }
         }
 
+        $imagePath = null;
+
+        if ($this->photo) {
+            $imagePath = $this->storeImage($this->photo);
+            $this->photo = null;
+        }
+
         $msg = Message::create([
             'transaction_id' => $this->transaction->id,
             'sender_id' => $user->id,
             'reply_to_id' => $replyToId,
             'body' => $this->newMessage,
+            'image_path' => $imagePath,
             'type' => 'user',
             'organization_id' => $this->transaction->organization_id,
         ]);
@@ -92,6 +112,24 @@ class MessageThread extends Component
             : $this->transaction->buyer;
 
         $recipient->notify(new NewMessageReceived($this->transaction, $msg));
+    }
+
+    public function removePhoto(): void
+    {
+        $this->photo = null;
+    }
+
+    private function storeImage($file): string
+    {
+        $img = Image::decode($file);
+        $img->scaleDown(1200, 800);
+
+        $filename = Str::uuid()->toString().'.webp';
+        $relativePath = 'message-images/'.$this->transaction->organization_id.'/messages/'.$filename;
+
+        Storage::disk('public')->put($relativePath, (string) $img->encode(new WebpEncoder(quality: 80)));
+
+        return $relativePath;
     }
 
     public function markRead(): void

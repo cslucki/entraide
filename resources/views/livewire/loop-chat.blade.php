@@ -38,6 +38,7 @@
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :reply-to="$msg->replyTo ? ['body' => mb_substr($msg->replyTo->body, 0, 120), 'sender_name' => ($msg->replyTo->sender?->name ?? 'BouclePro')] : null"
+                            :image-path="$msg->imageUrl()"
                         >
                             {{ $msg->body }}
                         </x-conversation.message-bubble>
@@ -63,6 +64,8 @@
             placeholder="Écrivez un message..."
             :replying-to="$replyingTo"
             on-cancel-reply="cancelReply"
+            show-upload="true"
+            :photo="$photo ?? null"
         >
             @error('body')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>

@@ -82,6 +82,8 @@
             @livewire('loop-chat', ['loop' => $loop], key('loop-chat-'.$loop->id))
         </div>
 
+        <x-conversation.image-lightbox key="loop-chat" />
+
         {{-- Composer --}}
         <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
             @if(!$isMember && $currentLoop->isPublic())

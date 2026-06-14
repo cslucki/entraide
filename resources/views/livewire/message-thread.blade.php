@@ -95,6 +95,7 @@
                         :message-id="$message->id"
                         :show-reply-button="true"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
+                        :image-path="$message->imageUrl()"
                     >
                         {{ $message->body }}
                     </x-conversation.message-bubble>
@@ -106,6 +107,7 @@
                         :message-id="$message->id"
                         :show-reply-button="true"
                         :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
+                        :image-path="$message->imageUrl()"
                     >
                         {{ $message->body }}
                     </x-conversation.message-bubble>
@@ -161,6 +163,8 @@
             placeholder="Votre message..."
             :replying-to="$replyingTo"
             on-cancel-reply="cancelReply"
+            show-upload="true"
+            :photo="$photo ?? null"
         >
             @error('newMessage')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
