@@ -6,6 +6,7 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Services\LoopMessageService;
+use App\Services\UrlPreviewService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
@@ -86,7 +87,12 @@ class LoopChat extends Component
                 $this->photo = null;
             }
 
-            $service->sendUserMessage($this->loop, $user, $this->body, null, $this->replyToMessageId, $imagePath);
+            $url = UrlPreviewService::extractFirstUrl($this->body);
+            $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
+
+            $metadata = $preview !== null ? ['url_preview' => $preview] : null;
+
+            $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
             $this->body = '';
             $this->cancelReply();
             $this->dispatch('message-sent');

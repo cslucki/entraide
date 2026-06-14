@@ -18,9 +18,9 @@ class TransactionStatusChanged extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Mise à jour de votre échange — ' . $this->transaction->status_label)
+            ->subject('Mise à jour de votre échange — '.$this->transaction->status_label)
             ->markdown('emails.transaction_status', [
-                'user'        => $notifiable,
+                'user' => $notifiable,
                 'transaction' => $this->transaction,
             ]);
     }

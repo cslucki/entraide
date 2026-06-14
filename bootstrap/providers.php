@@ -1,6 +1,9 @@
 <?php
 
+use App\Providers\AppServiceProvider;
+use App\Providers\VersionServiceProvider;
+
 return [
-    App\Providers\AppServiceProvider::class,
-    App\Providers\VersionServiceProvider::class,
+    AppServiceProvider::class,
+    VersionServiceProvider::class,
 ];

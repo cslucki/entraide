@@ -15,8 +15,8 @@ class AdminEmailLogsController extends Controller
         $search = $request->input('search');
 
         $logs = EmailLog::with(['template:id,slug,name', 'user:id,name,email'])
-            ->when($status, fn($q) => $q->where('status', $status))
-            ->when($search, fn($q) => $q->where('to_email', 'like', "%{$search}%")
+            ->when($status, fn ($q) => $q->where('status', $status))
+            ->when($search, fn ($q) => $q->where('to_email', 'like', "%{$search}%")
                 ->orWhere('subject', 'like', "%{$search}%"))
             ->orderBy('created_at', 'desc')
             ->paginate(30);

@@ -21,7 +21,7 @@ return new class extends Migration
         $posts = DB::table('blog_post_category')->select('blog_post_id', 'category_id')->get();
         $assigned = [];
         foreach ($posts as $pivot) {
-            if (!isset($assigned[$pivot->blog_post_id])) {
+            if (! isset($assigned[$pivot->blog_post_id])) {
                 $assigned[$pivot->blog_post_id] = $pivot->category_id;
             }
         }
@@ -44,8 +44,8 @@ return new class extends Migration
         $posts = DB::table('blog_posts')->whereNotNull('category_id')->select('id', 'category_id', 'organization_id')->get();
         foreach ($posts as $post) {
             DB::table('blog_post_category')->insert([
-                'blog_post_id'    => $post->id,
-                'category_id'     => $post->category_id,
+                'blog_post_id' => $post->id,
+                'category_id' => $post->category_id,
                 'organization_id' => $post->organization_id,
             ]);
         }

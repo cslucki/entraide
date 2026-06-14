@@ -37,7 +37,7 @@ return new class extends Migration
             if (Schema::hasColumn($table, 'organization_id')) {
                 $tableName = $table;
 
-                Schema::table($table, function (Blueprint $t) use ($tableName) {
+                Schema::table($table, function (Blueprint $t) {
                     $t->dropConstrainedForeignId('organization_id');
                 });
             }

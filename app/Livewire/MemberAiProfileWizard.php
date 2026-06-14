@@ -113,8 +113,12 @@ class MemberAiProfileWizard extends Component
 
     public function goToStep(int $target): void
     {
-        if ($target < 1) $target = 1;
-        if ($target > 5) $target = 5;
+        if ($target < 1) {
+            $target = 1;
+        }
+        if ($target > 5) {
+            $target = 5;
+        }
         $this->step = $target;
     }
 
@@ -178,6 +182,7 @@ class MemberAiProfileWizard extends Component
         if ($this->target_audience_other) {
             $values[] = trim($this->target_audience_other);
         }
+
         return array_filter(array_unique($values));
     }
 
@@ -227,7 +232,7 @@ class MemberAiProfileWizard extends Component
     public function toggleTargetAudience(string $key): void
     {
         if (in_array($key, $this->target_audience)) {
-            $this->target_audience = array_values(array_filter($this->target_audience, fn($v) => $v !== $key));
+            $this->target_audience = array_values(array_filter($this->target_audience, fn ($v) => $v !== $key));
         } else {
             $this->target_audience[] = $key;
         }
@@ -236,7 +241,7 @@ class MemberAiProfileWizard extends Component
     public function toggleHelpType(string $key): void
     {
         if (in_array($key, $this->help_types)) {
-            $this->help_types = array_values(array_filter($this->help_types, fn($v) => $v !== $key));
+            $this->help_types = array_values(array_filter($this->help_types, fn ($v) => $v !== $key));
         } else {
             $this->help_types[] = $key;
         }
@@ -245,7 +250,7 @@ class MemberAiProfileWizard extends Component
     public function toggleBoundary(string $key): void
     {
         if (in_array($key, $this->boundaries)) {
-            $this->boundaries = array_values(array_filter($this->boundaries, fn($v) => $v !== $key));
+            $this->boundaries = array_values(array_filter($this->boundaries, fn ($v) => $v !== $key));
         } else {
             $this->boundaries[] = $key;
         }
@@ -254,7 +259,9 @@ class MemberAiProfileWizard extends Component
     public function addGoodExample(): void
     {
         $value = trim($this->goodExampleInput ?? '');
-        if ($value === '' || count($this->good_request_examples) >= 3) return;
+        if ($value === '' || count($this->good_request_examples) >= 3) {
+            return;
+        }
         $this->good_request_examples[] = $value;
         $this->goodExampleInput = null;
     }
@@ -268,7 +275,9 @@ class MemberAiProfileWizard extends Component
     public function addBadExample(): void
     {
         $value = trim($this->badExampleInput ?? '');
-        if ($value === '' || count($this->bad_request_examples) >= 3) return;
+        if ($value === '' || count($this->bad_request_examples) >= 3) {
+            return;
+        }
         $this->bad_request_examples[] = $value;
         $this->badExampleInput = null;
     }
@@ -407,7 +416,7 @@ class MemberAiProfileWizard extends Component
             ],
             3 => [
                 'preferred_contact_action' => 'nullable|string|max:50',
-                'tone' => 'nullable|string|in:' . implode(',', array_keys(config('member_ai_profile.tones', []))),
+                'tone' => 'nullable|string|in:'.implode(',', array_keys(config('member_ai_profile.tones', []))),
             ],
             4 => [
                 'good_request_examples' => 'nullable|array|max:3',
@@ -429,7 +438,7 @@ class MemberAiProfileWizard extends Component
             'help_types' => 'required|array|min:1',
             'boundaries' => 'required|array|min:1',
             'preferred_contact_action' => 'required|string|max:50',
-            'tone' => 'required|string|in:' . implode(',', array_keys(config('member_ai_profile.tones', []))),
+            'tone' => 'required|string|in:'.implode(',', array_keys(config('member_ai_profile.tones', []))),
             'good_request_examples' => 'required|array|min:1',
         ];
     }

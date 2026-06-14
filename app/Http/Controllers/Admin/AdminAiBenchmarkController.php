@@ -16,14 +16,14 @@ class AdminAiBenchmarkController extends Controller
         $avgTokens = AdminAiInteraction::selectRaw('COALESCE(AVG(input_tokens + output_tokens), 0) as avg_tokens')->value('avg_tokens');
 
         $byProvider = AdminAiInteraction::query()
-            ->selectRaw("provider, COUNT(*) as calls, SUM(cost_usd) as total_cost, SUM(input_tokens + output_tokens) as total_tokens, ROUND(AVG(latency_ms)) as avg_latency")
+            ->selectRaw('provider, COUNT(*) as calls, SUM(cost_usd) as total_cost, SUM(input_tokens + output_tokens) as total_tokens, ROUND(AVG(latency_ms)) as avg_latency')
             ->whereNotNull('provider')
             ->groupBy('provider')
             ->orderByDesc('total_cost')
             ->get();
 
         $byScenario = AdminAiInteraction::query()
-            ->selectRaw("scenario_id, COUNT(*) as calls, SUM(cost_usd) as total_cost")
+            ->selectRaw('scenario_id, COUNT(*) as calls, SUM(cost_usd) as total_cost')
             ->groupBy('scenario_id')
             ->orderByDesc('total_cost')
             ->get();

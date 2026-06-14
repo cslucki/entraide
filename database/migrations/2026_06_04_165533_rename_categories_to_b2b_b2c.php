@@ -21,16 +21,16 @@ return new class extends Migration
 
         $mapping = [
             'Dépannage informatique' => 'Informatique',
-            'Visibilité & clients'   => 'Marketing',
-            'Créer des supports'     => 'Communication',
-            'Trouver un emploi'      => 'Emploi',
-            'Écrire & communiquer'   => 'Rédaction',
-            'Lancer son activité'    => 'Entrepreneuriat',
-            'Outils numériques'      => 'Digital',
-            'Aides & démarches'      => 'Vie quotidienne',
-            'Entraide locale'        => 'Logistique',
+            'Visibilité & clients' => 'Marketing',
+            'Créer des supports' => 'Communication',
+            'Trouver un emploi' => 'Emploi',
+            'Écrire & communiquer' => 'Rédaction',
+            'Lancer son activité' => 'Entrepreneuriat',
+            'Outils numériques' => 'Digital',
+            'Aides & démarches' => 'Vie quotidienne',
+            'Entraide locale' => 'Logistique',
             'Bricolage & projets perso' => 'Loisirs & pratique',
-            'Bien-être & équilibre'  => 'Bien-être & quotidien',
+            'Bien-être & équilibre' => 'Bien-être & quotidien',
         ];
 
         foreach ($mapping as $b2c => $b2b) {

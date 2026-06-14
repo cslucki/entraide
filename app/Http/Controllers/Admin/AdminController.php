@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
@@ -289,13 +290,13 @@ class AdminController extends Controller
     {
         $originalAdminId = session()->pull('admin_original_id');
 
-        if (!$originalAdminId) {
+        if (! $originalAdminId) {
             return redirect('/')->with('error', 'Aucune session admin précédente trouvée.');
         }
 
         $admin = User::find($originalAdminId);
 
-        if (!$admin) {
+        if (! $admin) {
             return redirect('/')->with('error', 'Compte admin introuvable.');
         }
 
@@ -326,7 +327,7 @@ class AdminController extends Controller
         ]);
     }
 
-    private function adminOrganizations(): \Illuminate\Support\Collection
+    private function adminOrganizations(): Collection
     {
         return Organization::orderByDesc('is_default')
             ->orderBy('name')

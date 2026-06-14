@@ -11,13 +11,13 @@
  */
 
 return [
-    'service'  => 'micro-service',
+    'service' => 'micro-service',
     'services' => 'micro-services',
-    'Service'  => 'Micro-service',
+    'Service' => 'Micro-service',
     'Services' => 'Micro-services',
 
-    'request'  => 'demande d\'aide',
+    'request' => 'demande d\'aide',
     'requests' => 'demandes d\'aide',
-    'Request'  => 'Demande d\'aide',
+    'Request' => 'Demande d\'aide',
     'Requests' => 'Demandes d\'aide',
 ];

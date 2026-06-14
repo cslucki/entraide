@@ -39,23 +39,24 @@ class AdminEmailController extends Controller
 
             EmailLog::create([
                 'to_email' => $data['to'],
-                'subject'  => $data['subject'],
-                'status'   => 'sent',
-                'data'     => ['source' => 'admin-test', 'driver' => config('mail.default')],
+                'subject' => $data['subject'],
+                'status' => 'sent',
+                'data' => ['source' => 'admin-test', 'driver' => config('mail.default')],
             ]);
 
             $driver = config('mail.default');
+
             return back()->with('success', "Email envoyé à {$data['to']} via le driver « {$driver} ».");
         } catch (\Exception $e) {
             EmailLog::create([
-                'to_email'      => $data['to'],
-                'subject'       => $data['subject'],
-                'status'        => 'failed',
+                'to_email' => $data['to'],
+                'subject' => $data['subject'],
+                'status' => 'failed',
                 'error_message' => $e->getMessage(),
-                'data'          => ['source' => 'admin-test', 'driver' => config('mail.default')],
+                'data' => ['source' => 'admin-test', 'driver' => config('mail.default')],
             ]);
 
-            return back()->with('error', 'Erreur lors de l\'envoi : ' . $e->getMessage())->withInput();
+            return back()->with('error', 'Erreur lors de l\'envoi : '.$e->getMessage())->withInput();
         }
     }
 }

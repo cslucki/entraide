@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Tag;
@@ -285,8 +286,8 @@ class BlogController extends Controller
             ->latest()
             ->paginate(15, ['*'], 'published');
 
-        $comments = \App\Models\BlogComment::where('user_id', auth()->id())
-            ->whereHas('post', fn($q) => $q->where('organization_id', $organization->id))
+        $comments = BlogComment::where('user_id', auth()->id())
+            ->whereHas('post', fn ($q) => $q->where('organization_id', $organization->id))
             ->with('post')
             ->latest()
             ->paginate(15, ['*'], 'comments');

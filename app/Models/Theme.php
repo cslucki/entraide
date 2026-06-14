@@ -54,7 +54,7 @@ class Theme extends Model
 
         $cachePath = storage_path('app/bouclepro-themes.php');
         $export = var_export($themes, true);
-        $content = "<?php return {$export};" . PHP_EOL;
+        $content = "<?php return {$export};".PHP_EOL;
 
         file_put_contents($cachePath, $content, LOCK_EX);
     }

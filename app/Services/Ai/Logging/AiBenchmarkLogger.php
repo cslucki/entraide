@@ -27,16 +27,16 @@ class AiBenchmarkLogger
 
             $scenarioId = $filtered['scenario_id'] ?? 'unknown';
 
-            if (!is_dir($this->basePath)) {
+            if (! is_dir($this->basePath)) {
                 @mkdir($this->basePath, 0755, true);
             }
 
             $filename = basename(str_replace(['/', '\\'], '_', $scenarioId));
-            $filePath = $this->basePath . DIRECTORY_SEPARATOR . $filename . '.jsonl';
+            $filePath = $this->basePath.DIRECTORY_SEPARATOR.$filename.'.jsonl';
 
             file_put_contents(
                 $filePath,
-                json_encode($filtered, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
+                json_encode($filtered, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)."\n",
                 FILE_APPEND | LOCK_EX
             );
         } catch (\Throwable $e) {

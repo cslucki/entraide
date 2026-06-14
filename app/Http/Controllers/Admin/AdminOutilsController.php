@@ -318,7 +318,9 @@ class AdminOutilsController extends Controller
 
         foreach ($fixes as $fix) {
             $category = Category::where('slug', $fix['slug'])->first();
-            if (! $category) continue;
+            if (! $category) {
+                continue;
+            }
 
             $changed = false;
             if ($category->name_b2c !== $fix['name_b2c']) {
@@ -354,9 +356,15 @@ class AdminOutilsController extends Controller
         }
 
         $parts = [];
-        if ($updated) $parts[] = "{$updated} catégorie(s) vérifiées";
-        if ($skillsCreated) $parts[] = "{$skillsCreated} compétence(s) ajoutée(s)";
-        if ($skillsDeleted) $parts[] = "{$skillsDeleted} compétence(s) supprimée(s)";
+        if ($updated) {
+            $parts[] = "{$updated} catégorie(s) vérifiées";
+        }
+        if ($skillsCreated) {
+            $parts[] = "{$skillsCreated} compétence(s) ajoutée(s)";
+        }
+        if ($skillsDeleted) {
+            $parts[] = "{$skillsDeleted} compétence(s) supprimée(s)";
+        }
 
         return redirect()->route('admin.outils.fix-categories')
             ->with('success', implode(', ', $parts) ?: 'Aucun changement nécessaire.');

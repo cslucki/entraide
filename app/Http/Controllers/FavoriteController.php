@@ -39,6 +39,7 @@ class FavoriteController extends Controller
         }
 
         $message = $favorited ? 'Service ajouté aux favoris.' : 'Service retiré des favoris.';
+
         return back()->with('success', $message);
     }
 }

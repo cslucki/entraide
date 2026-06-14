@@ -13,7 +13,7 @@ class AdminEmailTemplatesController extends Controller
     public function index(Request $request): View
     {
         $search = $request->input('search');
-        $templates = EmailTemplate::when($search, fn($q) => $q->where('name', 'like', "%{$search}%")
+        $templates = EmailTemplate::when($search, fn ($q) => $q->where('name', 'like', "%{$search}%")
             ->orWhere('slug', 'like', "%{$search}%"))
             ->withCount('logs')
             ->orderBy('name')
@@ -47,7 +47,7 @@ class AdminEmailTemplatesController extends Controller
 
     public function show(EmailTemplate $emailTemplate): View
     {
-        $emailTemplate->load(['logs' => fn($q) => $q->latest()->limit(10)]);
+        $emailTemplate->load(['logs' => fn ($q) => $q->latest()->limit(10)]);
 
         return view('admin.email-templates.show', compact('emailTemplate'));
     }
@@ -62,7 +62,7 @@ class AdminEmailTemplatesController extends Controller
         $request->merge(['variables' => $this->parseVariables($request->input('variables'))]);
 
         $validated = $request->validate([
-            'slug' => 'required|string|max:100|unique:email_templates,slug,' . $emailTemplate->id,
+            'slug' => 'required|string|max:100|unique:email_templates,slug,'.$emailTemplate->id,
             'name' => 'required|string|max:255',
             'subject' => 'required|string|max:255',
             'content_html' => 'required|string',
@@ -98,7 +98,7 @@ class AdminEmailTemplatesController extends Controller
             return $value ?: null;
         }
 
-        if (!is_string($value) || trim($value) === '') {
+        if (! is_string($value) || trim($value) === '') {
             return null;
         }
 

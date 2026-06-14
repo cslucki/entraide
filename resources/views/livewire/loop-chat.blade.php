@@ -39,6 +39,7 @@
                             :show-reply-button="$isMember"
                             :reply-to="$msg->replyTo ? ['body' => mb_substr($msg->replyTo->body, 0, 120), 'sender_name' => ($msg->replyTo->sender?->name ?? 'BouclePro')] : null"
                             :image-path="$msg->imageUrl()"
+                            :url-preview="$msg->metadata['url_preview'] ?? null"
                         >
                             {{ $msg->body }}
                         </x-conversation.message-bubble>

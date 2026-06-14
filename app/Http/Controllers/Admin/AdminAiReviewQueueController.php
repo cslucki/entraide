@@ -39,6 +39,6 @@ class AdminAiReviewQueueController extends Controller
         ]);
 
         return redirect()->route('admin.ai-review-queue')
-            ->with('success', 'Interaction ' . ($validated['review_status'] === 'approved' ? 'approuvée' : 'rejetée') . '.');
+            ->with('success', 'Interaction '.($validated['review_status'] === 'approved' ? 'approuvée' : 'rejetée').'.');
     }
 }

@@ -16,12 +16,12 @@ class MessageController extends Controller
 
         $transactions = Transaction::where('buyer_id', $user->id)
             ->orWhere('seller_id', $user->id)
-            ->with(['buyer', 'seller', 'service', 'serviceRequest', 'messages' => fn($q) => $q->latest('created_at')->limit(1)])
+            ->with(['buyer', 'seller', 'service', 'serviceRequest', 'messages' => fn ($q) => $q->latest('created_at')->limit(1)])
             ->orderByDesc('updated_at')
             ->get();
 
         $unreadCounts = Message::whereIn('transaction_id', $transactions->pluck('id'))
-            ->where(fn($q) => $q->where('sender_id', '!=', $user->id)->orWhereNull('sender_id'))
+            ->where(fn ($q) => $q->where('sender_id', '!=', $user->id)->orWhereNull('sender_id'))
             ->whereNull('read_at')
             ->where('type', 'user')
             ->selectRaw('transaction_id, count(*) as cnt')

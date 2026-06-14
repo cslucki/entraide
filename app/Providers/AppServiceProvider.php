@@ -2,8 +2,12 @@
 
 namespace App\Providers;
 
+use App\Events\LoopMessageCreated;
+use App\Jobs\GenerateAiAgentResponse;
+use App\Models\AiConfig;
 use App\Models\BugReport;
 use App\Models\Loop;
+use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\OrganizationRequest;
 use App\Models\Report;
@@ -17,7 +21,7 @@ use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
-use App\Models\AiConfig;
+use App\Scenarios\BoundedMemberScenario;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiProvider;
@@ -34,7 +38,6 @@ use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
-use App\Jobs\GenerateAiAgentResponse;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
@@ -110,7 +113,7 @@ class AppServiceProvider extends ServiceProvider
             $factory = new AiScenarioFactory;
             $factory->register(new SupervisionContentScenario);
             $factory->register(new ClarifyHelpRequestScenario);
-            $factory->register(new \App\Scenarios\BoundedMemberScenario);
+            $factory->register(new BoundedMemberScenario);
 
             return $factory;
         });
@@ -151,9 +154,9 @@ class AppServiceProvider extends ServiceProvider
         Service::observe(ServiceObserver::class);
 
         Event::listen(
-            \App\Events\LoopMessageCreated::class,
-            function (\App\Events\LoopMessageCreated $event) {
-                $loop = \App\Models\Loop::with('memberAiProfile')
+            LoopMessageCreated::class,
+            function (LoopMessageCreated $event) {
+                $loop = Loop::with('memberAiProfile')
                     ->where('id', $event->loopId)
                     ->first();
 
@@ -161,7 +164,7 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
-                $message = \App\Models\LoopMessage::find($event->id);
+                $message = LoopMessage::find($event->id);
 
                 if (! $message) {
                     return;

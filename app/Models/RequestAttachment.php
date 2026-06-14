@@ -31,7 +31,7 @@ class RequestAttachment extends Model
     public function iconClass(): string
     {
         return match (true) {
-            $this->mime_type === 'application/pdf'                                                                      => 'pdf',
+            $this->mime_type === 'application/pdf' => 'pdf',
             in_array($this->mime_type, ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']) => 'word',
             in_array($this->mime_type, ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']) => 'excel',
             default => 'image',

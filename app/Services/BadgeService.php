@@ -34,7 +34,7 @@ class BadgeService
 
     private function maybeAward(User $user, array $earned, string $key, bool $condition): void
     {
-        if (!$condition || in_array($key, $earned)) {
+        if (! $condition || in_array($key, $earned)) {
             return;
         }
 

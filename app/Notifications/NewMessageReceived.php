@@ -22,11 +22,11 @@ class NewMessageReceived extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Nouveau message de ' . ($this->message->sender?->name ?? 'Système'))
+            ->subject('Nouveau message de '.($this->message->sender?->name ?? 'Système'))
             ->markdown('emails.new_message', [
-                'user'        => $notifiable,
+                'user' => $notifiable,
                 'transaction' => $this->transaction,
-                'message'     => $this->message,
+                'message' => $this->message,
             ]);
     }
 }

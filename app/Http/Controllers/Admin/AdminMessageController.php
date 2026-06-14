@@ -10,6 +10,7 @@ use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class AdminMessageController extends Controller
@@ -74,7 +75,7 @@ class AdminMessageController extends Controller
         )->withQueryString();
     }
 
-    private function adminOrganizations(): \Illuminate\Support\Collection
+    private function adminOrganizations(): Collection
     {
         return Organization::orderByDesc('is_default')
             ->orderBy('name')

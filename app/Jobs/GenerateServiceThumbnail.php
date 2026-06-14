@@ -23,7 +23,7 @@ class GenerateServiceThumbnail implements ShouldQueue
             return;
         }
 
-        $thumbnailPath = 'thumbnails/' . $path;
+        $thumbnailPath = 'thumbnails/'.$path;
 
         $image = Image::decode($disk->get($path));
         $image->scaleDown(800, 600);

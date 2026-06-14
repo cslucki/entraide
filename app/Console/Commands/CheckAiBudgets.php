@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Cache;
 class CheckAiBudgets extends Command
 {
     protected $signature = 'ai:check-budgets';
+
     protected $description = 'Check AI monthly budgets per scenario and alert admins if exceeded';
 
     public function handle(): int
@@ -29,7 +30,7 @@ class CheckAiBudgets extends Command
                 continue;
             }
 
-            $cacheKey = "ai_budget_alert_{$scenarioId}_" . now()->format('Y_m');
+            $cacheKey = "ai_budget_alert_{$scenarioId}_".now()->format('Y_m');
             if (Cache::get($cacheKey)) {
                 continue;
             }
@@ -49,7 +50,7 @@ class CheckAiBudgets extends Command
             $this->info("Budget alert sent for scenario: {$scenarioId} ({$currentCost} > {$limit})");
         }
 
-        if (!$alerted) {
+        if (! $alerted) {
             $this->info('All AI budgets are within limits.');
         }
 
