@@ -11,14 +11,25 @@ use Illuminate\Support\Facades\DB;
 
 class LoopMessageService
 {
-    public function sendUserMessage(Loop $loop, User $sender, string $body, ?array $metadata = null): LoopMessage
+    public function sendUserMessage(Loop $loop, User $sender, string $body, ?array $metadata = null, ?string $replyToId = null): LoopMessage
     {
         $this->assertCanSend($loop, $sender);
 
-        return DB::transaction(function () use ($loop, $sender, $body, $metadata) {
+        if ($replyToId !== null) {
+            $parent = LoopMessage::where('id', $replyToId)
+                ->where('loop_id', $loop->id)
+                ->exists();
+
+            if (! $parent) {
+                $replyToId = null;
+            }
+        }
+
+        return DB::transaction(function () use ($loop, $sender, $body, $metadata, $replyToId) {
             $message = LoopMessage::create([
                 'loop_id' => $loop->id,
                 'sender_id' => $sender->id,
+                'reply_to_id' => $replyToId,
                 'body' => $body,
                 'type' => 'user',
                 'metadata' => $metadata,

@@ -1,4 +1,4 @@
-<div wire:poll.3s class="flex-1 flex flex-col min-h-0">
+<div wire:poll.3s class="flex-1 flex flex-col min-h-0" x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
     <x-conversation.message-list :has-messages="$messages->isNotEmpty()">
         <x-slot:messages>
             @forelse($messages as $msg)
@@ -35,6 +35,9 @@
                             :time="$msg->created_at->diffForHumans()"
                             :name="$isOwn ? 'Moi' : ($msg->sender?->name ?? 'BouclePro')"
                             :avatar="$msg->sender?->avatar_url"
+                            :message-id="$msg->id"
+                            :show-reply-button="$isMember"
+                            :reply-to="$msg->replyTo ? ['body' => mb_substr($msg->replyTo->body, 0, 120), 'sender_name' => ($msg->replyTo->sender?->name ?? 'BouclePro')] : null"
                         >
                             {{ $msg->body }}
                         </x-conversation.message-bubble>
@@ -58,6 +61,8 @@
         <x-conversation.composer
             model="body"
             placeholder="Écrivez un message..."
+            :replying-to="$replyingTo"
+            on-cancel-reply="cancelReply"
         >
             @error('body')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>

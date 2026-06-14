@@ -1,4 +1,4 @@
-<div class="flex flex-col h-full" wire:poll.3000ms>
+<div class="flex flex-col h-full" wire:poll.3000ms x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
     <!-- Status banner -->
     @php $isDirectConversation = $transaction->isDirectConversation(); @endphp
 
@@ -92,6 +92,9 @@
                     <x-conversation.message-bubble
                         type="sent"
                         :time="$message->created_at->format('H:i')"
+                        :message-id="$message->id"
+                        :show-reply-button="true"
+                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
                     >
                         {{ $message->body }}
                     </x-conversation.message-bubble>
@@ -100,6 +103,9 @@
                         type="received"
                         :time="$message->created_at->format('H:i')"
                         :avatar="$message->sender?->avatar_url"
+                        :message-id="$message->id"
+                        :show-reply-button="true"
+                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
                     >
                         {{ $message->body }}
                     </x-conversation.message-bubble>
@@ -153,6 +159,8 @@
         <x-conversation.composer
             model="newMessage"
             placeholder="Votre message..."
+            :replying-to="$replyingTo"
+            on-cancel-reply="cancelReply"
         >
             @error('newMessage')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
