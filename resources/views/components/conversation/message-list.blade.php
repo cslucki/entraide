@@ -1,7 +1,14 @@
 @props([
     'autoScroll' => true,
+    'hasMessages' => null,
     'wireKeyPrefix' => 'msg',
 ])
+
+@php
+    $shouldShowEmpty = $hasMessages === null
+        ? (empty($messages) || ($messages instanceof \Illuminate\Support\Collection && $messages->isEmpty()))
+        : ! $hasMessages;
+@endphp
 
 <div
     @if($autoScroll)
@@ -21,7 +28,7 @@
         {{ $messages }}
     @endif
 
-    @if(isset($empty) && (empty($messages) || ($messages instanceof \Illuminate\Support\Collection && $messages->isEmpty())))
+    @if(isset($empty) && $shouldShowEmpty)
         {{ $empty }}
     @endif
 
