@@ -290,6 +290,42 @@
                 </div>
             </div>
 
+            <!-- Mes annonces Flux -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes annonces</h2>
+                    @if($canCreateFeedPost)
+                    <a href="{{ $feedCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ Nouvelle</a>
+                    @endif
+                </div>
+                <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @forelse($myFeedPosts as $post)
+                    <a href="{{ $feedUrl }}" class="px-5 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $post->title ?: 'Sans titre' }}</p>
+                            <p class="text-xs text-gray-500">{{ $post->created_at->isoFormat('D MMM YYYY') }}</p>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 ml-3
+                            {{ $post->status === 'published' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' }}">
+                            {{ $post->status === 'published' ? 'Publiée' : 'Brouillon' }}
+                        </span>
+                    </a>
+                    @empty
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">
+                        Aucune annonce pour le moment.
+                        @if($canCreateFeedPost)
+                        <br><a href="{{ $feedCreateUrl }}" class="text-indigo-600 hover:underline">Créer une annonce</a>
+                        @endif
+                    </p>
+                    @endforelse
+                </div>
+                @if($myFeedPosts->count() >= 5)
+                <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 text-center">
+                    <a href="{{ $myFeedPostsUrl }}" class="text-xs text-indigo-600 hover:underline">Voir toutes mes annonces</a>
+                </div>
+                @endif
+            </div>
+
             <!-- Messages récents -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">

@@ -104,6 +104,7 @@ class AdminOrganizationController extends Controller
             'header_javascript' => 'nullable|string',
             'blog_naming' => 'nullable|in:b2b,b2c',
             'transactions_naming' => 'nullable|in:b2b,b2c',
+            'feed_post_publish_mode' => 'nullable|in:admin,members',
             'theme_id' => 'nullable|exists:themes,id',
         ]);
 
@@ -129,6 +130,7 @@ class AdminOrganizationController extends Controller
         $data['is_default'] = ($data['is_default'] ?? '0') === '1';
         $data['blog_naming'] = $data['blog_naming'] ?? $organization->blog_naming ?? 'b2b';
         $data['transactions_naming'] = $data['transactions_naming'] ?? $organization->transactions_naming ?? 'b2c';
+        $data['feed_post_publish_mode'] = $data['feed_post_publish_mode'] ?? $organization->feed_post_publish_mode ?? 'admin';
 
         if ($data['is_default']) {
             Organization::where('is_default', true)

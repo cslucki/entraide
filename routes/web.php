@@ -51,6 +51,7 @@ use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
+use App\Livewire\MyFeedPosts;
 use App\Livewire\OrganizationFeed;
 use App\Models\MemberAiProfile;
 use Illuminate\Support\Facades\Route;
@@ -102,6 +103,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/flux', OrganizationFeed::class)->name('flux');
     Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
+    Route::get('/flux/mes-annonces', MyFeedPosts::class)->name('flux.my');
 
     // Services
     Route::middleware('profile.complete')->group(function () {
@@ -454,6 +456,7 @@ Route::prefix('/org/{organization}')
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');
             Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
+            Route::get('/flux/mes-annonces', MyFeedPosts::class)->name('flux.my');
         });
 
         Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');

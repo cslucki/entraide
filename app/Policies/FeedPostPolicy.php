@@ -15,8 +15,15 @@ class FeedPostPolicy
             return false;
         }
 
-        return $user->organization_id === $org->id
-            && ($org->admin_id === $user->id || $user->is_admin);
+        if ($user->organization_id !== $org->id) {
+            return false;
+        }
+
+        if ($org->feed_post_publish_mode === 'members') {
+            return true;
+        }
+
+        return $org->admin_id === $user->id || $user->is_admin;
     }
 
     public function viewAny(User $user): bool
