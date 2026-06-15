@@ -224,7 +224,7 @@
     <script>
     document.getElementById('like-btn')?.addEventListener('click', function() {
         const btn = this;
-        fetch('{{ route('likes.toggle') }}', {
+        fetch('{{ organizationRoute('organization.likes.toggle', ['organization' => currentOrganization()?->slug ?? 'default']) }}', {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}'},
             body: JSON.stringify({likeable_type: 'blog_post', likeable_id: '{{ $post->id }}'})

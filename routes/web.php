@@ -84,7 +84,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/blog/{post:slug}', [BlogController::class, 'destroy'])->name('blog.destroy');
     Route::post('/blog/{post:slug}/commentaires', [BlogCommentController::class, 'store'])->name('blog.comment.store');
     Route::delete('/commentaires/{comment}', [BlogCommentController::class, 'destroy'])->name('blog.comment.destroy');
-    Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
 });
 
 // Blog — wildcard slug EN DERNIER
@@ -443,6 +442,10 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
                 Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
                 Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+            });
+
+            Route::middleware('verified')->group(function () {
+                Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
             });
         });
 
