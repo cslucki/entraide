@@ -50,6 +50,8 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
 use App\Livewire\BoundedMemberAgent;
+use App\Livewire\CreateFeedPost;
+use App\Livewire\OrganizationFeed;
 use App\Models\MemberAiProfile;
 use Illuminate\Support\Facades\Route;
 
@@ -98,6 +100,8 @@ Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.in
 // Authenticated routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/flux', OrganizationFeed::class)->name('flux');
+    Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
 
     // Services
     Route::middleware('profile.complete')->group(function () {
@@ -448,8 +452,8 @@ Route::prefix('/org/{organization}')
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
             });
 
-            Route::get('/flux', \App\Livewire\OrganizationFeed::class)->name('flux');
-            Route::get('/flux/creer', \App\Livewire\CreateFeedPost::class)->name('flux.create');
+            Route::get('/flux', OrganizationFeed::class)->name('flux');
+            Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
         });
 
         Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');

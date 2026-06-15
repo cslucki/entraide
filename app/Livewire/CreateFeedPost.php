@@ -111,7 +111,10 @@ class CreateFeedPost extends Component
         $this->image = null;
         $this->dispatch('announcement-created');
 
-        $this->redirectRoute('organization.flux', ['organization' => currentOrganization()?->slug]);
+        $route = currentOrganization()?->is_default ? 'flux' : 'organization.flux';
+        $parameters = $route === 'organization.flux' ? ['organization' => currentOrganization()?->slug] : [];
+
+        $this->redirectRoute($route, $parameters);
     }
 
     public function removeImage(): void
@@ -136,9 +139,11 @@ class CreateFeedPost extends Component
     {
         $org = currentOrganization();
         $loops = $org
-            ? Loop::where('organization_id', $org->id)->get(['id', 'name'])->map(fn (Loop $loop) => [
+            ? Loop::where('organization_id', $org->id)->orderBy('name')->get(['id', 'name', 'slug', 'description'])->map(fn (Loop $loop) => [
                 'id' => $loop->id,
                 'name' => $loop->name,
+                'slug' => $loop->slug,
+                'description' => $loop->description,
             ])
             : collect();
 

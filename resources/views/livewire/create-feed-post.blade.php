@@ -1,8 +1,14 @@
-@php($organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug)
+@php
+    $organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug;
+    $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default;
+    $fluxUrl = $usesDefaultOrganizationRoute && Route::has('flux')
+        ? route('flux')
+        : route('organization.flux', ['organization' => $organizationRouteParam]);
+@endphp
 
 <div class="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="mb-6">
-        <a href="{{ route('organization.flux', ['organization' => $organizationRouteParam]) }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">← Retour au flux</a>
+        <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">← Retour au flux</a>
         <h1 class="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">Nouvelle annonce</h1>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Publiez une information claire pour les membres de l’organisation.</p>
     </div>
@@ -52,10 +58,18 @@
             </label>
 
             <div class="grid gap-2">
-                @forelse($loops as $loop)
-                    <label class="flex items-center gap-3 rounded-2xl bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                        <input type="checkbox" wire:model="selectedLoops" value="{{ data_get($loop, 'id') }}" @disabled($allLoops) class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                        <span>{{ data_get($loop, 'name') }}</span>
+                @forelse($loops as $feedLoop)
+                    <label class="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 shadow-sm transition dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 {{ $allLoops ? 'opacity-75' : 'hover:border-indigo-200 dark:hover:border-indigo-700' }}">
+                        <input type="checkbox" wire:model="selectedLoops" value="{{ data_get($feedLoop, 'id') }}" @disabled($allLoops) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span class="min-w-0">
+                            <span class="block font-semibold leading-5">{{ data_get($feedLoop, 'name') }}</span>
+                            @if(data_get($feedLoop, 'slug'))
+                                <span class="block text-xs text-gray-500 dark:text-gray-400">#{{ data_get($feedLoop, 'slug') }}</span>
+                            @endif
+                            @if(data_get($feedLoop, 'description'))
+                                <span class="mt-1 block line-clamp-2 text-xs text-gray-500 dark:text-gray-400">{{ data_get($feedLoop, 'description') }}</span>
+                            @endif
+                        </span>
                     </label>
                 @empty
                     <p class="text-sm text-gray-500 dark:text-gray-400">Aucune boucle disponible.</p>
@@ -69,7 +83,7 @@
         </div>
 
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <a href="{{ route('organization.flux', ['organization' => $organizationRouteParam]) }}" class="inline-flex justify-center rounded-full border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Annuler</a>
+            <a href="{{ $fluxUrl }}" class="inline-flex justify-center rounded-full border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Annuler</a>
             <button type="submit" class="inline-flex justify-center rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60" wire:loading.attr="disabled">
                 Publier l’annonce
             </button>

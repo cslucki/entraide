@@ -50,6 +50,7 @@ class ResolveUrlOrganization
         'favorites',
         'profile',
         'reports',
+        'flux',
     ];
 
     // Routes that require an authenticated user — guests are passed through
