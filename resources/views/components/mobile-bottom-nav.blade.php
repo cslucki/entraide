@@ -2,7 +2,7 @@
     <div class="flex justify-around items-center h-16 px-2">
         @php
             $currentRoute = request()->route()?->getName() ?? '';
-            $organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug;
+            $organizationRouteParam = request()->route('organization') ?: (auth()->check() ? currentOrganization()?->slug : null);
             $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default;
             $tabUrl = function (string $rootRoute, ?string $organizationRoute = null) use ($organizationRouteParam): string {
                 if ($organizationRouteParam && $organizationRoute && Route::has($organizationRoute)) {

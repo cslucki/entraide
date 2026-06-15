@@ -1,6 +1,6 @@
 @php
     $currentRoute = request()->route()?->getName() ?? '';
-    $organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug;
+    $organizationRouteParam = request()->route('organization') ?: (auth()->check() ? currentOrganization()?->slug : null);
     $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default;
     $unreadMessagesCount = auth()->check() ? auth()->user()->unreadMessagesCount() : 0;
 
