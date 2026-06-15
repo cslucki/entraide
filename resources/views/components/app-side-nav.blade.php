@@ -1,6 +1,6 @@
 @php
     $currentRoute = request()->route()?->getName() ?? '';
-    $organizationRouteParam = request()->route('organization');
+    $organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug;
     $unreadMessagesCount = auth()->check() ? auth()->user()->unreadMessagesCount() : 0;
 
     $routeUrl = function (string $rootRoute, ?string $organizationRoute = null) use ($organizationRouteParam): string {
@@ -18,6 +18,13 @@
             'label' => 'Boucles',
             'hint' => 'ChatLoop',
             'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
+        ],
+        [
+            'url' => $organizationRouteParam ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'),
+            'active' => ['organization.flux'],
+            'label' => 'Flux',
+            'hint' => 'Annonces',
+            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z',
         ],
         [
             'url' => $routeUrl('explorer', 'organization.explorer'),

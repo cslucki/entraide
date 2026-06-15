@@ -447,6 +447,9 @@ Route::prefix('/org/{organization}')
             Route::middleware('verified')->group(function () {
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
             });
+
+            Route::get('/flux', \App\Livewire\OrganizationFeed::class)->name('flux');
+            Route::get('/flux/creer', \App\Livewire\CreateFeedPost::class)->name('flux.create');
         });
 
         Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');

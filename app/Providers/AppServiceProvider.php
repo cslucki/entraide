@@ -6,6 +6,7 @@ use App\Events\LoopMessageCreated;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Models\AiConfig;
 use App\Models\BugReport;
+use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
@@ -16,6 +17,7 @@ use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
+use App\Policies\FeedPostPolicy;
 use App\Policies\MessagePolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
@@ -183,6 +185,7 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by($request->ip());
         });
 
+        Gate::policy(FeedPost::class, FeedPostPolicy::class);
         Gate::policy(Service::class, ServicePolicy::class);
         Gate::policy(ServiceRequest::class, ServiceRequestPolicy::class);
         Gate::policy(Transaction::class, TransactionPolicy::class);

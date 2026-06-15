@@ -36,6 +36,7 @@ class Reaction extends Model
     public const ALLOWED_REACTIONABLE_TYPES = [
         LoopMessage::class,
         Message::class,
+        FeedPost::class,
     ];
 
     public static function emojiMap(): array

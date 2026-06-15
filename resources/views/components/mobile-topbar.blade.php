@@ -18,6 +18,8 @@
         'boucles.index' => 'Boucles',
         'loops.index' => 'Boucles',
         'organization.loops.index' => 'Boucles',
+        'organization.flux' => 'Flux',
+        'organization.flux.create' => 'Nouvelle annonce',
         'blog.index' => 'Actus',
         'mentions-legales' => 'Mentions légales',
         'dashboard' => 'Mon espace',
