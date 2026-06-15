@@ -44,6 +44,7 @@ class Organization extends Model
         'header_javascript',
         'blog_naming',
         'transactions_naming',
+        'feed_post_publish_mode',
         'theme_id',
     ];
 
@@ -134,5 +135,10 @@ class Organization extends Model
     public function isMultiLoop(): bool
     {
         return $this->loop_mode !== 'mono';
+    }
+
+    public function isFeedPostPublishableByMembers(): bool
+    {
+        return $this->feed_post_publish_mode === 'members';
     }
 }

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\FeedPost;
 use App\Models\MemberAiProfile;
 use App\Models\Transaction;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -67,6 +69,25 @@ class DashboardController extends Controller
         $sentReferralsCount = $user->sentReferrals()->where('organization_id', $organization->id)->count();
         $activatedReferralsCount = $user->sentReferrals()->where('organization_id', $organization->id)->where('status', 'activated')->count();
         $referralPointsEarned = $user->referralRewards()->sum('points');
+
+        $myFeedPosts = FeedPost::where('organization_id', $organization->id)
+            ->where('user_id', $user->id)
+            ->latest()
+            ->limit(5)
+            ->get();
+
+        $canCreateFeedPost = $user->can('create', FeedPost::class);
+
+        $usesDefaultOrganizationRoute = (bool) $organization->is_default;
+        $feedUrl = $usesDefaultOrganizationRoute && Route::has('flux')
+            ? route('flux')
+            : route('organization.flux', ['organization' => $organization->slug]);
+        $feedCreateUrl = $usesDefaultOrganizationRoute && Route::has('flux.create')
+            ? route('flux.create')
+            : route('organization.flux.create', ['organization' => $organization->slug]);
+        $myFeedPostsUrl = $usesDefaultOrganizationRoute && Route::has('flux.my')
+            ? route('flux.my')
+            : route('organization.flux.my', ['organization' => $organization->slug]);
 
         $hasPresentation = filled($user->bio);
         $hasServiceRequest = $user->serviceRequests()->where('organization_id', $organization->id)->exists();
@@ -145,6 +166,7 @@ class DashboardController extends Controller
             'myServices', 'myRequests', 'myProposals', 'activeExchanges', 'recentMessages',
             'referralCode', 'referralLink', 'sentReferralsCount', 'activatedReferralsCount', 'referralPointsEarned',
             'aiProfile', 'onboardingSteps', 'requestCreateUrl',
+            'myFeedPosts', 'canCreateFeedPost', 'feedUrl', 'feedCreateUrl', 'myFeedPostsUrl',
         ));
     }
 }

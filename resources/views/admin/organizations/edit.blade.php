@@ -280,7 +280,33 @@
                          <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Boucle accessible par défaut à tous les membres de l'organisation.</p>
                      </label>
                  </div>
-             </div>
+              </div>
+
+              <div class="pt-2">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Publication des annonces</span>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-2">Qui peut publier des annonces dans le Flux de cette organisation ?</p>
+                  <div class="space-y-2">
+                      <label class="flex items-center gap-3 cursor-pointer">
+                          <input type="radio" name="feed_post_publish_mode" value="admin"
+                              {{ old('feed_post_publish_mode', $organization->feed_post_publish_mode ?? 'admin') === 'admin' ? 'checked' : '' }}
+                              class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                          <div>
+                              <span class="text-sm text-gray-700 dark:text-gray-300">Administrateurs uniquement</span>
+                              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Seuls les administrateurs de l'organisation peuvent publier.</p>
+                          </div>
+                      </label>
+                      <label class="flex items-center gap-3 cursor-pointer">
+                          <input type="radio" name="feed_post_publish_mode" value="members"
+                              {{ old('feed_post_publish_mode', $organization->feed_post_publish_mode ?? 'admin') === 'members' ? 'checked' : '' }}
+                              class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                          <div>
+                              <span class="text-sm text-gray-700 dark:text-gray-300">Tous les membres</span>
+                              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tous les membres de l'organisation peuvent publier des annonces.</p>
+                          </div>
+                      </label>
+                  </div>
+              </div>
+          </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Nommage des catégories</h2>
