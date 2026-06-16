@@ -33,7 +33,7 @@
         </header>
 
         <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100">
-            {!! nl2br(e($post->content)) !!}
+            {!! markdown($post->content) !!}
         </div>
 
         @if(is_array($preview))
