@@ -28,10 +28,15 @@ class FeedPost extends Model
         'status',
         'pinned_at',
         'pinned_by_id',
+        'scheduled_at',
+        'published_at',
+        'loop_message',
     ];
 
     protected $casts = [
         'pinned_at' => 'datetime',
+        'scheduled_at' => 'datetime',
+        'published_at' => 'datetime',
         'url_preview' => 'array',
     ];
 
@@ -40,6 +45,8 @@ class FeedPost extends Model
     public const STATUS_PUBLISHED = 'published';
 
     public const STATUS_DRAFT = 'draft';
+
+    public const STATUS_SCHEDULED = 'scheduled';
 
     public function organization(): BelongsTo
     {
@@ -87,6 +94,27 @@ class FeedPost extends Model
     public function scopeForOrganization($query, string $organizationId)
     {
         return $query->where('organization_id', $organizationId);
+    }
+
+    public function scopeVisibleInFeed($query)
+    {
+        return $query->where('status', self::STATUS_PUBLISHED);
+    }
+
+    public function scopeDraft($query)
+    {
+        return $query->where('status', self::STATUS_DRAFT);
+    }
+
+    public function scopeScheduled($query)
+    {
+        return $query->where('status', self::STATUS_SCHEDULED);
+    }
+
+    public function scopeDueForPublication($query)
+    {
+        return $query->where('status', self::STATUS_SCHEDULED)
+            ->where('scheduled_at', '<=', now());
     }
 
     public function isPinned(): bool
