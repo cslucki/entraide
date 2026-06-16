@@ -319,7 +319,7 @@
                     </p>
                     @endforelse
                 </div>
-                @if($myFeedPosts->count() >= 5)
+                @if($myFeedPosts->isNotEmpty())
                 <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 text-center">
                     <a href="{{ $myFeedPostsUrl }}" class="text-xs text-indigo-600 hover:underline">Voir toutes mes annonces</a>
                 </div>

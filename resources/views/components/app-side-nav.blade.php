@@ -23,17 +23,9 @@
         [
             'url' => $usesDefaultOrganizationRoute && Route::has('flux') ? route('flux') : ($organizationRouteParam ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard')),
             'active' => ['flux', 'organization.flux'],
-            'active_exclude' => ['flux.my', 'organization.flux.my'],
             'label' => 'Flux',
             'hint' => 'Annonces',
             'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z',
-        ],
-        [
-            'url' => $usesDefaultOrganizationRoute && Route::has('flux.my') ? route('flux.my') : ($organizationRouteParam ? route('organization.flux.my', ['organization' => $organizationRouteParam]) : route('dashboard')),
-            'active' => ['flux.my', 'organization.flux.my'],
-            'label' => 'Mes annonces',
-            'hint' => 'Flux',
-            'icon' => 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
         ],
         [
             'url' => $routeUrl('explorer', 'organization.explorer'),
