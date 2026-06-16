@@ -24,6 +24,12 @@ class CreateFeedPost extends Component
 
     public bool $pin = false;
 
+    public string $mode = 'publish';
+
+    public ?string $scheduledAt = null;
+
+    public string $loopMessage = '';
+
     public array $selectedLoops = [];
 
     public bool $allLoops = false;
@@ -50,6 +56,9 @@ class CreateFeedPost extends Component
             'content' => 'required|string|max:10000',
             'image' => 'nullable|image|max:10240',
             'pin' => 'boolean',
+            'mode' => 'required|in:publish,draft,schedule',
+            'scheduledAt' => $this->mode === 'schedule' ? ['required', 'date', 'after:now'] : 'nullable',
+            'loopMessage' => 'nullable|string|max:10000',
             'selectedLoops' => 'nullable|array',
             'selectedLoops.*' => 'string|uuid',
             'allLoops' => 'boolean',
@@ -76,6 +85,12 @@ class CreateFeedPost extends Component
             $url = UrlPreviewService::extractFirstUrl($this->content);
             $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
 
+            [$status, $publishedAt, $scheduledAtDb] = match ($this->mode) {
+                'draft' => [FeedPost::STATUS_DRAFT, null, null],
+                'schedule' => [FeedPost::STATUS_SCHEDULED, null, $this->scheduledAt],
+                default => [FeedPost::STATUS_PUBLISHED, now(), null],
+            };
+
             $post = FeedPost::create([
                 'organization_id' => $org->id,
                 'user_id' => $user->id,
@@ -84,40 +99,51 @@ class CreateFeedPost extends Component
                 'content' => $this->content,
                 'image_path' => $imagePath,
                 'url_preview' => $preview,
-                'status' => FeedPost::STATUS_PUBLISHED,
+                'status' => $status,
+                'published_at' => $publishedAt,
+                'scheduled_at' => $scheduledAtDb,
+                'loop_message' => $this->loopMessage ?: null,
                 'pinned_at' => $this->pin ? now() : null,
                 'pinned_by_id' => $this->pin ? $user->id : null,
             ]);
 
-            $targetLoops = collect();
+            if ($this->mode === 'publish') {
+                $targetLoops = collect();
 
-            if ($this->allLoops) {
-                $targetLoops = Loop::where('organization_id', $org->id)->get();
-            } elseif (! empty($this->selectedLoops)) {
-                $targetLoops = Loop::whereIn('id', $this->selectedLoops)
-                    ->where('organization_id', $org->id)
-                    ->get();
-            }
+                if ($this->allLoops) {
+                    $targetLoops = Loop::where('organization_id', $org->id)->get();
+                } elseif (! empty($this->selectedLoops)) {
+                    $targetLoops = Loop::whereIn('id', $this->selectedLoops)
+                        ->where('organization_id', $org->id)
+                        ->get();
+                }
 
-            foreach ($targetLoops as $loop) {
-                $post->loops()->syncWithoutDetaching([$loop->id]);
+                foreach ($targetLoops as $loop) {
+                    $post->loops()->syncWithoutDetaching([$loop->id]);
 
-                try {
-                    $body = ($this->title ? "**{$this->title}**\n\n" : '').$this->content;
-                    $loopMessageService->sendUserMessage(
-                        $loop,
-                        $user,
-                        $body,
-                        metadata: ['feed_post_id' => $post->id, 'type' => 'announcement'],
-                    );
-                } catch (\RuntimeException) {
-                    // skip loops where user is not a member
+                    try {
+                        $body = ($this->title ? "**{$this->title}**\n\n" : '').$this->content;
+                        $loopMessageService->sendUserMessage(
+                            $loop,
+                            $user,
+                            $body,
+                            metadata: ['feed_post_id' => $post->id, 'type' => 'announcement'],
+                        );
+                    } catch (\RuntimeException) {
+                        // skip loops where user is not a member
+                    }
                 }
             }
         });
 
         $this->image = null;
         $this->dispatch('announcement-created');
+
+        session()->flash('status', match ($this->mode) {
+            'draft' => 'Brouillon enregistré.',
+            'schedule' => 'Annonce planifiée.',
+            default => 'Annonce publiée.',
+        });
 
         $route = currentOrganization()?->is_default ? 'flux' : 'organization.flux';
         $parameters = $route === 'organization.flux' ? ['organization' => currentOrganization()?->slug] : [];

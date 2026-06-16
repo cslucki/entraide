@@ -35,6 +35,36 @@
             @error('content') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
         </div>
 
+        <div class="space-y-3 rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
+            <div>
+                <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">Publication</h2>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Choisissez quand publier cette annonce.</p>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+                <label class="flex items-center gap-2 rounded-full border px-4 py-2 text-sm cursor-pointer transition {{ $mode === 'publish' ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200' : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800' }}">
+                    <input type="radio" wire:model.live="mode" value="publish" class="sr-only">
+                    Publier maintenant
+                </label>
+                <label class="flex items-center gap-2 rounded-full border px-4 py-2 text-sm cursor-pointer transition {{ $mode === 'draft' ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200' : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800' }}">
+                    <input type="radio" wire:model.live="mode" value="draft" class="sr-only">
+                    Brouillon
+                </label>
+                <label class="flex items-center gap-2 rounded-full border px-4 py-2 text-sm cursor-pointer transition {{ $mode === 'schedule' ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200' : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800' }}">
+                    <input type="radio" wire:model.live="mode" value="schedule" class="sr-only">
+                    Planifier
+                </label>
+            </div>
+
+            @if($mode === 'schedule')
+                <div>
+                    <label for="scheduledAt" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">Date et heure de publication</label>
+                    <input id="scheduledAt" type="datetime-local" wire:model="scheduledAt" class="mt-2 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
+                    @error('scheduledAt') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                </div>
+            @endif
+        </div>
+
         <div>
             <label for="image" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">Image optionnelle</label>
             <input id="image" type="file" wire:model="image" accept="image/*" class="mt-2 block w-full text-sm text-gray-600 file:mr-4 file:rounded-full file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-300 dark:file:bg-indigo-900/40 dark:file:text-indigo-200">
@@ -53,6 +83,12 @@
                 <input type="checkbox" wire:model="pin" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                 Épingler cette annonce
             </label>
+        </div>
+
+        <div>
+            <label for="loopMessage" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">Message pour la boucle (optionnel)</label>
+            <textarea id="loopMessage" wire:model="loopMessage" rows="2" class="mt-2 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="Un message distinct pour la diffusion dans les boucles…"></textarea>
+            @error('loopMessage') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
         </div>
 
         <div class="space-y-3 rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
@@ -94,7 +130,10 @@
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <a href="{{ $fluxUrl }}" class="inline-flex justify-center rounded-full border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Annuler</a>
             <button type="submit" class="inline-flex justify-center rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60" wire:loading.attr="disabled">
-                Publier l’annonce
+                @if($mode === 'draft') Enregistrer le brouillon
+                @elseif($mode === 'schedule') Planifier
+                @else Publier l'annonce
+                @endif
             </button>
         </div>
     </form>
