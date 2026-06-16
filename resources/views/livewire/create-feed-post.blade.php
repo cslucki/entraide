@@ -22,7 +22,16 @@
 
         <div>
             <label for="content" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">Message</label>
-            <textarea id="content" wire:model="content" rows="7" class="mt-2 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="Texte de l’annonce. Collez une URL pour générer un aperçu."></textarea>
+
+            <div x-data="{ insertMarkdown(type) { const ta = document.getElementById('content'); if (!ta) return; const start = ta.selectionStart; const end = ta.selectionEnd; const val = ta.value; const sel = val.substring(start, end); let before = '', after = ''; if (type === 'bold') { before = '**'; after = '**'; } else if (type === 'link') { before = '['; after = '](url)'; } else if (type === 'h2') { before = '## '; } else if (type === 'h3') { before = '### '; } else if (type === 'list') { before = '\n- '; } let newVal; if (sel && type !== 'h2' && type !== 'h3' && type !== 'list') { newVal = val.substring(0, start) + before + sel + after + val.substring(end); } else { newVal = val.substring(0, start) + before + after + val.substring(end); } ta.value = newVal; ta.dispatchEvent(new Event('input', { bubbles: true })); ta.focus(); const pos = start + before.length; ta.setSelectionRange(pos, pos); } }" class="mt-2 flex flex-wrap gap-1">
+                <button type="button" @click="insertMarkdown('bold')" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800" title="Gras (sélectionnez du texte)">Gras</button>
+                <button type="button" @click="insertMarkdown('link')" class="rounded-lg px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800" title="Insérer un lien">Lien</button>
+                <button type="button" @click="insertMarkdown('h2')" class="rounded-lg px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800" title="Titre niveau 2">H2</button>
+                <button type="button" @click="insertMarkdown('h3')" class="rounded-lg px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800" title="Titre niveau 3">H3</button>
+                <button type="button" @click="insertMarkdown('list')" class="rounded-lg px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800" title="Liste à puces">Liste</button>
+            </div>
+
+            <textarea id="content" wire:model="content" rows="7" class="mt-1 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="Texte de l’annonce. Collez une URL pour générer un aperçu."></textarea>
             @error('content') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
         </div>
 
