@@ -7,6 +7,10 @@
     $createUrl = $usesDefaultOrganizationRoute && Route::has('flux.create')
         ? route('flux.create')
         : route('organization.flux.create', ['organization' => $organizationRouteParam]);
+    $editRouteName = $usesDefaultOrganizationRoute ? 'flux.edit' : 'organization.flux.edit';
+    $editRouteParams = fn ($postId) => $usesDefaultOrganizationRoute
+        ? ['feedPost' => $postId]
+        : ['organization' => $organizationRouteParam, 'feedPost' => $postId];
 @endphp
 
 <div>
@@ -41,19 +45,37 @@
         <div class="space-y-4">
             @foreach($posts as $post)
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-                <div class="flex items-start justify-between gap-4">
-                    <div class="min-w-0 flex-1">
-                        <h3 class="font-medium text-gray-900 dark:text-gray-100">{{ $post->title ?: 'Sans titre' }}</h3>
-                        <p class="text-sm text-gray-500 mt-1">{{ Str::limit(strip_tags($post->content), 200) }}</p>
-                        <p class="text-xs text-gray-400 mt-2">{{ $post->created_at->isoFormat('D MMM YYYY à HH:mm') }}</p>
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0 flex-1">
+                            <h3 class="font-medium text-gray-900 dark:text-gray-100">{{ $post->title ?: 'Sans titre' }}</h3>
+                            <p class="text-sm text-gray-500 mt-1">{{ Str::limit(strip_tags($post->content), 200) }}</p>
+                            <p class="text-xs text-gray-400 mt-2">{{ $post->created_at->isoFormat('D MMM YYYY à HH:mm') }}</p>
+                        </div>
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            @php
+                                $badgeClasses = match ($post->status) {
+                                    'published' => 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300',
+                                    'scheduled' => 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300',
+                                    default => 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+                                };
+                                $badgeLabel = match ($post->status) {
+                                    'published' => 'Publiée',
+                                    'scheduled' => 'Planifiée',
+                                    default => 'Brouillon',
+                                };
+                            @endphp
+                            <span class="text-xs px-2 py-0.5 rounded-full {{ $badgeClasses }}">
+                                {{ $badgeLabel }}
+                            </span>
+                            <div class="flex items-center gap-1">
+                                <a href="{{ route($editRouteName, $editRouteParams($post->id)) }}" class="text-xs text-indigo-600 hover:underline">Modifier</a>
+                                <button type="button"
+                                        x-on:click="if (confirm('Supprimer cette annonce ?')) { $wire.delete('{{ $post->id }}') }"
+                                        class="text-xs text-red-600 hover:underline">Supprimer</button>
+                            </div>
+                            <a href="{{ $feedUrl }}" class="text-xs text-indigo-600 hover:underline">Voir</a>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-3 flex-shrink-0">
-                        <span class="text-xs px-2 py-0.5 rounded-full {{ $post->status === 'published' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' }}">
-                            {{ $post->status === 'published' ? 'Publiée' : 'Brouillon' }}
-                        </span>
-                        <a href="{{ $feedUrl }}" class="text-xs text-indigo-600 hover:underline">Voir</a>
-                    </div>
-                </div>
             </div>
             @endforeach
         </div>

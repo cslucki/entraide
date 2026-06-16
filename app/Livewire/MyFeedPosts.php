@@ -29,4 +29,15 @@ class MyFeedPosts extends Component
             'canCreate' => auth()->user()->can('create', FeedPost::class),
         ]);
     }
+
+    public function delete(string $feedPostId): void
+    {
+        $post = FeedPost::findOrFail($feedPostId);
+
+        if (! auth()->user() || ! auth()->user()->can('delete', $post)) {
+            abort(403);
+        }
+
+        $post->delete();
+    }
 }
