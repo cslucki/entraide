@@ -63,6 +63,14 @@ class CreateFeedPost extends Component
 
         $user = auth()->user();
 
+        if (! $user || ! $user->can('create', FeedPost::class)) {
+            abort(403);
+        }
+
+        if ($this->pin && ! $user->can('pin', FeedPost::class)) {
+            abort(403);
+        }
+
         DB::transaction(function () use ($org, $user, $loopMessageService) {
             $imagePath = $this->image ? $this->storeImage($org->id) : null;
             $url = UrlPreviewService::extractFirstUrl($this->content);

@@ -9,6 +9,10 @@ class FeedPostPolicy
 {
     public function create(User $user): bool
     {
+        if ($user->banned_at) {
+            return false;
+        }
+
         $org = app()->bound('current_organization') ? app('current_organization') : null;
 
         if ($org === null) {
@@ -28,6 +32,10 @@ class FeedPostPolicy
 
     public function viewAny(User $user): bool
     {
+        if ($user->banned_at) {
+            return false;
+        }
+
         $org = app()->bound('current_organization') ? app('current_organization') : null;
 
         if ($org === null) {
@@ -39,6 +47,10 @@ class FeedPostPolicy
 
     public function view(User $user, FeedPost $feedPost): bool
     {
+        if ($user->banned_at) {
+            return false;
+        }
+
         $org = app()->bound('current_organization') ? app('current_organization') : null;
 
         if ($org === null) {
@@ -59,16 +71,55 @@ class FeedPostPolicy
         return $this->view($user, $feedPost);
     }
 
+    public function pin(User $user): bool
+    {
+        if ($user->banned_at) {
+            return false;
+        }
+
+        $org = app()->bound('current_organization') ? app('current_organization') : null;
+
+        if ($org === null) {
+            return false;
+        }
+
+        if ($user->organization_id !== $org->id) {
+            return false;
+        }
+
+        return $user->is_admin || $user->id === $org->admin_id;
+    }
+
     public function update(User $user, FeedPost $feedPost): bool
     {
+        if ($user->banned_at) {
+            return false;
+        }
+
+        $org = app()->bound('current_organization') ? app('current_organization') : null;
+
+        if ($org === null) {
+            return false;
+        }
+
         return $this->resourceBelongsToCurrentOrganization($feedPost)
-            && ($user->id === $feedPost->user_id || $user->is_admin);
+            && ($user->id === $feedPost->user_id || $user->is_admin || $user->id === $org->admin_id);
     }
 
     public function delete(User $user, FeedPost $feedPost): bool
     {
+        if ($user->banned_at) {
+            return false;
+        }
+
+        $org = app()->bound('current_organization') ? app('current_organization') : null;
+
+        if ($org === null) {
+            return false;
+        }
+
         return $this->resourceBelongsToCurrentOrganization($feedPost)
-            && ($user->id === $feedPost->user_id || $user->is_admin);
+            && ($user->id === $feedPost->user_id || $user->is_admin || $user->id === $org->admin_id);
     }
 
     private function resourceBelongsToCurrentOrganization($resource): bool
