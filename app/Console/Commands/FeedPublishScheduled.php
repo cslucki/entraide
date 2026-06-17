@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\FeedPost;
+use App\Services\LoopMessageService;
 use Illuminate\Console\Command;
 
 class FeedPublishScheduled extends Command
@@ -11,7 +12,7 @@ class FeedPublishScheduled extends Command
 
     protected $description = 'Publish scheduled feed announcements whose scheduled date has passed';
 
-    public function handle(): int
+    public function handle(LoopMessageService $loopMessageService): int
     {
         $posts = FeedPost::dueForPublication()->get();
 
@@ -29,6 +30,11 @@ class FeedPublishScheduled extends Command
                 'status' => FeedPost::STATUS_PUBLISHED,
                 'published_at' => $now,
             ]);
+
+            if ($post->loops()->exists()) {
+                $post->broadcastToAssociatedLoops($loopMessageService, $post->user);
+            }
+
             $count++;
         }
 

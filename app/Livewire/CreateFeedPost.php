@@ -115,42 +115,22 @@ class CreateFeedPost extends Component
                 'pinned_by_id' => $this->pin ? $user->id : null,
             ]);
 
+            $targetLoops = collect();
+
+            if ($this->allLoops) {
+                $targetLoops = Loop::where('organization_id', $org->id)->get();
+            } elseif (! empty($this->selectedLoops)) {
+                $targetLoops = Loop::whereIn('id', $this->selectedLoops)
+                    ->where('organization_id', $org->id)
+                    ->get();
+            }
+
+            foreach ($targetLoops as $loop) {
+                $post->loops()->syncWithoutDetaching([$loop->id]);
+            }
+
             if ($this->mode === 'publish') {
-                $targetLoops = collect();
-
-                if ($this->allLoops) {
-                    $targetLoops = Loop::where('organization_id', $org->id)->get();
-                } elseif (! empty($this->selectedLoops)) {
-                    $targetLoops = Loop::whereIn('id', $this->selectedLoops)
-                        ->where('organization_id', $org->id)
-                        ->get();
-                }
-
-                foreach ($targetLoops as $loop) {
-                    $post->loops()->syncWithoutDetaching([$loop->id]);
-
-                    try {
-                        if ($this->loopMessage) {
-                            $body = $this->loopMessage;
-                        } else {
-                            $body = ($this->title ? "**{$this->title}**\n\n" : '').$this->content;
-                        }
-
-                        $route = $org->is_default ? 'flux' : 'organization.flux';
-                        $params = $route === 'organization.flux' ? ['organization' => $org->slug] : [];
-                        $url = route($route, $params).'#feed-post-'.$post->id;
-                        $body .= "\n\nVoir l'annonce : ".$url;
-
-                        $loopMessageService->sendUserMessage(
-                            $loop,
-                            $user,
-                            $body,
-                            metadata: ['feed_post_id' => $post->id, 'type' => 'announcement'],
-                        );
-                    } catch (\RuntimeException) {
-                        // skip loops where user is not a member
-                    }
-                }
+                $post->broadcastToAssociatedLoops($loopMessageService, $user);
             }
         });
 

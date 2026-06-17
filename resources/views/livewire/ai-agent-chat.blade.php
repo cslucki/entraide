@@ -52,7 +52,7 @@
                             :time="$msg['time']"
                             wire:key="msg-{{ $i }}"
                         >
-                            {{ $msg['text'] }}
+                            {!! $msg['text'] !!}
                         </x-conversation.message-bubble>
                     @endforeach
 

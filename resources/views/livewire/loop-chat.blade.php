@@ -51,7 +51,7 @@
                             :image-path="$msg->imageUrl()"
                             :url-preview="$msg->metadata['url_preview'] ?? null"
                         >
-                            {{ $msg->body }}
+                            {!! $msg->body !!}
                         </x-conversation.message-bubble>
                     @endif
                 </div>

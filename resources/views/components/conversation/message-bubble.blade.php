@@ -86,7 +86,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
         </button>
         @endif
 
-        <div class="text-sm whitespace-pre-wrap">{{ $slot }}</div>
+        <div class="text-sm whitespace-pre-wrap">{!! markdown((string) $slot) !!}</div>
 
         @if($urlPreview)
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
+use App\Services\LoopMessageService;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,18 @@ use Illuminate\Support\Facades\Storage;
 class FeedPost extends Model
 {
     use HasFactory, HasOrganizationId, HasUuids, SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::saving(function (FeedPost $post) {
+            if ($post->isDirty('pinned_at') && $post->pinned_at !== null) {
+                static::where('organization_id', $post->organization_id)
+                    ->whereNotNull('pinned_at')
+                    ->where('id', '!=', $post->id)
+                    ->update(['pinned_at' => null, 'pinned_by_id' => null]);
+            }
+        });
+    }
 
     protected $fillable = [
         'organization_id',
@@ -125,5 +138,38 @@ class FeedPost extends Model
     public function imageUrl(): ?string
     {
         return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
+    }
+
+    public function announcementUrl(): string
+    {
+        $org = $this->organization;
+        $route = $org?->is_default ? 'flux.show' : 'organization.flux.show';
+        $params = $route === 'organization.flux.show' ? ['organization' => $org?->slug, 'feedPost' => $this->id] : ['feedPost' => $this->id];
+
+        return route($route, $params);
+    }
+
+    public function broadcastToAssociatedLoops(LoopMessageService $service, User $user): void
+    {
+        $body = $this->loop_message
+            ?: ($this->title ? "**{$this->title}**\n\n" : '').$this->content;
+
+        $body .= "\n\n[Voir l'annonce](".$this->announcementUrl().")";
+
+        foreach ($this->loops as $loop) {
+            try {
+                $message = $service->sendUserMessage(
+                    $loop,
+                    $user,
+                    $body,
+                    metadata: ['feed_post_id' => $this->id, 'type' => 'announcement'],
+                );
+
+                if ($this->isPinned()) {
+                    $message->pin($user);
+                }
+            } catch (\RuntimeException) {
+            }
+        }
     }
 }
