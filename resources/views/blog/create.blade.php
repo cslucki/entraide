@@ -1,11 +1,11 @@
 <x-page title="Écrire un article — Blog BouclePro" heading="Écrire un article" width="7xl">
 
-        <div class="mb-6">
+        <div class="hidden sm:block mb-6">
             <a href="{{ route('blog.index') }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Retour au blog</a>
         </div>
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Écrire un article</h1>
+            <h1 class="hidden sm:block text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Écrire un article</h1>
 
             <form action="{{ route('blog.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 @csrf

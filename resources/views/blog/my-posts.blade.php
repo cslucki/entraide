@@ -2,13 +2,13 @@
     <x-slot name="title">Mes articles — Blog BouclePro</x-slot>
 
     <x-page-container>
-        <div class="flex items-center justify-between mb-8">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Mes articles</h1>
-                <p class="mt-1 text-gray-500 dark:text-gray-400">Gérez vos brouillons, articles publiés et commentaires</p>
+                <h1 class="hidden sm:block text-3xl font-bold text-gray-900 dark:text-gray-100">Mes articles</h1>
+                <p class="mt-1 text-sm sm:text-base text-gray-500 dark:text-gray-400">Gérez vos brouillons, articles publiés et commentaires</p>
             </div>
-            <a href="{{ route('blog.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <a href="{{ route('blog.create') }}" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Nouvel article
             </a>
         </div>

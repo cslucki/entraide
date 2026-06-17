@@ -38,19 +38,19 @@
                 <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4 leading-tight">{{ $post->title }}</h1>
 
                 <!-- Auteur + méta -->
-                <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                    <a href="{{ route('profile.show', $post->user) }}" class="flex items-center gap-3 group">
-                        <img src="{{ $post->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full">
-                        <div>
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">{{ $post->user->name }}</p>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <a href="{{ route('profile.show', $post->user) }}" class="flex items-center gap-3 group min-w-0">
+                        <img src="{{ $post->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full flex-shrink-0">
+                        <div class="min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">{{ $post->user->name }}</p>
                             <p class="text-xs text-gray-400">{{ $post->published_at?->translatedFormat('d F Y') }}</p>
                         </div>
                     </a>
-                    <div class="flex items-center gap-4 text-sm text-gray-400 dark:text-gray-500">
+                    <div class="flex items-center gap-4 text-sm text-gray-400 dark:text-gray-500 flex-shrink-0">
                         @if($post->read_time)
                         <span class="flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            {{ $post->read_time }} min de lecture
+                            {{ $post->read_time }} min
                         </span>
                         @endif
                         <span class="flex items-center gap-1">
