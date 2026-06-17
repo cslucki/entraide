@@ -108,14 +108,14 @@ class OrganizationFeed extends Component
                 ->published()
                 ->pinned()
                 ->with(['user', 'reactions.user', 'comments.user', 'loops'])
-                ->latest('pinned_at')
+                ->latest('published_at')
                 ->get();
 
             $paginator = FeedPost::forOrganization($orgId)
                 ->published()
                 ->whereNull('pinned_at')
                 ->with(['user', 'reactions.user', 'comments.user', 'loops'])
-                ->latest()
+                ->latest('published_at')
                 ->paginate($this->perPage);
 
             $items = $paginator;

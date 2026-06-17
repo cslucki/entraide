@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\FeedPost;
+use App\Services\LoopMessageService;
 use Illuminate\View\View;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -30,6 +31,17 @@ class MyFeedPosts extends Component
         ]);
     }
 
+    public function togglePin(string $feedPostId): void
+    {
+        $post = FeedPost::findOrFail($feedPostId);
+
+        if (! auth()->user() || ! auth()->user()->can('pin', FeedPost::class)) {
+            abort(403);
+        }
+
+        $post->pinned_at ? $post->update(['pinned_at' => null, 'pinned_by_id' => null]) : $post->update(['pinned_at' => now(), 'pinned_by_id' => auth()->id()]);
+    }
+
     public function delete(string $feedPostId): void
     {
         $post = FeedPost::findOrFail($feedPostId);
@@ -41,7 +53,7 @@ class MyFeedPosts extends Component
         $post->delete();
     }
 
-    public function publishNow(string $feedPostId): void
+    public function publishNow(string $feedPostId, LoopMessageService $loopMessageService): void
     {
         $post = FeedPost::findOrFail($feedPostId);
 
@@ -56,5 +68,9 @@ class MyFeedPosts extends Component
             'published_at' => now(),
             'scheduled_at' => null,
         ]);
+
+        if ($post->loops()->exists()) {
+            $post->broadcastToAssociatedLoops($loopMessageService, auth()->user());
+        }
     }
 }

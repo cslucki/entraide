@@ -112,7 +112,7 @@
                         :image-path="$message->imageUrl()"
                         :url-preview="$meta['url_preview'] ?? null"
                     >
-                        {{ $message->body }}
+                        {!! $message->body !!}
                     </x-conversation.message-bubble>
                 @else
                     @php $meta = $message->metadata ?? []; @endphp
@@ -131,7 +131,7 @@
                         :image-path="$message->imageUrl()"
                         :url-preview="$meta['url_preview'] ?? null"
                     >
-                        {{ $message->body }}
+                        {!! $message->body !!}
                     </x-conversation.message-bubble>
                 @endif
             @endforeach

@@ -11,6 +11,10 @@
     $editRouteParams = fn ($postId) => $usesDefaultOrganizationRoute
         ? ['feedPost' => $postId]
         : ['organization' => $organizationRouteParam, 'feedPost' => $postId];
+    $showRouteName = $usesDefaultOrganizationRoute ? 'flux.show' : 'organization.flux.show';
+    $showRouteParams = fn ($postId) => $usesDefaultOrganizationRoute
+        ? ['feedPost' => $postId]
+        : ['organization' => $organizationRouteParam, 'feedPost' => $postId];
 @endphp
 
 <div>
@@ -57,7 +61,7 @@
                                 <p class="text-xs text-gray-400">Publiée le {{ $post->published_at->setTimezone('Europe/Paris')->isoFormat('D MMM YYYY à HH:mm') }} (heure de Paris)</p>
                             @endif
                         </div>
-                        <div class="flex items-center gap-3 flex-shrink-0">
+                        <div class="flex items-center gap-2 flex-shrink-0">
                             @php
                                 $badgeClasses = match ($post->status) {
                                     'published' => 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300',
@@ -73,6 +77,12 @@
                             <span class="text-xs px-2 py-0.5 rounded-full {{ $badgeClasses }}">
                                 {{ $badgeLabel }}
                             </span>
+                            @can('pin', App\Models\FeedPost::class)
+                                <button type="button" wire:click="togglePin('{{ $post->id }}')"
+                                        class="text-xs px-2 py-0.5 rounded-full transition {{ $post->isPinned() ? 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/30 dark:hover:text-amber-300' }}">
+                                    {{ $post->isPinned() ? 'Épinglée' : 'Épingler' }}
+                                </button>
+                            @endcan
                             <div class="flex items-center gap-1">
                                 @if($post->status === 'scheduled')
                                     <button type="button" wire:click="publishNow('{{ $post->id }}')"
@@ -83,7 +93,7 @@
                                         x-on:click="if (confirm('Supprimer cette annonce ?')) { $wire.delete('{{ $post->id }}') }"
                                         class="text-xs text-red-600 hover:underline">Supprimer</button>
                             </div>
-                            <a href="{{ $feedUrl }}" class="text-xs text-indigo-600 hover:underline">Voir</a>
+                            <a href="{{ route($showRouteName, $showRouteParams($post->id)) }}" class="text-xs text-indigo-600 hover:underline">Voir</a>
                         </div>
                     </div>
             </div>
