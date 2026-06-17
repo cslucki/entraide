@@ -74,6 +74,10 @@
                                 {{ $badgeLabel }}
                             </span>
                             <div class="flex items-center gap-1">
+                                @if($post->status === 'scheduled')
+                                    <button type="button" wire:click="publishNow('{{ $post->id }}')"
+                                            class="text-xs text-green-600 hover:underline">Publier maintenant</button>
+                                @endif
                                 <a href="{{ route($editRouteName, $editRouteParams($post->id)) }}" class="text-xs text-indigo-600 hover:underline">Modifier</a>
                                 <button type="button"
                                         x-on:click="if (confirm('Supprimer cette annonce ?')) { $wire.delete('{{ $post->id }}') }"
