@@ -4,13 +4,25 @@
     $fluxUrl = $usesDefaultOrganizationRoute && Route::has('flux')
         ? route('flux')
         : route('organization.flux', ['organization' => $organizationRouteParam]);
+    $myPostsUrl = $usesDefaultOrganizationRoute && Route::has('flux.my')
+        ? route('flux.my')
+        : route('organization.flux.my', ['organization' => $organizationRouteParam]);
 @endphp
 
 <div class="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="mb-6">
-        <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">← Retour au flux</a>
-        <h1 class="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">Nouvelle annonce</h1>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Publiez une information claire pour les membres de l’organisation.</p>
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">← Retour au flux</a>
+                <h1 class="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">Nouvelle annonce</h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Publiez une information claire pour les membres de l’organisation.</p>
+            </div>
+            <a href="{{ $myPostsUrl }}"
+               class="hidden shrink-0 items-center gap-1 rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 active:scale-95 sm:inline-flex dark:border-indigo-400 dark:text-indigo-400 dark:hover:bg-indigo-950">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Mes annonces
+            </a>
+        </div>
     </div>
 
     <form wire:submit="submit" class="space-y-5 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 sm:p-6">

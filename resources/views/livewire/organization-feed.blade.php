@@ -7,6 +7,9 @@
     $createUrl = $usesDefaultOrganizationRoute && Route::has('flux.create')
         ? route('flux.create')
         : route('organization.flux.create', ['organization' => $organizationRouteParam]);
+    $myPostsUrl = $usesDefaultOrganizationRoute && Route::has('flux.my')
+        ? route('flux.my')
+        : route('organization.flux.my', ['organization' => $organizationRouteParam]);
 @endphp
 
 <div class="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
@@ -20,11 +23,18 @@
             </a>
         </div>
         @can('create', App\Models\FeedPost::class)
-            <a href="{{ $createUrl }}"
-               class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Nouvelle annonce
-            </a>
+            <div class="flex shrink-0 items-center gap-2">
+                <a href="{{ $myPostsUrl }}"
+                   class="inline-flex items-center gap-1 rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 active:scale-95 dark:border-indigo-400 dark:text-indigo-400 dark:hover:bg-indigo-950">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Mes annonces
+                </a>
+                <a href="{{ $createUrl }}"
+                   class="inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Nouvelle annonce
+                </a>
+            </div>
         @endcan
     </div>
 

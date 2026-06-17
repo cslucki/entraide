@@ -40,4 +40,21 @@ class MyFeedPosts extends Component
 
         $post->delete();
     }
+
+    public function publishNow(string $feedPostId): void
+    {
+        $post = FeedPost::findOrFail($feedPostId);
+
+        if (! auth()->user() || ! auth()->user()->can('update', $post)) {
+            abort(403);
+        }
+
+        abort_unless($post->status === FeedPost::STATUS_SCHEDULED, 422);
+
+        $post->update([
+            'status' => FeedPost::STATUS_PUBLISHED,
+            'published_at' => now(),
+            'scheduled_at' => null,
+        ]);
+    }
 }

@@ -4,11 +4,17 @@
     $myPostsUrl = $usesDefaultOrganizationRoute && Route::has('flux.my')
         ? route('flux.my')
         : route('organization.flux.my', ['organization' => $organizationRouteParam]);
+    $fluxUrl = $usesDefaultOrganizationRoute && Route::has('flux')
+        ? route('flux')
+        : route('organization.flux', ['organization' => $organizationRouteParam]);
 @endphp
 
 <div class="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="mb-6">
-        <a href="{{ $myPostsUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">← Retour à mes annonces</a>
+        <div class="flex items-center gap-4">
+            <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">← Retour au flux</a>
+            <a href="{{ $myPostsUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">Mes annonces</a>
+        </div>
         <h1 class="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">Modifier l'annonce</h1>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Mettez à jour le titre, le contenu ou les paramètres de publication.</p>
     </div>
