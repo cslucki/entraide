@@ -122,7 +122,17 @@ class CreateFeedPost extends Component
                     $post->loops()->syncWithoutDetaching([$loop->id]);
 
                     try {
-                        $body = ($this->title ? "**{$this->title}**\n\n" : '').$this->content;
+                        if ($this->loopMessage) {
+                            $body = $this->loopMessage;
+                        } else {
+                            $body = ($this->title ? "**{$this->title}**\n\n" : '').$this->content;
+                        }
+
+                        $route = $org->is_default ? 'flux' : 'organization.flux';
+                        $params = $route === 'organization.flux' ? ['organization' => $org->slug] : [];
+                        $url = route($route, $params).'#feed-post-'.$post->id;
+                        $body .= "\n\nVoir l'annonce : ".$url;
+
                         $loopMessageService->sendUserMessage(
                             $loop,
                             $user,
