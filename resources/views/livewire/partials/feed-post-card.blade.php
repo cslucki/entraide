@@ -4,7 +4,7 @@
     $preview = $post->url_preview;
 @endphp
 
-<article class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+<article id="feed-post-{{ $post->id }}" class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
     @if($post->image_path)
         <img src="{{ $post->imageUrl() }}" alt="" class="h-56 w-full object-cover sm:h-72">
     @endif
