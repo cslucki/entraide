@@ -6,6 +6,7 @@ use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Services\LoopMessageService;
 use App\Services\UrlPreviewService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -51,6 +52,13 @@ class CreateFeedPost extends Component
 
     public function submit(LoopMessageService $loopMessageService): void
     {
+        $scheduledAtUtc = null;
+
+        if ($this->mode === 'schedule' && $this->scheduledAt) {
+            $scheduledAtUtc = Carbon::parse($this->scheduledAt, 'Europe/Paris')->utc();
+            $this->scheduledAt = $scheduledAtUtc->format('Y-m-d\TH:i');
+        }
+
         $this->validate([
             'title' => 'nullable|string|max:255',
             'content' => 'required|string|max:10000',
@@ -80,14 +88,14 @@ class CreateFeedPost extends Component
             abort(403);
         }
 
-        DB::transaction(function () use ($org, $user, $loopMessageService) {
+        DB::transaction(function () use ($org, $user, $loopMessageService, $scheduledAtUtc) {
             $imagePath = $this->image ? $this->storeImage($org->id) : null;
             $url = UrlPreviewService::extractFirstUrl($this->content);
             $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
 
             [$status, $publishedAt, $scheduledAtDb] = match ($this->mode) {
                 'draft' => [FeedPost::STATUS_DRAFT, null, null],
-                'schedule' => [FeedPost::STATUS_SCHEDULED, null, $this->scheduledAt],
+                'schedule' => [FeedPost::STATUS_SCHEDULED, null, $scheduledAtUtc],
                 default => [FeedPost::STATUS_PUBLISHED, now(), null],
             };
 

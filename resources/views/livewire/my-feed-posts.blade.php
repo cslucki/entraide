@@ -49,7 +49,13 @@
                         <div class="min-w-0 flex-1">
                             <h3 class="font-medium text-gray-900 dark:text-gray-100">{{ $post->title ?: 'Sans titre' }}</h3>
                             <p class="text-sm text-gray-500 mt-1">{{ Str::limit(strip_tags($post->content), 200) }}</p>
-                            <p class="text-xs text-gray-400 mt-2">{{ $post->created_at->isoFormat('D MMM YYYY à HH:mm') }}</p>
+                            <p class="text-xs text-gray-400 mt-2">Créée le {{ $post->created_at->setTimezone('Europe/Paris')->isoFormat('D MMM YYYY à HH:mm') }} (heure de Paris)</p>
+                            @if($post->scheduled_at)
+                                <p class="text-xs text-gray-400">Planifiée le {{ $post->scheduled_at->setTimezone('Europe/Paris')->isoFormat('D MMM YYYY à HH:mm') }} (heure de Paris)</p>
+                            @endif
+                            @if($post->published_at)
+                                <p class="text-xs text-gray-400">Publiée le {{ $post->published_at->setTimezone('Europe/Paris')->isoFormat('D MMM YYYY à HH:mm') }} (heure de Paris)</p>
+                            @endif
                         </div>
                         <div class="flex items-center gap-3 flex-shrink-0">
                             @php

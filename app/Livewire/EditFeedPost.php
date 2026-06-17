@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\FeedPost;
 use App\Services\UrlPreviewService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
@@ -44,7 +45,9 @@ class EditFeedPost extends Component
             FeedPost::STATUS_SCHEDULED => 'schedule',
             default => 'publish',
         };
-        $this->scheduledAt = $feedPost->scheduled_at?->format('Y-m-d\TH:i');
+        $this->scheduledAt = $feedPost->scheduled_at
+            ? $feedPost->scheduled_at->setTimezone('Europe/Paris')->format('Y-m-d\TH:i')
+            : null;
         $this->loopMessage = $feedPost->loop_message ?? '';
     }
 
@@ -52,6 +55,13 @@ class EditFeedPost extends Component
     {
         if (! auth()->user() || ! auth()->user()->can('update', $this->post)) {
             abort(403);
+        }
+
+        $scheduledAtUtc = null;
+
+        if ($this->mode === 'schedule' && $this->scheduledAt) {
+            $scheduledAtUtc = Carbon::parse($this->scheduledAt, 'Europe/Paris')->utc();
+            $this->scheduledAt = $scheduledAtUtc->format('Y-m-d\TH:i');
         }
 
         $this->validate([
@@ -71,7 +81,7 @@ class EditFeedPost extends Component
 
         [$status, $publishedAt, $scheduledAtDb] = match ($this->mode) {
             'draft' => [FeedPost::STATUS_DRAFT, null, null],
-            'schedule' => [FeedPost::STATUS_SCHEDULED, null, $this->scheduledAt],
+            'schedule' => [FeedPost::STATUS_SCHEDULED, null, $scheduledAtUtc],
             default => [FeedPost::STATUS_PUBLISHED, $this->post->published_at ?? now(), null],
         };
 
