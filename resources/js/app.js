@@ -117,6 +117,16 @@ function registerBlogEditor() {
                 this.updateActiveStates();
             });
 
+            const form = this.$el.closest('form');
+            if (form) {
+                form.addEventListener('submit', () => {
+                    if (editor && !this.editorError) {
+                        const hidden = form.querySelector('input[type="hidden"][name="' + this.name + '"]');
+                        if (hidden) hidden.value = editor.getHTML();
+                    }
+                });
+            }
+
             this.updateActiveStates();
 
             if (this.editing) {

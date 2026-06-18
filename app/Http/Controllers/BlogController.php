@@ -198,7 +198,8 @@ class BlogController extends Controller implements HasMiddleware
             $post->tags()->sync($tagIds);
         }
 
-        return redirect()->route('blog.show', $post)->with('success', 'Article publié avec succès.');
+        $message = $data['status'] === 'published' ? 'Article publié avec succès.' : 'Brouillon enregistré.';
+        return redirect()->route('blog.show', $post)->with('success', $message);
     }
 
     public function edit(BlogPost $post): View
@@ -327,7 +328,12 @@ class BlogController extends Controller implements HasMiddleware
             'image' => 'required|image|max:5120|mimes:jpeg,png,webp,gif',
         ]);
 
-        $path = $request->file('image')->store('blog/images', 'public');
+        $org = currentOrganization();
+        $user = $request->user();
+        $uuid = (string) Str::uuid();
+        $ext = $request->file('image')->extension();
+        $path = sprintf('blog/images/%s/%s/%s.%s', $org->id, $user->id, $uuid, $ext);
+        $request->file('image')->storeAs('public', $path);
 
         return response()->json(['url' => Storage::disk('public')->url($path)]);
     }
