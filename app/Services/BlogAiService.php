@@ -15,9 +15,11 @@ class BlogAiService
 
     private const TIMEOUT = 30;
 
-    public function generate(BlogPost $post, User $user): string
+    public function generate(BlogPost $post, User $user, ?string $title = null, ?string $summary = null): string
     {
-        $prompt = "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.).\n\nTitre : {$post->title}\nRésumé : {$post->summary}";
+        $title ??= $post->title;
+        $summary ??= $post->summary;
+        $prompt = "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.).\n\nTitre : {$title}\nRésumé : {$summary}";
 
         return $this->callAi($post, $user, $prompt, 'blog_generate');
     }
@@ -39,6 +41,10 @@ class BlogAiService
             'openrouter' => config('ai.openrouter'),
             default => config('ai.openai'),
         };
+
+        if ($provider === 'ollama') {
+            $model = config('ai.ollama.model', 'ministral-3:3b');
+        }
 
         $apiKey = $config['api_key'] ?? '';
         $baseUrl = $config['base_url'] ?? 'https://api.openai.com/v1';
@@ -70,7 +76,8 @@ class BlogAiService
                     ]);
 
                 if (! $response->successful()) {
-                    throw new \RuntimeException("Erreur IA (HTTP {$response->status()}).");
+                    $ollamaError = $response->json('error') ?? "Erreur IA (HTTP {$response->status()})";
+                    throw new \RuntimeException((string) $ollamaError);
                 }
 
                 $text = trim((string) ($response->json('response') ?? $response->json('thinking') ?? ''));
@@ -90,14 +97,16 @@ class BlogAiService
                     $http = $http->withToken($apiKey);
                 }
 
-                if (empty($apiKey) && $provider !== 'ollama') {
+                if (empty($apiKey)) {
                     throw new \RuntimeException('Clé API manquante pour le provider '.$provider.'.');
                 }
 
                 $response = $http->post(rtrim($baseUrl, '/').'/chat/completions', $payload);
 
                 if (! $response->successful()) {
-                    throw new \RuntimeException("Erreur IA (HTTP {$response->status()}).");
+                    $apiError = $response->json('error') ?? $response->json('error')['message'] ?? "Erreur IA (HTTP {$response->status()})";
+                    $errorMessage = is_string($apiError) ? $apiError : (is_array($apiError) ? ($apiError['message'] ?? "Erreur IA (HTTP {$response->status()})") : "Erreur IA (HTTP {$response->status()})");
+                    throw new \RuntimeException($errorMessage);
                 }
 
                 $body = $response->json();

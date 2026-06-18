@@ -242,14 +242,26 @@ function registerBlogEditor() {
         },
 
         aiGenerate(mode) {
-            if (this.generating || !this.editing) return;
+            if (this.generating) return;
+
+            const postId = this.$el.dataset.editorPostId;
+
+            if (!postId && mode === 'correct') {
+                this.error = 'Sauvegardez d\'abord l\'article en brouillon avant de corriger le contenu.';
+                return;
+            }
 
             this.generating = true;
             this.error = '';
 
-            const body = mode === 'generate'
-                ? { post_id: this.$el.dataset.editorPostId }
-                : { post_id: this.$el.dataset.editorPostId, content: this.content };
+            const form = this.$el.closest('form');
+            const title = form?.querySelector('[name="title"]')?.value || '';
+            const summary = form?.querySelector('[name="summary"]')?.value || '';
+
+            const body = {
+                post_id: postId || null,
+                ...(mode === 'generate' ? { title, summary } : { content: this.content }),
+            };
 
             fetch(mode === 'generate' ? this.aiGenerateRoute : this.aiCorrectRoute, {
                 method: 'POST',

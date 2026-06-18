@@ -2,6 +2,11 @@
 
 return [
 
+    'default_provider' => env('AI_DEFAULT_PROVIDER', 'openai'),
+    'default_model' => env('AI_DEFAULT_MODEL', 'gpt-4o-mini'),
+
+    /*
+
     /*
     |--------------------------------------------------------------------------
     | OpenAI — Admin AI Supervision Center
