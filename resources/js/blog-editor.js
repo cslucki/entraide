@@ -19,6 +19,8 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
             StarterKit.configure({
                 heading: { levels: [2, 3] },
                 codeBlock: false,
+                link: false,
+                underline: false,
             }),
             Link.configure({
                 openOnClick: false,
@@ -50,4 +52,13 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
     return editor;
 }
 
-window.createBlogEditor = createEditor;
+export function getEditor(element) {
+    return editors.get(element) || null;
+}
+
+export function destroyEditor(element) {
+    if (editors.has(element)) {
+        editors.get(element).destroy();
+        editors.delete(element);
+    }
+}
