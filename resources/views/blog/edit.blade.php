@@ -31,7 +31,6 @@
                     <x-blog-editor
                         name="content"
                         :value="old('content', $post->content)"
-                        :format="old('content_format', $post->content_format ?? 'markdown')"
                         :post-id="$post->id"
                     />
                 </div>

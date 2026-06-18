@@ -17,7 +17,7 @@ class BlogAiService
 
     public function generate(BlogPost $post, User $user): string
     {
-        $prompt = "Rédige un article de blog structuré qui correspond au titre et au résumé suivants. Utilise un titre H2 pour chaque section.\n\nTitre : {$post->title}\nRésumé : {$post->summary}";
+        $prompt = "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.).\n\nTitre : {$post->title}\nRésumé : {$post->summary}";
 
         return $this->callAi($post, $user, $prompt, 'blog_generate');
     }

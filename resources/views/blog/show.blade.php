@@ -88,11 +88,7 @@
 
                 <!-- Contenu -->
                 <div class="max-w-none mb-8 text-gray-800 dark:text-gray-200 leading-relaxed text-base prose prose-sm dark:prose-invert max-w-none">
-                    @if(($post->content_format ?? 'markdown') === 'html')
-                        {!! $post->content !!}
-                    @else
-                        {!! markdown($post->content) !!}
-                    @endif
+                    {!! $post->content !!}
                 </div>
 
                 <!-- Tags -->

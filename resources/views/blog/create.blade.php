@@ -29,7 +29,6 @@
                     <x-blog-editor
                         name="content"
                         :value="old('content')"
-                        :format="old('content_format', 'markdown')"
                         :post-id="null"
                     />
                     @error('content')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror

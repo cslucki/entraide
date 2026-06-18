@@ -92,7 +92,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Blog editor AJAX endpoints
     Route::post('/blog/upload-image', [BlogController::class, 'uploadImage'])->name('blog.upload-image');
-    Route::post('/blog/preview-markdown', [BlogController::class, 'previewMarkdown'])->name('blog.preview-markdown');
     Route::post('/blog/ai-generate', [BlogController::class, 'aiGenerate'])->name('blog.ai-generate');
     Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
     Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');

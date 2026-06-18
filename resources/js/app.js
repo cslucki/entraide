@@ -1,4 +1,5 @@
 import './bootstrap';
+import { createEditor } from './blog-editor';
 
 function registerAlpineStores() {
     if (!window.Alpine || window.__boucleProAlpineStoresRegistered) {

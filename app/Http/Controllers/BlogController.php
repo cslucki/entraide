@@ -29,7 +29,7 @@ class BlogController extends Controller implements HasMiddleware
 
     private const ALLOWED_HTML_TAGS = [
         'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
-        'img', 'b', 'i', 'a', 'code',
+        'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code',
         'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
         'caption', 'col', 'colgroup',
     ];
@@ -166,7 +166,6 @@ class BlogController extends Controller implements HasMiddleware
             'title' => 'required|string|max:255',
             'summary' => 'nullable|string|max:500',
             'content' => 'required|string|min:50',
-            'content_format' => 'nullable|in:markdown,html',
             'image' => 'nullable|image|max:2048',
             'status' => 'required|in:draft,published',
             'category_id' => 'required|uuid|exists:categories,id',
@@ -175,11 +174,7 @@ class BlogController extends Controller implements HasMiddleware
             'meta_description' => 'nullable|string|max:320',
         ]);
 
-        $data['content_format'] = $data['content_format'] ?? 'markdown';
-
-        if ($data['content_format'] === 'html') {
-            $data['content'] = $this->sanitizeHtml($data['content']);
-        }
+        $data['content'] = $this->sanitizeHtml($data['content']);
 
         if (! Category::where('id', $data['category_id'])->where('organization_id', $organization->id)->exists()) {
             return back()->withErrors(['category_id' => 'Catégorie invalide.'])->withInput();
@@ -233,7 +228,6 @@ class BlogController extends Controller implements HasMiddleware
             'title' => 'required|string|max:255',
             'summary' => 'nullable|string|max:500',
             'content' => 'required|string|min:50',
-            'content_format' => 'nullable|in:markdown,html',
             'image' => 'nullable|image|max:2048',
             'status' => 'required|in:draft,pending,published,archived',
             'category_id' => 'required|uuid|exists:categories,id',
@@ -242,11 +236,7 @@ class BlogController extends Controller implements HasMiddleware
             'meta_description' => 'nullable|string|max:320',
         ]);
 
-        $data['content_format'] = $data['content_format'] ?? $post->content_format ?? 'markdown';
-
-        if ($data['content_format'] === 'html') {
-            $data['content'] = $this->sanitizeHtml($data['content']);
-        }
+        $data['content'] = $this->sanitizeHtml($data['content']);
 
         if (! Category::where('id', $data['category_id'])->where('organization_id', $organization->id)->exists()) {
             return back()->withErrors(['category_id' => 'Catégorie invalide.'])->withInput();
@@ -340,25 +330,6 @@ class BlogController extends Controller implements HasMiddleware
         $path = $request->file('image')->store('blog/images', 'public');
 
         return response()->json(['url' => Storage::disk('public')->url($path)]);
-    }
-
-    public function previewMarkdown(Request $request): JsonResponse
-    {
-        $request->validate([
-            'content' => 'required|string',
-            'format' => 'nullable|in:markdown,html',
-        ]);
-
-        $format = $request->input('format', 'markdown');
-        $content = $request->input('content');
-
-        if ($format === 'html') {
-            $html = $this->sanitizeHtml($content);
-        } else {
-            $html = markdown($content);
-        }
-
-        return response()->json(['html' => $html]);
     }
 
     public function aiGenerate(Request $request, BlogAiService $ai): JsonResponse

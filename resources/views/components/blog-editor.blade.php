@@ -1,60 +1,42 @@
-@props(['name' => 'content', 'value' => '', 'format' => 'markdown', 'postId' => null])
+@props(['name' => 'content', 'value' => '', 'postId' => null])
 
-<div x-data="blogEditor('{{ $name }}', '{{ $format }}', {{ $postId ?: 'null' }})" class="space-y-1">
-    {{-- Onglets --}}
-    <div class="flex gap-1 border-b border-gray-200 dark:border-gray-700 pb-1">
-        <button type="button" @click="switchMode('markdown')" :class="mode === 'markdown' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-            class="px-3 py-1 text-xs font-medium border-b-2 transition">Markdown</button>
-        <button type="button" @click="switchMode('html')" :class="mode === 'html' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-            class="px-3 py-1 text-xs font-medium border-b-2 transition">HTML</button>
-        <button type="button" @click="showPreview = !showPreview; if (showPreview) renderPreview()" :class="showPreview ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-            class="px-3 py-1 text-xs font-medium border-b-2 transition">Aperçu</button>
-    </div>
-
+<div x-data="blogEditor('{{ $name }}', {{ $postId ?: 'null' }})" class="space-y-1">
     {{-- Toolbar --}}
-    <div class="flex flex-wrap gap-1">
-        <button type="button" @click="insertFormat('bold')" title="Gras"
-            class="rounded-lg px-2.5 py-1 text-xs font-bold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Gras</button>
-        <button type="button" @click="insertFormat('italic')" title="Italique"
-            class="rounded-lg px-2.5 py-1 text-xs italic text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Italique</button>
-        <button type="button" @click="insertFormat('link')" title="Lien"
-            class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Lien</button>
-        <button type="button" @click="insertFormat('code')" title="Code"
-            class="rounded-lg px-2.5 py-1 text-xs font-mono text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Code</button>
-        <button type="button" @click="insertFormat('h2')" title="Titre niveau 2"
-            class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">H2</button>
-        <button type="button" @click="insertFormat('h3')" title="Titre niveau 3"
-            class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">H3</button>
-        <button type="button" @click="insertFormat('list')" title="Liste"
-            class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Liste</button>
-        <button type="button" @click="insertFormat('table')" title="Tableau"
-            class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Tableau</button>
+    <div class="flex flex-wrap gap-1 pb-2 border-b border-gray-200 dark:border-gray-700">
+        <button type="button" @click="editor?.chain().focus().toggleBold().run()" :class="editor?.isActive('bold') ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'"
+            class="rounded-lg px-2.5 py-1 text-xs font-bold transition" title="Gras">Gras</button>
+        <button type="button" @click="editor?.chain().focus().toggleItalic().run()" :class="editor?.isActive('italic') ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'"
+            class="rounded-lg px-2.5 py-1 text-xs italic transition" title="Italique">Italique</button>
+        <button type="button" @click="editor?.chain().focus().toggleUnderline().run()" :class="editor?.isActive('underline') ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'"
+            class="rounded-lg px-2.5 py-1 text-xs underline transition" title="Souligné">Souligné</button>
+        <button type="button" @click="editor?.chain().focus().toggleHeading({ level: 2 }).run()" :class="editor?.isActive('heading', { level: 2 }) ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'"
+            class="rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="Titre niveau 2">H2</button>
+        <button type="button" @click="editor?.chain().focus().toggleHeading({ level: 3 }).run()" :class="editor?.isActive('heading', { level: 3 }) ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'"
+            class="rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="Titre niveau 3">H3</button>
+        <button type="button" @click="editor?.chain().focus().toggleBulletList().run()" :class="editor?.isActive('bulletList') ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'"
+            class="rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="Liste">Liste</button>
+        <button type="button" @click="insertLink" :class="editor?.isActive('link') ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'"
+            class="rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="Lien">Lien</button>
+        <button type="button" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" :class="editor?.isActive('table') ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'"
+            class="rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="Tableau">Tableau</button>
         <button type="button" @click="triggerImageUpload" title="Insérer une image"
-            class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+            class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
         </button>
         <input type="file" accept="image/*" class="hidden" x-ref="imageInput" @change="uploadImage($event)">
     </div>
 
-    {{-- Textearea (modes markdown et html) --}}
-    <textarea x-show="!showPreview" :id="'blog-editor-' + name" :name="name" rows="14"
-        x-model="content"
-        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm font-mono">{{ $value }}</textarea>
+    {{-- TipTap Editor --}}
+    <div x-ref="editorElement" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 [&_.ProseMirror]:min-h-[20rem] [&_.ProseMirror]:px-4 [&_.ProseMirror]:py-3 [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100 [&_.ProseMirror]:text-sm [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:my-1 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mt-4 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mt-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_li]:my-0.5 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-gray-300 [&_.ProseMirror_th]:dark:border-gray-600 [&_.ProseMirror_th]:px-3 [&_.ProseMirror_th]:py-2 [&_.ProseMirror_th]:bg-gray-50 [&_.ProseMirror_th]:dark:bg-gray-700 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:text-left [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-gray-300 [&_.ProseMirror_td]:dark:border-gray-600 [&_.ProseMirror_td]:px-3 [&_.ProseMirror_td]:py-2 [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded [&_.ProseMirror_a]:text-indigo-600 [&_.ProseMirror_a]:dark:text-indigo-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_*]:caret-gray-800 [&_.ProseMirror_*]:dark:caret-gray-200
+        [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"></div>
 
-    {{-- Aperçu --}}
-    <div x-show="showPreview" x-cloak>
-        <div x-html="previewHtml" class="w-full min-h-[24rem] px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 prose prose-sm dark:prose-invert max-w-none overflow-auto">
-            <p class="text-gray-400 italic">Cliquez sur Aperçu pour générer le rendu.</p>
-        </div>
-    </div>
+    {{-- Hidden input for form submission --}}
+    <input type="hidden" :name="name" :value="content">
 
     {{-- Loading --}}
     <div x-show="loading" x-cloak class="text-sm text-indigo-600 dark:text-indigo-400">
         Traitement en cours…
     </div>
-
-    {{-- Hidden input for content_format --}}
-    <input type="hidden" name="content_format" x-model="format">
 
     {{-- Boutons IA --}}
     @auth
@@ -84,13 +66,10 @@
 
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('blogEditor', (name, initialFormat, postId) => ({
+    Alpine.data('blogEditor', (name, postId) => ({
         name: name,
-        mode: 'markdown',
-        format: initialFormat || 'markdown',
-        content: '',
-        showPreview: false,
-        previewHtml: '',
+        content: @json($value),
+        editor: null,
         loading: false,
         generating: false,
         error: '',
@@ -99,10 +78,17 @@ document.addEventListener('alpine:init', () => {
         csrfToken: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}',
 
         init() {
-            const ta = document.getElementById('blog-editor-' + this.name);
-            if (ta) {
-                this.content = ta.value;
+            if (typeof window.createBlogEditor === 'undefined') {
+                this.error = "L'éditeur n'a pas pu être chargé.";
+                return;
             }
+
+            this.editor = window.createBlogEditor(this.$refs.editorElement, {
+                content: this.content,
+                placeholder: 'Rédigez votre article…',
+                onUpdate: (html) => { this.content = html; },
+            });
+
             if (postId) {
                 this.loadRemaining();
             }
@@ -115,73 +101,19 @@ document.addEventListener('alpine:init', () => {
                 body: JSON.stringify({ post_id: postId })
             })
             .then(r => r.json())
-            .then(data => {
-                this.remaining = data;
-            })
+            .then(data => { this.remaining = data; })
             .catch(() => {});
         },
 
-        switchMode(newMode) {
-            if (this.mode === newMode) return;
-            if (this.showPreview) this.showPreview = false;
-            this.format = newMode;
-            this.mode = newMode;
-        },
-
-        insertFormat(type) {
-            const ta = document.getElementById('blog-editor-' + this.name);
-            if (!ta) return;
-
-            const isMd = this.mode === 'markdown';
-            const start = ta.selectionStart;
-            const end = ta.selectionEnd;
-            const val = ta.value;
-            const sel = val.substring(start, end);
-
-            let before = '', after = '';
-
-            if (type === 'bold') {
-                before = isMd ? '**' : '<b>'; after = isMd ? '**' : '</b>';
-            } else if (type === 'italic') {
-                before = isMd ? '*' : '<i>'; after = isMd ? '*' : '</i>';
-            } else if (type === 'link') {
-                before = isMd ? '[' : '<a href="'; after = isMd ? '](url)' : '">' + sel + '</a>';
-            } else if (type === 'code') {
-                before = isMd ? '`' : '<code>'; after = isMd ? '`' : '</code>';
-            } else if (type === 'h2') {
-                before = isMd ? '## ' : '<h2>'; after = isMd ? '' : '</h2>';
-            } else if (type === 'h3') {
-                before = isMd ? '### ' : '<h3>'; after = isMd ? '' : '</h3>';
-            } else if (type === 'list') {
-                before = isMd ? '\n- ' : '\n<ul>\n<li>'; after = isMd ? '' : '</li>\n</ul>';
-            } else if (type === 'table') {
-                before = isMd ? '\n| Cellule 1 | Cellule 2 |\n|-----------|-----------|' : '\n<table>\n<tr><td>Cellule 1</td><td>Cellule 2</td></tr>\n</table>';
-            }
-
-            let newVal;
-            if (sel && (type === 'bold' || type === 'italic' || type === 'code' || type === 'link')) {
-                if (type === 'link' && isMd) {
-                    newVal = val.substring(0, start) + before + sel + after + val.substring(end);
-                } else if (type === 'link' && !isMd) {
-                    const url = prompt('URL du lien :', 'https://');
-                    if (url) {
-                        before = '<a href="' + url + '">';
-                        newVal = val.substring(0, start) + before + sel + '</a>' + val.substring(end);
-                    } else { return; }
-                } else {
-                    newVal = val.substring(0, start) + before + sel + after + val.substring(end);
-                }
+        insertLink() {
+            if (!this.editor) return;
+            const prev = this.editor.getAttributes('link').href;
+            const url = window.prompt('URL du lien :', prev || 'https://');
+            if (url === null) return;
+            if (url === '') {
+                this.editor.chain().focus().unsetLink().run();
             } else {
-                newVal = val.substring(0, start) + before + after + val.substring(end);
-            }
-
-            if (newVal !== undefined) {
-                ta.value = newVal;
-                this.content = newVal;
-                ta.dispatchEvent(new Event('input', { bubbles: true }));
-                ta.focus();
-                const pos = start + before.length;
-                ta.setSelectionRange(pos, pos);
+                this.editor.chain().focus().setLink({ href: url }).run();
             }
         },
 
@@ -206,17 +138,8 @@ document.addEventListener('alpine:init', () => {
             })
             .then(r => r.json())
             .then(data => {
-                if (data.url) {
-                    const ta = document.getElementById('blog-editor-' + this.name);
-                    if (ta) {
-                        const ins = this.mode === 'markdown' ? '![](' + data.url + ')' : '<img src="' + data.url + '" alt="">';
-                        const start = ta.selectionStart;
-                        const val = ta.value;
-                        ta.value = val.substring(0, start) + ins + val.substring(ta.selectionEnd);
-                        this.content = ta.value;
-                        ta.dispatchEvent(new Event('input', { bubbles: true }));
-                        ta.focus();
-                    }
+                if (data.url && this.editor) {
+                    this.editor.chain().focus().setImage({ src: data.url }).run();
                 } else if (data.error) {
                     this.error = data.error;
                 }
@@ -228,28 +151,12 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
-        renderPreview() {
-            this.loading = true;
-            fetch('{{ route("blog.preview-markdown") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
-                body: JSON.stringify({ content: this.content, format: this.format })
-            })
-            .then(r => r.json())
-            .then(data => {
-                this.previewHtml = data.html || '<p class="text-red-500">Erreur de rendu.</p>';
-            })
-            .catch(() => { this.previewHtml = '<p class="text-red-500">Erreur lors du rendu.</p>'; })
-            .finally(() => { this.loading = false; });
-        },
-
         aiGenerate(mode) {
             if (this.generating || postId === null) return;
 
             this.generating = true;
             this.error = '';
 
-            const ta = document.getElementById('blog-editor-' + this.name);
             const body = mode === 'generate'
                 ? { post_id: postId }
                 : { post_id: postId, content: this.content };
@@ -261,9 +168,8 @@ document.addEventListener('alpine:init', () => {
             })
             .then(r => r.json())
             .then(data => {
-                if (data.content) {
-                    this.content = data.content;
-                    if (ta) { ta.value = data.content; ta.dispatchEvent(new Event('input', { bubbles: true })); }
+                if (data.content && this.editor) {
+                    this.editor.commands.setContent(data.content);
                     if (data.remaining) this.remaining = data.remaining;
                 } else if (data.error) {
                     this.error = data.error;
