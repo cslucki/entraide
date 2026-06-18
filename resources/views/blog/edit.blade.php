@@ -28,11 +28,12 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contenu *</label>
-                    <div x-data="{ insertMarkdown(type) { const ta = document.getElementById('content-edit'); if (!ta) return; const start = ta.selectionStart, end = ta.selectionEnd, val = ta.value, sel = val.substring(start, end); let before = '', after = ''; if (type === 'bold') { before = '**'; after = '**'; } else if (type === 'link') { before = '['; after = '](url)'; } else if (type === 'h2') { before = '## '; } else if (type === 'h3') { before = '### '; } else if (type === 'list') { before = '\n- '; } let nv; if (sel && type !== 'h2' && type !== 'h3' && type !== 'list') { nv = val.substring(0, start) + before + sel + after + val.substring(end); } else { nv = val.substring(0, start) + before + after + val.substring(end); } ta.value = nv; ta.dispatchEvent(new Event('input', {bubbles: true})); ta.focus(); const pos = start + before.length; ta.setSelectionRange(pos, pos); } }" class="space-y-1">
-                        <x-markdown-toolbar target="content-edit" />
-                        <textarea id="content-edit" name="content" rows="14" required
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm font-mono">{{ old('content', $post->content) }}</textarea>
-                    </div>
+                    <x-blog-editor
+                        name="content"
+                        :value="old('content', $post->content)"
+                        :format="old('content_format', $post->content_format ?? 'markdown')"
+                        :post-id="$post->id"
+                    />
                 </div>
 
                 <div x-data="{ preview: null }">

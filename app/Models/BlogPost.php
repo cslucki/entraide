@@ -26,6 +26,7 @@ class BlogPost extends Model
         'slug',
         'summary',
         'content',
+        'content_format',
         'image',
         'status',
         'published_at',
@@ -39,6 +40,7 @@ class BlogPost extends Model
         'published_at' => 'datetime',
         'views_count' => 'integer',
         'read_time' => 'integer',
+        'content_format' => 'string',
     ];
 
     protected static function booted(): void

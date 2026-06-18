@@ -6,13 +6,34 @@ use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Tag;
+use App\Services\BlogAiService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
-class BlogController extends Controller
+class BlogController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('throttle:10,1', only: ['uploadImage']),
+            new Middleware('throttle:30,1', only: ['aiGenerate', 'aiCorrect']),
+        ];
+    }
+
+    private const ALLOWED_HTML_TAGS = [
+        'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
+        'img', 'b', 'i', 'a', 'code',
+        'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
+        'caption', 'col', 'colgroup',
+    ];
+
     public function index(): View
     {
         $organization = currentOrganization();
@@ -145,6 +166,7 @@ class BlogController extends Controller
             'title' => 'required|string|max:255',
             'summary' => 'nullable|string|max:500',
             'content' => 'required|string|min:50',
+            'content_format' => 'nullable|in:markdown,html',
             'image' => 'nullable|image|max:2048',
             'status' => 'required|in:draft,published',
             'category_id' => 'required|uuid|exists:categories,id',
@@ -152,6 +174,12 @@ class BlogController extends Controller
             'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string|max:320',
         ]);
+
+        $data['content_format'] = $data['content_format'] ?? 'markdown';
+
+        if ($data['content_format'] === 'html') {
+            $data['content'] = $this->sanitizeHtml($data['content']);
+        }
 
         if (! Category::where('id', $data['category_id'])->where('organization_id', $organization->id)->exists()) {
             return back()->withErrors(['category_id' => 'Catégorie invalide.'])->withInput();
@@ -205,6 +233,7 @@ class BlogController extends Controller
             'title' => 'required|string|max:255',
             'summary' => 'nullable|string|max:500',
             'content' => 'required|string|min:50',
+            'content_format' => 'nullable|in:markdown,html',
             'image' => 'nullable|image|max:2048',
             'status' => 'required|in:draft,pending,published,archived',
             'category_id' => 'required|uuid|exists:categories,id',
@@ -212,6 +241,12 @@ class BlogController extends Controller
             'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string|max:320',
         ]);
+
+        $data['content_format'] = $data['content_format'] ?? $post->content_format ?? 'markdown';
+
+        if ($data['content_format'] === 'html') {
+            $data['content'] = $this->sanitizeHtml($data['content']);
+        }
 
         if (! Category::where('id', $data['category_id'])->where('organization_id', $organization->id)->exists()) {
             return back()->withErrors(['category_id' => 'Catégorie invalide.'])->withInput();
@@ -294,5 +329,130 @@ class BlogController extends Controller
             ->paginate(15, ['*'], 'comments');
 
         return view('blog.my-posts', compact('drafts', 'publishedPosts', 'comments'));
+    }
+
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => 'required|image|max:5120|mimes:jpeg,png,webp,gif',
+        ]);
+
+        $path = $request->file('image')->store('blog/images', 'public');
+
+        return response()->json(['url' => Storage::disk('public')->url($path)]);
+    }
+
+    public function previewMarkdown(Request $request): JsonResponse
+    {
+        $request->validate([
+            'content' => 'required|string',
+            'format' => 'nullable|in:markdown,html',
+        ]);
+
+        $format = $request->input('format', 'markdown');
+        $content = $request->input('content');
+
+        if ($format === 'html') {
+            $html = $this->sanitizeHtml($content);
+        } else {
+            $html = markdown($content);
+        }
+
+        return response()->json(['html' => $html]);
+    }
+
+    public function aiGenerate(Request $request, BlogAiService $ai): JsonResponse
+    {
+        return $this->handleAi($request, $ai, 'generate');
+    }
+
+    public function aiCorrect(Request $request, BlogAiService $ai): JsonResponse
+    {
+        return $this->handleAi($request, $ai, 'correct');
+    }
+
+    public function aiRemaining(Request $request, BlogAiService $ai): JsonResponse
+    {
+        $request->validate(['post_id' => 'required|string|exists:blog_posts,id']);
+
+        $post = BlogPost::findOrFail($request->input('post_id'));
+        $user = $request->user();
+
+        $this->checkPostAccess($post, $user);
+
+        return response()->json([
+            'generate' => $ai->remainingCount($post, $user, 'blog_generate'),
+            'correct' => $ai->remainingCount($post, $user, 'blog_correct'),
+        ]);
+    }
+
+    private function handleAi(Request $request, BlogAiService $ai, string $mode): JsonResponse
+    {
+        try {
+            $request->validate(['post_id' => 'required|string|exists:blog_posts,id']);
+
+            $post = BlogPost::findOrFail($request->input('post_id'));
+            $user = $request->user();
+
+            $this->checkPostAccess($post, $user);
+
+            $feature = $mode === 'generate' ? 'blog_generate' : 'blog_correct';
+            $remaining = $ai->remainingCount($post, $user, $feature);
+
+            if ($remaining <= 0 && ! $user->is_admin) {
+                return response()->json(['error' => 'Limite de 3 utilisations atteinte pour cet article.'], 429);
+            }
+
+            if ($mode === 'correct') {
+                $request->validate(['content' => 'required|string|min:10']);
+                $post->content = $request->input('content');
+            }
+
+            $result = $mode === 'generate'
+                ? $ai->generate($post, $user)
+                : $ai->correct($post, $user);
+
+            $newRemaining = $ai->remainingCount($post, $user, $feature);
+
+            return response()->json([
+                'content' => $result,
+                'remaining' => [
+                    'generate' => $feature === 'blog_generate' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_generate'),
+                    'correct' => $feature === 'blog_correct' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_correct'),
+                ],
+            ]);
+        } catch (HttpException $e) {
+            throw $e;
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    private function checkPostAccess(BlogPost $post, $user): void
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+        if ($user->id !== $post->user_id && ! $user->is_admin) {
+            abort(403);
+        }
+    }
+
+    private function sanitizeHtml(string $html): string
+    {
+        $allowed = self::ALLOWED_HTML_TAGS;
+
+        $html = strip_tags($html, '<'.implode('><', $allowed).'>');
+
+        $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+        $html = preg_replace('/<(\w+)\s[^>]*javascript\s*:\s*[^"\'>\s]+/i', '<$1', $html);
+        $html = preg_replace('/<(\w+)\s[^>]*data\s*:\s*[^"\'>\s]+/i', '<$1', $html);
+        $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html);
+        $html = preg_replace('/\{\{.*?\}\}/s', '', $html);
+
+        $html = preg_replace('/<(\w+)[^>]*style\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+
+        return $html;
     }
 }
