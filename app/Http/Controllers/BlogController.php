@@ -13,7 +13,9 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -162,23 +164,9 @@ class BlogController extends Controller implements HasMiddleware
 
         $this->authorize('create', BlogPost::class);
 
-        $data = $request->validate([
-            'title' => 'required|string|max:255',
-            'summary' => 'nullable|string|max:500',
-            'content' => 'required|string|min:50',
-            'image' => 'nullable|image|max:2048',
-            'status' => 'required|in:draft,published',
-            'category_id' => 'required|uuid|exists:categories,id',
-            'tags' => 'nullable|string',
-            'meta_title' => 'nullable|string|max:255',
-            'meta_description' => 'nullable|string|max:320',
-        ]);
+        $data = $this->validateBlogPostRequest($request, $organization, ['draft', 'published']);
 
         $data['content'] = $this->sanitizeHtml($data['content']);
-
-        if (! Category::where('id', $data['category_id'])->where('organization_id', $organization->id)->exists()) {
-            return back()->withErrors(['category_id' => 'Catégorie invalide.'])->withInput();
-        }
 
         $data['user_id'] = auth()->id();
         $data['organization_id'] = $organization->id;
@@ -198,7 +186,7 @@ class BlogController extends Controller implements HasMiddleware
             $post->tags()->sync($tagIds);
         }
 
-        $message = $data['status'] === 'published' ? 'Article publié avec succès.' : 'Brouillon enregistré.';
+        $message = $data['status'] === 'published' ? 'Article publié.' : 'Brouillon enregistré.';
         return redirect()->route('blog.show', $post)->with('success', $message);
     }
 
@@ -225,31 +213,27 @@ class BlogController extends Controller implements HasMiddleware
 
         $this->authorize('update', $post);
 
-        $data = $request->validate([
-            'title' => 'required|string|max:255',
-            'summary' => 'nullable|string|max:500',
-            'content' => 'required|string|min:50',
-            'image' => 'nullable|image|max:2048',
-            'status' => 'required|in:draft,pending,published,archived',
-            'category_id' => 'required|uuid|exists:categories,id',
-            'tags' => 'nullable|string',
-            'meta_title' => 'nullable|string|max:255',
-            'meta_description' => 'nullable|string|max:320',
-        ]);
+        $data = $this->validateBlogPostRequest($request, $organization, ['draft', 'pending', 'published', 'archived']);
 
         $data['content'] = $this->sanitizeHtml($data['content']);
-
-        if (! Category::where('id', $data['category_id'])->where('organization_id', $organization->id)->exists()) {
-            return back()->withErrors(['category_id' => 'Catégorie invalide.'])->withInput();
-        }
 
         if ($data['status'] === 'published' && ! $post->published_at) {
             $data['published_at'] = now();
         }
 
+        if ($request->boolean('remove_image') && $post->image) {
+            Storage::disk('public')->delete($post->image);
+            $data['image'] = null;
+        }
+
         if ($request->hasFile('image')) {
+            if ($post->image) {
+                Storage::disk('public')->delete($post->image);
+            }
             $data['image'] = $request->file('image')->store('blog', 'public');
         }
+
+        unset($data['remove_image']);
 
         $post->update($data);
 
@@ -431,5 +415,62 @@ class BlogController extends Controller implements HasMiddleware
         $html = preg_replace('/<(\w+)[^>]*style\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
 
         return $html;
+    }
+
+    /**
+     * Drafts stay lightweight; publication requires the public fields.
+     * Empty TipTap content is persisted as a minimal HTML paragraph to satisfy the DB constraint.
+     */
+    private function validateBlogPostRequest(Request $request, $organization, array $allowedStatuses): array
+    {
+        $isPublished = $request->input('status') === 'published';
+
+        $validator = Validator::make($request->all(), [
+            'title' => ['required', 'string', 'max:255'],
+            'summary' => [$isPublished ? 'required' : 'nullable', 'string', 'max:500'],
+            'content' => [$isPublished ? 'required' : 'nullable', 'string', function (string $attribute, mixed $value, \Closure $fail) use ($isPublished): void {
+                if ($isPublished && $this->plainTextContent((string) $value) === '') {
+                    $fail('Le contenu est obligatoire pour publier.');
+                }
+            }],
+            'image' => ['nullable', 'image', 'max:5120', 'mimes:jpeg,png,webp,gif'],
+            'remove_image' => ['nullable', 'boolean'],
+            'status' => ['required', Rule::in($allowedStatuses)],
+            'category_id' => [$isPublished ? 'required' : 'nullable', 'uuid', 'exists:categories,id'],
+            'tags' => ['nullable', 'string'],
+            'meta_title' => ['nullable', 'string', 'max:255'],
+            'meta_description' => ['nullable', 'string', 'max:320'],
+        ], [
+            'title.required' => 'Le titre est obligatoire.',
+            'summary.required' => 'Le résumé est obligatoire pour publier.',
+            'content.required' => 'Le contenu est obligatoire pour publier.',
+            'category_id.required' => 'La catégorie est obligatoire pour publier.',
+            'category_id.exists' => 'Catégorie invalide.',
+            'image.image' => 'L’image de couverture doit être une image valide.',
+            'image.mimes' => 'L’image de couverture doit être au format jpeg, png, webp ou gif.',
+            'image.max' => 'L’image de couverture ne doit pas dépasser 5 Mo.',
+        ]);
+
+        $validator->after(function ($validator) use ($request, $organization): void {
+            $categoryId = $request->input('category_id');
+            if ($categoryId && ! Category::where('id', $categoryId)->where('organization_id', $organization->id)->exists()) {
+                $validator->errors()->add('category_id', 'Catégorie invalide.');
+            }
+        });
+
+        $data = $validator->validate();
+
+        $data['content'] = filled($data['content'] ?? null) ? $data['content'] : '<p></p>';
+        $data['category_id'] = filled($data['category_id'] ?? null) ? $data['category_id'] : null;
+
+        return $data;
+    }
+
+    private function plainTextContent(string $html): string
+    {
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = str_replace("\xc2\xa0", ' ', $text);
+
+        return trim($text);
     }
 }

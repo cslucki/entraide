@@ -13,17 +13,24 @@
             <form action="{{ route('blog.update', $post) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 @csrf @method('PUT')
 
+                @if($errors->any())
+                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300" role="alert">
+                    <p class="font-semibold">Impossible d’enregistrer l’article. Merci de corriger les champs indiqués.</p>
+                </div>
+                @endif
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre *</label>
-                    <input type="text" name="title" value="{{ old('title', $post->title) }}" required
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
-                    @error('title')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror
+                    <input type="text" name="title" value="{{ old('title', $post->title) }}"
+                        class="w-full px-3 py-2 border @error('title') border-red-500 ring-1 ring-red-500 dark:border-red-500 @else border-gray-300 dark:border-gray-600 @enderror rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                    @error('title')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Résumé</label>
                     <textarea name="summary" rows="2" maxlength="500"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">{{ old('summary', $post->summary) }}</textarea>
+                        class="w-full px-3 py-2 border @error('summary') border-red-500 ring-1 ring-red-500 dark:border-red-500 @else border-gray-300 dark:border-gray-600 @enderror rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">{{ old('summary', $post->summary) }}</textarea>
+                    @error('summary')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 <div>
@@ -32,7 +39,9 @@
                         name="content"
                         :value="old('content', $post->content)"
                         :post-id="$post->id"
+                        :invalid="$errors->has('content')"
                     />
+                    @error('content')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 <div x-data="{ preview: null }">
@@ -44,7 +53,8 @@
                     @endif
                     <input type="file" name="image" accept="image/*" x-ref="fileInput"
                         @change="const f = $event.target.files[0]; if (f) { const r = new FileReader(); r.onload = e => preview = e.target.result; r.readAsDataURL(f); } else { preview = null; }"
-                        class="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                        class="w-full text-sm text-gray-500 @error('image') rounded-lg ring-1 ring-red-500 @enderror file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                    @error('image')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                     <template x-if="preview">
                         <div class="mt-3 relative inline-block">
                             <img :src="preview" class="h-36 rounded-lg object-cover shadow-sm">
@@ -54,17 +64,24 @@
                             </button>
                         </div>
                     </template>
+                    @if($post->image)
+                    <div class="flex items-center gap-2 mt-2">
+                        <input type="checkbox" name="remove_image" id="remove_image" value="1">
+                        <label for="remove_image" class="text-sm text-gray-500 dark:text-gray-400">Supprimer l'image actuelle</label>
+                    </div>
+                    @endif
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Catégorie</label>
                     <select name="category_id"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
+                        class="w-full px-3 py-2 border @error('category_id') border-red-500 ring-1 ring-red-500 dark:border-red-500 @else border-gray-300 dark:border-gray-600 @enderror rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
                         <option value="">— Aucune —</option>
                         @foreach($categories as $cat)
                         <option value="{{ $cat->id }}" {{ old('category_id', $post->category_id) === $cat->id ? 'selected' : '' }}>{{ $cat->displayName('blog') }}</option>
                         @endforeach
                     </select>
+                    @error('category_id')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 <div>
@@ -100,6 +117,7 @@
                         </label>
                         @endforeach
                     </div>
+                    @error('status')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 <div class="flex items-center gap-3 pt-2">

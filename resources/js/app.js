@@ -105,11 +105,20 @@ function registerBlogEditor() {
             const editorEl = this.$refs.editorElement;
             if (!editorEl) return;
 
+            const syncHiddenInput = () => {
+                const form = this.$el.closest('form');
+                if (!form || !editor || this.editorError) return;
+
+                const hidden = form.querySelector('input[type="hidden"][name="' + this.name + '"]');
+                if (hidden) hidden.value = editor.getHTML();
+            };
+
             editor = createEditor(editorEl, {
                 content: this.content,
                 placeholder: 'Rédigez votre article…',
                 onUpdate: (html) => {
                     this.content = html;
+                    syncHiddenInput();
                 },
             });
 
@@ -120,10 +129,7 @@ function registerBlogEditor() {
             const form = this.$el.closest('form');
             if (form) {
                 form.addEventListener('submit', () => {
-                    if (editor && !this.editorError) {
-                        const hidden = form.querySelector('input[type="hidden"][name="' + this.name + '"]');
-                        if (hidden) hidden.value = editor.getHTML();
-                    }
+                    syncHiddenInput();
                 });
             }
 
@@ -212,6 +218,7 @@ function registerBlogEditor() {
             .then(data => {
                 if (data.url && editor) {
                     editor.chain().focus().setImage({ src: data.url }).run();
+                    syncHiddenInput();
                 } else if (data.error) {
                     this.error = data.error;
                 }
@@ -253,6 +260,8 @@ function registerBlogEditor() {
             .then(data => {
                 if (data.content && editor) {
                     editor.commands.setContent(data.content);
+                    this.content = editor.getHTML();
+                    syncHiddenInput();
                     if (data.remaining) this.remaining = data.remaining;
                 } else if (data.error) {
                     this.error = data.error;
