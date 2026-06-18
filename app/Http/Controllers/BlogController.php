@@ -316,8 +316,10 @@ class BlogController extends Controller implements HasMiddleware
         $user = $request->user();
         $uuid = (string) Str::uuid();
         $ext = $request->file('image')->extension();
-        $path = sprintf('blog/images/%s/%s/%s.%s', $org->id, $user->id, $uuid, $ext);
-        $request->file('image')->storeAs('public', $path);
+        $dir = sprintf('blog/images/%s/%s', $org->id, $user->id);
+        $filename = sprintf('%s.%s', $uuid, $ext);
+        $path = sprintf('%s/%s', $dir, $filename);
+        $request->file('image')->storeAs($dir, $filename, 'public');
 
         return response()->json(['url' => Storage::disk('public')->url($path)]);
     }
