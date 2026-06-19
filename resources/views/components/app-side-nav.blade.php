@@ -16,73 +16,73 @@
         [
             'url' => $routeUrl('loops.index', 'organization.loops.index'),
             'active' => ['loops', 'organization.loops'],
-            'label' => 'Boucles',
+            'label' => __('navigation.loops'),
             'hint' => 'ChatLoop',
             'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
         ],
         [
             'url' => $usesDefaultOrganizationRoute && Route::has('flux') ? route('flux') : ($organizationRouteParam ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard')),
             'active' => ['flux', 'organization.flux'],
-            'label' => 'Flux',
-            'hint' => 'Annonces',
+            'label' => __('navigation.feed'),
+            'hint' => __('navigation.announcements'),
             'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z',
         ],
         [
             'url' => $routeUrl('explorer', 'organization.explorer'),
             'active' => ['explorer', 'organization.explorer'],
-            'label' => 'Échanges',
-            'hint' => 'Services',
+            'label' => __('navigation.exchanges'),
+            'hint' => __('navigation.services'),
             'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
         ],
         [
             'url' => route('messages.index'),
             'active' => ['messages'],
-            'label' => 'Messagerie',
-            'hint' => 'Messages',
+            'label' => __('navigation.messaging'),
+            'hint' => __('navigation.messages'),
             'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z',
             'badge' => $unreadMessagesCount,
         ],
         [
             'url' => $routeUrl('members.index', 'organization.members.index'),
             'active' => ['members', 'organization.members', 'profile.show'],
-            'label' => 'Annuaire',
-            'hint' => 'Membres',
+            'label' => __('navigation.directory'),
+            'hint' => __('navigation.members'),
             'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
         ],
         [
             'url' => route('blog.index'),
             'active' => ['blog'],
-            'label' => 'Actus',
-            'hint' => 'Articles',
+            'label' => __('navigation.blog'),
+            'hint' => __('navigation.articles'),
             'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
         ],
     ] : [
         [
             'url' => route('boucles.index'),
             'active' => ['boucles'],
-            'label' => 'Boucles',
-            'hint' => 'Groupes',
+            'label' => __('navigation.loops'),
+            'hint' => __('navigation.groups'),
             'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
         ],
         [
             'url' => route('explorer'),
             'active' => ['explorer'],
-            'label' => 'Échanges',
-            'hint' => 'Services',
+            'label' => __('navigation.exchanges'),
+            'hint' => __('navigation.services'),
             'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
         ],
         [
             'url' => $routeUrl('members.index', 'organization.members.index'),
             'active' => ['members', 'organization.members', 'profile.show'],
-            'label' => 'Annuaire',
-            'hint' => 'Membres',
+            'label' => __('navigation.directory'),
+            'hint' => __('navigation.members'),
             'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
         ],
         [
             'url' => route('blog.index'),
             'active' => ['blog'],
-            'label' => 'Actus',
-            'hint' => 'Articles',
+            'label' => __('navigation.blog'),
+            'hint' => __('navigation.articles'),
             'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
         ],
     ];
@@ -114,7 +114,7 @@
             <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-8 w-8" aria-hidden="true">
         </a>
 
-        <nav class="mt-6 flex w-full flex-1 flex-col items-center gap-2" aria-label="Navigation principale">
+        <nav class="mt-6 flex w-full flex-1 flex-col items-center gap-2" aria-label="{{ __('navigation.main_navigation') }}">
             @foreach($items as $item)
                 @php $active = $isActive($item); @endphp
                 <a href="{{ $item['url'] }}"
@@ -139,12 +139,12 @@
         </nav>
 
         <div class="flex flex-col items-center gap-3 border-t border-[var(--bp-border)] pt-4">
-            <button type="button" @click="$store.visualTheme.next()" class="flex w-14 flex-col items-center rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="Changer de thème">
+            <button type="button" @click="$store.visualTheme.next()" class="flex w-14 flex-col items-center rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.change_theme') }}">
                 <span class="h-3 w-3 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
                 <span class="mt-1 leading-none" x-text="$store.visualTheme.label()">Sable</span>
             </button>
 
-            <button type="button" @click="$store.darkMode.toggle()" class="flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]" aria-label="Mode sombre">
+            <button type="button" @click="$store.darkMode.toggle()" class="flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.dark_mode') }}">
                 <template x-if="!$store.darkMode.on">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 </template>
@@ -156,7 +156,7 @@
             @auth
                 <x-dropdown align="left-up" width="w-64" contentClasses="py-2 bg-white dark:bg-gray-800">
                     <x-slot name="trigger">
-                        <button class="relative flex h-11 w-11 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="Menu utilisateur">
+                        <button class="relative flex h-11 w-11 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
                             <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->name }}">
                             <span class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
                         </button>
@@ -173,7 +173,7 @@
                         <div x-data="{ themeMenuOpen: false }" class="border-t border-gray-100 py-2 dark:border-gray-700">
                             <button type="button" @click="themeMenuOpen = !themeMenuOpen" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700" :aria-expanded="themeMenuOpen.toString()">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18z"/><path d="M12 3v18M12 12h9"/></svg>
-                                <span>Changer de thème</span>
+                                <span>{{ __('navigation.change_theme') }}</span>
                                 <span class="ml-auto text-xs text-gray-400" x-text="$store.visualTheme.label()">Sable</span>
                                 <svg class="h-4 w-4 text-gray-400 transition" :class="themeMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                             </button>
@@ -182,56 +182,56 @@
                                     <button type="button" @click="$store.visualTheme.set('{{ $themeKey }}')" class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-gray-700 transition hover:bg-white dark:text-gray-200 dark:hover:bg-gray-800">
                                         <span class="h-3 w-3 rounded-full ring-2 ring-white dark:ring-gray-700" style="background-color: {{ $theme['tokens']['primary'] ?? '#0B4DFF' }}" aria-hidden="true"></span>
                                         <span class="font-medium">{{ $theme['label'] ?? ucfirst($themeKey) }}</span>
-                                        <span x-show="$store.visualTheme.is('{{ $themeKey }}')" class="ml-auto text-[10px] font-semibold uppercase tracking-wide text-[var(--bp-primary)]">Actif</span>
+                                        <span x-show="$store.visualTheme.is('{{ $themeKey }}')" class="ml-auto text-[10px] font-semibold uppercase tracking-wide text-[var(--bp-primary)]">{{ __('navigation.active') }}</span>
                                     </button>
                                 @endforeach
                             </div>
                             <button type="button" @click="$store.darkMode.toggle()" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-                                <span x-text="$store.darkMode.on ? 'Mode clair' : 'Mode sombre'">Mode sombre</span>
+                                <span x-text="$store.darkMode.on ? '{{ __('navigation.light_mode') }}' : '{{ __('navigation.dark_mode') }}'">{{ __('navigation.dark_mode') }}</span>
                             </button>
                         </div>
 
                         <div class="border-t border-gray-100 py-2 dark:border-gray-700">
                             <a href="{{ route('dashboard') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
-                                <span>Tableau de bord</span>
+                                <span>{{ __('navigation.dashboard') }}</span>
                             </a>
                             <a href="{{ route('messages.index') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                                <span>Messagerie</span>
+                                <span>{{ __('navigation.messages') }}</span>
                             </a>
                             <a href="{{ route('profile.show', Auth::user()) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/><path d="M4.5 20.25a8.25 8.25 0 1116.5 0"/></svg>
-                                <span>Profil</span>
+                                <span>{{ __('navigation.profile') }}</span>
                             </a>
                             <a href="{{ route('agent-ia.wizard') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
-                                <span>Profil IA</span>
+                                <span>{{ __('navigation.ai_profile') }}</span>
                             </a>
                             <a href="{{ route('profile.edit') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.573c1.757.426 1.757 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.065c-.426 1.757-2.924 1.757-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.573c-1.757-.426-1.757-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.065z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                <span>Paramètres</span>
+                                <span>{{ __('navigation.settings') }}</span>
                             </a>
                             <a href="{{ route('points.index') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6v6l4 2"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                <span>Historique des points</span>
+                                <span>{{ __('navigation.points_history') }}</span>
                             </a>
                             <a href="{{ route('favorites.index') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111 5.52.442a.563.563 0 01.32.988l-4.205 3.602 1.285 5.385a.562.562 0 01-.84.61L12 16.75l-4.725 2.887a.562.562 0 01-.84-.61l1.285-5.385-4.205-3.602a.563.563 0 01.32-.988l5.52-.442 2.125-5.111z"/></svg>
-                                <span>Mes favoris</span>
+                                <span>{{ __('navigation.favorites') }}</span>
                             </a>
                         </div>
 
                         <div class="border-t border-gray-100 py-2 dark:border-gray-700">
                             <a href="{{ route('help') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.178-.43.326-.67.442-.745.361-1.451.999-1.451 1.827v.75"/><path d="M12 18h.01"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                <span>Aide</span>
+                                <span>{{ __('navigation.help') }}</span>
                             </a>
                         @if(Auth::user()->is_admin)
                             <a href="{{ route('admin.dashboard') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-purple-700 transition hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-900/30">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m0 0v10m6-14v2m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v8M6 6v8m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v2"/></svg>
-                                <span>Administration</span>
+                                <span>{{ __('navigation.administration') }}</span>
                             </a>
                         @endif
                         </div>
@@ -241,18 +241,18 @@
                                 @csrf
                                 <button type="submit" @click="open = false" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                     <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
-                                    <span>Se déconnecter</span>
+                                    <span>{{ __('navigation.logout') }}</span>
                                 </button>
                             </form>
                             <a href="{{ route('mentions-legales') }}" @click="open = false" class="mt-1 flex items-center gap-3 px-4 py-2 text-xs text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12h6m-6 4h6"/><path d="M5 3h10l4 4v17H5z"/><path d="M15 3v4h4"/></svg>
-                                <span>Mentions légales</span>
+                                <span>{{ __('navigation.legal_notices') }}</span>
                             </a>
                         </div>
                     </x-slot>
                 </x-dropdown>
             @else
-                <a href="{{ route('login') }}" class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--bp-primary)] text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]" aria-label="Se connecter">
+                <a href="{{ route('login') }}" class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--bp-primary)] text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]" aria-label="{{ __('navigation.login') }}">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
                 </a>
             @endauth
