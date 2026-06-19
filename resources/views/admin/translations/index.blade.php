@@ -65,11 +65,19 @@
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 {{ $entry['status'] !== 'OK' ? 'bg-amber-50/50 dark:bg-amber-900/10' : '' }}">
                         <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{ $entry['group'] }}</td>
                         <td class="px-4 py-3 font-mono text-xs text-gray-900 dark:text-gray-100">{{ $entry['key'] }}</td>
-                        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 {{ $entry['fr'] === null ? 'text-red-500 italic' : '' }}">
-                            {{ $entry['fr'] ?? '—' }}
+                        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 {{ is_array($entry['fr']) ? 'text-gray-400 italic' : ($entry['fr'] === null ? 'text-red-500 italic' : '') }}">
+                            @if(is_array($entry['fr']))
+                                <span class="text-xs text-gray-400 dark:text-gray-500">structure imbriquée</span>
+                            @else
+                                {{ $entry['fr'] ?? '—' }}
+                            @endif
                         </td>
-                        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 {{ $entry['en'] === null ? 'text-red-500 italic' : '' }}">
-                            {{ $entry['en'] ?? '—' }}
+                        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 {{ is_array($entry['en']) ? 'text-gray-400 italic' : ($entry['en'] === null ? 'text-red-500 italic' : '') }}">
+                            @if(is_array($entry['en']))
+                                <span class="text-xs text-gray-400 dark:text-gray-500">structure imbriquée</span>
+                            @else
+                                {{ $entry['en'] ?? '—' }}
+                            @endif
                         </td>
                         <td class="px-4 py-3">
                             @php
