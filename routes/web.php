@@ -290,6 +290,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Translations
     Route::get('/translations', [AdminTranslationController::class, 'index'])->name('translations');
+    Route::get('/translations/overrides/create', [AdminTranslationController::class, 'createOverride'])->name('translations.overrides.create');
+    Route::post('/translations/overrides', [AdminTranslationController::class, 'store'])->name('translations.overrides.store');
+    Route::get('/translations/overrides/{translationOverride}/edit', [AdminTranslationController::class, 'editOverride'])->name('translations.overrides.edit');
+    Route::put('/translations/overrides/{translationOverride}', [AdminTranslationController::class, 'updateOverride'])->name('translations.overrides.update');
+    Route::patch('/translations/overrides/{translationOverride}/deactivate', [AdminTranslationController::class, 'deactivateOverride'])->name('translations.overrides.deactivate');
 
     Route::get('/email-test', [AdminEmailController::class, 'index'])->name('email-test');
     Route::post('/email-test', [AdminEmailController::class, 'send'])->name('email-test.send');
