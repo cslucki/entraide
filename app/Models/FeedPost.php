@@ -154,7 +154,7 @@ class FeedPost extends Model
         $body = $this->loop_message
             ?: ($this->title ? "**{$this->title}**\n\n" : '').$this->content;
 
-        $body .= "\n\n[Voir l'annonce](".$this->announcementUrl().")";
+        $body .= "\n\n[Voir l'annonce](".$this->announcementUrl().')';
 
         foreach ($this->loops as $loop) {
             try {

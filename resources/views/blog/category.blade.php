@@ -10,7 +10,7 @@
     </div>
 
     <x-page-container>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ $category->displayName('blog') }}</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ $category->displayName('blog') }}</h1>
         <p class="text-gray-500 dark:text-gray-400 mb-8">{{ $posts->total() }} article(s) dans cette catégorie</p>
 
         @if($posts->isEmpty())

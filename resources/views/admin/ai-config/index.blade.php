@@ -84,6 +84,56 @@
             </form>
         </div>
 
+        {{-- Configuration IA Blog par organisation --}}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Configuration IA Blog par organisation</h3>
+
+            <div class="space-y-4">
+                @foreach($organizations as $org)
+                    @php $cfg = $blogConfigs[$org->id] ?? null; @endphp
+                    <form method="POST" action="{{ route('admin.ai-config.blog') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                        @csrf
+                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
+
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                <input type="checkbox" name="generate_enabled" value="1" @checked($cfg?->generate_enabled ?? true) class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                                Génération IA
+                            </label>
+
+                            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                <input type="checkbox" name="correct_enabled" value="1" @checked($cfg?->correct_enabled ?? true) class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                                Correction IA
+                            </label>
+
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Limite génération</label>
+                                <input type="number" name="generate_limit" value="{{ old('generate_limit', $cfg?->generate_limit ?? 3) }}" min="1" max="100"
+                                       class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Limite correction</label>
+                                <input type="number" name="correct_limit" value="{{ old('correct_limit', $cfg?->correct_limit ?? 3) }}" min="1" max="100"
+                                       class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end">
+                            <button type="submit"
+                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
+                                Enregistrer pour {{ $org->name }}
+                            </button>
+                        </div>
+                    </form>
+                @endforeach
+            </div>
+        </div>
+
         {{-- Providers disponibles --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
             <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Providers disponibles</h3>
@@ -113,8 +163,9 @@
         {{-- Note --}}
         <div class="text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-4 py-3">
             <p class="font-medium mb-1">Fonctionnement</p>
-            <p>Les réglages ci-dessus s'appliquent à la clarification des demandes d'aide utilisateur (feature flag <code>AI_CLARIFY_ENABLED</code>).</p>
+            <p>Les réglages ci-dessus s'appliquent à la clarification des demandes d'aide utilisateur (feature flag <code>AI_CLARIFY_ENABLED</code>) ainsi qu'aux fonctionnalités IA du Blog.</p>
             <p class="mt-1">Le provider par défaut est utilisé par ordre de priorité : réglage DB → <code>OLLAMA_ENABLED</code> → <code>OPENROUTER_ENABLED</code> → <code>OPENAI_SUPERVISION_ENABLED</code>.</p>
+            <p class="mt-1">La configuration IA Blog permet d'activer/désactiver les fonctionnalités et de définir les limites par organisation.</p>
         </div>
     </div>
 </x-admin-layout>
