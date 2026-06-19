@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Organization;
 use App\Models\TranslationOverride;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Lang;
 
@@ -17,10 +16,10 @@ class TranslationOverrideService
         ?Organization $organization = null,
         array $replace = [],
     ): string {
-        $override = $this->resolveOverride($group, $key, $locale, $organization);
+        $value = $this->resolveOverride($group, $key, $locale, $organization);
 
-        if ($override !== null) {
-            return $this->applyReplacements($override->value, $replace);
+        if ($value !== null) {
+            return $this->applyReplacements($value, $replace);
         }
 
         return Lang::get("{$group}.{$key}", $replace, $locale);
@@ -74,7 +73,7 @@ class TranslationOverrideService
             ->update(['is_active' => false]) > 0;
     }
 
-    public function allForOrganization(?string $organizationId, string $locale): Collection
+    public function allForOrganization(?string $organizationId, string $locale): array
     {
         return $this->loadOverrides($organizationId, $locale);
     }
@@ -84,36 +83,35 @@ class TranslationOverrideService
         string $key,
         string $locale,
         ?Organization $organization = null,
-    ): ?TranslationOverride {
+    ): ?string {
+        $lookup = "{$group}.{$key}";
+
         if ($organization !== null) {
             $orgOverrides = $this->loadOverrides($organization->id, $locale);
-            $override = $orgOverrides->firstWhere(
-                fn (TranslationOverride $o) => $o->group === $group && $o->key === $key && $o->is_active
-            );
 
-            if ($override !== null) {
-                return $override;
+            if (array_key_exists($lookup, $orgOverrides)) {
+                return $orgOverrides[$lookup];
             }
         }
 
         $globalOverrides = $this->loadOverrides(null, $locale);
-        $override = $globalOverrides->firstWhere(
-            fn (TranslationOverride $o) => $o->group === $group && $o->key === $key && $o->is_active
-        );
 
-        return $override;
+        return $globalOverrides[$lookup] ?? null;
     }
 
-    protected function loadOverrides(?string $organizationId, string $locale): Collection
+    protected function loadOverrides(?string $organizationId, string $locale): array
     {
         $orgKey = $organizationId ?? 'global';
         $cacheKey = "translation_overrides:{$orgKey}:{$locale}";
 
         return Cache::remember($cacheKey, 3600, function () use ($organizationId, $locale) {
             return TranslationOverride::query()
+                ->active()
                 ->forOrganization($organizationId)
                 ->forLocale($locale)
-                ->get();
+                ->get()
+                ->mapWithKeys(fn (TranslationOverride $o) => ["{$o->group}.{$o->key}" => $o->value])
+                ->all();
         });
     }
 
