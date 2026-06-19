@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Http;
 
 class BlogAiService
 {
-    private const MAX_OUTPUT_TOKENS = 4096;
+    private const MAX_OUTPUT_TOKENS = 2048;
 
     private const TIMEOUT = 30;
 
@@ -72,6 +72,16 @@ class BlogAiService
         ];
     }
 
+    public function getProviderInfo(): array
+    {
+        $provider = config('ai.default_provider', AiConfig::get('default_provider', 'openai'));
+        $model = $provider === 'ollama'
+            ? config('ai.ollama.model', 'ministral-3:3b')
+            : config('ai.default_model', AiConfig::get('default_model', 'gpt-4o-mini'));
+
+        return compact('provider', 'model');
+    }
+
     private function resolvePrompt(string $feature): string
     {
         $prompt = AdminAiPrompt::where('scenario_id', $feature)
@@ -84,7 +94,7 @@ class BlogAiService
         }
 
         return match ($feature) {
-            'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). L'article doit faire au maximum 1000 mots.\n\nTitre : %s\nRésumé : %s",
+            'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). Ta réponse doit faire 500 mots maximum.\n\nTitre : %s\nRésumé : %s",
             'blog_correct' => "Corrige les fautes d'orthographe, de grammaire et de syntaxe dans le texte suivant. Ne modifie pas le contenu ni le style, corrige uniquement les erreurs.\n\n%s",
         };
     }

@@ -336,24 +336,35 @@ class BlogController extends Controller implements HasMiddleware
 
     public function aiRemaining(Request $request, BlogAiService $ai): JsonResponse
     {
-        $request->validate(['post_id' => 'required|string|exists:blog_posts,id']);
-
-        $post = BlogPost::findOrFail($request->input('post_id'));
         $user = $request->user();
-
-        $this->checkPostAccess($post, $user);
 
         $generateConfig = $ai->checkEnabled('blog_generate', $user);
         $correctConfig = $ai->checkEnabled('blog_correct', $user);
 
-        return response()->json([
-            'generate' => $ai->remainingCount($post, $user, 'blog_generate'),
-            'correct' => $ai->remainingCount($post, $user, 'blog_correct'),
+        $providerInfo = $ai->getProviderInfo();
+
+        $result = [
+            'generate' => 0,
+            'correct' => 0,
             'limits' => [
                 'generate' => $generateConfig['limit'],
                 'correct' => $correctConfig['limit'],
             ],
-        ]);
+            'provider' => $providerInfo['provider'],
+            'model' => $providerInfo['model'],
+        ];
+
+        if ($request->has('post_id') && $request->filled('post_id')) {
+            $request->validate(['post_id' => 'required|string|exists:blog_posts,id']);
+
+            $post = BlogPost::findOrFail($request->input('post_id'));
+            $this->checkPostAccess($post, $user);
+
+            $result['generate'] = $ai->remainingCount($post, $user, 'blog_generate');
+            $result['correct'] = $ai->remainingCount($post, $user, 'blog_correct');
+        }
+
+        return response()->json($result);
     }
 
     private function handleAi(Request $request, BlogAiService $ai, string $mode): JsonResponse
@@ -371,18 +382,23 @@ class BlogController extends Controller implements HasMiddleware
                 $this->checkPostAccess($post, $user);
             } else {
                 if ($mode !== 'generate') {
-                    return response()->json(['error' => 'Un article existant est requis pour la correction.'], 400);
+                    $request->validate(['content' => 'required|string|min:10']);
+                    $post = new BlogPost();
+                    $post->id = 'pending_correct';
+                    $post->organization_id = currentOrganization()?->id ?? $user->organization_id;
+                    $post->user_id = $user->id;
+                    $post->content = $request->input('content');
+                } else {
+                    if (empty($title) || empty($summary)) {
+                        return response()->json(['error' => 'Ajoutez un titre et un résumé avant de générer l\'article.'], 422);
+                    }
+                    $post = new BlogPost();
+                    $post->id = 'pending';
+                    $post->title = $title;
+                    $post->summary = $summary;
+                    $post->organization_id = currentOrganization()?->id ?? $user->organization_id;
+                    $post->user_id = $user->id;
                 }
-                if (empty($title) || empty($summary)) {
-                    return response()->json(['error' => 'Ajoutez un titre et un résumé avant de générer l\'article.'], 422);
-                }
-                // Create a temporary post object for AI generation
-                $post = new BlogPost();
-                $post->id = 'pending';
-                $post->title = $title;
-                $post->summary = $summary;
-                $post->organization_id = currentOrganization()?->id ?? $user->organization_id;
-                $post->user_id = $user->id;
             }
 
             $feature = $mode === 'generate' ? 'blog_generate' : 'blog_correct';

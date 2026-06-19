@@ -130,10 +130,7 @@ function registerBlogEditor() {
             }
 
             this.updateActiveStates();
-
-            if (this.editing) {
-                this.loadRemaining();
-            }
+            this.loadRemaining();
         },
 
         destroy() {
@@ -235,10 +232,13 @@ function registerBlogEditor() {
         },
 
         loadRemaining() {
+            const postId = this.$el.dataset.editorPostId;
+            const body = postId ? { post_id: postId } : {};
+
             fetch(this.aiRemainingRoute, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
-                body: JSON.stringify({ post_id: this.$el.dataset.editorPostId })
+                body: JSON.stringify(body)
             })
             .then(r => r.json())
             .then(data => {
@@ -246,6 +246,8 @@ function registerBlogEditor() {
                 if (data.limits) {
                     this.limits = data.limits;
                 }
+                if (data.provider) this.aiProvider = data.provider;
+                if (data.model) this.aiModel = data.model;
             })
             .catch(() => {});
         },
@@ -254,9 +256,12 @@ function registerBlogEditor() {
             if (this.generating) return;
 
             const postId = this.$el.dataset.editorPostId;
+            const form = this.$el.closest('form');
+            const title = form?.querySelector('[name="title"]')?.value || '';
+            const summary = form?.querySelector('[name="summary"]')?.value || '';
 
-            if (!postId && mode === 'correct') {
-                this.error = 'Sauvegardez d\'abord l\'article en brouillon avant de corriger le contenu.';
+            if (mode === 'generate' && (!title || !summary)) {
+                this.error = 'Ajoutez un titre et un résumé avant de générer l\'article.';
                 return;
             }
 
@@ -265,10 +270,6 @@ function registerBlogEditor() {
             this.error = '';
             this.aiProvider = '';
             this.aiModel = '';
-
-            const form = this.$el.closest('form');
-            const title = form?.querySelector('[name="title"]')?.value || '';
-            const summary = form?.querySelector('[name="summary"]')?.value || '';
 
             const body = {
                 post_id: postId || null,
