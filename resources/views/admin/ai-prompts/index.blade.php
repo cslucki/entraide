@@ -1,3 +1,12 @@
+@php
+    $scenarioLabels = [
+        'supervision_content' => 'Supervision de contenu',
+        'clarify_help_request' => 'Clarification de demande d\'aide',
+        'blog_generate' => 'Blog — Génération d\'article',
+        'blog_correct' => 'Blog — Correction d\'article',
+    ];
+@endphp
+
 <x-admin-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
@@ -32,6 +41,8 @@
                                 <option value="">Tous les scénarios</option>
                                 <option value="supervision_content" @selected($scenarioId === 'supervision_content')>Supervision de contenu</option>
                                 <option value="clarify_help_request" @selected($scenarioId === 'clarify_help_request')>Clarification de demande d'aide</option>
+                                <option value="blog_generate" @selected($scenarioId === 'blog_generate')>Blog — Génération d'article</option>
+                                <option value="blog_correct" @selected($scenarioId === 'blog_correct')>Blog — Correction d'article</option>
                             </select>
                         </div>
                         <button type="submit"
@@ -73,8 +84,8 @@
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                                             {{ $prompt->name }}
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
-                                            {{ $prompt->scenario_id === 'supervision_content' ? 'Supervision de contenu' : 'Clarification de demande d\'aide' }}
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                            {{ $scenarioLabels[$prompt->scenario_id] ?? $prompt->scenario_id }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                             v{{ $prompt->version }}

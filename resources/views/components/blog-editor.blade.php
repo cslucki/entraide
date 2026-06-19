@@ -40,18 +40,36 @@
     </div>
 
     {{-- TipTap Editor --}}
-    <div
-        x-ref="editorElement"
-        x-show="!editorError"
-        class="w-full border {{ $invalid ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600' }} rounded-lg bg-white dark:bg-gray-800 [&_.ProseMirror]:min-h-[20rem] [&_.ProseMirror]:px-4 [&_.ProseMirror]:py-3 [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100 [&_.ProseMirror]:text-sm [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:my-1 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mt-4 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mt-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_li]:my-0.5 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-gray-300 [&_.ProseMirror_th]:dark:border-gray-600 [&_.ProseMirror_th]:px-3 [&_.ProseMirror_th]:py-2 [&_.ProseMirror_th]:bg-gray-50 [&_.ProseMirror_th]:dark:bg-gray-700 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:text-left [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-gray-300 [&_.ProseMirror_td]:dark:border-gray-600 [&_.ProseMirror_td]:px-3 [&_.ProseMirror_td]:py-2 [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded [&_.ProseMirror_a]:text-indigo-600 [&_.ProseMirror_a]:dark:text-indigo-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_*]:caret-gray-800 [&_.ProseMirror_*]:dark:caret-gray-200
-        [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"></div>
+    <div class="relative">
+        <div
+            x-ref="editorElement"
+            x-show="!editorError"
+            class="w-full border {{ $invalid ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600' }} rounded-lg bg-white dark:bg-gray-800 [&_.ProseMirror]:min-h-[20rem] [&_.ProseMirror]:max-h-[36rem] [&_.ProseMirror]:overflow-y-auto [&_.ProseMirror]:px-4 [&_.ProseMirror]:py-3 [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100 [&_.ProseMirror]:text-sm [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:my-1 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mt-4 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mt-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_li]:my-0.5 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-gray-300 [&_.ProseMirror_th]:dark:border-gray-600 [&_.ProseMirror_th]:px-3 [&_.ProseMirror_th]:py-2 [&_.ProseMirror_th]:bg-gray-50 [&_.ProseMirror_th]:dark:bg-gray-700 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:text-left [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-gray-300 [&_.ProseMirror_td]:dark:border-gray-600 [&_.ProseMirror_td]:px-3 [&_.ProseMirror_td]:py-2 [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded [&_.ProseMirror_a]:text-indigo-600 [&_.ProseMirror_a]:dark:text-indigo-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_*]:caret-gray-800 [&_.ProseMirror_*]:dark:caret-gray-200
+            [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"></div>
+
+        {{-- Loading overlay --}}
+        <div x-show="generating" x-cloak
+             class="absolute inset-0 bg-white/80 dark:bg-gray-900/80 rounded-lg flex items-center justify-center z-10">
+            <div class="text-center">
+                <svg class="animate-spin h-8 w-8 text-indigo-500 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                    {{-- i18n handled client-side --}}
+                    <span x-show="aiMode === 'generate'">Génération de l'article en cours…</span>
+                    <span x-show="aiMode === 'correct'">Correction en cours…</span>
+                </p>
+            </div>
+        </div>
+    </div>
 
     {{-- Fallback textarea when TipTap fails --}}
     <textarea
         x-ref="fallbackTextarea"
         x-show="editorError"
         x-model="content"
-        class="w-full border {{ $invalid ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600' }} rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-3 text-sm min-h-[20rem] focus:ring-2 focus:ring-indigo-500"
+        class="w-full border {{ $invalid ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600' }} rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-3 text-sm min-h-[20rem] max-h-[36rem] overflow-y-auto focus:ring-2 focus:ring-indigo-500"
         placeholder="Rédigez votre article…"
         :name="editorError ? name : null"
     ></textarea>
@@ -86,10 +104,25 @@
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             Corriger les fautes
         </button>
-        <span x-show="editing && remaining.generate < 3" class="text-xs text-gray-400 dark:text-gray-500">
-            <span x-text="'Il vous reste ' + remaining.generate + ' génération' + (remaining.generate > 1 ? 's' : '') + ' sur cet article'"></span>
-        </span>
-        <span x-show="generating" class="text-xs text-indigo-500">Appel IA en cours…</span>
+
+        {{-- Compteur d'utilisations --}}
+        <template x-if="editing && limits.generate > 0">
+            <span class="text-xs text-gray-400 dark:text-gray-500">
+                Génération <span x-text="Math.max(0, limits.generate - remaining.generate) + 1"></span> sur <span x-text="limits.generate"></span>
+            </span>
+        </template>
+        <template x-if="editing && limits.correct > 0">
+            <span class="text-xs text-gray-400 dark:text-gray-500">
+                · Correction <span x-text="Math.max(0, limits.correct - remaining.correct) + 1"></span> sur <span x-text="limits.correct"></span>
+            </span>
+        </template>
+
+        {{-- Indicateur provider/modèle --}}
+        <template x-if="aiProvider">
+            <span class="text-xs text-gray-400 dark:text-gray-500 ml-auto">
+                <span x-text="aiModel"></span> via <span x-text="aiProvider === 'ollama' ? 'Ollama' : (aiProvider === 'openrouter' ? 'OpenRouter' : 'OpenAI')"></span>
+            </span>
+        </template>
     </div>
     @endauth
 

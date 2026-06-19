@@ -343,9 +343,16 @@ class BlogController extends Controller implements HasMiddleware
 
         $this->checkPostAccess($post, $user);
 
+        $generateConfig = $ai->checkEnabled('blog_generate', $user);
+        $correctConfig = $ai->checkEnabled('blog_correct', $user);
+
         return response()->json([
             'generate' => $ai->remainingCount($post, $user, 'blog_generate'),
             'correct' => $ai->remainingCount($post, $user, 'blog_correct'),
+            'limits' => [
+                'generate' => $generateConfig['limit'],
+                'correct' => $correctConfig['limit'],
+            ],
         ]);
     }
 
@@ -379,10 +386,18 @@ class BlogController extends Controller implements HasMiddleware
             }
 
             $feature = $mode === 'generate' ? 'blog_generate' : 'blog_correct';
+
+            $featureConfig = $ai->checkEnabled($feature, $user);
+            if (! $featureConfig['enabled']) {
+                $label = $mode === 'generate' ? 'génération' : 'correction';
+                return response()->json(['error' => "La fonctionnalité de {$label} IA est désactivée pour votre organisation."], 403);
+            }
+
             $remaining = $ai->remainingCount($post, $user, $feature);
 
             if ($remaining <= 0 && ! $user->is_admin) {
-                return response()->json(['error' => 'Limite de 3 utilisations atteinte pour cet article.'], 429);
+                $allowed = $ai->checkEnabled($feature, $user);
+                return response()->json(['error' => 'Limite de '.$allowed['limit'].' utilisations atteinte pour cet article.'], 429);
             }
 
             if ($mode === 'correct') {
@@ -397,7 +412,10 @@ class BlogController extends Controller implements HasMiddleware
             $newRemaining = $ai->remainingCount($post, $user, $feature);
 
             return response()->json([
-                'content' => $result,
+                'content' => $result['content'],
+                'provider' => $result['provider'],
+                'model' => $result['model'],
+                'limit' => $result['limit'],
                 'remaining' => [
                     'generate' => $feature === 'blog_generate' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_generate'),
                     'correct' => $feature === 'blog_correct' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_correct'),

@@ -74,10 +74,14 @@ function registerBlogEditor() {
         content: '',
         loading: false,
         generating: false,
+        aiMode: 'generate',
+        aiProvider: '',
+        aiModel: '',
         error: '',
         editing: false,
         editorError: false,
         remaining: { generate: 3, correct: 3 },
+        limits: { generate: 3, correct: 3 },
         activeStates: null,
         csrfToken: '',
         uploadRoute: '',
@@ -237,7 +241,12 @@ function registerBlogEditor() {
                 body: JSON.stringify({ post_id: this.$el.dataset.editorPostId })
             })
             .then(r => r.json())
-            .then(data => { this.remaining = data; })
+            .then(data => {
+                this.remaining = { generate: data.generate, correct: data.correct };
+                if (data.limits) {
+                    this.limits = data.limits;
+                }
+            })
             .catch(() => {});
         },
 
@@ -251,8 +260,11 @@ function registerBlogEditor() {
                 return;
             }
 
+            this.aiMode = mode;
             this.generating = true;
             this.error = '';
+            this.aiProvider = '';
+            this.aiModel = '';
 
             const form = this.$el.closest('form');
             const title = form?.querySelector('[name="title"]')?.value || '';
@@ -275,12 +287,20 @@ function registerBlogEditor() {
                     this.content = editor.getHTML();
                     this.syncHidden();
                     if (data.remaining) this.remaining = data.remaining;
+                    if (data.provider) this.aiProvider = data.provider;
+                    if (data.model) this.aiModel = data.model;
+                    if (data.limit) {
+                        this.limits[mode] = data.limit;
+                    }
                 } else if (data.error) {
                     this.error = data.error;
                 }
             })
             .catch(() => { this.error = 'Erreur de communication avec le service IA.'; })
-            .finally(() => { this.generating = false; });
+            .finally(() => {
+                this.generating = false;
+                if (this.editing) this.loadRemaining();
+            });
         },
     }));
 }

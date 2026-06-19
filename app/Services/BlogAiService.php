@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
+use App\Models\BlogAiConfig;
 use App\Models\BlogPost;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
@@ -11,27 +13,83 @@ use Illuminate\Support\Facades\Http;
 
 class BlogAiService
 {
-    private const MAX_OUTPUT_TOKENS = 2048;
+    private const MAX_OUTPUT_TOKENS = 4096;
 
     private const TIMEOUT = 30;
 
-    public function generate(BlogPost $post, User $user, ?string $title = null, ?string $summary = null): string
+    public function generate(BlogPost $post, User $user, ?string $title = null, ?string $summary = null): array
     {
         $title ??= $post->title;
         $summary ??= $post->summary;
-        $prompt = "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.).\n\nTitre : {$title}\nRésumé : {$summary}";
 
-        return $this->callAi($post, $user, $prompt, 'blog_generate');
+        $promptText = $this->resolvePrompt('blog_generate');
+        $prompt = sprintf($promptText, $title, $summary);
+
+        $result = $this->callAi($post, $user, $prompt, 'blog_generate');
+
+        return $this->buildResult($result, $user, 'blog_generate');
     }
 
-    public function correct(BlogPost $post, User $user): string
+    public function correct(BlogPost $post, User $user): array
     {
-        $prompt = "Corrige les fautes d'orthographe, de grammaire et de syntaxe dans le texte suivant. Ne modifie pas le contenu ni le style, corrige uniquement les erreurs.\n\n{$post->content}";
+        $promptText = $this->resolvePrompt('blog_correct');
+        $prompt = sprintf($promptText, $post->content);
 
-        return $this->callAi($post, $user, $prompt, 'blog_correct');
+        $result = $this->callAi($post, $user, $prompt, 'blog_correct');
+
+        return $this->buildResult($result, $user, 'blog_correct');
     }
 
-    private function callAi(BlogPost $post, User $user, string $prompt, string $feature): string
+    public function remainingCount(BlogPost $post, User $user, string $feature): int
+    {
+        if ($user->is_admin) {
+            return PHP_INT_MAX;
+        }
+
+        $orgId = currentOrganization()?->id ?? $user->organization_id;
+        $config = BlogAiConfig::forOrganization($orgId);
+
+        $limit = $feature === 'blog_generate' ? $config->generate_limit : $config->correct_limit;
+
+        $used = AiInteraction::where('user_id', $user->id)
+            ->where('feature', $feature)
+            ->where('metadata->blog_post_id', $post->id)
+            ->count();
+
+        return max(0, $limit - $used);
+    }
+
+    public function checkEnabled(string $feature, User $user): array
+    {
+        $orgId = currentOrganization()?->id ?? $user->organization_id;
+        $config = BlogAiConfig::forOrganization($orgId);
+
+        $key = $feature === 'blog_generate' ? 'generate_enabled' : 'correct_enabled';
+
+        return [
+            'enabled' => $config->$key,
+            'limit' => $feature === 'blog_generate' ? $config->generate_limit : $config->correct_limit,
+        ];
+    }
+
+    private function resolvePrompt(string $feature): string
+    {
+        $prompt = AdminAiPrompt::where('scenario_id', $feature)
+            ->where('is_active', true)
+            ->orderBy('version', 'desc')
+            ->first();
+
+        if ($prompt) {
+            return $prompt->prompt_text;
+        }
+
+        return match ($feature) {
+            'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). L'article doit faire au maximum 1000 mots.\n\nTitre : %s\nRésumé : %s",
+            'blog_correct' => "Corrige les fautes d'orthographe, de grammaire et de syntaxe dans le texte suivant. Ne modifie pas le contenu ni le style, corrige uniquement les erreurs.\n\n%s",
+        };
+    }
+
+    private function callAi(BlogPost $post, User $user, string $prompt, string $feature): array
     {
         $provider = config('ai.default_provider', AiConfig::get('default_provider', 'openai'));
         $model = config('ai.default_model', AiConfig::get('default_model', 'gpt-4o-mini'));
@@ -146,20 +204,25 @@ class BlogAiService
             ],
         ]);
 
-        return $text;
+        return [
+            'content' => $text,
+            'provider' => $provider,
+            'model' => $model,
+        ];
     }
 
-    public function remainingCount(BlogPost $post, User $user, string $feature): int
+    private function buildResult(array $callResult, User $user, string $feature): array
     {
-        if ($user->is_admin) {
-            return PHP_INT_MAX;
-        }
+        $orgId = currentOrganization()?->id ?? $user->organization_id;
+        $config = BlogAiConfig::forOrganization($orgId);
 
-        $used = AiInteraction::where('user_id', $user->id)
-            ->where('feature', $feature)
-            ->where('metadata->blog_post_id', $post->id)
-            ->count();
+        $limit = $feature === 'blog_generate' ? $config->generate_limit : $config->correct_limit;
 
-        return max(0, 3 - $used);
+        return [
+            'content' => $callResult['content'],
+            'provider' => $callResult['provider'],
+            'model' => $callResult['model'],
+            'limit' => $limit,
+        ];
     }
 }
