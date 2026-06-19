@@ -15,8 +15,10 @@ use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Models\TranslationOverride;
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
+use App\Observers\TranslationOverrideObserver;
 use App\Policies\FeedPostPolicy;
 use App\Policies\MessagePolicy;
 use App\Policies\ReviewPolicy;
@@ -155,6 +157,7 @@ class AppServiceProvider extends ServiceProvider
 
         Transaction::observe(TransactionObserver::class);
         Service::observe(ServiceObserver::class);
+        TranslationOverride::observe(TranslationOverrideObserver::class);
 
         Event::listen(
             LoopMessageCreated::class,
