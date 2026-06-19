@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureUserIsNotBanned;
 use App\Http\Middleware\ResolveApiOrganization;
 use App\Http\Middleware\ResolveOrganization;
 use App\Http\Middleware\ResolveUrlOrganization;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
@@ -46,6 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ShareErrorsFromSession::class,
             EnsureUserIsNotBanned::class,
             ResolveUrlOrganization::class,
+            SetLocale::class,
             SubstituteBindings::class,
         ]);
         $middleware->appendToGroup('api', [
