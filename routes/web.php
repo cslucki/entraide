@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -286,6 +287,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Referral invitations
     Route::get('/referrals', [AdminReferralController::class, 'index'])->name('referrals');
+
+    // Translations
+    Route::get('/translations', [AdminTranslationController::class, 'index'])->name('translations');
 
     Route::get('/email-test', [AdminEmailController::class, 'index'])->name('email-test');
     Route::post('/email-test', [AdminEmailController::class, 'send'])->name('email-test.send');
