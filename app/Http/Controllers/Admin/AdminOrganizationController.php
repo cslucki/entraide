@@ -44,6 +44,7 @@ class AdminOrganizationController extends Controller
             'is_default' => 'nullable|boolean',
             'blog_naming' => 'nullable|in:b2b,b2c',
             'transactions_naming' => 'nullable|in:b2b,b2c',
+            'locale' => 'nullable|in:fr,en',
         ]);
 
         if (empty($data['slug'])) {
@@ -55,6 +56,7 @@ class AdminOrganizationController extends Controller
         $data['is_public'] = isset($data['is_public']);
         $data['blog_naming'] = $data['blog_naming'] ?? 'b2b';
         $data['transactions_naming'] = $data['transactions_naming'] ?? 'b2c';
+        $data['locale'] = $data['locale'] ?? 'fr';
 
         if (! empty($data['is_default'])) {
             Organization::where('is_default', true)->update(['is_default' => false]);
@@ -106,6 +108,7 @@ class AdminOrganizationController extends Controller
             'transactions_naming' => 'nullable|in:b2b,b2c',
             'feed_post_publish_mode' => 'nullable|in:admin,members',
             'theme_id' => 'nullable|exists:themes,id',
+            'locale' => 'nullable|in:fr,en',
         ]);
 
         $min = $data['service_points_min'] ?? null;
@@ -131,6 +134,7 @@ class AdminOrganizationController extends Controller
         $data['blog_naming'] = $data['blog_naming'] ?? $organization->blog_naming ?? 'b2b';
         $data['transactions_naming'] = $data['transactions_naming'] ?? $organization->transactions_naming ?? 'b2c';
         $data['feed_post_publish_mode'] = $data['feed_post_publish_mode'] ?? $organization->feed_post_publish_mode ?? 'admin';
+        $data['locale'] = $data['locale'] ?? $organization->locale ?? 'fr';
 
         if ($data['is_default']) {
             Organization::where('is_default', true)

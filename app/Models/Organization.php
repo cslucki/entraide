@@ -46,6 +46,7 @@ class Organization extends Model
         'transactions_naming',
         'feed_post_publish_mode',
         'theme_id',
+        'locale',
     ];
 
     protected function casts(): array
@@ -58,6 +59,7 @@ class Organization extends Model
             'loops_enabled' => 'boolean',
             'maintenance_mode' => 'boolean',
             'header_javascript_enabled' => 'boolean',
+            'locale' => 'string',
         ];
     }
 
