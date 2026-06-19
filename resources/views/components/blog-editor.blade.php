@@ -62,10 +62,8 @@
                 <p class="text-xs text-gray-500 mt-2" x-show="aiModel">
                     <span x-text="aiModel"></span> via <span x-text="aiProvider === 'ollama' ? 'Ollama' : (aiProvider === 'openrouter' ? 'OpenRouter' : 'OpenAI')"></span>
                 </p>
-                <p class="text-xs text-gray-500" x-show="limits[aiMode] > 0">
-                    <span x-show="aiMode === 'generate'">Génération</span>
-                    <span x-show="aiMode === 'correct'">Correction</span>
-                    <span x-text="Math.max(0, limits[aiMode] - remaining[aiMode]) + 1"></span> sur <span x-text="limits[aiMode]"></span>
+                <p class="text-xs text-gray-500" x-show="limits[aiMode] > 0 && remaining[aiMode] > 0">
+                    <span x-text="ordinal(aiMode)"></span>
                 </p>
             </div>
         </div>
@@ -105,22 +103,20 @@
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             Générer avec l'IA
         </button>
-        <button type="button" @click="aiGenerate('correct')" :disabled="generating || remaining.correct <= 0"
+        <button type="button" @click="aiGenerate('correct')" :disabled="generating || remaining.correct <= 0 || !contentHasText()"
             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition"
-            :class="remaining.correct > 0 ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-50 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500'">
+            :class="remaining.correct > 0 && contentHasText() ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-50 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500'">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             Corriger les fautes
         </button>
 
         {{-- Compteur d'utilisations --}}
-        <template x-if="editing && limits.generate > 0">
-            <span class="text-xs text-gray-400 dark:text-gray-500">
-                Génération <span x-text="Math.max(0, limits.generate - remaining.generate) + 1"></span> sur <span x-text="limits.generate"></span>
-            </span>
+        <template x-if="limits.generate > 0 && usedCount('generate') > 0">
+            <span class="text-xs text-gray-400 dark:text-gray-500" x-text="ordinal('generate')"></span>
         </template>
-        <template x-if="editing && limits.correct > 0">
+        <template x-if="limits.correct > 0 && usedCount('correct') > 0">
             <span class="text-xs text-gray-400 dark:text-gray-500">
-                · Correction <span x-text="Math.max(0, limits.correct - remaining.correct) + 1"></span> sur <span x-text="limits.correct"></span>
+                · <span x-text="ordinal('correct')"></span>
             </span>
         </template>
 

@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
+use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
@@ -95,6 +96,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/ai-generate', [BlogController::class, 'aiGenerate'])->name('blog.ai-generate');
     Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
     Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
+    Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
 });
 
 // Blog — wildcard slug EN DERNIER
@@ -347,6 +349,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ia-usage', [AdminAiUsageController::class, 'index'])->name('ia-usage');
     Route::get('/ia-usage/{interaction}', [AdminAiUsageController::class, 'show'])->name('ia-usage.show');
     Route::get('/ia-usage/admin/{interaction}', [AdminAiUsageController::class, 'showAdmin'])->name('ia-usage.show-admin');
+
+    // IA Usage by user (TASK-306)
+    Route::get('/ia-usage-by-user', [AdminIaUsageByUserController::class, 'index'])->name('ia-usage-by-user');
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');

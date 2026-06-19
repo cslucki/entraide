@@ -187,6 +187,7 @@ class BlogController extends Controller implements HasMiddleware
         }
 
         $message = $data['status'] === 'published' ? 'Article publié.' : 'Brouillon enregistré.';
+
         return redirect()->route('blog.show', $post)->with('success', $message);
     }
 
@@ -324,6 +325,37 @@ class BlogController extends Controller implements HasMiddleware
         return response()->json(['url' => Storage::disk('public')->url($path)]);
     }
 
+    public function createDraft(Request $request): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
+        $this->authorize('create', BlogPost::class);
+
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'summary' => 'nullable|string|max:500',
+            'category_id' => 'nullable|uuid|exists:categories,id',
+        ]);
+
+        $post = BlogPost::create([
+            'user_id' => $request->user()->id,
+            'organization_id' => $organization->id,
+            'title' => $request->input('title'),
+            'summary' => $request->input('summary', ''),
+            'content' => '<p></p>',
+            'status' => 'draft',
+            'category_id' => $request->input('category_id'),
+        ]);
+
+        return response()->json([
+            'post_id' => $post->id,
+            'edit_url' => route('blog.edit', $post),
+        ]);
+    }
+
     public function aiGenerate(Request $request, BlogAiService $ai): JsonResponse
     {
         return $this->handleAi($request, $ai, 'generate');
@@ -344,8 +376,8 @@ class BlogController extends Controller implements HasMiddleware
         $providerInfo = $ai->getProviderInfo();
 
         $result = [
-            'generate' => 0,
-            'correct' => 0,
+            'generate' => $generateConfig['limit'],
+            'correct' => $correctConfig['limit'],
             'limits' => [
                 'generate' => $generateConfig['limit'],
                 'correct' => $correctConfig['limit'],
@@ -355,10 +387,7 @@ class BlogController extends Controller implements HasMiddleware
         ];
 
         if ($request->has('post_id') && $request->filled('post_id')) {
-            $request->validate(['post_id' => 'required|string|exists:blog_posts,id']);
-
-            $post = BlogPost::findOrFail($request->input('post_id'));
-            $this->checkPostAccess($post, $user);
+            $post = $this->resolveBlogPost($request->input('post_id'), $user);
 
             $result['generate'] = $ai->remainingCount($post, $user, 'blog_generate');
             $result['correct'] = $ai->remainingCount($post, $user, 'blog_correct');
@@ -369,22 +398,22 @@ class BlogController extends Controller implements HasMiddleware
 
     private function handleAi(Request $request, BlogAiService $ai, string $mode): JsonResponse
     {
+        $post = null;
+        $isCreateFlow = false;
+
         try {
             $user = $request->user();
 
-            // For generate: if no post_id, accept title+summary from form
             $title = $request->input('title');
             $summary = $request->input('summary');
 
             if ($request->has('post_id') && $request->filled('post_id')) {
-                $request->validate(['post_id' => 'required|string|exists:blog_posts,id']);
-                $post = BlogPost::findOrFail($request->input('post_id'));
-                $this->checkPostAccess($post, $user);
+                $post = $this->resolveBlogPost($request->input('post_id'), $user);
             } else {
                 if ($mode !== 'generate') {
                     $request->validate(['content' => 'required|string|min:10']);
-                    $post = new BlogPost();
-                    $post->id = 'pending_correct';
+                    $post = new BlogPost;
+                    $post->id = (string) Str::uuid();
                     $post->organization_id = currentOrganization()?->id ?? $user->organization_id;
                     $post->user_id = $user->id;
                     $post->content = $request->input('content');
@@ -392,12 +421,18 @@ class BlogController extends Controller implements HasMiddleware
                     if (empty($title) || empty($summary)) {
                         return response()->json(['error' => 'Ajoutez un titre et un résumé avant de générer l\'article.'], 422);
                     }
-                    $post = new BlogPost();
-                    $post->id = 'pending';
-                    $post->title = $title;
-                    $post->summary = $summary;
-                    $post->organization_id = currentOrganization()?->id ?? $user->organization_id;
-                    $post->user_id = $user->id;
+
+                    $orgId = currentOrganization()?->id ?? $user->organization_id;
+                    $post = BlogPost::create([
+                        'user_id' => $user->id,
+                        'organization_id' => $orgId,
+                        'title' => $title,
+                        'summary' => $summary,
+                        'content' => '<p></p>',
+                        'status' => 'draft',
+                        'category_id' => $request->input('category_id'),
+                    ]);
+                    $isCreateFlow = true;
                 }
             }
 
@@ -406,13 +441,15 @@ class BlogController extends Controller implements HasMiddleware
             $featureConfig = $ai->checkEnabled($feature, $user);
             if (! $featureConfig['enabled']) {
                 $label = $mode === 'generate' ? 'génération' : 'correction';
+
                 return response()->json(['error' => "La fonctionnalité de {$label} IA est désactivée pour votre organisation."], 403);
             }
 
             $remaining = $ai->remainingCount($post, $user, $feature);
 
-            if ($remaining <= 0 && ! $user->is_admin) {
+            if ($remaining <= 0) {
                 $allowed = $ai->checkEnabled($feature, $user);
+
                 return response()->json(['error' => 'Limite de '.$allowed['limit'].' utilisations atteinte pour cet article.'], 429);
             }
 
@@ -425,9 +462,14 @@ class BlogController extends Controller implements HasMiddleware
                 ? $ai->generate($post, $user, $title, $summary)
                 : $ai->correct($post, $user);
 
+            if ($isCreateFlow) {
+                $post->content = $result['content'];
+                $post->save();
+            }
+
             $newRemaining = $ai->remainingCount($post, $user, $feature);
 
-            return response()->json([
+            $response = [
                 'content' => $result['content'],
                 'provider' => $result['provider'],
                 'model' => $result['model'],
@@ -436,12 +478,44 @@ class BlogController extends Controller implements HasMiddleware
                     'generate' => $feature === 'blog_generate' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_generate'),
                     'correct' => $feature === 'blog_correct' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_correct'),
                 ],
-            ]);
+            ];
+
+            if ($isCreateFlow) {
+                $response['post_id'] = $post->id;
+                $response['edit_url'] = route('blog.edit', $post);
+            }
+
+            return response()->json($response);
         } catch (HttpException $e) {
             throw $e;
         } catch (\RuntimeException $e) {
+            if ($isCreateFlow && $post?->exists) {
+                return response()->json([
+                    'error' => $e->getMessage(),
+                    'post_id' => $post->id,
+                    'edit_url' => route('blog.edit', $post),
+                ]);
+            }
+
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    private function resolveBlogPost(string $postId, $user): BlogPost
+    {
+        $post = BlogPost::find($postId);
+        if ($post) {
+            $this->checkPostAccess($post, $user);
+
+            return $post;
+        }
+
+        $temp = new BlogPost;
+        $temp->id = $postId;
+        $temp->organization_id = currentOrganization()?->id ?? $user->organization_id;
+        $temp->user_id = $user->id;
+
+        return $temp;
     }
 
     private function checkPostAccess(BlogPost $post, $user): void

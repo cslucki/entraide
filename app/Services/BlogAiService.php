@@ -42,16 +42,13 @@ class BlogAiService
 
     public function remainingCount(BlogPost $post, User $user, string $feature): int
     {
-        if ($user->is_admin) {
-            return PHP_INT_MAX;
-        }
-
         $orgId = currentOrganization()?->id ?? $user->organization_id;
         $config = BlogAiConfig::forOrganization($orgId);
 
         $limit = $feature === 'blog_generate' ? $config->generate_limit : $config->correct_limit;
 
         $used = AiInteraction::where('user_id', $user->id)
+            ->where('organization_id', $orgId)
             ->where('feature', $feature)
             ->where('metadata->blog_post_id', $post->id)
             ->count();
@@ -94,7 +91,7 @@ class BlogAiService
         }
 
         return match ($feature) {
-            'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). Ta réponse doit faire 500 mots maximum.\n\nTitre : %s\nRésumé : %s",
+            'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). Ta réponse doit faire 500 mots maximum. Réponds UNIQUEMENT avec le contenu HTML, sans introduction, sans conclusion, sans mention du titre.\n\nTitre : %s\nRésumé : %s",
             'blog_correct' => "Corrige les fautes d'orthographe, de grammaire et de syntaxe dans le texte suivant. Ne modifie pas le contenu ni le style, corrige uniquement les erreurs.\n\n%s",
         };
     }

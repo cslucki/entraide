@@ -265,6 +265,11 @@ function registerBlogEditor() {
                 return;
             }
 
+            if (mode === 'correct' && !this.contentHasText()) {
+                this.error = 'Ajoutez du contenu avant de corriger l\'article.';
+                return;
+            }
+
             this.aiMode = mode;
             this.generating = true;
             this.error = '';
@@ -300,8 +305,25 @@ function registerBlogEditor() {
             .catch(() => { this.error = 'Erreur de communication avec le service IA.'; })
             .finally(() => {
                 this.generating = false;
-                if (this.editing) this.loadRemaining();
             });
+        },
+
+        contentHasText() {
+            const text = this.content.replace(/<[^>]*>/g, '').trim();
+            return text.length > 0;
+        },
+
+        usedCount(mode) {
+            return Math.max(0, this.limits[mode] - this.remaining[mode]);
+        },
+
+        ordinal(mode) {
+            const used = this.usedCount(mode);
+            if (used === 0) return '';
+            const suffix = used === 1 ? 'ère' : 'ème';
+            const label = mode === 'generate' ? 'génération' : 'correction';
+            const limit = this.limits[mode];
+            return `${used}${suffix} ${label} sur ${limit} possibles`;
         },
     }));
 }
