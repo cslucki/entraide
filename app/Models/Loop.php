@@ -46,6 +46,21 @@ class Loop extends Model
         return $query->where('visibility', 'private');
     }
 
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    public function scopeArchived($query)
+    {
+        return $query->where('status', 'archived');
+    }
+
+    public function scopeStatus($query, string $status)
+    {
+        return $query->where('status', $status);
+    }
+
     public function isPublic(): bool
     {
         return $this->visibility === 'public';
@@ -54,6 +69,21 @@ class Loop extends Model
     public function isPrivate(): bool
     {
         return $this->visibility === 'private';
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->status === 'archived';
+    }
+
+    public function hasContent(): bool
+    {
+        return $this->messages()->exists();
     }
 
     public function organization(): BelongsTo

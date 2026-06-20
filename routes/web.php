@@ -379,6 +379,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/loops/{loop}/members', [AdminLoopController::class, 'addMember'])->name('loops.members.add');
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
+    Route::post('/loops/{loop}/archive', [AdminLoopController::class, 'archive'])->name('loops.archive');
+    Route::post('/loops/{loop}/restore', [AdminLoopController::class, 'restore'])->name('loops.restore');
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
 
     // Outils
