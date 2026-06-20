@@ -1,34 +1,31 @@
-````md
-# BouclePro — Organizational Collaboration Platform
+# BouclePro - Pair-Aidance And Human/AI Cooperation Platform
 
-BouclePro is a French multi-tenant organizational collaboration platform built with Laravel.
+BouclePro is a French Organization-scoped platform for pair-aidance, mutual help, micro-skill transmission and human/AI cooperation.
 
-The platform enables organizations to:
+The launch doctrine is simple:
 
-- structure collaborative ecosystems
-- publish and exchange services
-- organize internal loops
-- exchange value through a points system
-- communicate through contextual messaging
-- manage collaborative workflows
-- integrate AI-assisted systems
+- a person starts with a fuzzy intention, need, offer, curiosity or recommendation;
+- BouclePro helps turn it into a useful Interaction;
+- AI may clarify, structure, suggest and summarize;
+- a human always validates before publication or durable action;
+- the Interaction is addressed to the right Organization, Loop or circle.
 
-BouclePro evolves toward an organization-native, AI-ready and modular architecture.
+BouclePro is not a chatbot, not Slack, not WhatsApp, not a classical marketplace and not a job board.
 
 ---
 
-# Vision
+# Launch Vision
 
-BouclePro is designed to help organizations create calmer, more human and more collaborative digital environments.
+BouclePro is designed to help people and organizations create calmer, more human and more useful cooperation spaces.
 
 The platform focuses on:
 
-- collaboration
-- mutual aid
-- organizational workflows
-- knowledge sharing
-- professional networking
-- AI-assisted productivity
+- pair-aidance and mutual help
+- transmission of micro-skills
+- useful introductions between people
+- Organization-scoped collaboration
+- collective memory
+- human-validated AI assistance
 
 Core philosophy:
 
@@ -39,15 +36,25 @@ Core philosophy:
 - trustworthy
 - human-centered
 
+Older capabilities such as services, transactions, points, messaging and workflows may exist or evolve as framed platform capabilities. They are not the core launch promise.
+
+For current product doctrine, read:
+
+- `docs/README.md`
+- `docs/product/BOUCLE_ARCHITECTURE.md`
+- `docs/product/INTERACTION_MODEL.md`
+- `docs/product/LAUNCH_READINESS_2026-06-22.md`
+
 ---
 
-# Current Architecture
+# Current Product Doctrine
 
 Official architectural rule:
 
 ```text
 Organization = Tenant
 Loop ≠ Tenant
+Interaction ≠ Loop
 ```
 
 Current target architecture:
@@ -59,6 +66,12 @@ Platform
         └── Members
             └── Interactions
 ```
+
+Organizations are the primary security and business boundary.
+
+Loops are social containers inside Organizations. A Loop can host conversations, documents, Journal entries, Flux, components and Interactions, but it is not a tenant.
+
+Interactions are structured collaborative activities: requests, offers, statuses, recommendations, questions, decisions or contributions. They may appear inside a Loop, but they are not Loops.
 
 ---
 
@@ -80,7 +93,7 @@ Platform
 
 ---
 
-# Core Features
+# Current Capabilities
 
 ## Organizations
 
@@ -102,14 +115,14 @@ Organizations are isolated through multi-tenant architecture.
 
 ## Loops
 
-Loops are collaborative contexts inside Organizations.
+Loops are collaborative social containers inside Organizations.
 
 Examples:
 
 - Innovation IA
 - Graphistes Marseille
-- Recrutement
 - Support interne
+- LaunchPals
 
 A Loop may contain:
 
@@ -123,14 +136,29 @@ Loops are NOT tenant boundaries.
 
 ---
 
+## Interactions
+
+Interactions are the core launch product concept.
+
+LaunchPals interaction patterns include:
+
+- `I can help with...`
+- `I am looking for help with...`
+- `I am currently fascinated by...`
+- `I think these two people should meet...`
+
+These are not Loop types, not tenant boundaries and not a database model requirement. They are structured ways to turn human intent into validated cooperation.
+
+---
+
 ## Members
 
 Members may:
 
 - join loops
-- publish services
-- exchange points
-- participate in transactions
+- publish or validate Interactions
+- ask for help or offer help
+- recommend useful connections
 - communicate through messaging
 - interact with AI systems
 
@@ -138,7 +166,9 @@ Members may:
 
 ## Services
 
-Members can publish services with:
+Services are a framed capability, not the heart of the launch doctrine.
+
+Where enabled, members can publish services with:
 
 - title
 - description
@@ -152,6 +182,8 @@ Services may be contextualized inside loops.
 ---
 
 ## Transactions
+
+Transactions are a framed capability for controlled exchanges, not a generic marketplace promise.
 
 Transactions follow a controlled state machine:
 
@@ -172,6 +204,8 @@ Critical guarantees:
 
 ## Messaging
 
+Messaging supports contextual cooperation. BouclePro must not be presented as Slack or WhatsApp.
+
 Messaging includes:
 
 - contextual discussions
@@ -184,23 +218,24 @@ Messaging includes:
 
 ## AI Architecture
 
-AI is a transversal layer across the platform.
+AI is an assistance layer across the platform.
 
 AI systems are designed to remain:
 
 - provider-agnostic
 - modular
-- organization-scoped
+- Organization-scoped
 - prompt-driven
+- human-validated
 
-Future AI capabilities include:
+AI may:
 
-- assistants
-- automation
-- recommendations
-- moderation
-- semantic search
-- organizational memory systems
+- clarify
+- structure
+- suggest
+- summarize
+
+AI must not publish, decide, match people, create Loops or bypass permissions alone.
 
 ---
 
@@ -440,4 +475,3 @@ The goal is:
 ```text
 A stable, understandable, organization-native V1
 ```
-````
