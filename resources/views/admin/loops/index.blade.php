@@ -97,6 +97,19 @@
                         <div class="flex gap-2 items-center">
                             <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
                             <a href="{{ route('admin.loops.files', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Fichiers</a>
+                            @if($orgLoop->isActive())
+                            <form method="POST" action="{{ route('admin.loops.archive', $orgLoop) }}"
+                                  onsubmit="return confirm('Archiver la boucle « {{ addslashes($orgLoop->name) }} » ?')">
+                                @csrf
+                                <button class="text-xs text-amber-500 hover:underline">Archiver</button>
+                            </form>
+                            @elseif($orgLoop->isArchived())
+                            <form method="POST" action="{{ route('admin.loops.restore', $orgLoop) }}"
+                                  onsubmit="return confirm('Réactiver la boucle « {{ addslashes($orgLoop->name) }} » ?')">
+                                @csrf
+                                <button class="text-xs text-green-500 hover:underline">Réactiver</button>
+                            </form>
+                            @endif
                             <form method="POST" action="{{ route('admin.loops.destroy', $orgLoop) }}"
                                   onsubmit="return confirm('Supprimer la boucle « {{ addslashes($orgLoop->name) }} » ? Cette action est irréversible.')">
                                 @csrf @method('DELETE')

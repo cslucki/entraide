@@ -11,6 +11,26 @@ use Illuminate\Support\Str;
 
 class LoopService
 {
+    public function createLoopForOrg(User $user, string $organizationId, string $name, ?string $description = null, string $visibility = 'private'): Loop
+    {
+        $slug = $this->generateUniqueSlug($organizationId, $name);
+
+        $loop = Loop::create([
+            'organization_id' => $organizationId,
+            'name' => $name,
+            'slug' => $slug,
+            'description' => $description,
+            'type' => 'custom',
+            'status' => 'active',
+            'visibility' => $visibility,
+            'created_by' => $user->id,
+        ]);
+
+        $this->addMember($loop, $user, 'owner');
+
+        return $loop;
+    }
+
     public function createLoop(User $user, string $name, ?string $description = null, string $visibility = 'private'): Loop
     {
         $orgId = $user->organization_id;
@@ -149,6 +169,20 @@ class LoopService
         assert($referred instanceof User);
 
         return $this->addMember($loop, $referred);
+    }
+
+    public function archiveLoop(Loop $loop): Loop
+    {
+        $loop->update(['status' => 'archived']);
+
+        return $loop;
+    }
+
+    public function restoreLoop(Loop $loop): Loop
+    {
+        $loop->update(['status' => 'active']);
+
+        return $loop;
     }
 
     private function generateUniqueSlug(string $orgId, string $name): string

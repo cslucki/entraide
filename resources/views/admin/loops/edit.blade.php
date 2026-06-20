@@ -121,10 +121,45 @@
                 </div>
             </div>
 
+            {{-- Status / Archive / Restore --}}
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+                <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Statut</h2>
+
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                        {{ $boucle->isActive() ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
+                        {{ $boucle->isActive() ? 'Active' : 'Archivée' }}
+                    </span>
+
+                    @if($boucle->isActive())
+                    <form method="POST" action="{{ route('admin.loops.archive', $boucle) }}"
+                          onsubmit="return confirm('Archiver la boucle « {{ addslashes($boucle->name) }} » ?')">
+                        @csrf
+                        <button type="submit"
+                            class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition">
+                            Archiver
+                        </button>
+                    </form>
+                    @else
+                    <form method="POST" action="{{ route('admin.loops.restore', $boucle) }}"
+                          onsubmit="return confirm('Réactiver la boucle « {{ addslashes($boucle->name) }} » ?')">
+                        @csrf
+                        <button type="submit"
+                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition">
+                            Réactiver
+                        </button>
+                    </form>
+                    @endif
+                </div>
+            </div>
+
             {{-- Suppression --}}
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 p-6">
                 <h2 class="text-sm font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide mb-2">Zone dangereuse</h2>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Supprimer définitivement cette boucle et tous ses messages. Action irréversible.</p>
+                @if($boucle->hasContent())
+                <p class="text-xs text-amber-600 dark:text-amber-400 mb-3">Cette boucle contient des messages. La suppression est désactivée. Archivez-la plutôt.</p>
+                @else
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Supprimer définitivement cette boucle. Action irréversible.</p>
                 <form method="POST" action="{{ route('admin.loops.destroy', $boucle) }}"
                       onsubmit="return confirm('Supprimer définitivement la boucle « {{ addslashes($boucle->name) }} » ? Cette action est irréversible.')">
                     @csrf @method('DELETE')
@@ -133,6 +168,7 @@
                         Supprimer la boucle
                     </button>
                 </form>
+                @endif
             </div>
         </div>
     </div>
