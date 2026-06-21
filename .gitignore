@@ -21,6 +21,19 @@ opencode.json
 .mcp.json
 test.txt
 
+# Public lockdown: local documentation, configs and QA artifacts
+AGENTS.md
+ROADMAP.md
+docs/
+boost.json
+install.bat
+.npmrc
+phpunit.xml
+phpunit.pgsql.xml
+playwright.config.js
+phpstan.neon
+rector.php
+
 # GitHub workflows (disabled during public lockdown)
 .github/workflows/
 
