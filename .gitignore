@@ -11,6 +11,18 @@
 # Local operational notes
 migration/
 
+# Private agent/orchestration files (retained locally, removed from public)
+.agents/
+TODO/
+ai-local/
+ai/
+tests/
+opencode.json
+.mcp.json
+test.txt
+
+# GitHub workflows (disabled during public lockdown)
+.github/workflows/
 
 .phpactor.json
 .phpunit.result.cache
