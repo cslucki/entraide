@@ -1,10 +1,17 @@
 *.log
 .DS_Store
+
+# Local/private environment files
 .env
-.env.backup
-.env.pgsql
-.env.sqlite
-.env.production
+.env.*
+!.env.example
+!.env.sqlite.example
+!.env.pgsql.example
+
+# Local operational notes
+migration/
+
+
 .phpactor.json
 .phpunit.result.cache
 /.codex
