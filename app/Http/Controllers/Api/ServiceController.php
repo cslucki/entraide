@@ -11,12 +11,12 @@ class ServiceController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Service::with(['user:id,name,rating,avatar', 'category:id,name,color', 'tags:id,name'])
+        $query = Service::with(['user:id,name,rating,avatar', 'category:id,name_b2c,name_b2b,color', 'tags:id,name'])
             ->active();
 
         if ($search = $request->get('q')) {
-            $like = '%' . $search . '%';
-            $query->where(fn($q) => $q->where('title', 'like', $like)->orWhere('description', 'like', $like));
+            $like = '%'.$search.'%';
+            $query->where(fn ($q) => $q->where('title', 'like', $like)->orWhere('description', 'like', $like));
         }
 
         if ($category = $request->get('category_id')) {
@@ -44,7 +44,7 @@ class ServiceController extends Controller
     {
         $service = Service::with([
             'user:id,name,rating,avatar,location,bio,is_available',
-            'category:id,name,color',
+            'category:id,name_b2c,name_b2b,color',
             'skills:id,name',
             'tags:id,name',
             'images:id,service_id,path,order',

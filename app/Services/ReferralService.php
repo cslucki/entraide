@@ -20,21 +20,21 @@ class ReferralService
             throw new \RuntimeException('Self-referral is not allowed.');
         }
 
-        $communityId = $organizationId ?? $referred->community_id;
+        $orgId = $organizationId ?? $referred->organization_id;
 
-        if (! $communityId) {
+        if (! $orgId) {
             throw new \RuntimeException('Organization context required for referral.');
         }
 
-        if ($referrer->community_id !== $communityId) {
+        if ($referrer->organization_id !== $orgId) {
             throw new \RuntimeException('Cross-organization referral is not allowed.');
         }
 
-        if ($referred->community_id !== $communityId) {
+        if ($referred->organization_id !== $orgId) {
             throw new \RuntimeException('Cross-organization referral is not allowed.');
         }
 
-        $circular = Referral::where('community_id', $communityId)
+        $circular = Referral::where('organization_id', $orgId)
             ->where('referrer_user_id', $referred->id)
             ->where('referred_user_id', $referrer->id)
             ->exists();
@@ -43,7 +43,7 @@ class ReferralService
             throw new \RuntimeException('Circular referral is not allowed.');
         }
 
-        $duplicate = Referral::where('community_id', $communityId)
+        $duplicate = Referral::where('organization_id', $orgId)
             ->where('referrer_user_id', $referrer->id)
             ->where('referred_user_id', $referred->id)
             ->exists();
@@ -52,9 +52,9 @@ class ReferralService
             throw new \RuntimeException('Duplicate referral is not allowed.');
         }
 
-        event(new MemberInvited($referrer, $referred, $communityId, $metadata));
+        event(new MemberInvited($referrer, $referred, $orgId, $metadata));
 
-        $referral = Referral::where('community_id', $communityId)
+        $referral = Referral::where('organization_id', $orgId)
             ->where('referrer_user_id', $referrer->id)
             ->where('referred_user_id', $referred->id)
             ->first();

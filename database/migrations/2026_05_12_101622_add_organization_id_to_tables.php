@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -23,11 +23,15 @@ return new class extends Migration
                 continue;
             }
 
-            Schema::table($table, function (Blueprint $t) {
-                $t->uuid('organization_id')->nullable()->index();
-            });
+            if (! Schema::hasColumn($table, 'organization_id')) {
+                Schema::table($table, function (Blueprint $t) {
+                    $t->uuid('organization_id')->nullable()->index();
+                });
+            }
 
-            DB::statement("UPDATE {$table} SET organization_id = community_id");
+            if (Schema::hasColumn($table, 'community_id')) {
+                DB::statement("UPDATE {$table} SET organization_id = community_id");
+            }
         }
     }
 
@@ -39,6 +43,10 @@ return new class extends Migration
 
         foreach ($this->tables as $table) {
             if (! Schema::hasTable($table)) {
+                continue;
+            }
+
+            if ($table === 'blog_posts' || ! Schema::hasColumn($table, 'organization_id')) {
                 continue;
             }
 

@@ -6,14 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class CurrentOrganization
 {
+    /**
+     * Resolve the current tenant (canonical).
+     *
+     * current_organization is the sole source of truth for runtime tenant context.
+     * Not bound → returns null → BelongsToTenantScope applies
+     * whereRaw('0 = 1') → fail-closed safety.
+     */
     public static function get(): ?Model
     {
         if (app()->bound('current_organization')) {
             return app('current_organization');
-        }
-
-        if (app()->bound('current_community')) {
-            return app('current_community');
         }
 
         return null;

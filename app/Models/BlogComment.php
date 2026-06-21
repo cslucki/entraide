@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,9 +13,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BlogComment extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasOrganizationId, HasUuids, SoftDeletes;
 
-    protected $fillable = ['blog_post_id', 'user_id', 'parent_id', 'content', 'is_approved'];
+    protected $fillable = ['blog_post_id', 'user_id', 'parent_id', 'content', 'is_approved', 'organization_id'];
 
     protected $casts = ['is_approved' => 'boolean'];
 
@@ -41,5 +42,10 @@ class BlogComment extends Model
     public function likes(): MorphMany
     {
         return $this->morphMany(Like::class, 'likeable');
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }

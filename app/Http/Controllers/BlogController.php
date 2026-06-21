@@ -2,37 +2,72 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Tag;
+use App\Services\BlogAiService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
-class BlogController extends Controller
+class BlogController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('throttle:10,1', only: ['uploadImage']),
+            new Middleware('throttle:30,1', only: ['aiGenerate', 'aiCorrect']),
+        ];
+    }
+
+    private const ALLOWED_HTML_TAGS = [
+        'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
+        'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code',
+        'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
+        'caption', 'col', 'colgroup',
+    ];
+
     public function index(): View
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $recentPosts = BlogPost::published()
-            ->with(['user', 'categories', 'tags'])
+            ->where('organization_id', $organization->id)
+            ->with(['user', 'category', 'tags'])
             ->withCount(['comments', 'likes'])
             ->latest('published_at')
             ->paginate(12);
 
         $popularPosts = BlogPost::published()
+            ->where('organization_id', $organization->id)
             ->with('user')
             ->orderByDesc('views_count')
             ->limit(5)
             ->get();
 
-        $categories = Category::withCount(['blogPosts' => fn($q) => $q->published()])->get();
+        $categories = Category::where('organization_id', $organization->id)->withCount([
+            'blogPosts' => fn ($q) => $q->published()->where('blog_posts.organization_id', $organization->id),
+        ])->get();
 
-        $popularTags = Tag::withCount(['blogPosts' => fn($q) => $q->published()])
+        $popularTags = Tag::withCount([
+            'blogPosts' => fn ($q) => $q->published()->where('blog_posts.organization_id', $organization->id),
+        ])
             ->orderByDesc('blog_posts_count')
             ->limit(30)
             ->get()
-            ->filter(fn($t) => $t->blog_posts_count > 0)
+            ->filter(fn ($t) => $t->blog_posts_count > 0)
             ->take(20);
 
         return view('blog.index', compact('recentPosts', 'popularPosts', 'categories', 'popularTags'));
@@ -40,12 +75,18 @@ class BlogController extends Controller
 
     public function byCategory(string $slug): View
     {
-        $category = Category::where('slug', $slug)->firstOrFail();
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
+        $category = Category::where('slug', $slug)->where('organization_id', $organization->id)->firstOrFail();
 
         $posts = BlogPost::published()
-            ->with(['user', 'categories', 'tags'])
+            ->where('organization_id', $organization->id)
+            ->with(['user', 'category', 'tags'])
             ->withCount(['comments', 'likes'])
-            ->whereHas('categories', fn($q) => $q->where('slug', $slug))
+            ->where('category_id', $category->id)
             ->latest('published_at')
             ->paginate(12);
 
@@ -54,12 +95,18 @@ class BlogController extends Controller
 
     public function byTag(string $slug): View
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $tag = Tag::where('slug', $slug)->firstOrFail();
 
         $posts = BlogPost::published()
-            ->with(['user', 'categories', 'tags'])
+            ->where('organization_id', $organization->id)
+            ->with(['user', 'category', 'tags'])
             ->withCount(['comments', 'likes'])
-            ->whereHas('tags', fn($q) => $q->where('slug', $slug))
+            ->whereHas('tags', fn ($q) => $q->where('slug', $slug))
             ->latest('published_at')
             ->paginate(12);
 
@@ -68,16 +115,22 @@ class BlogController extends Controller
 
     public function show(BlogPost $post): View
     {
-        if ($post->status !== 'published' && auth()->id() !== $post->user_id && !auth()->user()?->is_admin) {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        if ($post->status !== 'published' && auth()->id() !== $post->user_id && ! auth()->user()?->is_admin) {
             abort(404);
         }
 
         $post->increment('views_count');
-        $post->load(['user', 'categories', 'tags', 'comments.user', 'comments.replies.user']);
+        $post->load(['user', 'category', 'tags', 'comments.user', 'comments.replies.user'])
+            ->loadCount('likes');
 
         $relatedPosts = BlogPost::published()
-            ->with('user')
-            ->whereHas('categories', fn($q) => $q->whereIn('categories.id', $post->categories->pluck('id')))
+            ->where('organization_id', $organization->id)
+            ->where('category_id', $post->category_id)
             ->where('id', '!=', $post->id)
             ->latest('published_at')
             ->limit(3)
@@ -90,31 +143,34 @@ class BlogController extends Controller
 
     public function create(): View
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $this->authorize('create', BlogPost::class);
-        $categories = Category::all();
+        $categories = Category::where('organization_id', $organization->id)->orderBy('name_b2c')->get();
         $tags = Tag::orderBy('name')->get();
-        return view('blog.create', compact('categories', 'tags'));
+
+        return view('blog.create', compact('organization', 'categories', 'tags'));
     }
 
     public function store(Request $request): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $this->authorize('create', BlogPost::class);
 
-        $data = $request->validate([
-            'title'            => 'required|string|max:255',
-            'summary'          => 'nullable|string|max:500',
-            'content'          => 'required|string|min:50',
-            'image'            => 'nullable|image|max:2048',
-            'status'           => 'required|in:draft,published',
-            'categories'       => 'nullable|array',
-            'categories.*'     => 'uuid|exists:categories,id',
-            'tags'             => 'nullable|string',
-            'meta_title'       => 'nullable|string|max:255',
-            'meta_description' => 'nullable|string|max:320',
-        ]);
+        $data = $this->validateBlogPostRequest($request, $organization, ['draft', 'published']);
 
-        $data['user_id']      = auth()->id();
-        $data['slug']         = Str::slug($data['title']);
+        $data['content'] = $this->sanitizeHtml($data['content']);
+
+        $data['user_id'] = auth()->id();
+        $data['organization_id'] = $organization->id;
+        $data['slug'] = Str::slug($data['title']);
         $data['published_at'] = $data['status'] === 'published' ? now() : null;
 
         if ($request->hasFile('image')) {
@@ -123,59 +179,68 @@ class BlogController extends Controller
 
         $post = BlogPost::create($data);
 
-        if (!empty($data['categories'])) {
-            $post->categories()->sync($data['categories']);
-        }
-
-        if (!empty($data['tags'])) {
+        if (! empty($data['tags'])) {
             $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
-                ->map(fn($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
+                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
                 ->all();
             $post->tags()->sync($tagIds);
         }
 
-        return redirect()->route('blog.show', $post)->with('success', 'Article publié avec succès.');
+        $message = $data['status'] === 'published' ? 'Article publié.' : 'Brouillon enregistré.';
+
+        return redirect()->route('blog.show', $post)->with('success', $message);
     }
 
     public function edit(BlogPost $post): View
     {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('update', $post);
-        $categories = Category::all();
+        $categories = Category::where('organization_id', $organization->id)->orderBy('name_b2c')->get();
         $tags = Tag::orderBy('name')->get();
-        return view('blog.edit', compact('post', 'categories', 'tags'));
+
+        return view('blog.edit', compact('organization', 'post', 'categories', 'tags'));
     }
 
     public function update(Request $request, BlogPost $post): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('update', $post);
 
-        $data = $request->validate([
-            'title'            => 'required|string|max:255',
-            'summary'          => 'nullable|string|max:500',
-            'content'          => 'required|string|min:50',
-            'image'            => 'nullable|image|max:2048',
-            'status'           => 'required|in:draft,pending,published,archived',
-            'categories'       => 'nullable|array',
-            'categories.*'     => 'uuid|exists:categories,id',
-            'tags'             => 'nullable|string',
-            'meta_title'       => 'nullable|string|max:255',
-            'meta_description' => 'nullable|string|max:320',
-        ]);
+        $data = $this->validateBlogPostRequest($request, $organization, ['draft', 'pending', 'published', 'archived']);
 
-        if ($data['status'] === 'published' && !$post->published_at) {
+        $data['content'] = $this->sanitizeHtml($data['content']);
+
+        if ($data['status'] === 'published' && ! $post->published_at) {
             $data['published_at'] = now();
         }
 
+        if ($request->boolean('remove_image') && $post->image) {
+            Storage::disk('public')->delete($post->image);
+            $data['image'] = null;
+        }
+
         if ($request->hasFile('image')) {
+            if ($post->image) {
+                Storage::disk('public')->delete($post->image);
+            }
             $data['image'] = $request->file('image')->store('blog', 'public');
         }
 
+        unset($data['remove_image']);
+
         $post->update($data);
-        $post->categories()->sync($data['categories'] ?? []);
 
         if (isset($data['tags'])) {
             $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
-                ->map(fn($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
+                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
                 ->all();
             $post->tags()->sync($tagIds);
         }
@@ -185,28 +250,356 @@ class BlogController extends Controller
 
     public function publish(BlogPost $post): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('update', $post);
         $post->update([
-            'status'       => 'published',
+            'status' => 'published',
             'published_at' => $post->published_at ?? now(),
         ]);
+
         return back()->with('success', 'Article publié.');
     }
 
     public function destroy(BlogPost $post): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('delete', $post);
         $post->delete();
+
         return redirect()->route('blog.my-posts')->with('success', 'Article supprimé.');
     }
 
     public function myPosts(): View
     {
-        $posts = BlogPost::where('user_id', auth()->id())
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
+        $drafts = BlogPost::where('user_id', auth()->id())
+            ->where('organization_id', $organization->id)
+            ->whereIn('status', ['draft', 'pending'])
             ->withCount(['comments', 'likes'])
             ->latest()
-            ->paginate(15);
+            ->paginate(15, ['*'], 'drafts');
 
-        return view('blog.my-posts', compact('posts'));
+        $publishedPosts = BlogPost::where('user_id', auth()->id())
+            ->where('organization_id', $organization->id)
+            ->where('status', 'published')
+            ->withCount(['comments', 'likes'])
+            ->latest()
+            ->paginate(15, ['*'], 'published');
+
+        $comments = BlogComment::where('user_id', auth()->id())
+            ->whereHas('post', fn ($q) => $q->where('organization_id', $organization->id))
+            ->with('post')
+            ->latest()
+            ->paginate(15, ['*'], 'comments');
+
+        return view('blog.my-posts', compact('drafts', 'publishedPosts', 'comments'));
+    }
+
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => 'required|image|max:5120|mimes:jpeg,png,webp,gif',
+        ]);
+
+        $org = currentOrganization();
+        $user = $request->user();
+        $uuid = (string) Str::uuid();
+        $ext = $request->file('image')->extension();
+        $dir = sprintf('blog/images/%s/%s', $org->id, $user->id);
+        $filename = sprintf('%s.%s', $uuid, $ext);
+        $path = sprintf('%s/%s', $dir, $filename);
+        $request->file('image')->storeAs($dir, $filename, 'public');
+
+        return response()->json(['url' => Storage::disk('public')->url($path)]);
+    }
+
+    public function createDraft(Request $request): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
+        $this->authorize('create', BlogPost::class);
+
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'summary' => 'nullable|string|max:500',
+            'category_id' => 'nullable|uuid|exists:categories,id',
+        ]);
+
+        $post = BlogPost::create([
+            'user_id' => $request->user()->id,
+            'organization_id' => $organization->id,
+            'title' => $request->input('title'),
+            'summary' => $request->input('summary', ''),
+            'content' => '<p></p>',
+            'status' => 'draft',
+            'category_id' => $request->input('category_id'),
+        ]);
+
+        return response()->json([
+            'post_id' => $post->id,
+            'edit_url' => route('blog.edit', $post),
+        ]);
+    }
+
+    public function aiGenerate(Request $request, BlogAiService $ai): JsonResponse
+    {
+        return $this->handleAi($request, $ai, 'generate');
+    }
+
+    public function aiCorrect(Request $request, BlogAiService $ai): JsonResponse
+    {
+        return $this->handleAi($request, $ai, 'correct');
+    }
+
+    public function aiRemaining(Request $request, BlogAiService $ai): JsonResponse
+    {
+        $user = $request->user();
+
+        $generateConfig = $ai->checkEnabled('blog_generate', $user);
+        $correctConfig = $ai->checkEnabled('blog_correct', $user);
+
+        $providerInfo = $ai->getProviderInfo();
+
+        $result = [
+            'generate' => $generateConfig['limit'],
+            'correct' => $correctConfig['limit'],
+            'limits' => [
+                'generate' => $generateConfig['limit'],
+                'correct' => $correctConfig['limit'],
+            ],
+            'provider' => $providerInfo['provider'],
+            'model' => $providerInfo['model'],
+        ];
+
+        if ($request->has('post_id') && $request->filled('post_id')) {
+            $post = $this->resolveBlogPost($request->input('post_id'), $user);
+
+            $result['generate'] = $ai->remainingCount($post, $user, 'blog_generate');
+            $result['correct'] = $ai->remainingCount($post, $user, 'blog_correct');
+        }
+
+        return response()->json($result);
+    }
+
+    private function handleAi(Request $request, BlogAiService $ai, string $mode): JsonResponse
+    {
+        $post = null;
+        $isCreateFlow = false;
+
+        try {
+            $user = $request->user();
+
+            $title = $request->input('title');
+            $summary = $request->input('summary');
+
+            if ($request->has('post_id') && $request->filled('post_id')) {
+                $post = $this->resolveBlogPost($request->input('post_id'), $user);
+            } else {
+                if ($mode !== 'generate') {
+                    $request->validate(['content' => 'required|string|min:10']);
+                    $post = new BlogPost;
+                    $post->id = (string) Str::uuid();
+                    $post->organization_id = currentOrganization()?->id ?? $user->organization_id;
+                    $post->user_id = $user->id;
+                    $post->content = $request->input('content');
+                } else {
+                    if (empty($title) || empty($summary)) {
+                        return response()->json(['error' => 'Ajoutez un titre et un résumé avant de générer l\'article.'], 422);
+                    }
+
+                    $orgId = currentOrganization()?->id ?? $user->organization_id;
+                    $post = BlogPost::create([
+                        'user_id' => $user->id,
+                        'organization_id' => $orgId,
+                        'title' => $title,
+                        'summary' => $summary,
+                        'content' => '<p></p>',
+                        'status' => 'draft',
+                        'category_id' => $request->input('category_id'),
+                    ]);
+                    $isCreateFlow = true;
+                }
+            }
+
+            $feature = $mode === 'generate' ? 'blog_generate' : 'blog_correct';
+
+            $featureConfig = $ai->checkEnabled($feature, $user);
+            if (! $featureConfig['enabled']) {
+                $label = $mode === 'generate' ? 'génération' : 'correction';
+
+                return response()->json(['error' => "La fonctionnalité de {$label} IA est désactivée pour votre organisation."], 403);
+            }
+
+            $remaining = $ai->remainingCount($post, $user, $feature);
+
+            if ($remaining <= 0) {
+                $allowed = $ai->checkEnabled($feature, $user);
+
+                return response()->json(['error' => 'Limite de '.$allowed['limit'].' utilisations atteinte pour cet article.'], 429);
+            }
+
+            if ($mode === 'correct') {
+                $request->validate(['content' => 'required|string|min:10']);
+                $post->content = $request->input('content');
+            }
+
+            $result = $mode === 'generate'
+                ? $ai->generate($post, $user, $title, $summary)
+                : $ai->correct($post, $user);
+
+            if ($isCreateFlow) {
+                $post->content = $result['content'];
+                $post->save();
+            }
+
+            $newRemaining = $ai->remainingCount($post, $user, $feature);
+
+            $response = [
+                'content' => $result['content'],
+                'provider' => $result['provider'],
+                'model' => $result['model'],
+                'limit' => $result['limit'],
+                'remaining' => [
+                    'generate' => $feature === 'blog_generate' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_generate'),
+                    'correct' => $feature === 'blog_correct' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_correct'),
+                ],
+            ];
+
+            if ($isCreateFlow) {
+                $response['post_id'] = $post->id;
+                $response['edit_url'] = route('blog.edit', $post);
+            }
+
+            return response()->json($response);
+        } catch (HttpException $e) {
+            throw $e;
+        } catch (\RuntimeException $e) {
+            if ($isCreateFlow && $post?->exists) {
+                return response()->json([
+                    'error' => $e->getMessage(),
+                    'post_id' => $post->id,
+                    'edit_url' => route('blog.edit', $post),
+                ]);
+            }
+
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    private function resolveBlogPost(string $postId, $user): BlogPost
+    {
+        $post = BlogPost::find($postId);
+        if ($post) {
+            $this->checkPostAccess($post, $user);
+
+            return $post;
+        }
+
+        $temp = new BlogPost;
+        $temp->id = $postId;
+        $temp->organization_id = currentOrganization()?->id ?? $user->organization_id;
+        $temp->user_id = $user->id;
+
+        return $temp;
+    }
+
+    private function checkPostAccess(BlogPost $post, $user): void
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+        if ($user->id !== $post->user_id && ! $user->is_admin) {
+            abort(403);
+        }
+    }
+
+    private function sanitizeHtml(string $html): string
+    {
+        $allowed = self::ALLOWED_HTML_TAGS;
+
+        $html = strip_tags($html, '<'.implode('><', $allowed).'>');
+
+        $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+        $html = preg_replace('/<(\w+)\s[^>]*javascript\s*:\s*[^"\'>\s]+/i', '<$1', $html);
+        $html = preg_replace('/<(\w+)\s[^>]*data\s*:\s*[^"\'>\s]+/i', '<$1', $html);
+        $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html);
+        $html = preg_replace('/\{\{.*?\}\}/s', '', $html);
+
+        $html = preg_replace('/<(\w+)[^>]*style\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+
+        return $html;
+    }
+
+    /**
+     * Drafts stay lightweight; publication requires the public fields.
+     * Empty TipTap content is persisted as a minimal HTML paragraph to satisfy the DB constraint.
+     */
+    private function validateBlogPostRequest(Request $request, $organization, array $allowedStatuses): array
+    {
+        $isPublished = $request->input('status') === 'published';
+
+        $validator = Validator::make($request->all(), [
+            'title' => ['required', 'string', 'max:255'],
+            'summary' => [$isPublished ? 'required' : 'nullable', 'string', 'max:500'],
+            'content' => [$isPublished ? 'required' : 'nullable', 'string', function (string $attribute, mixed $value, \Closure $fail) use ($isPublished): void {
+                if ($isPublished && $this->plainTextContent((string) $value) === '') {
+                    $fail('Le contenu est obligatoire pour publier.');
+                }
+            }],
+            'image' => ['nullable', 'image', 'max:5120', 'mimes:jpeg,png,webp,gif'],
+            'remove_image' => ['nullable', 'boolean'],
+            'status' => ['required', Rule::in($allowedStatuses)],
+            'category_id' => [$isPublished ? 'required' : 'nullable', 'uuid', 'exists:categories,id'],
+            'tags' => ['nullable', 'string'],
+            'meta_title' => ['nullable', 'string', 'max:255'],
+            'meta_description' => ['nullable', 'string', 'max:320'],
+        ], [
+            'title.required' => 'Le titre est obligatoire.',
+            'summary.required' => 'Le résumé est obligatoire pour publier.',
+            'content.required' => 'Le contenu est obligatoire pour publier.',
+            'category_id.required' => 'La catégorie est obligatoire pour publier.',
+            'category_id.exists' => 'Catégorie invalide.',
+            'image.image' => 'L’image de couverture doit être une image valide.',
+            'image.mimes' => 'L’image de couverture doit être au format jpeg, png, webp ou gif.',
+            'image.max' => 'L’image de couverture ne doit pas dépasser 5 Mo.',
+        ]);
+
+        $validator->after(function ($validator) use ($request, $organization): void {
+            $categoryId = $request->input('category_id');
+            if ($categoryId && ! Category::where('id', $categoryId)->where('organization_id', $organization->id)->exists()) {
+                $validator->errors()->add('category_id', 'Catégorie invalide.');
+            }
+        });
+
+        $data = $validator->validate();
+
+        $data['content'] = filled($data['content'] ?? null) ? $data['content'] : '<p></p>';
+        $data['category_id'] = filled($data['category_id'] ?? null) ? $data['category_id'] : null;
+
+        return $data;
+    }
+
+    private function plainTextContent(string $html): string
+    {
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = str_replace("\xc2\xa0", ' ', $text);
+
+        return trim($text);
     }
 }

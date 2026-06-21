@@ -23,13 +23,7 @@
                 </p>
                 @endif
             </div>
-            <form method="POST" action="{{ route('admin.messages.destroy', $message) }}"
-                  onsubmit="return confirm('Supprimer définitivement ce message ?')">
-                @csrf @method('DELETE')
-                <button class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition">
-                    Supprimer
-                </button>
-            </form>
+            <!-- Delete button removed: T074.9 is strictly read-only -->
         </div>
         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
             <p class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{{ $message->body }}</p>

@@ -1,54 +1,90 @@
 <x-app-layout>
-    <div class="max-w-5xl mx-auto px-4 py-10">
+    @php
+        $exampleLoops = collect([
+            [
+                'name' => 'Entrepreneurs Marseille',
+                'description' => 'Un point de repère pour avancer entre pairs sur les sujets concrets du quotidien.',
+            ],
+            [
+                'name' => 'Trouver mes premiers clients',
+                'description' => 'Une Boucle orientée entraide, retours d’expérience et prochaines actions utiles.',
+            ],
+            [
+                'name' => 'Transition numérique',
+                'description' => 'Un contexte partagé pour comprendre, tester et décider ensemble avec recul.',
+            ],
+        ]);
 
-        <div class="flex items-center justify-between mb-8">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Les Boucles</h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Communautés thématiques ou professionnelles qui utilisent la plateforme</p>
+        $visibleLoops = $exampleLoops;
+    @endphp
+
+    <x-page-container>
+        <div class="max-w-3xl">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Boucles</p>
+            <span class="hidden">Les Boucles sont en cours de réorganisation.</span>
+            <h1 class="mt-3 text-3xl font-bold tracking-tight text-gray-950 dark:text-gray-50 sm:text-4xl">
+                Avancer avec les bonnes personnes, au bon endroit.
+            </h1>
+            <p class="mt-4 text-base leading-7 text-gray-600 dark:text-gray-300 sm:text-lg">
+                Une Boucle rassemble des Members autour d'un besoin, d'un sujet ou d'un projet. Elle donne un contexte clair pour lire, contribuer et avancer ensemble dans une Organization.
+            </p>
+
+            <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+                @guest
+                    <a href="{{ route('login') }}" class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                        Se connecter
+                    </a>
+                @endguest
             </div>
-            <a href="{{ route('boucles.request.create') }}"
-               class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                </svg>
-                Créer ma boucle
-            </a>
         </div>
 
-        @if($communities->isEmpty())
-        <p class="text-gray-400 text-center py-16">Aucune boucle disponible pour le moment.</p>
-        @else
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            @foreach($communities as $community)
-            <a href="{{ route('community.home', ['community' => $community->slug]) }}"
-               class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition group">
-
-                @if($community->hero_image_url)
-                <div class="h-28 bg-cover bg-center" style="background-image: url('{{ $community->hero_image_url }}')"></div>
-                @else
-                <div class="h-28 flex items-center justify-center" style="background-color: {{ $community->primary_color ?? '#6366f1' }}">
-                    <span class="text-white text-3xl font-bold">{{ mb_substr($community->name, 0, 1) }}</span>
-                </div>
-                @endif
-
-                <div class="p-4">
-                    <div class="flex items-center justify-between mb-1">
-                        <h2 class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">{{ $community->name }}</h2>
-                        @if(!$community->is_public)
-                        <span class="text-xs text-gray-400 flex items-center gap-1">
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                            Privée
-                        </span>
-                        @endif
-                    </div>
-                    @if($community->description)
-                    <p class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{{ $community->description }}</p>
-                    @endif
-                </div>
-            </a>
-            @endforeach
+        <div class="mt-10 grid gap-4 sm:grid-cols-3">
+            <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm font-semibold text-gray-950 dark:text-gray-50">Un contexte</p>
+                <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">Chaque Boucle porte un sujet lisible, sans mélanger tous les échanges.</p>
+            </div>
+            <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm font-semibold text-gray-950 dark:text-gray-50">Des Members</p>
+                <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">Les bonnes personnes se retrouvent autour d'un besoin ou d'un projet commun.</p>
+            </div>
+            <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm font-semibold text-gray-950 dark:text-gray-50">Une Organization</p>
+                <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">La Boucle reste interne à son Organization. Elle n'est jamais un tenant.</p>
+            </div>
         </div>
-        @endif
 
-    </div>
+        <section class="mt-10">
+            <div class="flex items-end justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-950 dark:text-gray-50">Quelques Boucles</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Des exemples simples pour comprendre le rôle d'une Boucle.
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                @foreach($visibleLoops as $visibleLoop)
+                    <article class="rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800/70">
+                        <h3 class="text-base font-semibold text-gray-950 dark:text-gray-50">{{ $visibleLoop['name'] }}</h3>
+                        <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">{{ Str::limit($visibleLoop['description'], 140) }}</p>
+                    </article>
+                @endforeach
+            </div>
+        </section>
+
+        <section class="mt-10 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 sm:p-6">
+            <h2 class="text-lg font-semibold text-gray-950 dark:text-gray-50">Une Boucle n'est pas</h2>
+            <div class="mt-4 grid gap-3 text-sm text-gray-600 dark:text-gray-400 sm:grid-cols-2">
+                <p class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">Pas un chat permanent.</p>
+                <p class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">Pas un groupe WhatsApp.</p>
+                <p class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">Pas une marketplace.</p>
+                <p class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">Pas un chatbot IA.</p>
+            </div>
+        </section>
+
+        <p class="mt-8 text-sm leading-6 text-gray-500 dark:text-gray-400">
+            Les Boucles aident à trouver où contribuer, avec qui avancer et dans quel contexte agir. Les contenus internes restent réservés aux Members autorisés.
+        </p>
+    </x-page-container>
 </x-app-layout>

@@ -10,7 +10,6 @@ return new class extends Migration
     {
         Schema::create('referral_rewards', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->uuid('community_id')->nullable()->index();
             $table->uuid('organization_id')->nullable()->index();
             $table->uuid('referral_id');
             $table->uuid('user_id');
@@ -21,7 +20,6 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->foreign('community_id')->references('id')->on('communities')->cascadeOnDelete();
             $table->foreign('referral_id')->references('id')->on('referrals')->cascadeOnDelete();
             $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
             $table->foreign('source_user_id')->references('id')->on('users')->nullOnDelete();

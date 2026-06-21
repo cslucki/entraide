@@ -1,12 +1,18 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
-      class="{{ !isset($currentCommunity) && !isset($currentOrganization) && ($globalColorMode ?? 'dark') === 'dark' ? 'dark' : '' }}">
+      class="{{ !isset($currentOrganization) && ($globalColorMode ?? 'dark') === 'dark' ? 'dark' : '' }}">
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <meta name="theme-color" content="#1B1FCC">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        @auth
+        <meta name="user-id" content="{{ auth()->id() }}">
+        @endauth
 
-        <title>{{ isset($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
+        <title>{{ isset($title) && filled($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
         <meta name="description" content="{{ isset($description) ? $description : 'Plateforme de troc de services entre professionnels — échangez vos compétences sans argent.' }}">
 
         @isset($ogTitle)
@@ -22,9 +28,10 @@
         <script type="application/ld+json">{!! $jsonLd !!}</script>
         @endisset
 
-        <!-- Favicon -->
-        <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+        <!-- Favicon BouclePro -->
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-title" content="BouclePro" />
@@ -34,8 +41,25 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
+        @php
+            $cachePath = storage_path('app/bouclepro-themes.php');
+
+            if (file_exists($cachePath)) {
+                $bpThemes = require $cachePath;
+                $bpDefaultTheme = $bpThemes['_meta']['default'] ?? config('bouclepro_themes.default', 'zen');
+                unset($bpThemes['_meta']);
+            } else {
+                $bpThemes = config('bouclepro_themes.themes');
+                $bpDefaultTheme = config('bouclepro_themes.default', 'zen');
+            }
+        @endphp
+
         <!-- Scripts -->
         <script>
+            window.bpThemes = @json(collect($bpThemes)->map(fn ($theme) => ['label' => $theme['label']])->all());
+            window.bpDefaultTheme = @json($bpDefaultTheme);
+            document.documentElement.dataset.bpTheme = localStorage.bpTheme || window.bpDefaultTheme;
+
             if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
             } else {
@@ -43,10 +67,75 @@
             }
         </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+        @php
+            $org = app()->bound('current_organization') ? app('current_organization') : null;
+        @endphp
+        @if($org && $org->header_javascript_enabled && $org->header_javascript)
+            {!! $org->header_javascript !!}
+        @endif
+
+        @stack('head')
+
+        <style>
+            :root {
+                @foreach($bpThemes[$bpDefaultTheme]['tokens'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+
+            @foreach($bpThemes as $key => $theme)
+            [data-bp-theme="{{ $key }}"] {
+                @foreach($theme['tokens'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+            @endforeach
+
+            .dark {
+                @foreach($bpThemes[$bpDefaultTheme]['dark'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+
+            @foreach($bpThemes as $key => $theme)
+            .dark[data-bp-theme="{{ $key }}"] {
+                @foreach($theme['dark'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+            @endforeach
+
+            /* Mobile safe areas */
+            .mobile-safe-top { padding-top: 0; }
+            .mobile-safe-bottom { padding-bottom: 0; }
+            .mobile-safe-bottom-auth { padding-bottom: 0; }
+            @media (max-width: 767px) {
+                .mobile-safe-top { padding-top: 3.5rem; }
+                .mobile-safe-bottom-auth { padding-bottom: 4rem; }
+            }
+        </style>
     </head>
     <body class="font-sans antialiased">
-        <div class="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900">
-            @include('layouts.navigation')
+        {{-- Admin impersonation banner --}}
+        @if(session('admin_original_id'))
+        <div class="bg-amber-500 text-amber-950 px-4 py-2 text-sm font-medium flex items-center justify-center gap-3">
+            <span>Connecté sous <strong>{{ auth()->user()->name }}</strong> (mode admin)</span>
+            <a href="{{ route('admin.back-to-admin') }}"
+               class="inline-flex items-center gap-1 px-3 py-1 bg-amber-700 text-white rounded-lg text-xs font-semibold hover:bg-amber-800 transition">
+                Retour au compte admin
+            </a>
+        </div>
+        @endif
+
+        {{-- Mobile shell (hidden md:block) --}}
+        <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" :brand-name="$brandOrganizationName ?? null" />
+        <x-mobile-bottom-nav />
+        <x-mobile-fab />
+
+        <x-app-side-nav />
+
+        <div class="min-h-screen flex flex-col bg-[var(--bp-page)] pt-0 md:pl-20 pb-0 md:pb-0 mobile-safe-top mobile-safe-bottom-auth">
 
             <!-- Page Heading -->
             @isset($header)
@@ -58,7 +147,7 @@
             @endisset
 
             <!-- Page Content -->
-            <main class="flex-1">
+            <main class="flex-1 md:min-h-screen">
                 @hasSection('content')
                     @yield('content')
                 @else
@@ -66,10 +155,10 @@
                 @endif
             </main>
 
-            @include('partials.footer')
+            
         </div>
         <!-- Toast notifications globales -->
-        @if(session('success') || session('error') || session('info'))
+        @if((session('success') && session('success') !== 'Message envoyé.') || session('error') || session('info'))
         <div x-data="{ show: true }" x-show="show"
              x-init="setTimeout(() => show = false, 4500)"
              x-transition:enter="transition ease-out duration-300"
@@ -104,17 +193,8 @@
 
         @stack('scripts')
 
-        <!-- Alpine store global pour les modals de confirmation -->
-        <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.store('modal', {
-                active: null,
-                _form: null,
-                open(id, form) { this.active = id; this._form = form; },
-                close() { this.active = null; this._form = null; },
-                confirm() { if (this._form) this._form.submit(); this.close(); }
-            });
-        });
-        </script>
+        <livewire:styles />
+
+        <livewire:scripts />
     </body>
 </html>

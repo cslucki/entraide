@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\PointLedger;
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -18,6 +18,12 @@ class TransactionController extends Controller
 {
     public function store(Request $request): RedirectResponse
     {
+        $organization = currentOrganization();
+
+        if (! $organization) {
+            abort(404);
+        }
+
         $data = $request->validate([
             'service_id' => 'nullable|uuid|exists:services,id',
             'request_id' => 'nullable|uuid|exists:service_requests,id',
@@ -26,19 +32,29 @@ class TransactionController extends Controller
 
         $buyer = auth()->user();
 
-        // Determine seller and community_id
-        $communityId = null;
+        // Determine seller and organization_id
+        $organizationId = null;
         if (! empty($data['service_id'])) {
-            $service = Service::withoutGlobalScope(BelongsToTenantScope::class)->findOrFail($data['service_id']);
+            $service = Service::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($data['service_id']);
+
+            if ($service->organization_id === null || $service->organization_id !== $organization->id) {
+                abort(404);
+            }
+
             $seller = $service->user;
             $sellerId = $seller->id;
-            $communityId = $service->community_id;
+            $organizationId = $service->organization_id;
         } else {
-            $serviceReq = ServiceRequest::withoutGlobalScope(BelongsToTenantScope::class)->findOrFail($data['request_id']);
+            $serviceReq = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($data['request_id']);
+
+            if ($serviceReq->organization_id === null || $serviceReq->organization_id !== $organization->id) {
+                abort(404);
+            }
+
             $seller = $buyer;
             $sellerId = $buyer->id;
             $buyer = $serviceReq->user;
-            $communityId = $serviceReq->community_id;
+            $organizationId = $serviceReq->organization_id;
         }
 
         // Prevent self-transaction
@@ -70,7 +86,7 @@ class TransactionController extends Controller
             'request_id' => $data['request_id'] ?? null,
             'buyer_id' => $buyer->id,
             'seller_id' => $sellerId,
-            'community_id' => $communityId,
+            'organization_id' => $organizationId,
             'points_proposed' => $data['points_proposed'],
             'status' => 'pending',
         ]);
@@ -293,6 +309,7 @@ class TransactionController extends Controller
             'sender_id' => null,
             'body' => $body,
             'type' => 'system',
+            'organization_id' => $transaction->organization_id,
         ]);
     }
 }

@@ -4,28 +4,54 @@
             <div class="flex">
                 <!-- Logo (desktop only) -->
                 <div class="shrink-0 flex items-center">
-                    <a href="{{ route('home') }}" class="flex items-center">
-                        <img src="/favicon.svg" alt="BouclePro" class="h-8 w-8 hidden sm:block">
+                    @php
+                        $tenant = $currentOrganization ?? (Auth::check() ? Auth::user()->organization : null);
+                        $desktopBrandName = $tenant?->name ?? ($brandOrganizationName ?? config('app.name'));
+                        $desktopBrandHref = isset($currentOrganization)
+                            ? route('organization.home', ['organization' => $currentOrganization])
+                            : route('home');
+                        $organizationRouteParam = request()->route('organization');
+                        $loopsIndexHref = $organizationRouteParam && request()->routeIs('organization.*')
+                            ? route('organization.loops.index', ['organization' => $organizationRouteParam])
+                            : route('loops.index');
+                        $loopsIsActive = request()->routeIs('loops*', 'organization.loops*');
+                    @endphp
+                    <a href="{{ $desktopBrandHref }}" class="hidden sm:flex items-center gap-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800" aria-label="Accueil {{ $desktopBrandName }}">
+                        <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-10 w-10 shrink-0" aria-hidden="true">
+                        <span class="max-w-[11rem] truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ $desktopBrandName }}</span>
                     </a>
-                    @php $tenant = $currentCommunity ?? $currentOrganization ?? null; @endphp
-                    @isset($tenant)
-                    <span class="text-sm sm:text-xs text-gray-500 dark:text-gray-400 font-medium sm:border-l sm:border-gray-300 sm:dark:border-gray-600 sm:pl-2">{{ $tenant->name }}</span>
-                    @endisset
                 </div>
 
                 <!-- Navigation Links (desktop) -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Échanges</x-nav-link>
-                    <x-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-nav-link>
-                    <x-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">Blog</x-nav-link>
-                    <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-nav-link>
+                    <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">{{ __('navigation.exchanges') }}</x-nav-link>
+                    <x-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">{{ __('navigation.directory') }}</x-nav-link>
+                    <x-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">{{ __('navigation.blog') }}</x-nav-link>
+                    @if(!$tenant || $tenant->loops_enabled)
+                        @auth
+                            <x-nav-link :href="$loopsIndexHref" :active="$loopsIsActive">{{ __('navigation.loops') }}</x-nav-link>
+                        @else
+                            <x-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">{{ __('navigation.loops') }}</x-nav-link>
+                        @endauth
+                    @endif
+                    @auth
+                    @php $msgUnread = auth()->user()->unreadMessagesCount(); @endphp
+                    <x-nav-link :href="route('messages.index')" :active="request()->routeIs('messages*')">
+                        <span class="flex items-center gap-1.5">
+                            {{ __('navigation.messages') }}
+                            @if($msgUnread > 0)
+                            <span class="min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">{{ $msgUnread > 9 ? '9+' : $msgUnread }}</span>
+                            @endif
+                        </span>
+                    </x-nav-link>
+                    @endauth
                 </div>
             </div>
 
             <!-- Recherche globale (desktop) -->
             <div class="hidden sm:flex sm:items-center flex-1 max-w-xs mx-4">
                 <form action="{{ route('search') }}" method="GET" class="relative w-full">
-                    <input type="text" name="q" value="{{ request('q') }}" placeholder="Rechercher..."
+                    <input type="text" name="q" value="{{ request('q') }}" placeholder="{{ __('navigation.search_placeholder') }}"
                         class="w-full pl-9 pr-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -52,7 +78,7 @@
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                         </svg>
-                        Publier
+                        {{ __('navigation.publish') }}
                         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
                         </svg>
@@ -64,17 +90,17 @@
                         <a href="{{ route('requests.create') }}"
                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                             <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            Faire une {{ $T['request'] }}
+                            {{ __('navigation.make_request', ['request' => $T['request']]) }}
                         </a>
                         <a href="{{ route('services.create') }}"
                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                             <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                            Proposer un {{ $T['service'] }}
+                            {{ __('navigation.offer_service', ['service' => $T['service']]) }}
                         </a>
                         <a href="{{ route('blog.create') }}"
                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                             <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                            Écrire un article
+                             {{ __('navigation.write_article') }}
                         </a>
                     </div>
                 </div>
@@ -103,31 +129,33 @@
                         </button>
                     </x-slot>
                     <x-slot name="content">
-                        <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')"><span class="font-medium">Tableau de bord</span></x-dropdown-link>
-                        <x-dropdown-link :href="route('profile.show', Auth::user())">Mon profil public</x-dropdown-link>
+                        <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')"><span class="font-medium">{{ __('navigation.dashboard') }}</span></x-dropdown-link>
+                        <x-dropdown-link :href="route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
-                        <x-dropdown-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-dropdown-link>
-                        <x-dropdown-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('services.create')">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('requests.create')">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
-                        <x-dropdown-link :href="route('points.index')">Historique des points</x-dropdown-link>
-                        <x-dropdown-link :href="route('points.index') . '#invitations'">Invitations</x-dropdown-link>
-                        <x-dropdown-link :href="route('favorites.index')">Mes favoris</x-dropdown-link>
-                        <x-dropdown-link :href="route('blog.my-posts')">Mes articles</x-dropdown-link>
-                        <x-dropdown-link :href="route('profile.edit')">Profil et paramètres</x-dropdown-link>
+                        <x-dropdown-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('points.index') . '#invitations'">{{ __('navigation.invitations') }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
                         @if(Auth::user()->is_admin)
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
-                        <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">Administration</span></x-dropdown-link>
+                        <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('navigation.administration') }}</span></x-dropdown-link>
                         @endif
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-                            <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">Déconnexion</x-dropdown-link>
+                            <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">{{ __('navigation.logout') }}</x-dropdown-link>
                         </form>
                     </x-slot>
                 </x-dropdown>
                 @else
-                <a href="{{ route('login') }}" class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">Connexion</a>
-                <a href="{{ route('register') }}" class="ml-2 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">Inscription</a>
+                <a href="{{ route('login') }}" class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">{{ __('navigation.login') }}</a>
+                <a href="{{ route('register') }}" class="ml-2 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">{{ __('navigation.register') }}</a>
                 @endauth
             </div>
 
@@ -143,8 +171,8 @@
                 </a>
                 @else
                 <a href="{{ route('login') }}"
-                   class="px-3 py-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
-                    Se connecter
+                    class="px-3 py-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
+                    {{ __('navigation.login') }}
                 </a>
                 <!-- Dark Mode Toggle Mobile -->
                 <button @click="$store.darkMode.toggle()" class="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition">
@@ -171,10 +199,27 @@
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
             <!-- Navigation Links Mobile -->
-            <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">Échanges</x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">Annuaire</x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">Blog</x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">Boucles</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">{{ __('navigation.exchanges') }}</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">{{ __('navigation.directory') }}</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">{{ __('navigation.blog') }}</x-responsive-nav-link>
+            @if(!$tenant || $tenant->loops_enabled)
+                @auth
+                    <x-responsive-nav-link :href="$loopsIndexHref" :active="$loopsIsActive">{{ __('navigation.loops') }}</x-responsive-nav-link>
+                @else
+                    <x-responsive-nav-link :href="route('boucles.index')" :active="request()->routeIs('boucles*')">{{ __('navigation.loops') }}</x-responsive-nav-link>
+                @endauth
+            @endif
+            @auth
+            @php $msgUnreadMobile = auth()->user()->unreadMessagesCount(); @endphp
+            <x-responsive-nav-link :href="route('messages.index')" :active="request()->routeIs('messages*')">
+                <span class="flex items-center gap-1.5">
+                    {{ __('navigation.messages') }}
+                    @if($msgUnreadMobile > 0)
+                    <span class="min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">{{ $msgUnreadMobile > 9 ? '9+' : $msgUnreadMobile }}</span>
+                    @endif
+                </span>
+            </x-responsive-nav-link>
+            @endauth
         </div>
 
         @auth
@@ -187,29 +232,43 @@
                 </div>
             </div>
             <div class="mt-1 space-y-1">
-                <x-responsive-nav-link :href="route('dashboard')">Tableau de bord</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('profile.show', Auth::user())">Mon profil public</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('services.create')">Proposer un {{ $T['service'] }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('requests.create')">Faire une {{ $T['request'] }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('points.index')">Historique des points</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('points.index') . '#invitations'">Invitations</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('favorites.index')">Mes favoris</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('blog.my-posts')">Mes articles</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('profile.edit')">Profil et paramètres</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('dashboard')">{{ __('navigation.dashboard') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('services.create')">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('requests.create')">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('points.index') . '#invitations'">{{ __('navigation.invitations') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-responsive-nav-link>
                 @if(Auth::user()->is_admin)
-                <x-responsive-nav-link :href="route('admin.dashboard')">Administration</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('admin.dashboard')">{{ __('navigation.administration') }}</x-responsive-nav-link>
                 @endif
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <x-responsive-nav-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">Déconnexion</x-responsive-nav-link>
+                    <x-responsive-nav-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">{{ __('navigation.logout') }}</x-responsive-nav-link>
                 </form>
             </div>
         </div>
         @else
         <div class="pt-4 pb-3 border-t border-gray-200 dark:border-gray-600 px-4 space-y-2">
-            <a href="{{ route('login') }}" class="block text-center py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">Se connecter</a>
-            <a href="{{ route('register') }}" class="block text-center py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">Créer un compte</a>
+            <a href="{{ route('login') }}" class="block text-center py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">{{ __('navigation.login') }}</a>
+            <a href="{{ route('register') }}" class="block text-center py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">{{ __('navigation.create_account') }}</a>
         </div>
         @endauth
+        <!-- Dark Mode Toggle (mobile bottom) -->
+        <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-600">
+            <button @click="$store.darkMode.toggle()" class="flex w-full items-center gap-3 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
+                <template x-if="!$store.darkMode.on">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                </template>
+                <template x-if="$store.darkMode.on">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                </template>
+                <span x-text="$store.darkMode.on ? '{{ __('navigation.light_mode') }}' : '{{ __('navigation.dark_mode') }}'"></span>
+            </button>
+        </div>
     </div>
 </nav>

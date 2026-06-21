@@ -3,7 +3,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
             <div>
-                @php $tenant = $currentCommunity ?? $currentOrganization ?? null; @endphp
+                @php $tenant = $currentOrganization ?? null; @endphp
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
                     @isset($tenant)Tableau de bord — {{ $tenant->name }}@elseBonjour, {{ $user->name }}@endisset
                     @empty($tenant) 👋@endempty
@@ -17,6 +17,47 @@
                     {{ $user->is_available ? 'Disponible' : 'Indisponible' }}
                 </button>
             </form>
+        </div>
+
+        <!-- Onboarding progressif beta -->
+        <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6 mb-5">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Onboarding beta</p>
+                    <h2 class="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">Votre progression dans la boucle</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Avancez étape par étape pour demander de l’aide, proposer votre aide et commencer à interagir.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                @foreach($onboardingSteps as $step)
+                <div class="rounded-xl border {{ $step['status'] === 'done' ? 'border-green-200 bg-green-50/70 dark:border-green-900 dark:bg-green-950/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40' }} p-4">
+                    <div class="flex items-start gap-3">
+                        <div class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full {{ $step['status'] === 'done' ? 'bg-green-600 text-white' : 'bg-white text-gray-400 ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700' }}">
+                            @if($step['status'] === 'done')
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                            @else
+                            <span class="h-2 w-2 rounded-full bg-current"></span>
+                            @endif
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $step['title'] }}</h3>
+                                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $step['description'] }}</p>
+                                </div>
+                                <span class="inline-flex w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-medium {{ $step['status'] === 'done' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-white text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700' }}">
+                                    {{ $step['status_label'] }}
+                                </span>
+                            </div>
+                            <a href="{{ $step['cta_url'] }}" class="mt-3 inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300">
+                                {{ $step['cta_label'] }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                @endforeach
+            </div>
         </div>
 
         <!-- Metrics -->
@@ -100,6 +141,36 @@
         </div>
         @endif
 
+        @if(! $aiProfile || $aiProfile->status !== 'published')
+        <div class="mb-6 bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/30 dark:to-gray-800 rounded-2xl border border-indigo-200 dark:border-indigo-800 p-6">
+            <div class="flex items-start gap-4 sm:items-center flex-col sm:flex-row">
+                <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl flex items-center justify-center shrink-0">
+                    <svg class="w-6 h-6 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+                </div>
+                <div class="flex-1">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        @if($aiProfile && $aiProfile->status === 'draft')
+                            Reprenez votre profil IA
+                        @else
+                            Créez votre profil IA
+                        @endif
+                    </h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        @if($aiProfile && $aiProfile->status === 'draft')
+                            Vous avez commencé à renseigner votre profil. Finalisez-le pour être mieux orienté.
+                        @else
+                            Configurez votre profil pour être mieux orienté par l'IA et apparaître dans les recherches.
+                        @endif
+                    </p>
+                </div>
+                <a href="{{ route('agent-ia.wizard') }}"
+                   class="inline-flex items-center px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition active:scale-95 shadow-sm whitespace-nowrap">
+                    {{ $aiProfile && $aiProfile->status === 'draft' ? 'Continuer' : 'Configurer' }}
+                </a>
+            </div>
+        </div>
+        @endif
+
         <div class="grid md:grid-cols-2 gap-6">
             <!-- Mes micro-services -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -112,7 +183,7 @@
                     <div class="px-5 py-3 flex items-center justify-between">
                         <div class="min-w-0">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $service->title }}</p>
-                            <p class="text-xs text-gray-500">{{ $service->points_cost }} pts · {{ $service->category->name }}</p>
+                            <p class="text-xs text-gray-500">{{ $service->points_cost }} pts · {{ $service->category->displayName('transactions') }}</p>
                         </div>
                         <div class="flex gap-3 ml-3 flex-shrink-0">
                             <a href="{{ route('services.edit', $service) }}" class="text-xs text-gray-500 hover:text-indigo-600">Modifier</a>
@@ -141,7 +212,7 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes demandes d'aide</h2>
-                    <a href="{{ route('requests.create') }}" class="text-xs text-indigo-600 hover:underline">+ Nouvelle</a>
+                    <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ Nouvelle</a>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myRequests as $req)
@@ -165,7 +236,7 @@
                         </form>
                     </div>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">Aucune {{ $T['request'] }} ouverte.<br><a href="{{ route('requests.create') }}" class="text-indigo-600 hover:underline">Faire une {{ $T['request'] }}</a></p>
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">Aucune {{ $T['request'] }} ouverte.<br><a href="{{ $requestCreateUrl }}" class="text-indigo-600 hover:underline">Demander de l'aide</a></p>
                     @endforelse
                 </div>
             </div>
@@ -217,6 +288,42 @@
                     <p class="px-5 py-8 text-sm text-gray-400 text-center">Aucun échange en cours.</p>
                     @endforelse
                 </div>
+            </div>
+
+            <!-- Mes annonces Flux -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes annonces</h2>
+                    @if($canCreateFeedPost)
+                    <a href="{{ $feedCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ Nouvelle</a>
+                    @endif
+                </div>
+                <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @forelse($myFeedPosts as $post)
+                    <a href="{{ $feedUrl }}" class="px-5 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $post->title ?: 'Sans titre' }}</p>
+                            <p class="text-xs text-gray-500">{{ $post->created_at->isoFormat('D MMM YYYY') }}</p>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 ml-3
+                            {{ $post->status === 'published' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' }}">
+                            {{ $post->status === 'published' ? 'Publiée' : 'Brouillon' }}
+                        </span>
+                    </a>
+                    @empty
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">
+                        Aucune annonce pour le moment.
+                        @if($canCreateFeedPost)
+                        <br><a href="{{ $feedCreateUrl }}" class="text-indigo-600 hover:underline">Créer une annonce</a>
+                        @endif
+                    </p>
+                    @endforelse
+                </div>
+                @if($myFeedPosts->isNotEmpty())
+                <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 text-center">
+                    <a href="{{ $myFeedPostsUrl }}" class="text-xs text-indigo-600 hover:underline">Voir toutes mes annonces</a>
+                </div>
+                @endif
             </div>
 
             <!-- Messages récents -->

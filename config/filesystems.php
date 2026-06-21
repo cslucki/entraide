@@ -41,7 +41,7 @@ return [
         'public' => [
             'driver' => env('STORAGE_PUBLIC_DRIVER', env('AWS_ACCESS_KEY_ID') ? 's3' : 'local'),
             'root' => storage_path('app/public'),
-            'url' => env('AWS_PUBLIC_URL', rtrim(env('APP_URL', 'http://localhost'), '/').'/storage'),
+            'url' => env('FILESYSTEM_PUBLIC_URL', env('AWS_PUBLIC_URL', rtrim(env('APP_URL', 'http://localhost'), '/').'/storage')),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

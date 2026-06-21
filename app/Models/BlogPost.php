@@ -20,8 +20,8 @@ class BlogPost extends Model
 
     protected $fillable = [
         'user_id',
-        'community_id',
         'organization_id',
+        'category_id',
         'title',
         'slug',
         'summary',
@@ -58,19 +58,14 @@ class BlogPost extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function community(): BelongsTo
-    {
-        return $this->belongsTo(Community::class);
-    }
-
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'organization_id');
     }
 
-    public function categories(): BelongsToMany
+    public function category(): BelongsTo
     {
-        return $this->belongsToMany(Category::class, 'blog_post_category');
+        return $this->belongsTo(Category::class);
     }
 
     public function tags(): BelongsToMany

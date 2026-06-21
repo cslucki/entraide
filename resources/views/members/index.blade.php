@@ -1,8 +1,8 @@
 <x-app-layout>
-    <div class="max-w-6xl mx-auto px-4 py-10">
+    <x-page-container>
 
         <div class="mb-8">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Annuaire des membres</h1>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Annuaire des membres</h1>
             <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">{{ $members->total() }} membre{{ $members->total() > 1 ? 's' : '' }} inscrit{{ $members->total() > 1 ? 's' : '' }}</p>
         </div>
 
@@ -81,5 +81,5 @@
             {{ $members->links() }}
         </div>
 
-    </div>
+    </x-page-container>
 </x-app-layout>

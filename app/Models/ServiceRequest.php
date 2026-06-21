@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,11 +18,10 @@ class ServiceRequest extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new BelongsToTenantScope);
+        static::addGlobalScope(new BelongsToOrganizationScope);
     }
 
     protected $fillable = [
-        'community_id',
         'organization_id',
         'user_id',
         'title',
@@ -42,11 +41,6 @@ class ServiceRequest extends Model
             'budget_min' => 'integer',
             'budget_max' => 'integer',
         ];
-    }
-
-    public function community(): BelongsTo
-    {
-        return $this->belongsTo(Community::class);
     }
 
     public function organization(): BelongsTo

@@ -2,11 +2,13 @@
 
 namespace Database\Seeders;
 
-use App\Models\Community;
+use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\User;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use RuntimeException;
 
 class QaAccountsSeeder extends Seeder
 {
@@ -14,10 +16,8 @@ class QaAccountsSeeder extends Seeder
 
     private array $accounts;
 
-    private array $qaCommunities = [
+    private array $qaOrganizations = [
         ['name' => 'CPME', 'slug' => 'cpme'],
-        ['name' => 'BNI', 'slug' => 'bni'],
-        ['name' => '60 000 Rebonds', 'slug' => '60000rebonds'],
     ];
 
     public function __construct()
@@ -29,55 +29,59 @@ class QaAccountsSeeder extends Seeder
                 'email' => 'qa-admin@bouclepro.local',
                 'name' => 'QA Admin',
                 'is_admin' => true,
-                'community_slug' => null,
+                'organization_slug' => null,
                 'points' => 100,
             ],
             [
                 'email' => 'qa-member1@bouclepro.local',
                 'name' => 'QA Member 1',
                 'is_admin' => false,
-                'community_slug' => 'bni',
+                'organization_slug' => null,
                 'points' => 100,
             ],
             [
                 'email' => 'qa-member2@bouclepro.local',
                 'name' => 'QA Member 2',
                 'is_admin' => false,
-                'community_slug' => 'bni',
+                'organization_slug' => null,
                 'points' => 100,
             ],
             [
                 'email' => 'qa-cpme1@bouclepro.local',
                 'name' => 'QA CPME 1',
                 'is_admin' => false,
-                'community_slug' => 'cpme',
+                'organization_slug' => 'cpme',
                 'points' => 100,
             ],
             [
                 'email' => 'qa-cpme2@bouclepro.local',
                 'name' => 'QA CPME 2',
                 'is_admin' => false,
-                'community_slug' => 'cpme',
+                'organization_slug' => 'cpme',
                 'points' => 100,
             ],
         ];
     }
 
-    private function ensureQaCommunitiesExist(): void
+    private function ensureQaOrganizationsExist(): void
     {
-        foreach ($this->qaCommunities as $data) {
-            Community::firstOrCreate(['slug' => $data['slug']], $data);
+        foreach ($this->qaOrganizations as $data) {
+            Organization::firstOrCreate(['slug' => $data['slug']], $data);
         }
     }
 
     public function run(): void
     {
-        $this->ensureQaCommunitiesExist();
+        $this->ensureQaOrganizationsExist();
 
         foreach ($this->accounts as $account) {
-            $communityId = $account['community_slug']
-                ? Community::where('slug', $account['community_slug'])->value('id')
-                : null;
+            $organizationId = $account['organization_slug']
+                ? Organization::where('slug', $account['organization_slug'])->value('id')
+                : DefaultOrganizationResolver::resolve()?->getKey();
+
+            if (! $organizationId) {
+                throw new RuntimeException('QaAccountsSeeder requires an active organization for every QA account.');
+            }
 
             $user = User::updateOrCreate(
                 ['email' => $account['email']],
@@ -88,7 +92,7 @@ class QaAccountsSeeder extends Seeder
                     'is_available' => true,
                     'email_verified_at' => now(),
                     'points_balance' => $account['points'],
-                    'community_id' => $communityId,
+                    'organization_id' => $organizationId,
                     'bio' => 'QA test account for Playwright and PHPUnit.',
                     'location' => 'Paris',
                     'phone' => '+33600000000',

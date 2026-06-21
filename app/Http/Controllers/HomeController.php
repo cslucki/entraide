@@ -3,7 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use App\Models\Community;
+use App\Models\Organization;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -27,21 +28,29 @@ class HomeController extends Controller
             ->limit(6)
             ->get();
 
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::orderBy('name_b2c')->get();
 
-        return view('home', compact('stats', 'featuredServices', 'categories'));
+        $defaultOrganization = Organization::where('is_default', true)->first();
+
+        return view('home', compact('stats', 'featuredServices', 'categories', 'defaultOrganization'));
     }
 
     public function members(): View
     {
-        $communityId = $this->currentCommunityId();
+        $organization = currentOrganization();
 
-        $members = User::when($communityId, fn ($q) => $q->where('community_id', $communityId))
+        if (! $organization) {
+            return view('members.setup-required');
+        }
+
+        $organizationId = $organization->id;
+
+        $members = User::where('organization_id', $organizationId)
             ->withCount([
-                'services as active_services_count' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'active')->where('community_id', $communityId),
-                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'open')->where('community_id', $communityId),
+                'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->where('organization_id', $organizationId),
+                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'open')->where('organization_id', $organizationId),
             ])
-            ->with(['services' => fn ($q) => $q->withoutGlobalScopes()->where('status', 'active')->where('community_id', $communityId)->with('skills', 'category')])
+            ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->where('organization_id', $organizationId)->with('skills', 'category')])
             ->orderByDesc('created_at')
             ->paginate(16);
 
@@ -50,29 +59,31 @@ class HomeController extends Controller
 
     public function boucles(): View
     {
-        $communities = Community::where('is_active', true)
-            ->orderBy('name')
-            ->get();
+        return view('boucles.index');
+    }
 
-        return view('boucles.index', compact('communities'));
+    public function partners(): View
+    {
+        return view('partenaires.index');
     }
 
     public function exchanges(): View
     {
-        $communityId = $this->currentCommunityId();
+        $organization = currentOrganization();
 
-        $exchanges = Transaction::withoutGlobalScopes()
+        if (! $organization) {
+            abort(404);
+        }
+
+        $organizationId = $organization->id;
+
+        $exchanges = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->where('status', 'completed')
-            ->where('community_id', $communityId)
+            ->where('organization_id', $organizationId)
             ->with(['buyer', 'seller', 'service.category', 'serviceRequest', 'reviews'])
             ->latest('updated_at')
             ->paginate(20);
 
         return view('exchanges.index', compact('exchanges'));
-    }
-
-    private function currentCommunityId(): ?string
-    {
-        return currentOrganization()?->id;
     }
 }

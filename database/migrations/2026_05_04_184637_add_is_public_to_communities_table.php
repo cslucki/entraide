@@ -8,14 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('communities', function (Blueprint $table) {
+        Schema::table('organizations', function (Blueprint $table) {
             $table->boolean('is_public')->default(false)->after('is_active');
         });
     }
 
     public function down(): void
     {
-        Schema::table('communities', function (Blueprint $table) {
+        Schema::table('organizations', function (Blueprint $table) {
             $table->dropColumn('is_public');
         });
     }

@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\EmailTemplate;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class EmailTemplateFactory extends Factory
@@ -13,7 +12,7 @@ class EmailTemplateFactory extends Factory
             'slug' => fake()->slug(),
             'name' => fake()->words(3, true),
             'subject' => fake()->sentence(),
-            'content_html' => '<p>' . fake()->paragraphs(3, true) . '</p>',
+            'content_html' => '<p>'.fake()->paragraphs(3, true).'</p>',
             'variables' => ['{{user_name}}', '{{app_name}}'],
         ];
     }

@@ -30,14 +30,25 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->user();
 
-        if ($user->community_id) {
-            $community = $user->community;
-            if ($community && $community->is_active) {
-                return redirect()->intended(route('community.home', ['community' => $community->slug]));
+        if ($user->is_admin) {
+            if ($user->organization_id) {
+                $organization = $user->organization;
+                if ($organization && $organization->is_active) {
+                    return redirect()->intended(route('loops.index', absolute: false));
+                }
+            }
+
+            return redirect()->intended(route('admin.dashboard', absolute: false));
+        }
+
+        if ($user->organization_id) {
+            $organization = $user->organization;
+            if ($organization && $organization->is_active) {
+                return redirect()->intended(route('loops.index', absolute: false));
             }
         }
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect('/');
     }
 
     /**

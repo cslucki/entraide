@@ -10,8 +10,14 @@
             <option value="published" {{ request('status') === 'published' ? 'selected' : '' }}>Publié</option>
             <option value="archived"  {{ request('status') === 'archived'  ? 'selected' : '' }}>Archivé</option>
         </select>
+        <select name="organization_id" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+            <option value="all" {{ $selectedOrganizationId === 'all' ? 'selected' : '' }}>Toutes les organisations</option>
+            @foreach($organizations as $org)
+            <option value="{{ $org->id }}" {{ $selectedOrganizationId === $org->id ? 'selected' : '' }}>{{ $org->name }} {{ $org->is_default ? '(par défaut)' : '' }}</option>
+            @endforeach
+        </select>
         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
-        @if(request()->hasAny(['search', 'status']))
+        @if(request()->hasAny(['search', 'status', 'organization_id']))
         <a href="{{ route('admin.blog') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
         @endif
     </form>
@@ -28,6 +34,7 @@
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Titre</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Auteur</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">Organisation</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Statut</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">Vues</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">♥ / 💬</th>
@@ -60,6 +67,9 @@
                         <span class="text-xs text-gray-400">Supprimé</span>
                         @endif
                     </td>
+                    <td class="px-4 py-3 hidden lg:table-cell">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ $post->organization?->name ?? '—' }}</span>
+                    </td>
                     <td class="px-4 py-3">
                         <form action="{{ route('admin.blog.status', $post) }}" method="POST" class="inline">
                             @csrf @method('PATCH')
@@ -77,7 +87,11 @@
                     <td class="px-4 py-3 text-gray-400 hidden lg:table-cell text-xs">
                         {{ $post->published_at?->format('d/m/Y') ?? $post->created_at->format('d/m/Y') }}
                     </td>
-                    <td class="px-4 py-3 text-right">
+                    <td class="px-4 py-3 text-right whitespace-nowrap">
+                        <a href="{{ route('admin.blog.edit', $post) }}"
+                           class="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline mr-2">Modifier</a>
+                        <a href="{{ route('blog.show', $post) }}" target="_blank"
+                           class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mr-2">Aperçu ⬀</a>
                         <form action="{{ route('admin.blog.destroy', $post) }}" method="POST" class="inline"
                               onsubmit="return confirm('Supprimer « {{ addslashes($post->title) }} » ?')">
                             @csrf @method('DELETE')
@@ -87,7 +101,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">Aucun article trouvé.</td>
+                    <td colspan="8" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">Aucun article trouvé.</td>
                 </tr>
                 @endforelse
             </tbody>

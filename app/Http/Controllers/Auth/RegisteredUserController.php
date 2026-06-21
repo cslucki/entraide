@@ -7,6 +7,7 @@ use App\Models\PointLedger;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
 use App\Services\ReferralService;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,14 +40,20 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $organization = currentOrganization();
+        $organization = currentOrganization() ?? DefaultOrganizationResolver::resolve();
+
+        if (! $organization) {
+            throw ValidationException::withMessages([
+                'email' => 'Aucune organisation active n\'est disponible pour l\'inscription.',
+            ]);
+        }
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'points_balance' => 100,
-            'community_id' => $organization?->id,
+            'organization_id' => $organization->id,
         ]);
 
         PointLedger::create([
@@ -66,19 +73,19 @@ class RegisteredUserController extends Controller
             try {
                 app(ReferralService::class)->attributeByCode(
                     $user, $ref,
-                    organizationId: $organization?->id,
+                    organizationId: $organization->id,
                 );
             } catch (\RuntimeException) {
             }
         }
 
-        if ($user->community_id) {
-            $community = $user->community;
-            if ($community && $community->is_active) {
-                return redirect()->intended(route('community.home', ['community' => $community->slug]));
+        if ($user->organization_id) {
+            $organization = $user->organization;
+            if ($organization && $organization->is_active) {
+                return redirect()->intended(route('loops.index', absolute: false));
             }
         }
 
-        return redirect(route('dashboard', absolute: false));
+        return redirect(route('loops.index', absolute: false));
     }
 }

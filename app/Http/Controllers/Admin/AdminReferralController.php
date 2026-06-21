@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Referral;
 use App\Models\ReferralReward;
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\User;
 use Illuminate\View\View;
 
@@ -13,21 +13,21 @@ class AdminReferralController extends Controller
 {
     public function index(): View
     {
-        $totalReferrals = Referral::withoutGlobalScope(BelongsToTenantScope::class)->count();
-        $pendingReferrals = Referral::withoutGlobalScope(BelongsToTenantScope::class)
+        $totalReferrals = Referral::withoutGlobalScope(BelongsToOrganizationScope::class)->count();
+        $pendingReferrals = Referral::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->where('status', 'pending')->count();
-        $activatedReferrals = Referral::withoutGlobalScope(BelongsToTenantScope::class)
+        $activatedReferrals = Referral::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->where('status', 'activated')->count();
-        $distributedReferralPoints = ReferralReward::withoutGlobalScope(BelongsToTenantScope::class)
+        $distributedReferralPoints = ReferralReward::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->sum('points');
 
-        $recentInvitations = Referral::withoutGlobalScope(BelongsToTenantScope::class)
+        $recentInvitations = Referral::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->with(['referrer', 'referred'])
             ->latest()
             ->limit(20)
             ->get();
 
-        $recentActivations = Referral::withoutGlobalScope(BelongsToTenantScope::class)
+        $recentActivations = Referral::withoutGlobalScope(BelongsToOrganizationScope::class)
             ->with(['referrer', 'referred'])
             ->whereNotNull('activated_at')
             ->latest('activated_at')
@@ -35,17 +35,17 @@ class AdminReferralController extends Controller
             ->get();
 
         $contributors = User::whereHas('sentReferrals', function ($q) {
-                $q->withoutGlobalScope(BelongsToTenantScope::class);
-            })
+            $q->withoutGlobalScope(BelongsToOrganizationScope::class);
+        })
             ->withCount(['sentReferrals as invitations_count' => function ($q) {
-                $q->withoutGlobalScope(BelongsToTenantScope::class);
+                $q->withoutGlobalScope(BelongsToOrganizationScope::class);
             }])
             ->withCount(['sentReferrals as activations_count' => function ($q) {
-                $q->withoutGlobalScope(BelongsToTenantScope::class)
+                $q->withoutGlobalScope(BelongsToOrganizationScope::class)
                     ->where('status', 'activated');
             }])
             ->orderByDesc(
-                Referral::withoutGlobalScope(BelongsToTenantScope::class)
+                Referral::withoutGlobalScope(BelongsToOrganizationScope::class)
                     ->select('created_at')
                     ->whereColumn('referrer_user_id', 'users.id')
                     ->latest()

@@ -1,6 +1,8 @@
 <x-app-layout>
-    <div class="max-w-5xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Mes favoris</h1>
+    <x-slot name="title">Mes services favoris</x-slot>
+
+    <x-page-container>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Mes services favoris</h1>
 
         @if($favorites->isEmpty())
         <div class="text-center py-16 text-gray-400">
@@ -19,7 +21,7 @@
                 <div class="p-5">
                     <div class="flex items-center justify-between mb-3">
                         <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
-                            {{ $service->category->name }}
+                            {{ $service->category->displayName('transactions') }}
                         </span>
                         <div class="flex items-center gap-2">
                             <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{{ $service->points_cost }} pts</span>
@@ -52,5 +54,5 @@
         </div>
         <div class="mt-6">{{ $favorites->links() }}</div>
         @endif
-    </div>
+    </x-page-container>
 </x-app-layout>

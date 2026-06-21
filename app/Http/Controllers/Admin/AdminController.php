@@ -4,24 +4,28 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
-use App\Models\Community;
 use App\Models\EmailLog;
+use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Report;
 use App\Models\RequestAttachment;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Skill;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AdminController extends Controller
@@ -29,13 +33,13 @@ class AdminController extends Controller
     public function dashboard(): View
     {
         $stats = [
-            'users'        => User::count(),
-            'banned'       => User::whereNotNull('banned_at')->count(),
-            'services'     => Service::where('status', 'active')->count(),
-            'transactions' => Transaction::count(),
-            'completed'    => Transaction::where('status', 'completed')->count(),
-            'points'       => User::sum('points_balance'),
-            'reports'      => Report::where('status', 'pending')->count(),
+            'users' => User::count(),
+            'banned' => User::whereNotNull('banned_at')->count(),
+            'services' => Service::withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->count(),
+            'transactions' => Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->count(),
+            'completed' => Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'completed')->count(),
+            'points' => User::sum('points_balance'),
+            'reports' => Report::where('status', 'pending')->count(),
         ];
 
         $recentUsers = User::latest()->limit(5)->get();
@@ -48,21 +52,21 @@ class AdminController extends Controller
 
     public function users(Request $request): View
     {
-        $query = User::with(['community'])->withCount(['services', 'buyerTransactions', 'sellerTransactions', 'reviewsReceived']);
+        $query = User::with(['organization'])->withCount(['services', 'buyerTransactions', 'sellerTransactions', 'reviewsReceived']);
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
                 $q->where('name', 'like', '%'.$request->search.'%')
-                  ->orWhere('email', 'like', '%'.$request->search.'%');
+                    ->orWhere('email', 'like', '%'.$request->search.'%');
             });
         }
 
         if ($request->filled('status')) {
             match ($request->status) {
-                'banned'    => $query->whereNotNull('banned_at'),
-                'admin'     => $query->where('is_admin', true),
+                'banned' => $query->whereNotNull('banned_at'),
+                'admin' => $query->where('is_admin', true),
                 'available' => $query->where('is_available', true)->whereNull('banned_at'),
-                default     => null,
+                default => null,
             };
         }
 
@@ -73,38 +77,41 @@ class AdminController extends Controller
 
     public function editUser(User $user): View
     {
-        $communities = Community::where('is_active', true)->orderBy('name')->get();
-        return view('admin.users.edit', compact('user', 'communities'));
+        $organizations = Organization::where('is_active', true)->orderBy('name')->get();
+
+        return view('admin.users.edit', compact('user', 'organizations'));
     }
 
     public function updateUser(Request $request, User $user): RedirectResponse
     {
         $data = $request->validate([
-            'name'         => 'required|string|max:255',
-            'email'        => 'required|email|max:255|unique:users,email,'.$user->id,
-            'bio'          => 'nullable|string|max:500',
-            'location'     => 'nullable|string|max:100',
-            'website'      => 'nullable|url|max:255',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
+            'bio' => 'nullable|string|max:500',
+            'location' => 'nullable|string|max:100',
+            'website' => 'nullable|url|max:255',
             'linkedin_url' => 'nullable|url|max:255',
-            'community_id' => 'nullable|uuid|exists:communities,id',
+            'organization_id' => 'nullable|uuid|exists:organizations,id',
             'is_available' => 'boolean',
-            'is_admin'     => 'boolean',
-            'banned'       => 'boolean',
+            'is_admin' => 'boolean',
+            'banned' => 'boolean',
         ]);
 
+        $organization = $this->resolveOrganizationFromInput($data['organization_id'] ?? null);
+
         $update = [
-            'name'         => $data['name'],
-            'email'        => $data['email'],
-            'bio'          => $data['bio'] ?? null,
-            'location'     => $data['location'] ?? null,
-            'website'      => $data['website'] ?? null,
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'bio' => $data['bio'] ?? null,
+            'location' => $data['location'] ?? null,
+            'website' => $data['website'] ?? null,
             'linkedin_url' => $data['linkedin_url'] ?? null,
-            'community_id' => $data['community_id'] ?? null,
+            'organization_id' => $organization->id,
             'is_available' => $request->boolean('is_available'),
         ];
 
         if ($user->id !== auth()->id()) {
-            $update['is_admin']  = $request->boolean('is_admin');
+            $update['is_admin'] = $request->boolean('is_admin');
             $update['banned_at'] = $request->boolean('banned') ? ($user->banned_at ?? now()) : null;
         }
 
@@ -119,18 +126,21 @@ class AdminController extends Controller
             return back()->with('error', 'Vous ne pouvez pas vous bannir vous-même.');
         }
         $user->update(['banned_at' => now()]);
+
         return back()->with('success', 'Utilisateur banni.');
     }
 
     public function unbanUser(User $user): RedirectResponse
     {
         $user->update(['banned_at' => null]);
+
         return back()->with('success', 'Utilisateur débanni.');
     }
 
     public function toggleUserAvailability(User $user): RedirectResponse
     {
-        $user->update(['is_available' => !$user->is_available]);
+        $user->update(['is_available' => ! $user->is_available]);
+
         return back()->with('success', 'Disponibilité modifiée.');
     }
 
@@ -139,27 +149,29 @@ class AdminController extends Controller
         if ($user->id === auth()->id()) {
             return back()->with('error', 'Vous ne pouvez pas modifier vos propres droits admin.');
         }
-        $user->update(['is_admin' => !$user->is_admin]);
+        $user->update(['is_admin' => ! $user->is_admin]);
+
         return back()->with('success', 'Droits admin modifiés.');
     }
 
     public function adjustPoints(Request $request, User $user): RedirectResponse
     {
         $data = $request->validate([
-            'delta'  => 'required|integer|not_in:0',
+            'delta' => 'required|integer|not_in:0',
             'reason' => 'nullable|string|max:255',
         ]);
 
         DB::transaction(function () use ($user, $data) {
             PointLedger::create([
                 'user_id' => $user->id,
-                'delta'   => $data['delta'],
-                'reason'  => 'adjustment',
+                'delta' => $data['delta'],
+                'reason' => 'adjustment',
             ]);
             $user->increment('points_balance', $data['delta']);
         });
 
         $sign = $data['delta'] > 0 ? '+' : '';
+
         return back()->with('success', "Solde ajusté de {$sign}{$data['delta']} pts pour {$user->name}.");
     }
 
@@ -171,26 +183,29 @@ class AdminController extends Controller
     public function storeUser(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|max:255|unique:users,email',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
             'is_admin' => 'boolean',
-            'points'   => 'required|integer|min:0',
+            'points' => 'required|integer|min:0',
         ]);
 
+        $organization = $this->resolveOrganizationFromInput();
+
         $user = User::create([
-            'name'           => $data['name'],
-            'email'          => $data['email'],
-            'password'       => Hash::make($data['password']),
-            'is_admin'       => $data['is_admin'] ?? false,
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+            'organization_id' => $organization->id,
+            'is_admin' => $data['is_admin'] ?? false,
             'points_balance' => $data['points'],
         ]);
 
         if ($data['points'] > 0) {
             PointLedger::create([
                 'user_id' => $user->id,
-                'delta'   => $data['points'],
-                'reason'  => 'welcome_bonus',
+                'delta' => $data['points'],
+                'reason' => 'welcome_bonus',
             ]);
         }
 
@@ -234,37 +249,120 @@ class AdminController extends Controller
         };
     }
 
-    public function assignCommunity(Request $request, User $user): RedirectResponse
+    public function assignOrganization(Request $request, User $user): RedirectResponse
     {
         if ($user->id === auth()->id()) {
             return back()->with('error', 'Vous ne pouvez pas vous affecter vous-même.');
         }
 
         $data = $request->validate([
-            'community_id' => ['nullable', 'uuid', 'exists:communities,id'],
+            'organization_id' => ['nullable', 'uuid', 'exists:organizations,id'],
         ]);
 
-        $community = $data['community_id']
-            ? Community::withTrashed()->find($data['community_id'])
-            : null;
+        $organization = $this->resolveOrganizationFromInput($data['organization_id'] ?? null);
 
         $user->update([
-            'community_id' => $data['community_id'],
-            'organization_id' => $data['community_id'],
+            'organization_id' => $organization->id,
         ]);
 
-        if ($community) {
-            return back()->with('success', "{$user->name} affecté à la communauté {$community->name}.");
+        return back()->with('success', "{$user->name} affecté à l'organisation {$organization->name}.");
+    }
+
+    public function loginAsUser(User $user): RedirectResponse
+    {
+        if ($user->banned_at) {
+            return back()->with('error', 'Impossible de se connecter sous un utilisateur banni.');
         }
 
-        return back()->with('success', "{$user->name} retiré de sa communauté (retour communauté globale).");
+        if ($user->is_admin) {
+            return back()->with('error', 'Impossible de se connecter sous un autre administrateur.');
+        }
+
+        session()->put('admin_original_id', auth()->id());
+
+        auth()->login($user);
+        session()->regenerate();
+
+        return redirect('/');
+    }
+
+    public function backToAdmin(): RedirectResponse
+    {
+        $originalAdminId = session()->pull('admin_original_id');
+
+        if (! $originalAdminId) {
+            return redirect('/')->with('error', 'Aucune session admin précédente trouvée.');
+        }
+
+        $admin = User::find($originalAdminId);
+
+        if (! $admin) {
+            return redirect('/')->with('error', 'Compte admin introuvable.');
+        }
+
+        auth()->login($admin);
+        session()->regenerate();
+
+        return redirect()->route('admin.users');
+    }
+
+    private function resolveOrganizationFromInput(?string $organizationId = null): Organization
+    {
+        if ($organizationId) {
+            $organization = Organization::withTrashed()->find($organizationId);
+
+            if ($organization) {
+                return $organization;
+            }
+        }
+
+        $organization = DefaultOrganizationResolver::resolve();
+
+        if ($organization) {
+            return $organization;
+        }
+
+        throw ValidationException::withMessages([
+            'organization_id' => 'Aucune organisation par défaut active n\'est disponible.',
+        ]);
+    }
+
+    private function adminOrganizations(): Collection
+    {
+        return Organization::orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'is_default']);
+    }
+
+    private function selectedAdminOrganizationId(Request $request): string
+    {
+        if ($request->input('organization_id') === 'all') {
+            return 'all';
+        }
+
+        if ($request->filled('organization_id')) {
+            return (string) $request->input('organization_id');
+        }
+
+        return (string) (DefaultOrganizationResolver::resolve()?->getKey() ?? 'all');
+    }
+
+    private function applyAdminOrganizationFilter($query, string $organizationId): void
+    {
+        if ($organizationId !== 'all') {
+            $query->where('organization_id', $organizationId);
+        }
     }
 
     // ── Services ─────────────────────────────────────────────────────────────
 
     public function services(Request $request): View
     {
-        $query = Service::withTrashed()->with(['user', 'category']);
+        $query = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->with(['user', 'category', 'organization']);
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
 
         if ($request->filled('search')) {
             $query->where('title', 'like', '%'.$request->search.'%');
@@ -272,52 +370,54 @@ class AdminController extends Controller
 
         if ($request->filled('status')) {
             match ($request->status) {
-                'active'   => $query->where('status', 'active')->whereNull('deleted_at'),
-                'paused'   => $query->where('status', 'paused')->whereNull('deleted_at'),
-                'deleted'  => $query->onlyTrashed(),
-                default    => null,
+                'active' => $query->where('status', 'active')->whereNull('deleted_at'),
+                'paused' => $query->where('status', 'paused')->whereNull('deleted_at'),
+                'deleted' => $query->onlyTrashed(),
+                default => null,
             };
         }
 
         $services = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.services', compact('services'));
+        return view('admin.services', compact('organizations', 'selectedOrganizationId', 'services'));
     }
 
-    public function editService(Service $service): View
+    public function editService(string $service): View
     {
+        $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($service);
         $this->authorizeServiceEdit($service);
 
         $service->load(['category', 'skills', 'tags']);
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::orderBy('name_b2c')->get();
         $skills = Skill::with('category')->orderBy('name')->get();
 
         return view('admin.services.edit', compact('service', 'categories', 'skills'));
     }
 
-    public function updateService(Request $request, Service $service): RedirectResponse
+    public function updateService(Request $request, string $service): RedirectResponse
     {
+        $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($service);
         $this->authorizeServiceEdit($service);
 
         $data = $request->validate([
-            'title'         => 'required|string|max:255',
-            'description'   => 'required|string',
-            'category_id'   => 'required|uuid|exists:categories,id',
+            'title' => 'required|string|max:255',
+            'description' => 'required|string',
+            'category_id' => 'required|uuid|exists:categories,id',
             'delivery_mode' => 'required|in:remote,onsite,both',
-            'points_cost'   => 'required|integer|min:1',
-            'status'        => 'required|in:active,paused',
-            'skills'        => 'nullable|array',
-            'skills.*'      => 'uuid|exists:skills,id',
-            'tags'          => 'nullable|string',
+            'points_cost' => 'required|integer|min:1',
+            'status' => 'required|in:active,paused',
+            'skills' => 'nullable|array',
+            'skills.*' => 'uuid|exists:skills,id',
+            'tags' => 'nullable|string',
         ]);
 
         $service->update([
-            'title'         => $data['title'],
-            'description'   => $data['description'],
-            'category_id'   => $data['category_id'],
+            'title' => $data['title'],
+            'description' => $data['description'],
+            'category_id' => $data['category_id'],
             'delivery_mode' => $data['delivery_mode'],
-            'points_cost'   => $data['points_cost'],
-            'status'        => $data['status'],
+            'points_cost' => $data['points_cost'],
+            'status' => $data['status'],
         ]);
 
         $service->skills()->sync($data['skills'] ?? []);
@@ -343,24 +443,26 @@ class AdminController extends Controller
             return; // super-admin : accès total
         }
         // admin d'une communauté : seulement les services de sa communauté
-        $community = Community::where('admin_id', $user->id)->first();
-        if (! $community || $service->community_id !== $community->id) {
+        $organization = Organization::where('admin_id', $user->id)->first();
+        if (! $organization || $service->organization_id !== $organization->id) {
             abort(403);
         }
     }
 
     public function forceDeleteService(string $id): RedirectResponse
     {
-        $service = Service::withTrashed()->findOrFail($id);
+        $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($id);
         $service->forceDelete();
+
         return back()->with('success', 'Service définitivement supprimé.');
     }
 
     public function restoreService(string $id): RedirectResponse
     {
-        $service = Service::withTrashed()->findOrFail($id);
+        $service = Service::withTrashed()->withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($id);
         $service->restore();
         $service->update(['status' => 'active']);
+
         return back()->with('success', 'Service restauré.');
     }
 
@@ -368,7 +470,11 @@ class AdminController extends Controller
 
     public function transactions(Request $request): View
     {
-        $query = Transaction::with(['buyer', 'seller', 'service', 'serviceRequest']);
+        $query = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['buyer', 'seller', 'service', 'serviceRequest', 'organization']);
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -376,21 +482,25 @@ class AdminController extends Controller
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->whereHas('buyer', fn($u) => $u->where('name', 'like', '%'.$request->search.'%'))
-                  ->orWhereHas('seller', fn($u) => $u->where('name', 'like', '%'.$request->search.'%'));
+                $q->whereHas('buyer', fn ($u) => $u->where('name', 'like', '%'.$request->search.'%'))
+                    ->orWhereHas('seller', fn ($u) => $u->where('name', 'like', '%'.$request->search.'%'));
             });
         }
 
         $transactions = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.transactions', compact('transactions'));
+        return view('admin.transactions', compact('organizations', 'selectedOrganizationId', 'transactions'));
     }
 
     // ── Requests ──────────────────────────────────────────────────────────────
 
     public function requests(Request $request): View
     {
-        $query = ServiceRequest::with(['user', 'category']);
+        $query = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->with(['user', 'category', 'organization']);
+        $organizations = $this->adminOrganizations();
+        $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
+
+        $this->applyAdminOrganizationFilter($query, $selectedOrganizationId);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -402,47 +512,49 @@ class AdminController extends Controller
 
         $requests = $query->latest()->paginate(25)->withQueryString();
 
-        return view('admin.requests', compact('requests'));
+        return view('admin.requests', compact('organizations', 'selectedOrganizationId', 'requests'));
     }
 
-    public function editRequest(ServiceRequest $serviceRequest): View
+    public function editRequest(string $serviceRequest): View
     {
+        $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($serviceRequest);
         $this->authorizeRequestEdit($serviceRequest);
 
         $serviceRequest->load('attachments');
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::orderBy('name_b2c')->get();
 
         return view('admin.requests.edit', compact('serviceRequest', 'categories'));
     }
 
-    public function updateRequest(Request $request, ServiceRequest $serviceRequest): RedirectResponse
+    public function updateRequest(Request $request, string $serviceRequest): RedirectResponse
     {
+        $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($serviceRequest);
         $this->authorizeRequestEdit($serviceRequest);
 
         $data = $request->validate([
-            'title'         => 'required|string|max:255',
-            'description'   => 'required|string',
-            'category_id'   => 'required|uuid|exists:categories,id',
+            'title' => 'required|string|max:255',
+            'description' => 'required|string',
+            'category_id' => 'required|uuid|exists:categories,id',
             'delivery_mode' => 'required|in:remote,onsite,both',
-            'budget_min'    => 'required|integer|min:1',
-            'budget_max'    => 'nullable|integer|gte:budget_min',
-            'deadline'      => 'nullable|date',
-            'status'        => 'required|in:open,in_progress,closed',
-            'attachments'   => 'nullable|array|max:5',
+            'budget_min' => 'required|integer|min:1',
+            'budget_max' => 'nullable|integer|gte:budget_min',
+            'deadline' => 'nullable|date',
+            'status' => 'required|in:open,in_progress,closed',
+            'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
-            'delete_attachments'   => 'nullable|array',
+            'delete_attachments' => 'nullable|array',
             'delete_attachments.*' => 'uuid|exists:request_attachments,id',
         ]);
 
         $serviceRequest->update([
-            'title'         => $data['title'],
-            'description'   => $data['description'],
-            'category_id'   => $data['category_id'],
+            'title' => $data['title'],
+            'description' => $data['description'],
+            'category_id' => $data['category_id'],
             'delivery_mode' => $data['delivery_mode'],
-            'budget_min'    => $data['budget_min'],
-            'budget_max'    => $data['budget_max'] ?? null,
-            'deadline'      => $data['deadline'] ?? null,
-            'status'        => $data['status'],
+            'budget_min' => $data['budget_min'],
+            'budget_max' => $data['budget_max'] ?? null,
+            'deadline' => $data['deadline'] ?? null,
+            'status' => $data['status'],
         ]);
 
         if (! empty($data['delete_attachments'])) {
@@ -460,10 +572,10 @@ class AdminController extends Controller
             foreach ($request->file('attachments') as $index => $file) {
                 $path = $file->store('request-attachments', 'public');
                 $serviceRequest->attachments()->create([
-                    'path'          => $path,
+                    'path' => $path,
                     'original_name' => $file->getClientOriginalName(),
-                    'mime_type'     => $file->getMimeType(),
-                    'order'         => $currentCount + $index,
+                    'mime_type' => $file->getMimeType(),
+                    'order' => $currentCount + $index,
                 ]);
             }
         }
@@ -477,15 +589,17 @@ class AdminController extends Controller
         if ($user->is_admin) {
             return;
         }
-        $community = Community::where('admin_id', $user->id)->first();
-        if (! $community || $serviceRequest->community_id !== $community->id) {
+        $organization = Organization::where('admin_id', $user->id)->first();
+        if (! $organization || $serviceRequest->organization_id !== $organization->id) {
             abort(403);
         }
     }
 
-    public function closeRequest(ServiceRequest $serviceRequest): RedirectResponse
+    public function closeRequest(string $serviceRequest): RedirectResponse
     {
+        $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($serviceRequest);
         $serviceRequest->update(['status' => 'closed']);
+
         return back()->with('success', 'Demande clôturée.');
     }
 
@@ -494,38 +608,42 @@ class AdminController extends Controller
     public function categories(): View
     {
         $categories = Category::withCount(['services', 'skills', 'serviceRequests'])->with('skills')->get();
+
         return view('admin.categories', compact('categories'));
     }
 
     public function storeCategory(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name'  => 'required|string|max:100',
+            'name' => 'required|string|max:100',
             'color' => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
         ]);
         $data['slug'] = Str::slug($data['name']);
         Category::create($data);
+
         return back()->with('success', 'Catégorie créée.');
     }
 
     public function updateCategory(Request $request, Category $category): RedirectResponse
     {
         $data = $request->validate([
-            'name'  => 'required|string|max:100',
+            'name' => 'required|string|max:100',
             'color' => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
         ]);
         $data['slug'] = Str::slug($data['name']);
         $category->update($data);
+
         return back()->with('success', 'Catégorie mise à jour.');
     }
 
     public function destroyCategory(Category $category): RedirectResponse
     {
-        if ($category->services()->count() > 0 || $category->serviceRequests()->count() > 0) {
+        if ($category->services()->withoutGlobalScope(BelongsToOrganizationScope::class)->count() > 0 || $category->serviceRequests()->withoutGlobalScope(BelongsToOrganizationScope::class)->count() > 0) {
             return back()->with('error', 'Impossible de supprimer une catégorie utilisée par des services ou demandes.');
         }
         $category->skills()->delete();
         $category->delete();
+
         return back()->with('success', 'Catégorie supprimée.');
     }
 
@@ -534,15 +652,17 @@ class AdminController extends Controller
         $data = $request->validate(['name' => 'required|string|max:100']);
         Skill::create([
             'category_id' => $category->id,
-            'name'        => $data['name'],
-            'slug'        => Str::slug($data['name']),
+            'name' => $data['name'],
+            'slug' => Str::slug($data['name']),
         ]);
+
         return back()->with('success', 'Compétence ajoutée.');
     }
 
     public function destroySkill(Skill $skill): RedirectResponse
     {
         $skill->delete();
+
         return back()->with('success', 'Compétence supprimée.');
     }
 
@@ -551,18 +671,21 @@ class AdminController extends Controller
     public function reports(): View
     {
         $reports = Report::with('reporter')->latest('created_at')->paginate(20);
+
         return view('admin.reports', compact('reports'));
     }
 
     public function dismissReport(Report $report): RedirectResponse
     {
         $report->update(['status' => 'dismissed']);
+
         return back()->with('success', 'Signalement classé.');
     }
 
     public function reviewReport(Report $report): RedirectResponse
     {
         $report->update(['status' => 'reviewed']);
+
         return back()->with('success', 'Signalement marqué comme traité.');
     }
 }

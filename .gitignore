@@ -39,6 +39,8 @@ HOWTO_PROMPT.md
 HOWTO_ADMIN.md
 PROJECT_DOCUMENTATION_DUMP.md
 
+# Scripts sync prod → local (versionnés mais pas sur GitHub)
+/synchro_pgsql-avant-migration
 
 # Screenshots
 /_screenshots
@@ -62,3 +64,12 @@ ai/playwright/test-results/
 ai/playwright/screenshots/
 playwright-report/
 test-results/
+.claude/projects/
+/codebase/
+
+# Design source files
+/design/
+/design/public/vendor/
+
+# Published vendor assets
+/public/vendor/

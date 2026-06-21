@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Jobs\GenerateServiceThumbnail;
 use App\Models\Category;
 use App\Models\Service;
+use App\Models\ServiceImage;
 use App\Models\Skill;
 use App\Models\Tag;
-use App\Models\ServiceImage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +19,11 @@ class ServiceController extends Controller
 {
     public function show(Service $service): View|RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization || $service->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         // Seul le propriétaire peut voir un service pausé
         if ($service->status !== 'active' && auth()->id() !== $service->user_id) {
             abort(404);
@@ -28,20 +33,20 @@ class ServiceController extends Controller
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($service->id);
         $isPaused = $service->status === 'paused';
 
-        $ogTitle       = $service->title;
+        $ogTitle = $service->title;
         $ogDescription = Str::limit(strip_tags($service->description), 160);
-        $ogImage       = $service->images->first()
+        $ogImage = $service->images->first()
             ? $service->images->first()->url
             : null;
         $jsonLd = json_encode([
-            '@context'    => 'https://schema.org',
-            '@type'       => 'Service',
-            'name'        => $service->title,
+            '@context' => 'https://schema.org',
+            '@type' => 'Service',
+            'name' => $service->title,
             'description' => Str::limit(strip_tags($service->description), 160),
-            'provider'    => [
+            'provider' => [
                 '@type' => 'Person',
-                'name'  => $service->user->name,
-                'url'   => route('profile.show', $service->user),
+                'name' => $service->user->name,
+                'url' => route('profile.show', $service->user),
             ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
@@ -52,11 +57,17 @@ class ServiceController extends Controller
     {
         $categories = Category::with('skills', 'pointGuidelines')->get();
         $skills = Skill::with('category')->get()->groupBy('category_id');
+
         return view('services.create', compact('categories', 'skills'));
     }
 
     public function store(Request $request): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $data = $request->validate([
             'title' => 'required|string|min:10|max:255',
             'description' => 'required|string|min:100',
@@ -72,7 +83,7 @@ class ServiceController extends Controller
 
         $service = Service::create([
             'user_id' => auth()->id(),
-            'community_id' => $request->input('community_id'),
+            'organization_id' => $organization->id,
             'title' => $data['title'],
             'description' => $data['description'],
             'category_id' => $data['category_id'],
@@ -81,16 +92,18 @@ class ServiceController extends Controller
             'status' => 'active',
         ]);
 
-        if (!empty($data['skills'])) {
+        if (! empty($data['skills'])) {
             $service->skills()->sync($data['skills']);
         }
 
-        if (!empty($data['tags'])) {
+        if (! empty($data['tags'])) {
             $tagNames = array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 5);
             $tagIds = [];
             foreach ($tagNames as $name) {
                 $slug = Str::slug($name);
-                if (!$slug) continue;
+                if (! $slug) {
+                    continue;
+                }
                 $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug]);
                 $tagIds[] = $tag->id;
             }
@@ -99,14 +112,14 @@ class ServiceController extends Controller
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $index => $file) {
-                $filename = time() . '_' . $index . '_' . $file->getClientOriginalName();
+                $filename = time().'_'.$index.'_'.$file->getClientOriginalName();
                 $img = Image::decode($file);
                 $img->scaleDown(1200, 800);
 
-                Storage::disk('public')->put('services/' . $filename, (string) $img->encode());
+                Storage::disk('public')->put('services/'.$filename, (string) $img->encode());
 
                 $serviceImage = $service->images()->create([
-                    'path' => 'services/' . $filename,
+                    'path' => 'services/'.$filename,
                     'order' => $index,
                 ]);
 
@@ -119,15 +132,26 @@ class ServiceController extends Controller
 
     public function edit(Service $service): View
     {
+        $organization = currentOrganization();
+        if (! $organization || $service->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('update', $service);
         $categories = Category::with('skills', 'pointGuidelines')->get();
         $skills = Skill::with('category')->get()->groupBy('category_id');
         $service->load(['skills', 'tags', 'category']);
+
         return view('services.edit', compact('service', 'categories', 'skills'));
     }
 
     public function update(Request $request, Service $service): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization || $service->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('update', $service);
 
         $data = $request->validate([
@@ -162,14 +186,16 @@ class ServiceController extends Controller
             $tagIds = [];
             foreach ($tagNames as $name) {
                 $slug = Str::slug($name);
-                if (!$slug) continue;
+                if (! $slug) {
+                    continue;
+                }
                 $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug]);
                 $tagIds[] = $tag->id;
             }
             $service->tags()->sync($tagIds);
         }
 
-        if (!empty($data['delete_images'])) {
+        if (! empty($data['delete_images'])) {
             $imagesToDelete = ServiceImage::whereIn('id', $data['delete_images'])->where('service_id', $service->id)->get();
             foreach ($imagesToDelete as $img) {
                 Storage::disk('public')->delete($img->path);
@@ -180,16 +206,18 @@ class ServiceController extends Controller
         if ($request->hasFile('images')) {
             $currentCount = $service->images()->count();
             foreach ($request->file('images') as $index => $file) {
-                if ($currentCount + $index >= 5) break;
+                if ($currentCount + $index >= 5) {
+                    break;
+                }
 
-                $filename = time() . '_' . $index . '_' . $file->getClientOriginalName();
+                $filename = time().'_'.$index.'_'.$file->getClientOriginalName();
                 $img = Image::decode($file);
                 $img->scaleDown(1200, 800);
 
-                Storage::disk('public')->put('services/' . $filename, (string) $img->encode());
+                Storage::disk('public')->put('services/'.$filename, (string) $img->encode());
 
                 $serviceImage = $service->images()->create([
-                    'path' => 'services/' . $filename,
+                    'path' => 'services/'.$filename,
                     'order' => $currentCount + $index,
                 ]);
 
@@ -202,6 +230,11 @@ class ServiceController extends Controller
 
     public function destroy(Service $service): RedirectResponse
     {
+        $organization = currentOrganization();
+        if (! $organization || $service->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         $this->authorize('delete', $service);
 
         if ($service->hasActiveTransaction()) {

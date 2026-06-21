@@ -1,6 +1,4 @@
-<x-app-layout>
-    <div class="max-w-3xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Proposer un {{ $T['service'] }}</h1>
+<x-page :heading="'Proposer un '.($T['service'] ?? 'service')" width="3xl">
 
         <!-- Note pédagogique -->
         <div class="mb-6 flex gap-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-4 text-sm text-indigo-700 dark:text-indigo-300">
@@ -36,10 +34,6 @@
                 init() { if(this.tags) this.tagList = this.tags.split(',').filter(t=>t); }
               }">
             @csrf
-            @php $tenant = $currentCommunity ?? $currentOrganization ?? null; @endphp
-            @isset($tenant)
-            <input type="hidden" name="community_id" value="{{ $tenant->id }}">
-            @endisset
 
             <!-- Titre -->
             <div class="mb-5">
@@ -67,7 +61,7 @@
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                     <option value="">Sélectionner...</option>
                     @foreach($categories as $cat)
-                    <option value="{{ $cat->id }}" {{ old('category_id') === $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                    <option value="{{ $cat->id }}" {{ old('category_id') === $cat->id ? 'selected' : '' }}>{{ $cat->name_b2c }}</option>
                     @endforeach
                 </select>
             </div>
@@ -186,5 +180,4 @@
                 <a href="{{ route('dashboard') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</a>
             </div>
         </form>
-    </div>
-</x-app-layout>
+</x-page>

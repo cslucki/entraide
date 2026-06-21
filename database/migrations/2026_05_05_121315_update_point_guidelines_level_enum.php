@@ -5,6 +5,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -41,10 +42,10 @@ return new class extends Migration
             }
             foreach ($levels as $guideline) {
                 DB::table('point_guidelines')->insert(array_merge($guideline, [
-                    'id'          => \Illuminate\Support\Str::uuid(),
+                    'id' => Str::uuid(),
                     'category_id' => $category->id,
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]));
             }
         }

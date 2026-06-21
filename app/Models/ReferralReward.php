@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,11 +15,10 @@ class ReferralReward extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new BelongsToTenantScope);
+        static::addGlobalScope(new BelongsToOrganizationScope);
     }
 
     protected $fillable = [
-        'community_id',
         'organization_id',
         'referral_id',
         'user_id',
@@ -52,11 +51,6 @@ class ReferralReward extends Model
     public function sourceUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'source_user_id');
-    }
-
-    public function community(): BelongsTo
-    {
-        return $this->belongsTo(Community::class);
     }
 
     public function organization(): BelongsTo

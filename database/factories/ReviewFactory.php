@@ -25,7 +25,7 @@ class ReviewFactory extends Factory
         ];
     }
 
-    public function forTransaction(\App\Models\Transaction $transaction): static
+    public function forTransaction(Transaction $transaction): static
     {
         return $this->state(['transaction_id' => $transaction->id]);
     }

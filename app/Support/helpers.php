@@ -1,6 +1,8 @@
 <?php
 
 use App\Support\Tenancy\CurrentOrganization;
+use League\CommonMark\CommonMarkConverter;
+use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
 
 if (! function_exists('currentOrganization')) {
     function currentOrganization()
@@ -11,27 +13,29 @@ if (! function_exists('currentOrganization')) {
 
 if (! function_exists('organizationRoute')) {
     /**
-     * Generate a URL for a community/organization route.
-     *
-     * Currently wraps route() with transparent 'organization' → 'community'
-     * parameter mapping. This enables future dual routing without changing
-     * call sites: when '/org/{organization}' routes are activated, swap
-     * the mapping here.
+     * Generate a URL for an organization route.
      *
      * Usage:
-     *   organizationRoute('community.home', ['community' => $slug])
-     *   organizationRoute('community.home', ['organization' => $slug])
+     *   organizationRoute('organization.home', ['organization' => $slug])
      *
-     * @param  string  $name  Route name (e.g. 'community.home')
+     * @param  string  $name  Route name (e.g. 'organization.home')
      * @param  array  $parameters  Route parameters
      */
     function organizationRoute(string $name, array $parameters = []): string
     {
-        if (isset($parameters['organization']) && ! isset($parameters['community'])) {
-            $parameters['community'] = $parameters['organization'];
-            unset($parameters['organization']);
-        }
-
         return route($name, $parameters);
+    }
+}
+
+if (! function_exists('markdown')) {
+    function markdown(string $text): string
+    {
+        $converter = new CommonMarkConverter([
+            'html_input' => 'escape',
+            'allow_unsafe_links' => false,
+        ]);
+        $converter->getEnvironment()->addExtension(new GithubFlavoredMarkdownExtension);
+
+        return (string) $converter->convert($text);
     }
 }

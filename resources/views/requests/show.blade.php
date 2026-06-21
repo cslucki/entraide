@@ -1,5 +1,4 @@
-<x-app-layout>
-    <div class="max-w-4xl mx-auto px-4 py-8">
+<x-page :title="$request->title" width="7xl">
         <div class="mb-6">
             <a href="{{ route('explorer') }}" class="text-sm text-gray-500 hover:text-indigo-600">← Retour à l'explorateur</a>
         </div>
@@ -9,7 +8,7 @@
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex-1">
                         <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $request->category->color }}">
-                            {{ $request->category->name }}
+                            {{ $request->category->displayName('transactions') }}
                         </span>
                         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ $request->title }}</h1>
                     </div>
@@ -110,4 +109,4 @@
             </div>
         </div>
     </div>
-</x-app-layout>
+</x-page>

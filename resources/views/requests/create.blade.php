@@ -1,6 +1,4 @@
-<x-app-layout>
-    <div class="max-w-3xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Faire une {{ $T['request'] }}</h1>
+<x-page :heading="'Faire une '.($T['request'] ?? 'demande')" width="3xl">
 
         <!-- Note pédagogique -->
         <div class="mb-6 flex gap-3 bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-sm text-green-700 dark:text-green-300">
@@ -22,10 +20,6 @@
         <form method="POST" action="{{ route('requests.store') }}" enctype="multipart/form-data"
               x-data="{ selectedCategory: '{{ old('category_id', '') }}', files: [] }">
             @csrf
-            @php $tenant = $currentCommunity ?? $currentOrganization ?? null; @endphp
-            @isset($tenant)
-            <input type="hidden" name="community_id" value="{{ $tenant->id }}">
-            @endisset
 
             <div class="mb-5">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre *</label>
@@ -45,7 +39,7 @@
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                     <option value="">Sélectionner...</option>
                     @foreach($categories as $cat)
-                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                    <option value="{{ $cat->id }}">{{ $cat->name_b2c }}</option>
                     @endforeach
                 </select>
             </div>
@@ -171,5 +165,4 @@
                 <a href="{{ route('dashboard') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</a>
             </div>
         </form>
-    </div>
-</x-app-layout>
+</x-page>

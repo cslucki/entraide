@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\Scopes\BelongsToTenantScope;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,11 +16,10 @@ class Transaction extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new BelongsToTenantScope);
+        static::addGlobalScope(new BelongsToOrganizationScope);
     }
 
     protected $fillable = [
-        'community_id',
         'organization_id',
         'service_id',
         'request_id',
@@ -43,11 +42,6 @@ class Transaction extends Model
             'points_proposed' => 'integer',
             'points_agreed' => 'integer',
         ];
-    }
-
-    public function community(): BelongsTo
-    {
-        return $this->belongsTo(Community::class);
     }
 
     public function organization(): BelongsTo
@@ -100,8 +94,19 @@ class Transaction extends Model
         return $user->id === $this->buyer_id ? $this->seller : $this->buyer;
     }
 
+    public function isDirectConversation(): bool
+    {
+        return $this->service_id === null
+            && $this->request_id === null
+            && (int) $this->points_proposed === 0;
+    }
+
     public function getSubjectAttribute(): string
     {
+        if ($this->isDirectConversation()) {
+            return 'Conversation directe';
+        }
+
         if ($this->service) {
             return $this->service->title;
         }

@@ -27,7 +27,7 @@
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Utilisateur</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Communauté</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Organisation</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Points</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Services</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Échanges</th>
@@ -53,10 +53,10 @@
                         </div>
                     </td>
                     <td class="px-4 py-3">
-                        @if($u->community)
+                        @if($u->organization)
                         <span class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
                             <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                            {{ $u->community->name }}
+                            {{ $u->organization->name }}
                         </span>
                         @else
                         <span class="text-xs text-gray-400">Globale</span>
@@ -99,6 +99,14 @@
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex gap-2 items-center flex-wrap">
+                            @if($u->id !== auth()->id() && !$u->banned_at)
+                            <form method="POST" action="{{ route('admin.users.login-as', $u) }}">
+                                @csrf
+                                <button class="text-xs font-medium text-amber-600 hover:underline">
+                                    Se connecter sous
+                                </button>
+                            </form>
+                            @endif
                             <a href="{{ route('admin.users.edit', $u) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
                             <a href="{{ route('profile.show', $u) }}" class="text-xs text-gray-500 hover:underline">Profil</a>
 
@@ -131,24 +139,24 @@
                             @endif
                             @endif
 
-                            <!-- Affecter à une communauté -->
+                            <!-- Affecter à une organisation -->
                             @if($u->id !== auth()->id())
                             <div x-data="{ commOpen: false }" class="relative">
                                 <button @click="commOpen = !commOpen"
-                                        class="text-xs text-gray-400 hover:text-indigo-500">Communauté</button>
+                                        class="text-xs text-gray-400 hover:text-indigo-500">Organisation</button>
                                 <div x-show="commOpen" x-cloak @click.outside="commOpen = false"
                                      class="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-10 p-3">
                                     <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                        Affecter à une communauté
+                                        Affecter à une organisation
                                     </p>
-                                    <form method="POST" action="{{ route('admin.users.assign-community', $u) }}">
+                                    <form method="POST" action="{{ route('admin.users.assign-organization', $u) }}">
                                         @csrf @method('PATCH')
-                                        <select name="community_id"
+                                        <select name="organization_id"
                                                 class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-2">
-                                            <option value="">— Communauté globale —</option>
-                                            @foreach(\App\Models\Community::where('is_active', true)->get() as $community)
-                                            <option value="{{ $community->id }}" {{ $u->community_id === $community->id ? 'selected' : '' }}>
-                                                {{ $community->name }}
+                                            <option value="">— Organisation par defaut de la plateforme —</option>
+                                            @foreach(\App\Models\Organization::where('is_active', true)->get() as $organization)
+                                            <option value="{{ $organization->id }}" {{ $u->organization_id === $organization->id ? 'selected' : '' }}>
+                                                {{ $organization->name }}
                                             </option>
                                             @endforeach
                                         </select>
