@@ -53,6 +53,10 @@ _temp/
 .obsidian/
 ai/scripts/*.txt
 storage/app/dumps/
+_backup_snapshots/
+*.tar.gz
+*.dump
+*.backup
 public/build/
 public/build/
 public/build/
