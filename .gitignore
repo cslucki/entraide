@@ -16,7 +16,6 @@ migration/
 TODO/
 ai-local/
 ai/
-tests/
 opencode.json
 .mcp.json
 test.txt
@@ -36,6 +35,7 @@ rector.php
 
 # GitHub workflows (disabled during public lockdown)
 .github/workflows/
+!.github/workflows/ci-postgresql.yml
 
 .phpactor.json
 .phpunit.result.cache
