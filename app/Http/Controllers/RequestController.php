@@ -29,7 +29,8 @@ class RequestController extends Controller
 
     public function create(): View
     {
-        $categories = Category::with('pointGuidelines')->get();
+        $organization = currentOrganization();
+        $categories = Category::where('organization_id', $organization?->id)->with('pointGuidelines')->get();
 
         return view('requests.create', compact('categories'));
     }
