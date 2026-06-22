@@ -126,8 +126,8 @@ class Explorer extends Component
     public function render()
     {
         // Server-authoritative tenant ID — ignores any client-side tampering of $this->orgId
-        $organization = currentOrganization();
-        $orgId = $organization?->id;
+        $orgId = $this->orgId;
+        $organization = $orgId ? \App\Models\Organization::find($orgId) : null;
         $categoryNameColumn = $organization?->transactions_naming === 'b2b' ? 'name_b2b' : 'name_b2c';
 
         $categories = Category::with('skills')
