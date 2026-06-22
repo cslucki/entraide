@@ -2,7 +2,7 @@
 task_id: TASK-335
 title: Restaurer GitHub Actions CI minimale depuis backup
 
-status: IN_PROGRESS
+status: DONE
 
 owner: OPENCODE
 
@@ -13,19 +13,20 @@ branch: TASK-335-restaurer-github-actions-ci-minimale-depuis-backup
 priority: MEDIUM
 
 created_at: 2026-06-22 21:45:01 Europe/Paris
-updated_at: 2026-06-22 22:30:00 Europe/Paris
+updated_at: 2026-06-22 22:45:00 Europe/Paris
 
 labels: []
 
 lock:
-  status: LOCKED
+  status: UNLOCKED
   agent: OPENCODE
-  since: 2026-06-22 22:30:00 Europe/Paris
+  since: 2026-06-22 21:45:01 Europe/Paris
+  unlocked_at: 2026-06-22 22:45:00 Europe/Paris
 
 handoff: false
 
 pr:
-  status: NOT_READY
+  status: READY
   url: null
 ---
 
@@ -171,6 +172,43 @@ See "CI Failure Triage" section above.
 Les 14 exclusions précédemment ajoutées à `phpunit.pgsql.xml` ont été supprimées.
 Le fichier est revenu à son état original du backup T157.
 
+## 2026-06-22 22:45:00 Europe/Paris
+
+### CI Run 27980966581 — OVERALL PASSED
+
+```
+✓ Quality Gate (blocking) in 54s — ALL GREEN
+  ✓ composer validate
+  ✓ npm ci + npm run build
+  ✓ artisan config:clear + view:clear
+  ✓ migrations
+  ✓ Unit tests (phpunit.ci-minimal.xml)
+
+X Legacy Feature Tests (non-blocking) — failed as expected
+  continue-on-error: true → does NOT block workflow
+  Same 37 pre-existing failures documented above
+```
+
+### Commits on branch T335
+
+1. `8441939` — ci: restore GitHub Actions CI workflow and phpunit config from backup T157
+2. `b7a1c09` — chore: include test suite in repository
+3. `bb0ff85` — ci: add Node.js setup and npm build before tests
+4. `4c06bd7` — ci: restore minimal blocking quality gate
+
+### Files changed (final)
+
+- `.github/workflows/ci-postgresql.yml` — 2-job workflow (quality-gate + legacy-feature-tests)
+- `phpunit.pgsql.xml` — full suite, no exclusions
+- `phpunit.ci-minimal.xml` — Unit tests only, blocking
+- `.gitignore` — `tests/` included
+- 165 test files restored from backup T157
+- `TODO/TASK-335-*.md` — task file
+
+### Recommendation
+
+GO for merge. CI quality-gate is green. Legacy failures are documented and isolated in non-blocking job.
+
 ---
 
 # Handoffs
@@ -229,10 +267,11 @@ GO for merge once CI quality-gate is green. Legacy failures are documented and i
 
 # Closeout
 
-- Pending: CI quality-gate green
+- Finalized: 2026-06-22 22:45:00 Europe/Paris
 - Branch: TASK-335-restaurer-github-actions-ci-minimale-depuis-backup
-- Files: CI workflow, 2 phpunit configs, 165 test files
-- Status: IN_PROGRESS (awaiting CI green)
+- Files: CI workflow, 2 phpunit configs, 165 test files, .gitignore
+- Status: DONE
+- CI Run: 27980966581 — OVERALL PASSED
 
 ---
 
