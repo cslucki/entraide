@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'organization' => 'Organization',
+    'title' => 'Feed',
+    'subtitle' => 'Useful announcements, decisions and key information to keep in mind.',
+    'dashboard' => 'My dashboard',
+    'my_posts' => 'My announcements',
+    'new_post' => 'New announcement',
+    'pinned' => 'Pinned',
+    'empty' => 'No announcements yet.',
+    'create_first' => 'Create the first announcement',
+    'load_more' => 'Show more',
+    'post_badge' => 'Announcement',
+    'pinned_badge' => 'Pinned',
+    'loop_count' => ':count loop|:count loops',
+    'member_fallback' => 'Member',
+    'shared_link' => 'Shared link',
+    'comment_cta' => 'Comment',
+    'view_comments' => 'View :count comments',
+    'comment_placeholder' => 'Add a useful comment',
+    'comment_submit' => 'Comment',
+    'react' => 'React :type',
+    'comments_title' => 'Comments (:count)',
+];

@@ -1,8 +1,8 @@
 <x-app-layout>
-    <x-slot name="title">Modifier mon profil</x-slot>
+    <x-slot name="title">{{ __('profile.edit_title') }}</x-slot>
 
     <x-page-container>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Modifier mon profil</h1>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">{{ __('profile.edit_title') }}</h1>
 
         @include('partials.profile-reminder')
 

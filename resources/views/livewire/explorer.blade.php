@@ -7,11 +7,11 @@
         <div class="flex">
             <button wire:click="switchTab('requests')"
                 class="px-6 py-3 text-sm font-medium transition {{ $tab === 'requests' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
-                {{ $T['Requests'] }}
+                {{ __('explorer.requests') }}
             </button>
             <button wire:click="switchTab('services')"
                 class="px-6 py-3 text-sm font-medium transition {{ $tab === 'services' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400' }}">
-                {{ $T['Services'] }}
+                {{ __('explorer.services') }}
             </button>
         </div>
         @auth
@@ -19,12 +19,12 @@
             @if($tab === 'services')
             <a href="{{ route('services.create') }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
                 <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                <span class="hidden sm:inline">Proposer un {{ $T['service'] }}</span>
+                <span class="hidden sm:inline">{{ __('explorer.offer_service', ['service' => __('explorer.service')]) }}</span>
             </a>
             @else
             <a href="{{ route('requests.create') }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
                 <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                <span class="hidden sm:inline">Faire une {{ $T['request'] }}</span>
+                <span class="hidden sm:inline">{{ __('explorer.create_request', ['request' => __('explorer.request')]) }}</span>
             </a>
             @endif
         </div>
@@ -36,7 +36,7 @@
         <!-- Recherche + Tri -->
         <div class="flex gap-3 overflow-x-auto md:overflow-visible pb-2 md:pb-0 -mx-2 md:mx-0 px-2 md:px-0 no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
             <div class="relative shrink-0 w-48 sm:flex-1 sm:min-w-[200px]">
-                <input wire:model.live.debounce.300ms="search" type="text" placeholder="Rechercher..."
+                <input wire:model.live.debounce.300ms="search" type="text" placeholder="{{ __('explorer.search_placeholder') }}"
                     class="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
                 <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -44,21 +44,21 @@
             </div>
             <select wire:model.live="sortBy"
                 class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm">
-                <option value="latest">Plus récents</option>
-                <option value="points_asc">Points ↑</option>
-                <option value="points_desc">Points ↓</option>
-                <option value="rating">Meilleure note</option>
+                <option value="latest">{{ __('explorer.sort_latest') }}</option>
+                <option value="points_asc">{{ __('explorer.sort_points_asc') }}</option>
+                <option value="points_desc">{{ __('explorer.sort_points_desc') }}</option>
+                <option value="rating">{{ __('explorer.sort_rating') }}</option>
             </select>
             <select wire:model.live="deliveryMode"
                 class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm">
-                <option value="">Tous modes</option>
-                <option value="remote">À distance</option>
-                <option value="onsite">Sur site</option>
+                <option value="">{{ __('explorer.delivery_all') }}</option>
+                <option value="remote">{{ __('explorer.delivery_remote') }}</option>
+                <option value="onsite">{{ __('explorer.delivery_onsite') }}</option>
             </select>
             @if($tab === 'services')
             <select wire:model.live="minRating"
                 class="shrink-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm">
-                <option value="0">Toutes notes</option>
+                <option value="0">{{ __('explorer.ratings_all') }}</option>
                 <option value="1">★ ≥ 1</option>
                 <option value="2">★★ ≥ 2</option>
                 <option value="3">★★★ ≥ 3</option>
@@ -69,20 +69,58 @@
         </div>
 
         <!-- Catégories -->
-        <div class="flex overflow-x-auto snap-x gap-2 pb-2 -mx-2 px-2 no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
-            @foreach($categories as $cat)
-            <button wire:click="toggleCategory('{{ $cat->id }}')"
-                class="shrink-0 px-4 py-2 h-10 rounded-full text-sm font-medium border transition whitespace-nowrap {{ in_array($cat->id, $selectedCategories) ? 'text-white border-transparent shadow-sm' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400 active:scale-95' }}"
-                style="{{ in_array($cat->id, $selectedCategories) ? 'background-color:'.$cat->color.';border-color:'.$cat->color : '' }}">
-                {{ $cat->displayName('transactions') }}
+        <div class="flex items-center gap-2"
+            x-data="{
+                canScrollLeft: false,
+                canScrollRight: false,
+                updateCategoryScroll() {
+                    const el = this.$refs.categoryScroller;
+                    this.canScrollLeft = el.scrollLeft > 1;
+                    this.canScrollRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+                },
+                scrollCategories(direction) {
+                    const el = this.$refs.categoryScroller;
+                    el.scrollBy({ left: direction * Math.round(el.clientWidth * 0.75), behavior: 'smooth' });
+                    window.setTimeout(() => this.updateCategoryScroll(), 250);
+                },
+            }"
+            x-init="$nextTick(() => updateCategoryScroll()); window.addEventListener('resize', () => updateCategoryScroll())"
+            wire:key="category-scroller-{{ $tab }}-{{ count($selectedCategories) }}-{{ count($selectedSkills) }}-{{ $search }}-{{ $deliveryMode }}-{{ $minRating }}">
+            <button type="button"
+                :class="canScrollLeft ? 'hidden md:inline-flex' : 'hidden'"
+                class="h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
+                aria-label="{{ __('ui.scroll_left') }}"
+                @click="scrollCategories(-1)">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
             </button>
-            @endforeach
-            @if(!empty($selectedCategories) || $tagFilter || $deliveryMode || $search || $minRating || !empty($selectedSkills))
-            <button wire:click="$set('selectedCategories', []); $set('tagFilter', ''); $set('deliveryMode', ''); $set('search', ''); $set('minRating', 0); $set('selectedSkills', [])"
-                class="shrink-0 px-4 py-2 h-10 rounded-full text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 whitespace-nowrap active:scale-95">
-                Réinitialiser
+
+            <div x-ref="categoryScroller" @scroll="updateCategoryScroll()" class="flex min-w-0 flex-1 overflow-x-auto snap-x gap-2 pb-2 -mx-2 px-2 no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
+                @foreach($categories as $cat)
+                <button wire:click="toggleCategory('{{ $cat->id }}')"
+                    class="shrink-0 px-4 py-2 h-10 rounded-full text-sm font-medium border transition whitespace-nowrap {{ in_array($cat->id, $selectedCategories) ? 'text-white border-transparent shadow-sm' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400 active:scale-95' }}"
+                    style="{{ in_array($cat->id, $selectedCategories) ? 'background-color:'.$cat->color.';border-color:'.$cat->color : '' }}">
+                    {{ $cat->displayName('transactions') }}
+                </button>
+                @endforeach
+                @if(!empty($selectedCategories) || $tagFilter || $deliveryMode || $search || $minRating || !empty($selectedSkills))
+                <button wire:click="$set('selectedCategories', []); $set('tagFilter', ''); $set('deliveryMode', ''); $set('search', ''); $set('minRating', 0); $set('selectedSkills', [])"
+                    class="shrink-0 px-4 py-2 h-10 rounded-full text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 whitespace-nowrap active:scale-95">
+                    {{ __('explorer.reset_filters') }}
+                </button>
+                @endif
+            </div>
+
+            <button type="button"
+                :class="canScrollRight ? 'hidden md:inline-flex' : 'hidden'"
+                class="h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
+                aria-label="{{ __('ui.scroll_right') }}"
+                @click="scrollCategories(1)">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
             </button>
-            @endif
         </div>
 
         <!-- Compétences (sous-filtre quand une catégorie est sélectionnée) -->
@@ -90,7 +128,7 @@
         @php $visibleSkills = $categories->whereIn('id', $selectedCategories)->flatMap(fn($c) => $c->skills); @endphp
         @if($visibleSkills->isNotEmpty())
         <div class="flex overflow-x-auto snap-x gap-2 pb-2 pl-2 ml-2 border-l-2 border-indigo-200 dark:border-indigo-700 -mx-2 px-2 no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
-            <span class="self-center text-xs text-gray-400 dark:text-gray-500 mr-1 shrink-0">Compétences :</span>
+            <span class="self-center text-xs text-gray-400 dark:text-gray-500 mr-1 shrink-0">{{ __('explorer.skills_label') }}</span>
             @foreach($visibleSkills as $skill)
             <button wire:click="toggleSkill('{{ $skill->id }}')"
                 class="shrink-0 px-3 py-1.5 h-9 rounded-full text-xs font-medium border transition whitespace-nowrap {{ in_array($skill->id, $selectedSkills) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm active:scale-95' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-indigo-400 active:scale-95' }}">
@@ -104,7 +142,7 @@
         <!-- Tag actif -->
         @if($tagFilter)
         <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-500 dark:text-gray-400">Tag :</span>
+            <span class="text-sm text-gray-500 dark:text-gray-400">{{ __('explorer.tag_label') }}</span>
             <span class="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded text-sm">
                 #{{ $tagFilter }}
                 <button wire:click="$set('tagFilter', '')" class="ml-1 text-indigo-400 hover:text-indigo-700">×</button>
@@ -119,7 +157,7 @@
     <div wire:loading.class="opacity-50 transition-opacity">
         @if($tab === 'services')
             @if($items->isEmpty())
-                <p class="text-center text-gray-500 dark:text-gray-400 py-16">Aucun service trouvé.</p>
+                <p class="text-center text-gray-500 dark:text-gray-400 py-16">{{ __('explorer.no_services') }}</p>
             @else
                 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     @foreach($items as $service)
@@ -164,7 +202,7 @@
                             <form method="POST" action="{{ route('favorites.toggle', $service) }}">
                                 @csrf
                                 @php $faved = isset($favoritedIds[$service->id]); @endphp
-                                <button type="submit" title="{{ $faved ? 'Retirer des favoris' : 'Ajouter aux favoris' }}"
+                                <button type="submit" title="{{ $faved ? __('explorer.remove_favorite') : __('explorer.add_favorite') }}"
                                     class="{{ $faved ? 'text-red-500' : 'text-gray-300 hover:text-red-400' }} transition">
                                     <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                                 </button>
@@ -180,15 +218,15 @@
                 @if($hasMore)
                 <div class="mt-6 sm:mt-8 text-center">
                     <button wire:click="loadMore" class="w-full sm:w-auto px-6 py-3 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition active:scale-[0.98]">
-                        <span wire:loading.remove wire:target="loadMore">Charger plus</span>
-                        <span wire:loading wire:target="loadMore">Chargement...</span>
+                        <span wire:loading.remove wire:target="loadMore">{{ __('explorer.load_more') }}</span>
+                        <span wire:loading wire:target="loadMore">{{ __('ui.loading') }}</span>
                     </button>
                 </div>
                 @endif
             @endif
         @else
             @if($items->isEmpty())
-                <p class="text-center text-gray-500 dark:text-gray-400 py-16">Aucune {{ $T['request'] }} trouvée.</p>
+                <p class="text-center text-gray-500 dark:text-gray-400 py-16">{{ __('explorer.no_requests') }}</p>
             @else
                 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     @foreach($items as $request)
@@ -223,7 +261,7 @@
                                 <input type="hidden" name="request_id" value="{{ $request->id }}">
                                 <input type="hidden" name="points_proposed" value="{{ $request->budget_min }}">
                                 <button type="submit" class="w-full py-2.5 sm:py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 active:scale-[0.98]">
-                                    Proposer mon aide
+                                    {{ __('explorer.offer_help') }}
                                 </button>
                             </form>
                             @endif
@@ -236,8 +274,8 @@
                 @if($hasMore)
                 <div class="mt-6 sm:mt-8 text-center">
                     <button wire:click="loadMore" class="w-full sm:w-auto px-6 py-3 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition active:scale-[0.98]">
-                        <span wire:loading.remove wire:target="loadMore">Charger plus</span>
-                        <span wire:loading wire:target="loadMore">Chargement...</span>
+                        <span wire:loading.remove wire:target="loadMore">{{ __('explorer.load_more') }}</span>
+                        <span wire:loading wire:target="loadMore">{{ __('ui.loading') }}</span>
                     </button>
                 </div>
                 @endif

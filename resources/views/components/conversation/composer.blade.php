@@ -1,6 +1,6 @@
 @props([
     'model' => 'message',
-    'placeholder' => 'Écrivez un message...',
+    'placeholder' => null,
     'disabled' => false,
     'loading' => false,
     'error' => null,
@@ -11,11 +11,15 @@
     'photo' => null,
 ])
 
+@php
+    $placeholder ??= __('messages.write_message');
+@endphp
+
 <div class="border-t border-gray-200 dark:border-gray-700 px-5 py-4">
     @if($replyingTo)
     <div class="flex items-center justify-between mb-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-xs">
         <span class="text-gray-600 dark:text-gray-300 truncate">
-            <span class="font-medium text-indigo-600 dark:text-indigo-400">Réponse à</span>
+            <span class="font-medium text-indigo-600 dark:text-indigo-400">{{ __('messages.reply_to') }}</span>
             <span class="text-gray-500 dark:text-gray-400">{{ $replyingTo['sender_name'] ?? '' }} :</span>
             <span class="text-gray-400 dark:text-gray-500 truncate ml-1">{{ $replyingTo['body'] }}</span>
         </span>
@@ -34,7 +38,7 @@
 
     @if($showUpload && $photo)
     <div class="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
-        <img src="{{ $photo->temporaryUrl() }}" class="w-10 h-10 rounded object-cover flex-shrink-0" alt="Aperçu">
+        <img src="{{ $photo->temporaryUrl() }}" class="w-10 h-10 rounded object-cover flex-shrink-0" alt="{{ __('messages.image_preview') }}">
         <span class="text-xs text-gray-500 dark:text-gray-400 truncate flex-1">{{ $photo->getClientOriginalName() }}</span>
         <button
             wire:click="removePhoto"

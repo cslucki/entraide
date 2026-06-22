@@ -22,6 +22,12 @@ class SetLocale
 
     protected function resolveLocale(Request $request): string
     {
+        $sessionLocale = $request->session()->get('locale');
+
+        if ($sessionLocale && in_array($sessionLocale, $this->supportedLocales, true)) {
+            return $sessionLocale;
+        }
+
         $orgLocale = $this->resolveOrganizationLocale();
 
         if ($orgLocale !== null) {

@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="title">Profil de {{ $user->name }}</x-slot>
+    <x-slot name="title">{{ __('profile.back_to_directory') }} — {{ $user->name }}</x-slot>
 
     @php
         $organizationRouteParam = request()->route('organization');
@@ -13,21 +13,21 @@
 
     <!-- Desktop topbar -->
     <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
-        <a href="{{ route('members.index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour à l'annuaire">
+        <a href="{{ route('members.index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('profile.back_to_directory') }}">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </a>
         <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $user->name }}</span>
     </div>
 
     <x-page-container>
-        <!-- ========== PROFILE HEADER ========== -->
+        <!-- Profile Header -->
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-7 mb-5 relative">
             @if(auth()->check() && auth()->id() === $user->id)
             <div class="absolute top-4 right-4 z-10">
                 <a href="{{ route('profile.edit') }}"
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                    Modifier mon profil
+                    {{ __('profile.edit_profile') }}
                 </a>
             </div>
             @endif
@@ -39,7 +39,7 @@
                     @if(auth()->check() && auth()->id() === $user->id)
                     <a href="{{ route('profile.edit') }}"
                        class="absolute bottom-0 right-0 w-6 h-6 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center shadow-md transition"
-                       title="Modifier mon profil">
+                       title="{{ __('profile.edit_profile') }}">
                         <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                     </a>
                     @endif
@@ -51,7 +51,7 @@
                         <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{{ $user->name }}</h1>
                         @if($user->is_available)
                         <span class="inline-flex items-center self-center gap-1.5 px-2.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium w-fit">
-                            <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>Disponible
+                            <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>{{ __('profile.available') }}
                         </span>
                         @endif
                     </div>
@@ -65,7 +65,7 @@
                         @endif
                         <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-medium">
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            {{ $completedCount }} échange{{ $completedCount !== 1 ? 's' : '' }}
+                            {{ $completedCount }} {{ __('profile.exchanges') }}
                         </span>
                         <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg text-xs font-medium">
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -110,7 +110,7 @@
                     </div>
                     @endif
 
-                    <!-- Contact info (email/phone) -->
+                    <!-- Contact info -->
                     @if(($user->show_email && $user->email) || ($user->show_phone && $user->phone))
                     <div class="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1 mt-3 text-xs text-gray-400 dark:text-gray-500">
                         @if($user->show_email && $user->email)
@@ -125,32 +125,32 @@
             </div>
         </div>
 
-        <!-- ========== MAIN GRID (desktop) ========== -->
+        <!-- Main Grid -->
         <div class="md:grid md:grid-cols-3 md:gap-6">
 
-            <!-- LEFT COLUMN (2/3) -- main content -->
+            <!-- Left column -->
             <div class="md:col-span-2 space-y-5">
 
-                <!-- À propos -->
+                <!-- About -->
                 @if($user->bio)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
-                    <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">À propos</h2>
+                    <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">{{ __('profile.about') }}</h2>
                     <div class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">
                         {{ $user->bio }}
                     </div>
                 </div>
                 @endif
 
-                <!-- Ce que ce membre peut vous apporter -->
+                <!-- What this member can offer -->
                 @if($services->isNotEmpty() || $displaySkills->isNotEmpty() || $memberAiProfile)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
-                    <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Ce que ce membre peut vous apporter</h2>
+                    <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">{{ __('profile.can_offer') }}</h2>
                     <div class="grid gap-3 sm:grid-cols-2">
                         @if($displaySkills->isNotEmpty())
                         <div class="flex flex-col gap-2">
                             <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                                Compétences
+                                {{ __('profile.skills') }}
                             </span>
                             <div class="flex flex-wrap gap-1.5">
                                 @foreach($displaySkills as $skill)
@@ -164,7 +164,7 @@
                         <div class="flex flex-col gap-2">
                             <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                Services proposés
+                                {{ __('profile.services_offered') }}
                             </span>
                             <div class="flex flex-wrap gap-1.5">
                                 @foreach($serviceCategories as $catName)
@@ -178,16 +178,16 @@
                         <div class="flex flex-col gap-2 sm:col-span-2">
                             <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                Agent IA disponible
+                                {{ __('profile.ai_agent_available') }}
                             </span>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Ce membre a activé son agent IA. Vous pouvez lui poser des questions sur son parcours, ses compétences et ses disponibilités.</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('profile.ai_agent_enabled') }}</p>
                         </div>
                         @endif
                     </div>
                 </div>
                 @endif
 
-                <!-- Agent de profil IA activé (owner only) -->
+                <!-- AI profile owner -->
                 @if($memberAiProfile && auth()->check() && auth()->id() === $user->id)
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
                     <div class="flex items-center justify-between gap-4">
@@ -198,18 +198,18 @@
                                 </svg>
                             </div>
                             <div>
-                                <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent IA activé</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Les visiteurs peuvent interagir avec votre profil via l'agent IA.</p>
+                                <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('profile.ai_agent_available') }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('profile.ai_agent_enabled') }}</p>
                             </div>
                         </div>
                         <a href="{{ route('agent-ia.interactions') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                            Voir les échanges
+                            {{ __('profile.view_exchanges') }}
                         </a>
                     </div>
                 </div>
                 @endif
 
-                <!-- Mobile CTAs (visible < md) -->
+                <!-- Mobile CTAs -->
                 <div class="space-y-3 md:hidden">
                     @if($memberAiProfile && (auth()->guest() || auth()->id() !== $user->id))
                     <a href="{{ $agentAiChatUrl }}"
@@ -218,8 +218,8 @@
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                         </span>
                         <span class="min-w-0 flex-1">
-                            <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">Agent de profil IA</span>
-                            <span class="mt-0.5 block text-xs leading-relaxed text-gray-600 dark:text-gray-400">Posez une question sur ce que ce membre peut vous apporter.</span>
+                            <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('profile.agent_cta_title') }}</span>
+                            <span class="mt-0.5 block text-xs leading-relaxed text-gray-600 dark:text-gray-400">{{ __('profile.agent_cta_hint') }}</span>
                         </span>
                         <svg class="w-4 h-4 flex-shrink-0 self-center text-indigo-500 transition group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     </a>
@@ -232,8 +232,8 @@
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                         </span>
                         <span class="min-w-0 flex-1">
-                            <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">Écrire à {{ $user->name }}</span>
-                            <span class="mt-0.5 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">Démarrer une conversation humaine directe.</span>
+                            <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('profile.write_to', ['name' => $user->name]) }}</span>
+                            <span class="mt-0.5 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ __('profile.start_conversation') }}</span>
                         </span>
                         <svg class="w-4 h-4 flex-shrink-0 self-center text-gray-400 transition group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     </a>
@@ -243,13 +243,13 @@
                 <!-- Services -->
                 <section>
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Services proposés</h2>
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.services_offered') }}</h2>
                         @if($services->isNotEmpty())
-                        <span class="text-xs text-gray-400">{{ $services->count() }} service{{ $services->count() !== 1 ? 's' : '' }}</span>
+                        <span class="text-xs text-gray-400">{{ __('profile.services_count', ['count' => $services->count()]) }}</span>
                         @endif
                     </div>
                     @if($services->isEmpty())
-                    <p class="text-gray-400 text-sm italic">Aucun service actif pour le moment.</p>
+                    <p class="text-gray-400 text-sm italic">{{ __('profile.no_services') }}</p>
                     @else
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($services as $service)
@@ -277,12 +277,12 @@
                     @endif
                 </section>
 
-                <!-- Demandes ouvertes -->
+                <!-- Open requests -->
                 @if($openRequests->isNotEmpty())
                 <section>
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Recherche d'aide</h2>
-                        <span class="text-xs text-gray-400">{{ $openRequests->count() }} demande{{ $openRequests->count() !== 1 ? 's' : '' }}</span>
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.help_section') }}</h2>
+                        <span class="text-xs text-gray-400">{{ __('profile.requests_count', ['count' => $openRequests->count()]) }}</span>
                     </div>
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($openRequests as $req)
@@ -297,7 +297,7 @@
                             </div>
                             <p class="font-medium text-gray-900 dark:text-gray-100 text-sm mb-1 group-hover:text-green-600 dark:group-hover:text-green-400 transition">{{ $req->title }}</p>
                             @if($req->deadline)
-                            <p class="text-xs text-gray-400 flex items-center gap-1">⏰ Avant le {{ $req->deadline->format('d/m/Y') }}</p>
+                            <p class="text-xs text-gray-400 flex items-center gap-1">⏰ {{ __('profile.before_deadline', ['date' => $req->deadline->format('d/m/Y')]) }}</p>
                             @endif
                         </a>
                         @endforeach
@@ -308,13 +308,13 @@
                 <!-- Blog posts -->
                 <section>
                     <div class="flex items-center justify-between mb-3">
-                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Articles publiés</h2>
+                        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.blog_section') }}</h2>
                         @if($blogPosts->isNotEmpty())
-                        <span class="text-xs text-gray-400">{{ $blogPosts->count() }} article{{ $blogPosts->count() !== 1 ? 's' : '' }}</span>
+                        <span class="text-xs text-gray-400">{{ __('profile.blog_count', ['count' => $blogPosts->count()]) }}</span>
                         @endif
                     </div>
                     @if($blogPosts->isEmpty())
-                    <p class="text-gray-400 text-sm italic">Cet utilisateur n'a pas encore publié d'article.</p>
+                    <p class="text-gray-400 text-sm italic">{{ __('profile.no_posts') }}</p>
                     @else
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($blogPosts as $post)
@@ -341,7 +341,7 @@
                 @if($reviews->isNotEmpty())
                 <section>
                     <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-                        Évaluations reçues
+                        {{ __('profile.reviews_section') }}
                         <span class="text-gray-400 font-normal normal-case">({{ $reviews->count() }})</span>
                     </h2>
                     <div class="space-y-3">
@@ -370,10 +370,10 @@
 
             </div>
 
-            <!-- RIGHT COLUMN (1/3) -- Actions + sidebar (desktop only) -->
+            <!-- Right column (desktop) -->
             <aside class="hidden md:block md:col-span-1 space-y-4">
 
-                <!-- Agent de profil IA (primary CTA) -->
+                <!-- AI agent CTA -->
                 @if($memberAiProfile && (auth()->guest() || auth()->id() !== $user->id))
                 <a href="{{ $agentAiChatUrl }}"
                    class="group flex flex-col gap-3 rounded-xl border-2 border-indigo-300 dark:border-indigo-700 bg-white dark:bg-gray-800 p-5 transition hover:border-indigo-400 hover:shadow-lg">
@@ -381,17 +381,17 @@
                         <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md ring-1 ring-indigo-500/30 transition group-hover:scale-110 group-hover:bg-indigo-700">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                         </span>
-                        <span class="font-semibold text-gray-900 dark:text-gray-100 text-base">Agent de profil IA</span>
+                        <span class="font-semibold text-gray-900 dark:text-gray-100 text-base">{{ __('profile.agent_cta_title') }}</span>
                     </div>
-                    <p class="text-sm leading-relaxed text-gray-600 dark:text-gray-400">Posez une question sur ce que ce membre peut vous apporter.</p>
+                    <p class="text-sm leading-relaxed text-gray-600 dark:text-gray-400">{{ __('profile.agent_cta_hint') }}</p>
                     <span class="inline-flex items-center self-start gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 group-hover:underline">
-                        Démarrer
+                        {{ __('profile.start') }}
                         <svg class="w-3.5 h-3.5 transition group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     </span>
                 </a>
                 @endif
 
-                <!-- Écrire à (secondary CTA) -->
+                <!-- Write to CTA -->
                 @if(auth()->guest() || auth()->id() !== $user->id)
                 <a href="{{ auth()->check() ? route('messages.with', $user) : route('login') }}"
                    class="group flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 transition hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md">
@@ -399,9 +399,9 @@
                         <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 transition group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                         </span>
-                        <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">Écrire à {{ $user->name }}</span>
+                        <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('profile.write_to', ['name' => $user->name]) }}</span>
                     </div>
-                    <p class="text-xs leading-relaxed text-gray-500 dark:text-gray-400">Démarrer une conversation humaine directe.</p>
+                    <p class="text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ __('profile.start_conversation') }}</p>
                 </a>
                 @endif
 
@@ -411,23 +411,23 @@
                 <div x-data="{ open: false }" class="pt-2">
                     <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition flex items-center gap-1">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
-                        Signaler
+                        {{ __('profile.report') }}
                     </button>
                     <div x-show="open" x-cloak class="mt-2 rounded-xl border border-red-200 bg-red-50 p-4 text-left shadow-lg dark:border-red-800 dark:bg-red-900/20">
                         <form method="POST" action="{{ route('reports.user', $user) }}">
                             @csrf
-                            <p class="mb-2 text-xs font-semibold text-red-700 dark:text-red-300">Signaler cet utilisateur</p>
+                            <p class="mb-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ __('profile.report_user') }}</p>
                             <select name="reason" required class="mb-2 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-red-700 dark:bg-gray-800 dark:text-gray-100">
-                                <option value="">Motif...</option>
-                                <option value="Comportement abusif">Comportement abusif</option>
-                                <option value="Arnaque ou fraude">Arnaque ou fraude</option>
-                                <option value="Faux profil">Faux profil</option>
-                                <option value="Autre">Autre</option>
+                                <option value="">{{ __('profile.reason') }}...</option>
+                                <option value="Comportement abusif">{{ __('profile.abuse') }}</option>
+                                <option value="Arnaque ou fraude">{{ __('profile.scam') }}</option>
+                                <option value="Faux profil">{{ __('profile.fake') }}</option>
+                                <option value="Autre">{{ __('profile.other') }}</option>
                             </select>
-                            <textarea name="details" rows="2" placeholder="Détails (optionnel)..." class="mb-2 w-full resize-none rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-red-700 dark:bg-gray-800 dark:text-gray-100"></textarea>
+                            <textarea name="details" rows="2" placeholder="{{ __('profile.details') }}..." class="mb-2 w-full resize-none rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-red-700 dark:bg-gray-800 dark:text-gray-100"></textarea>
                             <div class="flex gap-2">
-                                <button type="submit" class="flex-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs text-white hover:bg-red-700">Envoyer</button>
-                                <button type="button" @click="open = false" class="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">Annuler</button>
+                                <button type="submit" class="flex-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs text-white hover:bg-red-700">{{ __('profile.send') }}</button>
+                                <button type="button" @click="open = false" class="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">{{ __('profile.cancel') }}</button>
                             </div>
                         </form>
                     </div>

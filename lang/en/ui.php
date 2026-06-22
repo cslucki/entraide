@@ -10,6 +10,8 @@ return [
     'confirm' => 'Confirm',
     'search' => 'Search',
     'filter' => 'Filter',
+    'scroll_left' => 'Scroll left',
+    'scroll_right' => 'Scroll right',
     'close' => 'Close',
     'loading' => 'Loading...',
     'error_occurred' => 'An error occurred.',

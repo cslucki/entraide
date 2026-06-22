@@ -9,6 +9,7 @@
 
         return route($rootRoute);
     };
+    $bugReportUrl = $routeUrl('bug-reports.index', 'organization.bug-reports.index');
 
     $levelOneTitles = [
         'home' => __('navigation.home'),
@@ -92,7 +93,7 @@
     }
 @endphp
 
-<header class="md:hidden fixed top-0 inset-x-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 pt-[env(safe-area-inset-top)]">
+<header x-data class="md:hidden fixed top-0 inset-x-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 pt-[env(safe-area-inset-top)]">
     <div class="flex items-center justify-between h-14 px-4 gap-3">
         <div class="flex min-w-0 items-center gap-3">
             @if(request()->routeIs('login', 'organization.login'))
@@ -113,16 +114,10 @@
         </div>
         <div class="flex items-center gap-2.5">
             @auth
-            <a href="{{ route('messages.index') }}" class="relative w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center" aria-label="{{ __('navigation.messages') }}">
-                <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                </svg>
-                @php $unread = auth()->user()->unreadMessagesCount(); @endphp
-                @if($unread > 0)
-                <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{{ min($unread, 9) }}</span>
-                @endif
-            </a>
+            <button type="button" @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
+                <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            </button>
 
             <x-dropdown align="right" width="w-72" contentClasses="py-2 bg-white dark:bg-gray-800">
                 <x-slot name="trigger">
@@ -144,16 +139,15 @@
                     <x-dropdown-link :href="route('profile.show', auth()->user())">{{ __('navigation.profile') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                    <x-dropdown-link :href="route('services.create')">{{ __('navigation.offer_service', ['service' => $T['service'] ?? __('navigation.services')]) }}</x-dropdown-link>
-                    <x-dropdown-link :href="route('requests.create')">{{ __('navigation.make_request', ['request' => $T['request'] ?? __('navigation.services')]) }}</x-dropdown-link>
-                    <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
-                    <x-dropdown-link :href="route('points.index') . '#invitations'">{{ __('navigation.invitations') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('mentions-legales')">{{ __('navigation.legal_notices') }}</x-dropdown-link>
+                    <a href="{{ $bugReportUrl }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-amber-700 transition duration-150 ease-in-out hover:bg-amber-50 focus:bg-amber-50 focus:outline-none dark:text-amber-300 dark:hover:bg-amber-950/40 dark:focus:bg-amber-950/40">
+                        {{ __('navigation.report_bug') }}
+                    </a>
                     @if(auth()->user()->is_admin)
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('navigation.administration') }}</span></x-dropdown-link>

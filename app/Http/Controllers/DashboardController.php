@@ -104,62 +104,28 @@ class DashboardController extends Controller
             return route($name, $parameters);
         };
 
-        $onboardingSteps = [
-            [
-                'key' => 'presentation',
-                'title' => 'Créer ma présentation',
-                'description' => 'Présentez vos besoins, vos compétences et votre contexte.',
-                'status' => $hasPresentation ? 'done' : 'todo',
-                'status_label' => $hasPresentation ? 'Terminé' : 'À faire',
-                'cta_label' => $hasPresentation ? 'Voir mon profil' : 'Compléter mon profil',
-                'cta_url' => $hasPresentation ? $onboardingRoute('profile.show', ['user' => $user]) : $onboardingRoute('profile.edit'),
-            ],
-            [
-                'key' => 'request',
-                'title' => 'Demander de l’aide',
-                'description' => 'Publiez une demande claire pour recevoir un coup de main.',
-                'status' => $hasServiceRequest ? 'done' : 'todo',
-                'status_label' => $hasServiceRequest ? 'Terminé' : 'À faire',
-                'cta_label' => $hasServiceRequest ? 'Voir mes demandes' : 'Créer une demande',
-                'cta_url' => $onboardingRoute('requests.create'),
-            ],
-            [
-                'key' => 'service',
-                'title' => 'Proposer mon aide',
-                'description' => 'Indiquez ce que vous pouvez offrir à la communauté.',
-                'status' => $hasService ? 'done' : 'todo',
-                'status_label' => $hasService ? 'Terminé' : 'À faire',
-                'cta_label' => $hasService ? 'Voir mes propositions' : 'Créer une proposition',
-                'cta_url' => $onboardingRoute('services.create'),
-            ],
-            [
-                'key' => 'ai-profile',
-                'title' => 'Créer mon agent IA',
-                'description' => 'Aidez l’IA à mieux orienter les échanges vers votre profil.',
-                'status' => $hasPublishedAiProfile ? 'done' : 'todo',
-                'status_label' => $hasPublishedAiProfile ? 'Terminé' : 'À faire',
-                'cta_label' => $hasPublishedAiProfile ? 'Voir mon agent' : 'Configurer mon agent',
-                'cta_url' => $onboardingRoute('agent-ia.wizard'),
-            ],
-            [
-                'key' => 'leads',
-                'title' => 'Découvrir Mes pistes',
-                'description' => 'Explorez les profils et gardez les services utiles en favoris.',
-                'status' => $hasFavorite ? 'done' : 'todo',
-                'status_label' => $hasFavorite ? 'Terminé' : 'À faire',
-                'cta_label' => $hasFavorite ? 'Voir mes favoris' : 'Explorer les pistes',
-                'cta_url' => $hasFavorite ? $onboardingRoute('favorites.index') : $onboardingRoute('explorer'),
-            ],
-            [
-                'key' => 'invite',
-                'title' => 'Inviter une personne',
-                'description' => 'Faites entrer une personne de confiance dans la boucle.',
-                'status' => $hasSentReferral ? 'done' : 'todo',
-                'status_label' => $hasSentReferral ? 'Terminé' : 'À faire',
-                'cta_label' => $hasSentReferral ? 'Voir mes invitations' : 'Inviter quelqu’un',
-                'cta_url' => url()->current().'#invitations',
-            ],
+        $stepsKeys = ['presentation', 'request', 'service', 'ai_profile', 'leads', 'invite'];
+        $stepsDone = [$hasPresentation, $hasServiceRequest, $hasService, $hasPublishedAiProfile, $hasFavorite, $hasSentReferral];
+        $stepsCtaUrls = [
+            $hasPresentation ? $onboardingRoute('profile.show', ['user' => $user]) : $onboardingRoute('profile.edit'),
+            $onboardingRoute('requests.create'),
+            $onboardingRoute('services.create'),
+            $onboardingRoute('agent-ia.wizard'),
+            $hasFavorite ? $onboardingRoute('favorites.index') : $onboardingRoute('explorer'),
+            url()->current().'#invitations',
         ];
+
+        $onboardingSteps = array_map(function ($key, $done, $ctaUrl) {
+            return [
+                'key' => $key,
+                'title' => __("dashboard.steps.{$key}.title"),
+                'description' => __("dashboard.steps.{$key}.description"),
+                'status' => $done ? 'done' : 'todo',
+                'status_label' => $done ? __('dashboard.done') : __('dashboard.todo'),
+                'cta_label' => $done ? __("dashboard.steps.{$key}.cta_done") : __("dashboard.steps.{$key}.cta_todo"),
+                'cta_url' => $ctaUrl,
+            ];
+        }, $stepsKeys, $stepsDone, $stepsCtaUrls);
 
         return view('dashboard', compact(
             'user', 'earned', 'spent', 'completedCount',

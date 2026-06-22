@@ -1,23 +1,23 @@
-<x-app-layout title="Mentions légales">
+<x-app-layout title="{{ __('legal.title') }}">
     <x-page-container>
         <div class="mx-auto max-w-4xl rounded-[2rem] border border-[var(--bp-border)] bg-[var(--bp-surface)]/90 p-6 shadow-sm backdrop-blur md:p-10">
             <div class="mb-8">
                 <p class="mb-3 inline-flex rounded-full bg-[color-mix(in_srgb,var(--bp-primary)_12%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--bp-primary)]">
-                    Informations légales
+                    {{ __('legal.badge') }}
                 </p>
-                <h1 class="text-3xl font-semibold tracking-tight md:text-5xl">Mentions légales</h1>
+                <h1 class="text-3xl font-semibold tracking-tight md:text-5xl">{{ __('legal.title') }}</h1>
                 <p class="mt-4 max-w-2xl text-base leading-7 text-[var(--bp-muted)]">
-                    Informations relatives à l'édition et à l'hébergement de la plateforme BouclePro.
+                    {{ __('legal.intro') }}
                 </p>
             </div>
 
             <div class="space-y-6 text-[var(--bp-muted)] text-sm leading-relaxed">
                 <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">Éditeur du site</h2>
-                    <p>Le site <strong>amteletravail.fr</strong> est édité par :</p>
+                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.editor_title') }}</h2>
+                    {!! __('legal.editor_text') !!}
                     <address class="not-italic mt-2 space-y-1">
                         <p class="font-medium text-[var(--bp-heading)]">
-                            ASSOCIATION EURO-MÉDITERRANÉENNE DU TÉLÉTRAVAIL
+                            ASSOCIATION EUROPÉENNE DU TÉLÉTRAVAIL
                             <span class="font-normal text-[var(--bp-muted)]">(Sigle : AMT)</span>
                         </p>
                         <p>RNA : W133002043</p>
@@ -29,12 +29,12 @@
                 </section>
 
                 <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">Directeur de la publication</h2>
+                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.director_title') }}</h2>
                     <p>Cyril SLUCKI</p>
                 </section>
 
                 <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">Hébergeur</h2>
+                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.host_title') }}</h2>
                     <p>
                         <a href="https://cloud.laravel.com" target="_blank" rel="noopener noreferrer"
                            class="text-indigo-600 dark:text-indigo-400 hover:underline">
@@ -44,11 +44,9 @@
                 </section>
 
                 <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">Projet open source</h2>
+                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.opensource_title') }}</h2>
                     <p>
-                        BouclePro est un projet open source porté par l'association AMT.
-                        Le code source est disponible sur GitHub. Toute contribution est bienvenue —
-                        développement, suggestions, ou signalement de bugs.
+                        {{ __('legal.opensource_text') }}
                     </p>
                     <a href="https://github.com/cslucki/entraide"
                        target="_blank" rel="noopener noreferrer"

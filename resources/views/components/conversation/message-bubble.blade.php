@@ -82,7 +82,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
             x-on:click="$dispatch('open-image', { url: '{{ $imagePath }}' })"
             class="block mb-1.5 w-full max-w-[200px] rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-            <img src="{{ $imagePath }}" alt="Image" class="w-full h-auto object-cover rounded-lg hover:opacity-90 transition">
+            <img src="{{ $imagePath }}" alt="{{ __('messages.image_alt') }}" class="w-full h-auto object-cover rounded-lg hover:opacity-90 transition">
         </button>
         @endif
 
@@ -102,7 +102,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
                 x-on:click="$dispatch('reply-to-message', { messageId: '{{ $messageId }}' })"
                 class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' }} transition"
             >
-                Répondre
+                {{ __('messages.reply') }}
             </button>
             @endif
             @if($messageId && $showPinButton)
@@ -110,7 +110,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
                 <button
                     wire:click="unpinMessage"
                     class="text-[11px] {{ $isSent ? 'text-amber-200 hover:text-white' : 'text-amber-500 hover:text-amber-700 dark:hover:text-amber-300' }} transition"
-                    title="Désépingler"
+                    title="{{ __('messages.unpin') }}"
                 >
                     <svg class="w-3.5 h-3.5 inline-block fill-current" viewBox="0 0 24 24">
                         <path d="M16 12V4l4-2v2l-4 2v6l-2 2H8l-2-2V8l-4 2v2l4 4v4h6v-4l4-4z"/>
@@ -120,7 +120,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
                 <button
                     wire:click="pinMessage('{{ $messageId }}')"
                     class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' }} transition"
-                    title="Épingler"
+                    title="{{ __('messages.pin') }}"
                 >
                     <svg class="w-3.5 h-3.5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16 4v12l4 2V4l-4 2zM8 4v12l-4 2V4l4 2z"/>
@@ -162,7 +162,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
             x-on:focus="hover = true"
             x-on:blur="if (!open) hover = false"
             class="inline-flex absolute h-6 w-6 items-center justify-center rounded-full bg-white text-gray-400 shadow-sm ring-1 ring-gray-200 transition hover:text-indigo-600 hover:ring-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-indigo-300"
-            aria-label="Réagir au message"
+            aria-label="{{ __('messages.react_to_message') }}"
         >
             <span class="text-lg leading-none">☺</span>
         </button>
@@ -182,7 +182,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
                     x-on:click="open = false"
                     class="inline-flex h-7 w-7 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
                     title="{{ $type }}"
-                    aria-label="Réagir avec {{ $type }}"
+                    aria-label="{{ __('messages.react_with', ['type' => $type]) }}"
                 >
                     {{ $emoji }}
                 </button>
@@ -193,7 +193,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
                 type="button"
                 x-on:click.stop="showMore = !showMore"
                 class="inline-flex h-7 w-7 items-center justify-center rounded-full text-base text-gray-900 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:text-white dark:hover:bg-gray-700"
-                aria-label="Afficher plus de réactions"
+                aria-label="{{ __('messages.more_reactions') }}"
             >
                 ›
             </button>
@@ -208,7 +208,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
                     x-on:click="open = false; showMore = false"
                     class="inline-flex h-7 w-7 items-center justify-center rounded-full text-sm transition hover:scale-110 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:hover:bg-gray-700 {{ $myReaction === $type ? 'bg-indigo-100 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:ring-indigo-600' : '' }}"
                     title="{{ $type }}"
-                    aria-label="Réagir avec {{ $type }}"
+                    aria-label="{{ __('messages.react_with', ['type' => $type]) }}"
                 >
                     {{ $emoji }}
                 </button>

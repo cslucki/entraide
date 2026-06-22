@@ -126,10 +126,13 @@ class Explorer extends Component
     public function render()
     {
         // Server-authoritative tenant ID — ignores any client-side tampering of $this->orgId
-        $orgId = currentOrganization()?->id;
+        $organization = currentOrganization();
+        $orgId = $organization?->id;
+        $categoryNameColumn = $organization?->transactions_naming === 'b2b' ? 'name_b2b' : 'name_b2c';
 
         $categories = Category::with('skills')
             ->where('organization_id', $orgId)
+            ->orderBy($categoryNameColumn)
             ->get();
 
         if ($this->tab === 'services') {

@@ -2,8 +2,8 @@
     <x-page-container>
 
         <div class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Annuaire des membres</h1>
-            <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">{{ $members->total() }} membre{{ $members->total() > 1 ? 's' : '' }} inscrit{{ $members->total() > 1 ? 's' : '' }}</p>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ __('directory.title') }}</h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">{{ trans_choice('directory.member_count', $members->total(), ['count' => $members->total()]) }}</p>
         </div>
 
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -52,12 +52,12 @@
 
                 <!-- Compteurs + catégories -->
                 <div class="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3 text-xs text-gray-400">
-                    <span title="{{ $T['Services'] }} actifs">
+                    <span title="{{ __('directory.active_services', ['label' => $T['Services']]) }}">
                         <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $member->active_services_count }}</span> {{ $T['services'] }}
                     </span>
                     <span class="text-gray-300 dark:text-gray-600">·</span>
-                    <span title="Demandes ouvertes">
-                        <span class="font-semibold text-green-600 dark:text-green-400">{{ $member->open_requests_count }}</span> demande{{ $member->open_requests_count > 1 ? 's' : '' }}
+                    <span title="{{ __('directory.open_requests') }}">
+                        <span class="font-semibold text-green-600 dark:text-green-400">{{ $member->open_requests_count }}</span> {{ trans_choice('directory.request_count', $member->open_requests_count, ['count' => $member->open_requests_count]) }}
                     </span>
                 </div>
 
