@@ -15,6 +15,7 @@ use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Models\TranslationOverride;
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
@@ -232,6 +233,10 @@ class AppServiceProvider extends ServiceProvider
             return Loop::where('slug', $value)
                 ->where('organization_id', $org->id)
                 ->firstOrFail();
+        });
+
+        Route::bind('user', function (string $value): User {
+            return User::where('id', $value)->firstOrFail();
         });
 
         View::share('T', config('terms'));

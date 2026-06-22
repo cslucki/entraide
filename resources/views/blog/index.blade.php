@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="title">{{ __('blog.title') }} — BouclePro</x-slot>
+    <x-slot name="title">{{ __('blog.title') }} — {{ $brandOrganizationName ?? 'BouclePro' }}</x-slot>
 
     <x-page-container>
 

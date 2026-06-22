@@ -15,6 +15,10 @@
                             ? route('organization.loops.index', ['organization' => $organizationRouteParam])
                             : route('loops.index');
                         $loopsIsActive = request()->routeIs('loops*', 'organization.loops*');
+                        $blogIndexHref = $organizationRouteParam && request()->routeIs('organization.*')
+                            ? route('organization.blog.index', ['organization' => $organizationRouteParam])
+                            : route('blog.index');
+                        $blogIsActive = request()->routeIs('blog*', 'organization.blog*');
                     @endphp
                     <a href="{{ $desktopBrandHref }}" class="hidden sm:flex items-center gap-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800" aria-label="Accueil {{ $desktopBrandName }}">
                         <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-10 w-10 shrink-0" aria-hidden="true">
@@ -26,7 +30,7 @@
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">{{ __('navigation.exchanges') }}</x-nav-link>
                     <x-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">{{ __('navigation.directory') }}</x-nav-link>
-                    <x-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">{{ __('navigation.blog') }}</x-nav-link>
+                    <x-nav-link :href="$blogIndexHref" :active="$blogIsActive">{{ __('navigation.blog') }}</x-nav-link>
                     @if(!$tenant || $tenant->loops_enabled)
                         @auth
                             <x-nav-link :href="$loopsIndexHref" :active="$loopsIsActive">{{ __('navigation.loops') }}</x-nav-link>
@@ -201,7 +205,7 @@
             <!-- Navigation Links Mobile -->
             <x-responsive-nav-link :href="route('explorer')" :active="request()->routeIs('explorer*')">{{ __('navigation.exchanges') }}</x-responsive-nav-link>
             <x-responsive-nav-link :href="route('members.index')" :active="request()->routeIs('members*')">{{ __('navigation.directory') }}</x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('blog.index')" :active="request()->routeIs('blog*')">{{ __('navigation.blog') }}</x-responsive-nav-link>
+            <x-responsive-nav-link :href="$blogIndexHref" :active="$blogIsActive">{{ __('navigation.blog') }}</x-responsive-nav-link>
             @if(!$tenant || $tenant->loops_enabled)
                 @auth
                     <x-responsive-nav-link :href="$loopsIndexHref" :active="$loopsIsActive">{{ __('navigation.loops') }}</x-responsive-nav-link>

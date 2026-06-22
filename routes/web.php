@@ -498,10 +498,16 @@ Route::prefix('/org/{organization}')
 
         Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
-        Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
+        Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show')->whereUuid('user');
         Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
         Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
         Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
         Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
         Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+
+        // Blog (org-scoped, en parallèle des routes /blog root)
+        Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
+        Route::get('/blog/categorie/{slug}', [BlogController::class, 'byCategory'])->name('blog.category');
+        Route::get('/blog/tag/{slug}', [BlogController::class, 'byTag'])->name('blog.tag');
+        Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
     });
