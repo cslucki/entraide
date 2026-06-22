@@ -3,7 +3,7 @@
 return [
 
     'default_provider' => env('AI_DEFAULT_PROVIDER', 'openai'),
-    'default_model' => env('AI_DEFAULT_MODEL', 'gpt-4o-mini'),
+    'default_model' => env('AI_DEFAULT_MODEL'),
 
     /*
 

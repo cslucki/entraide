@@ -20,6 +20,7 @@ class AssistedInteractionLabResult
         public readonly array $safety,
         public readonly string $scenario,
         public readonly string $scenarioLabel,
+        public readonly string $originalPhrase = '',
     ) {}
 
     public function toArray(): array
@@ -40,6 +41,7 @@ class AssistedInteractionLabResult
             'safety' => $this->safety,
             '_scenario' => $this->scenario,
             '_scenario_label' => $this->scenarioLabel,
+            'original_phrase' => $this->originalPhrase,
         ];
     }
 

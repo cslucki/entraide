@@ -35,10 +35,10 @@ class ClarifyUserHelpRequestService implements AiProvider
 
         $result = $provider->runScenario($scenario, $phrase);
 
-        return $this->mapToDto($result);
+        return $this->mapToDto($result, $phrase);
     }
 
-    private function mapToDto(array $result): AssistedInteractionLabResult
+    private function mapToDto(array $result, string $originalPhrase = ''): AssistedInteractionLabResult
     {
         $confidence = (float) ($result['confidence'] ?? 0.0);
         $needsHumanReview = (bool) ($result['needs_human_review'] ?? true);
@@ -91,6 +91,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             ],
             scenario: 'clarify_help_request',
             scenarioLabel: 'Clarification de demande d\'aide',
+            originalPhrase: $originalPhrase,
         );
     }
 

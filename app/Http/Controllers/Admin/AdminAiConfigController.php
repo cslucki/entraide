@@ -30,6 +30,8 @@ class AdminAiConfigController extends Controller
             $blogConfigs[$org->id] = BlogAiConfig::forOrganization($org->id);
         }
 
+        $clarificationEnabled = AiConfig::get('clarification_enabled', false);
+
         return view('admin.ai-config.index', [
             'providers' => $providers,
             'defaultProvider' => $defaultProvider,
@@ -38,6 +40,7 @@ class AdminAiConfigController extends Controller
             'isProduction' => app()->isProduction(),
             'organizations' => $organizations,
             'blogConfigs' => $blogConfigs,
+            'clarificationEnabled' => $clarificationEnabled,
         ]);
     }
 
@@ -46,6 +49,7 @@ class AdminAiConfigController extends Controller
         $validated = $request->validate([
             'default_provider' => ['nullable', 'string', 'in:openai,ollama,openrouter'],
             'default_model' => ['nullable', 'string', 'max:255'],
+            'clarification_enabled' => 'sometimes|boolean',
         ]);
 
         if ($validated['default_provider'] ?? null) {
@@ -57,6 +61,9 @@ class AdminAiConfigController extends Controller
             AiConfig::set('default_model', $validated['default_model']);
             config(['ai.default_model' => $validated['default_model']]);
         }
+
+        AiConfig::set('clarification_enabled', $validated['clarification_enabled'] ?? false);
+        config(['ai.clarification_enabled' => $validated['clarification_enabled'] ?? false]);
 
         return redirect()->route('admin.ai-config')
             ->with('success', 'Configuration IA mise à jour.');

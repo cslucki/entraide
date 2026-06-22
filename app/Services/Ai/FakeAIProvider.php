@@ -34,6 +34,7 @@ class FakeAIProvider implements AiProvider
             safety: $scenario['safety'],
             scenario: $scenario['_scenario'],
             scenarioLabel: $scenario['_scenario_label'],
+            originalPhrase: $phrase,
         );
     }
 
@@ -235,7 +236,7 @@ class FakeAIProvider implements AiProvider
             'intention_offre' => [
                 '_scenario' => 'intention_offre',
                 '_scenario_label' => 'Intention offre',
-                '_triggers' => ['aider à refaire', 'je peux aider', 'proposer mon aide', 'page de vente'],
+                '_triggers' => ['aider à refaire', 'je peux aider', 'proposer mon aide', 'page de vente', 'je propose', 'mon aide pour', 'créer des logos', 'propose mon aide', 'je propose mon'],
                 'intent' => 'offer',
                 'confidence' => 0.81,
                 'title' => 'Aide à la refonte de page de vente',
@@ -290,20 +291,20 @@ class FakeAIProvider implements AiProvider
                 '_triggers' => ['__fallback__'],
                 'intent' => 'unknown',
                 'confidence' => 0.3,
-                'title' => 'Nouvelle demande',
-                'need' => 'La phrase n\'a pas pu être analysée automatiquement.',
-                'context' => 'Aucun scénario connu n\'a pu être associé à cette phrase.',
-                'expected_help_type' => 'clarification',
+                'title' => 'Demande d\'aide',
+                'need' => '',
+                'context' => '',
+                'expected_help_type' => 'request',
                 'deadline' => ['has_deadline' => false, 'label' => null, 'date' => null],
                 'suggested_loop' => null,
                 'tone' => [
                     'label' => 'neutre',
-                    'rationale' => 'En l\'absence d\'analyse fiable, le ton reste neutre.',
+                    'rationale' => 'En attente de précisions.',
                 ],
                 'message_draft' => null,
                 'fallback' => [
                     'needed' => true,
-                    'reason' => 'Je n\'ai pas pu analyser cette demande avec suffisamment de confiance. Peux-tu reformuler ou préciser ?',
+                    'reason' => 'Je n\'ai pas bien compris ta demande. Peux-tu reformuler ou préciser ?',
                     'questions' => [
                         'Quel est l\'objectif principal de ta demande ?',
                         'Quel type d\'aide attends-tu des membres ?',
