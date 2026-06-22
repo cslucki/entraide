@@ -1,11 +1,57 @@
 <x-app-layout>
     <div class="max-w-4xl mx-auto px-4 py-8">
-        <div class="mb-6">
-            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Qualité produit</p>
-            <h1 class="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">Bugs signalés</h1>
-            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                Suivi des bugs signalés{{ $organization ? ' pour '.$organization->name : '' }} et des corrections publiées.
-            </p>
+        @php
+            $organizationRouteParam = request()->route('organization');
+            $bugReportStoreRoute = $organizationRouteParam && Route::has('organization.bug-reports.store')
+                ? route('organization.bug-reports.store', ['organization' => $organizationRouteParam])
+                : route('bug-reports.store');
+        @endphp
+
+        <div x-data="{ bugOpen: false }" class="mb-6">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Qualité produit</p>
+                    <h1 class="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">Bugs signalés</h1>
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        Suivi des bugs signalés{{ $organization ? ' pour '.$organization->name : '' }} et des corrections publiées.
+                    </p>
+                </div>
+
+                @auth
+                    <button type="button" @click="bugOpen = !bugOpen" class="inline-flex items-center justify-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900">
+                        {{ __('navigation.report_bug') }}
+                    </button>
+                @endauth
+            </div>
+
+            @auth
+                <form x-show="bugOpen" x-cloak x-transition method="POST" action="{{ $bugReportStoreRoute }}" x-data x-init="$refs.pageUrl.value = window.location.href" class="mt-5 rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm dark:border-indigo-900/50 dark:bg-gray-800">
+                    @csrf
+                    <input x-ref="pageUrl" type="hidden" name="page_url" value="{{ request()->fullUrl() }}">
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <select name="reason" required class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                            <option value="">{{ __('navigation.bug_type_placeholder') }}</option>
+                            <option value="Affichage mobile">{{ __('navigation.bug_type_mobile') }}</option>
+                            <option value="Fonctionnement">{{ __('navigation.bug_type_functionality') }}</option>
+                            <option value="Navigation">{{ __('navigation.bug_type_navigation') }}</option>
+                            <option value="Autre">{{ __('navigation.bug_type_other') }}</option>
+                        </select>
+                        <div class="flex items-center gap-2 sm:justify-end">
+                            <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white">
+                                {{ __('navigation.send_report') }}
+                            </button>
+                            <button type="button" @click="bugOpen = false" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700">
+                                {{ __('ui.cancel') }}
+                            </button>
+                        </div>
+                    </div>
+                    <textarea name="details" rows="3" required placeholder="{{ __('navigation.bug_details_placeholder') }}" class="mt-3 w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                </form>
+            @else
+                <a href="{{ route('login') }}" class="mt-4 inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                    {{ __('navigation.login') }}
+                </a>
+            @endauth
         </div>
 
         <div class="space-y-3">
