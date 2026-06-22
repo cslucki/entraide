@@ -15,14 +15,19 @@
             </button>
         </div>
         @auth
+        @php
+            $_orgSlug = request()->route('organization');
+            $_servicesCreateHref = $_orgSlug ? route('organization.services.create', ['organization' => $_orgSlug]) : route('services.create');
+            $_requestsCreateHref = $_orgSlug ? route('organization.requests.create', ['organization' => $_orgSlug]) : route('requests.create');
+        @endphp
         <div class="pb-1">
             @if($tab === 'services')
-            <a href="{{ route('services.create') }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
+            <a href="{{ $_servicesCreateHref }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
                 <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 <span class="hidden sm:inline">{{ __('explorer.offer_service', ['service' => __('explorer.service')]) }}</span>
             </a>
             @else
-            <a href="{{ route('requests.create') }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
+            <a href="{{ $_requestsCreateHref }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
                 <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 <span class="hidden sm:inline">{{ __('explorer.create_request', ['request' => __('explorer.request')]) }}</span>
             </a>

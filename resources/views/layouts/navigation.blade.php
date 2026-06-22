@@ -91,17 +91,22 @@
                          x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
                          x-transition:leave="transition ease-in duration-75" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
                          class="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50" style="display:none">
-                        <a href="{{ route('requests.create') }}"
-                           class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                            <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            {{ __('navigation.make_request', ['request' => $T['request']]) }}
-                        </a>
-                        <a href="{{ route('services.create') }}"
-                           class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                            <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                            {{ __('navigation.offer_service', ['service' => $T['service']]) }}
-                        </a>
-                        <a href="{{ route('blog.create') }}"
+                         @php
+                             $_pubRequestsCreateHref = $organizationRouteParam && Route::has('organization.requests.create') ? route('organization.requests.create', ['organization' => $organizationRouteParam]) : route('requests.create');
+                             $_pubServicesCreateHref = $organizationRouteParam && Route::has('organization.services.create') ? route('organization.services.create', ['organization' => $organizationRouteParam]) : route('services.create');
+                             $_pubBlogCreateHref = $organizationRouteParam && Route::has('organization.blog.create') ? route('organization.blog.create', ['organization' => $organizationRouteParam]) : route('blog.create');
+                         @endphp
+                         <a href="{{ $_pubRequestsCreateHref }}"
+                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                             <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                             {{ __('navigation.make_request', ['request' => $T['request']]) }}
+                         </a>
+                         <a href="{{ $_pubServicesCreateHref }}"
+                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                             <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                             {{ __('navigation.offer_service', ['service' => $T['service']]) }}
+                         </a>
+                         <a href="{{ $_pubBlogCreateHref }}"
                            class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                             <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                              {{ __('navigation.write_article') }}
@@ -138,8 +143,8 @@
                         <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
-                        <x-dropdown-link :href="route('services.create')">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-dropdown-link>
-                        <x-dropdown-link :href="route('requests.create')">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-dropdown-link>
+                        <x-dropdown-link :href="$_pubServicesCreateHref">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-dropdown-link>
+                        <x-dropdown-link :href="$_pubRequestsCreateHref">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('points.index') . '#invitations'">{{ __('navigation.invitations') }}</x-dropdown-link>
@@ -240,8 +245,8 @@
                 <x-responsive-nav-link :href="route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('services.create')">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('requests.create')">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="$_pubServicesCreateHref">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="$_pubRequestsCreateHref">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('points.index') . '#invitations'">{{ __('navigation.invitations') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-responsive-nav-link>

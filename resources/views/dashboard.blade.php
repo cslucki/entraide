@@ -1,4 +1,9 @@
 <x-app-layout>
+    @php
+        $_dashOrgSlug = request()->route('organization');
+        $_dashServicesCreateHref = $_dashOrgSlug && Route::has('organization.services.create') ? route('organization.services.create', ['organization' => $_dashOrgSlug]) : route('services.create');
+        $_dashRequestsCreateHref = $_dashOrgSlug && Route::has('organization.requests.create') ? route('organization.requests.create', ['organization' => $_dashOrgSlug]) : route('requests.create');
+    @endphp
     <div class="max-w-7xl mx-auto px-4 py-8">
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
@@ -179,7 +184,7 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_services') }}</h2>
-                    <a href="{{ route('services.create') }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    <a href="{{ $_dashServicesCreateHref }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myServices as $service)
@@ -206,7 +211,7 @@
                         </div>
                     </div>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{!! __('dashboard.no_active_service') !!}<br><a href="{{ route('services.create') }}" class="text-indigo-600 hover:underline">{{ __('dashboard.create_service') }}</a></p>
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{!! __('dashboard.no_active_service') !!}<br><a href="{{ $_dashServicesCreateHref }}" class="text-indigo-600 hover:underline">{{ __('dashboard.create_service') }}</a></p>
                     @endforelse
                 </div>
             </div>
