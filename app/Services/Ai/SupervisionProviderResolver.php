@@ -130,7 +130,7 @@ class SupervisionProviderResolver
             'openrouter' => [
                 'base_url' => config('ai.openrouter.base_url', 'https://openrouter.ai/api/v1'),
                 'api_key' => config('ai.openrouter.api_key'),
-                'model' => config('ai.openrouter.model', 'openai/gpt-4o-mini'),
+                'model' => config('ai.openrouter.model', 'mistralai/ministral-3b-2512'),
                 'timeout' => config('ai.openrouter.timeout', 30),
                 'max_output_tokens' => config('ai.openrouter.max_output_tokens', 900),
             ],

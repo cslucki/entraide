@@ -35,10 +35,10 @@ class ClarifyUserHelpRequestService implements AiProvider
 
         $result = $provider->runScenario($scenario, $phrase);
 
-        return $this->mapToDto($result);
+        return $this->mapToDto($result, $phrase);
     }
 
-    private function mapToDto(array $result): AssistedInteractionLabResult
+    private function mapToDto(array $result, string $originalPhrase = ''): AssistedInteractionLabResult
     {
         $confidence = (float) ($result['confidence'] ?? 0.0);
         $needsHumanReview = (bool) ($result['needs_human_review'] ?? true);
@@ -58,13 +58,15 @@ class ClarifyUserHelpRequestService implements AiProvider
             }
         }
 
+        $helpType = $result['help_type'] ?? 'other';
+
         return new AssistedInteractionLabResult(
-            intent: 'help_request',
+            intent: $helpType === 'service_offer' ? 'offer' : 'help_request',
             confidence: $confidence,
             title: $result['title'] ?? 'Nouvelle demande',
             need: $result['clarified_request'] ?? ($result['publishable_draft'] ?? ''),
             context: '',
-            expectedHelpType: $this->mapHelpType($result['help_type'] ?? 'other'),
+            expectedHelpType: $this->mapHelpType($helpType),
             deadline: ['has_deadline' => false, 'label' => null, 'date' => null],
             suggestedLoop: isset($result['suggested_loop']) && $result['suggested_loop'] !== ''
                 ? ['id' => null, 'label' => $result['suggested_loop'], 'reason' => 'Suggéré par l\'analyse IA']
@@ -91,6 +93,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             ],
             scenario: 'clarify_help_request',
             scenarioLabel: 'Clarification de demande d\'aide',
+            originalPhrase: $originalPhrase,
         );
     }
 

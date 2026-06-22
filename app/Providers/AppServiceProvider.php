@@ -75,7 +75,7 @@ class AppServiceProvider extends ServiceProvider
             $inner = new OpenAiSupervisionProvider(
                 apiKey: (string) ($config['api_key'] ?? ''),
                 baseUrl: (string) ($config['base_url'] ?? 'https://api.openai.com/v1'),
-                model: (string) ($config['model'] ?? 'gpt-4o-mini'),
+                model: (string) ($config['model'] ?? ''),
                 maxOutputTokens: (int) ($config['max_output_tokens'] ?? 900),
                 timeout: (int) ($config['timeout'] ?? 15),
                 inputPricePer1M: (float) ($config['input_price_per_1m'] ?? 0.15),
@@ -106,7 +106,7 @@ class AppServiceProvider extends ServiceProvider
             return new OpenRouterSupervisionProvider(
                 apiKey: (string) ($config['api_key'] ?? ''),
                 baseUrl: (string) ($config['base_url'] ?? 'https://openrouter.ai/api/v1'),
-                model: (string) ($config['model'] ?? 'openai/gpt-4o-mini'),
+                model: (string) ($config['model'] ?? ''),
                 maxOutputTokens: (int) ($config['max_output_tokens'] ?? 900),
                 timeout: (int) ($config['timeout'] ?? 30),
                 siteName: (string) ($config['site_name'] ?? ''),

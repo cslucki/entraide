@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiConfig;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Organization;
@@ -204,7 +205,9 @@ class LoopController extends Controller
 
         $eligibleReferrals = $this->loopService->getEligibleReferrals($user, $loop);
 
-        return view('loops.show', compact('loop', 'eligibleReferrals', 'isMember'));
+        $clarificationEnabled = AiConfig::get('clarification_enabled', false);
+
+        return view('loops.show', compact('loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled'));
     }
 
     public function join(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
@@ -305,6 +308,13 @@ class LoopController extends Controller
             'intention' => 'required|string|min:3|max:2000',
         ]);
 
+        $clarificationEnabled = AiConfig::get('clarification_enabled', false);
+
+        if (! $clarificationEnabled) {
+            return redirect()->route('loops.show', $loop)
+                ->with('help_request_error', __('loops.clarification_disabled'));
+        }
+
         $result = $this->aiProvider->analyze($data['intention']);
 
         if ($result->isBlocked()) {
@@ -341,39 +351,18 @@ class LoopController extends Controller
         $data = $request->validate([
             'title' => 'required|string|max:120',
             'need' => 'required|string|max:2000',
-            'context' => 'nullable|string|max:3000',
-            'expected_help_type' => 'nullable|string|max:500',
-            'deadline' => 'nullable|string|max:500',
-            'urgency' => 'nullable|string|in:low,normal,high',
+            'help_type' => 'required|string|in:request,service',
         ]);
 
-        $body = $data['need'];
-        $title = $data['title'];
-        $need = $data['need'];
-        $context = $data['context'] ?? '';
-        $expectedHelpType = $data['expected_help_type'] ?? '';
-        $deadline = $data['deadline'] ? ['label' => $data['deadline']] : null;
-        $urgency = $data['urgency'] ?? 'normal';
+        $route = $data['help_type'] === 'service'
+            ? 'services.create'
+            : 'requests.create';
 
-        try {
-            $this->loopMessageService->sendHelpRequestMessage(
-                $loop,
-                $user,
-                $body,
-                $title,
-                $need,
-                $context,
-                $expectedHelpType,
-                $deadline,
-                $urgency,
-            );
-        } catch (\RuntimeException $e) {
-            return redirect()->route('loops.show', $loop)
-                ->with('error', $e->getMessage());
-        }
-
-        return redirect()->route('loops.show', $loop)
-            ->with('success', 'Votre demande d\'aide a été publiée dans la boucle.');
+        return redirect()->route($route)
+            ->withInput([
+                'title' => $data['title'],
+                'description' => $data['need'],
+            ]);
     }
 
     public function addMember(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
