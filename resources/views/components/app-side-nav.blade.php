@@ -121,6 +121,7 @@
     };
 
     $themes = config('bouclepro_themes.themes', []);
+    $currentLocale = app()->getLocale();
 @endphp
 
 <aside x-data class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
@@ -128,6 +129,19 @@
         <a href="{{ route('home') }}" class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)] transition hover:scale-105" aria-label="BouclePro">
             <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-8 w-8" aria-hidden="true">
         </a>
+
+        <div class="mt-2 flex items-center gap-0.5 rounded-full bg-[var(--bp-panel)] px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-[var(--bp-border)]" aria-label="{{ __('navigation.language_switcher') }}">
+            @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
+                <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}">
+                    @csrf
+                    <button type="submit"
+                        class="rounded-full px-1.5 py-0.5 transition {{ $currentLocale === $locale ? 'bg-[var(--bp-primary)] text-white shadow-sm' : 'text-[var(--bp-muted)] hover:text-[var(--bp-text)]' }}"
+                        aria-current="{{ $currentLocale === $locale ? 'true' : 'false' }}">
+                        {{ $label }}
+                    </button>
+                </form>
+            @endforeach
+        </div>
 
         <nav class="mt-5 flex w-full flex-1 flex-col items-center gap-0.5" aria-label="{{ __('navigation.main_navigation') }}">
             @foreach($items as $item)

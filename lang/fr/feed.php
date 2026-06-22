@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'organization' => 'Organisation',
+    'title' => 'Flux',
+    'subtitle' => 'Annonces utiles, décisions et informations à retenir.',
+    'dashboard' => 'Mon tableau de bord',
+    'my_posts' => 'Mes annonces',
+    'new_post' => 'Nouvelle annonce',
+    'pinned' => 'Épinglées',
+    'empty' => 'Aucune annonce pour le moment.',
+    'create_first' => 'Créer la première annonce',
+    'load_more' => 'Voir plus',
+    'post_badge' => 'Annonce',
+    'pinned_badge' => 'Épinglée',
+    'loop_count' => ':count boucle|:count boucles',
+    'member_fallback' => 'Membre',
+    'shared_link' => 'Lien partagé',
+    'comment_cta' => 'Commentez',
+    'view_comments' => 'Voir les :count commentaires',
+    'comment_placeholder' => 'Ajouter un commentaire utile',
+    'comment_submit' => 'Commenter',
+    'react' => 'Réagir :type',
+    'comments_title' => 'Commentaires (:count)',
+];

@@ -5,27 +5,30 @@
             <div>
                 @php $tenant = $currentOrganization ?? null; @endphp
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    @isset($tenant)Tableau de bord — {{ $tenant->name }}@elseBonjour, {{ $user->name }}@endisset
-                    @empty($tenant) 👋@endempty
+                    @if($tenant)
+                        {{ __('dashboard.title_with_tenant', ['name' => $tenant->name]) }}
+                    @else
+                        {{ __('dashboard.hello', ['name' => $user->name]) }}
+                    @endif
                 </h1>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Voici un résumé de votre activité</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">{{ __('dashboard.summary') }}</p>
             </div>
             <form method="POST" action="{{ route('profile.availability') }}">
                 @csrf @method('PATCH')
                 <button type="submit" class="flex items-center gap-2 px-4 py-2 rounded-lg border {{ $user->is_available ? 'border-green-400 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400' }} text-sm font-medium hover:shadow-sm transition">
                     <span class="w-2 h-2 rounded-full {{ $user->is_available ? 'bg-green-500' : 'bg-gray-400' }}"></span>
-                    {{ $user->is_available ? 'Disponible' : 'Indisponible' }}
+                    {{ $user->is_available ? __('dashboard.available') : __('dashboard.unavailable') }}
                 </button>
             </form>
         </div>
 
-        <!-- Onboarding progressif beta -->
+        <!-- Onboarding -->
         <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6 mb-5">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Onboarding beta</p>
-                    <h2 class="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">Votre progression dans la boucle</h2>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Avancez étape par étape pour demander de l’aide, proposer votre aide et commencer à interagir.</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">{{ __('dashboard.onboarding_badge') }}</p>
+                    <h2 class="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.onboarding_title') }}</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('dashboard.onboarding_intro') }}</p>
                 </div>
             </div>
 
@@ -64,31 +67,31 @@
         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
             <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-center">
                 <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ $user->points_balance }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Solde (pts)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('dashboard.metrics.balance') }}</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-center">
                 <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ $earned }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Points gagnés</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('dashboard.metrics.earned') }}</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-center">
                 <p class="text-2xl font-bold text-red-500 dark:text-red-400">{{ $spent }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Points dépensés</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('dashboard.metrics.spent') }}</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-center">
                 <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ $completedCount }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Échanges complétés</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('dashboard.metrics.completed') }}</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-center">
                 <p class="text-2xl font-bold text-yellow-500 dark:text-yellow-400">{{ $user->rating ? number_format($user->rating, 1).'/5' : '—' }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Note moyenne</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('dashboard.metrics.rating') }}</p>
             </div>
         </div>
 
         @if($referralLink)
         <div id="invitations" class="mb-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-            <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Mes invitations</h2>
+            <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ __('dashboard.invitations') }}</h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                Partagez ce lien avec une personne que vous souhaitez faire entrer dans la boucle.
+                {{ __('dashboard.invitation_help') }}
             </p>
             <div class="flex gap-2 mb-4" x-data="{ copied: false, link: @js($referralLink) }">
                 <input type="text" readonly value="{{ $referralLink }}" data-referral-link
@@ -104,26 +107,26 @@
                     copied = true;
                     setTimeout(() => copied = false, 2000);
                 " class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
-                    <span x-show="!copied">Copier</span>
-                    <span x-show="copied">Copié !</span>
+                    <span x-show="!copied">{{ __('dashboard.copy') }}</span>
+                    <span x-show="copied">{{ __('dashboard.copied') }}</span>
                 </button>
             </div>
             <div class="flex items-center justify-between">
                 <div class="flex gap-6 text-sm text-gray-600 dark:text-gray-400">
                     <div>
                         <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $sentReferralsCount }}</span>
-                        <span class="ml-1">invitation(s)</span>
+                        <span class="ml-1">{{ __('dashboard.invitation_count') }}</span>
                     </div>
                     <div>
                         <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $activatedReferralsCount }}</span>
-                        <span class="ml-1">activation(s)</span>
+                        <span class="ml-1">{{ __('dashboard.activation_count') }}</span>
                     </div>
                     <div>
                         <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $referralPointsEarned }}</span>
-                        <span class="ml-1">pts reçus</span>
+                        <span class="ml-1">{{ __('dashboard.points_received') }}</span>
                     </div>
                 </div>
-                <a href="{{ route('points.index') }}#invitations" class="text-xs text-indigo-600 hover:underline">Voir l'historique</a>
+                <a href="{{ route('points.index') }}#invitations" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_history') }}</a>
             </div>
         </div>
         @endif
@@ -150,33 +153,33 @@
                 <div class="flex-1">
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
                         @if($aiProfile && $aiProfile->status === 'draft')
-                            Reprenez votre profil IA
+                            {{ __('dashboard.resume_ai_profile') }}
                         @else
-                            Créez votre profil IA
+                            {{ __('dashboard.create_ai_profile') }}
                         @endif
                     </h2>
                     <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         @if($aiProfile && $aiProfile->status === 'draft')
-                            Vous avez commencé à renseigner votre profil. Finalisez-le pour être mieux orienté.
+                            {{ __('dashboard.resume_ai_profile_body') }}
                         @else
-                            Configurez votre profil pour être mieux orienté par l'IA et apparaître dans les recherches.
+                            {{ __('dashboard.create_ai_profile_body') }}
                         @endif
                     </p>
                 </div>
                 <a href="{{ route('agent-ia.wizard') }}"
                    class="inline-flex items-center px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition active:scale-95 shadow-sm whitespace-nowrap">
-                    {{ $aiProfile && $aiProfile->status === 'draft' ? 'Continuer' : 'Configurer' }}
+                    {{ $aiProfile && $aiProfile->status === 'draft' ? __('dashboard.continue') : __('dashboard.configure') }}
                 </a>
             </div>
         </div>
         @endif
 
         <div class="grid md:grid-cols-2 gap-6">
-            <!-- Mes micro-services -->
+            <!-- Services -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes {{ $T['services'] }}</h2>
-                    <a href="{{ route('services.create') }}" class="text-xs text-indigo-600 hover:underline">+ Nouveau</a>
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_services') }}</h2>
+                    <a href="{{ route('services.create') }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myServices as $service)
@@ -186,33 +189,33 @@
                             <p class="text-xs text-gray-500">{{ $service->points_cost }} pts · {{ $service->category->displayName('transactions') }}</p>
                         </div>
                         <div class="flex gap-3 ml-3 flex-shrink-0">
-                            <a href="{{ route('services.edit', $service) }}" class="text-xs text-gray-500 hover:text-indigo-600">Modifier</a>
+                            <a href="{{ route('services.edit', $service) }}" class="text-xs text-gray-500 hover:text-indigo-600">{{ __('dashboard.edit') }}</a>
                             <form method="POST" action="{{ route('services.destroy', $service) }}" x-data="{ asked: false }">
                                 @csrf @method('DELETE')
                                 <template x-if="!asked">
-                                    <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700">Supprimer</button>
+                                    <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700">{{ __('dashboard.delete') }}</button>
                                 </template>
                                 <template x-if="asked">
                                     <span class="flex gap-1 items-center text-xs">
-                                        <span class="text-gray-500">Sûr ?</span>
-                                        <button type="submit" class="text-red-600 font-semibold hover:underline">Oui</button>
-                                        <button type="button" @click="asked = false" class="text-gray-400 hover:underline">Non</button>
+                                        <span class="text-gray-500">{{ __('dashboard.sure') }}</span>
+                                        <button type="submit" class="text-red-600 font-semibold hover:underline">{{ __('dashboard.yes') }}</button>
+                                        <button type="button" @click="asked = false" class="text-gray-400 hover:underline">{{ __('dashboard.no') }}</button>
                                     </span>
                                 </template>
                             </form>
                         </div>
                     </div>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">Aucun {{ $T['service'] }} actif.<br><a href="{{ route('services.create') }}" class="text-indigo-600 hover:underline">Créer un {{ $T['service'] }}</a></p>
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{!! __('dashboard.no_active_service') !!}<br><a href="{{ route('services.create') }}" class="text-indigo-600 hover:underline">{{ __('dashboard.create_service') }}</a></p>
                     @endforelse
                 </div>
             </div>
 
-            <!-- Mes demandes -->
+            <!-- Requests -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes demandes d'aide</h2>
-                    <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ Nouvelle</a>
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_requests') }}</h2>
+                    <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myRequests as $req)
@@ -224,28 +227,28 @@
                         <form method="POST" action="{{ route('requests.destroy', $req) }}" class="ml-3" x-data="{ asked: false }">
                             @csrf @method('DELETE')
                             <template x-if="!asked">
-                                <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700">Fermer</button>
+                                <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700">{{ __('dashboard.close_request') }}</button>
                             </template>
                             <template x-if="asked">
                                 <span class="flex gap-1 items-center text-xs">
-                                    <span class="text-gray-500">Sûr ?</span>
-                                    <button type="submit" class="text-red-600 font-semibold hover:underline">Oui</button>
-                                    <button type="button" @click="asked = false" class="text-gray-400 hover:underline">Non</button>
+                                    <span class="text-gray-500">{{ __('dashboard.sure') }}</span>
+                                    <button type="submit" class="text-red-600 font-semibold hover:underline">{{ __('dashboard.yes') }}</button>
+                                    <button type="button" @click="asked = false" class="text-gray-400 hover:underline">{{ __('dashboard.no') }}</button>
                                 </span>
                             </template>
                         </form>
                     </div>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">Aucune {{ $T['request'] }} ouverte.<br><a href="{{ $requestCreateUrl }}" class="text-indigo-600 hover:underline">Demander de l'aide</a></p>
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{!! __('dashboard.no_open_request') !!}<br><a href="{{ $requestCreateUrl }}" class="text-indigo-600 hover:underline">{{ __('dashboard.ask_help') }}</a></p>
                     @endforelse
                 </div>
             </div>
 
-            <!-- Mes échanges (buyer) -->
+            <!-- Buyer proposals -->
             @if($myProposals->isNotEmpty())
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes échanges en cours</h2>
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_current_exchanges') }}</h2>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @foreach($myProposals as $tx)
@@ -253,7 +256,7 @@
                         <img src="{{ $tx->seller->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
-                            <p class="text-xs text-gray-500">à {{ $tx->seller->name }} · {{ $tx->points_proposed }} pts</p>
+                            <p class="text-xs text-gray-500">{{ __('dashboard.to_member', ['name' => $tx->seller->name]) }} · {{ $tx->points_proposed }} pts</p>
                         </div>
                         <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0
                             {{ match($tx->status) {
@@ -268,10 +271,10 @@
             </div>
             @endif
 
-            <!-- Échanges en cours -->
+            <!-- Active exchanges -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Échanges en cours</h2>
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.current_exchanges') }}</h2>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($activeExchanges as $tx)
@@ -280,57 +283,57 @@
                         <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
-                            <p class="text-xs text-gray-500">avec {{ $other->name }} · {{ $tx->points_agreed }} pts</p>
+                            <p class="text-xs text-gray-500">{{ __('dashboard.with_member', ['name' => $other->name]) }} · {{ $tx->points_agreed }} pts</p>
                         </div>
                         <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex-shrink-0">{{ $tx->status_label }}</span>
                     </a>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">Aucun échange en cours.</p>
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{{ __('dashboard.no_current_exchange') }}</p>
                     @endforelse
                 </div>
             </div>
 
-            <!-- Mes annonces Flux -->
+            <!-- Feed posts -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Mes annonces</h2>
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_announcements') }}</h2>
                     @if($canCreateFeedPost)
-                    <a href="{{ $feedCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ Nouvelle</a>
+                    <a href="{{ $feedCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
                     @endif
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myFeedPosts as $post)
                     <a href="{{ $feedUrl }}" class="px-5 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $post->title ?: 'Sans titre' }}</p>
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $post->title ?: __('dashboard.untitled') }}</p>
                             <p class="text-xs text-gray-500">{{ $post->created_at->isoFormat('D MMM YYYY') }}</p>
                         </div>
                         <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 ml-3
                             {{ $post->status === 'published' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' }}">
-                            {{ $post->status === 'published' ? 'Publiée' : 'Brouillon' }}
+                            {{ $post->status === 'published' ? __('dashboard.published') : __('dashboard.draft') }}
                         </span>
                     </a>
                     @empty
                     <p class="px-5 py-8 text-sm text-gray-400 text-center">
-                        Aucune annonce pour le moment.
+                        {{ __('dashboard.no_announcement') }}
                         @if($canCreateFeedPost)
-                        <br><a href="{{ $feedCreateUrl }}" class="text-indigo-600 hover:underline">Créer une annonce</a>
+                        <br><a href="{{ $feedCreateUrl }}" class="text-indigo-600 hover:underline">{{ __('dashboard.create_announcement') }}</a>
                         @endif
                     </p>
                     @endforelse
                 </div>
                 @if($myFeedPosts->isNotEmpty())
                 <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 text-center">
-                    <a href="{{ $myFeedPostsUrl }}" class="text-xs text-indigo-600 hover:underline">Voir toutes mes annonces</a>
+                    <a href="{{ $myFeedPostsUrl }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all_announcements') }}</a>
                 </div>
                 @endif
             </div>
 
-            <!-- Messages récents -->
+            <!-- Recent messages -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Messages récents</h2>
-                    <a href="{{ route('messages.index') }}" class="text-xs text-indigo-600 hover:underline">Voir tout</a>
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.recent_messages') }}</h2>
+                    <a href="{{ route('messages.index') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($recentMessages as $tx)
@@ -345,31 +348,31 @@
                         </div>
                     </a>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">Aucun message récent.</p>
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{{ __('dashboard.no_recent_message') }}</p>
                     @endforelse
                 </div>
             </div>
         </div>
 
-        <!-- Raccourcis secondaires -->
+        <!-- Shortcuts -->
         <div class="mt-6 flex flex-wrap gap-3">
             <a href="{{ route('points.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
-                Historique des points
+                {{ __('dashboard.points_history') }}
             </a>
             @if($referralLink)
             <a href="{{ route('points.index') }}#invitations" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
-                Points d'invitation
+                {{ __('dashboard.invitation_points') }}
             </a>
             @endif
             <a href="{{ route('favorites.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
-                Mes favoris
+                {{ __('dashboard.my_favorites') }}
             </a>
             <a href="{{ route('profile.show', $user) }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
-                Mon profil public
+                {{ __('dashboard.public_profile') }}
             </a>
             @if($user->is_admin)
             <a href="{{ route('admin.dashboard') }}" class="px-4 py-2 text-sm border border-purple-300 dark:border-purple-700 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition font-medium">
-                Tableau de bord admin
+                {{ __('dashboard.admin_dashboard') }}
             </a>
             @endif
         </div>

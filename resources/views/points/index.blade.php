@@ -1,29 +1,29 @@
 <x-app-layout>
-    <x-slot name="title">Mes points</x-slot>
+    <x-slot name="title">{{ __('points.title') }}</x-slot>
 
     <x-page-container>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Historique des points</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Toutes vos transactions de points, du plus récent au plus ancien.</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ __('points.history_title') }}</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">{{ __('points.history_intro') }}</p>
 
-        <!-- Résumé -->
+        <!-- Summary -->
         <div class="grid grid-cols-3 gap-4 mb-8">
             <div class="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 text-center border border-indigo-100 dark:border-indigo-800">
                 <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ auth()->user()->points_balance }}</p>
-                <p class="text-xs text-gray-500 mt-1">Solde actuel</p>
+                <p class="text-xs text-gray-500 mt-1">{{ __('points.current_balance') }}</p>
             </div>
             <div class="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center border border-green-100 dark:border-green-800">
                 <p class="text-2xl font-bold text-green-600 dark:text-green-400">+{{ $earned }}</p>
-                <p class="text-xs text-gray-500 mt-1">Total gagné</p>
+                <p class="text-xs text-gray-500 mt-1">{{ __('points.total_earned') }}</p>
             </div>
             <div class="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center border border-red-100 dark:border-red-800">
                 <p class="text-2xl font-bold text-red-500 dark:text-red-400">-{{ $spent }}</p>
-                <p class="text-xs text-gray-500 mt-1">Total dépensé</p>
+                <p class="text-xs text-gray-500 mt-1">{{ __('points.total_spent') }}</p>
             </div>
         </div>
 
-        <!-- Graphique -->
+        <!-- Chart -->
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-8">
-            <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Évolution du solde</h2>
+            <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{{ __('points.balance_chart') }}</h2>
             <div class="h-64">
                 <canvas id="pointsChart"></canvas>
             </div>
@@ -31,22 +31,22 @@
 
         @if($referralLink)
         <div id="invitations" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-8">
-            <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Invitations</h2>
+            <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ __('points.invitations') }}</h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                Chaque membre que vous invitez et qui rejoint la boucle vous rapporte des points.
+                {{ __('points.invitation_help') }}
             </p>
             <div class="flex gap-6 text-sm text-gray-600 dark:text-gray-400 mb-4">
                 <div>
                     <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $sentReferralsCount }}</span>
-                    <span class="ml-1">invitation(s)</span>
+                    <span class="ml-1">{{ __('points.invitation_count') }}</span>
                 </div>
                 <div>
                     <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $activatedReferralsCount }}</span>
-                    <span class="ml-1">activation(s)</span>
+                    <span class="ml-1">{{ __('points.activation_count') }}</span>
                 </div>
                 <div>
                     <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $referralPointsEarned }}</span>
-                    <span class="ml-1">pts gagnés</span>
+                    <span class="ml-1">{{ __('points.points_earned') }}</span>
                 </div>
             </div>
             <div class="flex gap-2" x-data="{ copied: false, link: @js($referralLink) }">
@@ -63,8 +63,8 @@
                     copied = true;
                     setTimeout(() => copied = false, 2000);
                 " class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
-                    <span x-show="!copied">Copier</span>
-                    <span x-show="copied">Copié !</span>
+                    <span x-show="!copied">{{ __('points.copy') }}</span>
+                    <span x-show="copied">{{ __('points.copied') }}</span>
                 </button>
                 <a href="https://wa.me/?text={{ urlencode($referralLink) }}" target="_blank" rel="noopener noreferrer"
                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition whitespace-nowrap">
@@ -85,14 +85,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {{ match($entry->reason) {
-                                'welcome_bonus'   => 'Bonus de bienvenue',
-                                'exchange_earned' => 'Échange — gain',
-                                'exchange_spent'  => 'Échange — dépense',
-                                'referral_reward' => 'Récompense invitation',
-                                'adjustment'      => 'Ajustement',
-                                default           => $entry->reason,
-                            } }}
+                            {{ __('points.reasons.' . $entry->reason, ['default' => $entry->reason]) }}
                         </p>
                         @if($entry->transaction)
                         <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -109,7 +102,7 @@
                 </div>
             </div>
             @empty
-            <div class="px-5 py-12 text-center text-gray-400 text-sm">Aucun mouvement de points.</div>
+            <div class="px-5 py-12 text-center text-gray-400 text-sm">{{ __('points.empty') }}</div>
             @endforelse
         </div>
 
@@ -131,7 +124,7 @@
                 data: {
                     labels: {!! json_encode($labels) !!},
                     datasets: [{
-                        label: 'Points',
+                        label: '{!! __('points.dataset') !!}',
                         data: {!! json_encode($history) !!},
                         borderColor: primaryColor,
                         backgroundColor: isDark ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)',

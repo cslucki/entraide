@@ -40,7 +40,7 @@
             @php $backRoute = app()->bound('current_organization') && app('current_organization')->isMonoLoop() ? 'home' : 'loops.index'; @endphp
             <a href="{{ route($backRoute) }}"
                class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-               aria-label="{{ $backRoute === 'home' ? 'Retour à l\'accueil' : 'Retour aux boucles' }}">
+               aria-label="{{ $backRoute === 'home' ? __('loops.back_home') : __('loops.back_to_loops') }}">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
@@ -53,7 +53,7 @@
             </div>
             <span class="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium {{ $currentLoop->isPublic() ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' }}">
                 <span class="w-1.5 h-1.5 rounded-full {{ $currentLoop->isPublic() ? 'bg-green-500' : 'bg-gray-400' }}"></span>
-                <span>{{ $currentLoop->isPublic() ? 'Publique' : 'Privée' }}</span>
+                <span>{{ $currentLoop->isPublic() ? __('loops.visibility_public') : __('loops.visibility_private') }}</span>
             </span>
         </div>
 
@@ -95,7 +95,7 @@
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
                             </svg>
-                            Rejoindre cette boucle
+                            {{ __('loops.join') }}
                         </button>
                     </form>
                 </div>

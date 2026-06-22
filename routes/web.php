@@ -38,6 +38,7 @@ use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LikeController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
@@ -66,6 +67,7 @@ require __DIR__.'/auth.php';
 
 // Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('locale.switch');
 Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
 Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
 Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');

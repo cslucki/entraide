@@ -1,4 +1,4 @@
-<x-page title="Mes boucles" heading="Mes boucles">
+<x-page :title="__('loops.my_loops')" :heading="__('loops.my_loops')">
     @php
         $organizationRouteParam = request()->route('organization');
         $loopsCreateHref = $organizationRouteParam && request()->routeIs('organization.*')
@@ -20,12 +20,12 @@
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>
-                <span>Nouvelle</span>
+                <span>{{ __('loops.new') }}</span>
             </a>
         @endif
     </x-slot>
 
-    <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Vos espaces de collaboration</p>
+    <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">{{ __('loops.collaboration_spaces') }}</p>
 
         @if(session('success'))
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
@@ -36,7 +36,7 @@
 
         @if(isset($noPrimaryLoopWarning) && $noPrimaryLoopWarning)
             <div class="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 px-4 py-3 rounded-lg text-sm">
-                <strong>Attention :</strong> La Boucle par défaut n'est pas définie. Un administrateur doit configurer la Boucle principale dans les paramètres de l'organisation.
+                <strong>{{ __('loops.default_missing_title') }}</strong> {{ __('loops.default_missing_body') }}
             </div>
         @endif
 
@@ -45,14 +45,14 @@
                 <svg class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
-                <p class="text-gray-400 dark:text-gray-500 mb-4">Vous n'avez encore aucune boucle.</p>
+                <p class="text-gray-400 dark:text-gray-500 mb-4">{{ __('loops.empty') }}</p>
                 @if($canCreate)
                     <a href="{{ $loopsCreateHref }}"
                        class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                         </svg>
-                        Créer votre première boucle
+                        {{ __('loops.create_first') }}
                     </a>
                 @endif
             </div>
@@ -72,7 +72,7 @@
                                 </svg>
                                 {{ $item->active_members_count }}
                             </span>
-                            <span>{{ $item->type === 'system' ? 'Système' : 'Personnalisée' }}</span>
+                            <span>{{ $item->type === 'system' ? __('loops.type_system') : __('loops.type_custom') }}</span>
                             @if($lastMessageAt = $item->last_message_at ? \Carbon\Carbon::parse($item->last_message_at) : null)
                                 @php
                                     $recent = $lastMessageAt->gt(now()->subHours(24));

@@ -1,16 +1,16 @@
 <x-app-layout>
-    <x-slot name="title">Mes services favoris</x-slot>
+    <x-slot name="title">{{ __('favorites.title') }}</x-slot>
 
     <x-page-container>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Mes services favoris</h1>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">{{ __('favorites.title') }}</h1>
 
         @if($favorites->isEmpty())
         <div class="text-center py-16 text-gray-400">
             <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
             </svg>
-            <p>Aucun favori pour l'instant.</p>
-            <a href="{{ route('explorer') }}" class="mt-3 inline-block text-indigo-600 hover:underline text-sm">Explorer les {{ $T['services'] }}</a>
+            <p>{{ __('favorites.empty') }}</p>
+            <a href="{{ route('explorer') }}" class="mt-3 inline-block text-indigo-600 hover:underline text-sm">{{ __('favorites.explore', ['services' => $T['services']]) }}</a>
         </div>
         @else
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -27,7 +27,7 @@
                             <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{{ $service->points_cost }} pts</span>
                             <form method="POST" action="{{ route('favorites.toggle', $service) }}">
                                 @csrf
-                                <button class="text-red-400 hover:text-red-600" title="Retirer des favoris">
+                                <button class="text-red-400 hover:text-red-600" title="{{ __('favorites.remove') }}">
                                     <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                                 </button>
                             </form>

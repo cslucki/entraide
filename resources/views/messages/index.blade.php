@@ -18,7 +18,7 @@
 </style>
 @endpush
 
-<x-app-layout title="Messages">
+<x-app-layout :title="__('messages.title')">
     <x-page-container class="messages-index-wrapper">
         <div class="messages-index-container flex flex-col md:flex-row border-0 md:border border-gray-200 dark:border-gray-700 md:rounded-xl overflow-hidden bg-white dark:bg-gray-800">
 
@@ -55,7 +55,7 @@
                                                 'completed' => 'bg-green-100 text-green-700',
                                                 default => 'bg-gray-100 text-gray-600',
                                             } }}">
-                                            {{ $conv->status_label }}
+                                            {{ __('messages.status.' . $conv->status) }}
                                         </span>
                                     @endunless
                                 </div>
@@ -68,7 +68,7 @@
                             </div>
                         </a>
                     @empty
-                        <div class="p-8 text-center text-gray-400 text-sm">Aucune conversation</div>
+                        <div class="p-8 text-center text-gray-400 text-sm">{{ __('messages.no_conversations') }}</div>
                     @endforelse
                 </div>
             </div>
@@ -80,7 +80,7 @@
                 <div class="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
                     <a href="{{ route('messages.index') }}"
                        class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
-                       aria-label="Retour aux conversations">
+                       aria-label="{{ __('messages.back_to_conversations') }}">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                     </a>
                     <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
@@ -106,7 +106,7 @@
             {{-- Desktop: conversation list sidebar --}}
             <div class="hidden md:flex w-80 flex-shrink-0 flex-col border-r border-gray-200 dark:border-gray-700">
                 <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">Messages</h2>
+                    <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('messages.title') }}</h2>
                 </div>
                 <div class="flex-1 overflow-y-auto">
                     @forelse($transactions as $conv)
@@ -139,7 +139,7 @@
                                                 'completed' => 'bg-green-100 text-green-700',
                                                 default => 'bg-gray-100 text-gray-600',
                                             } }}">
-                                            {{ $conv->status_label }}
+                                            {{ __('messages.status.' . $conv->status) }}
                                         </span>
                                     @endunless
                                 </div>
@@ -152,7 +152,7 @@
                             </div>
                         </a>
                     @empty
-                        <div class="p-8 text-center text-gray-400 text-sm">Aucune conversation</div>
+                        <div class="p-8 text-center text-gray-400 text-sm">{{ __('messages.no_conversations') }}</div>
                     @endforelse
                 </div>
             </div>
@@ -183,7 +183,7 @@
                             <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
-                            <p>Sélectionnez une conversation</p>
+                            <p>{{ __('messages.select_conversation') }}</p>
                         </div>
                     </div>
                 @endisset

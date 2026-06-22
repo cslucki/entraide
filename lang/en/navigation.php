@@ -56,6 +56,7 @@ return [
     'user_menu' => 'User menu',
     'open_user_menu' => 'Open user menu',
     'toggle_display_mode' => 'Toggle display mode',
+    'language_switcher' => 'Switch language',
     'main_navigation' => 'Main navigation',
     'announcements' => 'Announcements',
     'services' => 'Services',

@@ -56,6 +56,7 @@ return [
     'user_menu' => 'Menu utilisateur',
     'open_user_menu' => 'Ouvrir le menu utilisateur',
     'toggle_display_mode' => "Changer de mode d'affichage",
+    'language_switcher' => 'Changer de langue',
     'main_navigation' => 'Navigation principale',
     'announcements' => 'Annonces',
     'services' => 'Services',

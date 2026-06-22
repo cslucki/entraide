@@ -10,7 +10,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M16 4v12l4 2V4l-4 2zM8 4v12l-4 2V4l4 2z" />
         </svg>
         <div class="min-w-0">
-            <p class="text-xs font-semibold text-amber-700 dark:text-amber-300">Message épinglé</p>
+            <p class="text-xs font-semibold text-amber-700 dark:text-amber-300">{{ __('messages.pinned_message') }}</p>
             <p class="text-xs text-gray-600 dark:text-gray-400 truncate">
                 &laquo;&nbsp;{{ mb_substr($pinnedMessage->body, 0, 120) }}&nbsp;&raquo;&nbsp;&mdash;&nbsp;{{ $pinnedMessage->sender?->name ?? 'BouclePro' }}
             </p>
@@ -21,14 +21,14 @@
             x-on:click="$dispatch('scroll-to-message', { messageId: '{{ $pinnedMessage->id }}' })"
             class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
         >
-            Voir
+            {{ __('messages.view') }}
         </button>
         @if($canUnpin)
         <button
             wire:click="unpinMessage"
             class="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition"
         >
-            Désépingler
+            {{ __('messages.unpin') }}
         </button>
         @endif
     </div>
