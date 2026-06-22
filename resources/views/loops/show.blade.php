@@ -145,6 +145,7 @@
                                             $originalPhrase = $analysis['original_phrase'] ?? session('help_request_intention', '');
                                             $fallbackNeedEmpty = $needsFallback && empty($analysis['need']) && $originalPhrase;
                                             $needValue = $fallbackNeedEmpty ? $originalPhrase : ($analysis['need'] ?? '');
+                                            $selectedHelpType = old('help_type', ($analysis['intent'] ?? '') === 'offer' ? 'service' : 'request');
                                         @endphp
 
                                         @if($needsFallback)
@@ -185,12 +186,12 @@
                                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{{ __('loops.exchange_type') }}</label>
                                                 <div class="flex gap-3">
                                                     <label class="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/20 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500">
-                                                        <input type="radio" name="help_type" value="request" checked
+                                                        <input type="radio" name="help_type" value="request" @checked($selectedHelpType === 'request')
                                                             class="text-indigo-600 focus:ring-indigo-500">
                                                         {{ __('loops.help_type_request') }}
                                                     </label>
                                                     <label class="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/20 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500">
-                                                        <input type="radio" name="help_type" value="service"
+                                                        <input type="radio" name="help_type" value="service" @checked($selectedHelpType === 'service')
                                                             class="text-indigo-600 focus:ring-indigo-500">
                                                         {{ __('loops.help_type_service') }}
                                                     </label>

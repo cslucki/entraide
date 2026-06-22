@@ -58,13 +58,15 @@ class ClarifyUserHelpRequestService implements AiProvider
             }
         }
 
+        $helpType = $result['help_type'] ?? 'other';
+
         return new AssistedInteractionLabResult(
-            intent: 'help_request',
+            intent: $helpType === 'service_offer' ? 'offer' : 'help_request',
             confidence: $confidence,
             title: $result['title'] ?? 'Nouvelle demande',
             need: $result['clarified_request'] ?? ($result['publishable_draft'] ?? ''),
             context: '',
-            expectedHelpType: $this->mapHelpType($result['help_type'] ?? 'other'),
+            expectedHelpType: $this->mapHelpType($helpType),
             deadline: ['has_deadline' => false, 'label' => null, 'date' => null],
             suggestedLoop: isset($result['suggested_loop']) && $result['suggested_loop'] !== ''
                 ? ['id' => null, 'label' => $result['suggested_loop'], 'reason' => 'Suggéré par l\'analyse IA']
