@@ -44,4 +44,9 @@ return [
     'ai_features_title' => 'Fonctionnalités',
     'ai_clarification' => 'Clarification',
     'ai_clarification_desc' => 'Affiche l\'aide IA à la clarification dans les boucles.',
+    'owner_must_belong_to_org' => 'Le propriétaire sélectionné doit appartenir à l\'organisation de la boucle.',
+    'owner_select_label' => 'Propriétaire',
+    'owner_select_placeholder' => '— Sélectionner un propriétaire —',
+    'org_select_label' => 'Organisation',
+    'org_select_placeholder' => '— Sélectionner une organisation —',
 ];
