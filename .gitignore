@@ -36,6 +36,7 @@ rector.php
 
 # GitHub workflows (disabled during public lockdown)
 .github/workflows/
+!.github/workflows/ci-postgresql.yml
 
 .phpactor.json
 .phpunit.result.cache
