@@ -16,7 +16,6 @@ migration/
 TODO/
 ai-local/
 ai/
-tests/
 opencode.json
 .mcp.json
 test.txt
