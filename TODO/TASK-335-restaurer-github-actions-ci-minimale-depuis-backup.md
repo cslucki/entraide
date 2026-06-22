@@ -2,7 +2,7 @@
 task_id: TASK-335
 title: Restaurer GitHub Actions CI minimale depuis backup
 
-status: DONE
+status: MERGED
 
 owner: OPENCODE
 
@@ -268,10 +268,12 @@ GO for merge once CI quality-gate is green. Legacy failures are documented and i
 # Closeout
 
 - Finalized: 2026-06-22 22:45:00 Europe/Paris
+- Merged: 2026-06-22 22:55:00 Europe/Paris
 - Branch: TASK-335-restaurer-github-actions-ci-minimale-depuis-backup
 - Files: CI workflow, 2 phpunit configs, 165 test files, .gitignore
-- Status: DONE
-- CI Run: 27980966581 — OVERALL PASSED
+- Status: MERGED
+- CI Run pre-merge: 27980966581 — OVERALL PASSED
+- CI Run post-merge: 27981205992 — OVERALL PASSED
 
 ---
 
