@@ -107,11 +107,10 @@ class AdminLoopController extends Controller
 
         if ($this->isSuperAdmin()) {
             $organizations = Organization::orderBy('name')->get(['id', 'name']);
-            $orgId = request()->input('organization_id', $organizations->first()?->id);
 
-            $users = $orgId
-                ? User::where('organization_id', $orgId)->orderBy('name')->get(['id', 'name', 'email'])
-                : collect();
+            $users = User::with('organization:id,name')
+                ->orderBy('name')
+                ->get(['id', 'name', 'email', 'organization_id']);
 
             return view('admin.loops.create', compact('users', 'organizations'));
         }
@@ -145,7 +144,7 @@ class AdminLoopController extends Controller
             $owner = User::findOrFail($data['owner_id']);
 
             if ($owner->organization_id !== $data['organization_id']) {
-                abort(403, 'Owner must be in the selected organization.');
+                abort(403, __('admin.owner_must_belong_to_org'));
             }
 
             $loop = $this->loopService->createLoopForOrg(
@@ -176,7 +175,7 @@ class AdminLoopController extends Controller
         $owner = User::findOrFail($data['owner_id']);
 
         if ($owner->organization_id !== $orgId) {
-            abort(403, 'Owner must be in the same organization.');
+            abort(403, __('admin.owner_must_belong_to_org'));
         }
 
         $loop = $this->loopService->createLoop(
@@ -194,13 +193,17 @@ class AdminLoopController extends Controller
     {
         $this->assertOrgAccess($loop);
 
-        $orgId = $this->isSuperAdmin()
-            ? $loop->organization_id
-            : auth()->user()->organization_id;
+        if ($this->isSuperAdmin()) {
+            $users = User::with('organization:id,name')
+                ->orderBy('name')
+                ->get(['id', 'name', 'email', 'organization_id']);
+        } else {
+            $orgId = auth()->user()->organization_id;
 
-        $users = User::where('organization_id', $orgId)
-            ->orderBy('name')
-            ->get(['id', 'name', 'email']);
+            $users = User::where('organization_id', $orgId)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']);
+        }
 
         $loop->load(['members.user', 'creator', 'organization']);
 
