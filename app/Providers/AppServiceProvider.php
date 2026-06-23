@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Events\LoopMessageCreated;
+use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Models\AiConfig;
 use App\Models\BugReport;
@@ -53,6 +54,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -142,6 +144,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Paginator::useTailwind();
+
+        Livewire::addPersistentMiddleware(ResolveOrganization::class);
 
         try {
             $dbProvider = AiConfig::get('default_provider');
