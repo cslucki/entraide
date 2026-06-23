@@ -11,6 +11,7 @@
     $canSeeFlux = auth()->check()
         && $menuOrganization
         && (auth()->id() === $menuOrganization->admin_id || auth()->user()->is_admin);
+    $loopsEnabled = $currentOrganization?->loops_enabled ?? $menuOrganization?->loops_enabled ?? true;
     $bugReportUrl = $organizationRouteParam && Route::has('organization.bug-reports.index')
         ? route('organization.bug-reports.index', ['organization' => $organizationRouteParam])
         : route('bug-reports.index');
@@ -39,6 +40,7 @@
             'label' => __('navigation.loops'),
             'hint' => 'ChatLoop',
             'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
+            'visible' => $loopsEnabled,
         ],
         [
             'url' => $routeUrl('explorer', 'organization.explorer'),
@@ -48,7 +50,7 @@
             'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
         ],
         [
-            'url' => route('messages.index'),
+            'url' => $routeUrl('messages.index', 'organization.messages.index'),
             'active' => ['messages'],
             'label' => __('navigation.messaging'),
             'hint' => __('navigation.messages'),
@@ -63,11 +65,11 @@
             'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
         ],
         [
-            'url' => route('blog.index'),
-            'active' => ['blog'],
+            'url' => $routeUrl('blog.index', 'organization.blog.index'),
+            'active' => ['blog', 'organization.blog'],
             'label' => __('navigation.blog'),
             'hint' => __('navigation.articles'),
-            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
+            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
         ],
     ] : [
         [
@@ -92,8 +94,8 @@
             'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
         ],
         [
-            'url' => route('blog.index'),
-            'active' => ['blog'],
+            'url' => $routeUrl('blog.index', 'organization.blog.index'),
+            'active' => ['blog', 'organization.blog'],
             'label' => __('navigation.blog'),
             'hint' => __('navigation.articles'),
             'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',

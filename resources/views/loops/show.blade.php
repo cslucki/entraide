@@ -1,5 +1,14 @@
-@php $currentLoop = $loop; @endphp
-@php $analysis = session('help_request_analysis'); @endphp
+@php
+    $currentLoop = $loop;
+    $analysis = session('help_request_analysis');
+    $_org = request()->route('organization');
+    $_loopRoute = function ($name, $params = []) use ($_org) {
+        if ($_org && request()->routeIs('organization.*') && Route::has('organization.loops.'.$name)) {
+            return route('organization.loops.'.$name, array_merge(['organization' => $_org], $params));
+        }
+        return route('loops.'.$name, $params);
+    };
+@endphp
 
 @push('head')
 <style>
@@ -37,10 +46,10 @@
 
         {{-- Topbar --}}
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-            @php $backRoute = app()->bound('current_organization') && app('current_organization')->isMonoLoop() ? 'home' : 'loops.index'; @endphp
-            <a href="{{ route($backRoute) }}"
+            @php $backHome = app()->bound('current_organization') && app('current_organization')->isMonoLoop(); @endphp
+            <a href="{{ $backHome ? route('home') : $_loopRoute('index') }}"
                class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-               aria-label="{{ $backRoute === 'home' ? __('loops.back_home') : __('loops.back_to_loops') }}">
+               aria-label="{{ $backHome ? __('loops.back_home') : __('loops.back_to_loops') }}">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
@@ -88,7 +97,7 @@
         <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
             @if(!$isMember && $currentLoop->isPublic())
                 <div class="px-4 py-3">
-                    <form method="POST" action="{{ route('loops.join', $currentLoop) }}">
+                    <form method="POST" action="{{ $_loopRoute('join', ['loop' => $currentLoop]) }}">
                         @csrf
                         <button type="submit"
                             class="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
@@ -127,7 +136,7 @@
                                         @endif
                                     </h3>
                                     @if($analysis)
-                                        <a href="{{ route('loops.show', $currentLoop) }}" class="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                        <a href="{{ $_loopRoute('show', ['loop' => $currentLoop]) }}" class="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                         </a>
                                     @else
@@ -168,7 +177,7 @@
                                             </div>
                                         @endif
 
-                                        <form method="POST" action="{{ route('loops.help-request.publish', $currentLoop) }}" class="space-y-3">
+                                        <form method="POST" action="{{ $_loopRoute('help-request.publish', ['loop' => $currentLoop]) }}" class="space-y-3">
                                             @csrf
                                             <div>
                                                 <label for="hr-title" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.form_title') }}</label>
@@ -198,7 +207,7 @@
                                                 </div>
                                             </div>
                                             <div class="flex gap-3 pt-1">
-                                                <a href="{{ route('loops.show', $currentLoop) }}"
+                                                <a href="{{ $_loopRoute('show', ['loop' => $currentLoop]) }}"
                                                    class="flex-1 text-center px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl transition">
                                                     {{ __('loops.cancel') }}
                                                 </a>
@@ -212,7 +221,7 @@
                                             </div>
                                         </form>
                                     @else
-                                        <form method="POST" action="{{ route('loops.help-request.analyze', $currentLoop) }}" class="space-y-3">
+                                        <form method="POST" action="{{ $_loopRoute('help-request.analyze', ['loop' => $currentLoop]) }}" class="space-y-3">
                                             @csrf
                                             <label for="intention" class="block text-xs font-medium text-gray-500 dark:text-gray-400">
                                                 {{ __('loops.describe_need') }}
@@ -243,7 +252,7 @@
                         <span>{{ session('help_request_error') }}</span>
                     </div>
                     <div class="flex gap-2">
-                        <a href="{{ route('loops.show', $currentLoop) }}"
+                        <a href="{{ $_loopRoute('show', ['loop' => $currentLoop]) }}"
                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl transition">
                             {{ __('loops.back') }}
                         </a>

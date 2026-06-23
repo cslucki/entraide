@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\FeedPost;
 use App\Models\Loop;
+use App\Models\Organization;
 use App\Services\LoopMessageService;
 use App\Services\UrlPreviewService;
 use Carbon\Carbon;
@@ -37,6 +38,8 @@ class CreateFeedPost extends Component
 
     public $image = null;
 
+    public ?string $orgId = null;
+
     public function mount(): void
     {
         $org = currentOrganization();
@@ -45,9 +48,16 @@ class CreateFeedPost extends Component
             abort(404);
         }
 
+        $this->orgId = $org->id;
+
         if (! auth()->user() || ! auth()->user()->can('create', FeedPost::class)) {
             abort(403);
         }
+    }
+
+    private function org(): ?Organization
+    {
+        return $this->orgId ? Organization::find($this->orgId) : null;
     }
 
     public function submit(LoopMessageService $loopMessageService): void
@@ -72,7 +82,7 @@ class CreateFeedPost extends Component
             'allLoops' => 'boolean',
         ]);
 
-        $org = currentOrganization();
+        $org = $this->org();
 
         if (! $org) {
             abort(404);
@@ -80,7 +90,11 @@ class CreateFeedPost extends Component
 
         $user = auth()->user();
 
-        if (! $user || ! $user->can('create', FeedPost::class)) {
+        if (! $user || $user->organization_id !== $org->id) {
+            abort(403);
+        }
+
+        if ($org->feed_post_publish_mode !== 'members' && $org->admin_id !== $user->id && ! $user->is_admin) {
             abort(403);
         }
 
@@ -143,8 +157,8 @@ class CreateFeedPost extends Component
             default => 'Annonce publiée.',
         });
 
-        $route = currentOrganization()?->is_default ? 'flux' : 'organization.flux';
-        $parameters = $route === 'organization.flux' ? ['organization' => currentOrganization()?->slug] : [];
+        $route = $org->is_default ? 'flux' : 'organization.flux';
+        $parameters = $route === 'organization.flux' ? ['organization' => $org->slug] : [];
 
         $this->redirectRoute($route, $parameters);
     }
@@ -169,7 +183,7 @@ class CreateFeedPost extends Component
 
     public function render()
     {
-        $org = currentOrganization();
+        $org = $this->org();
         $loops = $org
             ? Loop::where('organization_id', $org->id)->orderBy('name')->get(['id', 'name', 'slug', 'description'])->map(fn (Loop $loop) => [
                 'id' => $loop->id,

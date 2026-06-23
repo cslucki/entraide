@@ -487,6 +487,22 @@ Route::prefix('/org/{organization}')
 
             Route::middleware('verified')->group(function () {
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
+
+                // Blog (org-scoped)
+                Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->name('blog.create');
+                Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
+                Route::post('/blog', [BlogController::class, 'store'])->name('blog.store');
+                Route::get('/blog/rediger/{post:slug}/modifier', [BlogController::class, 'edit'])->name('blog.edit');
+                Route::put('/blog/{post:slug}', [BlogController::class, 'update'])->name('blog.update');
+                Route::patch('/blog/{post:slug}/publier', [BlogController::class, 'publish'])->name('blog.publish');
+                Route::delete('/blog/{post:slug}', [BlogController::class, 'destroy'])->name('blog.destroy');
+                Route::post('/blog/{post:slug}/commentaires', [BlogCommentController::class, 'store'])->name('blog.comment.store');
+                Route::delete('/commentaires/{comment}', [BlogCommentController::class, 'destroy'])->name('blog.comment.destroy');
+                Route::post('/blog/upload-image', [BlogController::class, 'uploadImage'])->name('blog.upload-image');
+                Route::post('/blog/ai-generate', [BlogController::class, 'aiGenerate'])->name('blog.ai-generate');
+                Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
+                Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
+                Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');
@@ -498,10 +514,16 @@ Route::prefix('/org/{organization}')
 
         Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
-        Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
+        Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show')->whereUuid('user');
         Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
         Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
         Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
         Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
         Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+
+        // Blog (org-scoped, en parallèle des routes /blog root)
+        Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
+        Route::get('/blog/categorie/{slug}', [BlogController::class, 'byCategory'])->name('blog.category');
+        Route::get('/blog/tag/{slug}', [BlogController::class, 'byTag'])->name('blog.tag');
+        Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
     });

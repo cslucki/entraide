@@ -46,4 +46,6 @@ return [
     'view' => 'View',
     'me' => 'Me',
     'member' => 'Member',
+    'body_or_image_required' => 'Add a message or an image.',
+    'invalid_file' => 'Only images (JPG, PNG, GIF, WebP) are accepted.',
 ];

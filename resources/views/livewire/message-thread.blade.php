@@ -191,6 +191,9 @@
             @error('newMessage')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
             @enderror
+            @error('photo')
+                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+            @enderror
         </x-conversation.composer>
     @else
     <div class="border-t border-gray-200 dark:border-gray-700 p-4 text-center text-sm text-gray-500 dark:text-gray-400">

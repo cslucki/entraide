@@ -55,8 +55,9 @@ class ServiceController extends Controller
 
     public function create(): View
     {
-        $categories = Category::with('skills', 'pointGuidelines')->get();
-        $skills = Skill::with('category')->get()->groupBy('category_id');
+        $organization = currentOrganization();
+        $categories = Category::where('organization_id', $organization?->id)->with('skills', 'pointGuidelines')->get();
+        $skills = Skill::where('organization_id', $organization?->id)->with('category')->get()->groupBy('category_id');
 
         return view('services.create', compact('categories', 'skills'));
     }
@@ -138,8 +139,8 @@ class ServiceController extends Controller
         }
 
         $this->authorize('update', $service);
-        $categories = Category::with('skills', 'pointGuidelines')->get();
-        $skills = Skill::with('category')->get()->groupBy('category_id');
+        $categories = Category::where('organization_id', $organization->id)->with('skills', 'pointGuidelines')->get();
+        $skills = Skill::where('organization_id', $organization->id)->with('category')->get()->groupBy('category_id');
         $service->load(['skills', 'tags', 'category']);
 
         return view('services.edit', compact('service', 'categories', 'skills'));

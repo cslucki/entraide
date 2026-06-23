@@ -1,6 +1,13 @@
 <x-page :title="$request->title" width="7xl">
+    @php
+        $_reqOrgSlug = request()->route('organization');
+        $_reqExplorerHref = $_reqOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_reqOrgSlug]) : route('explorer');
+        $_reqProfileHref = $_reqOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_reqOrgSlug, 'user' => $request->user]) : route('profile.show', $request->user);
+        $_reqReportAction = $_reqOrgSlug && Route::has('organization.reports.request') ? route('organization.reports.request', ['organization' => $_reqOrgSlug, 'serviceRequest' => $request]) : route('reports.request', $request);
+        $_reqTxStoreAction = $_reqOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_reqOrgSlug]) : route('transactions.store');
+    @endphp
         <div class="mb-6">
-            <a href="{{ route('explorer') }}" class="text-sm text-gray-500 hover:text-indigo-600">← Retour à l'explorateur</a>
+            <a href="{{ $_reqExplorerHref }}" class="text-sm text-gray-500 hover:text-indigo-600">← Retour à l'explorateur</a>
         </div>
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -23,7 +30,7 @@
                 <div class="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100 dark:border-gray-700">
                     <img src="{{ $request->user->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
                     <div>
-                        <a href="{{ route('profile.show', $request->user) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $request->user->name }}</a>
+                        <a href="{{ $_reqProfileHref }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $request->user->name }}</a>
                         <div class="flex items-center gap-3 text-xs text-gray-500">
                             <span>{{ match($request->delivery_mode) { 'remote' => '🌐 À distance', 'onsite' => '📍 Sur site', 'both' => '🌐📍 Distance ou sur site' } }}</span>
                             @if($request->deadline)
@@ -71,7 +78,7 @@
                 <div class="mb-4" x-data="{ open: false }">
                     <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler cette demande</button>
                     <div x-show="open" x-cloak class="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                        <form method="POST" action="{{ route('reports.request', $request) }}">
+                        <form method="POST" action="{{ $_reqReportAction }}">
                             @csrf
                             <select name="reason" required class="w-full mb-2 px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
                                 <option value="">Motif du signalement...</option>
@@ -89,7 +96,7 @@
 
                 @if($request->status === 'open')
                 <div class="border-t border-gray-100 dark:border-gray-700 pt-6">
-                    <form method="POST" action="{{ route('transactions.store') }}" class="flex items-center gap-4">
+                    <form method="POST" action="{{ $_reqTxStoreAction }}" class="flex items-center gap-4">
                         @csrf
                         <input type="hidden" name="request_id" value="{{ $request->id }}">
                         <input type="number" name="points_proposed" value="{{ $request->budget_min }}" min="1"

@@ -128,8 +128,9 @@ class LoopChatTest extends TestCase
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', '')
+            ->set('photo', null)
             ->call('sendMessage')
-            ->assertHasErrors(['body' => 'required']);
+            ->assertHasErrors(['body' => 'required_without']);
     }
 
     public function test_body_max_length_is_5000(): void

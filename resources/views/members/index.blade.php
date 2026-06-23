@@ -8,7 +8,8 @@
 
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             @foreach($members as $member)
-            <a href="{{ route('profile.show', $member) }}"
+            @php $profileRoute = request()->route('organization') ? url('org/' . request()->route('organization') . '/profile/' . $member->id) : route('profile.show', $member); @endphp
+            <a href="{{ $profileRoute }}"
                class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition group flex flex-col gap-3">
 
                 <!-- Avatar + nom -->

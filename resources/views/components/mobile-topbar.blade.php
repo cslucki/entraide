@@ -22,6 +22,7 @@
         'organization.flux' => __('navigation.feed'),
         'organization.flux.create' => __('navigation.new_announcement'),
         'blog.index' => __('navigation.blog'),
+        'organization.blog.index' => __('navigation.blog'),
         'mentions-legales' => __('navigation.legal_notices'),
         'dashboard' => __('navigation.my_space'),
         'organization.dashboard' => __('navigation.my_space'),
@@ -43,13 +44,13 @@
             $routeTitle = request()->route('request')?->title;
         } elseif (request()->routeIs('requests.create', 'organization.requests.create')) {
             $routeTitle = __('navigation.make_request', ['request' => __('navigation.services')]);
-        } elseif (request()->routeIs('blog.show')) {
+        } elseif (request()->routeIs('blog.show', 'organization.blog.show')) {
             $routeTitle = request()->route('post')?->title;
-        } elseif (request()->routeIs('blog.create')) {
+        } elseif (request()->routeIs('blog.create', 'organization.blog.create')) {
             $routeTitle = __('navigation.write_article');
-        } elseif (request()->routeIs('blog.edit')) {
+        } elseif (request()->routeIs('blog.edit', 'organization.blog.edit')) {
             $routeTitle = __('navigation.edit_article');
-        } elseif (request()->routeIs('blog.my-posts')) {
+        } elseif (request()->routeIs('blog.my-posts', 'organization.blog.my-posts')) {
             $routeTitle = __('navigation.my_articles');
         } elseif (request()->routeIs('profile.show', 'organization.profile.show')) {
             $routeTitle = request()->route('user')?->name;
@@ -76,8 +77,8 @@
     if (! $isLevelOne) {
         if (request()->routeIs('services.*', 'requests.*', 'organization.services.*', 'organization.requests.*')) {
             $backHref = $routeUrl('explorer', 'organization.explorer');
-        } elseif (request()->routeIs('blog.*')) {
-            $backHref = route('blog.index');
+        } elseif (request()->routeIs('blog.*', 'organization.blog.*')) {
+            $backHref = $routeUrl('blog.index', 'organization.blog.index');
         } elseif (request()->routeIs('loops.*', 'organization.loops.*')) {
             $_org = app()->bound('current_organization') ? app('current_organization') : null;
             if ($_org && $_org->isMonoLoop()) {
