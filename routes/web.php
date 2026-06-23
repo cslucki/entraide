@@ -546,9 +546,11 @@ Route::prefix('/org/{organization}')
                 Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
+                Route::patch('/users/{user}/toggle-ban', [OrgAdminController::class, 'toggleUserBan'])->name('users.toggle-ban');
 
                 // Administration
                 Route::get('/reports', [OrgAdminController::class, 'reports'])->name('reports');
+                Route::patch('/bug-reports/{bugReport}/resolve', [OrgAdminController::class, 'resolveBugReport'])->name('reports.resolve');
                 Route::get('/invitations', [OrgAdminController::class, 'invitations'])->name('invitations');
                 Route::get('/translations', [OrgAdminController::class, 'translations'])->name('translations');
 

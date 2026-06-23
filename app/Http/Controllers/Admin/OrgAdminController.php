@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\BlogPost;
+use App\Models\BugReport;
+use App\Models\Category;
 use App\Models\Loop;
 use App\Models\Message;
 use App\Models\Organization;
+use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -209,24 +212,112 @@ class OrgAdminController extends Controller
         return back()->with('success', __('navigation.org_admin_post_published'));
     }
 
-    public function categories(Organization $organization): View
+    public function users(Request $request, Organization $organization): View
     {
-        return $this->comingSoon($organization, __('navigation.org_admin_categories'));
+        $orgId = $organization->id;
+        $query = User::where('organization_id', $orgId);
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search.'%')
+                    ->orWhere('email', 'like', '%'.$request->search.'%');
+            });
+        }
+
+        if ($request->filled('status')) {
+            match ($request->status) {
+                'banned' => $query->whereNotNull('banned_at'),
+                'active' => $query->whereNull('banned_at'),
+                default => null,
+            };
+        }
+
+        $users = $query->latest()->paginate(25)->withQueryString();
+
+        return view('admin.org.users', [
+            'organization' => $organization,
+            'users' => $users,
+        ]);
     }
 
-    public function users(Organization $organization): View
+    public function toggleUserBan(Organization $organization, User $user): RedirectResponse
     {
-        return $this->comingSoon($organization, __('navigation.org_admin_users'));
+        abort_if($user->organization_id !== $organization->id, 404);
+
+        $user->update([
+            'banned_at' => $user->banned_at ? null : now(),
+        ]);
+
+        $action = $user->banned_at ? 'banned' : 'unbanned';
+
+        return back()->with('success', __("navigation.org_admin_user_{$action}"));
     }
 
-    public function reports(Organization $organization): View
+    public function categories(Request $request, Organization $organization): View
     {
-        return $this->comingSoon($organization, __('navigation.org_admin_reports'));
+        $orgId = $organization->id;
+        $query = Category::where('organization_id', $orgId);
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('name_b2c', 'like', '%'.$request->search.'%')
+                    ->orWhere('name_b2b', 'like', '%'.$request->search.'%');
+            });
+        }
+
+        $categories = $query->latest()->paginate(25)->withQueryString();
+
+        return view('admin.org.categories', [
+            'organization' => $organization,
+            'categories' => $categories,
+        ]);
+    }
+
+    public function reports(Request $request, Organization $organization): View
+    {
+        $orgId = $organization->id;
+        $query = BugReport::where('organization_id', $orgId)->with('reporter');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $query->where('reason', 'like', '%'.$request->search.'%');
+        }
+
+        $bugReports = $query->latest()->paginate(25)->withQueryString();
+
+        return view('admin.org.reports', [
+            'organization' => $organization,
+            'bugReports' => $bugReports,
+        ]);
+    }
+
+    public function resolveBugReport(Organization $organization, BugReport $bugReport): RedirectResponse
+    {
+        abort_if($bugReport->organization_id !== $organization->id, 404);
+
+        $bugReport->update([
+            'status' => 'resolved',
+            'fixed_at' => now(),
+        ]);
+
+        return back()->with('success', __('navigation.org_admin_report_resolved'));
     }
 
     public function invitations(Organization $organization): View
     {
-        return $this->comingSoon($organization, __('navigation.org_admin_invitations'));
+        $orgId = $organization->id;
+        $referrals = Referral::where('organization_id', $orgId)
+            ->with(['referrer', 'referredUser'])
+            ->latest()
+            ->paginate(25);
+
+        return view('admin.org.invitations', [
+            'organization' => $organization,
+            'referrals' => $referrals,
+        ]);
     }
 
     public function translations(Organization $organization): View
