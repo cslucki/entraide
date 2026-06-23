@@ -541,6 +541,13 @@ Route::prefix('/org/{organization}')
                 Route::get('/blog', [OrgAdminController::class, 'blog'])->name('blog');
                 Route::patch('/blog/{blogPost}/publish', [OrgAdminController::class, 'publishBlogPost'])->name('blog.publish');
                 Route::get('/categories', [OrgAdminController::class, 'categories'])->name('categories');
+                Route::get('/categories/create', [OrgAdminController::class, 'createCategory'])->name('categories.create');
+                Route::post('/categories', [OrgAdminController::class, 'storeCategory'])->name('categories.store');
+                Route::get('/categories/{category}/edit', [OrgAdminController::class, 'editCategory'])->name('categories.edit');
+                Route::put('/categories/{category}', [OrgAdminController::class, 'updateCategory'])->name('categories.update');
+                Route::delete('/categories/{category}', [OrgAdminController::class, 'destroyCategory'])->name('categories.destroy');
+                Route::post('/categories/{category}/skills', [OrgAdminController::class, 'storeCategorySkill'])->name('categories.skills.store');
+                Route::delete('/skills/{skill}', [OrgAdminController::class, 'destroyCategorySkill'])->name('skills.destroy');
 
                 // Community
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');

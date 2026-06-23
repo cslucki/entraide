@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use App\Models\Skill;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
@@ -19,6 +20,7 @@ use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class OrgAdminController extends Controller
@@ -259,7 +261,9 @@ class OrgAdminController extends Controller
     public function categories(Request $request, Organization $organization): View
     {
         $orgId = $organization->id;
-        $query = Category::where('organization_id', $orgId);
+        $query = Category::where('organization_id', $orgId)
+            ->with(['skills'])
+            ->withCount(['services', 'serviceRequests', 'skills']);
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
@@ -274,6 +278,131 @@ class OrgAdminController extends Controller
             'organization' => $organization,
             'categories' => $categories,
         ]);
+    }
+
+    public function createCategory(Organization $organization): View
+    {
+        return view('admin.org.categories-form', [
+            'organization' => $organization,
+            'category' => null,
+        ]);
+    }
+
+    public function storeCategory(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'name_b2c' => 'required|string|max:100',
+            'name_b2b' => 'required|string|max:100',
+            'color' => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
+        ]);
+
+        $data['slug'] = Str::slug($data['name_b2c']);
+        $data['organization_id'] = $organization->id;
+        $category = Category::create($data);
+
+        if ($request->has('skills')) {
+            $skillNames = array_filter($request->input('skills', []), fn ($name) => ! empty(trim($name)));
+            foreach ($skillNames as $skillName) {
+                $category->skills()->create([
+                    'name' => $skillName,
+                    'slug' => Str::slug($skillName),
+                    'organization_id' => $organization->id,
+                ]);
+            }
+        }
+
+        return redirect()->route('organization.admin.categories', [
+            'organization' => $organization->slug,
+        ])->with('success', 'Catégorie créée.');
+    }
+
+    public function editCategory(Organization $organization, Category $category): View
+    {
+        abort_if($category->organization_id !== $organization->id, 404);
+
+        $category->load('skills');
+
+        return view('admin.org.categories-form', [
+            'organization' => $organization,
+            'category' => $category,
+        ]);
+    }
+
+    public function updateCategory(Request $request, Organization $organization, Category $category): RedirectResponse
+    {
+        abort_if($category->organization_id !== $organization->id, 404);
+
+        $data = $request->validate([
+            'name_b2c' => 'required|string|max:100',
+            'name_b2b' => 'required|string|max:100',
+            'color' => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
+        ]);
+
+        $data['slug'] = Str::slug($data['name_b2c']);
+        $category->update($data);
+
+        if ($request->has('skills')) {
+            $skillNames = array_filter($request->input('skills', []), fn ($name) => ! empty(trim($name)));
+            $existingSkills = $category->skills->keyBy('name');
+            foreach ($skillNames as $skillName) {
+                if (! $existingSkills->has($skillName)) {
+                    $category->skills()->create([
+                        'name' => $skillName,
+                        'slug' => Str::slug($skillName),
+                        'organization_id' => $organization->id,
+                    ]);
+                }
+            }
+            $skillsToDelete = $category->skills->whereNotIn('name', $skillNames);
+            $skillsToDelete->each->delete();
+        }
+
+        return redirect()->route('organization.admin.categories', [
+            'organization' => $organization->slug,
+        ])->with('success', 'Catégorie mise à jour.');
+    }
+
+    public function destroyCategory(Organization $organization, Category $category): RedirectResponse
+    {
+        abort_if($category->organization_id !== $organization->id, 404);
+
+        if ($category->services()->count() > 0 || $category->serviceRequests()->count() > 0) {
+            return back()->with('error', 'Impossible de supprimer une catégorie utilisée par des services ou demandes.');
+        }
+
+        $category->skills()->delete();
+        $category->delete();
+
+        return redirect()->route('organization.admin.categories', [
+            'organization' => $organization->slug,
+        ])->with('success', 'Catégorie supprimée.');
+    }
+
+    public function storeCategorySkill(Request $request, Organization $organization, Category $category): RedirectResponse
+    {
+        abort_if($category->organization_id !== $organization->id, 404);
+
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+        ]);
+
+        Skill::create([
+            'category_id' => $category->id,
+            'name' => $data['name'],
+            'slug' => Str::slug($data['name']),
+            'organization_id' => $organization->id,
+        ]);
+
+        return back()->with('success', 'Compétence ajoutée.');
+    }
+
+    public function destroyCategorySkill(Organization $organization, Skill $skill): RedirectResponse
+    {
+        abort_if($skill->organization_id !== $organization->id, 404);
+
+        $skill->delete();
+
+        return back()->with('success', 'Compétence supprimée.');
     }
 
     public function reports(Request $request, Organization $organization): View

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
+      class="{{ ($organization->global_color_mode ?? 'dark') === 'dark' ? 'dark' : '' }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,6 +8,62 @@
         <title>{{ $title ?? __('navigation.org_admin') }} — {{ config('app.name', 'Entraide') }}</title>
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+
+        @php
+            $cachePath = storage_path('app/bouclepro-themes.php');
+            if (file_exists($cachePath)) {
+                $bpThemes = require $cachePath;
+                $bpDefaultTheme = $bpThemes['_meta']['default'] ?? config('bouclepro_themes.default', 'zen');
+                unset($bpThemes['_meta']);
+            } else {
+                $bpThemes = config('bouclepro_themes.themes');
+                $bpDefaultTheme = config('bouclepro_themes.default', 'zen');
+            }
+        @endphp
+
+        <script>
+            var orgThemeKey = @json($organization->theme?->key) || @json($bpDefaultTheme);
+            document.documentElement.dataset.bpTheme = localStorage.bpTheme || orgThemeKey;
+
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && @json($organization->global_color_mode ?? 'dark') === 'dark')) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        </script>
+
+        <style>
+            :root {
+                @foreach($bpThemes[$bpDefaultTheme]['tokens'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+            @foreach($bpThemes as $key => $theme)
+            [data-bp-theme="{{ $key }}"] {
+                @foreach($theme['tokens'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+            @endforeach
+            .dark {
+                @foreach($bpThemes[$bpDefaultTheme]['dark'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+            .dark[data-bp-theme="{{ $bpDefaultTheme }}"] {
+                @foreach($bpThemes[$bpDefaultTheme]['dark'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+            @foreach($bpThemes as $key => $theme)
+            .dark[data-bp-theme="{{ $key }}"] {
+                @foreach($theme['dark'] as $token => $value)
+                --bp-{{ $token }}: {{ $value }};
+                @endforeach
+            }
+            @endforeach
+        </style>
+
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
     </head>
@@ -28,12 +85,13 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span class="text-lg font-bold text-white">{{ $organization->name }}</span>
-                            <span class="text-xs bg-purple-600 text-white px-1.5 py-0.5 rounded font-medium">{{ __('navigation.org_admin_badge') }}</span>
+                            <span class="text-xs px-1.5 py-0.5 rounded font-medium text-white" style="background-color: var(--bp-primary)">{{ __('navigation.org_admin_badge') }}</span>
                         </div>
                         <button @click="togglePin()"
                                 :title="pinned ? 'Dépingler le menu' : 'Épingler le menu'"
                                 class="p-1.5 rounded-lg transition hover:bg-gray-700 text-gray-400 hover:text-white"
-                                :class="pinned ? 'text-indigo-400' : ''">
+                                :class="pinned ? '' : ''"
+                                :style="pinned ? 'color: var(--bp-primary)' : ''">
                             <svg x-show="pinned" x-cloak class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                             </svg>
@@ -48,7 +106,8 @@
                             <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" class="inline">
                                 @csrf
                                 <button type="submit"
-                                    class="rounded-full px-1.5 py-0.5 transition {{ app()->getLocale() === $locale ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-500 hover:text-white' }}"
+                                    class="rounded-full px-1.5 py-0.5 transition {{ app()->getLocale() === $locale ? 'text-white shadow-sm' : 'text-gray-500 hover:text-white' }}"
+                                    @if(app()->getLocale() === $locale) style="background-color: var(--bp-primary)" @endif
                                     aria-current="{{ app()->getLocale() === $locale ? 'true' : 'false' }}">
                                     {{ $label }}
                                 </button>
@@ -58,6 +117,15 @@
                 </div>
 
                 <nav @click="if ($event.target.closest('a')) { pinned || (sidebarOpen = false) }" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                    <!-- Voir l'organisation -->
+                    <a href="{{ route('organization.home', ['organization' => $organization->slug]) }}"
+                       class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mb-3
+                              text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <span>{{ $organization->name }}</span>
+                    </a>
                     @php
                         $isActive = fn($route) => request()->routeIs($route, $route.'.*');
                     @endphp
@@ -66,7 +134,7 @@
                     @php $active = $isActive('organization.admin.dashboard'); @endphp
                     <a href="{{ route('organization.admin.dashboard', ['organization' => $organization->slug]) }}"
                        class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mb-2
-                               {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                               {{ $active ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($active) style="background-color: var(--bp-primary)"@endif">
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                         </svg>
@@ -84,7 +152,7 @@
                         @php $active = $isActive($item['route']); @endphp
                         <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
-                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                                   {{ $active ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($active) style="background-color: var(--bp-primary)"@endif">
                             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                             </svg>
@@ -102,7 +170,7 @@
                         @php $active = $isActive($item['route']); @endphp
                         <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
-                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                                   {{ $active ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($active) style="background-color: var(--bp-primary)"@endif">
                             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                             </svg>
@@ -121,7 +189,7 @@
                         @php $active = $isActive($item['route']); @endphp
                         <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
-                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                                   {{ $active ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($active) style="background-color: var(--bp-primary)"@endif">
                             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                             </svg>
@@ -140,7 +208,7 @@
                         @php $active = $isActive($item['route']); @endphp
                         <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
-                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                                   {{ $active ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($active) style="background-color: var(--bp-primary)"@endif">
                             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                             </svg>
@@ -167,7 +235,7 @@
                         @php $active = $isActive($item['route']); @endphp
                         <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
-                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                                   {{ $active ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($active) style="background-color: var(--bp-primary)"@endif">
                             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                             </svg>
@@ -191,7 +259,7 @@
                 <!-- Top bar -->
                 <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg focus:outline-none focus:ring-2" style="--tw-ring-color: var(--bp-primary)">
                             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                             </svg>
@@ -232,7 +300,7 @@
                 <button @click="show = false" class="opacity-70 hover:opacity-100 text-xl leading-none">&times;</button>
             </div>
             @elseif(session('info'))
-            <div class="flex items-center gap-3 bg-indigo-600 text-white px-4 py-3 rounded-xl">
+            <div class="flex items-center gap-3 text-white px-4 py-3 rounded-xl" style="background-color: var(--bp-primary)">
                 <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <p class="text-sm font-medium flex-1">{{ session('info') }}</p>
                 <button @click="show = false" class="opacity-70 hover:opacity-100 text-xl leading-none">&times;</button>
