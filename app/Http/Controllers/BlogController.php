@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -93,6 +94,11 @@ class BlogController extends Controller implements HasMiddleware
         return view('blog.category', compact('category', 'posts'));
     }
 
+    public function orgByCategory(string $org, string $slug): View
+    {
+        return $this->byCategory($slug);
+    }
+
     public function byTag(string $slug): View
     {
         $organization = currentOrganization();
@@ -111,6 +117,11 @@ class BlogController extends Controller implements HasMiddleware
             ->paginate(12);
 
         return view('blog.tag', compact('tag', 'posts'));
+    }
+
+    public function orgByTag(string $org, string $slug): View
+    {
+        return $this->byTag($slug);
     }
 
     public function show(BlogPost $post): View
@@ -141,6 +152,11 @@ class BlogController extends Controller implements HasMiddleware
         return view('blog.show', compact('post', 'relatedPosts', 'isLiked'));
     }
 
+    public function orgShow(string $org, BlogPost $post): View
+    {
+        return $this->show($post);
+    }
+
     public function create(): View
     {
         $organization = currentOrganization();
@@ -153,6 +169,11 @@ class BlogController extends Controller implements HasMiddleware
         $tags = Tag::orderBy('name')->get();
 
         return view('blog.create', compact('organization', 'categories', 'tags'));
+    }
+
+    public function orgCreate(string $org): View
+    {
+        return $this->create();
     }
 
     public function store(Request $request): RedirectResponse
@@ -188,7 +209,12 @@ class BlogController extends Controller implements HasMiddleware
 
         $message = $data['status'] === 'published' ? 'Article publié.' : 'Brouillon enregistré.';
 
-        return redirect()->route('blog.show', $post)->with('success', $message);
+        return redirect($this->blogUrl('show', ['post' => $post]))->with('success', $message);
+    }
+
+    public function orgStore(Request $request, string $org): RedirectResponse
+    {
+        return $this->store($request);
     }
 
     public function edit(BlogPost $post): View
@@ -203,6 +229,11 @@ class BlogController extends Controller implements HasMiddleware
         $tags = Tag::orderBy('name')->get();
 
         return view('blog.edit', compact('organization', 'post', 'categories', 'tags'));
+    }
+
+    public function orgEdit(string $org, BlogPost $post): View
+    {
+        return $this->edit($post);
     }
 
     public function update(Request $request, BlogPost $post): RedirectResponse
@@ -245,7 +276,12 @@ class BlogController extends Controller implements HasMiddleware
             $post->tags()->sync($tagIds);
         }
 
-        return redirect()->route('blog.show', $post)->with('success', 'Article mis à jour.');
+        return redirect($this->blogUrl('show', ['post' => $post]))->with('success', 'Article mis à jour.');
+    }
+
+    public function orgUpdate(Request $request, string $org, BlogPost $post): RedirectResponse
+    {
+        return $this->update($request, $post);
     }
 
     public function publish(BlogPost $post): RedirectResponse
@@ -264,6 +300,11 @@ class BlogController extends Controller implements HasMiddleware
         return back()->with('success', 'Article publié.');
     }
 
+    public function orgPublish(string $org, BlogPost $post): RedirectResponse
+    {
+        return $this->publish($post);
+    }
+
     public function destroy(BlogPost $post): RedirectResponse
     {
         $organization = currentOrganization();
@@ -274,7 +315,12 @@ class BlogController extends Controller implements HasMiddleware
         $this->authorize('delete', $post);
         $post->delete();
 
-        return redirect()->route('blog.my-posts')->with('success', 'Article supprimé.');
+        return redirect($this->blogUrl('my-posts'))->with('success', 'Article supprimé.');
+    }
+
+    public function orgDestroy(string $org, BlogPost $post): RedirectResponse
+    {
+        return $this->destroy($post);
     }
 
     public function myPosts(): View
@@ -307,6 +353,11 @@ class BlogController extends Controller implements HasMiddleware
         return view('blog.my-posts', compact('drafts', 'publishedPosts', 'comments'));
     }
 
+    public function orgMyPosts(string $org): View
+    {
+        return $this->myPosts();
+    }
+
     public function uploadImage(Request $request): JsonResponse
     {
         $request->validate([
@@ -323,6 +374,11 @@ class BlogController extends Controller implements HasMiddleware
         $request->file('image')->storeAs($dir, $filename, 'public');
 
         return response()->json(['url' => Storage::disk('public')->url($path)]);
+    }
+
+    public function orgUploadImage(Request $request, string $org): JsonResponse
+    {
+        return $this->uploadImage($request);
     }
 
     public function createDraft(Request $request): JsonResponse
@@ -352,8 +408,13 @@ class BlogController extends Controller implements HasMiddleware
 
         return response()->json([
             'post_id' => $post->id,
-            'edit_url' => route('blog.edit', $post),
+            'edit_url' => $this->blogUrl('edit', ['post' => $post]),
         ]);
+    }
+
+    public function orgCreateDraft(Request $request, string $org): JsonResponse
+    {
+        return $this->createDraft($request);
     }
 
     public function aiGenerate(Request $request, BlogAiService $ai): JsonResponse
@@ -361,9 +422,19 @@ class BlogController extends Controller implements HasMiddleware
         return $this->handleAi($request, $ai, 'generate');
     }
 
+    public function orgAiGenerate(Request $request, BlogAiService $ai, string $org): JsonResponse
+    {
+        return $this->aiGenerate($request, $ai);
+    }
+
     public function aiCorrect(Request $request, BlogAiService $ai): JsonResponse
     {
         return $this->handleAi($request, $ai, 'correct');
+    }
+
+    public function orgAiCorrect(Request $request, BlogAiService $ai, string $org): JsonResponse
+    {
+        return $this->aiCorrect($request, $ai);
     }
 
     public function aiRemaining(Request $request, BlogAiService $ai): JsonResponse
@@ -394,6 +465,11 @@ class BlogController extends Controller implements HasMiddleware
         }
 
         return response()->json($result);
+    }
+
+    public function orgAiRemaining(Request $request, BlogAiService $ai, string $org): JsonResponse
+    {
+        return $this->aiRemaining($request, $ai);
     }
 
     private function handleAi(Request $request, BlogAiService $ai, string $mode): JsonResponse
@@ -482,7 +558,7 @@ class BlogController extends Controller implements HasMiddleware
 
             if ($isCreateFlow) {
                 $response['post_id'] = $post->id;
-                $response['edit_url'] = route('blog.edit', $post);
+                $response['edit_url'] = $this->blogUrl('edit', ['post' => $post]);
             }
 
             return response()->json($response);
@@ -493,7 +569,7 @@ class BlogController extends Controller implements HasMiddleware
                 return response()->json([
                     'error' => $e->getMessage(),
                     'post_id' => $post->id,
-                    'edit_url' => route('blog.edit', $post),
+                    'edit_url' => $this->blogUrl('edit', ['post' => $post]),
                 ]);
             }
 
@@ -527,6 +603,17 @@ class BlogController extends Controller implements HasMiddleware
         if ($user->id !== $post->user_id && ! $user->is_admin) {
             abort(403);
         }
+    }
+
+    private function blogUrl(string $name, array $parameters = []): string
+    {
+        $organization = request()->route('organization') ?: currentOrganization()?->slug;
+
+        if ($organization && Route::has('organization.blog.'.$name)) {
+            return route('organization.blog.'.$name, ['organization' => $organization, ...$parameters]);
+        }
+
+        return route('blog.'.$name, $parameters);
     }
 
     private function sanitizeHtml(string $html): string

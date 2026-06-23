@@ -261,7 +261,7 @@
                             </div>
                             @auth
                             @if(auth()->id() !== $request->user_id)
-                            <form method="POST" action="{{ route('transactions.store') }}">
+                            <form method="POST" action="{{ $_orgSlug ? route('organization.transactions.store', ['organization' => $_orgSlug]) : route('transactions.store') }}">
                                 @csrf
                                 <input type="hidden" name="request_id" value="{{ $request->id }}">
                                 <input type="hidden" name="points_proposed" value="{{ $request->budget_min }}">

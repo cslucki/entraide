@@ -53,6 +53,11 @@ class ServiceController extends Controller
         return view('services.show', compact('service', 'isFavorited', 'isPaused', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
     }
 
+    public function orgShow(string $org, Service $service): View|RedirectResponse
+    {
+        return $this->show($service);
+    }
+
     public function create(): View
     {
         $organization = currentOrganization();

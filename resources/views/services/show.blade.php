@@ -1,7 +1,14 @@
 <x-app-layout :title="$service->title">
+    @php
+        $_serviceOrgSlug = request()->route('organization');
+        $_serviceExplorerHref = $_serviceOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_serviceOrgSlug]) : route('explorer');
+        $_serviceProfileHref = $_serviceOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_serviceOrgSlug, 'user' => $service->user]) : route('profile.show', $service->user);
+        $_serviceReportAction = $_serviceOrgSlug && Route::has('organization.reports.service') ? route('organization.reports.service', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('reports.service', $service);
+        $_serviceTxStoreAction = $_serviceOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_serviceOrgSlug]) : route('transactions.store');
+    @endphp
     {{-- Desktop topbar --}}
     <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
-        <a href="{{ route('explorer') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour à l'explorateur">
+        <a href="{{ $_serviceExplorerHref }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour à l'explorateur">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </a>
         <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $service->title }}</span>
@@ -80,7 +87,7 @@
                 <div class="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100 dark:border-gray-700">
                     <img src="{{ $service->user->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
                     <div>
-                        <a href="{{ route('profile.show', $service->user) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $service->user->name }}</a>
+                        <a href="{{ $_serviceProfileHref }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $service->user->name }}</a>
                         <div class="flex items-center gap-2 text-xs text-gray-500">
                             <span>{{ match($service->delivery_mode) { 'remote' => '🌐 À distance', 'onsite' => '📍 Sur site', 'both' => '🌐📍 Distance ou sur site' } }}</span>
                             @if($service->user->is_available)
@@ -125,7 +132,7 @@
                 <div class="mb-4" x-data="{ open: false }">
                     <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler ce service</button>
                     <div x-show="open" x-cloak class="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                        <form method="POST" action="{{ route('reports.service', $service) }}">
+                        <form method="POST" action="{{ $_serviceReportAction }}">
                             @csrf
                             <select name="reason" required class="w-full mb-2 px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
                                 <option value="">Motif du signalement...</option>
@@ -142,7 +149,7 @@
                 </div>
 
                 <div class="border-t border-gray-100 dark:border-gray-700 pt-6">
-                    <form method="POST" action="{{ route('transactions.store') }}" class="flex items-center gap-4">
+                    <form method="POST" action="{{ $_serviceTxStoreAction }}" class="flex items-center gap-4">
                         @csrf
                         <input type="hidden" name="service_id" value="{{ $service->id }}">
                         <input type="number" name="points_proposed" value="{{ $service->points_cost }}" min="1"

@@ -13,9 +13,13 @@ class MessageController extends Controller
     private function loadConversations(): array
     {
         $user = auth()->user();
+        $organization = currentOrganization();
 
-        $transactions = Transaction::where('buyer_id', $user->id)
-            ->orWhere('seller_id', $user->id)
+        $transactions = Transaction::where(function ($query) use ($user) {
+            $query->where('buyer_id', $user->id)
+                ->orWhere('seller_id', $user->id);
+        })
+            ->when($organization, fn ($query) => $query->where('organization_id', $organization->id))
             ->with(['buyer', 'seller', 'service', 'serviceRequest', 'messages' => fn ($q) => $q->latest('created_at')->limit(1)])
             ->orderByDesc('updated_at')
             ->get();
@@ -43,9 +47,19 @@ class MessageController extends Controller
     {
         $this->authorize('view', $transaction);
 
+        $organization = currentOrganization();
+        if ($organization && $transaction->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         [$transactions, $unreadCounts] = $this->loadConversations();
 
         return view('messages.index', compact('transactions', 'transaction', 'unreadCounts'));
+    }
+
+    public function orgShow(string $org, Transaction $transaction): View|RedirectResponse
+    {
+        return $this->show($transaction);
     }
 
     public function showWithUser(User $user): View|RedirectResponse

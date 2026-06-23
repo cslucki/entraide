@@ -27,6 +27,11 @@ class RequestController extends Controller
         return view('requests.show', compact('request', 'ogTitle', 'ogDescription', 'ogImage'));
     }
 
+    public function orgShow(string $org, ServiceRequest $request): View
+    {
+        return $this->show($request);
+    }
+
     public function create(): View
     {
         $organization = currentOrganization();
