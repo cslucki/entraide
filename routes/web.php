@@ -300,6 +300,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/translations/overrides/{translationOverride}/edit', [AdminTranslationController::class, 'editOverride'])->name('translations.overrides.edit');
     Route::put('/translations/overrides/{translationOverride}', [AdminTranslationController::class, 'updateOverride'])->name('translations.overrides.update');
     Route::patch('/translations/overrides/{translationOverride}/deactivate', [AdminTranslationController::class, 'deactivateOverride'])->name('translations.overrides.deactivate');
+    Route::post('/translations/reset', [AdminTranslationController::class, 'resetOverride'])->name('translations.overrides.reset');
 
     Route::get('/email-test', [AdminEmailController::class, 'index'])->name('email-test');
     Route::post('/email-test', [AdminEmailController::class, 'send'])->name('email-test.send');
@@ -555,6 +556,7 @@ Route::prefix('/org/{organization}')
                 Route::get('/translations', [OrgAdminController::class, 'translations'])->name('translations');
                 Route::post('/translations', [OrgAdminController::class, 'storeOverride'])->name('translations.store');
                 Route::patch('/translations/{translationOverride}/deactivate', [OrgAdminController::class, 'deactivateOverride'])->name('translations.deactivate');
+                Route::post('/translations/reset', [OrgAdminController::class, 'resetOverride'])->name('translations.reset');
 
                 // AI
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');

@@ -17,38 +17,71 @@ class AdminTranslationController extends Controller
         $group = $request->query('group');
         $status = $request->query('status');
         $search = $request->query('search');
+        $orgId = $request->query('org_id');
 
-        $entries = $service->all();
+        $allEntries = $service->all();
         $groups = $service->getGroups();
+
+        $entries = $allEntries;
 
         if ($group && $group !== '_all') {
             $entries = $entries->where('group', $group);
         }
 
         if ($status && $status !== '_all') {
-            $allowed = ['OK', 'MISSING_FR', 'MISSING_EN', 'EMPTY_FR', 'EMPTY_EN', 'NESTED'];
-            if (in_array($status, $allowed)) {
-                $entries = $entries->where('status', $status);
+            if ($status === 'OVERRIDDEN') {
+                $entries = $entries->filter(fn ($e) =>
+                    isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:fr"])
+                    || isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:en"])
+                );
+            } else {
+                $allowed = ['OK', 'MISSING_FR', 'MISSING_EN', 'EMPTY_FR', 'EMPTY_EN', 'NESTED'];
+                if (in_array($status, $allowed)) {
+                    $entries = $entries->where('status', $status);
+                }
             }
         }
 
         if ($search) {
-            $entries = $entries->filter(fn ($e) => str_contains(strtolower($e['key']), strtolower($search))
-                || str_contains(strtolower($e['fr'] ?? ''), strtolower($search))
-                || str_contains(strtolower($e['en'] ?? ''), strtolower($search)));
-        }
+            $entries = $entries->filter(function ($e) use ($search) {
+                $fr = is_array($e['fr'] ?? null) ? '' : (string) ($e['fr'] ?? '');
+                $en = is_array($e['en'] ?? null) ? '' : (string) ($e['en'] ?? '');
 
-        $stats = [
-            'total' => $service->all()->count(),
-            'ok' => $service->all()->where('status', 'OK')->count(),
-            'missing_fr' => $service->all()->whereIn('status', ['MISSING_FR', 'EMPTY_FR'])->count(),
-            'missing_en' => $service->all()->whereIn('status', ['MISSING_EN', 'EMPTY_EN'])->count(),
-        ];
+                return str_contains(strtolower($e['key']), strtolower($search))
+                    || str_contains(strtolower($fr), strtolower($search))
+                    || str_contains(strtolower($en), strtolower($search));
+            });
+        }
 
         $overrides = TranslationOverride::with('organization', 'createdBy', 'updatedBy')
             ->orderBy('group')
             ->orderBy('key')
             ->get();
+
+        $globalOverridesKeyed = $overrides
+            ->whereNull('organization_id')
+            ->keyBy(fn (TranslationOverride $o) => "{$o->group}.{$o->key}:{$o->locale}");
+
+        $overriddenCount = $allEntries->filter(fn ($e) => isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:fr"])
+            || isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:en"])
+        )->count();
+
+        $remainingCount = $allEntries->count() - $overriddenCount;
+
+        $stats = [
+            'total' => $allEntries->count(),
+            'ok' => $allEntries->where('status', 'OK')->count(),
+            'missing_fr' => $allEntries->whereIn('status', ['MISSING_FR', 'EMPTY_FR'])->count(),
+            'missing_en' => $allEntries->whereIn('status', ['MISSING_EN', 'EMPTY_EN'])->count(),
+            'overridden' => $overriddenCount,
+            'remaining' => $remainingCount,
+        ];
+
+        $organizations = Organization::orderBy('name')->get(['id', 'name']);
+
+        if ($orgId) {
+            $overrides = $overrides->where('organization_id', $orgId);
+        }
 
         return view('admin.translations.index', [
             'entries' => $entries,
@@ -58,6 +91,9 @@ class AdminTranslationController extends Controller
             'activeStatus' => $status,
             'search' => $search,
             'overrides' => $overrides,
+            'globalOverridesKeyed' => $globalOverridesKeyed,
+            'organizations' => $organizations,
+            'activeOrgId' => $orgId,
         ]);
     }
 
@@ -160,5 +196,31 @@ class AdminTranslationController extends Controller
 
         return redirect()->route('admin.translations')
             ->with('success', 'Override désactivé avec succès.');
+    }
+
+    public function resetOverride(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'group' => 'required|string|max:100',
+            'key' => 'required|string|max:100',
+        ]);
+
+        $updated = TranslationOverride::query()
+            ->whereNull('organization_id')
+            ->where('group', $validated['group'])
+            ->where('key', $validated['key'])
+            ->where('is_active', true)
+            ->update([
+                'is_active' => false,
+                'updated_by' => $request->user()->id,
+            ]);
+
+        if ($updated > 0) {
+            return redirect()->route('admin.translations')
+                ->with('success', 'Override(s) réinitialisé(s) avec succès.');
+        }
+
+        return redirect()->route('admin.translations')
+            ->with('error', 'Aucun override actif à réinitialiser.');
     }
 }

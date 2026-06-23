@@ -328,17 +328,74 @@ class OrgAdminController extends Controller
         Organization $organization,
         TranslationOverrideService $overrideService,
     ): View {
-        $groups = collect(app(TranslationService::class)->getGroups());
+        $translationService = app(TranslationService::class);
+        $entries = $translationService->all();
+        $groups = collect($translationService->getGroups());
+
+        $orgId = $organization->id;
+        $activeGroup = $request->input('group', '_all');
+        $activeStatus = $request->input('status', '_all');
+        $search = $request->input('search', '');
+
         $overrides = TranslationOverride::query()
-            ->forOrganization($organization->id)
+            ->forOrganization($orgId)
             ->with(['createdBy'])
             ->latest()
-            ->get();
+            ->get()
+            ->keyBy(fn (TranslationOverride $o) => "{$o->group}.{$o->key}:{$o->locale}");
+
+        $entries = $entries->filter(function ($entry) use ($activeGroup, $activeStatus, $search, $overrides): bool {
+            if ($activeGroup !== '_all' && $entry['group'] !== $activeGroup) {
+                return false;
+            }
+            if ($activeStatus === 'OVERRIDDEN') {
+                $hasOverride = isset($overrides["{$entry['group']}.{$entry['key']}:fr"])
+                    || isset($overrides["{$entry['group']}.{$entry['key']}:en"]);
+                if (! $hasOverride) {
+                    return false;
+                }
+            } elseif ($activeStatus !== '_all' && $entry['status'] !== $activeStatus) {
+                return false;
+            }
+            if ($search !== '') {
+                $needle = mb_strtolower($search);
+                $fr = is_array($entry['fr'] ?? null) ? '' : (string) ($entry['fr'] ?? '');
+                $en = is_array($entry['en'] ?? null) ? '' : (string) ($entry['en'] ?? '');
+                if (! str_contains(mb_strtolower($entry['group']), $needle)
+                    && ! str_contains(mb_strtolower($entry['key']), $needle)
+                    && ! str_contains(mb_strtolower($fr), $needle)
+                    && ! str_contains(mb_strtolower($en), $needle)) {
+                    return false;
+                }
+            }
+
+            return true;
+        })->values();
+
+        $overriddenCount = $entries->filter(fn ($e) => isset($overrides["{$e['group']}.{$e['key']}:fr"])
+            || isset($overrides["{$e['group']}.{$e['key']}:en"])
+        )->count();
+
+        $remainingCount = $entries->count() - $overriddenCount;
+
+        $stats = [
+            'total' => $entries->count(),
+            'ok' => $entries->where('status', 'OK')->count(),
+            'missing_fr' => $entries->where('status', 'MISSING_FR')->count(),
+            'missing_en' => $entries->where('status', 'MISSING_EN')->count(),
+            'overridden' => $overriddenCount,
+            'remaining' => $remainingCount,
+        ];
 
         return view('admin.org.translations', [
             'organization' => $organization,
             'groups' => $groups,
+            'entries' => $entries,
             'overrides' => $overrides,
+            'activeGroup' => $activeGroup,
+            'activeStatus' => $activeStatus,
+            'search' => $search,
+            'stats' => $stats,
         ]);
     }
 
@@ -383,6 +440,40 @@ class OrgAdminController extends Controller
         );
 
         return back()->with('success', __('navigation.org_admin_translation_deactivated'));
+    }
+
+    public function resetOverride(
+        Request $request,
+        Organization $organization,
+        TranslationOverrideService $overrideService,
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'group' => 'required|string|max:100',
+            'key' => 'required|string|max:100',
+        ]);
+
+        $orgId = $organization->id;
+        $count = TranslationOverride::query()
+            ->where('organization_id', $orgId)
+            ->where('group', $validated['group'])
+            ->where('key', $validated['key'])
+            ->where('is_active', true)
+            ->count();
+
+        if ($count === 0) {
+            return back()->with('error', __('navigation.org_admin_translation_no_active'));
+        }
+
+        foreach (['fr', 'en'] as $locale) {
+            $overrideService->deactivate(
+                group: $validated['group'],
+                key: $validated['key'],
+                locale: $locale,
+                organization: $organization,
+            );
+        }
+
+        return back()->with('success', __('navigation.org_admin_translation_reset_done'));
     }
 
     public function aiSupervision(Organization $organization): View
