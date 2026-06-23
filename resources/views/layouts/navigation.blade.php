@@ -139,7 +139,7 @@
                     </x-slot>
                     <x-slot name="content">
                         <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')"><span class="font-medium">{{ __('navigation.dashboard') }}</span></x-dropdown-link>
-                        <x-dropdown-link :href="route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-dropdown-link>
+                        <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()]) : route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
@@ -245,7 +245,7 @@
             </div>
             <div class="mt-1 space-y-1">
                 <x-responsive-nav-link :href="route('dashboard')">{{ __('navigation.dashboard') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()]) : route('profile.show', Auth::user())">{{ __('navigation.profile') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('agent-ia.interactions')">{{ __('navigation.ai_interactions') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="$_pubServicesCreateHref">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-responsive-nav-link>
