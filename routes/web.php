@@ -529,6 +529,31 @@ Route::prefix('/org/{organization}')
             ->name('admin.')
             ->group(function () {
                 Route::get('/', [OrgAdminController::class, 'dashboard'])->name('dashboard');
+
+                // Exchanges
+                Route::get('/services', [OrgAdminController::class, 'services'])->name('services');
+                Route::get('/requests', [OrgAdminController::class, 'requests'])->name('requests');
+                Route::patch('/requests/{serviceRequest}/close', [OrgAdminController::class, 'closeRequest'])->name('requests.close');
+                Route::get('/transactions', [OrgAdminController::class, 'transactions'])->name('transactions');
+
+                // Content
+                Route::get('/blog', [OrgAdminController::class, 'blog'])->name('blog');
+                Route::get('/categories', [OrgAdminController::class, 'categories'])->name('categories');
+
+                // Community
+                Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
+                Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
+                Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
+
+                // Administration
+                Route::get('/reports', [OrgAdminController::class, 'reports'])->name('reports');
+                Route::get('/invitations', [OrgAdminController::class, 'invitations'])->name('invitations');
+                Route::get('/translations', [OrgAdminController::class, 'translations'])->name('translations');
+
+                // AI
+                Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
+                Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
+                Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
             });
 
         // Blog (org-scoped, en parallèle des routes /blog root)

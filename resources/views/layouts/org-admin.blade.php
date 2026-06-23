@@ -61,37 +61,107 @@
                         {{ __('navigation.dashboard') }}
                     </a>
 
+                    <!-- Section: Exchanges -->
+                    <div class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">{{ __('navigation.org_admin_section_exchanges') }}</div>
+
+                    @foreach ([
+                        ['route' => 'organization.admin.services', 'label' => __('navigation.org_admin_services'), 'icon' => 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
+                        ['route' => 'organization.admin.requests', 'label' => __('navigation.org_admin_requests'), 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01'],
+                        ['route' => 'organization.admin.transactions', 'label' => __('navigation.org_admin_transactions'), 'icon' => 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z'],
+                    ] as $item)
+                        @php $active = $isActive($item['route']); @endphp
+                        <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
+                           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
+                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                            </svg>
+                            {{ $item['label'] }}
+                        </a>
+                    @endforeach
+
+                    <!-- Section: Content -->
+                    <div class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">{{ __('navigation.org_admin_section_content') }}</div>
+
+                    @foreach ([
+                        ['route' => 'organization.admin.blog', 'label' => __('navigation.org_admin_blog'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z'],
+                        ['route' => 'organization.admin.categories', 'label' => __('navigation.org_admin_categories'), 'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'],
+                    ] as $item)
+                        @php $active = $isActive($item['route']); @endphp
+                        <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
+                           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
+                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                            </svg>
+                            {{ $item['label'] }}
+                        </a>
+                    @endforeach
+
+                    <!-- Section: Community -->
+                    <div class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">{{ __('navigation.org_admin_section_community') }}</div>
+
+                    @foreach ([
+                        ['route' => 'organization.admin.loops', 'label' => __('navigation.org_admin_loops'), 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z'],
+                        ['route' => 'organization.admin.messages', 'label' => __('navigation.org_admin_messages'), 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z'],
+                        ['route' => 'organization.admin.users', 'label' => __('navigation.org_admin_users'), 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z'],
+                    ] as $item)
+                        @php $active = $isActive($item['route']); @endphp
+                        <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
+                           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
+                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                            </svg>
+                            {{ $item['label'] }}
+                        </a>
+                    @endforeach
+
+                    <!-- Section: Administration -->
+                    <div class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">{{ __('navigation.org_admin_section_administration') }}</div>
+
+                    @foreach ([
+                        ['route' => 'organization.admin.reports', 'label' => __('navigation.org_admin_reports'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
+                        ['route' => 'organization.admin.invitations', 'label' => __('navigation.org_admin_invitations'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2zM15 11a3 3 0 11-6 0 3 3 0 016 0z'],
+                        ['route' => 'organization.admin.translations', 'label' => __('navigation.org_admin_translations'), 'icon' => 'M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129'],
+                    ] as $item)
+                        @php $active = $isActive($item['route']); @endphp
+                        <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
+                           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
+                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                            </svg>
+                            {{ $item['label'] }}
+                        </a>
+                    @endforeach
+
                     <!-- Design / themes (à venir) -->
-                    <div class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 mb-2 cursor-not-allowed">
+                    <div class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 mb-2 mt-4 cursor-not-allowed">
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828L10.828 18.83"/>
                         </svg>
                         <span class="text-gray-500 italic text-xs">{{ __('navigation.org_admin_coming_soon', ['section' => __('navigation.org_admin_design')]) }}</span>
                     </div>
 
-                    <!-- Échanges group (à venir) -->
-                    <div class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 mb-2 cursor-not-allowed">
-                        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-                        </svg>
-                        <span class="text-gray-500 italic text-xs">{{ __('navigation.org_admin_coming_soon', ['section' => __('navigation.org_admin_exchanges')]) }}</span>
-                    </div>
+                    <!-- IA group -->
+                    <div class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">{{ __('navigation.org_admin_ia') }}</div>
 
-                    <!-- Organisation group (à venir) -->
-                    <div class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 mb-2 cursor-not-allowed">
-                        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857A17.983 17.983 0 0112 16c-2.071 0-4.065.332-5.932.943A3 3 0 001 20h5v2a3 3 0 005.356 1.857A17.983 17.983 0 0112 18c2.071 0 4.065.332 5.932.943A3 3 0 0017 20z"/>
-                        </svg>
-                        <span class="text-gray-500 italic text-xs">{{ __('navigation.org_admin_coming_soon', ['section' => __('navigation.org_admin_organization')]) }}</span>
-                    </div>
-
-                    <!-- IA group (à venir) -->
-                    <div class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 mb-2 cursor-not-allowed">
-                        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                        </svg>
-                        <span class="text-gray-500 italic text-xs">{{ __('navigation.org_admin_coming_soon', ['section' => __('navigation.org_admin_ia')]) }}</span>
-                    </div>
+                    @foreach ([
+                        ['route' => 'organization.admin.ai-supervision', 'label' => __('navigation.org_admin_ai_supervision'), 'icon' => 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'],
+                        ['route' => 'organization.admin.member-ai-profiles', 'label' => __('navigation.org_admin_member_ai_profiles'), 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zm-4 7a5 5 0 00-5 5h10a5 5 0 00-5-5z'],
+                        ['route' => 'organization.admin.ai-interactions', 'label' => __('navigation.org_admin_ai_interactions'), 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z'],
+                    ] as $item)
+                        @php $active = $isActive($item['route']); @endphp
+                        <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
+                           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
+                                   {{ $active ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                            </svg>
+                            {{ $item['label'] }}
+                        </a>
+                    @endforeach
                 </nav>
 
                 <!-- Retour à l'organisation -->
