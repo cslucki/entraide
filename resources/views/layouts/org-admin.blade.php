@@ -43,6 +43,18 @@
                         </button>
                     </div>
                     <p class="text-xs text-gray-500 mt-1 truncate">{{ auth()->user()->name }}</p>
+                    <div class="mt-2 flex items-center gap-0.5 rounded-full bg-gray-800 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wide" aria-label="{{ __('navigation.language_switcher') }}">
+                        @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
+                            <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" class="inline">
+                                @csrf
+                                <button type="submit"
+                                    class="rounded-full px-1.5 py-0.5 transition {{ app()->getLocale() === $locale ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-500 hover:text-white' }}"
+                                    aria-current="{{ app()->getLocale() === $locale ? 'true' : 'false' }}">
+                                    {{ $label }}
+                                </button>
+                            </form>
+                        @endforeach
+                    </div>
                 </div>
 
                 <nav @click="if ($event.target.closest('a')) { pinned || (sidebarOpen = false) }" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
