@@ -167,7 +167,7 @@
                 <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     @foreach($items as $service)
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition overflow-hidden flex flex-col active:scale-[0.98]">
-                        <a href="{{ route('services.show', $service) }}" class="block p-4 sm:p-5 flex-1">
+                        <a href="{{ $_orgSlug ? route('organization.services.show', ['organization' => $_orgSlug, 'service' => $service]) : route('services.show', $service) }}" class="block p-4 sm:p-5 flex-1">
                             <div class="flex items-center justify-between mb-3">
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" style="background-color:{{ $service->category->color }}">
                                     {{ $service->category->displayName('transactions') }}
@@ -194,7 +194,7 @@
                             @endif
                         </a>
                         <div class="px-4 sm:px-5 pb-4 flex items-center justify-between">
-                            <a href="{{ route('profile.show', $service->user) }}"
+                            <a href="{{ $_orgSlug ? route('organization.profile.show', ['organization' => $_orgSlug, 'user' => $service->user]) : route('profile.show', $service->user) }}"
                                class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                 <img src="{{ $service->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
                                 {{ $service->user->name }}
@@ -245,12 +245,12 @@
                                     {{ $request->budget_min }}{{ $request->budget_max ? '–'.$request->budget_max : '+' }} pts
                                 </span>
                             </div>
-                            <a href="{{ route('requests.show', $request) }}">
+                            <a href="{{ $_orgSlug ? route('organization.requests.show', ['organization' => $_orgSlug, 'request' => $request]) : route('requests.show', $request) }}">
                                 <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-1 line-clamp-1 hover:text-indigo-600">{{ $request->title }}</h3>
                             </a>
                             <p class="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 mb-3">{{ $request->description }}</p>
                             <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
-                                <a href="{{ route('profile.show', $request->user) }}"
+                                <a href="{{ $_orgSlug ? route('organization.profile.show', ['organization' => $_orgSlug, 'user' => $request->user]) : route('profile.show', $request->user) }}"
                                    class="flex items-center gap-2 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     <img src="{{ $request->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
                                     {{ $request->user->name }}
