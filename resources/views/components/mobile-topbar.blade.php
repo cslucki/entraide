@@ -137,7 +137,7 @@
                     </div>
 
                     <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">{{ __('navigation.dashboard') }}</x-dropdown-link>
-                    <x-dropdown-link :href="route('profile.show', auth()->user())">{{ __('navigation.profile') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()]) : route('profile.show', auth()->user())">{{ __('navigation.profile') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
