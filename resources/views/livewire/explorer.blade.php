@@ -16,7 +16,7 @@
         </div>
         @auth
         @php
-            $_orgSlug = request()->route('organization');
+            $_orgSlug = $organization?->slug;
             $_servicesCreateHref = $_orgSlug ? route('organization.services.create', ['organization' => $_orgSlug]) : route('services.create');
             $_requestsCreateHref = $_orgSlug ? route('organization.requests.create', ['organization' => $_orgSlug]) : route('requests.create');
         @endphp

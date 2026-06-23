@@ -13,6 +13,7 @@ use App\Services\LoopService;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 class LoopController extends Controller
@@ -174,7 +175,7 @@ class LoopController extends Controller
             $data['description'] ?? null,
         );
 
-        return redirect()->route('loops.show', $loop)
+        return redirect($this->loopRoute('loops.show', $loop))
             ->with('success', 'Boucle créée avec succès.');
     }
 
@@ -228,13 +229,13 @@ class LoopController extends Controller
 
         if ($existing) {
             if ($existing->status === 'active') {
-                return redirect()->route('loops.show', $loop)
-                    ->with('info', 'Vous êtes déjà membre de cette boucle.');
+            return redirect($this->loopRoute('loops.show', $loop))
+                ->with('info', 'Vous êtes déjà membre de cette boucle.');
             }
 
             $existing->update(['status' => 'active', 'joined_at' => now()]);
 
-            return redirect()->route('loops.show', $loop)
+            return redirect($this->loopRoute('loops.show', $loop))
                 ->with('success', 'Vous avez rejoint la boucle.');
         }
 
@@ -246,7 +247,7 @@ class LoopController extends Controller
             'joined_at' => now(),
         ]);
 
-        return redirect()->route('loops.show', $loop)
+        return redirect($this->loopRoute('loops.show', $loop))
             ->with('success', 'Vous avez rejoint la boucle.');
     }
 
@@ -268,18 +269,23 @@ class LoopController extends Controller
             ->first();
 
         if (! $member) {
-            return redirect()->route('loops.show', $loop)
+            return redirect($this->loopRoute('loops.show', $loop))
                 ->with('info', 'Vous n\'êtes pas membre de cette boucle.');
         }
 
         if ($member->role === 'owner') {
-            return redirect()->route('loops.show', $loop)
+            return redirect($this->loopRoute('loops.show', $loop))
                 ->with('error', 'Le propriétaire ne peut pas quitter la boucle.');
         }
 
         $member->update(['status' => 'left']);
 
-        return redirect()->route('loops.index')
+        $orgSlug = request()->route('organization');
+        $indexRoute = $orgSlug && Route::has('organization.loops.index')
+            ? route('organization.loops.index', ['organization' => $orgSlug])
+            : route('loops.index');
+
+        return redirect($indexRoute)
             ->with('success', 'Vous avez quitté la boucle.');
     }
 
@@ -311,18 +317,18 @@ class LoopController extends Controller
         $clarificationEnabled = AiConfig::get('clarification_enabled', false);
 
         if (! $clarificationEnabled) {
-            return redirect()->route('loops.show', $loop)
+            return redirect($this->loopRoute('loops.show', $loop))
                 ->with('help_request_error', __('loops.clarification_disabled'));
         }
 
         $result = $this->aiProvider->analyze($data['intention']);
 
         if ($result->isBlocked()) {
-            return redirect()->route('loops.show', $loop)
+            return redirect($this->loopRoute('loops.show', $loop))
                 ->with('help_request_error', $result->fallback['reason'] ?? 'Cette demande ne peut pas être publiée.');
         }
 
-        return redirect()->route('loops.show', $loop)
+        return redirect($this->loopRoute('loops.show', $loop))
             ->with('help_request_analysis', $result->toArray())
             ->with('help_request_intention', $data['intention']);
     }
@@ -398,7 +404,7 @@ class LoopController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('loops.show', $loop)
+        return redirect($this->loopRoute('loops.show', $loop))
             ->with('success', 'Membre ajouté à la boucle.');
     }
 
@@ -426,7 +432,7 @@ class LoopController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('loops.show', $loop)
+        return redirect($this->loopRoute('loops.show', $loop))
             ->with('success', 'Message envoyé.');
     }
 }

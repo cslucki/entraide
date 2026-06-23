@@ -9,5 +9,5 @@ return [
     'director_title' => 'Publication director',
     'host_title' => 'Hosting provider',
     'opensource_title' => 'Open source project',
-    'opensource_text' => 'BouclePro is an open source project by the AMT association. The source code is available on GitHub. Contributions are welcome \u2014 development, suggestions, or bug reports.',
+    'opensource_text' => 'BouclePro is an open source project by the AMT association. The source code is available on GitHub. Contributions are welcome — development, suggestions, or bug reports.',
 ];

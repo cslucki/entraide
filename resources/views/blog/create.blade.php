@@ -1,7 +1,12 @@
 <x-page title="Écrire un article — Blog BouclePro" heading="Écrire un article" width="3xl">
 
+    @php
+        $_blogIndexHref = request()->route('organization') && Route::has('organization.blog.index') ? route('organization.blog.index', ['organization' => request()->route('organization')]) : route('blog.index');
+        $_aiGenerateRoute = Route::has('organization.blog.ai-generate') && request()->route('organization') ? route('organization.blog.ai-generate', ['organization' => request()->route('organization')]) : route('blog.ai-generate');
+        $_createDraftRoute = Route::has('organization.blog.create-draft') && request()->route('organization') ? route('organization.blog.create-draft', ['organization' => request()->route('organization')]) : route('blog.create-draft');
+    @endphp
     <div class="hidden sm:block mb-6">
-        <a href="{{ route('blog.index') }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Retour au blog</a>
+        <a href="{{ $_blogIndexHref }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Retour au blog</a>
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -44,7 +49,7 @@
                         class="px-6 py-3 border border-gray-300 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         L'écrire moi-même
                     </button>
-                    <a href="{{ route('blog.index') }}" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <a href="{{ $_blogIndexHref }}" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         Annuler
                     </a>
                 </div>
@@ -70,8 +75,8 @@
             error: '',
             csrfToken: '',
             routes: @json([
-                'aiGenerate' => route('blog.ai-generate'),
-                'createDraft' => route('blog.create-draft'),
+                'aiGenerate' => $_aiGenerateRoute,
+                'createDraft' => $_createDraftRoute,
             ]),
 
             get canGenerate() {

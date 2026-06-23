@@ -487,6 +487,22 @@ Route::prefix('/org/{organization}')
 
             Route::middleware('verified')->group(function () {
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
+
+                // Blog (org-scoped)
+                Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->name('blog.create');
+                Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
+                Route::post('/blog', [BlogController::class, 'store'])->name('blog.store');
+                Route::get('/blog/rediger/{post:slug}/modifier', [BlogController::class, 'edit'])->name('blog.edit');
+                Route::put('/blog/{post:slug}', [BlogController::class, 'update'])->name('blog.update');
+                Route::patch('/blog/{post:slug}/publier', [BlogController::class, 'publish'])->name('blog.publish');
+                Route::delete('/blog/{post:slug}', [BlogController::class, 'destroy'])->name('blog.destroy');
+                Route::post('/blog/{post:slug}/commentaires', [BlogCommentController::class, 'store'])->name('blog.comment.store');
+                Route::delete('/commentaires/{comment}', [BlogCommentController::class, 'destroy'])->name('blog.comment.destroy');
+                Route::post('/blog/upload-image', [BlogController::class, 'uploadImage'])->name('blog.upload-image');
+                Route::post('/blog/ai-generate', [BlogController::class, 'aiGenerate'])->name('blog.ai-generate');
+                Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
+                Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
+                Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');

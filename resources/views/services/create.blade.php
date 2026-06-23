@@ -1,5 +1,7 @@
 @php
     $serviceTerm = app()->getLocale() === 'en' ? __('marketplace.service_term') : ($T['service'] ?? __('marketplace.service_term'));
+    $_svcOrgSlug = request()->route('organization');
+    $_svcStoreAction = $_svcOrgSlug && Route::has('organization.services.store') ? route('organization.services.store', ['organization' => $_svcOrgSlug]) : route('services.store');
 @endphp
 
 <x-page :heading="__('marketplace.service_create_heading', ['service' => $serviceTerm])" width="3xl">
@@ -21,7 +23,7 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ route('services.store') }}" enctype="multipart/form-data"
+        <form method="POST" action="{{ $_svcStoreAction }}" enctype="multipart/form-data"
               x-data="{
                 selectedCategory: '{{ old('category_id', '') }}',
                 guidelines: @js($categories->keyBy('id')->map(fn($c) => $c->pointGuidelines)),

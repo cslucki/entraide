@@ -8,7 +8,8 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ route('services.update', $service) }}" enctype="multipart/form-data"
+        @php $_svcUpdateAction = request()->route('organization') && Route::has('organization.services.update') ? route('organization.services.update', ['organization' => request()->route('organization'), 'service' => $service]) : route('services.update', $service); @endphp
+    <form method="POST" action="{{ $_svcUpdateAction }}" enctype="multipart/form-data"
               x-data="{
                 selectedCategory: '{{ old('category_id', $service->category_id) }}',
                 tags: '{{ old('tags', $service->tags->pluck('name')->join(',')) }}',
@@ -140,7 +141,7 @@
 
             <div class="flex gap-3">
                 <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Enregistrer</button>
-                <a href="{{ route('dashboard') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</a>
+                <a href="{{ request()->route('organization') ? route('organization.dashboard', ['organization' => request()->route('organization')]) : route('dashboard') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</a>
             </div>
         </form>
     </div>

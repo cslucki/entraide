@@ -221,6 +221,6 @@ class Explorer extends Component
             $favoritedIds = collect();
         }
 
-        return view('livewire.explorer', compact('categories', 'items', 'hasMore', 'favoritedIds'));
+        return view('livewire.explorer', compact('categories', 'items', 'hasMore', 'favoritedIds', 'organization'));
     }
 }
