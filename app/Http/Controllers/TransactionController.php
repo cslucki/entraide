@@ -201,6 +201,7 @@ class TransactionController extends Controller
                 'user_id' => $tx->buyer_id,
                 'transaction_id' => $tx->id,
                 'delta' => -$points,
+                'organization_id' => $tx->organization_id,
                 'reason' => 'exchange_spent',
             ]);
 
@@ -208,6 +209,7 @@ class TransactionController extends Controller
                 'user_id' => $tx->seller_id,
                 'transaction_id' => $tx->id,
                 'delta' => $points,
+                'organization_id' => $tx->organization_id,
                 'reason' => 'exchange_earned',
             ]);
 

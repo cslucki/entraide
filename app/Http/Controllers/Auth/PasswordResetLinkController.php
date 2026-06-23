@@ -45,6 +45,7 @@ class PasswordResetLinkController extends Controller
             EmailLog::create([
                 'template_id' => null,
                 'user_id' => $user?->id,
+                'organization_id' => $user?->organization_id,
                 'to_email' => $request->email,
                 'subject' => 'Réinitialisation de votre mot de passe',
                 'status' => 'sent',

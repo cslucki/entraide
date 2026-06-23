@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\EmailLog;
+use App\Models\Organization;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -41,6 +42,7 @@ class AdminEmailController extends Controller
                 'to_email' => $data['to'],
                 'subject' => $data['subject'],
                 'status' => 'sent',
+                'organization_id' => Organization::where('is_default', true)->value('id'),
                 'data' => ['source' => 'admin-test', 'driver' => config('mail.default')],
             ]);
 
@@ -53,6 +55,7 @@ class AdminEmailController extends Controller
                 'subject' => $data['subject'],
                 'status' => 'failed',
                 'error_message' => $e->getMessage(),
+                'organization_id' => Organization::where('is_default', true)->value('id'),
                 'data' => ['source' => 'admin-test', 'driver' => config('mail.default')],
             ]);
 

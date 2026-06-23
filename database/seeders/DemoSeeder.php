@@ -393,7 +393,7 @@ class DemoSeeder extends Seeder
 
     private function addPoints(User $user, Transaction $tx, int $delta, string $reason): void
     {
-        PointLedger::create(['user_id' => $user->id, 'transaction_id' => $tx->id, 'delta' => $delta, 'reason' => $reason]);
+        PointLedger::create(['user_id' => $user->id, 'transaction_id' => $tx->id, 'delta' => $delta, 'organization_id' => $tx->organization_id, 'reason' => $reason]);
         if ($delta > 0) {
             $user->increment('points_balance', $delta);
         } else {

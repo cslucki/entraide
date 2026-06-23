@@ -60,6 +60,7 @@ class RegisteredUserController extends Controller
             'user_id' => $user->id,
             'transaction_id' => null,
             'delta' => 100,
+            'organization_id' => $user->organization_id,
             'reason' => 'welcome_bonus',
         ]);
 

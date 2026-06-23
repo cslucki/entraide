@@ -92,6 +92,7 @@ class LoopService
             'role' => $role,
             'status' => 'active',
             'joined_at' => now(),
+            'organization_id' => $loop->organization_id,
         ]);
     }
 
@@ -126,6 +127,7 @@ class LoopService
             'role' => $role,
             'status' => 'active',
             'joined_at' => now(),
+            'organization_id' => $loop->organization_id,
         ]);
     }
 

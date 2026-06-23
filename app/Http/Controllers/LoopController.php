@@ -245,6 +245,7 @@ class LoopController extends Controller
             'role' => 'member',
             'status' => 'active',
             'joined_at' => now(),
+            'organization_id' => $loop->organization_id,
         ]);
 
         return redirect($this->loopRoute('loops.show', $loop))
