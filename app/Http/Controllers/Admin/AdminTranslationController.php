@@ -28,6 +28,15 @@ class AdminTranslationController extends Controller
             $entries = $entries->where('group', $group);
         }
 
+        $overrides = TranslationOverride::with('organization', 'createdBy', 'updatedBy')
+            ->orderBy('group')
+            ->orderBy('key')
+            ->get();
+
+        $globalOverridesKeyed = $overrides
+            ->whereNull('organization_id')
+            ->keyBy(fn (TranslationOverride $o) => "{$o->group}.{$o->key}:{$o->locale}");
+
         if ($status && $status !== '_all') {
             if ($status === 'OVERRIDDEN') {
                 $entries = $entries->filter(fn ($e) =>
@@ -52,15 +61,6 @@ class AdminTranslationController extends Controller
                     || str_contains(strtolower($en), strtolower($search));
             });
         }
-
-        $overrides = TranslationOverride::with('organization', 'createdBy', 'updatedBy')
-            ->orderBy('group')
-            ->orderBy('key')
-            ->get();
-
-        $globalOverridesKeyed = $overrides
-            ->whereNull('organization_id')
-            ->keyBy(fn (TranslationOverride $o) => "{$o->group}.{$o->key}:{$o->locale}");
 
         $overriddenCount = $allEntries->filter(fn ($e) => isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:fr"])
             || isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:en"])
