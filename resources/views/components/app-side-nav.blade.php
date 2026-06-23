@@ -248,6 +248,11 @@
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m0 0v10m6-14v2m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v8M6 6v8m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v2"/></svg>
                                 <span>{{ __('navigation.administration') }}</span>
                             </a>
+                        @elseif($adminOrganization)
+                            <a href="{{ route('organization.admin.dashboard', ['organization' => $adminOrganization->slug]) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-purple-700 transition hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-900/30">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m0 0v10m6-14v2m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v8M6 6v8m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v2"/></svg>
+                                <span>{{ __('navigation.org_admin') }}</span>
+                            </a>
                         @endif
                         </div>
 

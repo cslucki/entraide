@@ -63,4 +63,12 @@ return [
     'members' => 'Membres',
     'articles' => 'Articles',
     'groups' => 'Groupes',
+    'org_admin' => 'Administration de l\'organisation',
+    'org_admin_badge' => 'Admin org',
+    'org_admin_back_to_org' => 'Retour à l\'organisation',
+    'org_admin_coming_soon' => ':section (à venir)',
+    'org_admin_design' => 'Design',
+    'org_admin_exchanges' => 'Échanges',
+    'org_admin_organization' => 'Organisation',
+    'org_admin_ia' => 'IA',
 ];

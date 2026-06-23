@@ -154,6 +154,9 @@
                         @if(Auth::user()->is_admin)
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('navigation.administration') }}</span></x-dropdown-link>
+                        @elseif(Auth::user()->organization && Auth::user()->organization->admin_id === Auth::id())
+                        <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
+                        <x-dropdown-link :href="route('organization.admin.dashboard', ['organization' => Auth::user()->organization->slug])"><span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('navigation.org_admin') }}</span></x-dropdown-link>
                         @endif
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <form method="POST" action="{{ route('logout') }}">

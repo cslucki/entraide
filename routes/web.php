@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
+use App\Http\Controllers\Admin\OrgAdminController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -53,6 +54,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
 use App\Livewire\EditFeedPost;
@@ -520,6 +522,14 @@ Route::prefix('/org/{organization}')
         Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
         Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
         Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+
+        // Organization admin dashboard (org-scoped)
+        Route::middleware(['auth', OrgAdminMiddleware::class])
+            ->prefix('admin')
+            ->name('admin.')
+            ->group(function () {
+                Route::get('/', [OrgAdminController::class, 'dashboard'])->name('dashboard');
+            });
 
         // Blog (org-scoped, en parallèle des routes /blog root)
         Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
