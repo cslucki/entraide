@@ -101,7 +101,6 @@
                 <option value="OK" @selected($activeStatus === 'OK')>OK</option>
                 <option value="MISSING_FR" @selected($activeStatus === 'MISSING_FR')>FR {{ __('navigation.org_admin_translation_missing') }}</option>
                 <option value="MISSING_EN" @selected($activeStatus === 'MISSING_EN')>EN {{ __('navigation.org_admin_translation_missing') }}</option>
-                <option value="NESTED" @selected($activeStatus === 'NESTED')>{{ __('navigation.org_admin_translation_nested') }}</option>
                 <option value="OVERRIDDEN" @selected($activeStatus === 'OVERRIDDEN')>{{ __('navigation.org_admin_translation_overridden') }}</option>
             </select>
 
@@ -182,13 +181,11 @@
                                             'OK' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
                                             'MISSING_FR' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
                                             'MISSING_EN' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-                                            'NESTED' => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
                                         ];
                                         $statusLabels = [
                                             'OK' => 'OK',
                                             'MISSING_FR' => 'FR manquante',
                                             'MISSING_EN' => 'EN manquante',
-                                            'NESTED' => 'Structure imbriquée',
                                         ];
                                     @endphp
                                     <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {{ $statusColors[$entry['status']] ?? 'bg-gray-100 text-gray-800' }}">

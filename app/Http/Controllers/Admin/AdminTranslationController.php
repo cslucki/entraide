@@ -35,7 +35,7 @@ class AdminTranslationController extends Controller
                     || isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:en"])
                 );
             } else {
-                $allowed = ['OK', 'MISSING_FR', 'MISSING_EN', 'EMPTY_FR', 'EMPTY_EN', 'NESTED'];
+                $allowed = ['OK', 'MISSING_FR', 'MISSING_EN', 'EMPTY_FR', 'EMPTY_EN'];
                 if (in_array($status, $allowed)) {
                     $entries = $entries->where('status', $status);
                 }
