@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\BlogPost;
 use App\Models\Loop;
+use App\Models\Message;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -112,19 +114,99 @@ class OrgAdminController extends Controller
         return back()->with('success', 'Demande clôturée.');
     }
 
-    public function loops(Organization $organization): View
+    public function loops(Request $request, Organization $organization): View
     {
-        return $this->comingSoon($organization, __('navigation.org_admin_loops'));
+        $orgId = $organization->id;
+        $query = Loop::where('organization_id', $orgId)->with(['creator']);
+
+        if ($request->filled('search')) {
+            $query->where('name', 'like', '%'.$request->search.'%');
+        }
+
+        if ($request->filled('status')) {
+            match ($request->status) {
+                'active' => $query->where('status', 'active'),
+                'archived' => $query->where('status', 'archived'),
+                default => null,
+            };
+        }
+
+        $loops = $query->latest()->paginate(25)->withQueryString();
+
+        return view('admin.org.loops', [
+            'organization' => $organization,
+            'loops' => $loops,
+        ]);
     }
 
-    public function messages(Organization $organization): View
+    public function messages(Request $request, Organization $organization): View
     {
-        return $this->comingSoon($organization, __('navigation.org_admin_messages'));
+        $orgId = $organization->id;
+        $query = Message::where('organization_id', $orgId)->with(['sender', 'transaction']);
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('body', 'like', '%'.$request->search.'%')
+                    ->orWhereHas('sender', fn ($u) => $u->where('name', 'like', '%'.$request->search.'%'));
+            });
+        }
+
+        $messages = $query->latest('created_at')->paginate(25)->withQueryString();
+
+        return view('admin.org.messages', [
+            'organization' => $organization,
+            'messages' => $messages,
+        ]);
     }
 
-    public function blog(Organization $organization): View
+    public function blog(Request $request, Organization $organization): View
     {
-        return $this->comingSoon($organization, __('navigation.org_admin_blog'));
+        $orgId = $organization->id;
+        $query = BlogPost::where('organization_id', $orgId)->with(['user', 'category']);
+
+        if ($request->filled('search')) {
+            $query->where('title', 'like', '%'.$request->search.'%');
+        }
+
+        if ($request->filled('status')) {
+            match ($request->status) {
+                'draft' => $query->where('status', 'draft'),
+                'published' => $query->where('status', 'published'),
+                default => null,
+            };
+        }
+
+        $posts = $query->latest()->paginate(25)->withQueryString();
+
+        return view('admin.org.blog', [
+            'organization' => $organization,
+            'posts' => $posts,
+        ]);
+    }
+
+    public function toggleLoopActive(Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $loop->update([
+            'status' => $loop->isActive() ? 'archived' : 'active',
+        ]);
+
+        $action = $loop->isActive() ? 'reactivated' : 'archived';
+
+        return back()->with('success', __("navigation.org_admin_loop_{$action}"));
+    }
+
+    public function publishBlogPost(Organization $organization, BlogPost $blogPost): RedirectResponse
+    {
+        abort_if($blogPost->organization_id !== $organization->id, 404);
+
+        $blogPost->update([
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+
+        return back()->with('success', __('navigation.org_admin_post_published'));
     }
 
     public function categories(Organization $organization): View

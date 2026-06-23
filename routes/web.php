@@ -538,10 +538,12 @@ Route::prefix('/org/{organization}')
 
                 // Content
                 Route::get('/blog', [OrgAdminController::class, 'blog'])->name('blog');
+                Route::patch('/blog/{blogPost}/publish', [OrgAdminController::class, 'publishBlogPost'])->name('blog.publish');
                 Route::get('/categories', [OrgAdminController::class, 'categories'])->name('categories');
 
                 // Community
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
+                Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
 
