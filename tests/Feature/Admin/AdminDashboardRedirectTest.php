@@ -106,7 +106,7 @@ class AdminDashboardRedirectTest extends TestCase
         $this->post(route('login'), [
             'email' => $admin->email,
             'password' => 'password',
-        ])->assertRedirect(route('loops.index', absolute: false));
+        ])->assertRedirect(route('organization.home', ['organization' => $organization->slug], absolute: false));
     }
 
     public function test_tenantless_admin_login_defaults_to_admin_dashboard_url(): void

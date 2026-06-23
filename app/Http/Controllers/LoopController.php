@@ -229,8 +229,8 @@ class LoopController extends Controller
 
         if ($existing) {
             if ($existing->status === 'active') {
-            return redirect($this->loopRoute('loops.show', $loop))
-                ->with('info', 'Vous êtes déjà membre de cette boucle.');
+                return redirect($this->loopRoute('loops.show', $loop))
+                    ->with('info', 'Vous êtes déjà membre de cette boucle.');
             }
 
             $existing->update(['status' => 'active', 'joined_at' => now()]);

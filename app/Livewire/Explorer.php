@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Category;
 use App\Models\Favorite;
+use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use Livewire\Attributes\Url;
@@ -127,7 +128,7 @@ class Explorer extends Component
     {
         // Server-authoritative tenant ID — ignores any client-side tampering of $this->orgId
         $orgId = $this->orgId;
-        $organization = $orgId ? \App\Models\Organization::find($orgId) : null;
+        $organization = $orgId ? Organization::find($orgId) : null;
         $categoryNameColumn = $organization?->transactions_naming === 'b2b' ? 'name_b2b' : 'name_b2c';
 
         $categories = Category::with('skills')
