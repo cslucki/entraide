@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
-use App\Models\Organization;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -35,7 +34,7 @@ class AuthenticatedSessionController extends Controller
             if ($user->organization_id) {
                 $organization = $user->organization;
                 if ($organization && $organization->is_active) {
-                    return redirect()->intended($this->canonicalHome($organization));
+                    return redirect()->intended(canonicalHome($organization));
                 }
             }
 
@@ -45,29 +44,11 @@ class AuthenticatedSessionController extends Controller
         if ($user->organization_id) {
             $organization = $user->organization;
             if ($organization && $organization->is_active) {
-                return redirect()->intended($this->canonicalHome($organization));
+                return redirect()->intended(canonicalHome($organization));
             }
         }
 
         return redirect('/');
-    }
-
-    /**
-     * Get the canonical home path for an organization.
-     */
-    private function canonicalHome(Organization $organization): string
-    {
-        if ($organization->is_default) {
-            if ($organization->loops_enabled) {
-                return route('loops.index', absolute: false);
-            }
-
-            return '/';
-        }
-
-        return route('organization.home', [
-            'organization' => $organization->slug,
-        ], absolute: false);
     }
 
     /**

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Organization;
 use App\Support\Tenancy\CurrentOrganization;
 use League\CommonMark\CommonMarkConverter;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
@@ -24,6 +25,23 @@ if (! function_exists('organizationRoute')) {
     function organizationRoute(string $name, array $parameters = []): string
     {
         return route($name, $parameters);
+    }
+}
+
+if (! function_exists('canonicalHome')) {
+    function canonicalHome(Organization $organization): string
+    {
+        if ($organization->is_default) {
+            if ($organization->loops_enabled) {
+                return route('loops.index', absolute: false);
+            }
+
+            return '/';
+        }
+
+        return route('organization.home', [
+            'organization' => $organization->slug,
+        ], absolute: false);
     }
 }
 
