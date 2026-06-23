@@ -4,7 +4,7 @@
             @guest
             <div class="flex items-center justify-end border-b border-[var(--bp-border)] px-5 py-4 md:px-8">
                 <a href="{{ route('organization.login', $organization) }}" class="rounded-full border border-[var(--bp-border)] px-4 py-2 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
-                    {{ __('navigation.login') }}
+                    {{ org_trans('navigation.login') }}
                 </a>
             </div>
             @endguest
@@ -16,33 +16,33 @@
                             <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-14 w-14 rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)]" aria-hidden="true">
                             <div>
                                 <p class="text-2xl font-bold tracking-tight text-black dark:text-white">{{ $organization->name }}</p>
-                                <p class="text-sm text-[var(--bp-muted)]">{{ $organization->platform_tagline ?? __('home.tagline') }}</p>
+                                <p class="text-sm text-[var(--bp-muted)]">{{ $organization->platform_tagline ?? org_trans('home.tagline') }}</p>
                             </div>
                         </a>
                         <p class="mb-4 inline-flex rounded-full bg-[color-mix(in_srgb,var(--bp-primary)_12%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--bp-primary)]">
-                            {{ __('home.welcome') }}
+                            {{ org_trans('home.welcome') }}
                         </p>
                         <h1 class="text-4xl font-semibold tracking-tight text-[var(--bp-text)] sm:text-5xl md:text-6xl">
-                            {{ __('home.what_do_you_want') }}
+                            {{ org_trans('home.what_do_you_want') }}
                         </h1>
                         <p class="mt-5 max-w-xl text-lg leading-8 text-[var(--bp-muted)]">
-                            {{ $organization->description ?? __('home.description') }}
+                            {{ $organization->description ?? org_trans('home.description') }}
                         </p>
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
                             @guest
                                 <a href="{{ route('organization.register', $organization) }}" class="inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]">
-                                    {{ __('navigation.create_account') }}
+                                    {{ org_trans('navigation.create_account') }}
                                 </a>
                                 <a href="{{ route('boucles.index') }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
-                                    {{ __('navigation.discover_loops') }}
+                                    {{ org_trans('navigation.discover_loops') }}
                                 </a>
                             @else
                                 <a href="{{ route('organization.loops.index', $organization) }}" class="inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]">
-                                    {{ __('navigation.join_loop') }}
+                                    {{ org_trans('navigation.join_loop') }}
                                 </a>
                                 <a href="{{ route('organization.explorer', $organization) }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
-                                    {{ __('navigation.see_exchanges') }}
+                                    {{ org_trans('navigation.see_exchanges') }}
                                 </a>
                             @endguest
                         </div>
@@ -53,10 +53,10 @@
                     <div class="grid w-full gap-3">
                         @php
                             $features = [
-                                ['label' => __('home.feature_loops'), 'text' => __('home.feature_loops_desc'), 'href' => auth()->check() ? route('organization.loops.index', $organization) : route('boucles.index'), 'tone' => 'bg-[var(--bp-card-loop)] text-black dark:text-black'],
-                                ['label' => __('home.feature_exchanges'), 'text' => __('home.feature_exchanges_desc'), 'href' => route('organization.explorer', $organization), 'tone' => 'bg-[var(--bp-card-exchange)] text-black dark:text-black'],
-                                ['label' => __('home.feature_directory'), 'text' => __('home.feature_directory_desc'), 'href' => auth()->check() ? route('organization.dashboard', $organization) : route('organization.login', $organization), 'tone' => 'bg-[var(--bp-card-directory)] text-black dark:text-black'],
-                                ['label' => __('home.feature_blog'), 'text' => __('home.feature_blog_desc'), 'href' => route('organization.blog.index', $organization), 'tone' => 'bg-[var(--bp-card-news)] text-black dark:text-black'],
+                                ['label' => org_trans('home.feature_loops'), 'text' => org_trans('home.feature_loops_desc'), 'href' => auth()->check() ? route('organization.loops.index', $organization) : route('boucles.index'), 'tone' => 'bg-[var(--bp-card-loop)] text-black dark:text-black'],
+                                ['label' => org_trans('home.feature_exchanges'), 'text' => org_trans('home.feature_exchanges_desc'), 'href' => route('organization.explorer', $organization), 'tone' => 'bg-[var(--bp-card-exchange)] text-black dark:text-black'],
+                                ['label' => org_trans('home.feature_directory'), 'text' => org_trans('home.feature_directory_desc'), 'href' => auth()->check() ? route('organization.dashboard', $organization) : route('organization.login', $organization), 'tone' => 'bg-[var(--bp-card-directory)] text-black dark:text-black'],
+                                ['label' => org_trans('home.feature_blog'), 'text' => org_trans('home.feature_blog_desc'), 'href' => route('organization.blog.index', $organization), 'tone' => 'bg-[var(--bp-card-news)] text-black dark:text-black'],
                             ];
                         @endphp
 
