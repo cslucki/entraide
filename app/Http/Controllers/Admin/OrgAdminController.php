@@ -13,7 +13,10 @@ use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\TranslationOverrideService;
+use App\Services\TranslationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -320,9 +323,66 @@ class OrgAdminController extends Controller
         ]);
     }
 
-    public function translations(Organization $organization): View
-    {
-        return $this->comingSoon($organization, __('navigation.org_admin_translations'));
+    public function translations(
+        Request $request,
+        Organization $organization,
+        TranslationOverrideService $overrideService,
+    ): View {
+        $groups = collect(app(TranslationService::class)->getGroups());
+        $overrides = TranslationOverride::query()
+            ->forOrganization($organization->id)
+            ->with(['createdBy'])
+            ->latest()
+            ->get();
+
+        return view('admin.org.translations', [
+            'organization' => $organization,
+            'groups' => $groups,
+            'overrides' => $overrides,
+        ]);
+    }
+
+    public function storeOverride(
+        Request $request,
+        Organization $organization,
+        TranslationOverrideService $overrideService,
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'locale' => 'required|in:fr,en',
+            'group' => 'required|string|max:100',
+            'key' => 'required|string|max:100',
+            'value' => 'required|string|max:1000',
+        ]);
+
+        $overrideService->set(
+            group: $validated['group'],
+            key: $validated['key'],
+            locale: $validated['locale'],
+            value: $validated['value'],
+            organization: $organization,
+            userId: auth()->id(),
+        );
+
+        return redirect()->route('organization.admin.translations', [
+            'organization' => $organization->slug,
+        ])->with('success', __('navigation.org_admin_translation_created'));
+    }
+
+    public function deactivateOverride(
+        Organization $organization,
+        TranslationOverride $translationOverride,
+        TranslationOverrideService $overrideService,
+    ): RedirectResponse {
+        abort_if($translationOverride->organization_id !== $organization->id, 404);
+
+        $overrideService->deactivate(
+            group: $translationOverride->group,
+            key: $translationOverride->key,
+            locale: $translationOverride->locale,
+            organization: $organization,
+        );
+
+        return back()->with('success', __('navigation.org_admin_translation_deactivated'));
     }
 
     public function aiSupervision(Organization $organization): View

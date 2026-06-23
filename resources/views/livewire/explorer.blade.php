@@ -24,7 +24,7 @@
             @if($tab === 'services')
             <a href="{{ $_servicesCreateHref }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
                 <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                <span class="hidden sm:inline">{{ __('explorer.offer_service', ['service' => __('explorer.service')]) }}</span>
+                <span class="hidden sm:inline">{{ org_trans('explorer.offer_service', $organization, ['service' => __('explorer.service')]) }}</span>
             </a>
             @else
             <a href="{{ $_requestsCreateHref }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">

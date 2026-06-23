@@ -553,6 +553,8 @@ Route::prefix('/org/{organization}')
                 Route::patch('/bug-reports/{bugReport}/resolve', [OrgAdminController::class, 'resolveBugReport'])->name('reports.resolve');
                 Route::get('/invitations', [OrgAdminController::class, 'invitations'])->name('invitations');
                 Route::get('/translations', [OrgAdminController::class, 'translations'])->name('translations');
+                Route::post('/translations', [OrgAdminController::class, 'storeOverride'])->name('translations.store');
+                Route::patch('/translations/{translationOverride}/deactivate', [OrgAdminController::class, 'deactivateOverride'])->name('translations.deactivate');
 
                 // AI
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
