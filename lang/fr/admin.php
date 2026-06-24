@@ -49,4 +49,15 @@ return [
     'owner_select_placeholder' => '— Sélectionner un propriétaire —',
     'org_select_label' => 'Organisation',
     'org_select_placeholder' => '— Sélectionner une organisation —',
+
+    'organization_identity' => 'Identité',
+    'organization_identity_description' => 'Gérez le logo et l\'identité visuelle de votre organisation.',
+    'organization_logo' => 'Logo de l\'organisation',
+    'organization_logo_hint' => 'Format accepté : PNG, JPG, WebP. Taille max : 2 Mo.',
+    'organization_remove_logo' => 'Supprimer le logo actuel',
+    'organization_logo_updated' => 'Logo mis à jour avec succès.',
+    'organization_logo_removed' => 'Logo supprimé avec succès.',
+    'organization_logo_no_change' => 'Aucune modification apportée au logo.',
+    'organization_save' => 'Enregistrer',
+    'organization_cancel' => 'Annuler',
 ];

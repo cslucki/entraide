@@ -260,6 +260,7 @@ class AppServiceProvider extends ServiceProvider
                             'platformName' => $org->platform_name ?: config('app.name'),
                             'platformTagline' => $org->platform_tagline ?: 'Échangez vos talents',
                             'globalColorMode' => $org->global_color_mode ?: 'dark',
+                            'brandLogoUrl' => $org->logo_url ?: asset('brand/bouclepro-symbol-64.png'),
                         ];
                     } else {
                         $userOrganizationName = auth()->user()?->organization?->name;
@@ -270,6 +271,7 @@ class AppServiceProvider extends ServiceProvider
                             'platformName' => $defaultOrg?->platform_name ?: config('app.name'),
                             'platformTagline' => $defaultOrg?->platform_tagline ?: 'Échangez vos talents',
                             'globalColorMode' => $defaultOrg?->global_color_mode ?: 'dark',
+                            'brandLogoUrl' => $defaultOrg?->logo_url ?: asset('brand/bouclepro-symbol-64.png'),
                         ];
                     }
                 } catch (\Exception) {
@@ -279,6 +281,7 @@ class AppServiceProvider extends ServiceProvider
                         'platformName' => config('app.name'),
                         'platformTagline' => 'Échangez vos talents',
                         'globalColorMode' => 'dark',
+                        'brandLogoUrl' => asset('brand/bouclepro-symbol-64.png'),
                     ];
                 }
             }

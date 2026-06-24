@@ -1,6 +1,6 @@
 <x-admin-layout title="Éditer l'organisation">
     <div class="max-w-2xl">
-        <form method="POST" action="{{ route('admin.organizations.update', $organization) }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.organizations.update', $organization) }}" enctype="multipart/form-data" class="space-y-6">
             @csrf
             @method('PUT')
 
@@ -119,6 +119,25 @@
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('platform_tagline') border-red-500 @enderror"
                         maxlength="255">
                     @error('platform_tagline')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.organization_logo') }}</label>
+                    @if($organization->logo_url)
+                    <div class="mb-3">
+                        <img src="{{ $organization->logo_url }}" alt="{{ $organization->name }}" class="h-16 w-16 rounded-xl object-cover border border-gray-200 dark:border-gray-600">
+                    </div>
+                    @endif
+                    <input type="file" name="logo" accept="image/png,image/jpg,image/jpeg,image/webp"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 dark:file:bg-indigo-900/30 file:text-indigo-700 dark:file:text-indigo-300 @error('logo') border-red-500 @enderror">
+                    @error('logo')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    @if($organization->logo_path)
+                    <label class="flex items-center gap-2 mt-2 cursor-pointer">
+                        <input type="checkbox" name="remove_logo" value="1" class="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500">
+                        <span class="text-xs text-red-600 dark:text-red-400 font-medium">{{ __('admin.organization_remove_logo') }}</span>
+                    </label>
+                    @endif
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('admin.organization_logo_hint') }}</p>
                 </div>
             </div>
 

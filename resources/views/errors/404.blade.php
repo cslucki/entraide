@@ -19,7 +19,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>404 — Page introuvable · {{ $orgName }}</title>
-    <link rel="icon" href="/brand/bouclepro-symbol-64.png">
+    <link rel="icon" href="{{ asset('brand/bouclepro-symbol-64.png') }}">
     @vite(['resources/css/app.css'])
     <style>
         body {
@@ -35,7 +35,7 @@
 <body>
     <div class="mx-auto w-full max-w-md px-6 py-12 text-center">
         <img
-            src="/brand/bouclepro-symbol-64.png"
+            src="{{ $brandLogoUrl }}"
             alt="BouclePro"
             class="mx-auto w-28 h-28 sm:w-36 sm:h-36 opacity-90 mb-8"
         >

@@ -99,7 +99,7 @@
         <div class="flex min-w-0 items-center gap-3">
             @if(request()->routeIs('login', 'organization.login'))
             <a href="{{ url('/') }}" class="flex items-center gap-2 min-w-0" aria-label="{{ __('navigation.home') }} {{ $brandOrganizationName ?? config('app.name') }}">
-                <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-9 w-9 shrink-0">
+                <img src="{{ $brandLogoUrl }}" alt="" class="h-9 w-9 shrink-0">
                 <span class="truncate text-base font-bold text-gray-900 dark:text-gray-100">{{ $brandOrganizationName ?? config('app.name') }}</span>
             </a>
             @elseif($backHref)

@@ -21,7 +21,7 @@
                         $blogIsActive = request()->routeIs('blog*', 'organization.blog*');
                     @endphp
                     <a href="{{ $desktopBrandHref }}" class="hidden sm:flex items-center gap-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800" aria-label="Accueil {{ $desktopBrandName }}">
-                        <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-10 w-10 shrink-0" aria-hidden="true">
+                        <img src="{{ $brandLogoUrl }}" alt="" class="h-10 w-10 shrink-0" aria-hidden="true">
                         <span class="max-w-[11rem] truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ $desktopBrandName }}</span>
                     </a>
                 </div>

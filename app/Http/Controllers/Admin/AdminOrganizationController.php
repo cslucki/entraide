@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -109,6 +110,8 @@ class AdminOrganizationController extends Controller
             'feed_post_publish_mode' => 'nullable|in:admin,members',
             'theme_id' => 'nullable|exists:themes,id',
             'locale' => 'nullable|in:fr,en',
+            'logo' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
+            'remove_logo' => 'nullable|boolean',
         ]);
 
         $min = $data['service_points_min'] ?? null;
@@ -142,6 +145,8 @@ class AdminOrganizationController extends Controller
                 ->update(['is_default' => false]);
         }
 
+        $this->handleLogoUpload($request, $organization);
+
         $organization->update($data);
 
         return redirect()->route('admin.organizations')->with('success', "Organisation « {$organization->name} » mise à jour.");
@@ -169,5 +174,39 @@ class AdminOrganizationController extends Controller
         $organization->forceDelete();
 
         return back()->with('success', "Organisation « {$organization->name} » supprimée définitivement.");
+    }
+
+    private function handleLogoUpload(Request $request, Organization $organization): void
+    {
+        if ($request->boolean('remove_logo') && $organization->logo_path) {
+            $this->deleteLogoFile($organization->logo_path);
+            $organization->update(['logo_path' => null]);
+
+            return;
+        }
+
+        if (! $request->hasFile('logo')) {
+            return;
+        }
+
+        if ($organization->logo_path) {
+            $this->deleteLogoFile($organization->logo_path);
+        }
+
+        $filename = Str::random(32).'.'.$request->file('logo')->extension();
+        $path = $request->file('logo')->storeAs(
+            'organization-logos/'.$organization->id,
+            $filename,
+            'public',
+        );
+
+        $organization->update(['logo_path' => $path]);
+    }
+
+    private function deleteLogoFile(string $path): void
+    {
+        if (str_starts_with($path, 'organization-logos/') && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
     }
 }
