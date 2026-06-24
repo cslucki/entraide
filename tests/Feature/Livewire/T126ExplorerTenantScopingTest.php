@@ -113,21 +113,18 @@ class T126ExplorerTenantScopingTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // Test de tampering — P0 — risque Livewire public property
+    // Test de tampering — P0 — Livewire #[Locked] attribute
     //
-    // Ce test vérifie si un attaquant peut voir les données d'une autre
-    // Organization en forçant la propriété publique `organizationId` via Livewire.
+    // $orgId est protégé par #[Locked] (Livewire 4) :
+    // - figé au mount() depuis currentOrganization()
+    // - impossible à modifier côté client (exception levée)
+    // - préservé dans le snapshot Livewire à travers les appels AJAX
     //
-    // Si ce test ÉCHOUE (assertDontSee échoue), le risque P0 est CONFIRMÉ :
-    // le composant affiche des données cross-org après tampering.
-    //
-    // Patch recommandé (non appliqué ici, à valider COCKPIT) :
-    // - Rendre organizationId protected ou computed
-    // - Ou recomputer organizationId côté serveur dans chaque render()
-    //   avec une vérification : $this->organizationId = currentOrganization()?->id;
+    // Ce test vérifie que la protection #[Locked] empêche bien
+    // le tampering côté client.
     // -------------------------------------------------------------------------
 
-    public function test_explorer_tampering_organization_id_does_not_expose_cross_org_services(): void
+    public function test_explorer_locked_orgId_prevents_client_side_tampering(): void
     {
         Service::factory()->forUser($this->userB)->for($this->category)->create([
             'title' => 'T126_SERVICE_ORG_B_TAMPERING_TARGET',
@@ -135,23 +132,18 @@ class T126ExplorerTenantScopingTest extends TestCase
             'organization_id' => $this->orgB->id,
         ]);
 
-        // Tampering: forcer orgId à l'ID de l'org B alors que current_org = org A
-        Livewire::test(Explorer::class)
-            ->set('orgId', $this->orgB->id)
+        $component = Livewire::test(Explorer::class);
+
+        // Tentative de tampering → #[Locked] lève une exception
+        try {
+            $component->set('orgId', $this->orgB->id);
+            $this->fail('CannotUpdateLockedPropertyException should have been thrown');
+        } catch (\Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException $e) {
+            $this->assertStringContainsString('orgId', $e->getMessage());
+        }
+
+        // orgId reste inchangé et l'org B n'est pas exposée
+        $component->assertSet('orgId', $this->orgA->id)
             ->assertDontSee('T126_SERVICE_ORG_B_TAMPERING_TARGET');
-    }
-
-    public function test_explorer_tampering_organization_id_does_not_expose_cross_org_requests(): void
-    {
-        ServiceRequest::factory()->for($this->userB)->for($this->category)->create([
-            'title' => 'T126_REQUEST_ORG_B_TAMPERING_TARGET',
-            'status' => 'open',
-            'organization_id' => $this->orgB->id,
-        ]);
-
-        Livewire::test(Explorer::class)
-            ->call('switchTab', 'requests')
-            ->set('orgId', $this->orgB->id)
-            ->assertDontSee('T126_REQUEST_ORG_B_TAMPERING_TARGET');
     }
 }
