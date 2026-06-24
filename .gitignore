@@ -109,3 +109,6 @@ test-results/
 
 # Published vendor assets
 /public/vendor/
+
+# Local build artifacts
+/bouclepro
