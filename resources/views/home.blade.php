@@ -1,8 +1,8 @@
 <x-app-layout title="Accueil">
     <section class="min-h-screen bg-[var(--bp-page)] px-4 py-6 text-[var(--bp-text)] md:px-8 md:py-8">
-        <div class="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col rounded-[2rem] border-0 bg-[var(--bp-surface)]/80 shadow-sm backdrop-blur md:min-h-[calc(100vh-4rem)]">
+        <div class="mx-auto flex min-h-[calc(100vh-3rem)] flex-col border-0 md:bg-[var(--bp-surface)]/80 md:shadow-sm md:backdrop-blur md:min-h-[calc(100vh-4rem)] md:max-w-6xl md:rounded-[2rem]">
             @guest
-            <div class="flex items-center justify-end border-b border-[var(--bp-border)] px-5 py-4 md:px-8">
+            <div class="hidden items-center justify-end border-b border-[var(--bp-border)] px-5 py-4 md:flex md:px-8">
                 <a href="{{ route('login') }}" class="rounded-full border border-[var(--bp-border)] px-4 py-2 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
                     {{ __('navigation.login') }}
                 </a>
@@ -10,8 +10,8 @@
             @endguest
 
             <div class="flex flex-1 flex-col md:flex-row md:items-stretch md:justify-center gap-0">
-                <div class="flex flex-col items-center justify-center px-4 py-12 md:px-14">
-                    <div class="w-full max-w-2xl block rounded-[1.5rem] px-6 py-10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md bg-[var(--bp-card-welcome)] text-black dark:text-black">
+                <div class="flex flex-col items-center justify-center py-12 md:px-14">
+                    <div class="w-full block rounded-[1.5rem] px-6 py-10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md bg-[var(--bp-card-welcome)] text-black dark:text-black md:max-w-2xl">
                         <a href="{{ route('home') }}" class="flex items-center gap-4 mb-8" aria-label="Accueil BouclePro">
                             <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-14 w-14 rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)]" aria-hidden="true">
                             <div>
