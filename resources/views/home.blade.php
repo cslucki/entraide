@@ -13,7 +13,7 @@
                 <div class="flex flex-col items-center justify-center py-12 md:px-14">
                     <div class="w-full block rounded-[1.5rem] px-6 py-10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md bg-[var(--bp-card-welcome)] text-black dark:text-black md:max-w-2xl">
                         <a href="{{ route('home') }}" class="flex items-center gap-4 mb-8" aria-label="Accueil BouclePro">
-                            <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-14 w-14 rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)]" aria-hidden="true">
+                            <img src="{{ $brandLogoUrl }}" alt="" class="h-14 w-14 rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)]" aria-hidden="true">
                             <div>
                                 <p class="text-2xl font-bold tracking-tight text-black dark:text-white">BouclePro</p>
                                 <p class="text-sm text-[var(--bp-muted)]">{{ __('home.tagline') }}</p>

@@ -49,4 +49,15 @@ return [
     'owner_select_placeholder' => '— Select an owner —',
     'org_select_label' => 'Organization',
     'org_select_placeholder' => '— Select an organization —',
+
+    'organization_identity' => 'Identity',
+    'organization_identity_description' => 'Manage your organization logo and brand identity.',
+    'organization_logo' => 'Organization logo',
+    'organization_logo_hint' => 'Accepted formats: PNG, JPG, WebP. Max size: 2 MB.',
+    'organization_remove_logo' => 'Remove current logo',
+    'organization_logo_updated' => 'Logo updated successfully.',
+    'organization_logo_removed' => 'Logo removed successfully.',
+    'organization_logo_no_change' => 'No changes made to the logo.',
+    'organization_save' => 'Save',
+    'organization_cancel' => 'Cancel',
 ];

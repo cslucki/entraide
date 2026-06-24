@@ -129,7 +129,7 @@
 <aside x-data class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
     <div class="flex h-full w-full flex-col items-center py-4">
         <a href="{{ route('home') }}" class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)] transition hover:scale-105" aria-label="BouclePro">
-            <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-8 w-8" aria-hidden="true">
+            <img src="{{ $brandLogoUrl }}" alt="" class="h-8 w-8" aria-hidden="true">
         </a>
 
         <div class="mt-2 flex items-center gap-0.5 rounded-full bg-[var(--bp-panel)] px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-[var(--bp-border)]" aria-label="{{ __('navigation.language_switcher') }}">

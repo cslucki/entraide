@@ -26,6 +26,7 @@ class Organization extends Model
         'is_default',
         'admin_id',
         'hero_image',
+        'logo_path',
         'hero_title',
         'hero_description',
         'hero_gradient_start',
@@ -87,6 +88,15 @@ class Organization extends Model
         }
 
         return asset('images/default-hero.jpg');
+    }
+
+    public function getLogoUrlAttribute(): ?string
+    {
+        if ($this->logo_path) {
+            return Storage::disk('public')->url($this->logo_path);
+        }
+
+        return null;
     }
 
     public function admin(): BelongsTo

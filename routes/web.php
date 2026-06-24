@@ -566,6 +566,10 @@ Route::prefix('/org/{organization}')
                 Route::patch('/translations/{translationOverride}/deactivate', [OrgAdminController::class, 'deactivateOverride'])->name('translations.deactivate');
                 Route::post('/translations/reset', [OrgAdminController::class, 'resetOverride'])->name('translations.reset');
 
+                // Identity / Branding
+                Route::get('/identity', [OrgAdminController::class, 'identity'])->name('identity');
+                Route::post('/identity', [OrgAdminController::class, 'updateIdentity'])->name('identity.update');
+
                 // AI
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');

@@ -79,6 +79,7 @@ return [
     'org_admin_blog' => 'Blog',
     'org_admin_categories' => 'Categories',
     'org_admin_users' => 'Users',
+    'org_admin_identity' => 'Identity',
     'org_admin_reports' => 'Reports',
     'org_admin_invitations' => 'Invitations',
     'org_admin_translations' => 'Translations',
