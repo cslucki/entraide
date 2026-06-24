@@ -14,12 +14,12 @@
                 {{ __('explorer.services') }}
             </button>
         </div>
-        @auth
         @php
             $_orgSlug = $organization?->slug;
             $_servicesCreateHref = $_orgSlug ? route('organization.services.create', ['organization' => $_orgSlug]) : route('services.create');
             $_requestsCreateHref = $_orgSlug ? route('organization.requests.create', ['organization' => $_orgSlug]) : route('requests.create');
         @endphp
+        @auth
         <div class="pb-1">
             @if($tab === 'services')
             <a href="{{ $_servicesCreateHref }}" class="inline-flex items-center justify-center gap-1 sm:gap-2 sm:px-4 sm:py-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition active:scale-95">
