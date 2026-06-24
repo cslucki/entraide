@@ -7,6 +7,7 @@ use App\Models\LoopMessage;
 use App\Models\Message;
 use App\Models\Organization;
 use App\Support\Tenancy\DefaultOrganizationResolver;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
@@ -133,5 +134,19 @@ class AdminMessageController extends Controller
         return view('admin.messages.show', compact('message', 'before', 'after'));
     }
 
-    // destroy removed: T074.9 is strictly read-only (OpenAI review fix)
+    public function destroy(Message $message): RedirectResponse
+    {
+        $message->reactions()->delete();
+        $message->delete();
+
+        return back()->with('success', __('admin.message_deleted'));
+    }
+
+    public function destroyLoopMessage(LoopMessage $loopMessage): RedirectResponse
+    {
+        $loopMessage->reactions()->delete();
+        $loopMessage->delete();
+
+        return back()->with('success', __('admin.loop_message_deleted'));
+    }
 }

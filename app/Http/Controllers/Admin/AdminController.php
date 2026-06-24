@@ -639,6 +639,27 @@ class AdminController extends Controller
         return back()->with('success', 'Demande clôturée.');
     }
 
+    public function destroyTransaction(string $transactionId): RedirectResponse
+    {
+        $transaction = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($transactionId);
+        PointLedger::where('transaction_id', $transaction->id)->update(['transaction_id' => null]);
+        $transaction->delete();
+
+        return back()->with('success', __('admin.transaction_deleted'));
+    }
+
+    public function destroyRequest(string $requestId): RedirectResponse
+    {
+        $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($requestId);
+        foreach ($serviceRequest->transactions as $transaction) {
+            PointLedger::where('transaction_id', $transaction->id)->update(['transaction_id' => null]);
+            $transaction->delete();
+        }
+        $serviceRequest->delete();
+
+        return back()->with('success', __('admin.request_deleted'));
+    }
+
     // ── Categories ────────────────────────────────────────────────────────────
 
     public function categories(): View

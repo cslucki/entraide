@@ -331,9 +331,9 @@ class AdminMessagesTest extends TestCase
             ->assertNotFound();
     }
 
-    // ── Delete disabled (read-only) ───────────────────────────────────────────
+    // ── Delete ────────────────────────────────────────────────────────────────
 
-    public function test_admin_cannot_delete_message(): void
+    public function test_admin_can_delete_exchange_message(): void
     {
         $admin = $this->makeAdmin();
         $org = $this->makeOrg();
@@ -342,7 +342,26 @@ class AdminMessagesTest extends TestCase
 
         $this->actingAs($admin)
             ->delete("/admin/messages/{$message->id}")
-            ->assertStatus(405);
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('messages', ['id' => $message->id]);
+    }
+
+    public function test_admin_can_delete_loop_message(): void
+    {
+        $admin = $this->makeAdmin();
+        $org = $this->makeOrg();
+        $loop = $this->makeLoop($org, $admin);
+        $this->addMember($loop, $admin);
+        $message = $this->makeLoopMessage($loop, $admin);
+
+        $this->actingAs($admin)
+            ->delete("/admin/loop-messages/{$message->id}")
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('loop_messages', ['id' => $message->id]);
     }
 
     // ── Unknown filter ────────────────────────────────────────────────────────

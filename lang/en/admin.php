@@ -61,4 +61,13 @@ return [
     'organization_save' => 'Save',
     'organization_cancel' => 'Cancel',
     'users_org_all' => 'All organizations',
+
+    'transaction_deleted' => 'Transaction deleted.',
+    'transaction_delete_confirm' => 'Delete this transaction and its messages? This action is irreversible.',
+    'request_deleted' => 'Request and associated transactions deleted.',
+    'request_delete_confirm' => 'Delete this request and its transactions? This action is irreversible.',
+    'message_deleted' => 'Message deleted.',
+    'message_delete_confirm' => 'Delete this message?',
+    'loop_message_delete_confirm' => 'Delete this ChatLoop message?',
+    'loop_message_deleted' => 'ChatLoop message deleted.',
 ];

@@ -61,4 +61,13 @@ return [
     'organization_save' => 'Enregistrer',
     'organization_cancel' => 'Annuler',
     'users_org_all' => 'Toutes les organisations',
+
+    'transaction_deleted' => 'Transaction supprimée.',
+    'transaction_delete_confirm' => 'Supprimer cette transaction et ses messages associés ? Cette action est irréversible.',
+    'request_deleted' => 'Demande et transactions associées supprimées.',
+    'request_delete_confirm' => 'Supprimer cette demande et ses transactions associées ? Cette action est irréversible.',
+    'message_deleted' => 'Message supprimé.',
+    'message_delete_confirm' => 'Supprimer ce message ?',
+    'loop_message_delete_confirm' => 'Supprimer ce message ChatLoop ?',
+    'loop_message_deleted' => 'Message ChatLoop supprimé.',
 ];

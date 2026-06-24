@@ -35,6 +35,7 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Points</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Statut</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Date</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -79,10 +80,17 @@
                         <span class="px-2 py-0.5 rounded text-xs {{ $colors[$tx->status] ?? '' }}">{{ $tx->status_label }}</span>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">{{ $tx->created_at->format('d/m/Y H:i') }}</td>
+                    <td class="px-4 py-3">
+                        <form method="POST" action="{{ route('admin.transactions.destroy', $tx->id) }}"
+                              onsubmit="return confirm('{{ __('admin.transaction_delete_confirm') }}')">
+                            @csrf @method('DELETE')
+                            <button class="text-xs text-red-600 hover:underline">Supprimer</button>
+                        </form>
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">Aucune transaction trouvée.</td>
+                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-400">Aucune transaction trouvée.</td>
                 </tr>
                 @endforelse
             </tbody>

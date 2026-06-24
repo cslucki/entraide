@@ -247,12 +247,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Transactions
     Route::get('/transactions', [AdminController::class, 'transactions'])->name('transactions');
+    Route::delete('/transactions/{transactionId}', [AdminController::class, 'destroyTransaction'])->name('transactions.destroy');
 
     // Requests
     Route::get('/requests', [AdminController::class, 'requests'])->name('requests');
     Route::get('/requests/{serviceRequest}/edit', [AdminController::class, 'editRequest'])->name('requests.edit');
     Route::put('/requests/{serviceRequest}', [AdminController::class, 'updateRequest'])->name('requests.update');
     Route::patch('/requests/{serviceRequest}/close', [AdminController::class, 'closeRequest'])->name('requests.close');
+    Route::delete('/requests/{requestId}', [AdminController::class, 'destroyRequest'])->name('requests.destroy');
 
     // Categories & Skills
     Route::get('/categories', [AdminCategoryController::class, 'index'])->name('categories');
@@ -277,8 +279,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Messages moderation
     Route::get('/messages', [AdminMessageController::class, 'index'])->name('messages');
     Route::get('/messages/{message}', [AdminMessageController::class, 'show'])->name('messages.show');
-    // DELETE disabled: T074.9 is strictly read-only (OpenAI review fix)
-    // Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
+    Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
+    Route::delete('/loop-messages/{loopMessage}', [AdminMessageController::class, 'destroyLoopMessage'])->name('loop-messages.destroy');
 
     // Reports
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports');
