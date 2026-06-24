@@ -182,6 +182,16 @@ return [
         'attribute-name' => [
             'rule-name' => 'custom-message',
         ],
+        'budget_max' => [
+            'min' => 'The maximum budget must be at least :min points.',
+        ],
+        'budget_min' => [
+            'min' => 'The budget must be at least :min points.',
+        ],
+        'points_cost' => [
+            'max' => 'The service cannot cost more than :max points.',
+            'min' => 'The service must cost at least :min points.',
+        ],
     ],
 
     /*
@@ -195,6 +205,13 @@ return [
     |
     */
 
-    'attributes' => [],
+    'attributes' => [
+        'budget_max' => 'maximum budget',
+        'budget_min' => 'minimum budget',
+        'description' => 'description',
+        'phone' => 'phone number',
+        'points_cost' => 'points cost',
+        'title' => 'title',
+    ],
 
 ];

@@ -17,8 +17,13 @@ use Intervention\Image\Laravel\Facades\Image;
 
 class ProfileController extends Controller
 {
-    public function show(User $user): View
+    public function show(Request $request): View
     {
+        $user = $request->route('user');
+        if (is_string($user)) {
+            $user = User::where('id', $user)->firstOrFail();
+        }
+
         $organization = currentOrganization();
         if (! $organization || $user->organization_id !== $organization->id) {
             abort(404);

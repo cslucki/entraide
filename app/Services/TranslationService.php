@@ -17,14 +17,16 @@ class TranslationService
         $entries = [];
 
         foreach ($allFiles as $group) {
-            $frKeys = $frFiles[$group] ?? [];
-            $enKeys = $enFiles[$group] ?? [];
-            $allKeys = array_unique(array_merge(array_keys($frKeys), array_keys($enKeys)));
+            $frRaw = $frFiles[$group] ?? [];
+            $enRaw = $enFiles[$group] ?? [];
+            $frFlat = $this->flattenArray($frRaw);
+            $enFlat = $this->flattenArray($enRaw);
+            $allKeys = array_unique(array_merge(array_keys($frFlat), array_keys($enFlat)));
             sort($allKeys);
 
             foreach ($allKeys as $key) {
-                $frValue = $frKeys[$key] ?? null;
-                $enValue = $enKeys[$key] ?? null;
+                $frValue = $frFlat[$key] ?? null;
+                $enValue = $enFlat[$key] ?? null;
 
                 $status = $this->resolveStatus($frValue, $enValue);
 
@@ -39,6 +41,20 @@ class TranslationService
         }
 
         return collect($entries);
+    }
+
+    private function flattenArray(array $array, string $prefix = ''): array
+    {
+        $result = [];
+        foreach ($array as $key => $value) {
+            $fullKey = $prefix ? $prefix . '.' . $key : $key;
+            if (is_array($value)) {
+                $result = array_merge($result, $this->flattenArray($value, $fullKey));
+            } else {
+                $result[$fullKey] = $value;
+            }
+        }
+        return $result;
     }
 
     public function getGroups(): array

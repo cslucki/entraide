@@ -81,6 +81,9 @@
             @error('body')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
             @enderror
+            @error('photo')
+                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+            @enderror
         </x-conversation.composer>
     @endif
 </div>

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
-      class="{{ !isset($currentOrganization) && ($globalColorMode ?? 'dark') === 'dark' ? 'dark' : '' }}">
+      class="{{ ($globalColorMode ?? 'dark') === 'dark' ? 'dark' : '' }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -58,9 +58,10 @@
         <script>
             window.bpThemes = @json(collect($bpThemes)->map(fn ($theme) => ['label' => $theme['label']])->all());
             window.bpDefaultTheme = @json($bpDefaultTheme);
-            document.documentElement.dataset.bpTheme = localStorage.bpTheme || window.bpDefaultTheme;
+            var orgThemeKey = @json(optional($currentOrganization ?? null)?->theme?->key) || window.bpDefaultTheme;
+            document.documentElement.dataset.bpTheme = localStorage.bpTheme || orgThemeKey;
 
-            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && @json($globalColorMode ?? 'dark') === 'dark')) {
                 document.documentElement.classList.add('dark');
             } else {
                 document.documentElement.classList.remove('dark');

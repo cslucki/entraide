@@ -68,11 +68,25 @@ class LoopChat extends Component
         $this->replyingTo = null;
     }
 
+    public function updatedPhoto(): void
+    {
+        if (! $this->photo) {
+            return;
+        }
+        $validator = validator(['photo' => $this->photo], ['photo' => 'image|max:10240']);
+        if ($validator->fails()) {
+            $this->photo = null;
+            $this->addError('photo', __('messages.invalid_file'));
+        }
+    }
+
     public function sendMessage(LoopMessageService $service): void
     {
         $this->validate([
-            'body' => 'required|string|max:5000',
+            'body' => 'required_without:photo|string|max:5000',
             'photo' => 'nullable|image|max:10240',
+        ], [
+            'body.required_without' => __('messages.body_or_image_required'),
         ]);
 
         $user = auth()->user();

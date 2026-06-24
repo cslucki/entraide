@@ -1,4 +1,15 @@
 <x-app-layout>
+    @php
+        $_dashOrgSlug = $currentOrganization?->slug;
+        $_dashRoute = function (string $name, array $params = []) use ($_dashOrgSlug): string {
+            $orgRoute = 'organization.' . $name;
+            return $_dashOrgSlug && Route::has($orgRoute)
+                ? route($orgRoute, ['organization' => $_dashOrgSlug] + $params)
+                : route($name, $params);
+        };
+        $_dashServicesCreateHref = $_dashRoute('services.create');
+        $_dashRequestsCreateHref = $_dashRoute('requests.create');
+    @endphp
     <div class="max-w-7xl mx-auto px-4 py-8">
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
@@ -126,7 +137,7 @@
                         <span class="ml-1">{{ __('dashboard.points_received') }}</span>
                     </div>
                 </div>
-                <a href="{{ route('points.index') }}#invitations" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_history') }}</a>
+                <a href="{{ $_dashRoute('points.index') }}#invitations" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_history') }}</a>
             </div>
         </div>
         @endif
@@ -166,7 +177,7 @@
                         @endif
                     </p>
                 </div>
-                <a href="{{ route('agent-ia.wizard') }}"
+                <a href="{{ $_dashRoute('agent-ia.wizard') }}"
                    class="inline-flex items-center px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition active:scale-95 shadow-sm whitespace-nowrap">
                     {{ $aiProfile && $aiProfile->status === 'draft' ? __('dashboard.continue') : __('dashboard.configure') }}
                 </a>
@@ -179,7 +190,7 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_services') }}</h2>
-                    <a href="{{ route('services.create') }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    <a href="{{ $_dashServicesCreateHref }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myServices as $service)
@@ -189,8 +200,8 @@
                             <p class="text-xs text-gray-500">{{ $service->points_cost }} pts · {{ $service->category->displayName('transactions') }}</p>
                         </div>
                         <div class="flex gap-3 ml-3 flex-shrink-0">
-                            <a href="{{ route('services.edit', $service) }}" class="text-xs text-gray-500 hover:text-indigo-600">{{ __('dashboard.edit') }}</a>
-                            <form method="POST" action="{{ route('services.destroy', $service) }}" x-data="{ asked: false }">
+                            <a href="{{ $_dashRoute('services.edit', ['service' => $service]) }}" class="text-xs text-gray-500 hover:text-indigo-600">{{ __('dashboard.edit') }}</a>
+                            <form method="POST" action="{{ $_dashRoute('services.destroy', ['service' => $service]) }}" x-data="{ asked: false }">
                                 @csrf @method('DELETE')
                                 <template x-if="!asked">
                                     <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700">{{ __('dashboard.delete') }}</button>
@@ -206,7 +217,7 @@
                         </div>
                     </div>
                     @empty
-                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{!! __('dashboard.no_active_service') !!}<br><a href="{{ route('services.create') }}" class="text-indigo-600 hover:underline">{{ __('dashboard.create_service') }}</a></p>
+                    <p class="px-5 py-8 text-sm text-gray-400 text-center">{!! __('dashboard.no_active_service') !!}<br><a href="{{ $_dashServicesCreateHref }}" class="text-indigo-600 hover:underline">{{ __('dashboard.create_service') }}</a></p>
                     @endforelse
                 </div>
             </div>
@@ -221,10 +232,10 @@
                     @forelse($myRequests as $req)
                     <div class="px-5 py-3 flex items-center justify-between">
                         <div class="min-w-0">
-                            <a href="{{ route('requests.show', $req) }}" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600">{{ $req->title }}</a>
+                            <a href="{{ $_dashRoute('requests.show', ['request' => $req]) }}" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-indigo-600">{{ $req->title }}</a>
                             <p class="text-xs text-gray-500">{{ $req->budget_min }}{{ $req->budget_max ? '–'.$req->budget_max : '+' }} pts</p>
                         </div>
-                        <form method="POST" action="{{ route('requests.destroy', $req) }}" class="ml-3" x-data="{ asked: false }">
+                        <form method="POST" action="{{ $_dashRoute('requests.destroy', ['request' => $req]) }}" class="ml-3" x-data="{ asked: false }">
                             @csrf @method('DELETE')
                             <template x-if="!asked">
                                 <button type="button" @click="asked = true" class="text-xs text-red-500 hover:text-red-700">{{ __('dashboard.close_request') }}</button>
@@ -252,7 +263,7 @@
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @foreach($myProposals as $tx)
-                    <a href="{{ route('messages.show', $tx) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         <img src="{{ $tx->seller->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
@@ -279,7 +290,7 @@
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($activeExchanges as $tx)
                     @php $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer; @endphp
-                    <a href="{{ route('messages.show', $tx) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
@@ -333,12 +344,12 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.recent_messages') }}</h2>
-                    <a href="{{ route('messages.index') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
+                    <a href="{{ $_dashRoute('messages.index') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($recentMessages as $tx)
                     @php $other = auth()->id() === $tx->buyer_id ? $tx->seller : $tx->buyer; $lastMsg = $tx->messages->first(); @endphp
-                    <a href="{{ route('messages.show', $tx) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <a href="{{ $_dashRoute('messages.show', ['transaction' => $tx]) }}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                         <div class="min-w-0">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $other->name }}</p>
@@ -356,23 +367,27 @@
 
         <!-- Shortcuts -->
         <div class="mt-6 flex flex-wrap gap-3">
-            <a href="{{ route('points.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+            <a href="{{ $_dashRoute('points.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
                 {{ __('dashboard.points_history') }}
             </a>
             @if($referralLink)
-            <a href="{{ route('points.index') }}#invitations" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+            <a href="{{ $_dashRoute('points.index') }}#invitations" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
                 {{ __('dashboard.invitation_points') }}
             </a>
             @endif
-            <a href="{{ route('favorites.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+            <a href="{{ $_dashRoute('favorites.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
                 {{ __('dashboard.my_favorites') }}
             </a>
-            <a href="{{ route('profile.show', $user) }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+            <a href="{{ $_dashRoute('profile.show', ['user' => $user]) }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
                 {{ __('dashboard.public_profile') }}
             </a>
             @if($user->is_admin)
             <a href="{{ route('admin.dashboard') }}" class="px-4 py-2 text-sm border border-purple-300 dark:border-purple-700 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition font-medium">
                 {{ __('dashboard.admin_dashboard') }}
+            </a>
+            @elseif($user->organization && $user->organization->admin_id === $user->id)
+            <a href="{{ route('organization.admin.dashboard', ['organization' => $user->organization->slug]) }}" class="px-4 py-2 text-sm border border-purple-300 dark:border-purple-700 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition font-medium">
+                {{ __('dashboard.org_admin_shortcut') }}
             </a>
             @endif
         </div>

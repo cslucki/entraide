@@ -55,8 +55,9 @@ class DashboardController extends Controller
             ->first();
 
         $requestCreateUrl = (function () use ($organization): string {
-            if (request()->routeIs('organization.*')) {
-                return route('organization.requests.create', ['organization' => $organization->slug]);
+            $orgRoute = 'organization.requests.create';
+            if ($organization && Route::has($orgRoute)) {
+                return route($orgRoute, ['organization' => $organization->slug]);
             }
 
             return route('requests.create');
@@ -97,8 +98,9 @@ class DashboardController extends Controller
         $hasSentReferral = $sentReferralsCount > 0;
 
         $onboardingRoute = function (string $name, array $parameters = []) use ($organization): string {
-            if (request()->routeIs('organization.*')) {
-                return route('organization.'.$name, ['organization' => $organization->slug] + $parameters);
+            $orgRoute = 'organization.'.$name;
+            if ($organization && Route::has($orgRoute)) {
+                return route($orgRoute, ['organization' => $organization->slug] + $parameters);
             }
 
             return route($name, $parameters);

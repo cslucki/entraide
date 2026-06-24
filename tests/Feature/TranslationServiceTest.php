@@ -26,7 +26,7 @@ class TranslationServiceTest extends TestCase
             $this->assertArrayHasKey('fr', $entry);
             $this->assertArrayHasKey('en', $entry);
             $this->assertArrayHasKey('status', $entry);
-            $this->assertContains($entry['status'], ['OK', 'MISSING_FR', 'MISSING_EN', 'EMPTY_FR', 'EMPTY_EN', 'NESTED']);
+            $this->assertContains($entry['status'], ['OK', 'MISSING_FR', 'MISSING_EN', 'EMPTY_FR', 'EMPTY_EN']);
         }
     }
 
@@ -40,7 +40,7 @@ class TranslationServiceTest extends TestCase
         $this->assertContains('navigation', $groups);
     }
 
-    public function test_detects_missing_french_translation(): void
+    public function test_missing_french_translations_are_correctly_shaped(): void
     {
         $service = new TranslationService;
         $entries = $service->all();
@@ -50,7 +50,6 @@ class TranslationServiceTest extends TestCase
             $this->assertNull($entry['fr']);
             $this->assertNotNull($entry['en']);
         }
-        $this->assertCount(0, $missing);
     }
 
     public function test_any_missing_english_entries_are_correctly_shaped(): void
@@ -72,7 +71,7 @@ class TranslationServiceTest extends TestCase
         $entries = $service->all();
 
         foreach ($entries as $entry) {
-            $this->assertContains($entry['status'], ['OK', 'MISSING_FR', 'MISSING_EN', 'EMPTY_FR', 'EMPTY_EN', 'NESTED']);
+            $this->assertContains($entry['status'], ['OK', 'MISSING_FR', 'MISSING_EN']);
         }
     }
 

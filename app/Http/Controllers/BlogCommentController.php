@@ -38,6 +38,11 @@ class BlogCommentController extends Controller
         return redirect(URL::previous().'#commentaires')->with('success', 'Commentaire ajouté.');
     }
 
+    public function orgStore(Request $request, string $org, BlogPost $post): RedirectResponse
+    {
+        return $this->store($request, $post);
+    }
+
     public function destroy(BlogComment $comment): RedirectResponse
     {
         $organization = currentOrganization();
@@ -50,5 +55,10 @@ class BlogCommentController extends Controller
         $comment->delete();
 
         return redirect(URL::previous().'#commentaires')->with('success', 'Commentaire supprimé.');
+    }
+
+    public function orgDestroy(string $org, BlogComment $comment): RedirectResponse
+    {
+        return $this->destroy($comment);
     }
 }

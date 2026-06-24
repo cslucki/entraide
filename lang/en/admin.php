@@ -44,4 +44,9 @@ return [
     'ai_features_title' => 'Features',
     'ai_clarification' => 'Clarification',
     'ai_clarification_desc' => 'Shows AI-assisted clarification inside loops.',
+    'owner_must_belong_to_org' => 'The selected owner must belong to the loop organization.',
+    'owner_select_label' => 'Owner',
+    'owner_select_placeholder' => '— Select an owner —',
+    'org_select_label' => 'Organization',
+    'org_select_placeholder' => '— Select an organization —',
 ];

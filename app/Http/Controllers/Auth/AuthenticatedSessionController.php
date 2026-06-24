@@ -34,7 +34,7 @@ class AuthenticatedSessionController extends Controller
             if ($user->organization_id) {
                 $organization = $user->organization;
                 if ($organization && $organization->is_active) {
-                    return redirect()->intended(route('loops.index', absolute: false));
+                    return redirect()->intended(canonicalHome($organization));
                 }
             }
 
@@ -44,7 +44,7 @@ class AuthenticatedSessionController extends Controller
         if ($user->organization_id) {
             $organization = $user->organization;
             if ($organization && $organization->is_active) {
-                return redirect()->intended(route('loops.index', absolute: false));
+                return redirect()->intended(canonicalHome($organization));
             }
         }
 

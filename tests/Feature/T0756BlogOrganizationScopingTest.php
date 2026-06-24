@@ -99,6 +99,44 @@ class T0756BlogOrganizationScopingTest extends TestCase
         ]);
     }
 
+    public function test_organization_blog_store_redirects_to_organization_show(): void
+    {
+        [$organizationA] = $this->createOrganizations();
+        $user = $this->createUser($organizationA);
+
+        $response = $this->actingAs($user)->post(route('organization.blog.store', [
+            'organization' => $organizationA->slug,
+        ]), $this->validPostData());
+
+        $post = BlogPost::where('user_id', $user->id)->firstOrFail();
+
+        $response->assertRedirect(route('organization.blog.show', [
+            'organization' => $organizationA->slug,
+            'post' => $post,
+        ]));
+    }
+
+    public function test_organization_blog_create_draft_returns_organization_edit_url(): void
+    {
+        [$organizationA] = $this->createOrganizations();
+        $user = $this->createUser($organizationA);
+
+        $response = $this->actingAs($user)->postJson(route('organization.blog.create-draft', [
+            'organization' => $organizationA->slug,
+        ]), [
+            'title' => 'Brouillon org URL',
+            'summary' => 'Résumé du brouillon org',
+        ]);
+
+        $post = BlogPost::where('user_id', $user->id)->firstOrFail();
+
+        $response->assertOk()
+            ->assertJsonPath('edit_url', route('organization.blog.edit', [
+                'organization' => $organizationA->slug,
+                'post' => $post,
+            ]));
+    }
+
     public function test_blog_store_fails_safe_when_no_organization_resolved(): void
     {
         // Aucune Organization active en base — middleware ne peut rien résoudre.

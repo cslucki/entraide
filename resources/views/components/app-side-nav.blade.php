@@ -11,6 +11,7 @@
     $canSeeFlux = auth()->check()
         && $menuOrganization
         && (auth()->id() === $menuOrganization->admin_id || auth()->user()->is_admin);
+    $loopsEnabled = $currentOrganization?->loops_enabled ?? $menuOrganization?->loops_enabled ?? true;
     $bugReportUrl = $organizationRouteParam && Route::has('organization.bug-reports.index')
         ? route('organization.bug-reports.index', ['organization' => $organizationRouteParam])
         : route('bug-reports.index');
@@ -39,6 +40,7 @@
             'label' => __('navigation.loops'),
             'hint' => 'ChatLoop',
             'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
+            'visible' => $loopsEnabled,
         ],
         [
             'url' => $routeUrl('explorer', 'organization.explorer'),
@@ -48,7 +50,7 @@
             'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
         ],
         [
-            'url' => route('messages.index'),
+            'url' => $routeUrl('messages.index', 'organization.messages.index'),
             'active' => ['messages'],
             'label' => __('navigation.messaging'),
             'hint' => __('navigation.messages'),
@@ -63,11 +65,11 @@
             'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
         ],
         [
-            'url' => route('blog.index'),
-            'active' => ['blog'],
+            'url' => $routeUrl('blog.index', 'organization.blog.index'),
+            'active' => ['blog', 'organization.blog'],
             'label' => __('navigation.blog'),
             'hint' => __('navigation.articles'),
-            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
+            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
         ],
     ] : [
         [
@@ -92,8 +94,8 @@
             'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
         ],
         [
-            'url' => route('blog.index'),
-            'active' => ['blog'],
+            'url' => $routeUrl('blog.index', 'organization.blog.index'),
+            'active' => ['blog', 'organization.blog'],
             'label' => __('navigation.blog'),
             'hint' => __('navigation.articles'),
             'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
@@ -210,7 +212,7 @@
                                 <svg class="h-5 w-5 text-sky-600 dark:text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
                                 <span>{{ __('navigation.dashboard') }}</span>
                             </a>
-                            <a href="{{ route('profile.show', Auth::user()) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                            <a href="{{ $organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => Auth::user()]) : route('profile.show', Auth::user()) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/><path d="M4.5 20.25a8.25 8.25 0 1116.5 0"/></svg>
                                 <span>{{ __('navigation.profile') }}</span>
                             </a>
@@ -245,6 +247,11 @@
                             <a href="{{ route('admin.dashboard') }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-purple-700 transition hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-900/30">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m0 0v10m6-14v2m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v8M6 6v8m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v2"/></svg>
                                 <span>{{ __('navigation.administration') }}</span>
+                            </a>
+                        @elseif($adminOrganization)
+                            <a href="{{ route('organization.admin.dashboard', ['organization' => $adminOrganization->slug]) }}" @click="open = false" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-purple-700 transition hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-900/30">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m0 0v10m6-14v2m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v8M6 6v8m0 0a2 2 0 100 4m0-4a2 2 0 110 4m0 0v2"/></svg>
+                                <span>{{ __('navigation.org_admin') }}</span>
                             </a>
                         @endif
                         </div>

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Events\LoopMessageCreated;
+use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Models\AiConfig;
 use App\Models\BugReport;
@@ -16,6 +17,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
+use App\Models\User;
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
 use App\Observers\TranslationOverrideObserver;
@@ -52,6 +54,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -141,6 +144,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Paginator::useTailwind();
+
+        Livewire::addPersistentMiddleware(ResolveOrganization::class);
 
         try {
             $dbProvider = AiConfig::get('default_provider');
@@ -232,6 +237,10 @@ class AppServiceProvider extends ServiceProvider
             return Loop::where('slug', $value)
                 ->where('organization_id', $org->id)
                 ->firstOrFail();
+        });
+
+        Route::bind('user', function (string $value): User {
+            return User::where('id', $value)->firstOrFail();
         });
 
         View::share('T', config('terms'));

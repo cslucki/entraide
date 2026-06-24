@@ -47,6 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ShareErrorsFromSession::class,
             EnsureUserIsNotBanned::class,
             ResolveUrlOrganization::class,
+            ResolveOrganization::class,
             SetLocale::class,
             SubstituteBindings::class,
         ]);

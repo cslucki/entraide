@@ -60,6 +60,7 @@ class RegisteredUserController extends Controller
             'user_id' => $user->id,
             'transaction_id' => null,
             'delta' => 100,
+            'organization_id' => $user->organization_id,
             'reason' => 'welcome_bonus',
         ]);
 
@@ -82,10 +83,10 @@ class RegisteredUserController extends Controller
         if ($user->organization_id) {
             $organization = $user->organization;
             if ($organization && $organization->is_active) {
-                return redirect()->intended(route('loops.index', absolute: false));
+                return redirect()->intended(canonicalHome($organization));
             }
         }
 
-        return redirect(route('loops.index', absolute: false));
+        return redirect('/');
     }
 }

@@ -1,5 +1,7 @@
 @php
     $requestTerm = app()->getLocale() === 'en' ? __('marketplace.request_term') : ($T['request'] ?? __('marketplace.request_term'));
+    $_reqOrgSlug = request()->route('organization');
+    $_reqStoreAction = $_reqOrgSlug && Route::has('organization.requests.store') ? route('organization.requests.store', ['organization' => $_reqOrgSlug]) : route('requests.store');
 @endphp
 
 <x-page :heading="__('marketplace.request_create_heading', ['request' => $requestTerm])" width="3xl">
@@ -21,7 +23,7 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ route('requests.store') }}" enctype="multipart/form-data"
+        <form method="POST" action="{{ $_reqStoreAction }}" enctype="multipart/form-data"
               x-data="{ selectedCategory: '{{ old('category_id', '') }}', files: [] }">
             @csrf
 

@@ -35,7 +35,7 @@ class WebLoginOrganizationTest extends TestCase
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertRedirect(route('loops.index'));
+        ])->assertRedirect(route('organization.home', ['organization' => $organization->slug]));
     }
 
     public function test_non_admin_with_inactive_organization_is_redirected_to_home_on_login(): void

@@ -9,7 +9,10 @@ class ExplorerController extends Controller
 {
     public function index(): View
     {
-        $categories = Category::all();
+        $organization = currentOrganization();
+        $categories = $organization
+            ? Category::where('organization_id', $organization->id)->get()
+            : collect();
 
         return view('explorer', compact('categories'));
     }

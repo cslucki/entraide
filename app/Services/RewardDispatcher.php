@@ -156,6 +156,7 @@ class RewardDispatcher
             'user_id' => $user->id,
             'transaction_id' => null,
             'delta' => $points,
+            'organization_id' => $referral->organization_id ?? $source->organization_id,
             'reason' => 'referral_reward',
         ]);
 

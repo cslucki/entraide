@@ -1,9 +1,18 @@
 <x-app-layout>
+    @php
+        $_blogRoute = function ($name, $parameters = []) {
+            $orgSlug = request()->route('organization');
+            if (! $orgSlug || ! Route::has('organization.blog.'.$name)) {
+                return route('blog.'.$name, $parameters);
+            }
+            return route('organization.blog.'.$name, array_merge(['organization' => $orgSlug], $parameters));
+        };
+    @endphp
     <x-slot name="title">{{ $post->meta_title ?: $post->title }} — Blog BouclePro</x-slot>
 
     <!-- Desktop topbar -->
     <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
-        <a href="{{ route('blog.index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour au blog">
+        <a href="{{ $_blogRoute('index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour au blog">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </a>
         <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $post->title }}</span>
@@ -27,7 +36,7 @@
                 <!-- Catégories -->
                 @if($post->category)
                 <div class="flex flex-wrap gap-2 mb-4">
-                    <a href="{{ route('blog.category', $post->category->slug) }}"
+                    <a href="{{ $_blogRoute('category', ['slug' => $post->category->slug]) }}"
                        class="text-xs font-medium px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition">
                         {{ $post->category->displayName('blog') }}
                     </a>
@@ -68,7 +77,7 @@
                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
                         {{ ['draft' => 'Brouillon', 'pending' => 'En attente', 'archived' => 'Archivé'][$post->status] ?? $post->status }}
                     </span>
-                    <form action="{{ route('blog.publish', $post) }}" method="POST">
+                    <form action="{{ $_blogRoute('publish', ['post' => $post]) }}" method="POST">
                         @csrf @method('PATCH')
                         <button type="submit"
                             class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition">
@@ -77,7 +86,7 @@
                         </button>
                     </form>
                     @endif
-                    <a href="{{ route('blog.edit', $post) }}"
+                    <a href="{{ $_blogRoute('edit', ['post' => $post]) }}"
                        class="inline-flex items-center gap-1.5 px-4 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium rounded-lg transition">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                         Modifier
@@ -95,7 +104,7 @@
                 @if($post->tags->isNotEmpty())
                 <div class="flex flex-wrap gap-2 mb-8">
                     @foreach($post->tags as $tag)
-                    <a href="{{ route('blog.tag', $tag->slug) }}"
+                    <a href="{{ $_blogRoute('tag', ['slug' => $tag->slug]) }}"
                        class="text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 hover:text-indigo-700 transition">
                         #{{ $tag->name }}
                     </a>
@@ -154,7 +163,7 @@
                     @endif
 
                     <div x-show="showComments" x-cloak class="space-y-4 mt-6">
-                        <form action="{{ route('blog.comment.store', $post) }}" method="POST">
+                        <form action="{{ $_blogRoute('comment.store', ['post' => $post]) }}" method="POST">
                             @csrf
                             <textarea name="content" rows="3" placeholder="Ajouter un commentaire utile…" required
                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm"></textarea>
@@ -180,7 +189,7 @@
                                         @auth
                                         <button x-data x-on:click="$el.nextElementSibling.classList.toggle('hidden')" class="text-xs text-gray-400 hover:text-indigo-500 transition">Répondre</button>
                                         <div class="hidden mt-3 w-full">
-                                            <form action="{{ route('blog.comment.store', $post) }}" method="POST">
+                        <form action="{{ $_blogRoute('comment.store', ['post' => $post]) }}" method="POST">
                                                 @csrf
                                                 <input type="hidden" name="parent_id" value="{{ $comment->id }}">
                                                 <textarea name="content" rows="2" placeholder="Votre réponse…" required
@@ -191,7 +200,7 @@
                                             </form>
                                         </div>
                                         @if(auth()->id() === $comment->user_id || auth()->user()->is_admin)
-                                        <form action="{{ route('blog.comment.destroy', $comment) }}" method="POST" class="inline">
+                                        <form action="{{ $_blogRoute('comment.destroy', ['comment' => $comment]) }}" method="POST" class="inline">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="text-xs text-red-400 hover:text-red-600 transition" onclick="return confirm('Supprimer ce commentaire ?')">Supprimer</button>
                                         </form>
@@ -235,7 +244,7 @@
                     <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-4">Articles liés</h3>
                     <div class="space-y-3">
                         @foreach($relatedPosts as $related)
-                        <a href="{{ route('blog.show', $related) }}" class="block group">
+                        <a href="{{ $_blogRoute('show', ['post' => $related]) }}" class="block group">
                             <p class="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition leading-snug">{{ $related->title }}</p>
                             <p class="text-xs text-gray-400 mt-0.5">{{ $related->user->name }} · {{ $related->read_time }} min</p>
                         </a>

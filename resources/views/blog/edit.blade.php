@@ -1,16 +1,25 @@
 <x-app-layout>
+    @php
+        $_blogRoute = function ($name, $parameters = []) {
+            $orgSlug = request()->route('organization');
+            if (! $orgSlug || ! Route::has('organization.blog.'.$name)) {
+                return route('blog.'.$name, $parameters);
+            }
+            return route('organization.blog.'.$name, array_merge(['organization' => $orgSlug], $parameters));
+        };
+    @endphp
     <x-slot name="title">Modifier — {{ $post->title }}</x-slot>
 
     <div class="max-w-3xl mx-auto px-4 py-8">
 
         <div class="mb-6">
-            <a href="{{ route('blog.show', $post) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Retour à l'article</a>
+            <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Retour à l'article</a>
         </div>
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Modifier l'article</h1>
 
-            <form action="{{ route('blog.update', $post) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+            <form action="{{ $_blogRoute('update', ['post' => $post]) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 @csrf @method('PUT')
 
                 @if($errors->any())
@@ -124,7 +133,7 @@
                     <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
                         Enregistrer les modifications
                     </button>
-                    <a href="{{ route('blog.show', $post) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         Annuler
                     </a>
                 </div>
@@ -132,7 +141,7 @@
 
             {{-- Formulaire de suppression EN DEHORS du formulaire principal --}}
             <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                <form action="{{ route('blog.destroy', $post) }}" method="POST"
+                <form action="{{ $_blogRoute('destroy', ['post' => $post]) }}" method="POST"
                       onsubmit="return confirm('Supprimer cet article définitivement ?')">
                     @csrf @method('DELETE')
                     <button type="submit" class="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">

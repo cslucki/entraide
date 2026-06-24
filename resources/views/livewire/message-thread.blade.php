@@ -1,6 +1,14 @@
 <div class="flex flex-col h-full" wire:poll.3000ms x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
     <!-- Status banner -->
-    @php $isDirectConversation = $transaction->isDirectConversation(); @endphp
+    @php
+        $isDirectConversation = $transaction->isDirectConversation();
+        $_threadOrgSlug = $organizationSlug ?? request()->route('organization');
+        $_threadRoute = function (string $routeName, string $organizationRouteName, array $params = []) use ($_threadOrgSlug) {
+            return $_threadOrgSlug && Route::has($organizationRouteName)
+                ? route($organizationRouteName, array_merge(['organization' => $_threadOrgSlug], $params))
+                : route($routeName, $params);
+        };
+    @endphp
 
     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <div class="flex items-center justify-between flex-wrap gap-2">
@@ -31,18 +39,18 @@
                 @php $user = auth()->user(); @endphp
 
                 @if($transaction->status === 'pending' && $user->id === $transaction->seller_id)
-                    <form method="POST" action="{{ route('transactions.approve', $transaction) }}">
+                    <form method="POST" action="{{ $_threadRoute('transactions.approve', 'organization.transactions.approve', ['transaction' => $transaction]) }}">
                         @csrf @method('PATCH')
                         <button class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">{{ __('messages.actions.accept') }}</button>
                     </form>
-                    <form method="POST" action="{{ route('transactions.refuse', $transaction) }}">
+                    <form method="POST" action="{{ $_threadRoute('transactions.refuse', 'organization.transactions.refuse', ['transaction' => $transaction]) }}">
                         @csrf @method('PATCH')
                         <button class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">{{ __('messages.actions.refuse') }}</button>
                     </form>
                 @endif
 
                 @if($transaction->status === 'pending' && in_array($user->id, [$transaction->buyer_id, $transaction->seller_id]))
-                    <form method="POST" action="{{ route('transactions.adjust', $transaction) }}" class="flex gap-1" x-data>
+                    <form method="POST" action="{{ $_threadRoute('transactions.adjust', 'organization.transactions.adjust', ['transaction' => $transaction]) }}" class="flex gap-1" x-data>
                         @csrf @method('PATCH')
                         <input type="number" name="points_proposed" min="1" value="{{ $transaction->points_proposed }}"
                             class="w-20 px-2 py-1 border rounded text-xs dark:bg-gray-700 dark:border-gray-600 dark:text-white">
@@ -51,25 +59,25 @@
                 @endif
 
                 @if(in_array($transaction->status, ['pending', 'accepted']) && in_array($user->id, [$transaction->buyer_id, $transaction->seller_id]))
-                    <form method="POST" action="{{ route('transactions.cancel', $transaction) }}">
+                    <form method="POST" action="{{ $_threadRoute('transactions.cancel', 'organization.transactions.cancel', ['transaction' => $transaction]) }}">
                         @csrf @method('PATCH')
                         <button class="px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600">{{ __('messages.actions.cancel') }}</button>
                     </form>
                 @endif
 
                 @if($transaction->status === 'accepted' && $user->id === $transaction->buyer_id)
-                    <form method="POST" action="{{ route('transactions.complete', $transaction) }}">
+                    <form method="POST" action="{{ $_threadRoute('transactions.complete', 'organization.transactions.complete', ['transaction' => $transaction]) }}">
                         @csrf @method('PATCH')
                         <button class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">{{ __('messages.actions.mark_done') }}</button>
                     </form>
                 @endif
 
                 @if($transaction->status === 'buyer_done' && $user->id === $transaction->seller_id)
-                    <form method="POST" action="{{ route('transactions.confirm', $transaction) }}">
+                    <form method="POST" action="{{ $_threadRoute('transactions.confirm', 'organization.transactions.confirm', ['transaction' => $transaction]) }}">
                         @csrf @method('PATCH')
                         <button class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">{{ __('messages.actions.confirm') }}</button>
                     </form>
-                    <form method="POST" action="{{ route('transactions.contest', $transaction) }}">
+                    <form method="POST" action="{{ $_threadRoute('transactions.contest', 'organization.transactions.contest', ['transaction' => $transaction]) }}">
                         @csrf @method('PATCH')
                         <button class="px-3 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600">{{ __('messages.actions.contest') }}</button>
                     </form>
@@ -191,6 +199,9 @@
             @error('newMessage')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
             @enderror
+            @error('photo')
+                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+            @enderror
         </x-conversation.composer>
     @else
     <div class="border-t border-gray-200 dark:border-gray-700 p-4 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -201,7 +212,7 @@
 
 <script>
     function syncUnreadBadge(count) {
-        const link = document.querySelector('a[href="{{ route('messages.index') }}"]');
+        const link = document.querySelector('a[href="{{ $_threadRoute('messages.index', 'organization.messages.index') }}"]');
         if (!link) return;
         const existing = link.querySelector('.bg-red-500');
         if (count > 0) {

@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
+use App\Http\Controllers\Admin\OrgAdminController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -53,6 +54,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
 use App\Livewire\EditFeedPost;
@@ -298,6 +300,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/translations/overrides/{translationOverride}/edit', [AdminTranslationController::class, 'editOverride'])->name('translations.overrides.edit');
     Route::put('/translations/overrides/{translationOverride}', [AdminTranslationController::class, 'updateOverride'])->name('translations.overrides.update');
     Route::patch('/translations/overrides/{translationOverride}/deactivate', [AdminTranslationController::class, 'deactivateOverride'])->name('translations.overrides.deactivate');
+    Route::post('/translations/reset', [AdminTranslationController::class, 'resetOverride'])->name('translations.overrides.reset');
 
     Route::get('/email-test', [AdminEmailController::class, 'index'])->name('email-test');
     Route::post('/email-test', [AdminEmailController::class, 'send'])->name('email-test.send');
@@ -439,28 +442,28 @@ Route::prefix('/org/{organization}')
             Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
 
             Route::get('/transactions/export', [TransactionController::class, 'exportCsv'])->name('transactions.export');
-            Route::post('/transactions', [TransactionController::class, 'store'])->middleware('throttle:10,1')->name('transactions.store');
-            Route::patch('/transactions/{transaction}/approve', [TransactionController::class, 'approve'])->name('transactions.approve');
-            Route::patch('/transactions/{transaction}/refuse', [TransactionController::class, 'refuse'])->name('transactions.refuse');
-            Route::patch('/transactions/{transaction}/adjust', [TransactionController::class, 'adjust'])->name('transactions.adjust');
-            Route::patch('/transactions/{transaction}/cancel', [TransactionController::class, 'cancel'])->name('transactions.cancel');
-            Route::patch('/transactions/{transaction}/complete', [TransactionController::class, 'complete'])->name('transactions.complete');
-            Route::patch('/transactions/{transaction}/confirm', [TransactionController::class, 'confirm'])->name('transactions.confirm');
-            Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'contest'])->name('transactions.contest');
+            Route::post('/transactions', [TransactionController::class, 'orgStore'])->middleware('throttle:10,1')->name('transactions.store');
+            Route::patch('/transactions/{transaction}/approve', [TransactionController::class, 'orgApprove'])->name('transactions.approve');
+            Route::patch('/transactions/{transaction}/refuse', [TransactionController::class, 'orgRefuse'])->name('transactions.refuse');
+            Route::patch('/transactions/{transaction}/adjust', [TransactionController::class, 'orgAdjust'])->name('transactions.adjust');
+            Route::patch('/transactions/{transaction}/cancel', [TransactionController::class, 'orgCancel'])->name('transactions.cancel');
+            Route::patch('/transactions/{transaction}/complete', [TransactionController::class, 'orgComplete'])->name('transactions.complete');
+            Route::patch('/transactions/{transaction}/confirm', [TransactionController::class, 'orgConfirm'])->name('transactions.confirm');
+            Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'orgContest'])->name('transactions.contest');
 
             Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
-            Route::get('/messages/{transaction}', [MessageController::class, 'show'])->name('messages.show');
+            Route::get('/messages/{transaction}', [MessageController::class, 'orgShow'])->name('messages.show');
 
             Route::get('/points', [PointController::class, 'index'])->name('points.index');
 
             Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
             Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->name('favorites.toggle');
 
-            Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
-            Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->middleware('throttle:5,1')->name('reports.request');
-            Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->middleware('throttle:5,1')->name('reports.user');
+            Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
+            Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');
+            Route::post('/reports/user/{user}', [ReportController::class, 'orgStoreUser'])->middleware('throttle:5,1')->name('reports.user');
             Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
             Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -487,6 +490,22 @@ Route::prefix('/org/{organization}')
 
             Route::middleware('verified')->group(function () {
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
+
+                // Blog (org-scoped)
+                Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->name('blog.create');
+                Route::get('/blog/mes-articles', [BlogController::class, 'orgMyPosts'])->name('blog.my-posts');
+                Route::post('/blog', [BlogController::class, 'orgStore'])->name('blog.store');
+                Route::get('/blog/rediger/{post:slug}/modifier', [BlogController::class, 'orgEdit'])->name('blog.edit');
+                Route::put('/blog/{post:slug}', [BlogController::class, 'orgUpdate'])->name('blog.update');
+                Route::patch('/blog/{post:slug}/publier', [BlogController::class, 'orgPublish'])->name('blog.publish');
+                Route::delete('/blog/{post:slug}', [BlogController::class, 'orgDestroy'])->name('blog.destroy');
+                Route::post('/blog/{post:slug}/commentaires', [BlogCommentController::class, 'orgStore'])->name('blog.comment.store');
+                Route::delete('/commentaires/{comment}', [BlogCommentController::class, 'orgDestroy'])->name('blog.comment.destroy');
+                Route::post('/blog/upload-image', [BlogController::class, 'orgUploadImage'])->name('blog.upload-image');
+                Route::post('/blog/ai-generate', [BlogController::class, 'orgAiGenerate'])->name('blog.ai-generate');
+                Route::post('/blog/ai-correct', [BlogController::class, 'orgAiCorrect'])->name('blog.ai-correct');
+                Route::post('/blog/ai-remaining', [BlogController::class, 'orgAiRemaining'])->name('blog.ai-remaining');
+                Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->name('blog.create-draft');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');
@@ -494,14 +513,68 @@ Route::prefix('/org/{organization}')
             Route::get('/flux/mes-annonces', MyFeedPosts::class)->name('flux.my');
             Route::get('/flux/modifier/{feedPost}', EditFeedPost::class)->name('flux.edit');
             Route::get('/flux/{feedPost}', ViewFeedPost::class)->name('flux.show')->whereUuid('feedPost');
+
         });
 
-        Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
-        Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
-        Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
-        Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
-        Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
+        // Public organization-scoped detail routes used by Explorer.
+        Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->name('services.show')->whereUuid('service');
+        Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->name('requests.show')->whereUuid('request');
+        Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show')->whereUuid('user');
+
         Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
         Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
         Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+
+        // Organization admin dashboard (org-scoped)
+        Route::middleware(['auth', OrgAdminMiddleware::class])
+            ->prefix('admin')
+            ->name('admin.')
+            ->group(function () {
+                Route::get('/', [OrgAdminController::class, 'dashboard'])->name('dashboard');
+
+                // Exchanges
+                Route::get('/services', [OrgAdminController::class, 'services'])->name('services');
+                Route::get('/requests', [OrgAdminController::class, 'requests'])->name('requests');
+                Route::patch('/requests/{serviceRequest}/close', [OrgAdminController::class, 'closeRequest'])->name('requests.close');
+                Route::get('/transactions', [OrgAdminController::class, 'transactions'])->name('transactions');
+
+                // Content
+                Route::get('/blog', [OrgAdminController::class, 'blog'])->name('blog');
+                Route::patch('/blog/{blogPost}/publish', [OrgAdminController::class, 'publishBlogPost'])->name('blog.publish');
+                Route::get('/categories', [OrgAdminController::class, 'categories'])->name('categories');
+                Route::get('/categories/create', [OrgAdminController::class, 'createCategory'])->name('categories.create');
+                Route::post('/categories', [OrgAdminController::class, 'storeCategory'])->name('categories.store');
+                Route::get('/categories/{category}/edit', [OrgAdminController::class, 'editCategory'])->name('categories.edit');
+                Route::put('/categories/{category}', [OrgAdminController::class, 'updateCategory'])->name('categories.update');
+                Route::delete('/categories/{category}', [OrgAdminController::class, 'destroyCategory'])->name('categories.destroy');
+                Route::post('/categories/{category}/skills', [OrgAdminController::class, 'storeCategorySkill'])->name('categories.skills.store');
+                Route::delete('/skills/{skill}', [OrgAdminController::class, 'destroyCategorySkill'])->name('skills.destroy');
+
+                // Community
+                Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
+                Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
+                Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
+                Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
+                Route::patch('/users/{user}/toggle-ban', [OrgAdminController::class, 'toggleUserBan'])->name('users.toggle-ban');
+
+                // Administration
+                Route::get('/reports', [OrgAdminController::class, 'reports'])->name('reports');
+                Route::patch('/bug-reports/{bugReport}/resolve', [OrgAdminController::class, 'resolveBugReport'])->name('reports.resolve');
+                Route::get('/invitations', [OrgAdminController::class, 'invitations'])->name('invitations');
+                Route::get('/translations', [OrgAdminController::class, 'translations'])->name('translations');
+                Route::post('/translations', [OrgAdminController::class, 'storeOverride'])->name('translations.store');
+                Route::patch('/translations/{translationOverride}/deactivate', [OrgAdminController::class, 'deactivateOverride'])->name('translations.deactivate');
+                Route::post('/translations/reset', [OrgAdminController::class, 'resetOverride'])->name('translations.reset');
+
+                // AI
+                Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
+                Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
+                Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
+            });
+
+        // Blog (org-scoped, en parallèle des routes /blog root)
+        Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
+        Route::get('/blog/categorie/{slug}', [BlogController::class, 'orgByCategory'])->name('blog.category');
+        Route::get('/blog/tag/{slug}', [BlogController::class, 'orgByTag'])->name('blog.tag');
+        Route::get('/blog/{post:slug}', [BlogController::class, 'orgShow'])->name('blog.show');
     });

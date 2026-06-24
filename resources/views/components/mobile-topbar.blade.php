@@ -22,6 +22,7 @@
         'organization.flux' => __('navigation.feed'),
         'organization.flux.create' => __('navigation.new_announcement'),
         'blog.index' => __('navigation.blog'),
+        'organization.blog.index' => __('navigation.blog'),
         'mentions-legales' => __('navigation.legal_notices'),
         'dashboard' => __('navigation.my_space'),
         'organization.dashboard' => __('navigation.my_space'),
@@ -43,13 +44,13 @@
             $routeTitle = request()->route('request')?->title;
         } elseif (request()->routeIs('requests.create', 'organization.requests.create')) {
             $routeTitle = __('navigation.make_request', ['request' => __('navigation.services')]);
-        } elseif (request()->routeIs('blog.show')) {
+        } elseif (request()->routeIs('blog.show', 'organization.blog.show')) {
             $routeTitle = request()->route('post')?->title;
-        } elseif (request()->routeIs('blog.create')) {
+        } elseif (request()->routeIs('blog.create', 'organization.blog.create')) {
             $routeTitle = __('navigation.write_article');
-        } elseif (request()->routeIs('blog.edit')) {
+        } elseif (request()->routeIs('blog.edit', 'organization.blog.edit')) {
             $routeTitle = __('navigation.edit_article');
-        } elseif (request()->routeIs('blog.my-posts')) {
+        } elseif (request()->routeIs('blog.my-posts', 'organization.blog.my-posts')) {
             $routeTitle = __('navigation.my_articles');
         } elseif (request()->routeIs('profile.show', 'organization.profile.show')) {
             $routeTitle = request()->route('user')?->name;
@@ -76,8 +77,8 @@
     if (! $isLevelOne) {
         if (request()->routeIs('services.*', 'requests.*', 'organization.services.*', 'organization.requests.*')) {
             $backHref = $routeUrl('explorer', 'organization.explorer');
-        } elseif (request()->routeIs('blog.*')) {
-            $backHref = route('blog.index');
+        } elseif (request()->routeIs('blog.*', 'organization.blog.*')) {
+            $backHref = $routeUrl('blog.index', 'organization.blog.index');
         } elseif (request()->routeIs('loops.*', 'organization.loops.*')) {
             $_org = app()->bound('current_organization') ? app('current_organization') : null;
             if ($_org && $_org->isMonoLoop()) {
@@ -113,8 +114,20 @@
             @endunless
         </div>
         <div class="flex items-center gap-2.5">
-            @auth
-            <button type="button" @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
+             @auth
+             <div class="flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
+                 @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
+                     <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}">
+                         @csrf
+                         <button type="submit"
+                             class="rounded-full px-1.5 py-0.5 transition {{ app()->getLocale() === $locale ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100' }}"
+                             aria-current="{{ app()->getLocale() === $locale ? 'true' : 'false' }}">
+                             {{ $label }}
+                         </button>
+                     </form>
+                 @endforeach
+             </div>
+             <button type="button" @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
                 <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
@@ -136,7 +149,7 @@
                     </div>
 
                     <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">{{ __('navigation.dashboard') }}</x-dropdown-link>
-                    <x-dropdown-link :href="route('profile.show', auth()->user())">{{ __('navigation.profile') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()]) : route('profile.show', auth()->user())">{{ __('navigation.profile') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
@@ -159,8 +172,20 @@
                     </form>
                 </x-slot>
             </x-dropdown>
-            @else
-            <button @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
+             @else
+             <div class="flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
+                 @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
+                     <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}">
+                         @csrf
+                         <button type="submit"
+                             class="rounded-full px-1.5 py-0.5 transition {{ app()->getLocale() === $locale ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100' }}"
+                             aria-current="{{ app()->getLocale() === $locale ? 'true' : 'false' }}">
+                             {{ $label }}
+                         </button>
+                     </form>
+                 @endforeach
+             </div>
+             <button @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
                 <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
