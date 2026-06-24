@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Message;
+use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\Transaction;
 use App\Notifications\NewMessageReceived;
@@ -18,7 +19,13 @@ class MessageThread extends Component
 {
     use WithFileUploads;
 
-    public Transaction $transaction;
+    public string $transactionId;
+
+    public string $organizationId;
+
+    public string $organizationSlug;
+
+    protected ?Transaction $transaction = null;
 
     public string $newMessage = '';
 
@@ -30,14 +37,19 @@ class MessageThread extends Component
 
     public function mount(Transaction $transaction): void
     {
-        $this->transaction = $transaction;
+        $this->transactionId = $transaction->id;
+        $this->organizationId = $transaction->organization_id;
+        $this->organizationSlug = currentOrganization()?->slug
+            ?? Organization::findOrFail($transaction->organization_id)->slug;
         $this->markRead();
     }
 
     public function replyTo(string $messageId): void
     {
+        $transaction = $this->transaction();
+
         $message = Message::where('id', $messageId)
-            ->where('transaction_id', $this->transaction->id)
+            ->where('transaction_id', $transaction->id)
             ->with('sender')
             ->first();
 
@@ -80,12 +92,13 @@ class MessageThread extends Component
         ]);
 
         $user = auth()->user();
+        $transaction = $this->transaction();
 
-        if (! in_array($user->id, [$this->transaction->buyer_id, $this->transaction->seller_id])) {
+        if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
             return;
         }
 
-        if (in_array($this->transaction->status, ['completed', 'refused', 'cancelled'])) {
+        if (in_array($transaction->status, ['completed', 'refused', 'cancelled'])) {
             return;
         }
 
@@ -93,7 +106,7 @@ class MessageThread extends Component
 
         if ($replyToId !== null) {
             $parent = Message::where('id', $replyToId)
-                ->where('transaction_id', $this->transaction->id)
+                ->where('transaction_id', $transaction->id)
                 ->exists();
 
             if (! $parent) {
@@ -112,26 +125,26 @@ class MessageThread extends Component
         $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
 
         $msg = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $transaction->id,
             'sender_id' => $user->id,
             'reply_to_id' => $replyToId,
             'body' => $this->newMessage,
             'image_path' => $imagePath,
             'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
             'type' => 'user',
-            'organization_id' => $this->transaction->organization_id,
+            'organization_id' => $transaction->organization_id,
         ]);
 
         $this->newMessage = '';
         $this->cancelReply();
-        $this->transaction->touch();
+        $transaction->touch();
         $this->markRead();
 
-        $recipient = $this->transaction->buyer_id === $user->id
-            ? $this->transaction->seller
-            : $this->transaction->buyer;
+        $recipient = $transaction->buyer_id === $user->id
+            ? $transaction->seller
+            : $transaction->buyer;
 
-        $recipient->notify(new NewMessageReceived($this->transaction, $msg));
+        $recipient->notify(new NewMessageReceived($transaction, $msg));
     }
 
     public function removePhoto(): void
@@ -141,7 +154,7 @@ class MessageThread extends Component
 
     public function pinnedMessage(): ?Message
     {
-        return $this->transaction->messages()
+        return $this->transaction()->messages()
             ->pinned()
             ->with('sender')
             ->first();
@@ -150,20 +163,21 @@ class MessageThread extends Component
     public function pinMessage(string $messageId): void
     {
         $user = auth()->user();
+        $transaction = $this->transaction();
 
-        if (! in_array($user->id, [$this->transaction->buyer_id, $this->transaction->seller_id])) {
+        if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
             return;
         }
 
         $message = Message::where('id', $messageId)
-            ->where('transaction_id', $this->transaction->id)
+            ->where('transaction_id', $transaction->id)
             ->first();
 
         if (! $message) {
             return;
         }
 
-        Message::where('transaction_id', $this->transaction->id)
+        Message::where('transaction_id', $transaction->id)
             ->whereNotNull('pinned_at')
             ->update(['pinned_at' => null, 'pinned_by_id' => null]);
 
@@ -173,12 +187,13 @@ class MessageThread extends Component
     public function unpinMessage(): void
     {
         $user = auth()->user();
+        $transaction = $this->transaction();
 
-        if (! in_array($user->id, [$this->transaction->buyer_id, $this->transaction->seller_id])) {
+        if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
             return;
         }
 
-        Message::where('transaction_id', $this->transaction->id)
+        Message::where('transaction_id', $transaction->id)
             ->whereNotNull('pinned_at')
             ->update(['pinned_at' => null, 'pinned_by_id' => null]);
     }
@@ -186,8 +201,9 @@ class MessageThread extends Component
     public function toggleReaction(string $messageId, string $reactionType): void
     {
         $user = auth()->user();
+        $transaction = $this->transaction();
 
-        if (! in_array($user->id, [$this->transaction->buyer_id, $this->transaction->seller_id])) {
+        if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
             return;
         }
 
@@ -196,7 +212,7 @@ class MessageThread extends Component
         }
 
         $message = Message::where('id', $messageId)
-            ->where('transaction_id', $this->transaction->id)
+            ->where('transaction_id', $transaction->id)
             ->first();
 
         if (! $message) {
@@ -231,7 +247,7 @@ class MessageThread extends Component
         $img->scaleDown(1200, 800);
 
         $filename = Str::uuid()->toString().'.webp';
-        $relativePath = 'message-images/'.$this->transaction->organization_id.'/messages/'.$filename;
+        $relativePath = 'message-images/'.$this->organizationId.'/messages/'.$filename;
 
         Storage::disk('public')->put($relativePath, (string) $img->encode(new WebpEncoder(quality: 80)));
 
@@ -241,7 +257,7 @@ class MessageThread extends Component
     public function markRead(): void
     {
         $userId = auth()->id();
-        Message::where('transaction_id', $this->transaction->id)
+        Message::where('transaction_id', $this->transaction()->id)
             ->where('sender_id', '!=', $userId)
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
@@ -249,10 +265,10 @@ class MessageThread extends Component
 
     public function render()
     {
-        $this->transaction->refresh();
+        $transaction = $this->transaction(fresh: true);
         $this->markRead();
 
-        $messages = $this->transaction->messages()
+        $messages = $transaction->messages()
             ->with('sender')
             ->with('replyTo.sender')
             ->with('reactions')
@@ -282,6 +298,31 @@ class MessageThread extends Component
             $myReactions[$msg->id] = $myReaction;
         }
 
-        return view('livewire.message-thread', compact('messages', 'pinnedMessage', 'unreadCount', 'reactionData', 'myReactions'));
+        $organizationSlug = $this->organizationSlug;
+
+        return view('livewire.message-thread', compact('transaction', 'messages', 'pinnedMessage', 'unreadCount', 'reactionData', 'myReactions', 'organizationSlug'));
+    }
+
+    private function transaction(bool $fresh = false): Transaction
+    {
+        $this->ensureOrganizationContext();
+
+        if ($fresh || ! $this->transaction) {
+            $this->transaction = Transaction::where('organization_id', $this->organizationId)
+                ->findOrFail($this->transactionId);
+        }
+
+        return $this->transaction;
+    }
+
+    private function ensureOrganizationContext(): void
+    {
+        if (currentOrganization()?->id === $this->organizationId) {
+            return;
+        }
+
+        $organization = Organization::findOrFail($this->organizationId);
+        $this->organizationSlug = $organization->slug;
+        app()->instance('current_organization', $organization);
     }
 }

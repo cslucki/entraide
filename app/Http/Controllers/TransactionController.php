@@ -98,7 +98,12 @@ class TransactionController extends Controller
             ServiceRequest::where('id', $data['request_id'])->update(['status' => 'in_progress']);
         }
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Échange envoyée !');
+        return $this->redirectToMessage($transaction)->with('success', 'Échange envoyée !');
+    }
+
+    public function orgStore(Request $request, string $org): RedirectResponse
+    {
+        return $this->store($request);
     }
 
     public function approve(Transaction $transaction): RedirectResponse
@@ -114,7 +119,12 @@ class TransactionController extends Controller
 
         $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh()));
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Échange acceptée.');
+        return $this->redirectToMessage($transaction)->with('success', 'Échange acceptée.');
+    }
+
+    public function orgApprove(string $org, Transaction $transaction): RedirectResponse
+    {
+        return $this->approve($transaction);
     }
 
     public function refuse(Transaction $transaction): RedirectResponse
@@ -131,7 +141,12 @@ class TransactionController extends Controller
             ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
         }
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Échange refusée.');
+        return $this->redirectToMessage($transaction)->with('success', 'Échange refusée.');
+    }
+
+    public function orgRefuse(string $org, Transaction $transaction): RedirectResponse
+    {
+        return $this->refuse($transaction);
     }
 
     public function adjust(Request $request, Transaction $transaction): RedirectResponse
@@ -150,7 +165,12 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'Points ajustés à '.$data['points_proposed'].' points.');
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Points ajustés.');
+        return $this->redirectToMessage($transaction)->with('success', 'Points ajustés.');
+    }
+
+    public function orgAdjust(Request $request, string $org, Transaction $transaction): RedirectResponse
+    {
+        return $this->adjust($request, $transaction);
     }
 
     public function cancel(Transaction $transaction): RedirectResponse
@@ -165,7 +185,12 @@ class TransactionController extends Controller
             ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
         }
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Transaction annulée.');
+        return $this->redirectToMessage($transaction)->with('success', 'Transaction annulée.');
+    }
+
+    public function orgCancel(string $org, Transaction $transaction): RedirectResponse
+    {
+        return $this->cancel($transaction);
     }
 
     public function complete(Transaction $transaction): RedirectResponse
@@ -181,7 +206,12 @@ class TransactionController extends Controller
 
         $transaction->seller->notify(new TransactionStatusChanged($transaction->fresh()));
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Prestation déclarée terminée.');
+        return $this->redirectToMessage($transaction)->with('success', 'Prestation déclarée terminée.');
+    }
+
+    public function orgComplete(string $org, Transaction $transaction): RedirectResponse
+    {
+        return $this->complete($transaction);
     }
 
     public function confirm(Transaction $transaction): RedirectResponse
@@ -201,6 +231,7 @@ class TransactionController extends Controller
                 'user_id' => $tx->buyer_id,
                 'transaction_id' => $tx->id,
                 'delta' => -$points,
+                'organization_id' => $tx->organization_id,
                 'reason' => 'exchange_spent',
             ]);
 
@@ -208,6 +239,7 @@ class TransactionController extends Controller
                 'user_id' => $tx->seller_id,
                 'transaction_id' => $tx->id,
                 'delta' => $points,
+                'organization_id' => $tx->organization_id,
                 'reason' => 'exchange_earned',
             ]);
 
@@ -228,7 +260,7 @@ class TransactionController extends Controller
         $fresh = $transaction->fresh();
 
         if ($fresh->status !== 'completed') {
-            return redirect()->route('messages.show', $transaction)
+            return $this->redirectToMessage($transaction)
                 ->with('error', 'Cette transaction a déjà été traitée.');
         }
 
@@ -237,7 +269,12 @@ class TransactionController extends Controller
         $fresh->buyer->notify(new TransactionStatusChanged($fresh));
         $fresh->seller->notify(new TransactionStatusChanged($fresh));
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Échange complété avec succès !');
+        return $this->redirectToMessage($transaction)->with('success', 'Échange complété avec succès !');
+    }
+
+    public function orgConfirm(string $org, Transaction $transaction): RedirectResponse
+    {
+        return $this->confirm($transaction);
     }
 
     public function contest(Transaction $transaction): RedirectResponse
@@ -257,13 +294,18 @@ class TransactionController extends Controller
         $fresh = $transaction->fresh();
 
         if ($fresh->status !== 'accepted') {
-            return redirect()->route('messages.show', $transaction)
+            return $this->redirectToMessage($transaction)
                 ->with('error', 'Impossible de contester cette transaction.');
         }
 
         $this->addSystemMessage($transaction, 'La prestation est contestée. L\'échange est remis en cours.');
 
-        return redirect()->route('messages.show', $transaction)->with('success', 'Prestation contestée, échange relancé.');
+        return $this->redirectToMessage($transaction)->with('success', 'Prestation contestée, échange relancé.');
+    }
+
+    public function orgContest(string $org, Transaction $transaction): RedirectResponse
+    {
+        return $this->contest($transaction);
     }
 
     public function exportCsv(): StreamedResponse
@@ -311,5 +353,16 @@ class TransactionController extends Controller
             'type' => 'system',
             'organization_id' => $transaction->organization_id,
         ]);
+    }
+
+    private function redirectToMessage(Transaction $transaction): RedirectResponse
+    {
+        $organization = request()->route('organization');
+
+        if ($organization) {
+            return redirect()->route('organization.messages.show', ['organization' => $organization, 'transaction' => $transaction]);
+        }
+
+        return redirect()->route('messages.show', $transaction);
     }
 }

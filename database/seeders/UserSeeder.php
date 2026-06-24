@@ -39,6 +39,7 @@ class UserSeeder extends Seeder
                 'user_id' => $user->id,
                 'transaction_id' => null,
                 'delta' => 100,
+                'organization_id' => $user->organization_id,
                 'reason' => 'welcome_bonus',
             ]);
         }
@@ -60,6 +61,7 @@ class UserSeeder extends Seeder
                 'user_id' => $user2->id,
                 'transaction_id' => null,
                 'delta' => 100,
+                'organization_id' => $user2->organization_id,
                 'reason' => 'welcome_bonus',
             ]);
         }

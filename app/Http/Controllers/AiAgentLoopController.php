@@ -64,6 +64,7 @@ class AiAgentLoopController extends Controller
             'role' => 'member',
             'status' => 'active',
             'joined_at' => now(),
+            'organization_id' => $loop->organization_id,
         ]);
 
         LoopMember::firstOrCreate(
@@ -72,6 +73,7 @@ class AiAgentLoopController extends Controller
                 'role' => 'member',
                 'status' => 'active',
                 'joined_at' => now(),
+                'organization_id' => $loop->organization_id,
             ]
         );
 

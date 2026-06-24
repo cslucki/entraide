@@ -19,6 +19,14 @@
 @endpush
 
 <x-app-layout :title="__('messages.title')">
+    @php
+        $_messagesOrgSlug = request()->route('organization');
+        $_messagesRoute = function (string $routeName, string $organizationRouteName, array $params = []) use ($_messagesOrgSlug) {
+            return $_messagesOrgSlug && Route::has($organizationRouteName)
+                ? route($organizationRouteName, array_merge(['organization' => $_messagesOrgSlug], $params))
+                : route($routeName, $params);
+        };
+    @endphp
     <x-page-container class="messages-index-wrapper">
         <div class="messages-index-container flex flex-col md:flex-row border-0 md:border border-gray-200 dark:border-gray-700 md:rounded-xl overflow-hidden bg-white dark:bg-gray-800">
 
@@ -33,7 +41,7 @@
                             $isDirectConversation = $conv->isDirectConversation();
                             $unread = $unreadCounts[$conv->id] ?? 0;
                         @endphp
-                        <a href="{{ route('messages.show', $conv) }}"
+                        <a href="{{ $_messagesRoute('messages.show', 'organization.messages.show', ['transaction' => $conv]) }}"
                             class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
                             <div class="relative flex-shrink-0">
                                 <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
@@ -78,7 +86,7 @@
             @php $other = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer; @endphp
             <div class="md:hidden flex-1 flex flex-col min-h-0">
                 <div class="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
-                    <a href="{{ route('messages.index') }}"
+                    <a href="{{ $_messagesRoute('messages.index', 'organization.messages.index') }}"
                        class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
                        aria-label="{{ __('messages.back_to_conversations') }}">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
@@ -88,9 +96,9 @@
                         <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ $other->name }}</p>
                         <p class="text-xs text-gray-500 truncate">
                             @if($transaction->service)
-                            <a href="{{ route('services.show', $transaction->service) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
+                            <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
                             @elseif($transaction->serviceRequest)
-                            <a href="{{ route('requests.show', $transaction->serviceRequest) }}" class="hover:underline text-indigo-500">{{ $transaction->serviceRequest->title }}</a>
+                            <a href="{{ $_messagesRoute('requests.show', 'organization.requests.show', ['request' => $transaction->serviceRequest]) }}" class="hover:underline text-indigo-500">{{ $transaction->serviceRequest->title }}</a>
                             @endif
                         </p>
                     </div>
@@ -117,7 +125,7 @@
                             $isDirectConversation = $conv->isDirectConversation();
                             $unread = $unreadCounts[$conv->id] ?? 0;
                         @endphp
-                        <a href="{{ route('messages.show', $conv) }}"
+                        <a href="{{ $_messagesRoute('messages.show', 'organization.messages.show', ['transaction' => $conv]) }}"
                             class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
                             <div class="relative flex-shrink-0">
                                 <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
@@ -167,9 +175,9 @@
                             <p class="font-medium text-gray-900 dark:text-gray-100">{{ $other->name }}</p>
                             <p class="text-xs text-gray-500">
                                 @if($transaction->service)
-                                <a href="{{ route('services.show', $transaction->service) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
+                                <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
                                 @elseif($transaction->serviceRequest)
-                                <a href="{{ route('requests.show', $transaction->serviceRequest) }}" class="hover:underline text-indigo-500">{{ $transaction->serviceRequest->title }}</a>
+                                <a href="{{ $_messagesRoute('requests.show', 'organization.requests.show', ['request' => $transaction->serviceRequest]) }}" class="hover:underline text-indigo-500">{{ $transaction->serviceRequest->title }}</a>
                                 @endif
                             </p>
                         </div>

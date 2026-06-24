@@ -22,6 +22,7 @@ class LoopMemberFactory extends Factory
             'role' => 'member',
             'status' => 'active',
             'joined_at' => now(),
+            'organization_id' => fn (array $attrs) => Loop::find($attrs['loop_id'])?->organization_id,
         ];
     }
 

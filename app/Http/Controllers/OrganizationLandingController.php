@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\Organization;
 use App\Models\Service;
+use App\Models\Transaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -18,17 +20,24 @@ class OrganizationLandingController extends Controller
             return redirect()->route('organization.login', ['organization' => $organization->slug]);
         }
 
-        $recentServices = Service::where('organization_id', $organization->id)
+        $stats = [
+            'users' => $organization->users()->count(),
+            'services' => Service::where('organization_id', $organization->id)->where('status', 'active')->count(),
+            'requests' => $organization->serviceRequests()->where('status', 'open')->count(),
+            'exchanges' => Transaction::where('organization_id', $organization->id)->where('status', 'completed')->count(),
+        ];
+
+        $featuredServices = Service::where('organization_id', $organization->id)
             ->where('status', 'active')
-            ->with(['user', 'category'])
-            ->latest()
-            ->take(6)
+            ->with('category', 'user')
+            ->inRandomOrder()
+            ->limit(6)
             ->get();
 
-        $memberCount = $organization->users()->count();
-        $serviceCount = $organization->services()->where('status', 'active')->count();
-        $transactionCount = $organization->transactions()->where('status', 'completed')->count();
+        $categories = Category::where('organization_id', $organization->id)->orderBy('name_b2c')->get();
 
-        return view('organization.landing', compact('organization', 'recentServices', 'memberCount', 'serviceCount', 'transactionCount'));
+        $defaultOrganization = $organization;
+
+        return view('organization.home', compact('organization', 'stats', 'featuredServices', 'categories', 'defaultOrganization'));
     }
 }

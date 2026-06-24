@@ -385,6 +385,10 @@
             <a href="{{ route('admin.dashboard') }}" class="px-4 py-2 text-sm border border-purple-300 dark:border-purple-700 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition font-medium">
                 {{ __('dashboard.admin_dashboard') }}
             </a>
+            @elseif($user->organization && $user->organization->admin_id === $user->id)
+            <a href="{{ route('organization.admin.dashboard', ['organization' => $user->organization->slug]) }}" class="px-4 py-2 text-sm border border-purple-300 dark:border-purple-700 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition font-medium">
+                {{ __('dashboard.org_admin_shortcut') }}
+            </a>
             @endif
         </div>
     </div>

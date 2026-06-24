@@ -165,6 +165,7 @@ class AdminController extends Controller
             PointLedger::create([
                 'user_id' => $user->id,
                 'delta' => $data['delta'],
+                'organization_id' => $user->organization_id,
                 'reason' => 'adjustment',
             ]);
             $user->increment('points_balance', $data['delta']);
@@ -205,6 +206,7 @@ class AdminController extends Controller
             PointLedger::create([
                 'user_id' => $user->id,
                 'delta' => $data['points'],
+                'organization_id' => $user->organization_id,
                 'reason' => 'welcome_bonus',
             ]);
         }
@@ -231,6 +233,7 @@ class AdminController extends Controller
             EmailLog::create([
                 'template_id' => null,
                 'user_id' => $user->id,
+                'organization_id' => $user->organization_id,
                 'to_email' => $user->email,
                 'subject' => 'Réinitialisation de votre mot de passe',
                 'status' => 'sent',

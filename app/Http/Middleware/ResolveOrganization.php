@@ -15,9 +15,13 @@ class ResolveOrganization
         $slug = $request->route('community') ?? $request->route('organization');
 
         if ($slug) {
-            $organization = Organization::findBySlug($slug);
-            if (! $organization) {
-                abort(404);
+            if ($slug instanceof Organization) {
+                $organization = $slug;
+            } else {
+                $organization = Organization::findBySlug($slug);
+                if (! $organization) {
+                    abort(404);
+                }
             }
             app()->instance('current_organization', $organization);
             View::share('currentOrganization', $organization);
