@@ -22,18 +22,48 @@
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('navigation.org_admin_table_name') }}</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('navigation.org_admin_table_email') }}</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('navigation.org_admin_table_role') }}</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('navigation.org_admin_table_points') }}</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('navigation.org_admin_table_status') }}</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('navigation.org_admin_table_joined') }}</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        <a href="{{ route('organization.admin.users', array_merge(request()->query(), [$organization, 'sort' => 'name', 'direction' => request('sort') === 'name' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
+                            {{ __('navigation.org_admin_table_name') }}
+                            @if(request('sort') === 'name') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
+                        </a>
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        <a href="{{ route('organization.admin.users', array_merge(request()->query(), [$organization, 'sort' => 'email', 'direction' => request('sort') === 'email' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
+                            {{ __('navigation.org_admin_table_email') }}
+                            @if(request('sort') === 'email') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
+                        </a>
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        <a href="{{ route('organization.admin.users', array_merge(request()->query(), [$organization, 'sort' => 'is_admin', 'direction' => request('sort') === 'is_admin' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
+                            {{ __('navigation.org_admin_table_role') }}
+                            @if(request('sort') === 'is_admin') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
+                        </a>
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        <a href="{{ route('organization.admin.users', array_merge(request()->query(), [$organization, 'sort' => 'points_balance', 'direction' => request('sort') === 'points_balance' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
+                            {{ __('navigation.org_admin_table_points') }}
+                            @if(request('sort') === 'points_balance') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
+                        </a>
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        <a href="{{ route('organization.admin.users', array_merge(request()->query(), [$organization, 'sort' => 'status', 'direction' => request('sort') === 'status' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
+                            {{ __('navigation.org_admin_table_status') }}
+                            @if(request('sort') === 'status') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
+                        </a>
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        <a href="{{ route('organization.admin.users', array_merge(request()->query(), [$organization, 'sort' => 'created_at', 'direction' => request('sort') === 'created_at' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
+                            {{ __('navigation.org_admin_table_joined') }}
+                            @if(request('sort') === 'created_at') <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>@endif
+                        </a>
+                    </th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('navigation.org_admin_table_actions') }}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($users as $user)
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 {{ $user->banned_at ? 'opacity-50' : '' }}">
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {{ $user->banned_at ? 'opacity-50' : '' }}">
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2">
                             <img src="{{ $user->avatar_url }}" class="w-7 h-7 rounded-full" alt="">

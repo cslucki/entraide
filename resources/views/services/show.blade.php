@@ -65,7 +65,7 @@
                     <div class="flex items-start gap-3 ml-4">
                         @auth
                         @if(auth()->id() !== $service->user_id)
-                        <form method="POST" action="{{ route('favorites.toggle', $service) }}" class="flex-shrink-0 mt-1">
+                        <form method="POST" action="{{ $_serviceOrgSlug ? route('organization.favorites.toggle', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('favorites.toggle', $service) }}" class="flex-shrink-0 mt-1">
                             @csrf
                             <button type="submit" title="{{ $isFavorited ? 'Retirer des favoris' : 'Ajouter aux favoris' }}"
                                 class="p-2 rounded-lg border {{ $isFavorited ? 'border-red-300 bg-red-50 dark:bg-red-900/20 text-red-500' : 'border-gray-200 dark:border-gray-600 text-gray-400 hover:text-red-400 hover:border-red-300' }} transition">

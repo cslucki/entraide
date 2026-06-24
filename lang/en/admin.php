@@ -60,4 +60,5 @@ return [
     'organization_logo_no_change' => 'No changes made to the logo.',
     'organization_save' => 'Save',
     'organization_cancel' => 'Cancel',
+    'users_org_all' => 'All organizations',
 ];

@@ -238,7 +238,19 @@ class OrgAdminController extends Controller
             };
         }
 
-        $users = $query->latest()->paginate(25)->withQueryString();
+        $direction = $request->direction === 'asc' ? 'asc' : 'desc';
+
+        match ($request->sort) {
+            'name' => $query->orderBy('name', $direction),
+            'email' => $query->orderBy('email', $direction),
+            'created_at' => $query->orderBy('created_at', $direction),
+            'points_balance' => $query->orderBy('points_balance', $direction),
+            'is_admin' => $query->orderBy('is_admin', $direction),
+            'status' => $query->orderByRaw('banned_at IS NULL '.($direction === 'asc' ? 'ASC' : 'DESC').', banned_at '.$direction),
+            default => $query->latest(),
+        };
+
+        $users = $query->paginate(25)->withQueryString();
 
         return view('admin.org.users', [
             'organization' => $organization,

@@ -431,15 +431,15 @@ Route::prefix('/org/{organization}')
                 Route::get('/services/create', [ServiceController::class, 'create'])->name('services.create');
                 Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
             });
-            Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->name('services.edit');
-            Route::put('/services/{service}', [ServiceController::class, 'update'])->name('services.update');
-            Route::delete('/services/{service}', [ServiceController::class, 'destroy'])->name('services.destroy');
+            Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->middleware('consume.org')->name('services.edit');
+            Route::put('/services/{service}', [ServiceController::class, 'update'])->middleware('consume.org')->name('services.update');
+            Route::delete('/services/{service}', [ServiceController::class, 'destroy'])->middleware('consume.org')->name('services.destroy');
 
             Route::middleware('profile.complete')->group(function () {
                 Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
                 Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
             });
-            Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
+            Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->middleware('consume.org')->name('requests.destroy');
 
             Route::get('/transactions/export', [TransactionController::class, 'exportCsv'])->name('transactions.export');
             Route::post('/transactions', [TransactionController::class, 'orgStore'])->middleware('throttle:10,1')->name('transactions.store');
@@ -451,7 +451,7 @@ Route::prefix('/org/{organization}')
             Route::patch('/transactions/{transaction}/confirm', [TransactionController::class, 'orgConfirm'])->name('transactions.confirm');
             Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'orgContest'])->name('transactions.contest');
 
-            Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
+            Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
             Route::get('/messages/{transaction}', [MessageController::class, 'orgShow'])->name('messages.show');
@@ -459,7 +459,7 @@ Route::prefix('/org/{organization}')
             Route::get('/points', [PointController::class, 'index'])->name('points.index');
 
             Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
-            Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->name('favorites.toggle');
+            Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->middleware('consume.org')->name('favorites.toggle');
 
             Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');

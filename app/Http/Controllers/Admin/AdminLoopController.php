@@ -282,10 +282,7 @@ class AdminLoopController extends Controller
     {
         $this->assertOrgAccess($loop);
 
-        if ($loop->hasContent()) {
-            return redirect()->route('admin.loops')
-                ->with('error', 'Impossible de supprimer cette boucle : elle contient des messages. Archivez-la plutôt.');
-        }
+        $loop->messages()->delete();
 
         $loop->delete();
 

@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\CheckLoopsEnabled;
+use App\Http\Middleware\ConsumeOrgParams;
 use App\Http\Middleware\EnsureProfileComplete;
 use App\Http\Middleware\EnsureUserIsNotBanned;
 use App\Http\Middleware\ResolveApiOrganization;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'profile.complete' => EnsureProfileComplete::class,
             'url.organization' => ResolveUrlOrganization::class,
             'api.organization' => ResolveApiOrganization::class,
+            'consume.org' => ConsumeOrgParams::class,
             'loops.enabled' => CheckLoopsEnabled::class,
         ]);
         // TASK-145: Reorder web group so ResolveUrlOrganization runs BEFORE

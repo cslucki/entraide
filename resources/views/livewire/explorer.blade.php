@@ -204,7 +204,7 @@
                             </a>
                             @auth
                             @if(auth()->id() !== $service->user_id)
-                            <form method="POST" action="{{ route('favorites.toggle', $service) }}">
+                            <form method="POST" action="{{ $_orgSlug ? route('organization.favorites.toggle', ['organization' => $_orgSlug, 'service' => $service]) : route('favorites.toggle', $service) }}">
                                 @csrf
                                 @php $faved = isset($favoritedIds[$service->id]); @endphp
                                 <button type="submit" title="{{ $faved ? __('explorer.remove_favorite') : __('explorer.add_favorite') }}"

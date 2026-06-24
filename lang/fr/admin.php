@@ -60,4 +60,5 @@ return [
     'organization_logo_no_change' => 'Aucune modification apportée au logo.',
     'organization_save' => 'Enregistrer',
     'organization_cancel' => 'Annuler',
+    'users_org_all' => 'Toutes les organisations',
 ];

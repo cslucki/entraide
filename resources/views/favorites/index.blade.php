@@ -1,4 +1,5 @@
 <x-app-layout>
+    @php $_favoritesOrgSlug = request()->route('organization'); @endphp
     <x-slot name="title">{{ __('favorites.title') }}</x-slot>
 
     <x-page-container>
@@ -25,7 +26,7 @@
                         </span>
                         <div class="flex items-center gap-2">
                             <span class="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{{ $service->points_cost }} pts</span>
-                            <form method="POST" action="{{ route('favorites.toggle', $service) }}">
+                            <form method="POST" action="{{ $_favoritesOrgSlug ? route('organization.favorites.toggle', ['organization' => $_favoritesOrgSlug, 'service' => $service]) : route('favorites.toggle', $service) }}">
                                 @csrf
                                 <button class="text-red-400 hover:text-red-600" title="{{ __('favorites.remove') }}">
                                     <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
