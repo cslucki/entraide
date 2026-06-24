@@ -29,6 +29,25 @@ php artisan serve
 Public repository — progressive cleanup phase.
 Full product documentation is not yet published here.
 
+## Seed Data
+
+After running `php artisan migrate --seed`, the following demo accounts are available for local development:
+
+| Email | Name | Organization | Role | Password |
+|-------|------|-------------|------|----------|
+| `admin@bouclepro.test` | Demo Admin | Main | Super Admin | `password` |
+| `main.member1@bouclepro.test` | Demo Main Member 1 | Main | Member | `password` |
+| `main.member2@bouclepro.test` | Demo Main Member 2 | Main | Member | `password` |
+| `launchpals.member1@bouclepro.test` | Demo LaunchPals Member 1 | LaunchPals | Admin | `password` |
+| `launchpals.member2@bouclepro.test` | Demo LaunchPals Member 2 | LaunchPals | Member | `password` |
+
+### Organizations
+
+- **Main** — the default platform organization (French demo data).
+- **LaunchPals** — a mono-loop community at the intersection of art, science, and technology (English demo data). The primary loop is **LaunchPalsCircle**.
+
+All demo emails use the reserved `.test` domain and are safe for public documentation.
+
 ## Links
 
 - Production: https://bouclepro.com

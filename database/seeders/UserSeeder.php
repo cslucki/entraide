@@ -14,56 +14,93 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        $organization = Organization::where('slug', 'cpme')->first()
+        $mainOrg = Organization::where('slug', 'main')->first()
             ?? DefaultOrganizationResolver::resolve();
+        $launchpalsOrg = Organization::where('slug', 'launchpals')->first();
 
-        if (! $organization) {
-            throw new RuntimeException('UserSeeder requires an active organization.');
+        if (! $mainOrg) {
+            throw new RuntimeException('UserSeeder requires "main" organization.');
         }
 
-        $user = User::firstOrCreate(
-            ['email' => 'test@example.com'],
+        $accounts = [
             [
-                'name' => 'Utilisateur Test',
-                'password' => Hash::make('password'),
-                'points_balance' => 100,
-                'is_available' => true,
+                'email' => 'admin@bouclepro.test',
+                'name' => 'Demo Admin',
                 'is_admin' => true,
-                'email_verified_at' => now(),
-                'organization_id' => $organization->id,
-            ]
-        );
-
-        if ($user->wasRecentlyCreated) {
-            PointLedger::create([
-                'user_id' => $user->id,
-                'transaction_id' => null,
-                'delta' => 100,
-                'organization_id' => $user->organization_id,
-                'reason' => 'welcome_bonus',
-            ]);
-        }
-
-        $user2 = User::firstOrCreate(
-            ['email' => 'alice@example.com'],
+                'org' => $mainOrg,
+                'bio' => 'Platform administrator and demo user.',
+                'location' => 'Paris',
+                'phone' => '+33600000001',
+            ],
             [
-                'name' => 'Alice Martin',
-                'password' => Hash::make('password'),
-                'points_balance' => 100,
-                'is_available' => true,
-                'email_verified_at' => now(),
-                'organization_id' => $organization->id,
-            ]
-        );
+                'email' => 'main.member1@bouclepro.test',
+                'name' => 'Demo Main Member 1',
+                'is_admin' => false,
+                'org' => $mainOrg,
+                'bio' => 'Demo member of the main organization.',
+                'location' => 'Lyon',
+                'phone' => '+33600000002',
+            ],
+            [
+                'email' => 'main.member2@bouclepro.test',
+                'name' => 'Demo Main Member 2',
+                'is_admin' => false,
+                'org' => $mainOrg,
+                'bio' => 'Demo member of the main organization.',
+                'location' => 'Marseille',
+                'phone' => '+33600000003',
+            ],
+            [
+                'email' => 'launchpals.member1@bouclepro.test',
+                'name' => 'Demo LaunchPals Member 1',
+                'is_admin' => true,
+                'org' => $launchpalsOrg,
+                'bio' => 'LaunchPals community lead and demo user.',
+                'location' => 'Bordeaux',
+                'phone' => '+33600000004',
+            ],
+            [
+                'email' => 'launchpals.member2@bouclepro.test',
+                'name' => 'Demo LaunchPals Member 2',
+                'is_admin' => false,
+                'org' => $launchpalsOrg,
+                'bio' => 'Demo member of LaunchPals.',
+                'location' => 'Nantes',
+                'phone' => '+33600000005',
+            ],
+        ];
 
-        if ($user2->wasRecentlyCreated) {
-            PointLedger::create([
-                'user_id' => $user2->id,
-                'transaction_id' => null,
-                'delta' => 100,
-                'organization_id' => $user2->organization_id,
-                'reason' => 'welcome_bonus',
-            ]);
+        foreach ($accounts as $data) {
+            $org = $data['org'];
+            if (! $org) {
+                continue;
+            }
+
+            $user = User::firstOrCreate(
+                ['email' => $data['email']],
+                [
+                    'name' => $data['name'],
+                    'password' => Hash::make('password'),
+                    'points_balance' => 100,
+                    'is_available' => true,
+                    'is_admin' => $data['is_admin'],
+                    'email_verified_at' => now(),
+                    'organization_id' => $org->id,
+                    'bio' => $data['bio'],
+                    'location' => $data['location'],
+                    'phone' => $data['phone'],
+                ]
+            );
+
+            if ($user->wasRecentlyCreated) {
+                PointLedger::create([
+                    'user_id' => $user->id,
+                    'transaction_id' => null,
+                    'delta' => 100,
+                    'organization_id' => $user->organization_id,
+                    'reason' => 'welcome_bonus',
+                ]);
+            }
         }
     }
 }

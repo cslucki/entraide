@@ -11,9 +11,7 @@ class OrganizationSeeder extends Seeder
     {
         $organizations = [
             ['name' => 'Main', 'slug' => 'main'],
-            ['name' => 'CPME', 'slug' => 'cpme'],
-            ['name' => 'BNI', 'slug' => 'bni'],
-            ['name' => '60 000 Rebonds', 'slug' => '60000rebonds'],
+            ['name' => 'LaunchPals', 'slug' => 'launchpals'],
         ];
 
         foreach ($organizations as $data) {
