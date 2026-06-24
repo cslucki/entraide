@@ -41,6 +41,12 @@ class DashboardDemoSeeder extends Seeder
 
     public function run(): void
     {
+        if (app()->environment('production')) {
+            $this->command->warn('DashboardDemoSeeder skipped: production environment.');
+
+            return;
+        }
+
         $this->main = Organization::where('slug', 'main')->first();
         $this->launchpals = Organization::where('slug', 'launchpals')->first();
 
@@ -57,6 +63,8 @@ class DashboardDemoSeeder extends Seeder
         if ($this->launchpals) {
             DB::transaction(fn () => $this->seedLaunchPalsOrg());
         }
+
+        $this->updateOrgConfig();
 
         $this->command->info('DashboardDemoSeeder terminé avec succès !');
     }
@@ -89,6 +97,13 @@ class DashboardDemoSeeder extends Seeder
     {
         $org = $this->main;
         $u = $this->users;
+
+        $org->platform_name = 'BouclePro';
+        $org->platform_tagline = "L'entraide professionnelle qui fait la différence";
+        $org->locale = 'fr';
+        $org->loop_mode = 'multi';
+        $org->is_default = true;
+        $org->save();
 
         // ── 1. Services ────────────────────────────────────────
         $svcDesign = $this->createService($u['main.member1@bouclepro.test'], $org, [
@@ -225,6 +240,14 @@ class DashboardDemoSeeder extends Seeder
     {
         $org = $this->launchpals;
         $u = $this->users;
+
+        $org->platform_name = 'LaunchPals';
+        $org->platform_tagline = 'Where art, science, and technology launch together';
+        $org->locale = 'en';
+        $org->loop_mode = 'mono';
+        $org->is_default = false;
+        $org->blog_naming = 'b2c';
+        $org->save();
 
         // ── 1. Services (art, science & tech themed) ────────────
         $svcPortfolio = $this->createService($u['launchpals.member1@bouclepro.test'], $org, [
@@ -365,6 +388,28 @@ class DashboardDemoSeeder extends Seeder
             'published_at' => now()->subDays(1),
             'views_count' => 52,
         ]);
+    }
+
+    private function updateOrgConfig(): void
+    {
+        $u = $this->users;
+
+        $this->main->admin_id = $u['admin@bouclepro.test']->id;
+        $this->main->save();
+
+        if ($this->launchpals) {
+            $this->launchpals->admin_id = $u['launchpals.member1@bouclepro.test']->id;
+
+            $circle = Loop::where('slug', 'launchpalscircle')
+                ->where('organization_id', $this->launchpals->id)
+                ->first();
+
+            if ($circle) {
+                $this->launchpals->primary_loop_id = $circle->id;
+            }
+
+            $this->launchpals->save();
+        }
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────

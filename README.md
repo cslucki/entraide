@@ -43,10 +43,19 @@ After running `php artisan migrate --seed`, the following demo accounts are avai
 
 ### Organizations
 
-- **Main** — the default platform organization (French demo data).
-- **LaunchPals** — a mono-loop community at the intersection of art, science, and technology (English demo data). The primary loop is **LaunchPalsCircle**.
+| Property | Main | LaunchPals |
+|----------|------|------------|
+| Slug | `main` | `launchpals` |
+| Platform name | BouclePro | LaunchPals |
+| Locale | `fr` | `en` |
+| Loop mode | `multi` (multiple loops) | `mono` (single loop) |
+| Primary loop | — | LaunchPalsCircle |
+| Default org | Yes | No |
+| Admin | admin@bouclepro.test | launchpals.member1@bouclepro.test |
+| Demo language | French | English |
 
-All demo emails use the reserved `.test` domain and are safe for public documentation.
+All demo emails use the reserved `.test` domain and are safe for public documentation.  
+Dashboard seeders are skipped in production environments (`app()->environment('production')`).
 
 ## Links
 
