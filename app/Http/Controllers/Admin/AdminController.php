@@ -456,7 +456,7 @@ class AdminController extends Controller
             'status' => $data['status'],
         ]);
 
-        $service->skills()->sync($data['skills'] ?? []);
+        $service->skills()->syncWithPivotValues($data['skills'] ?? [], ['organization_id' => $service->organization_id]);
 
         if (isset($data['tags'])) {
             $tagIds = [];
@@ -612,6 +612,7 @@ class AdminController extends Controller
                     'original_name' => $file->getClientOriginalName(),
                     'mime_type' => $file->getMimeType(),
                     'order' => $currentCount + $index,
+                    'organization_id' => $serviceRequest->organization_id,
                 ]);
             }
         }
