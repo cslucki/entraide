@@ -247,12 +247,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Transactions
     Route::get('/transactions', [AdminController::class, 'transactions'])->name('transactions');
+    Route::delete('/transactions/{transactionId}', [AdminController::class, 'destroyTransaction'])->name('transactions.destroy');
 
     // Requests
     Route::get('/requests', [AdminController::class, 'requests'])->name('requests');
     Route::get('/requests/{serviceRequest}/edit', [AdminController::class, 'editRequest'])->name('requests.edit');
     Route::put('/requests/{serviceRequest}', [AdminController::class, 'updateRequest'])->name('requests.update');
     Route::patch('/requests/{serviceRequest}/close', [AdminController::class, 'closeRequest'])->name('requests.close');
+    Route::delete('/requests/{requestId}', [AdminController::class, 'destroyRequest'])->name('requests.destroy');
 
     // Categories & Skills
     Route::get('/categories', [AdminCategoryController::class, 'index'])->name('categories');
@@ -277,8 +279,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Messages moderation
     Route::get('/messages', [AdminMessageController::class, 'index'])->name('messages');
     Route::get('/messages/{message}', [AdminMessageController::class, 'show'])->name('messages.show');
-    // DELETE disabled: T074.9 is strictly read-only (OpenAI review fix)
-    // Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
+    Route::delete('/messages/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
+    Route::delete('/loop-messages/{loopMessage}', [AdminMessageController::class, 'destroyLoopMessage'])->name('loop-messages.destroy');
 
     // Reports
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports');
@@ -392,6 +394,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Outils
     Route::get('/outils/assign-data', [AdminOutilsController::class, 'assignData'])->name('outils.assign-data');
     Route::post('/outils/assign-data', [AdminOutilsController::class, 'doAssignData'])->name('outils.assign-data.do');
+    Route::get('/outils/assign-data/detail', [AdminOutilsController::class, 'assignDataDetail'])->name('outils.assign-data.detail');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 });
@@ -431,15 +434,15 @@ Route::prefix('/org/{organization}')
                 Route::get('/services/create', [ServiceController::class, 'create'])->name('services.create');
                 Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
             });
-            Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->name('services.edit');
-            Route::put('/services/{service}', [ServiceController::class, 'update'])->name('services.update');
-            Route::delete('/services/{service}', [ServiceController::class, 'destroy'])->name('services.destroy');
+            Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->middleware('consume.org')->name('services.edit');
+            Route::put('/services/{service}', [ServiceController::class, 'update'])->middleware('consume.org')->name('services.update');
+            Route::delete('/services/{service}', [ServiceController::class, 'destroy'])->middleware('consume.org')->name('services.destroy');
 
             Route::middleware('profile.complete')->group(function () {
                 Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
                 Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
             });
-            Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
+            Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->middleware('consume.org')->name('requests.destroy');
 
             Route::get('/transactions/export', [TransactionController::class, 'exportCsv'])->name('transactions.export');
             Route::post('/transactions', [TransactionController::class, 'orgStore'])->middleware('throttle:10,1')->name('transactions.store');
@@ -451,7 +454,7 @@ Route::prefix('/org/{organization}')
             Route::patch('/transactions/{transaction}/confirm', [TransactionController::class, 'orgConfirm'])->name('transactions.confirm');
             Route::patch('/transactions/{transaction}/contest', [TransactionController::class, 'orgContest'])->name('transactions.contest');
 
-            Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->name('reviews.store');
+            Route::post('/transactions/{transaction}/review', [ReviewController::class, 'store'])->middleware('throttle:5,1')->middleware('consume.org')->name('reviews.store');
 
             Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
             Route::get('/messages/{transaction}', [MessageController::class, 'orgShow'])->name('messages.show');
@@ -459,7 +462,7 @@ Route::prefix('/org/{organization}')
             Route::get('/points', [PointController::class, 'index'])->name('points.index');
 
             Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
-            Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->name('favorites.toggle');
+            Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->middleware('consume.org')->name('favorites.toggle');
 
             Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');
@@ -565,6 +568,10 @@ Route::prefix('/org/{organization}')
                 Route::post('/translations', [OrgAdminController::class, 'storeOverride'])->name('translations.store');
                 Route::patch('/translations/{translationOverride}/deactivate', [OrgAdminController::class, 'deactivateOverride'])->name('translations.deactivate');
                 Route::post('/translations/reset', [OrgAdminController::class, 'resetOverride'])->name('translations.reset');
+
+                // Identity / Branding
+                Route::get('/identity', [OrgAdminController::class, 'identity'])->name('identity');
+                Route::post('/identity', [OrgAdminController::class, 'updateIdentity'])->name('identity.update');
 
                 // AI
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');

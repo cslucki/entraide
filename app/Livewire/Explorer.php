@@ -7,6 +7,7 @@ use App\Models\Favorite;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -15,6 +16,7 @@ class Explorer extends Component
 {
     use WithPagination;
 
+    #[Locked]
     public ?string $orgId = null;
 
     #[Url]
@@ -126,7 +128,9 @@ class Explorer extends Component
 
     public function render()
     {
-        $orgId = currentOrganization()?->id;
+        $orgId = $this->orgId && Organization::where('id', $this->orgId)->where('is_active', true)->exists()
+            ? $this->orgId
+            : null;
         $organization = $orgId ? Organization::find($orgId) : null;
         $categoryNameColumn = $organization?->transactions_naming === 'b2b' ? 'name_b2b' : 'name_b2c';
 

@@ -48,8 +48,9 @@
 
             <!-- Header avec logo -->
             <div class="hidden md:flex justify-center pt-10 pb-6">
-                <a href="{{ route('home') }}" class="flex items-center gap-3 group">
-                    <img src="/brand/bouclepro-symbol-64.png" alt="" class="h-10 w-10" aria-hidden="true">
+                @php $homeLink = $currentOrganization && !$currentOrganization->is_default ? route('organization.home', $currentOrganization) : route('home'); @endphp
+                <a href="{{ $homeLink }}" class="flex items-center gap-3 group">
+                    <img src="{{ $brandLogoUrl }}" alt="" class="h-10 w-10" aria-hidden="true">
                     <div class="text-left">
                         <div class="text-xl font-bold text-gray-900 dark:text-white leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
                             {{ $brandOrganizationName ?? config('app.name') }}

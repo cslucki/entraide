@@ -20,6 +20,7 @@ use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -237,7 +238,19 @@ class OrgAdminController extends Controller
             };
         }
 
-        $users = $query->latest()->paginate(25)->withQueryString();
+        $direction = $request->direction === 'asc' ? 'asc' : 'desc';
+
+        match ($request->sort) {
+            'name' => $query->orderBy('name', $direction),
+            'email' => $query->orderBy('email', $direction),
+            'created_at' => $query->orderBy('created_at', $direction),
+            'points_balance' => $query->orderBy('points_balance', $direction),
+            'is_admin' => $query->orderBy('is_admin', $direction),
+            'status' => $query->orderByRaw('banned_at IS NULL '.($direction === 'asc' ? 'ASC' : 'DESC').', banned_at '.$direction),
+            default => $query->latest(),
+        };
+
+        $users = $query->paginate(25)->withQueryString();
 
         return view('admin.org.users', [
             'organization' => $organization,
@@ -603,6 +616,60 @@ class OrgAdminController extends Controller
         }
 
         return back()->with('success', __('navigation.org_admin_translation_reset_done'));
+    }
+
+    public function identity(Organization $organization): View
+    {
+        return view('admin.org.identity', [
+            'organization' => $organization,
+        ]);
+    }
+
+    public function updateIdentity(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'logo' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
+            'remove_logo' => 'nullable|boolean',
+        ]);
+
+        if ($request->boolean('remove_logo') && $organization->logo_path) {
+            $this->deleteLogoFile($organization->logo_path);
+            $organization->update(['logo_path' => null]);
+
+            return redirect()->route('organization.admin.identity', [
+                'organization' => $organization->slug,
+            ])->with('success', __('admin.organization_logo_removed'));
+        }
+
+        if ($request->hasFile('logo')) {
+            if ($organization->logo_path) {
+                $this->deleteLogoFile($organization->logo_path);
+            }
+
+            $filename = Str::random(32).'.'.$request->file('logo')->extension();
+            $path = $request->file('logo')->storeAs(
+                'organization-logos/'.$organization->id,
+                $filename,
+                'public',
+            );
+
+            $organization->update(['logo_path' => $path]);
+
+            return redirect()->route('organization.admin.identity', [
+                'organization' => $organization->slug,
+            ])->with('success', __('admin.organization_logo_updated'));
+        }
+
+        return redirect()->route('organization.admin.identity', [
+            'organization' => $organization->slug,
+        ])->with('info', __('admin.organization_logo_no_change'));
+    }
+
+    private function deleteLogoFile(string $path): void
+    {
+        if (str_starts_with($path, 'organization-logos/') && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     public function aiSupervision(Organization $organization): View

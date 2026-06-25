@@ -56,11 +56,17 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        $organization = currentOrganization();
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
 
         $request->session()->regenerateToken();
+
+        if ($organization) {
+            return redirect()->route('organization.login', ['organization' => $organization->slug]);
+        }
 
         return redirect('/');
     }

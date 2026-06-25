@@ -81,6 +81,11 @@
                                 <button class="text-xs text-orange-500 hover:underline">Clôturer</button>
                             </form>
                             @endif
+                            <form method="POST" action="{{ route('admin.requests.destroy', $req->id) }}"
+                                  onsubmit="return confirm('{{ __('admin.request_delete_confirm') }}')">
+                                @csrf @method('DELETE')
+                                <button class="text-xs text-red-600 hover:underline">Supprimer</button>
+                            </form>
                         </div>
                     </td>
                 </tr>

@@ -50,7 +50,8 @@ class Service extends Model
 
     public function skills(): BelongsToMany
     {
-        return $this->belongsToMany(Skill::class, 'service_skill');
+        return $this->belongsToMany(Skill::class, 'service_skill')
+            ->using(ServiceSkill::class);
     }
 
     public function tags(): BelongsToMany

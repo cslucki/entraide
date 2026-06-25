@@ -27,11 +27,20 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ route('admin.users.update', $user) }}" class="space-y-5">
+        <form method="POST" action="{{ route('admin.users.update', $user) }}" enctype="multipart/form-data" class="space-y-5">
             @csrf @method('PUT')
 
             <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-5">
                 <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Informations</h2>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Photo de profil</label>
+                    <div class="flex items-center gap-4">
+                        <img src="{{ $user->avatar_url }}" class="w-12 h-12 rounded-full object-cover" alt="">
+                        <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp"
+                               class="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 dark:file:bg-indigo-900/30 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-900/50">
+                    </div>
+                </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>

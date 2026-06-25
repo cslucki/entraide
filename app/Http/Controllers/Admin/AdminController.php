@@ -70,9 +70,34 @@ class AdminController extends Controller
             };
         }
 
-        $users = $query->latest()->paginate(20)->withQueryString();
+        if ($request->filled('organization_id')) {
+            $query->where('organization_id', $request->organization_id);
+        }
 
-        return view('admin.users', compact('users'));
+        $direction = $request->direction === 'asc' ? 'asc' : 'desc';
+
+        match ($request->sort) {
+            'name' => $query->orderBy('name', $direction),
+            'email' => $query->orderBy('email', $direction),
+            'created_at' => $query->orderBy('created_at', $direction),
+            'points_balance' => $query->orderBy('points_balance', $direction),
+            'services_count' => $query->orderBy('services_count', $direction),
+            'exchange_count' => $query->orderByRaw(
+                '(SELECT COUNT(*) FROM transactions WHERE buyer_id = users.id OR seller_id = users.id) '.$direction
+            ),
+            'rating' => $query->orderBy('rating', $direction),
+            'status' => $query->orderByRaw('banned_at IS NULL '.($direction === 'asc' ? 'ASC' : 'DESC').', banned_at '.$direction),
+            'organization_id' => $query->orderBy(
+                \App\Models\Organization::select('name')->whereColumn('id', 'users.organization_id')->limit(1),
+                $direction
+            ),
+            default => $query->latest(),
+        };
+
+        $users = $query->paginate(20)->withQueryString();
+        $organizations = Organization::where('is_active', true)->orderBy('name')->get();
+
+        return view('admin.users', compact('users', 'organizations'));
     }
 
     public function editUser(User $user): View
@@ -92,6 +117,7 @@ class AdminController extends Controller
             'website' => 'nullable|url|max:255',
             'linkedin_url' => 'nullable|url|max:255',
             'organization_id' => 'nullable|uuid|exists:organizations,id',
+            'avatar' => 'nullable|image|mimes:jpeg,png,webp|max:2048',
             'is_available' => 'boolean',
             'is_admin' => 'boolean',
             'banned' => 'boolean',
@@ -109,6 +135,13 @@ class AdminController extends Controller
             'organization_id' => $organization->id,
             'is_available' => $request->boolean('is_available'),
         ];
+
+        if ($request->hasFile('avatar')) {
+            if ($user->avatar) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+            $update['avatar'] = $request->file('avatar')->store('avatars', 'public');
+        }
 
         if ($user->id !== auth()->id()) {
             $update['is_admin'] = $request->boolean('is_admin');
@@ -423,17 +456,17 @@ class AdminController extends Controller
             'status' => $data['status'],
         ]);
 
-        $service->skills()->sync($data['skills'] ?? []);
+        $service->skills()->syncWithPivotValues($data['skills'] ?? [], ['organization_id' => $service->organization_id]);
 
         if (isset($data['tags'])) {
             $tagIds = [];
             foreach (array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 5) as $name) {
                 $slug = Str::slug($name);
                 if ($slug) {
-                    $tagIds[] = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug])->id;
+                    $tagIds[] = Tag::firstOrCreate(['slug' => $slug, 'organization_id' => $service->organization_id], ['name' => $name, 'slug' => $slug])->id;
                 }
             }
-            $service->tags()->sync($tagIds);
+            $service->tags()->syncWithPivotValues($tagIds, ['organization_id' => $service->organization_id]);
         }
 
         return redirect()->route('admin.services')->with('success', "Service « {$service->title} » modifié.");
@@ -579,6 +612,7 @@ class AdminController extends Controller
                     'original_name' => $file->getClientOriginalName(),
                     'mime_type' => $file->getMimeType(),
                     'order' => $currentCount + $index,
+                    'organization_id' => $serviceRequest->organization_id,
                 ]);
             }
         }
@@ -604,6 +638,27 @@ class AdminController extends Controller
         $serviceRequest->update(['status' => 'closed']);
 
         return back()->with('success', 'Demande clôturée.');
+    }
+
+    public function destroyTransaction(string $transactionId): RedirectResponse
+    {
+        $transaction = Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($transactionId);
+        PointLedger::where('transaction_id', $transaction->id)->update(['transaction_id' => null]);
+        $transaction->delete();
+
+        return back()->with('success', __('admin.transaction_deleted'));
+    }
+
+    public function destroyRequest(string $requestId): RedirectResponse
+    {
+        $serviceRequest = ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->findOrFail($requestId);
+        foreach ($serviceRequest->transactions as $transaction) {
+            PointLedger::where('transaction_id', $transaction->id)->update(['transaction_id' => null]);
+            $transaction->delete();
+        }
+        $serviceRequest->delete();
+
+        return back()->with('success', __('admin.request_deleted'));
     }
 
     // ── Categories ────────────────────────────────────────────────────────────

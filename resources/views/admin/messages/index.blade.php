@@ -46,6 +46,7 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Expéditeur</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Contexte</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Contenu</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -86,10 +87,25 @@
                     <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs">
                         <p class="truncate">{{ Str::limit($message->body, 100) }}</p>
                     </td>
+                    <td class="px-4 py-3">
+                        @if($isLoop)
+                        <form method="POST" action="{{ route('admin.loop-messages.destroy', $message) }}"
+                              onsubmit="return confirm('{{ __('admin.loop_message_delete_confirm') }}')">
+                            @csrf @method('DELETE')
+                            <button class="text-xs text-red-600 hover:underline">Supprimer</button>
+                        </form>
+                        @else
+                        <form method="POST" action="{{ route('admin.messages.destroy', $message) }}"
+                              onsubmit="return confirm('{{ __('admin.message_delete_confirm') }}')">
+                            @csrf @method('DELETE')
+                            <button class="text-xs text-red-600 hover:underline">Supprimer</button>
+                        </form>
+                        @endif
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="{{ $filter === 'all' ? 5 : 4 }}" class="px-4 py-12 text-center">
+                    <td colspan="{{ $filter === 'all' ? 6 : 5 }}" class="px-4 py-12 text-center">
                         @if($filter === 'chatloop')
                         <p class="text-sm text-gray-500 dark:text-gray-400">Aucun message ChatLoop</p>
                         <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Les messages de vos boucles apparaîtront ici.</p>

@@ -1,21 +1,27 @@
 <x-guest-layout>
+    @php
+        $isOrg = !is_null($currentOrganization);
+        $formAction = $isOrg ? route('organization.password.email', $currentOrganization) : route('password.email');
+        $loginLink = $isOrg ? route('organization.login', $currentOrganization) : route('login');
+    @endphp
+
     <div class="px-8 pt-8 pb-2 border-b border-gray-100 dark:border-gray-700">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Mot de passe oublié</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ __('auth.forgot_password_title') }}</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Renseignez votre e-mail et nous vous enverrons un lien de réinitialisation.
+            {{ __('auth.forgot_password_subtitle') }}
         </p>
     </div>
 
     <div class="px-8 py-6">
         <x-auth-session-status class="mb-5" :status="session('status')" />
 
-        <form method="POST" action="{{ route('password.email') }}">
+        <form method="POST" action="{{ $formAction }}">
             @csrf
 
             <div class="space-y-5">
                 <div>
                     <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Adresse e-mail
+                        {{ __('auth.email_label') }}
                     </label>
                     <input id="email" type="email" name="email" value="{{ old('email') }}"
                            required autofocus
@@ -25,15 +31,15 @@
 
                 <button type="submit"
                         class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                    Envoyer le lien de réinitialisation
+                    {{ __('auth.forgot_password_button') }}
                 </button>
             </div>
         </form>
     </div>
 
     <div class="px-8 py-5 bg-gray-50 dark:bg-gray-700/40 border-t border-gray-100 dark:border-gray-700 text-center">
-        <a href="{{ route('login') }}" class="text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition">
-            ← Retour à la connexion
+        <a href="{{ $loginLink }}" class="text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition">
+            ← {{ __('auth.back_to_login') }}
         </a>
     </div>
 </x-guest-layout>
