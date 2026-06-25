@@ -30,6 +30,21 @@ use Illuminate\View\View;
 
 class AdminOutilsController extends Controller
 {
+    private const SENSITIVE_COLUMNS = [
+        'password',
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'access_token',
+        'api_token',
+        'refresh_token',
+        'auth_token',
+        'session_token',
+        'verification_token',
+        'reset_token',
+        'private_key',
+        'secret',
+    ];
     private function categoryFixes(): array
     {
         return [
@@ -47,7 +62,7 @@ class AdminOutilsController extends Controller
         ];
     }
 
-    public function assignData(): View
+    public function assignData(Request $request): View
     {
         $organizations = Organization::orderByDesc('is_default')
             ->orderBy('name')
@@ -55,17 +70,59 @@ class AdminOutilsController extends Controller
 
         $datasets = $this->assignableDatasets();
 
-        return view('admin.outils.assign-data', compact('datasets', 'organizations'));
+        $selectedOrgId = $request->input('organization_id');
+        if ($selectedOrgId && ! Organization::where('id', $selectedOrgId)->exists()) {
+            $selectedOrgId = null;
+        }
+
+        $isGlobalView = is_null($selectedOrgId);
+
+        $enriched = [];
+        foreach ($datasets as $key => $ds) {
+            $query = $ds['query']();
+            $total = (clone $query)->count();
+            $withoutOrg = (clone $query)->whereNull('organization_id')->count();
+
+            $inOrg = 0;
+            $otherOrg = 0;
+            $withOrg = 0;
+            if ($selectedOrgId) {
+                $inOrg = (clone $query)->where('organization_id', $selectedOrgId)->count();
+                $otherOrg = (clone $query)
+                    ->whereNotNull('organization_id')
+                    ->where('organization_id', '!=', $selectedOrgId)
+                    ->count();
+            } else {
+                $withOrg = $total - $withoutOrg;
+            }
+
+            $enriched[$key] = [
+                'label' => $ds['label'],
+                'description' => $ds['description'],
+                'mode' => $ds['mode'],
+                'critical' => $ds['critical'],
+                'total' => $total,
+                'without_organization' => $withoutOrg,
+                'in_org' => $inOrg,
+                'other_orgs' => $otherOrg,
+                'with_org' => $withOrg,
+                'already_in_org' => $selectedOrgId ? ($inOrg === $total) : false,
+            ];
+        }
+
+        return view('admin.outils.assign-data', compact('enriched', 'organizations', 'selectedOrgId', 'isGlobalView'));
     }
 
     public function doAssignData(Request $request): RedirectResponse
     {
         $datasets = $this->assignableDatasets();
 
+        $assignableKeys = array_keys(array_filter($datasets, fn ($ds) => $ds['mode'] === 'assignable'));
+
         $rules = [
             'organization_id' => ['nullable', 'uuid', 'exists:organizations,id'],
             'datasets' => ['required', 'array', 'min:1'],
-            'datasets.*' => ['required', 'string', Rule::in(array_keys($datasets))],
+            'datasets.*' => ['required', 'string', Rule::in($assignableKeys)],
         ];
 
         if (in_array('users', $request->input('datasets', []))) {
@@ -118,235 +175,55 @@ class AdminOutilsController extends Controller
             'organization_id' => ['nullable', 'uuid', 'exists:organizations,id'],
             'datasets' => ['required', 'array', 'min:1'],
             'datasets.*' => ['required', 'string', Rule::in(array_keys($datasets))],
+            'filter' => ['nullable', 'string', 'in:in_org,other_orgs,without_org,with_org,all'],
         ]);
 
         $organizationId = $data['organization_id'] ?? null;
         $orgName = $organizationId ? Organization::find($organizationId)?->name : null;
+        $filter = $data['filter'] ?? 'all';
 
         $previews = [];
         foreach ($data['datasets'] as $key) {
-            $total = (clone $datasets[$key]['query']())->count();
-            $affectedQuery = clone $datasets[$key]['query']();
-            if ($organizationId) {
-                $affectedQuery->where('organization_id', '!=', $organizationId);
+            $query = $datasets[$key]['query']();
+            $total = (clone $query)->count();
+
+            switch ($filter) {
+                case 'in_org':
+                    $query->where('organization_id', $organizationId);
+                    break;
+                case 'other_orgs':
+                    $query->whereNotNull('organization_id')->where('organization_id', '!=', $organizationId);
+                    break;
+                case 'with_org':
+                    $query->whereNotNull('organization_id');
+                    break;
+                case 'without_org':
+                    $query->whereNull('organization_id');
+                    break;
             }
-            $count = $affectedQuery->whereNotNull('organization_id')->count();
-            $rows = (clone $datasets[$key]['query']())
-                ->limit(5)
-                ->get()
-                ->map(fn ($row) => (array) $row);
+
+            $count = (clone $query)->count();
+            $rows = (clone $query)->limit(10)->get()->map(fn ($row) => $this->sanitizeRow($row));
+
+            $inOrg = $organizationId ? (clone $datasets[$key]['query']())->where('organization_id', $organizationId)->count() : 0;
+            $otherOrg = $organizationId ? (clone $datasets[$key]['query']())->whereNotNull('organization_id')->where('organization_id', '!=', $organizationId)->count() : 0;
+            $withoutOrg = (clone $datasets[$key]['query']())->whereNull('organization_id')->count();
 
             $previews[$key] = [
                 'label' => $datasets[$key]['label'],
+                'mode' => $datasets[$key]['mode'],
+                'critical' => $datasets[$key]['critical'],
                 'total' => $total,
-                'affected' => $count,
+                'displayed' => $count,
+                'filter' => $filter,
+                'in_org' => $inOrg,
+                'other_orgs' => $otherOrg,
+                'without_organization' => $withoutOrg,
                 'rows' => $rows,
             ];
         }
 
-        return view('admin.outils.assign-data-detail', compact('previews', 'orgName'));
-    }
-
-    private function assignableDatasets(): array
-    {
-        return [
-            'users' => [
-                'label' => 'Utilisateurs',
-                'description' => 'Tous les comptes membres et QA.',
-                'query' => fn () => User::query(),
-                'total' => User::count(),
-                'without_organization' => User::whereNull('organization_id')->count(),
-            ],
-            'services' => [
-                'label' => 'Services',
-                'description' => 'Offres de services importées depuis la production.',
-                'query' => fn () => Service::withoutGlobalScopes(),
-                'total' => Service::withoutGlobalScopes()->count(),
-                'without_organization' => Service::withoutGlobalScopes()->whereNull('organization_id')->count(),
-            ],
-            'service_requests' => [
-                'label' => 'Demandes',
-                'description' => 'Demandes de services importées depuis la production.',
-                'query' => fn () => ServiceRequest::withoutGlobalScopes(),
-                'total' => ServiceRequest::withoutGlobalScopes()->count(),
-                'without_organization' => ServiceRequest::withoutGlobalScopes()->whereNull('organization_id')->count(),
-            ],
-            'transactions' => [
-                'label' => 'Transactions',
-                'description' => 'Échanges entre membres liés aux services ou demandes.',
-                'query' => fn () => Transaction::withoutGlobalScopes(),
-                'total' => Transaction::withoutGlobalScopes()->count(),
-                'without_organization' => Transaction::withoutGlobalScopes()->whereNull('organization_id')->count(),
-            ],
-            'messages' => [
-                'label' => 'Messages',
-                'description' => 'Messages liés aux transactions.',
-                'query' => fn () => Message::query(),
-                'total' => Message::count(),
-                'without_organization' => Message::whereNull('organization_id')->count(),
-            ],
-            'loops' => [
-                'label' => 'Boucles',
-                'description' => 'Espaces collaboratifs internes à une organisation.',
-                'query' => fn () => Loop::query(),
-                'total' => Loop::count(),
-                'without_organization' => Loop::whereNull('organization_id')->count(),
-            ],
-            'loop_members' => [
-                'label' => 'Membres de boucles',
-                'description' => 'Rattachements utilisateurs ↔ boucles.',
-                'query' => fn () => LoopMember::query(),
-                'total' => LoopMember::count(),
-                'without_organization' => LoopMember::whereNull('organization_id')->count(),
-            ],
-            'loop_messages' => [
-                'label' => 'Messages de boucles',
-                'description' => 'Messages ChatLoop.',
-                'query' => fn () => LoopMessage::query(),
-                'total' => LoopMessage::count(),
-                'without_organization' => LoopMessage::whereNull('organization_id')->count(),
-            ],
-            'blog_posts' => [
-                'label' => 'Articles de blog',
-                'description' => 'Articles, brouillons et contenus publiés.',
-                'query' => fn () => BlogPost::withTrashed(),
-                'total' => BlogPost::withTrashed()->count(),
-                'without_organization' => BlogPost::withTrashed()->whereNull('organization_id')->count(),
-            ],
-            'blog_comments' => [
-                'label' => 'Commentaires blog',
-                'description' => 'Commentaires rattachés aux articles.',
-                'query' => fn () => DB::table('blog_comments'),
-                'total' => DB::table('blog_comments')->count(),
-                'without_organization' => DB::table('blog_comments')->whereNull('organization_id')->count(),
-            ],
-            'blog_post_tag' => [
-                'label' => 'Tags des articles',
-                'description' => 'Table pivot articles ↔ tags.',
-                'query' => fn () => DB::table('blog_post_tag'),
-                'total' => DB::table('blog_post_tag')->count(),
-                'without_organization' => DB::table('blog_post_tag')->whereNull('organization_id')->count(),
-            ],
-            'reports' => [
-                'label' => 'Signalements',
-                'description' => 'Signalements utilisateurs.',
-                'query' => fn () => Report::query(),
-                'total' => Report::count(),
-                'without_organization' => Report::whereNull('organization_id')->count(),
-            ],
-            'bug_reports' => [
-                'label' => 'Bugs',
-                'description' => 'Retours bugs envoyés depuis l’interface.',
-                'query' => fn () => DB::table('bug_reports'),
-                'total' => DB::table('bug_reports')->count(),
-                'without_organization' => DB::table('bug_reports')->whereNull('organization_id')->count(),
-            ],
-            'referrals' => [
-                'label' => 'Invitations',
-                'description' => 'Parrainages et invitations.',
-                'query' => fn () => Referral::withoutGlobalScopes(),
-                'total' => Referral::withoutGlobalScopes()->count(),
-                'without_organization' => Referral::withoutGlobalScopes()->whereNull('organization_id')->count(),
-            ],
-            'referral_rewards' => [
-                'label' => 'Récompenses invitations',
-                'description' => 'Points distribués via invitations.',
-                'query' => fn () => ReferralReward::withoutGlobalScopes(),
-                'total' => ReferralReward::withoutGlobalScopes()->count(),
-                'without_organization' => ReferralReward::withoutGlobalScopes()->whereNull('organization_id')->count(),
-            ],
-            'point_ledger' => [
-                'label' => 'Historique points',
-                'description' => 'Lignes comptables de points.',
-                'query' => fn () => PointLedger::query(),
-                'total' => PointLedger::count(),
-                'without_organization' => PointLedger::whereNull('organization_id')->count(),
-            ],
-            'categories' => [
-                'label' => 'Catégories',
-                'description' => 'Catégories B2C/B2B.',
-                'query' => fn () => Category::query(),
-                'total' => Category::count(),
-                'without_organization' => Category::whereNull('organization_id')->count(),
-            ],
-            'skills' => [
-                'label' => 'Compétences',
-                'description' => 'Compétences rattachées aux catégories.',
-                'query' => fn () => Skill::query(),
-                'total' => Skill::count(),
-                'without_organization' => Skill::whereNull('organization_id')->count(),
-            ],
-            'tags' => [
-                'label' => 'Tags',
-                'description' => 'Tags de services et d’articles.',
-                'query' => fn () => DB::table('tags'),
-                'total' => DB::table('tags')->count(),
-                'without_organization' => DB::table('tags')->whereNull('organization_id')->count(),
-            ],
-            'service_skill' => [
-                'label' => 'Services ↔ compétences',
-                'description' => 'Table pivot services ↔ compétences.',
-                'query' => fn () => DB::table('service_skill'),
-                'total' => DB::table('service_skill')->count(),
-                'without_organization' => DB::table('service_skill')->whereNull('organization_id')->count(),
-            ],
-            'service_tag' => [
-                'label' => 'Services ↔ tags',
-                'description' => 'Table pivot services ↔ tags.',
-                'query' => fn () => DB::table('service_tag'),
-                'total' => DB::table('service_tag')->count(),
-                'without_organization' => DB::table('service_tag')->whereNull('organization_id')->count(),
-            ],
-            'service_images' => [
-                'label' => 'Images services',
-                'description' => 'Images rattachées aux services.',
-                'query' => fn () => DB::table('service_images'),
-                'total' => DB::table('service_images')->count(),
-                'without_organization' => DB::table('service_images')->whereNull('organization_id')->count(),
-            ],
-            'request_attachments' => [
-                'label' => 'Pièces jointes demandes',
-                'description' => 'Fichiers rattachés aux demandes.',
-                'query' => fn () => DB::table('request_attachments'),
-                'total' => DB::table('request_attachments')->count(),
-                'without_organization' => DB::table('request_attachments')->whereNull('organization_id')->count(),
-            ],
-            'reviews' => [
-                'label' => 'Avis',
-                'description' => 'Avis liés aux transactions.',
-                'query' => fn () => DB::table('reviews'),
-                'total' => DB::table('reviews')->count(),
-                'without_organization' => DB::table('reviews')->whereNull('organization_id')->count(),
-            ],
-            'favorites' => [
-                'label' => 'Favoris',
-                'description' => 'Favoris utilisateurs sur services.',
-                'query' => fn () => DB::table('favorites'),
-                'total' => DB::table('favorites')->count(),
-                'without_organization' => DB::table('favorites')->whereNull('organization_id')->count(),
-            ],
-            'likes' => [
-                'label' => 'Likes',
-                'description' => 'Likes sur contenus.',
-                'query' => fn () => DB::table('likes'),
-                'total' => DB::table('likes')->count(),
-                'without_organization' => DB::table('likes')->whereNull('organization_id')->count(),
-            ],
-            'email_templates' => [
-                'label' => 'Templates email',
-                'description' => 'Templates transactionnels.',
-                'query' => fn () => DB::table('email_templates'),
-                'total' => DB::table('email_templates')->count(),
-                'without_organization' => DB::table('email_templates')->whereNull('organization_id')->count(),
-            ],
-            'email_logs' => [
-                'label' => 'Logs email',
-                'description' => 'Historique des emails envoyés.',
-                'query' => fn () => DB::table('email_logs'),
-                'total' => DB::table('email_logs')->count(),
-                'without_organization' => DB::table('email_logs')->whereNull('organization_id')->count(),
-            ],
-        ];
+        return view('admin.outils.assign-data-detail', compact('previews', 'orgName', 'organizationId', 'filter'));
     }
 
     public function fixCategories(): View
@@ -420,5 +297,306 @@ class AdminOutilsController extends Controller
 
         return redirect()->route('admin.outils.fix-categories')
             ->with('success', implode(', ', $parts) ?: 'Aucun changement nécessaire.');
+    }
+
+    private function sanitizeRow(mixed $row): array
+    {
+        if ($row instanceof \Illuminate\Database\Eloquent\Model) {
+            $data = $row->toArray();
+        } else {
+            $data = (array) $row;
+        }
+
+        foreach (self::SENSITIVE_COLUMNS as $col) {
+            unset($data[$col]);
+        }
+
+        return $data;
+    }
+
+    private function assignableDatasets(): array
+    {
+        return [
+            'users' => [
+                'label' => __('admin.outils.users_label'),
+                'description' => __('admin.outils.assign_data_desc_users'),
+                'query' => fn () => User::query(),
+                'mode' => 'assignable',
+                'critical' => true,
+            ],
+            'services' => [
+                'label' => __('admin.outils.services_label'),
+                'description' => __('admin.outils.assign_data_desc_services'),
+                'query' => fn () => Service::withoutGlobalScopes(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'service_requests' => [
+                'label' => __('admin.outils.demandes'),
+                'description' => __('admin.outils.assign_data_desc_service_requests'),
+                'query' => fn () => ServiceRequest::withoutGlobalScopes(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'transactions' => [
+                'label' => __('admin.outils.transactions'),
+                'description' => __('admin.outils.assign_data_desc_transactions'),
+                'query' => fn () => Transaction::withoutGlobalScopes(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'messages' => [
+                'label' => __('admin.outils.messages'),
+                'description' => __('admin.outils.assign_data_desc_messages'),
+                'query' => fn () => Message::query(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'loops' => [
+                'label' => __('admin.outils.loops'),
+                'description' => __('admin.outils.assign_data_desc_loops'),
+                'query' => fn () => Loop::query(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'loop_members' => [
+                'label' => __('admin.outils.loop_members'),
+                'description' => __('admin.outils.assign_data_desc_loop_members'),
+                'query' => fn () => LoopMember::query(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'loop_messages' => [
+                'label' => __('admin.outils.loop_messages'),
+                'description' => __('admin.outils.assign_data_desc_loop_messages'),
+                'query' => fn () => LoopMessage::query(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'blog_posts' => [
+                'label' => __('admin.outils.blog_posts'),
+                'description' => __('admin.outils.assign_data_desc_blog_posts'),
+                'query' => fn () => BlogPost::withTrashed(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'blog_comments' => [
+                'label' => __('admin.outils.blog_comments'),
+                'description' => __('admin.outils.assign_data_desc_blog_comments'),
+                'query' => fn () => DB::table('blog_comments'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'blog_post_tag' => [
+                'label' => __('admin.outils.blog_post_tags'),
+                'description' => __('admin.outils.assign_data_desc_blog_post_tags'),
+                'query' => fn () => DB::table('blog_post_tag'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'feed_posts' => [
+                'label' => __('admin.outils.feed_posts'),
+                'description' => __('admin.outils.assign_data_desc_feed_posts'),
+                'query' => fn () => DB::table('feed_posts'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'feed_post_comments' => [
+                'label' => __('admin.outils.feed_post_comments'),
+                'description' => __('admin.outils.assign_data_desc_feed_post_comments'),
+                'query' => fn () => DB::table('feed_post_comments'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'reports' => [
+                'label' => __('admin.outils.reports'),
+                'description' => __('admin.outils.assign_data_desc_reports'),
+                'query' => fn () => Report::query(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'bug_reports' => [
+                'label' => __('admin.outils.bug_reports'),
+                'description' => __('admin.outils.assign_data_desc_bug_reports'),
+                'query' => fn () => DB::table('bug_reports'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'referrals' => [
+                'label' => __('admin.outils.referrals'),
+                'description' => __('admin.outils.assign_data_desc_referrals'),
+                'query' => fn () => Referral::withoutGlobalScopes(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'referral_rewards' => [
+                'label' => __('admin.outils.referral_rewards'),
+                'description' => __('admin.outils.assign_data_desc_referral_rewards'),
+                'query' => fn () => ReferralReward::withoutGlobalScopes(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'point_ledger' => [
+                'label' => __('admin.outils.point_ledger'),
+                'description' => __('admin.outils.assign_data_desc_point_ledger'),
+                'query' => fn () => PointLedger::query(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'point_guidelines' => [
+                'label' => __('admin.outils.point_guidelines'),
+                'description' => __('admin.outils.assign_data_desc_point_guidelines'),
+                'query' => fn () => DB::table('point_guidelines'),
+                'mode' => 'diagnostic',
+                'critical' => false,
+            ],
+            'categories' => [
+                'label' => __('admin.outils.categories'),
+                'description' => __('admin.outils.assign_data_desc_categories'),
+                'query' => fn () => Category::query(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'skills' => [
+                'label' => __('admin.outils.skills'),
+                'description' => __('admin.outils.assign_data_desc_skills'),
+                'query' => fn () => Skill::query(),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'tags' => [
+                'label' => __('admin.outils.tags'),
+                'description' => __('admin.outils.assign_data_desc_tags'),
+                'query' => fn () => DB::table('tags'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'service_skill' => [
+                'label' => __('admin.outils.services_skills'),
+                'description' => __('admin.outils.assign_data_desc_services_skills'),
+                'query' => fn () => DB::table('service_skill'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'service_tag' => [
+                'label' => __('admin.outils.services_tags'),
+                'description' => __('admin.outils.assign_data_desc_services_tags'),
+                'query' => fn () => DB::table('service_tag'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'service_images' => [
+                'label' => __('admin.outils.service_images'),
+                'description' => __('admin.outils.assign_data_desc_service_images'),
+                'query' => fn () => DB::table('service_images'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'request_attachments' => [
+                'label' => __('admin.outils.request_attachments'),
+                'description' => __('admin.outils.assign_data_desc_request_attachments'),
+                'query' => fn () => DB::table('request_attachments'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'reviews' => [
+                'label' => __('admin.outils.reviews'),
+                'description' => __('admin.outils.assign_data_desc_reviews'),
+                'query' => fn () => DB::table('reviews'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'favorites' => [
+                'label' => __('admin.outils.favorites'),
+                'description' => __('admin.outils.assign_data_desc_favorites'),
+                'query' => fn () => DB::table('favorites'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'likes' => [
+                'label' => __('admin.outils.likes'),
+                'description' => __('admin.outils.assign_data_desc_likes'),
+                'query' => fn () => DB::table('likes'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'badges' => [
+                'label' => __('admin.outils.badges'),
+                'description' => __('admin.outils.assign_data_desc_badges'),
+                'query' => fn () => DB::table('badges'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'badge_user' => [
+                'label' => __('admin.outils.badge_user'),
+                'description' => __('admin.outils.assign_data_desc_badge_user'),
+                'query' => fn () => DB::table('badge_user'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'reactions' => [
+                'label' => __('admin.outils.reactions'),
+                'description' => __('admin.outils.assign_data_desc_reactions'),
+                'query' => fn () => DB::table('reactions'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'email_templates' => [
+                'label' => __('admin.outils.email_templates'),
+                'description' => __('admin.outils.assign_data_desc_email_templates'),
+                'query' => fn () => DB::table('email_templates'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'email_logs' => [
+                'label' => __('admin.outils.email_logs'),
+                'description' => __('admin.outils.assign_data_desc_email_logs'),
+                'query' => fn () => DB::table('email_logs'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'translation_overrides' => [
+                'label' => __('admin.outils.translation_overrides'),
+                'description' => __('admin.outils.assign_data_desc_translation_overrides'),
+                'query' => fn () => DB::table('translation_overrides'),
+                'mode' => 'diagnostic',
+                'critical' => false,
+            ],
+            'admin_ai_interactions' => [
+                'label' => __('admin.outils.admin_ai_interactions'),
+                'description' => __('admin.outils.assign_data_desc_admin_ai_interactions'),
+                'query' => fn () => DB::table('admin_ai_interactions'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'ai_interactions' => [
+                'label' => __('admin.outils.ai_interactions'),
+                'description' => __('admin.outils.assign_data_desc_ai_interactions'),
+                'query' => fn () => DB::table('ai_interactions'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'blog_ai_configs' => [
+                'label' => __('admin.outils.blog_ai_configs'),
+                'description' => __('admin.outils.assign_data_desc_blog_ai_configs'),
+                'query' => fn () => DB::table('blog_ai_configs'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'member_ai_profiles' => [
+                'label' => __('admin.outils.member_ai_profiles'),
+                'description' => __('admin.outils.assign_data_desc_member_ai_profiles'),
+                'query' => fn () => DB::table('member_ai_profiles'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+            'member_ai_profile_interactions' => [
+                'label' => __('admin.outils.member_ai_profile_interactions'),
+                'description' => __('admin.outils.assign_data_desc_member_ai_profile_interactions'),
+                'query' => fn () => DB::table('member_ai_profile_interactions'),
+                'mode' => 'assignable',
+                'critical' => false,
+            ],
+        ];
     }
 }
