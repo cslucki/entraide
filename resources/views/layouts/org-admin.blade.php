@@ -205,6 +205,7 @@
                         ['route' => 'organization.admin.reports', 'label' => __('navigation.org_admin_reports'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
                         ['route' => 'organization.admin.invitations', 'label' => __('navigation.org_admin_invitations'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2zM15 11a3 3 0 11-6 0 3 3 0 016 0z'],
                         ['route' => 'organization.admin.translations', 'label' => __('navigation.org_admin_translations'), 'icon' => 'M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129'],
+                        ['route' => 'organization.admin.stats.login-history', 'label' => 'Connexions', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
                     ] as $item)
                         @php $active = $isActive($item['route']); @endphp
                         <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"

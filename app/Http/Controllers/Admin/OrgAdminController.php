@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Category;
+use App\Models\LoginLog;
 use App\Models\Loop;
 use App\Models\Message;
 use App\Models\Organization;
@@ -685,6 +686,56 @@ class OrgAdminController extends Controller
     public function aiInteractions(Organization $organization): View
     {
         return $this->comingSoon($organization, __('navigation.org_admin_ai_interactions'));
+    }
+
+    // ── Login history ─────────────────────────────────────────────────────────
+
+    public function loginHistory(Request $request, Organization $organization): View
+    {
+        $query = LoginLog::where('organization_id', $organization->id)
+            ->with('user');
+
+        if ($request->filled('search')) {
+            $query->whereHas('user', function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search.'%')
+                    ->orWhere('email', 'like', '%'.$request->search.'%');
+            });
+        }
+
+        $direction = $request->direction === 'asc' ? 'asc' : 'desc';
+
+        match ($request->sort) {
+            'user' => $query->orderBy(
+                User::select('name')->whereColumn('id', 'login_logs.user_id')->limit(1),
+                $direction
+            ),
+            'ip_address' => $query->orderBy('ip_address', $direction),
+            default => $query->latest('created_at'),
+        };
+
+        $loginLogs = $query->paginate(25)->withQueryString();
+
+        return view('admin.org.login-history.index', [
+            'organization' => $organization,
+            'loginLogs' => $loginLogs,
+        ]);
+    }
+
+    public function loginHistoryUser(Request $request, Organization $organization, User $user): View
+    {
+        abort_if($user->organization_id !== $organization->id, 404);
+
+        $logs = LoginLog::where('user_id', $user->id)
+            ->where('organization_id', $organization->id)
+            ->latest('created_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('admin.org.login-history.user', [
+            'organization' => $organization,
+            'user' => $user,
+            'logs' => $logs,
+        ]);
     }
 
     private function comingSoon(Organization $organization, string $sectionName): View

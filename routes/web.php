@@ -403,6 +403,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/outils/assign-data/detail', [AdminOutilsController::class, 'assignDataDetail'])->name('outils.assign-data.detail');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
+
+    // Stats
+    Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');
+    Route::get('/stats/login-history/user/{user}', [AdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
 });
 
 Route::get('/admin/back-to-admin', [AdminController::class, 'backToAdmin'])
@@ -588,8 +592,12 @@ Route::prefix('/org/{organization}')
                 // AI
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
-                Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
-            });
+            Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
+
+            // Stats
+            Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');
+            Route::get('/stats/login-history/user/{user}', [OrgAdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
+        });
 
         // Blog (org-scoped, en parallèle des routes /blog root)
         Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');

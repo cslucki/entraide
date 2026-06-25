@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\EmailLog;
+use App\Models\LoginLog;
 use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\Report;
@@ -745,5 +746,54 @@ class AdminController extends Controller
         $report->update(['status' => 'reviewed']);
 
         return back()->with('success', 'Signalement marqué comme traité.');
+    }
+
+    // ── Login history ─────────────────────────────────────────────────────────
+
+    public function loginHistory(Request $request): View
+    {
+        $query = LoginLog::with(['user', 'organization']);
+
+        if ($request->filled('organization_id')) {
+            $query->where('organization_id', $request->organization_id);
+        }
+
+        if ($request->filled('search')) {
+            $query->whereHas('user', function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search.'%')
+                    ->orWhere('email', 'like', '%'.$request->search.'%');
+            });
+        }
+
+        $direction = $request->direction === 'asc' ? 'asc' : 'desc';
+
+        match ($request->sort) {
+            'user' => $query->orderBy(
+                User::select('name')->whereColumn('id', 'login_logs.user_id')->limit(1),
+                $direction
+            ),
+            'organization_id' => $query->orderBy(
+                Organization::select('name')->whereColumn('id', 'login_logs.organization_id')->limit(1),
+                $direction
+            ),
+            'ip_address' => $query->orderBy('ip_address', $direction),
+            default => $query->latest('created_at'),
+        };
+
+        $loginLogs = $query->paginate(25)->withQueryString();
+        $organizations = Organization::where('is_active', true)->orderBy('name')->get();
+
+        return view('admin.login-history.index', compact('loginLogs', 'organizations'));
+    }
+
+    public function loginHistoryUser(Request $request, User $user): View
+    {
+        $logs = LoginLog::where('user_id', $user->id)
+            ->with('organization')
+            ->latest('created_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('admin.login-history.user', compact('user', 'logs'));
     }
 }

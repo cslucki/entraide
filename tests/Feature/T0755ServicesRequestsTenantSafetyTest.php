@@ -39,7 +39,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
             ->post(route('services.store'), array_merge($this->validServiceData($category), [
                 'organization_id' => $organizationB->id,
             ]))
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect(route('organization.dashboard.services', [$organizationA]));
 
         $this->assertDatabaseHas('services', [
             'user_id' => $user->id,
@@ -82,7 +82,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
             ->post(route('requests.store'), array_merge($this->validRequestData($category), [
                 'organization_id' => $organizationB->id,
             ]))
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect(route('organization.dashboard.requests', [$organizationA]));
 
         $this->assertDatabaseHas('service_requests', [
             'user_id' => $user->id,

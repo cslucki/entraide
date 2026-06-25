@@ -210,4 +210,18 @@ return [
         'users_label' => 'Utilisateurs',
         'services_label' => 'Services',
     ],
+
+    'login_history' => 'Historique de connexion',
+    'login_history_title' => 'Historique de connexion',
+    'login_history_desc' => 'Connexions réussies des utilisateurs',
+    'login_history_for_user' => 'Connexions de :name',
+    'login_history_no_logs' => 'Aucune connexion enregistrée.',
+    'login_history_no_logs_user' => 'Aucune connexion trouvée.',
+    'login_history_col_date' => 'Date',
+    'login_history_col_user' => 'Utilisateur',
+    'login_history_col_org' => 'Organisation',
+    'login_history_col_ip' => 'IP',
+    'login_history_col_browser' => 'Navigateur',
+    'stats' => 'Stats',
+    'stats_section' => 'Stats',
 ];

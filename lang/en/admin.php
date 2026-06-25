@@ -210,4 +210,18 @@ return [
         'users_label' => 'Users',
         'services_label' => 'Services',
     ],
+
+    'login_history' => 'Login history',
+    'login_history_title' => 'Login history',
+    'login_history_desc' => 'Successful user logins',
+    'login_history_for_user' => 'Logins for :name',
+    'login_history_no_logs' => 'No logins recorded.',
+    'login_history_no_logs_user' => 'No logins found.',
+    'login_history_col_date' => 'Date',
+    'login_history_col_user' => 'User',
+    'login_history_col_org' => 'Organization',
+    'login_history_col_ip' => 'IP',
+    'login_history_col_browser' => 'Browser',
+    'stats' => 'Stats',
+    'stats_section' => 'Stats',
 ];
