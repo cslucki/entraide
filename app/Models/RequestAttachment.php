@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 
 class RequestAttachment extends Model
 {
-    use HasUuids;
+    use HasOrganizationId, HasUuids;
 
     protected $fillable = ['service_request_id', 'path', 'original_name', 'mime_type', 'order', 'organization_id'];
 

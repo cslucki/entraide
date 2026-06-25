@@ -24,13 +24,20 @@ class FavoriteController extends Controller
     public function toggle(Request $request, Service $service): JsonResponse|RedirectResponse
     {
         $user = auth()->user();
-        $existing = Favorite::where('user_id', $user->id)->where('service_id', $service->id)->first();
+        $existing = Favorite::where('user_id', $user->id)
+            ->where('service_id', $service->id)
+            ->where('organization_id', $service->organization_id)
+            ->first();
 
         if ($existing) {
             $existing->delete();
             $favorited = false;
         } else {
-            Favorite::create(['user_id' => $user->id, 'service_id' => $service->id]);
+            Favorite::create([
+                'user_id' => $user->id,
+                'service_id' => $service->id,
+                'organization_id' => $service->organization_id,
+            ]);
             $favorited = true;
         }
 

@@ -99,7 +99,7 @@ class ServiceController extends Controller
         ]);
 
         if (! empty($data['skills'])) {
-            $service->skills()->sync($data['skills']);
+            $service->skills()->syncWithPivotValues($data['skills'], ['organization_id' => $service->organization_id]);
         }
 
         if (! empty($data['tags'])) {
@@ -110,10 +110,10 @@ class ServiceController extends Controller
                 if (! $slug) {
                     continue;
                 }
-                $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug]);
+                $tag = Tag::firstOrCreate(['slug' => $slug, 'organization_id' => $service->organization_id], ['name' => $name, 'slug' => $slug]);
                 $tagIds[] = $tag->id;
             }
-            $service->tags()->sync($tagIds);
+            $service->tags()->syncWithPivotValues($tagIds, ['organization_id' => $service->organization_id]);
         }
 
         if ($request->hasFile('images')) {
@@ -127,6 +127,7 @@ class ServiceController extends Controller
                 $serviceImage = $service->images()->create([
                     'path' => 'services/'.$filename,
                     'order' => $index,
+                    'organization_id' => $service->organization_id,
                 ]);
 
                 GenerateServiceThumbnail::dispatch($serviceImage);
@@ -185,7 +186,7 @@ class ServiceController extends Controller
             'status' => $data['status'],
         ]);
 
-        $service->skills()->sync($data['skills'] ?? []);
+        $service->skills()->syncWithPivotValues($data['skills'] ?? [], ['organization_id' => $service->organization_id]);
 
         if (isset($data['tags'])) {
             $tagNames = array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 5);
@@ -195,10 +196,10 @@ class ServiceController extends Controller
                 if (! $slug) {
                     continue;
                 }
-                $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug]);
+                $tag = Tag::firstOrCreate(['slug' => $slug, 'organization_id' => $service->organization_id], ['name' => $name, 'slug' => $slug]);
                 $tagIds[] = $tag->id;
             }
-            $service->tags()->sync($tagIds);
+            $service->tags()->syncWithPivotValues($tagIds, ['organization_id' => $service->organization_id]);
         }
 
         if (! empty($data['delete_images'])) {
@@ -225,6 +226,7 @@ class ServiceController extends Controller
                 $serviceImage = $service->images()->create([
                     'path' => 'services/'.$filename,
                     'order' => $currentCount + $index,
+                    'organization_id' => $service->organization_id,
                 ]);
 
                 GenerateServiceThumbnail::dispatch($serviceImage);

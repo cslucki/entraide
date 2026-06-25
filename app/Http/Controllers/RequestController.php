@@ -89,6 +89,7 @@ class RequestController extends Controller
                 'original_name' => $file->getClientOriginalName(),
                 'mime_type' => $file->getMimeType(),
                 'order' => $index,
+                'organization_id' => $serviceRequest->organization_id,
             ]);
         }
     }

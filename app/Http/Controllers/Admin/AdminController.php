@@ -456,17 +456,17 @@ class AdminController extends Controller
             'status' => $data['status'],
         ]);
 
-        $service->skills()->sync($data['skills'] ?? []);
+        $service->skills()->syncWithPivotValues($data['skills'] ?? [], ['organization_id' => $service->organization_id]);
 
         if (isset($data['tags'])) {
             $tagIds = [];
             foreach (array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 5) as $name) {
                 $slug = Str::slug($name);
                 if ($slug) {
-                    $tagIds[] = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug])->id;
+                    $tagIds[] = Tag::firstOrCreate(['slug' => $slug, 'organization_id' => $service->organization_id], ['name' => $name, 'slug' => $slug])->id;
                 }
             }
-            $service->tags()->sync($tagIds);
+            $service->tags()->syncWithPivotValues($tagIds, ['organization_id' => $service->organization_id]);
         }
 
         return redirect()->route('admin.services')->with('success', "Service « {$service->title} » modifié.");
@@ -612,6 +612,7 @@ class AdminController extends Controller
                     'original_name' => $file->getClientOriginalName(),
                     'mime_type' => $file->getMimeType(),
                     'order' => $currentCount + $index,
+                    'organization_id' => $serviceRequest->organization_id,
                 ]);
             }
         }
