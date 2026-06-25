@@ -190,7 +190,10 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_services') }}</h2>
-                    <a href="{{ $_dashServicesCreateHref }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    <div class="flex items-center gap-3">
+                        <a href="{{ $_dashRoute('dashboard.services') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
+                        <a href="{{ $_dashServicesCreateHref }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    </div>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myServices as $service)
@@ -226,7 +229,10 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_requests') }}</h2>
-                    <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    <div class="flex items-center gap-3">
+                        <a href="{{ $_dashRoute('dashboard.requests') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
+                        <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    </div>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myRequests as $req)

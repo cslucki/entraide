@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\FeedPost;
 use App\Models\MemberAiProfile;
+use App\Models\Service;
+use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
@@ -110,8 +113,8 @@ class DashboardController extends Controller
         $stepsDone = [$hasPresentation, $hasServiceRequest, $hasService, $hasPublishedAiProfile, $hasFavorite, $hasSentReferral];
         $stepsCtaUrls = [
             $hasPresentation ? $onboardingRoute('profile.show', ['user' => $user]) : $onboardingRoute('profile.edit'),
-            $onboardingRoute('requests.create'),
-            $onboardingRoute('services.create'),
+            $hasServiceRequest ? $onboardingRoute('dashboard.requests') : $onboardingRoute('requests.create'),
+            $hasService ? $onboardingRoute('dashboard.services') : $onboardingRoute('services.create'),
             $onboardingRoute('agent-ia.wizard'),
             $hasFavorite ? $onboardingRoute('favorites.index') : $onboardingRoute('explorer'),
             url()->current().'#invitations',
@@ -136,5 +139,85 @@ class DashboardController extends Controller
             'aiProfile', 'onboardingSteps', 'requestCreateUrl',
             'myFeedPosts', 'canCreateFeedPost', 'feedUrl', 'feedCreateUrl', 'myFeedPostsUrl',
         ));
+    }
+
+    public function requests(): View
+    {
+        $organization = currentOrganization();
+
+        if (! $organization) {
+            abort(404);
+        }
+
+        $user = auth()->user();
+
+        $serviceRequests = ServiceRequest::where('organization_id', $organization->id)
+            ->where('user_id', $user->id)
+            ->with(['category', 'attachments', 'transactions'])
+            ->latest()
+            ->paginate(20);
+
+        return view('dashboard.requests', compact('serviceRequests', 'organization'));
+    }
+
+    public function requestDetail(ServiceRequest $serviceRequest): View
+    {
+        $organization = currentOrganization();
+
+        if (! $organization || $serviceRequest->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $user = auth()->user();
+
+        if ($serviceRequest->user_id !== $user->id) {
+            abort(403);
+        }
+
+        $serviceRequest->load(['user', 'category', 'attachments', 'transactions.buyer']);
+
+        $respondents = $serviceRequest->transactions;
+
+        return view('dashboard.request-detail', compact('serviceRequest', 'organization', 'respondents'));
+    }
+
+    public function services(): View
+    {
+        $organization = currentOrganization();
+
+        if (! $organization) {
+            abort(404);
+        }
+
+        $user = auth()->user();
+
+        $services = Service::where('organization_id', $organization->id)
+            ->where('user_id', $user->id)
+            ->with(['category', 'images', 'transactions'])
+            ->latest()
+            ->paginate(20);
+
+        return view('dashboard.services', compact('services', 'organization'));
+    }
+
+    public function serviceDetail(Service $service): View
+    {
+        $organization = currentOrganization();
+
+        if (! $organization || $service->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $user = auth()->user();
+
+        if ($service->user_id !== $user->id) {
+            abort(403);
+        }
+
+        $service->load(['user', 'category', 'images', 'transactions.buyer']);
+
+        $respondents = $service->transactions;
+
+        return view('dashboard.service-detail', compact('service', 'organization', 'respondents'));
     }
 }

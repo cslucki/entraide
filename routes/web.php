@@ -117,6 +117,10 @@ Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.in
 // Authenticated routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
+    Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->whereUuid('serviceRequest');
+    Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
+    Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->whereUuid('service');
     Route::get('/flux', OrganizationFeed::class)->name('flux');
     Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
     Route::get('/flux/mes-annonces', MyFeedPosts::class)->name('flux.my');
@@ -428,6 +432,10 @@ Route::prefix('/org/{organization}')
 
         Route::middleware('auth')->group(function () {
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+            Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
+            Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');
+            Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
+            Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->middleware('consume.org')->whereUuid('service');
             Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
             Route::middleware('profile.complete')->group(function () {
