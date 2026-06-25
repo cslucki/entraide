@@ -23,6 +23,7 @@ use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -61,11 +62,17 @@ class AdminOutilsController extends Controller
     {
         $datasets = $this->assignableDatasets();
 
-        $data = $request->validate([
+        $rules = [
             'organization_id' => ['nullable', 'uuid', 'exists:organizations,id'],
             'datasets' => ['required', 'array', 'min:1'],
             'datasets.*' => ['required', 'string', Rule::in(array_keys($datasets))],
-        ]);
+        ];
+
+        if (in_array('users', $request->input('datasets', []))) {
+            $rules['confirmation'] = ['required', 'string', Rule::in(['REASSIGN USERS'])];
+        }
+
+        $data = $request->validate($rules);
 
         $organizationId = $data['organization_id'] ?? null;
         if (! $organizationId) {
@@ -91,8 +98,53 @@ class AdminOutilsController extends Controller
             ->map(fn (int $count, string $label) => "{$label}: {$count}")
             ->implode(', ');
 
+        Log::info('assign-data executed', [
+            'admin_id' => $request->user()?->id,
+            'organization_id' => $organizationId,
+            'organization_name' => $orgName,
+            'datasets' => $data['datasets'],
+            'affected_rows' => $updated,
+        ]);
+
         return redirect()->route('admin.outils.assign-data')
             ->with('success', "Données affectées à l'organisation « {$orgName} » — {$summary}.");
+    }
+
+    public function assignDataDetail(Request $request): View
+    {
+        $datasets = $this->assignableDatasets();
+
+        $data = $request->validate([
+            'organization_id' => ['nullable', 'uuid', 'exists:organizations,id'],
+            'datasets' => ['required', 'array', 'min:1'],
+            'datasets.*' => ['required', 'string', Rule::in(array_keys($datasets))],
+        ]);
+
+        $organizationId = $data['organization_id'] ?? null;
+        $orgName = $organizationId ? Organization::find($organizationId)?->name : null;
+
+        $previews = [];
+        foreach ($data['datasets'] as $key) {
+            $total = (clone $datasets[$key]['query']())->count();
+            $affectedQuery = clone $datasets[$key]['query']();
+            if ($organizationId) {
+                $affectedQuery->where('organization_id', '!=', $organizationId);
+            }
+            $count = $affectedQuery->whereNotNull('organization_id')->count();
+            $rows = (clone $datasets[$key]['query']())
+                ->limit(5)
+                ->get()
+                ->map(fn ($row) => (array) $row);
+
+            $previews[$key] = [
+                'label' => $datasets[$key]['label'],
+                'total' => $total,
+                'affected' => $count,
+                'rows' => $rows,
+            ];
+        }
+
+        return view('admin.outils.assign-data-detail', compact('previews', 'orgName'));
     }
 
     private function assignableDatasets(): array
