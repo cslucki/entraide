@@ -142,6 +142,10 @@
                    class="px-6 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     Annuler
                 </a>
+                <a href="{{ route('admin.users.delete-preview', $user) }}"
+                   class="ml-auto text-xs text-red-600 dark:text-red-400 hover:underline">
+                    Supprimer cet utilisateur →
+                </a>
                 <a href="{{ route('profile.show', $user) }}" target="_blank"
                    class="ml-auto text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
                     Voir le profil public ↗

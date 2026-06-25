@@ -243,6 +243,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
     Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');
     Route::post('/users/{user}/login-as', [AdminController::class, 'loginAsUser'])->name('users.login-as');
+    Route::get('/users/{user}/delete-preview', [AdminController::class, 'deletePreview'])->name('users.delete-preview');
+    Route::post('/users/{user}/delete', [AdminController::class, 'deleteUser'])->name('users.delete');
 
     // Services
     Route::get('/services', [AdminController::class, 'services'])->name('services');
@@ -575,6 +577,8 @@ Route::prefix('/org/{organization}')
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
                 Route::patch('/users/{user}/toggle-ban', [OrgAdminController::class, 'toggleUserBan'])->name('users.toggle-ban');
+                Route::get('/users/{user}/delete-preview', [OrgAdminController::class, 'deletePreview'])->name('users.delete-preview');
+                Route::post('/users/{user}/delete', [OrgAdminController::class, 'deleteUser'])->name('users.delete');
 
                 // Administration
                 Route::get('/reports', [OrgAdminController::class, 'reports'])->name('reports');
