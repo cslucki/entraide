@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Tag extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasOrganizationId, HasUuids;
 
     protected $fillable = ['name', 'slug', 'organization_id'];
 

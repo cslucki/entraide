@@ -463,10 +463,10 @@ class AdminController extends Controller
             foreach (array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 5) as $name) {
                 $slug = Str::slug($name);
                 if ($slug) {
-                    $tagIds[] = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug])->id;
+                    $tagIds[] = Tag::firstOrCreate(['slug' => $slug, 'organization_id' => $service->organization_id], ['name' => $name, 'slug' => $slug])->id;
                 }
             }
-            $service->tags()->sync($tagIds);
+            $service->tags()->syncWithPivotValues($tagIds, ['organization_id' => $service->organization_id]);
         }
 
         return redirect()->route('admin.services')->with('success', "Service « {$service->title} » modifié.");

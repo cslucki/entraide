@@ -108,11 +108,11 @@ class AdminBlogController extends Controller
         if (isset($data['tags'])) {
             $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
                 ->map(fn ($name) => Tag::firstOrCreate(
-                    ['slug' => Str::slug($name)],
+                    ['slug' => Str::slug($name), 'organization_id' => $post->organization_id],
                     ['name' => $name, 'slug' => Str::slug($name)]
                 )->id)
                 ->all();
-            $post->tags()->sync($tagIds);
+            $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $post->organization_id]);
         }
 
         return redirect()->route('admin.blog.edit', $post)

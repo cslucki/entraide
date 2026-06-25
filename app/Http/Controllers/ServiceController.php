@@ -110,10 +110,10 @@ class ServiceController extends Controller
                 if (! $slug) {
                     continue;
                 }
-                $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug]);
+                $tag = Tag::firstOrCreate(['slug' => $slug, 'organization_id' => $service->organization_id], ['name' => $name, 'slug' => $slug]);
                 $tagIds[] = $tag->id;
             }
-            $service->tags()->sync($tagIds);
+            $service->tags()->syncWithPivotValues($tagIds, ['organization_id' => $service->organization_id]);
         }
 
         if ($request->hasFile('images')) {
@@ -196,10 +196,10 @@ class ServiceController extends Controller
                 if (! $slug) {
                     continue;
                 }
-                $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name, 'slug' => $slug]);
+                $tag = Tag::firstOrCreate(['slug' => $slug, 'organization_id' => $service->organization_id], ['name' => $name, 'slug' => $slug]);
                 $tagIds[] = $tag->id;
             }
-            $service->tags()->sync($tagIds);
+            $service->tags()->syncWithPivotValues($tagIds, ['organization_id' => $service->organization_id]);
         }
 
         if (! empty($data['delete_images'])) {

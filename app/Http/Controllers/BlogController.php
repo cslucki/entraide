@@ -202,9 +202,9 @@ class BlogController extends Controller implements HasMiddleware
 
         if (! empty($data['tags'])) {
             $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
-                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
+                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name), 'organization_id' => $organization->id], ['name' => $name, 'slug' => Str::slug($name)])->id)
                 ->all();
-            $post->tags()->sync($tagIds);
+            $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $organization->id]);
         }
 
         $message = $data['status'] === 'published' ? 'Article publié.' : 'Brouillon enregistré.';
@@ -271,9 +271,9 @@ class BlogController extends Controller implements HasMiddleware
 
         if (isset($data['tags'])) {
             $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
-                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name, 'slug' => Str::slug($name)])->id)
+                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name), 'organization_id' => $post->organization_id], ['name' => $name, 'slug' => Str::slug($name)])->id)
                 ->all();
-            $post->tags()->sync($tagIds);
+            $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $post->organization_id]);
         }
 
         return redirect($this->blogUrl('show', ['post' => $post]))->with('success', 'Article mis à jour.');
