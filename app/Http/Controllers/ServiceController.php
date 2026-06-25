@@ -10,6 +10,7 @@ use App\Models\Skill;
 use App\Models\Tag;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -134,7 +135,11 @@ class ServiceController extends Controller
             }
         }
 
-        return redirect()->route('dashboard')->with('success', 'Service publié avec succès.');
+        $redirectRoute = $organization && Route::has('organization.dashboard.services')
+            ? route('organization.dashboard.services', ['organization' => $organization->slug])
+            : route('dashboard.services');
+
+        return redirect($redirectRoute)->with('success', 'Service publié avec succès.');
     }
 
     public function edit(Service $service): View

@@ -141,6 +141,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
         Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
     });
+    Route::get('/requests/{request}/edit', [RequestController::class, 'edit'])->name('requests.edit');
+    Route::put('/requests/{request}', [RequestController::class, 'update'])->name('requests.update');
     Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
 
     // Transactions
@@ -450,6 +452,8 @@ Route::prefix('/org/{organization}')
                 Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
                 Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
             });
+            Route::get('/requests/{request}/edit', [RequestController::class, 'edit'])->middleware('consume.org')->name('requests.edit');
+            Route::put('/requests/{request}', [RequestController::class, 'update'])->middleware('consume.org')->name('requests.update');
             Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->middleware('consume.org')->name('requests.destroy');
 
             Route::get('/transactions/export', [TransactionController::class, 'exportCsv'])->name('transactions.export');

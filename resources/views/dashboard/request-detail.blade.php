@@ -19,12 +19,17 @@
                     <span class="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: {{ $serviceRequest->category->color ?? '#e5e7eb' }}20; color: {{ $serviceRequest->category->color ?? '#6b7280' }}">{{ $serviceRequest->category->name }}</span>
                     @endif
                 </div>
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
-                    {{ $serviceRequest->status === 'open' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : '' }}
-                    {{ $serviceRequest->status === 'in_progress' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : '' }}
-                    {{ $serviceRequest->status === 'closed' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' : '' }}">
-                    {{ $serviceRequest->status }}
-                </span>
+                <div class="flex items-center gap-3">
+                    @if($respondents->isEmpty() && $serviceRequest->status === 'open')
+                    <a href="{{ $_dashRoute('requests.edit', ['request' => $serviceRequest]) }}" class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition">{{ __('dashboard.edit_request') }}</a>
+                    @endif
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+                        {{ $serviceRequest->status === 'open' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : '' }}
+                        {{ $serviceRequest->status === 'in_progress' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : '' }}
+                        {{ $serviceRequest->status === 'closed' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' : '' }}">
+                        {{ $serviceRequest->status }}
+                    </span>
+                </div>
             </div>
 
             <div class="px-6 py-5 space-y-4">

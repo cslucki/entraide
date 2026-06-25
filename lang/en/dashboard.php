@@ -147,6 +147,7 @@ return [
     'back_to_requests' => 'Back to my requests',
     'back_to_services' => 'Back to my services',
     'edit_service' => 'Edit',
+    'edit_request' => 'Edit',
     'respondents' => 'Respondents',
     'messages_link' => 'View conversation',
 ];

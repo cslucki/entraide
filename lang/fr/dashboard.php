@@ -147,6 +147,7 @@ return [
     'back_to_requests' => 'Retour à mes demandes',
     'back_to_services' => 'Retour à mes propositions',
     'edit_service' => 'Modifier',
+    'edit_request' => 'Modifier',
     'respondents' => 'Répondants',
     'messages_link' => 'Voir la conversation',
 ];
