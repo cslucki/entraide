@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
+use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
@@ -186,7 +187,9 @@ Route::middleware('auth')->group(function () {
 
     // Member AI Profile wizard
     Route::middleware('ai-profiles.enabled')->group(function () {
-        Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
+        Route::get('/agent-ia', [AgentIaController::class, 'index'])->name('agent-ia.index');
+        Route::get('/agent-ia/edit', [AgentIaController::class, 'wizard'])->name('agent-ia.wizard');
+        Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
         Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
 
         Route::delete('/agent-ia/profile', function () {
@@ -505,7 +508,9 @@ Route::prefix('/org/{organization}')
 
             // Member AI Profile wizard
             Route::middleware('ai-profiles.enabled')->group(function () {
-                Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
+                Route::get('/agent-ia', [AgentIaController::class, 'index'])->name('agent-ia.index');
+                Route::get('/agent-ia/edit', [AgentIaController::class, 'wizard'])->name('agent-ia.wizard');
+                Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
                 Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
             });
 
