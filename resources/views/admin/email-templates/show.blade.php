@@ -121,15 +121,21 @@
                    class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
                     ← Retour à la liste
                 </a>
-                <form method="POST" action="{{ route('admin.email-templates.destroy', $emailTemplate) }}"
-                      onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce template ?');">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit"
-                            class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
-                        Supprimer le template
-                    </button>
-                </form>
+                <div class="flex items-center gap-3">
+                    <a href="{{ route('admin.email-templates.send', $emailTemplate) }}"
+                       class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                        {{ __('admin.emailer_send') }}
+                    </a>
+                    <form method="POST" action="{{ route('admin.email-templates.destroy', $emailTemplate) }}"
+                          onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce template ?');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit"
+                                class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+                            Supprimer le template
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

@@ -52,9 +52,9 @@
                         $isGroupActive = fn($items) => collect($items)->contains(fn($i) => $isActive($i['route']));
 
                         $emailItems = [
-                            ['route' => 'admin.email-templates', 'label' => 'Templates', 'icon' => 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'],
-                            ['route' => 'admin.email-logs', 'label' => 'Historique', 'icon' => 'M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 4.5v-4.5m0 4.5l-6.75-4.5M21 10l-6.75 4.5'],
-                            ['route' => 'admin.email-test', 'label' => 'Test', 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
+                            ['route' => 'admin.email-templates', 'label' => __('admin.emailer_templates'), 'icon' => 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'],
+                            ['route' => 'admin.email-logs', 'label' => __('admin.emailer_history'), 'icon' => 'M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 4.5v-4.5m0 4.5l-6.75-4.5M21 10l-6.75 4.5'],
+                            ['route' => 'admin.email-test', 'label' => __('admin.emailer_test'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
                         ];
                         $echangesItems = [
                             ['route' => 'admin.services', 'label' => 'Services', 'icon' => 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
@@ -97,7 +97,7 @@
                         Design / thèmes
                     </a>
 
-                    <!-- Email group -->
+                    <!-- Emailer group -->
                     @php $groupActive = $isGroupActive($emailItems); @endphp
                     <div x-data="{ open: {{ $groupActive ? 'true' : "localStorage.getItem('sidebar_email_open') !== 'false'" }} }">
                         <button @click.stop="open = !open; localStorage.setItem('sidebar_email_open', open)"
@@ -108,7 +108,7 @@
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                             </svg>
-                            <span class="text-xs font-semibold uppercase tracking-wider">Email</span>
+                            <span class="text-xs font-semibold uppercase tracking-wider">{{ __('admin.emailer_title') }}</span>
                         </button>
                         <div x-show="open" x-cloak
                              x-transition:enter="transition ease-out duration-200"

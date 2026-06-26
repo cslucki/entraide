@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\EmailTemplate;
+use App\Models\User;
+use App\Services\EmailerService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -72,7 +74,7 @@ class AdminEmailTemplatesController extends Controller
         $emailTemplate->update($validated);
 
         return redirect()->route('admin.email-templates')
-            ->with('success', 'Template d\'email mis à jour avec succès.');
+            ->with('success', __('admin.emailer_updated'));
     }
 
     public function destroy(EmailTemplate $emailTemplate): RedirectResponse
@@ -80,7 +82,7 @@ class AdminEmailTemplatesController extends Controller
         $emailTemplate->delete();
 
         return redirect()->route('admin.email-templates')
-            ->with('success', 'Template d\'email supprimé avec succès.');
+            ->with('success', __('admin.emailer_deleted'));
     }
 
     public function preview(Request $request): string
@@ -90,6 +92,91 @@ class AdminEmailTemplatesController extends Controller
         ]);
 
         return $validated['content'];
+    }
+
+    public function sendForm(EmailTemplate $emailTemplate): View
+    {
+        $users = User::with('organization')
+            ->orderBy('name')
+            ->paginate(50);
+
+        $service = app(EmailerService::class);
+
+        return view('admin.email-templates.send', [
+            'template' => $emailTemplate,
+            'users' => $users,
+            'service' => $service,
+        ]);
+    }
+
+    public function sendExecute(Request $request, EmailTemplate $emailTemplate): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id',
+            'confirmed' => 'nullable|string',
+        ]);
+
+        $userIds = array_unique($validated['user_ids']);
+
+        if (count($userIds) > 50) {
+            return back()->withErrors(['user_ids' => __('admin.emailer_max_50')])->withInput();
+        }
+
+        $users = User::whereIn('id', $userIds)->get();
+
+        if ($users->isEmpty()) {
+            return back()->withErrors(['user_ids' => __('admin.emailer_no_recipients')])->withInput();
+        }
+
+        if (! $request->has('confirmed') && count($users) > 1) {
+            return redirect()->route('admin.email-templates.send.confirm', [
+                'emailTemplate' => $emailTemplate,
+                'user_ids' => $userIds,
+            ]);
+        }
+
+        $service = app(EmailerService::class);
+        $sender = $request->user();
+
+        $sent = 0;
+        $failed = 0;
+
+        foreach ($users as $user) {
+            $log = $service->sendFromTemplate($emailTemplate, $user, $sender);
+            if ($log->status === 'sent') {
+                $sent++;
+            } else {
+                $failed++;
+            }
+        }
+
+        $total = $sent + $failed;
+
+        return redirect()->route('admin.email-templates.show', $emailTemplate)
+            ->with('success', __('admin.emailer_sent_count', ['sent' => $sent, 'failed' => $failed, 'total' => $total]));
+    }
+
+    public function sendConfirm(Request $request, EmailTemplate $emailTemplate): View
+    {
+        $userIds = $request->query('user_ids', []);
+
+        if (empty($userIds)) {
+            return redirect()->route('admin.email-templates.send', $emailTemplate);
+        }
+
+        $users = User::whereIn('id', $userIds)->get();
+        $service = app(EmailerService::class);
+        $previewUser = $users->first();
+
+        return view('admin.email-templates.send', [
+            'template' => $emailTemplate,
+            'users' => $users,
+            'previewUser' => $previewUser,
+            'userIds' => $userIds,
+            'service' => $service,
+            'confirm' => true,
+        ]);
     }
 
     private function parseVariables(mixed $value): ?array
