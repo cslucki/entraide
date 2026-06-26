@@ -53,9 +53,9 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
-        $aiProfile = MemberAiProfile::forUser($user)
-            ->forOrganization($organization)
-            ->first();
+        $aiProfile = $organization->ai_profiles_enabled
+            ? MemberAiProfile::forUser($user)->forOrganization($organization)->first()
+            : null;
 
         $requestCreateUrl = (function () use ($organization): string {
             $orgRoute = 'organization.requests.create';

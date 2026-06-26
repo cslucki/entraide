@@ -184,18 +184,20 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Member AI Profile wizard
-    Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
-    Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
+    Route::middleware('ai-profiles.enabled')->group(function () {
+        Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
+        Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
 
-    Route::delete('/agent-ia/profile', function () {
-        MemberAiProfile::where('user_id', auth()->id())->delete();
+        Route::delete('/agent-ia/profile', function () {
+            MemberAiProfile::where('user_id', auth()->id())->delete();
 
-        return response()->json(['ok' => true]);
-    })->name('agent-ia.profile.reset');
+            return response()->json(['ok' => true]);
+        })->name('agent-ia.profile.reset');
 
-    // Bounded member AI agent
-    Route::get('/agent-ia/member/{user}', BoundedMemberAgent::class)
-        ->name('agent-ia.member.presentation');
+        // Bounded member AI agent
+        Route::get('/agent-ia/member/{user}', BoundedMemberAgent::class)
+            ->name('agent-ia.member.presentation');
+    });
 
     // Loops
     Route::middleware('loops.enabled')->group(function () {
@@ -215,8 +217,10 @@ Route::middleware('auth')->group(function () {
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
 Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
 Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
-Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
-Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
+Route::middleware('ai-profiles.enabled')->group(function () {
+    Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
+    Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
+});
 
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
@@ -493,8 +497,10 @@ Route::prefix('/org/{organization}')
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
             // Member AI Profile wizard
-            Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
-            Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
+            Route::middleware('ai-profiles.enabled')->group(function () {
+                Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
+                Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
+            });
 
             Route::middleware('loops.enabled')->group(function () {
                 Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');

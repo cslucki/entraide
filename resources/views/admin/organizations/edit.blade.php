@@ -246,6 +246,19 @@
                     </label>
                 </div>
 
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="ai_profiles_enabled" value="0">
+                        <input type="checkbox" name="ai_profiles_enabled" value="1"
+                            {{ old('ai_profiles_enabled', $organization->ai_profiles_enabled ?? true) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Agents profil IA activés</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Quand désactivé, les profils IA, le wizard et les échanges sont masqués pour cette organisation.</p>
+                        </div>
+                    </label>
+                </div>
+
                  <div>
                      <label class="flex items-center gap-3 cursor-pointer">
                          <input type="hidden" name="maintenance_mode" value="0">
