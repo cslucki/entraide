@@ -3,10 +3,12 @@
 namespace App\Livewire;
 
 use App\Models\MemberAiProfile;
-use App\Models\MemberAiProfileInteraction;
+use App\Models\ProfileAgentConversation;
+use App\Models\ProfileAgentMessage;
 use App\Models\User;
 use App\Services\Ai\MemberProfileAgentResponder;
 use App\Support\Tenancy\DefaultOrganizationResolver;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class AiAgentChat extends Component
@@ -22,6 +24,8 @@ class AiAgentChat extends Component
     public bool $isTyping = false;
 
     public ?string $error = null;
+
+    private ?ProfileAgentConversation $conversation = null;
 
     public function mount(User $user): void
     {
@@ -42,6 +46,8 @@ class AiAgentChat extends Component
         if (! $this->profile) {
             return;
         }
+
+        $this->conversation = $this->findOrCreateConversation();
 
         $this->loadMessages();
 
@@ -75,6 +81,8 @@ class AiAgentChat extends Component
             'time' => now()->format('H:i'),
         ];
 
+        $this->storeMessage('user', $question);
+
         $this->question = '';
         $this->isTyping = true;
 
@@ -90,8 +98,7 @@ class AiAgentChat extends Component
                 'time' => now()->format('H:i'),
             ];
 
-            $this->logInteraction($question, $response, $result);
-            $this->saveMessages();
+            $this->storeMessage('assistant', $response, $result);
         } catch (\Throwable $e) {
             $this->error = 'Une erreur est survenue. Veuillez réessayer.';
         } finally {
@@ -105,13 +112,13 @@ class AiAgentChat extends Component
         $this->error = null;
         $this->question = '';
 
-        if (auth()->check()) {
-            MemberAiProfileInteraction::where('member_ai_profile_id', $this->profile?->id)
-                ->where('visitor_user_id', auth()->id())
-                ->delete();
-        } else {
-            session()->forget('ai_agent_chat_'.$this->profile?->id);
+        if ($this->conversation) {
+            $this->conversation->messages()->delete();
+            $this->conversation->delete();
+            $this->conversation = null;
         }
+
+        $this->conversation = $this->findOrCreateConversation();
 
         $this->messages[] = [
             'role' => 'assistant',
@@ -120,62 +127,80 @@ class AiAgentChat extends Component
         ];
     }
 
-    private function loadMessages(): void
-    {
-        if (auth()->check()) {
-            $interactions = MemberAiProfileInteraction::where('member_ai_profile_id', $this->profile->id)
-                ->where('visitor_user_id', auth()->id())
-                ->orderBy('created_at')
-                ->get();
-
-            foreach ($interactions as $interaction) {
-                $this->messages[] = [
-                    'role' => 'user',
-                    'text' => $interaction->question,
-                    'time' => $interaction->created_at->format('H:i'),
-                ];
-                $this->messages[] = [
-                    'role' => 'assistant',
-                    'text' => $interaction->response,
-                    'time' => $interaction->created_at->format('H:i'),
-                ];
-            }
-        } else {
-            $this->messages = session('ai_agent_chat_'.$this->profile->id, []);
-        }
-    }
-
-    private function saveMessages(): void
-    {
-        if (! auth()->check()) {
-            session(['ai_agent_chat_'.$this->profile->id => $this->messages]);
-        }
-    }
-
-    private function logInteraction(string $question, string $response, array $result): void
+    private function findOrCreateConversation(): ProfileAgentConversation
     {
         $organization = currentOrganization()
             ?? $this->targetUser?->organization
             ?? DefaultOrganizationResolver::resolve();
 
-        $provider = $result['provider'] ?? 'unknown';
+        $visitorUserId = auth()->id();
+        $visitorSessionId = ! $visitorUserId ? $this->resolveSessionId() : null;
 
-        MemberAiProfileInteraction::create([
-            'organization_id' => $organization?->id ?? $this->profile?->organization_id,
-            'member_ai_profile_id' => $this->profile?->id,
+        $query = ProfileAgentConversation::where('member_ai_profile_id', $this->profile->id)
+            ->where('profile_owner_user_id', $this->targetUser->id)
+            ->where('organization_id', $organization?->id);
+
+        if ($visitorUserId) {
+            $query->where('visitor_user_id', $visitorUserId);
+        } else {
+            $query->where('visitor_session_id', $visitorSessionId);
+        }
+
+        return $query->firstOrCreate([
+            'organization_id' => $organization?->id,
+            'member_ai_profile_id' => $this->profile->id,
             'profile_owner_user_id' => $this->targetUser->id,
-            'visitor_user_id' => auth()->id(),
-            'visitor_type' => auth()->check() ? 'user' : 'guest',
-            'provider' => $provider,
-            'status' => 'success',
-            'question' => $question,
-            'response' => $response,
-            'matched_fields' => $result['fields'] ?? [],
-            'metadata' => [
+            'visitor_user_id' => $visitorUserId,
+            'visitor_session_id' => $visitorSessionId,
+        ]);
+    }
+
+    private function resolveSessionId(): string
+    {
+        $key = 'profile_agent_visitor_id';
+
+        if (! session()->has($key)) {
+            session([$key => (string) Str::uuid()]);
+        }
+
+        return session($key);
+    }
+
+    private function loadMessages(): void
+    {
+        if (! $this->conversation) {
+            return;
+        }
+
+        $dbMessages = ProfileAgentMessage::where('conversation_id', $this->conversation->id)
+            ->orderBy('created_at')
+            ->get();
+
+        foreach ($dbMessages as $msg) {
+            $this->messages[] = [
+                'role' => $msg->role,
+                'text' => $msg->content,
+                'time' => $msg->created_at->format('H:i'),
+            ];
+        }
+    }
+
+    private function storeMessage(string $role, string $content, ?array $result = null): void
+    {
+        if (! $this->conversation) {
+            $this->conversation = $this->findOrCreateConversation();
+        }
+
+        ProfileAgentMessage::create([
+            'conversation_id' => $this->conversation->id,
+            'role' => $role,
+            'content' => $content,
+            'metadata' => $result ? [
+                'provider' => $result['provider'] ?? null,
                 'model' => $result['model'] ?? null,
                 'latency_ms' => $result['latency_ms'] ?? null,
-                'scenario' => 'inline_member_presentation',
-            ],
+                'fields' => $result['fields'] ?? [],
+            ] : null,
         ]);
     }
 
