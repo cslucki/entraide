@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             SettingSeeder::class,
             BackfillUsersOrganizationSeeder::class,
             EmailTemplateSeeder::class,
+            SystemEmailTemplateSeeder::class,
             AiPromptSeeder::class,
             DashboardDemoSeeder::class,
         ]);

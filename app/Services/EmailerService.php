@@ -10,7 +10,7 @@ use Throwable;
 
 class EmailerService
 {
-    private const ALLOWED_VARS = ['first_name', 'name', 'email', 'organization', 'city'];
+    public const ALLOWED_VARS = ['first_name', 'name', 'email', 'organization', 'city'];
 
     public function availableVariables(User $user): array
     {
@@ -23,11 +23,13 @@ class EmailerService
         ];
     }
 
-    public function interpolate(string $content, array $variables): string
+    public function interpolate(string $content, array $variables, array $extraAllowedVars = []): string
     {
-        return preg_replace_callback('/\{\{\s*(\w+)\s*\}\}/', function ($matches) use ($variables) {
+        $allowed = array_merge(self::ALLOWED_VARS, $extraAllowedVars);
+
+        return preg_replace_callback('/\{\{\s*(\w+)\s*\}\}/', function ($matches) use ($variables, $allowed) {
             $key = $matches[1];
-            if (in_array($key, self::ALLOWED_VARS, true) && isset($variables[$key])) {
+            if (in_array($key, $allowed, true) && isset($variables[$key])) {
                 return e($variables[$key]);
             }
 
@@ -35,11 +37,13 @@ class EmailerService
         }, $content);
     }
 
-    public function interpolateSubject(string $subject, array $variables): string
+    public function interpolateSubject(string $subject, array $variables, array $extraAllowedVars = []): string
     {
-        return preg_replace_callback('/\{\{\s*(\w+)\s*\}\}/', function ($matches) use ($variables) {
+        $allowed = array_merge(self::ALLOWED_VARS, $extraAllowedVars);
+
+        return preg_replace_callback('/\{\{\s*(\w+)\s*\}\}/', function ($matches) use ($variables, $allowed) {
             $key = $matches[1];
-            if (in_array($key, self::ALLOWED_VARS, true) && isset($variables[$key])) {
+            if (in_array($key, $allowed, true) && isset($variables[$key])) {
                 return strip_tags($variables[$key]);
             }
 
