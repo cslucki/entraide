@@ -52,6 +52,7 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Middleware\OrgAdminMiddleware;
@@ -221,6 +222,9 @@ Route::middleware('ai-profiles.enabled')->group(function () {
     Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
     Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
 });
+
+// Abonnements (TASK-354 corrective)
+Route::get('/abonnements', [SubscriptionController::class, 'index'])->name('subscriptions');
 
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
@@ -442,6 +446,8 @@ Route::prefix('/org/{organization}')
             Route::get('/reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
             Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.store');
         });
+
+        Route::get('/abonnements', [SubscriptionController::class, 'orgIndex'])->name('subscriptions');
 
         Route::middleware('auth')->group(function () {
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
