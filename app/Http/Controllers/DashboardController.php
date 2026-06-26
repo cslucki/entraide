@@ -109,18 +109,39 @@ class DashboardController extends Controller
             return route($name, $parameters);
         };
 
+        $aiProfileDisabled = ! $organization->ai_profiles_enabled;
+        $subscriptionsEnabled = $organization->subscriptions_enabled;
+
         $stepsKeys = ['presentation', 'request', 'service', 'ai_profile', 'leads', 'invite'];
         $stepsDone = [$hasPresentation, $hasServiceRequest, $hasService, $hasPublishedAiProfile, $hasFavorite, $hasSentReferral];
         $stepsCtaUrls = [
             $hasPresentation ? $onboardingRoute('profile.show', ['user' => $user]) : $onboardingRoute('profile.edit'),
             $hasServiceRequest ? $onboardingRoute('dashboard.requests') : $onboardingRoute('requests.create'),
             $hasService ? $onboardingRoute('dashboard.services') : $onboardingRoute('services.create'),
-            $onboardingRoute('agent-ia.wizard'),
+            $aiProfileDisabled
+                ? ($subscriptionsEnabled ? $onboardingRoute('subscriptions') : null)
+                : $onboardingRoute('agent-ia.wizard'),
             $hasFavorite ? $onboardingRoute('favorites.index') : $onboardingRoute('explorer'),
             url()->current().'#invitations',
         ];
 
-        $onboardingSteps = array_map(function ($key, $done, $ctaUrl) {
+        $onboardingSteps = array_map(function ($key, $done, $ctaUrl) use ($aiProfileDisabled, $subscriptionsEnabled) {
+            if ($key === 'ai_profile' && $aiProfileDisabled) {
+                return [
+                    'key' => $key,
+                    'title' => __("dashboard.steps.{$key}.title"),
+                    'description' => __("dashboard.steps.{$key}.description"),
+                    'status' => 'disabled',
+                    'status_label' => $subscriptionsEnabled
+                        ? __('dashboard.ai_profile_disabled_subscription')
+                        : __('dashboard.ai_profile_disabled_admin'),
+                    'cta_label' => $subscriptionsEnabled
+                        ? __('dashboard.see_subscriptions')
+                        : __('dashboard.contact_admin'),
+                    'cta_url' => $ctaUrl,
+                ];
+            }
+
             return [
                 'key' => $key,
                 'title' => __("dashboard.steps.{$key}.title"),
@@ -138,6 +159,7 @@ class DashboardController extends Controller
             'referralCode', 'referralLink', 'sentReferralsCount', 'activatedReferralsCount', 'referralPointsEarned',
             'aiProfile', 'onboardingSteps', 'requestCreateUrl',
             'myFeedPosts', 'canCreateFeedPost', 'feedUrl', 'feedCreateUrl', 'myFeedPostsUrl',
+            'aiProfileDisabled', 'subscriptionsEnabled',
         ));
     }
 
