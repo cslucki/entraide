@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BlogPost;
+use App\Models\Country;
 use App\Models\MemberAiProfile;
 use App\Models\Transaction;
 use App\Models\User;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Intervention\Image\Laravel\Facades\Image;
 
@@ -92,14 +94,32 @@ class ProfileController extends Controller
 
     public function edit(Request $request): View
     {
+        $organization = currentOrganization() ?? $request->user()->organization;
+        $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
+
+        $priorityCountries = $organization
+            ? $organization->priorityCountries()->where('active', true)->get()
+            : collect();
+        $priorityCountryCodes = $priorityCountries->pluck('code');
+        $otherCountries = Country::query()
+            ->where('active', true)
+            ->when($priorityCountryCodes->isNotEmpty(), fn ($query) => $query->whereNotIn('code', $priorityCountryCodes))
+            ->orderBy($localeColumn)
+            ->get();
+
         return view('profile.edit', [
             'user' => $request->user(),
+            'organization' => $organization,
+            'countries' => $priorityCountries->concat($otherCountries),
         ]);
     }
 
     public function update(Request $request): RedirectResponse
     {
-        $data = $request->validate([
+        $organization = currentOrganization() ?? $request->user()->organization;
+
+        $rules = [
+            'first_name' => ['nullable', 'string', 'max:255'],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,'.$request->user()->id],
             'phone' => ['required', 'string', 'max:30'],
@@ -107,10 +127,21 @@ class ProfileController extends Controller
             'show_phone' => ['nullable', 'boolean'],
             'avatar' => ['nullable', 'image', 'max:2048'],
             'bio' => ['nullable', 'string', 'max:500'],
-            'location' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:255'],
+            'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
+            'preferred_locale' => ['nullable', Rule::in(['fr', 'en'])],
+            'address_line1' => ['nullable', 'string', 'max:255'],
+            'address_line2' => ['nullable', 'string', 'max:255'],
+            'postal_code' => ['nullable', 'string', 'max:30'],
             'website' => ['nullable', 'url', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
-        ]);
+        ];
+
+        if ($organization?->membership_enabled) {
+            $rules['membership_value'] = ['nullable', 'string', 'max:255'];
+        }
+
+        $data = $request->validate($rules);
 
         if ($request->hasFile('avatar')) {
             $file = $request->file('avatar');

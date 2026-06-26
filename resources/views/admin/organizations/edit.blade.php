@@ -379,6 +379,91 @@
             </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{{ __('admin.org_country_section') }}</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.org_country_section_hint') }}</p>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.org_default_country') }}</label>
+                        <select name="default_country_code"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('default_country_code') border-red-500 @enderror">
+                            <option value="">{{ __('admin.org_country_placeholder') }}</option>
+                            @foreach($countries as $country)
+                            <option value="{{ $country->code }}" {{ old('default_country_code', $organization->default_country_code) === $country->code ? 'selected' : '' }}>
+                                {{ $country->getLocalizedName(app()->getLocale()) }}
+                            </option>
+                            @endforeach
+                        </select>
+                        @error('default_country_code')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.org_priority_countries') }}</label>
+                        <select name="priority_country_codes[]" multiple
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm min-h-[120px] @error('priority_country_codes') border-red-500 @enderror">
+                            @foreach($countries as $country)
+                            <option value="{{ $country->code }}"
+                                {{ in_array($country->code, old('priority_country_codes', $priorityCountryCodes)) ? 'selected' : '' }}>
+                                {{ $country->getLocalizedName(app()->getLocale()) }}
+                            </option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('admin.org_priority_countries_hint') }}</p>
+                        @error('priority_country_codes')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                        @error('priority_country_codes.*')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-100 dark:border-gray-700 pt-4">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="show_country" value="0">
+                        <input type="checkbox" name="show_country" value="1"
+                            {{ old('show_country', $organization->show_country ?? true) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.org_show_country') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.org_show_country_hint') }}</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{{ __('admin.org_membership_section') }}</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.org_membership_section_hint') }}</p>
+
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="membership_enabled" value="0">
+                        <input type="checkbox" name="membership_enabled" value="1"
+                            {{ old('membership_enabled', $organization->membership_enabled) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.org_membership_enabled') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.org_membership_enabled_hint') }}</p>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.org_membership_label_fr') }}</label>
+                        <input type="text" name="membership_label_fr" value="{{ old('membership_label_fr', $organization->membership_label_fr) }}" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('membership_label_fr') border-red-500 @enderror"
+                               placeholder="ex: Situé en France ?">
+                        @error('membership_label_fr')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.org_membership_label_en') }}</label>
+                        <input type="text" name="membership_label_en" value="{{ old('membership_label_en', $organization->membership_label_en) }}" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('membership_label_en') border-red-500 @enderror"
+                               placeholder="e.g. Based in France?">
+                        @error('membership_label_en')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Administration</h2>
 
                 <div>

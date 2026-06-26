@@ -55,13 +55,15 @@ class UserFactory extends Factory
     }
 
     /**
-     * Indicate that the profile is complete (bio, location, phone required by EnsureProfileComplete middleware).
+     * Indicate that the profile is complete (first_name, name, phone, city, country_code, bio required by EnsureProfileComplete middleware).
      */
     public function complete(): static
     {
         return $this->state(fn (array $attributes) => [
+            'first_name' => $attributes['first_name'] ?? fake()->firstName(),
             'bio' => $attributes['bio'] ?? fake()->sentence(6),
-            'location' => $attributes['location'] ?? fake()->city(),
+            'city' => $attributes['city'] ?? fake()->city(),
+            'country_code' => $attributes['country_code'] ?? 'FR',
             'phone' => $attributes['phone'] ?? fake()->phoneNumber(),
         ]);
     }
