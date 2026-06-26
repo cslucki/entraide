@@ -68,6 +68,7 @@ return [
     'org_admin_back_to_org' => 'Retour à l\'organisation',
     'org_admin_coming_soon' => ':section (à venir)',
     'org_admin_design' => 'Design',
+    'org_admin_themes' => 'Thèmes',
     'org_admin_exchanges' => 'Échanges',
     'org_admin_organization' => 'Organisation',
     'org_admin_ia' => 'IA',

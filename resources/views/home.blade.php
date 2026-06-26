@@ -70,5 +70,6 @@
                 </div>
             </div>
         </div>
+        @include('partials.footer')
     </section>
 </x-app-layout>

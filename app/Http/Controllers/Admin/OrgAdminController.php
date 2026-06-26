@@ -14,6 +14,7 @@ use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Skill;
+use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
@@ -23,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class OrgAdminController extends Controller
@@ -334,7 +336,7 @@ class OrgAdminController extends Controller
         ];
 
         $part = [
-            'loop_memberships' => $user->loopMemberships()->whereHas('loop', fn($q) => $q->where('organization_id', $organization->id))->count(),
+            'loop_memberships' => $user->loopMemberships()->whereHas('loop', fn ($q) => $q->where('organization_id', $organization->id))->count(),
             'loops_created' => Loop::where('organization_id', $organization->id)
                 ->where('created_by', $user->id)->count(),
         ];
@@ -774,6 +776,156 @@ class OrgAdminController extends Controller
     public function aiInteractions(Organization $organization): View
     {
         return $this->comingSoon($organization, __('navigation.org_admin_ai_interactions'));
+    }
+
+    // ── Design / Themes ─────────────────────────────────────────────────────────
+
+    public function themes(Request $request, Organization $organization): View
+    {
+        $mainOrgId = Organization::orderBy('created_at')->value('id');
+        $themes = Theme::with('organization')
+            ->whereIn('organization_id', [$organization->id, $mainOrgId])
+            ->orderBy('is_default', 'desc')
+            ->orderBy('label')
+            ->get();
+
+        $currentTheme = null;
+        if ($request->filled('theme')) {
+            $currentTheme = $themes->firstWhere('key', $request->theme);
+        }
+        if (! $currentTheme) {
+            $currentTheme = $themes->firstWhere('is_default', true) ?? $themes->first();
+        }
+
+        $themeKeys = $themes->pluck('key')->values()->all();
+        $currentIndex = array_search($currentTheme->key, $themeKeys);
+        $prevTheme = $currentIndex > 0 ? $themes[$currentIndex - 1] : null;
+        $nextTheme = $currentIndex < count($themeKeys) - 1 ? $themes[$currentIndex + 1] : null;
+
+        return view('admin.org.themes.index', compact('organization', 'themes', 'currentTheme', 'prevTheme', 'nextTheme'));
+    }
+
+    public function themesCreate(Organization $organization): View
+    {
+        return view('admin.org.themes.create', compact('organization'));
+    }
+
+    public function themesStore(Request $request, Organization $organization): RedirectResponse
+    {
+        if ($request->has('tokens') && is_string($request->tokens)) {
+            $request->merge(['tokens' => json_decode($request->tokens, true) ?? []]);
+        }
+        if ($request->has('dark_tokens') && is_string($request->dark_tokens)) {
+            $request->merge(['dark_tokens' => json_decode($request->dark_tokens, true) ?? []]);
+        }
+
+        $data = $request->validate([
+            'key' => 'required|string|max:50|unique:themes,key',
+            'label' => 'required|string|max:100',
+            'description' => 'nullable|string',
+            'tokens' => ['required', 'array', function ($attribute, $value, $fail) {
+                foreach ($value as $key => $color) {
+                    if (! preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+                        $fail("Le token « {$key} » doit être une couleur hexadécimale valide.");
+                    }
+                }
+            }],
+            'dark_tokens' => ['nullable', 'array', function ($attribute, $value, $fail) {
+                foreach ($value as $key => $color) {
+                    if (! preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+                        $fail("Le token sombre « {$key} » doit être une couleur hexadécimale valide.");
+                    }
+                }
+            }],
+        ]);
+
+        $data['organization_id'] = $organization->id;
+        $data['is_default'] = false;
+        $data['dark_tokens'] = $data['dark_tokens'] ?? [];
+
+        $theme = Theme::create($data);
+        Theme::regenerateCache();
+
+        return redirect()->route('organization.admin.themes', [$organization, 'theme' => $theme->key])
+            ->with('success', 'Thème « '.$theme->label.' » créé.');
+    }
+
+    public function themesEdit(Organization $organization, Theme $theme): View
+    {
+        abort_if($theme->organization_id !== $organization->id, 403, 'Vous ne pouvez modifier que vos propres thèmes.');
+
+        return view('admin.org.themes.edit', compact('organization', 'theme'));
+    }
+
+    public function themesUpdate(Request $request, Organization $organization, Theme $theme): RedirectResponse
+    {
+        abort_if($theme->organization_id !== $organization->id, 403, 'Vous ne pouvez modifier que vos propres thèmes.');
+
+        if ($request->has('tokens') && is_string($request->tokens)) {
+            $request->merge(['tokens' => json_decode($request->tokens, true) ?? []]);
+        }
+        if ($request->has('dark_tokens') && is_string($request->dark_tokens)) {
+            $request->merge(['dark_tokens' => json_decode($request->dark_tokens, true) ?? []]);
+        }
+
+        $data = $request->validate([
+            'key' => ['required', 'string', 'max:50', Rule::unique('themes', 'key')->ignore($theme->id)],
+            'label' => 'required|string|max:100',
+            'description' => 'nullable|string',
+            'tokens' => ['required', 'array', function ($attribute, $value, $fail) {
+                foreach ($value as $key => $color) {
+                    if (! preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+                        $fail("Le token « {$key} » doit être une couleur hexadécimale valide.");
+                    }
+                }
+            }],
+            'dark_tokens' => ['nullable', 'array', function ($attribute, $value, $fail) {
+                foreach ($value as $key => $color) {
+                    if (! preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+                        $fail("Le token sombre « {$key} » doit être une couleur hexadécimale valide.");
+                    }
+                }
+            }],
+        ]);
+        $data['dark_tokens'] = $data['dark_tokens'] ?? [];
+
+        $theme->update($data);
+        Theme::regenerateCache();
+
+        return redirect()->route('organization.admin.themes', [$organization, 'theme' => $theme->key])
+            ->with('success', 'Thème « '.$theme->label.' » mis à jour.');
+    }
+
+    public function themesDestroy(Organization $organization, Theme $theme): RedirectResponse
+    {
+        abort_if($theme->organization_id !== $organization->id, 403, 'Vous ne pouvez supprimer que vos propres thèmes.');
+
+        if ($theme->is_default) {
+            return back()->with('error', 'Impossible de supprimer le thème par défaut.');
+        }
+
+        Organization::where('theme_id', $theme->id)->update(['theme_id' => null]);
+
+        $theme->delete();
+        Theme::regenerateCache();
+
+        return redirect()->route('organization.admin.themes', [$organization])
+            ->with('success', 'Thème « '.$theme->label.' » supprimé.');
+    }
+
+    public function themesAssign(Organization $organization, Theme $theme): RedirectResponse
+    {
+        $mainOrgId = Organization::orderBy('created_at')->value('id');
+        abort_if(
+            $theme->organization_id !== $organization->id && $theme->organization_id !== $mainOrgId,
+            403,
+            'Ce thème ne peut pas être sélectionné pour cette organisation.'
+        );
+
+        $organization->update(['theme_id' => $theme->id]);
+
+        return redirect()->route('organization.admin.themes', [$organization, 'theme' => $theme->key])
+            ->with('success', 'Thème « '.$theme->label.' » appliqué.');
     }
 
     // ── Login history ─────────────────────────────────────────────────────────

@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Theme extends Model
 {
@@ -13,6 +15,7 @@ class Theme extends Model
         'is_default',
         'tokens',
         'dark_tokens',
+        'organization_id',
     ];
 
     protected function casts(): array
@@ -24,6 +27,25 @@ class Theme extends Model
         ];
     }
 
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function scopeOwnedBy(Builder $query, string $organizationId): void
+    {
+        $query->where('organization_id', $organizationId);
+    }
+
+    public function scopeAccessibleBy(Builder $query, string $organizationId): void
+    {
+        $mainOrgId = Organization::orderBy('created_at')->value('id');
+        $query->where(function (Builder $q) use ($organizationId, $mainOrgId) {
+            $q->where('organization_id', $organizationId)
+                ->orWhere('organization_id', $mainOrgId);
+        });
+    }
+
     public static function regenerateCache(): void
     {
         $configThemes = config('bouclepro_themes.themes');
@@ -31,9 +53,10 @@ class Theme extends Model
         $defaultKey = config('bouclepro_themes.default', 'zen');
 
         $themes = [];
-        foreach ($configThemes as $key => $configTheme) {
-            $dbTheme = $dbThemes->get($key);
-            if ($dbTheme) {
+
+        foreach ($dbThemes as $key => $dbTheme) {
+            $configTheme = $configThemes[$key] ?? null;
+            if ($configTheme) {
                 $label = $dbTheme->label ?? $configTheme['label'];
                 $tokens = array_merge($configTheme['tokens'], $dbTheme->tokens ?? []);
                 $darkTokens = array_merge($configTheme['dark'] ?? $configTheme['tokens'], $dbTheme->dark_tokens ?? []);
@@ -42,10 +65,20 @@ class Theme extends Model
                     'tokens' => $tokens,
                     'dark' => $darkTokens,
                 ];
-                if ($dbTheme->is_default) {
-                    $defaultKey = $key;
-                }
             } else {
+                $themes[$key] = [
+                    'label' => $dbTheme->label ?? $key,
+                    'tokens' => $dbTheme->tokens ?? [],
+                    'dark' => $dbTheme->dark_tokens ?? [],
+                ];
+            }
+            if ($dbTheme->is_default) {
+                $defaultKey = $key;
+            }
+        }
+
+        foreach ($configThemes as $key => $configTheme) {
+            if (! isset($themes[$key])) {
                 $themes[$key] = $configTheme;
             }
         }
