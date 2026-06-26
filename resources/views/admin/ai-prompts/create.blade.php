@@ -23,6 +23,7 @@
                                 <option value="clarify_help_request" @selected(old('scenario_id') === 'clarify_help_request')>Clarification de demande d'aide</option>
                                 <option value="blog_generate" @selected(old('scenario_id') === 'blog_generate')>Blog — Génération d'article</option>
                                 <option value="blog_correct" @selected(old('scenario_id') === 'blog_correct')>Blog — Correction d'article</option>
+                                <option value="profile_agent_master" @selected(old('scenario_id') === 'profile_agent_master')>Agent de profil IA — Prompt master</option>
                             </select>
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 La version sera automatiquement incrémentée.

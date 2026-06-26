@@ -70,12 +70,12 @@
                         <span class="text-red-400">*</span>
                     </span>
                 <div class="flex flex-wrap gap-2">
-                    @foreach($targetAudienceOptions as $value)
-                    @if($value !== 'autre')
-                    <button type="button" wire:click="toggleTargetAudience('{{ $value }}')"
+                    @foreach($targetAudienceOptions as $key => $label)
+                    @if($key !== 'autre')
+                    <button type="button" wire:click="toggleTargetAudience('{{ $key }}')"
                         class="px-4 py-2 rounded-full text-sm font-medium border transition active:scale-95
-                            {{ in_array($value, $target_audience) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400' }}">
-                        {{ $value }}
+                            {{ in_array($key, $target_audience) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400' }}">
+                        {{ $label }}
                     </button>
                     @endif
                     @endforeach
@@ -145,11 +145,11 @@
                         <span class="text-red-400">*</span>
                     </span>
                 <div class="flex flex-wrap gap-2">
-                    @foreach($helpTypeOptions as $value)
-                    <button type="button" wire:click="toggleHelpType('{{ $value }}')"
+                    @foreach($helpTypeOptions as $key => $label)
+                    <button type="button" wire:click="toggleHelpType('{{ $key }}')"
                         class="px-4 py-2 rounded-full text-sm font-medium border transition active:scale-95
-                            {{ in_array($value, $help_types) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400' }}">
-                        {{ $value }}
+                            {{ in_array($key, $help_types) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400' }}">
+                        {{ $label }}
                     </button>
                     @endforeach
                 </div>
@@ -166,11 +166,11 @@
                         <span class="text-red-400">*</span>
                     </span>
                 <div class="flex flex-wrap gap-2">
-                    @foreach($boundaryOptions as $value)
-                    <button type="button" wire:click="toggleBoundary('{{ $value }}')"
+                    @foreach($boundaryOptions as $key => $label)
+                    <button type="button" wire:click="toggleBoundary('{{ $key }}')"
                         class="px-4 py-2 rounded-full text-sm font-medium border transition active:scale-95
-                            {{ in_array($value, $boundaries) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400' }}">
-                        {{ $value }}
+                            {{ in_array($key, $boundaries) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-400' }}">
+                        {{ $label }}
                     </button>
                     @endforeach
                 </div>
@@ -300,9 +300,9 @@
                 <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Public cible</h3>
                     <div class="flex flex-wrap gap-1.5">
-                        @forelse($targetAudienceOptions as $value)
-                        @if(in_array($value, $target_audience))
-                        <span class="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium">{{ $value }}</span>
+                        @forelse($targetAudienceOptions as $key => $label)
+                        @if(in_array($key, $target_audience))
+                        <span class="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium">{{ $label }}</span>
                         @endif
                         @empty
                         @endforelse
@@ -350,9 +350,9 @@
                 <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Types d'aide</h3>
                     <div class="flex flex-wrap gap-1.5">
-                        @forelse($helpTypeOptions as $value)
-                        @if(in_array($value, $help_types))
-                        <span class="px-2.5 py-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 rounded-full text-xs font-medium">{{ $value }}</span>
+                        @forelse($helpTypeOptions as $key => $label)
+                        @if(in_array($key, $help_types))
+                        <span class="px-2.5 py-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 rounded-full text-xs font-medium">{{ $label }}</span>
                         @endif
                         @empty
                         @endforelse
@@ -363,9 +363,9 @@
                 <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Limites</h3>
                     <div class="flex flex-wrap gap-1.5">
-                        @forelse($boundaryOptions as $value)
-                        @if(in_array($value, $boundaries))
-                        <span class="px-2.5 py-1 bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 rounded-full text-xs font-medium">{{ $value }}</span>
+                        @forelse($boundaryOptions as $key => $label)
+                        @if(in_array($key, $boundaries))
+                        <span class="px-2.5 py-1 bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 rounded-full text-xs font-medium">{{ $label }}</span>
                         @endif
                         @empty
                         @endforelse

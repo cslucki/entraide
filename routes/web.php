@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
+use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
@@ -52,6 +53,7 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Middleware\OrgAdminMiddleware;
@@ -185,7 +187,9 @@ Route::middleware('auth')->group(function () {
 
     // Member AI Profile wizard
     Route::middleware('ai-profiles.enabled')->group(function () {
-        Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
+        Route::get('/agent-ia', [AgentIaController::class, 'index'])->name('agent-ia.index');
+        Route::get('/agent-ia/edit', [AgentIaController::class, 'wizard'])->name('agent-ia.wizard');
+        Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
         Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
 
         Route::delete('/agent-ia/profile', function () {
@@ -221,6 +225,9 @@ Route::middleware('ai-profiles.enabled')->group(function () {
     Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
     Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
 });
+
+// Abonnements (TASK-354 corrective)
+Route::get('/abonnements', [SubscriptionController::class, 'index'])->name('subscriptions');
 
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
@@ -373,6 +380,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-config', [AdminAiConfigController::class, 'index'])->name('ai-config');
     Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
     Route::post('/ai-config/blog', [AdminAiConfigController::class, 'updateBlogConfig'])->name('ai-config.blog');
+    Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
 
     // IA Usage dashboard (TASK-306 Lot 3)
     Route::get('/ia-usage', [AdminAiUsageController::class, 'index'])->name('ia-usage');
@@ -442,6 +450,8 @@ Route::prefix('/org/{organization}')
             Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.store');
         });
 
+        Route::get('/abonnements', [SubscriptionController::class, 'orgIndex'])->name('subscriptions');
+
         Route::middleware('auth')->group(function () {
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
             Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
@@ -498,7 +508,9 @@ Route::prefix('/org/{organization}')
 
             // Member AI Profile wizard
             Route::middleware('ai-profiles.enabled')->group(function () {
-                Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
+                Route::get('/agent-ia', [AgentIaController::class, 'index'])->name('agent-ia.index');
+                Route::get('/agent-ia/edit', [AgentIaController::class, 'wizard'])->name('agent-ia.wizard');
+                Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
                 Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
             });
 

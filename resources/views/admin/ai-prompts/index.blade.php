@@ -4,6 +4,7 @@
         'clarify_help_request' => 'Clarification de demande d\'aide',
         'blog_generate' => 'Blog — Génération d\'article',
         'blog_correct' => 'Blog — Correction d\'article',
+        'profile_agent_master' => 'Agent de profil IA — Prompt master',
     ];
 @endphp
 
@@ -43,6 +44,7 @@
                                 <option value="clarify_help_request" @selected($scenarioId === 'clarify_help_request')>Clarification de demande d'aide</option>
                                 <option value="blog_generate" @selected($scenarioId === 'blog_generate')>Blog — Génération d'article</option>
                                 <option value="blog_correct" @selected($scenarioId === 'blog_correct')>Blog — Correction d'article</option>
+                                <option value="profile_agent_master" @selected($scenarioId === 'profile_agent_master')>Agent de profil IA — Prompt master</option>
                             </select>
                         </div>
                         <button type="submit"

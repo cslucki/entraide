@@ -23,7 +23,7 @@ class AdminAiConfigController extends Controller
         $defaultProvider = config('ai.default_provider', $this->resolver->defaultProvider());
         $defaultModel = config('ai.default_model', '');
 
-        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug']);
+        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug', 'ai_profiles_enabled']);
         $blogConfigs = [];
 
         foreach ($organizations as $org) {
@@ -91,5 +91,21 @@ class AdminAiConfigController extends Controller
 
         return redirect()->route('admin.ai-config')
             ->with('success', 'Configuration IA Blog mise à jour pour l\'organisation.');
+    }
+
+    public function updateProfileConfig(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'organization_id' => 'required|string|exists:organizations,id',
+            'ai_profiles_enabled' => 'sometimes|boolean',
+        ]);
+
+        $organization = Organization::findOrFail($validated['organization_id']);
+        $organization->update([
+            'ai_profiles_enabled' => $validated['ai_profiles_enabled'] ?? true,
+        ]);
+
+        return redirect()->route('admin.ai-config')
+            ->with('success', 'Configuration profil IA mise à jour pour l\'organisation.');
     }
 }

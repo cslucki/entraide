@@ -11,12 +11,12 @@ return [
     ],
 
     'tones' => [
-        'sobre' => 'Sobre et professionnel',
-        'chaleureux' => 'Chaleureux',
-        'direct' => 'Direct',
-        'pedagogique' => 'Pédagogique',
-        'creatif' => 'Créatif',
-        'tres_court' => 'Très court',
+        'sobre',
+        'chaleureux',
+        'direct',
+        'pedagogique',
+        'creatif',
+        'tres_court',
     ],
 
     'target_audience_options' => [

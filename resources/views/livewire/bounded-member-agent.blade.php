@@ -47,9 +47,9 @@
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
                 <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Aide proposée</h3>
                 <div class="flex flex-wrap gap-1.5">
-                    @php $helpOptions = config('member_ai_profile.help_type_options', []); @endphp
+                    @php $helpTypeLabels = __('member_ai_profile.help_type_options'); @endphp
                     @foreach($profile->help_types as $type)
-                    <span class="px-2.5 py-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 rounded-full text-xs font-medium">{{ $helpOptions[$type] ?? $type }}</span>
+                    <span class="px-2.5 py-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 rounded-full text-xs font-medium">{{ $helpTypeLabels[$type] ?? $type }}</span>
                     @endforeach
                 </div>
             </div>
@@ -59,9 +59,9 @@
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
                 <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Limites</h3>
                 <div class="flex flex-wrap gap-1.5">
-                    @php $boundaryOptions = config('member_ai_profile.boundary_options', []); @endphp
+                    @php $boundaryLabels = __('member_ai_profile.boundary_options'); @endphp
                     @foreach($profile->boundaries as $boundary)
-                    <span class="px-2.5 py-1 bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 rounded-full text-xs font-medium">{{ $boundaryOptions[$boundary] ?? $boundary }}</span>
+                    <span class="px-2.5 py-1 bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 rounded-full text-xs font-medium">{{ $boundaryLabels[$boundary] ?? $boundary }}</span>
                     @endforeach
                 </div>
             </div>
@@ -70,16 +70,16 @@
             @if($profile->preferred_contact_action)
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
                 <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Contact préféré</h3>
-                @php $contactOptions = config('member_ai_profile.contact_options', []); @endphp
-                <p class="text-sm text-gray-800 dark:text-gray-200">{{ $contactOptions[$profile->preferred_contact_action] ?? $profile->preferred_contact_action }}</p>
+                @php $contactLabels = __('member_ai_profile.contact_options'); @endphp
+                <p class="text-sm text-gray-800 dark:text-gray-200">{{ $contactLabels[$profile->preferred_contact_action] ?? $profile->preferred_contact_action }}</p>
             </div>
             @endif
 
             @if($profile->tone)
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
                 <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Ton du profil</h3>
-                @php $tones = config('member_ai_profile.tones', []); @endphp
-                <p class="text-sm text-gray-800 dark:text-gray-200">{{ $tones[$profile->tone] ?? $profile->tone }}</p>
+                @php $toneLabels = __('member_ai_profile.tones'); @endphp
+                <p class="text-sm text-gray-800 dark:text-gray-200">{{ $toneLabels[$profile->tone] ?? $profile->tone }}</p>
             </div>
             @endif
         </div>

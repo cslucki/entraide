@@ -134,16 +134,16 @@ class BoundedMemberAgent extends Component
         $parts = [];
 
         $fieldLabels = [
-            'skills' => 'Compétences',
-            'experience_context' => 'Expérience',
-            'help_types' => "Types d'aide proposés",
-            'service_scope' => 'Cadre d\'intervention',
-            'boundaries' => 'Limites',
-            'preferred_contact_action' => 'Contact préféré',
-            'tone' => 'Ton du profil',
-            'target_audience' => 'Public cible',
-            'problems_helped' => 'Problèmes résolus',
-            'member_profile_summary' => 'Résumé du profil',
+            'skills' => __('member_ai_profile.field_skills'),
+            'experience_context' => __('member_ai_profile.field_experience'),
+            'help_types' => __('member_ai_profile.field_help_types'),
+            'service_scope' => __('member_ai_profile.field_service_scope'),
+            'boundaries' => __('member_ai_profile.field_boundaries'),
+            'preferred_contact_action' => __('member_ai_profile.field_preferred_contact'),
+            'tone' => __('member_ai_profile.field_tone'),
+            'target_audience' => __('member_ai_profile.field_target_audience'),
+            'problems_helped' => __('member_ai_profile.field_problems_helped'),
+            'member_profile_summary' => __('member_ai_profile.field_summary'),
         ];
 
         foreach ($matchedFields as $field) {
@@ -154,38 +154,32 @@ class BoundedMemberAgent extends Component
 
             $label = $fieldLabels[$field] ?? $field;
 
-            if (is_array($value)) {
-                $formatted = implode(', ', $value);
-                if ($field === 'help_types') {
-                    $options = config('member_ai_profile.help_type_options', []);
-                    $formatted = implode(', ', array_map(fn ($v) => $options[$v] ?? $v, $value));
+            $lookup = function (string $langKey, string|array $v): string {
+                $options = __("member_ai_profile.{$langKey}");
+                if (is_array($v)) {
+                    return implode(', ', array_map(fn ($k) => $options[$k] ?? $k, $v));
                 }
-                if ($field === 'boundaries') {
-                    $options = config('member_ai_profile.boundary_options', []);
-                    $formatted = implode(', ', array_map(fn ($v) => $options[$v] ?? $v, $value));
-                }
-                if ($field === 'target_audience') {
-                    $options = config('member_ai_profile.target_audience_options', []);
-                    $formatted = implode(', ', array_map(fn ($v) => $options[$v] ?? $v, $value));
-                }
-                if ($field === 'preferred_contact_action') {
-                    $options = config('member_ai_profile.contact_options', []);
-                    $formatted = $options[$value] ?? $value;
-                    $parts[] = "**{$label} :** {$formatted}";
+                return $options[$v] ?? $v;
+            };
 
+            if (is_array($value)) {
+                $formatted = match ($field) {
+                    'help_types' => $lookup('help_type_options', $value),
+                    'boundaries' => $lookup('boundary_options', $value),
+                    'target_audience' => $lookup('target_audience_options', $value),
+                    'preferred_contact_action' => $lookup('contact_options', $value),
+                    default => implode(', ', $value),
+                };
+                if ($field === 'preferred_contact_action') {
+                    $parts[] = "**{$label} :** {$formatted}";
                     continue;
-                }
-                if ($field === 'problems_helped') {
-                    $formatted = implode(', ', $value);
                 }
                 $parts[] = "**{$label} :** {$formatted}";
             } elseif ($field === 'tone') {
-                $tones = config('member_ai_profile.tones', []);
-                $formatted = $tones[$value] ?? $value;
+                $formatted = $lookup('tones', $value);
                 $parts[] = "**{$label} :** {$formatted}";
             } elseif ($field === 'preferred_contact_action') {
-                $options = config('member_ai_profile.contact_options', []);
-                $formatted = $options[$value] ?? $value;
+                $formatted = $lookup('contact_options', $value);
                 $parts[] = "**{$label} :** {$formatted}";
             } else {
                 $parts[] = "**{$label} :** {$value}";

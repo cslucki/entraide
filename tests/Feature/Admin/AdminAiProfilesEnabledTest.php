@@ -19,14 +19,11 @@ class AdminAiProfilesEnabledTest extends TestCase
     public function test_super_admin_can_toggle_ai_profiles_enabled(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $org = Organization::factory()->create(['is_active' => true]);
+        $org = Organization::factory()->create(['is_active' => true, 'ai_profiles_enabled' => true]);
 
         $this->actingAs($admin)
-            ->put(route('admin.organizations.update', $org), [
-                'name' => $org->name,
-                'slug' => $org->slug,
-                'welcome_points' => $org->welcome_points,
-                'platform_name' => $org->platform_name ?? $org->name,
+            ->post(route('admin.ai-config.profile'), [
+                'organization_id' => $org->id,
                 'ai_profiles_enabled' => '0',
             ])->assertRedirect();
 
