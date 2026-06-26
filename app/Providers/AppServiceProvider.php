@@ -5,8 +5,10 @@ namespace App\Providers;
 use App\Events\LoopMessageCreated;
 use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
+use App\Listeners\LoginListener;
 use App\Models\AiConfig;
 use App\Models\BugReport;
+use App\Models\EmailLog;
 use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\LoopMessage;
@@ -44,10 +46,11 @@ use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Pagination\Paginator;
-use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -196,7 +199,44 @@ class AppServiceProvider extends ServiceProvider
 
         Event::listen(
             Login::class,
-            \App\Listeners\LoginListener::class,
+            LoginListener::class,
+        );
+
+        Event::listen(
+            NotificationSent::class,
+            function (NotificationSent $event) {
+                if ($event->channel !== 'mail') {
+                    return;
+                }
+
+                if (! str_starts_with($event->notification::class, 'App\\Notifications\\')) {
+                    return;
+                }
+
+                $notifiable = $event->notifiable;
+
+                if (! $notifiable instanceof User) {
+                    return;
+                }
+
+                try {
+                    $message = $event->notification->toMail($notifiable);
+
+                    EmailLog::create([
+                        'template_id' => null,
+                        'user_id' => $notifiable->id,
+                        'organization_id' => $notifiable->organization_id,
+                        'to_email' => $notifiable->email,
+                        'subject' => $message->subject,
+                        'status' => 'sent',
+                        'data' => [
+                            'source' => class_basename($event->notification),
+                        ],
+                    ]);
+                } catch (\Throwable) {
+                    // Listener must not break the request.
+                }
+            },
         );
 
         Gate::policy(FeedPost::class, FeedPostPolicy::class);
