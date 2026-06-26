@@ -35,6 +35,6 @@ class AdminSystemEmailTemplatesController extends Controller
         $systemEmailTemplate->update($validated);
 
         return redirect()->route('admin.system-email-templates')
-            ->with('success', 'Template système mis à jour.');
+            ->with('success', __('admin.emailer_updated'));
     }
 }

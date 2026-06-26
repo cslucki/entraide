@@ -313,6 +313,7 @@ return [
     'emailer_templates' => 'Templates',
     'emailer_history' => 'History',
     'emailer_test' => 'Test',
+'emailer_system' => 'System emails',
     'emailer_send' => 'Send',
     'emailer_send_title' => 'Send: :name',
     'emailer_select_recipients' => 'Select recipients',
