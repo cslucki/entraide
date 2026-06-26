@@ -29,9 +29,11 @@ class ProfileController extends Controller
             abort(404);
         }
 
-        $memberAiProfile = MemberAiProfile::where('user_id', $user->id)
-            ->where('status', MemberAiProfile::STATUS_PUBLISHED)
-            ->first();
+        $memberAiProfile = $organization->ai_profiles_enabled
+            ? MemberAiProfile::where('user_id', $user->id)
+                ->where('status', MemberAiProfile::STATUS_PUBLISHED)
+                ->first()
+            : null;
 
         $services = $user->services()->where('status', 'active')->with('category', 'skills')->latest()->get();
         $openRequests = $user->serviceRequests()->where('status', 'open')->with('category')->latest()->get();
@@ -80,6 +82,10 @@ class ProfileController extends Controller
         $memberAiProfile = MemberAiProfile::where('user_id', $user->id)
             ->where('status', MemberAiProfile::STATUS_PUBLISHED)
             ->firstOrFail();
+
+        if (! $organization->ai_profiles_enabled) {
+            abort(404);
+        }
 
         return view('profile.ai-agent-chat', compact('user', 'memberAiProfile'));
     }

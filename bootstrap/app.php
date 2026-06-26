@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AdminMiddleware;
+use App\Http\Middleware\CheckAiProfilesEnabled;
 use App\Http\Middleware\CheckLoopsEnabled;
 use App\Http\Middleware\ConsumeOrgParams;
 use App\Http\Middleware\EnsureProfileComplete;
@@ -35,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.organization' => ResolveApiOrganization::class,
             'consume.org' => ConsumeOrgParams::class,
             'loops.enabled' => CheckLoopsEnabled::class,
+            'ai-profiles.enabled' => CheckAiProfilesEnabled::class,
         ]);
         // TASK-145: Reorder web group so ResolveUrlOrganization runs BEFORE
         // SubstituteBindings. With appendToGroup, ResolveUrlOrganization ran AFTER

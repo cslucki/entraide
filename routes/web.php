@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
+use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
@@ -52,6 +53,7 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Middleware\OrgAdminMiddleware;
@@ -117,6 +119,10 @@ Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.in
 // Authenticated routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
+    Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->whereUuid('serviceRequest');
+    Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
+    Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->whereUuid('service');
     Route::get('/flux', OrganizationFeed::class)->name('flux');
     Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
     Route::get('/flux/mes-annonces', MyFeedPosts::class)->name('flux.my');
@@ -137,6 +143,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
         Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
     });
+    Route::get('/requests/{request}/edit', [RequestController::class, 'edit'])->name('requests.edit');
+    Route::put('/requests/{request}', [RequestController::class, 'update'])->name('requests.update');
     Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->name('requests.destroy');
 
     // Transactions
@@ -178,18 +186,22 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Member AI Profile wizard
-    Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
-    Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
+    Route::middleware('ai-profiles.enabled')->group(function () {
+        Route::get('/agent-ia', [AgentIaController::class, 'index'])->name('agent-ia.index');
+        Route::get('/agent-ia/edit', [AgentIaController::class, 'wizard'])->name('agent-ia.wizard');
+        Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
+        Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
 
-    Route::delete('/agent-ia/profile', function () {
-        MemberAiProfile::where('user_id', auth()->id())->delete();
+        Route::delete('/agent-ia/profile', function () {
+            MemberAiProfile::where('user_id', auth()->id())->delete();
 
-        return response()->json(['ok' => true]);
-    })->name('agent-ia.profile.reset');
+            return response()->json(['ok' => true]);
+        })->name('agent-ia.profile.reset');
 
-    // Bounded member AI agent
-    Route::get('/agent-ia/member/{user}', BoundedMemberAgent::class)
-        ->name('agent-ia.member.presentation');
+        // Bounded member AI agent
+        Route::get('/agent-ia/member/{user}', BoundedMemberAgent::class)
+            ->name('agent-ia.member.presentation');
+    });
 
     // Loops
     Route::middleware('loops.enabled')->group(function () {
@@ -209,8 +221,13 @@ Route::middleware('auth')->group(function () {
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
 Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
 Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
-Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
-Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
+Route::middleware('ai-profiles.enabled')->group(function () {
+    Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
+    Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
+});
+
+// Abonnements (TASK-354 corrective)
+Route::get('/abonnements', [SubscriptionController::class, 'index'])->name('subscriptions');
 
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
@@ -237,6 +254,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/send-password-reset', [AdminController::class, 'sendPasswordResetLink'])->name('users.send-password-reset');
     Route::patch('/users/{user}/assign-organization', [AdminController::class, 'assignOrganization'])->name('users.assign-organization');
     Route::post('/users/{user}/login-as', [AdminController::class, 'loginAsUser'])->name('users.login-as');
+    Route::get('/users/{user}/delete-preview', [AdminController::class, 'deletePreview'])->name('users.delete-preview');
+    Route::post('/users/{user}/delete', [AdminController::class, 'deleteUser'])->name('users.delete');
 
     // Services
     Route::get('/services', [AdminController::class, 'services'])->name('services');
@@ -361,6 +380,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-config', [AdminAiConfigController::class, 'index'])->name('ai-config');
     Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
     Route::post('/ai-config/blog', [AdminAiConfigController::class, 'updateBlogConfig'])->name('ai-config.blog');
+    Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
 
     // IA Usage dashboard (TASK-306 Lot 3)
     Route::get('/ia-usage', [AdminAiUsageController::class, 'index'])->name('ia-usage');
@@ -397,6 +417,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/outils/assign-data/detail', [AdminOutilsController::class, 'assignDataDetail'])->name('outils.assign-data.detail');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
+
+    // Stats
+    Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');
+    Route::get('/stats/login-history/user/{user}', [AdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
 });
 
 Route::get('/admin/back-to-admin', [AdminController::class, 'backToAdmin'])
@@ -426,8 +450,14 @@ Route::prefix('/org/{organization}')
             Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.store');
         });
 
+        Route::get('/abonnements', [SubscriptionController::class, 'orgIndex'])->name('subscriptions');
+
         Route::middleware('auth')->group(function () {
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+            Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
+            Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');
+            Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
+            Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->middleware('consume.org')->whereUuid('service');
             Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
             Route::middleware('profile.complete')->group(function () {
@@ -442,6 +472,8 @@ Route::prefix('/org/{organization}')
                 Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
                 Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
             });
+            Route::get('/requests/{request}/edit', [RequestController::class, 'edit'])->middleware('consume.org')->name('requests.edit');
+            Route::put('/requests/{request}', [RequestController::class, 'update'])->middleware('consume.org')->name('requests.update');
             Route::delete('/requests/{request}', [RequestController::class, 'destroy'])->middleware('consume.org')->name('requests.destroy');
 
             Route::get('/transactions/export', [TransactionController::class, 'exportCsv'])->name('transactions.export');
@@ -475,8 +507,12 @@ Route::prefix('/org/{organization}')
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
             // Member AI Profile wizard
-            Route::view('/agent-ia', 'agent-ia.wizard')->name('agent-ia.wizard');
-            Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
+            Route::middleware('ai-profiles.enabled')->group(function () {
+                Route::get('/agent-ia', [AgentIaController::class, 'index'])->name('agent-ia.index');
+                Route::get('/agent-ia/edit', [AgentIaController::class, 'wizard'])->name('agent-ia.wizard');
+                Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
+                Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
+            });
 
             Route::middleware('loops.enabled')->group(function () {
                 Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
@@ -559,6 +595,8 @@ Route::prefix('/org/{organization}')
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
                 Route::patch('/users/{user}/toggle-ban', [OrgAdminController::class, 'toggleUserBan'])->name('users.toggle-ban');
+                Route::get('/users/{user}/delete-preview', [OrgAdminController::class, 'deletePreview'])->name('users.delete-preview');
+                Route::post('/users/{user}/delete', [OrgAdminController::class, 'deleteUser'])->name('users.delete');
 
                 // Administration
                 Route::get('/reports', [OrgAdminController::class, 'reports'])->name('reports');
@@ -576,8 +614,12 @@ Route::prefix('/org/{organization}')
                 // AI
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
-                Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
-            });
+            Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
+
+            // Stats
+            Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');
+            Route::get('/stats/login-history/user/{user}', [OrgAdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
+        });
 
         // Blog (org-scoped, en parallèle des routes /blog root)
         Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');

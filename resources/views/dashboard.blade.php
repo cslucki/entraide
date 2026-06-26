@@ -45,11 +45,27 @@
 
             <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 @foreach($onboardingSteps as $step)
-                <div class="rounded-xl border {{ $step['status'] === 'done' ? 'border-green-200 bg-green-50/70 dark:border-green-900 dark:bg-green-950/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40' }} p-4">
+                <div class="rounded-xl border p-4
+                    @if($step['status'] === 'done')
+                        border-green-200 bg-green-50/70 dark:border-green-900 dark:bg-green-950/20
+                    @elseif($step['status'] === 'disabled')
+                        border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900/20
+                    @else
+                        border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40
+                    @endif">
                     <div class="flex items-start gap-3">
-                        <div class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full {{ $step['status'] === 'done' ? 'bg-green-600 text-white' : 'bg-white text-gray-400 ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700' }}">
+                        <div class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full
+                            @if($step['status'] === 'done')
+                                bg-green-600 text-white
+                            @elseif($step['status'] === 'disabled')
+                                bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500
+                            @else
+                                bg-white text-gray-400 ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700
+                            @endif">
                             @if($step['status'] === 'done')
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                            @elseif($step['status'] === 'disabled')
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                             @else
                             <span class="h-2 w-2 rounded-full bg-current"></span>
                             @endif
@@ -60,13 +76,27 @@
                                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $step['title'] }}</h3>
                                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $step['description'] }}</p>
                                 </div>
-                                <span class="inline-flex w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-medium {{ $step['status'] === 'done' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-white text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700' }}">
+                                <span class="inline-flex w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-medium
+                                    @if($step['status'] === 'done')
+                                        bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300
+                                    @elseif($step['status'] === 'disabled')
+                                        bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400
+                                    @else
+                                        bg-white text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700
+                                    @endif">
                                     {{ $step['status_label'] }}
                                 </span>
                             </div>
-                            <a href="{{ $step['cta_url'] }}" class="mt-3 inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300">
+                            @if($step['cta_url'])
+                            <a href="{{ $step['cta_url'] }}" class="mt-3 inline-flex items-center text-sm font-medium
+                                @if($step['status'] === 'disabled') text-gray-500 cursor-not-allowed @else text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300 @endif">
                                 {{ $step['cta_label'] }}
                             </a>
+                            @else
+                            <span class="mt-3 inline-flex items-center text-sm font-medium text-gray-400">
+                                {{ $step['cta_label'] }}
+                            </span>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -155,7 +185,7 @@
         </div>
         @endif
 
-        @if(! $aiProfile || $aiProfile->status !== 'published')
+        @if(! $aiProfileDisabled && (! $aiProfile || $aiProfile->status !== 'published'))
         <div class="mb-6 bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/30 dark:to-gray-800 rounded-2xl border border-indigo-200 dark:border-indigo-800 p-6">
             <div class="flex items-start gap-4 sm:items-center flex-col sm:flex-row">
                 <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl flex items-center justify-center shrink-0">
@@ -190,7 +220,10 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_services') }}</h2>
-                    <a href="{{ $_dashServicesCreateHref }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    <div class="flex items-center gap-3">
+                        <a href="{{ $_dashRoute('dashboard.services') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
+                        <a href="{{ $_dashServicesCreateHref }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    </div>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myServices as $service)
@@ -226,7 +259,10 @@
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.my_requests') }}</h2>
-                    <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    <div class="flex items-center gap-3">
+                        <a href="{{ $_dashRoute('dashboard.requests') }}" class="text-xs text-indigo-600 hover:underline">{{ __('dashboard.view_all') }}</a>
+                        <a href="{{ $requestCreateUrl }}" class="text-xs text-indigo-600 hover:underline">+ {{ __('dashboard.new') }}</a>
+                    </div>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($myRequests as $req)

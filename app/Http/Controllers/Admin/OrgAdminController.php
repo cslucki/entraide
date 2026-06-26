@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Category;
+use App\Models\LoginLog;
 use App\Models\Loop;
 use App\Models\Message;
 use App\Models\Organization;
@@ -269,6 +270,94 @@ class OrgAdminController extends Controller
         $action = $user->banned_at ? 'banned' : 'unbanned';
 
         return back()->with('success', __("navigation.org_admin_user_{$action}"));
+    }
+
+    // ── User deletion dry-run (org-admin) ─────────────────────────────────────
+
+    public function deletePreview(Organization $organization, User $user): View
+    {
+        abort_if($user->organization_id !== $organization->id, 404);
+
+        $counts = $this->countUserRelations($organization, $user);
+
+        $sameOrgUsers = User::where('organization_id', $organization->id)
+            ->where('id', '!=', $user->id)
+            ->orderBy('name')
+            ->get();
+
+        return view('admin.org.users.delete-preview', compact('organization', 'user', 'counts', 'sameOrgUsers'));
+    }
+
+    public function deleteUser(Request $request, Organization $organization, User $user): View
+    {
+        abort_if($user->organization_id !== $organization->id, 404);
+
+        $data = $request->validate([
+            'confirmation' => 'required|string',
+            'transfer_to' => 'nullable|uuid|exists:users,id',
+        ]);
+
+        if ($data['confirmation'] !== $user->name) {
+            return $this->deletePreview($organization, $user);
+        }
+
+        $counts = $this->countUserRelations($organization, $user);
+
+        if (! empty($data['transfer_to'])) {
+            $transferTo = User::find($data['transfer_to']);
+            if ($transferTo && $transferTo->organization_id === $organization->id) {
+                $counts['transfer'] = $this->estimateTransferCounts($user, $data['transfer_to']);
+            }
+        }
+
+        $counts['preview_only'] = true;
+
+        $sameOrgUsers = User::where('organization_id', $organization->id)
+            ->where('id', '!=', $user->id)
+            ->orderBy('name')
+            ->get();
+
+        return view('admin.org.users.delete-preview', compact('organization', 'user', 'counts', 'sameOrgUsers'));
+    }
+
+    private function countUserRelations(Organization $organization, User $user): array
+    {
+        $own = [
+            'services' => Service::where('organization_id', $organization->id)
+                ->where('user_id', $user->id)->count(),
+            'service_requests' => ServiceRequest::where('organization_id', $organization->id)
+                ->where('user_id', $user->id)->count(),
+            'transactions_as_buyer' => Transaction::where('organization_id', $organization->id)
+                ->where('buyer_id', $user->id)->count(),
+            'transactions_as_seller' => Transaction::where('organization_id', $organization->id)
+                ->where('seller_id', $user->id)->count(),
+        ];
+
+        $part = [
+            'loop_memberships' => $user->loopMemberships()->whereHas('loop', fn($q) => $q->where('organization_id', $organization->id))->count(),
+            'loops_created' => Loop::where('organization_id', $organization->id)
+                ->where('created_by', $user->id)->count(),
+        ];
+
+        $audit = [
+            'login_logs' => LoginLog::where('organization_id', $organization->id)
+                ->where('user_id', $user->id)->count(),
+        ];
+
+        return compact('own', 'part', 'audit');
+    }
+
+    private function estimateTransferCounts(User $user, string $transferToId): array
+    {
+        $transferTo = User::find($transferToId);
+        if (! $transferTo || $transferTo->organization_id !== $user->organization_id) {
+            return [];
+        }
+
+        return [
+            'services' => Service::where('user_id', $user->id)->count(),
+            'service_requests' => ServiceRequest::where('user_id', $user->id)->count(),
+        ];
     }
 
     public function categories(Request $request, Organization $organization): View
@@ -685,6 +774,56 @@ class OrgAdminController extends Controller
     public function aiInteractions(Organization $organization): View
     {
         return $this->comingSoon($organization, __('navigation.org_admin_ai_interactions'));
+    }
+
+    // ── Login history ─────────────────────────────────────────────────────────
+
+    public function loginHistory(Request $request, Organization $organization): View
+    {
+        $query = LoginLog::where('organization_id', $organization->id)
+            ->with('user');
+
+        if ($request->filled('search')) {
+            $query->whereHas('user', function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search.'%')
+                    ->orWhere('email', 'like', '%'.$request->search.'%');
+            });
+        }
+
+        $direction = $request->direction === 'asc' ? 'asc' : 'desc';
+
+        match ($request->sort) {
+            'user' => $query->orderBy(
+                User::select('name')->whereColumn('id', 'login_logs.user_id')->limit(1),
+                $direction
+            ),
+            'ip_address' => $query->orderBy('ip_address', $direction),
+            default => $query->latest('created_at'),
+        };
+
+        $loginLogs = $query->paginate(25)->withQueryString();
+
+        return view('admin.org.login-history.index', [
+            'organization' => $organization,
+            'loginLogs' => $loginLogs,
+        ]);
+    }
+
+    public function loginHistoryUser(Request $request, Organization $organization, User $user): View
+    {
+        abort_if($user->organization_id !== $organization->id, 404);
+
+        $logs = LoginLog::where('user_id', $user->id)
+            ->where('organization_id', $organization->id)
+            ->latest('created_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('admin.org.login-history.user', [
+            'organization' => $organization,
+            'user' => $user,
+            'logs' => $logs,
+        ]);
     }
 
     private function comingSoon(Organization $organization, string $sectionName): View

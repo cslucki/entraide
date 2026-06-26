@@ -24,7 +24,7 @@
                                 Scénario
                             </label>
                             <input type="text" id="scenario_id"
-                                   value="{{ $prompt->scenario_id === 'supervision_content' ? 'Supervision de contenu' : ($prompt->scenario_id === 'blog_generate' ? 'Blog — Génération d\'article' : ($prompt->scenario_id === 'blog_correct' ? 'Blog — Correction d\'article' : 'Clarification de demande d\'aide')) }}"
+                                   value="{{ $prompt->scenario_id === 'supervision_content' ? 'Supervision de contenu' : ($prompt->scenario_id === 'blog_generate' ? 'Blog — Génération d\'article' : ($prompt->scenario_id === 'blog_correct' ? 'Blog — Correction d\'article' : ($prompt->scenario_id === 'profile_agent_master' ? 'Agent de profil IA — Prompt master' : 'Clarification de demande d\'aide'))) }}"
                                    disabled readonly
                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 shadow-sm bg-gray-50 cursor-not-allowed">
                             <input type="hidden" name="scenario_id" value="{{ $prompt->scenario_id }}">

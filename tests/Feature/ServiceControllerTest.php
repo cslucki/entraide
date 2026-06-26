@@ -56,7 +56,7 @@ class ServiceControllerTest extends TestCase
             'points_cost' => 100,
         ]);
 
-        $response->assertRedirect(route('dashboard'));
+        $response->assertRedirect(route('organization.dashboard.services', [$this->testOrganization]));
         $this->assertDatabaseHas('services', ['title' => 'Test Service', 'user_id' => $user->id]);
     }
 
@@ -148,7 +148,7 @@ class ServiceControllerTest extends TestCase
             'tags' => 'urgent, python, web',
         ]);
 
-        $response->assertRedirect(route('dashboard'));
+        $response->assertRedirect(route('organization.dashboard.services', [$this->testOrganization]));
         $service = Service::withoutGlobalScope(BelongsToOrganizationScope::class)->where('title', 'Service with tags')->first();
         $this->assertEquals(3, $service->tags()->count());
     }

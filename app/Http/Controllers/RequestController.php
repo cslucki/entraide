@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\ServiceRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -74,7 +75,11 @@ class RequestController extends Controller
 
         $this->storeAttachments($httpRequest, $serviceRequest);
 
-        return redirect()->route('dashboard')->with('success', 'Demande publiée avec succès.');
+        $redirectRoute = $organization && Route::has('organization.dashboard.requests')
+            ? route('organization.dashboard.requests', ['organization' => $organization->slug])
+            : route('dashboard.requests');
+
+        return redirect($redirectRoute)->with('success', 'Demande publiée avec succès.');
     }
 
     private function storeAttachments(Request $httpRequest, ServiceRequest $serviceRequest): void
@@ -92,6 +97,63 @@ class RequestController extends Controller
                 'organization_id' => $serviceRequest->organization_id,
             ]);
         }
+    }
+
+    public function edit(ServiceRequest $request): View
+    {
+        $organization = currentOrganization();
+        if (! $organization || $request->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $request);
+
+        $categories = Category::where('organization_id', $organization->id)->with('pointGuidelines')->get();
+        $request->load(['attachments']);
+
+        return view('requests.edit', compact('request', 'categories'));
+    }
+
+    public function update(Request $httpRequest, ServiceRequest $request): RedirectResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization || $request->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $request);
+
+        $rules = [
+            'title' => 'required|string|min:10|max:255',
+            'description' => 'required|string|min:100',
+            'category_id' => 'required|uuid|exists:categories,id',
+            'delivery_mode' => 'required|in:remote,onsite,both',
+            'budget_min' => 'required|integer|min:1',
+            'budget_max' => 'nullable|integer|gte:budget_min',
+            'deadline' => 'nullable|date',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
+        ];
+
+        $data = $httpRequest->validate($rules);
+
+        $request->update([
+            'title' => $data['title'],
+            'description' => $data['description'],
+            'category_id' => $data['category_id'],
+            'delivery_mode' => $data['delivery_mode'],
+            'budget_min' => $data['budget_min'],
+            'budget_max' => $data['budget_max'] ?? null,
+            'deadline' => $data['deadline'] ?? null,
+        ]);
+
+        $this->storeAttachments($httpRequest, $request);
+
+        $redirectRoute = $organization && Route::has('organization.dashboard.requests')
+            ? route('organization.dashboard.requests', ['organization' => $organization->slug])
+            : route('dashboard.requests');
+
+        return redirect($redirectRoute)->with('success', 'Demande mise à jour.');
     }
 
     public function destroy(ServiceRequest $request): RedirectResponse

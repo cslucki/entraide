@@ -102,6 +102,37 @@ class AdminOutilsAssignDataTest extends TestCase
             ->assertSessionHasErrors('datasets');
     }
 
+    // ── No raw translation keys in dataset labels ────────────────────────────
+
+    public function test_dataset_labels_never_show_raw_keys(): void
+    {
+        $response = $this->actingAs($this->makeAdmin())
+            ->get(route('admin.outils.assign-data', [
+                'organization_id' => $this->org->id,
+            ]));
+
+        $response->assertDontSee('admin/users.title');
+        $response->assertDontSee('admin/services.title');
+        $response->assertSee('Utilisateurs');
+        $response->assertSee('Services');
+    }
+
+    // ── No sensitive columns in detail ────────────────────────────────────────
+
+    public function test_detail_does_not_expose_sensitive_columns(): void
+    {
+        User::factory()->count(3)->create();
+
+        $response = $this->actingAs($this->makeAdmin())
+            ->get(route('admin.outils.assign-data.detail', [
+                'organization_id' => $this->org->id,
+                'datasets' => ['users'],
+            ]), ['Accept-Language' => 'fr']);
+
+        $response->assertDontSee('password');
+        $response->assertDontSee('remember_token');
+    }
+
     // ── Detail view (read-only) ────────────────────────────────────────────────
 
     public function test_assign_detail_is_read_only(): void
@@ -112,7 +143,7 @@ class AdminOutilsAssignDataTest extends TestCase
             ->get(route('admin.outils.assign-data.detail', [
                 'organization_id' => $this->org->id,
                 'datasets' => ['users'],
-            ]))
+            ]), ['Accept-Language' => 'fr'])
             ->assertOk()
             ->assertSee('lecture seule');
     }
@@ -122,6 +153,40 @@ class AdminOutilsAssignDataTest extends TestCase
         $this->actingAs($this->makeAdmin())
             ->get(route('admin.outils.assign-data.detail'))
             ->assertSessionHasErrors('datasets');
+    }
+
+    // ── Detail filters ─────────────────────────────────────────────────────────
+
+    public function test_detail_filter_without_org_shows_only_unassigned(): void
+    {
+        $noOrg = User::factory()->create(['name' => 'NO_ORG_USER', 'organization_id' => null]);
+        $inOrg = User::factory()->create(['name' => 'IN_ORG_USER', 'organization_id' => $this->org->id]);
+
+        $response = $this->actingAs($this->makeAdmin())
+            ->get(route('admin.outils.assign-data.detail', [
+                'organization_id' => $this->org->id,
+                'datasets' => ['users'],
+                'filter' => 'without_org',
+            ]), ['Accept-Language' => 'fr']);
+
+        $response->assertSee('NO_ORG_USER');
+        $response->assertDontSee('IN_ORG_USER');
+    }
+
+    public function test_detail_filter_in_org_shows_only_selected_org(): void
+    {
+        $noOrg = User::factory()->create(['name' => 'NO_ORG_USER', 'organization_id' => null]);
+        $inOrg = User::factory()->create(['name' => 'IN_ORG_USER', 'organization_id' => $this->org->id]);
+
+        $response = $this->actingAs($this->makeAdmin())
+            ->get(route('admin.outils.assign-data.detail', [
+                'organization_id' => $this->org->id,
+                'datasets' => ['users'],
+                'filter' => 'in_org',
+            ]), ['Accept-Language' => 'fr']);
+
+        $response->assertDontSee('NO_ORG_USER');
+        $response->assertSee('IN_ORG_USER');
     }
 
     // ── Organization requirement ───────────────────────────────────────────────

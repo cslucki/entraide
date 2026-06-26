@@ -3,10 +3,24 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiInteraction;
+use App\Models\BlogComment;
+use App\Models\BlogPost;
+use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\EmailLog;
+use App\Models\Favorite;
+use App\Models\FeedPost;
+use App\Models\FeedPostComment;
+use App\Models\LoginLog;
+use App\Models\Loop;
+use App\Models\LoopMember;
+use App\Models\LoopMessage;
+use App\Models\MemberAiProfile;
+use App\Models\Message;
 use App\Models\Organization;
 use App\Models\PointLedger;
+use App\Models\Referral;
 use App\Models\Report;
 use App\Models\RequestAttachment;
 use App\Models\Scopes\BelongsToOrganizationScope;
@@ -745,5 +759,162 @@ class AdminController extends Controller
         $report->update(['status' => 'reviewed']);
 
         return back()->with('success', 'Signalement marqué comme traité.');
+    }
+
+    // ── Login history ─────────────────────────────────────────────────────────
+
+    public function loginHistory(Request $request): View
+    {
+        $query = LoginLog::with(['user', 'organization']);
+
+        if ($request->filled('organization_id')) {
+            $query->where('organization_id', $request->organization_id);
+        }
+
+        if ($request->filled('search')) {
+            $query->whereHas('user', function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search.'%')
+                    ->orWhere('email', 'like', '%'.$request->search.'%');
+            });
+        }
+
+        $direction = $request->direction === 'asc' ? 'asc' : 'desc';
+
+        match ($request->sort) {
+            'user' => $query->orderBy(
+                User::select('name')->whereColumn('id', 'login_logs.user_id')->limit(1),
+                $direction
+            ),
+            'organization_id' => $query->orderBy(
+                Organization::select('name')->whereColumn('id', 'login_logs.organization_id')->limit(1),
+                $direction
+            ),
+            'ip_address' => $query->orderBy('ip_address', $direction),
+            default => $query->latest('created_at'),
+        };
+
+        $loginLogs = $query->paginate(25)->withQueryString();
+        $organizations = Organization::where('is_active', true)->orderBy('name')->get();
+
+        return view('admin.login-history.index', compact('loginLogs', 'organizations'));
+    }
+
+    public function loginHistoryUser(Request $request, User $user): View
+    {
+        $logs = LoginLog::where('user_id', $user->id)
+            ->with('organization')
+            ->latest('created_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('admin.login-history.user', compact('user', 'logs'));
+    }
+
+    // ── User deletion dry-run ─────────────────────────────────────────────────
+    // ⚠️  Dry-run only — no data is ever deleted by these methods.
+
+    public function deletePreview(User $user): View
+    {
+        $counts = $this->countUserRelations($user);
+
+        $sameOrgUsers = User::where('organization_id', $user->organization_id)
+            ->where('id', '!=', $user->id)
+            ->orderBy('name')
+            ->get();
+
+        return view('admin.users.delete-preview', compact('user', 'counts', 'sameOrgUsers'));
+    }
+
+    public function deleteUser(Request $request, User $user): View
+    {
+        $data = $request->validate([
+            'confirmation' => 'required|string',
+            'transfer_to' => 'nullable|uuid|exists:users,id',
+        ]);
+
+        if ($data['confirmation'] !== $user->name) {
+            return $this->deletePreview($user);
+        }
+
+        $counts = $this->countUserRelations($user);
+
+        if (! empty($data['transfer_to'])) {
+            $counts['transfer'] = $this->estimateTransferCounts($user, $data['transfer_to']);
+        }
+
+        $counts['preview_only'] = true;
+
+        $sameOrgUsers = User::where('organization_id', $user->organization_id)
+            ->where('id', '!=', $user->id)
+            ->orderBy('name')
+            ->get();
+
+        return view('admin.users.delete-preview', compact('user', 'counts', 'sameOrgUsers'));
+    }
+
+    private function countUserRelations(User $user): array
+    {
+        $own = [
+            'services' => Service::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'service_requests' => ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'transactions_as_buyer' => Transaction::where('buyer_id', $user->id)->count(),
+            'transactions_as_seller' => Transaction::where('seller_id', $user->id)->count(),
+            'blog_posts' => BlogPost::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'blog_comments' => BlogComment::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'favorites' => Favorite::where('user_id', $user->id)->count(),
+            'feed_posts' => FeedPost::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'feed_post_comments' => FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'point_ledger' => PointLedger::where('user_id', $user->id)->count(),
+            'member_ai_profile' => MemberAiProfile::where('user_id', $user->id)->count(),
+        ];
+
+        $part = [
+            'loop_memberships' => LoopMember::where('user_id', $user->id)->count(),
+            'orgs_as_admin' => Organization::where('admin_id', $user->id)->count(),
+            'loops_created' => Loop::where('created_by', $user->id)->count(),
+        ];
+
+        $audit = [
+            'messages_sent' => Message::where('sender_id', $user->id)->count(),
+            'loop_messages_sent' => LoopMessage::where('sender_id', $user->id)->count(),
+            'reports_filed' => Report::where('reporter_id', $user->id)->count(),
+            'email_logs' => EmailLog::where('user_id', $user->id)->count(),
+            'bug_reports' => BugReport::where('reporter_id', $user->id)->count(),
+            'login_logs' => LoginLog::where('user_id', $user->id)->count(),
+            'ai_interactions' => AiInteraction::where('user_id', $user->id)->count(),
+            'referrals_made' => Referral::where('referrer_user_id', $user->id)->count(),
+        ];
+
+        return compact('own', 'part', 'audit');
+    }
+
+    private function estimateTransferCounts(User $user, string $transferToId): array
+    {
+        $transferTo = User::find($transferToId);
+        if (! $transferTo || $transferTo->organization_id !== $user->organization_id) {
+            return [];
+        }
+
+        return [
+            'services' => Service::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'service_requests' => ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'blog_posts' => BlogPost::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'blog_comments' => BlogComment::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'favorites' => Favorite::where('user_id', $user->id)->count(),
+            'feed_posts' => FeedPost::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+            'feed_post_comments' => FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
+                ->where('user_id', $user->id)->count(),
+        ];
     }
 }

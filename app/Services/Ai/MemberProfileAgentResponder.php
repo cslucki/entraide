@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Models\AdminAiPrompt;
 use App\Models\MemberAiProfile;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -213,25 +214,19 @@ class MemberProfileAgentResponder
     {
         $profile->loadMissing(['user', 'organization']);
 
-        return implode("\n", [
-            'Tu es l’agent IA commercial et conversationnel du profil d’un membre BouclePro.',
-            'Objectif : aider le visiteur à comprendre concrètement comment ce membre peut l’aider, puis qualifier le besoin pour faciliter la mise en relation.',
-            'Réponds en français, avec un ton naturel, rassurant, professionnel et orienté action.',
-            'Ne te contente pas de recopier les champs : reformule, synthétise, explique la valeur et oriente le visiteur.',
-            'Tu peux poser UNE question de relance pertinente à la fin pour mieux comprendre le besoin du visiteur.',
-            'Reste strictement borné aux informations du profil IA. N’invente ni prestation, ni tarif, ni délai, ni disponibilité, ni coordonnées.',
-            'Si la question sort du périmètre, ramène poliment vers ce que le membre peut présenter et pose une question de qualification liée au profil.',
-            'Pas de promesse commerciale excessive. Pas de conversation persistante. Pas de marketplace.',
+        $instructions = $this->resolveMasterPrompt();
+
+        $profileData = implode("\n", [
             '',
             'Profil IA du membre :',
             '- Membre : '.($profile->user?->name ?? 'Utilisateur inconnu'),
             '- Organisation : '.($profile->organization?->name ?? 'Organisation inconnue'),
             '- Résumé : '.($profile->member_profile_summary ?: 'Non renseigné'),
             '- Résumé généré : '.($profile->generated_summary ?: 'Non renseigné'),
-            '- Périmètre d’aide / prestation : '.($profile->service_scope ?: 'Non renseigné'),
-            '- Contexte d’expérience : '.($profile->experience_context ?: 'Non renseigné'),
+            '- Périmètre d\'aide / prestation : '.($profile->service_scope ?: 'Non renseigné'),
+            '- Contexte d\'expérience : '.($profile->experience_context ?: 'Non renseigné'),
             '- Compétences : '.$this->formatProfileValue($profile->skills),
-            '- Types d’aide : '.$this->formatProfileValue($profile->help_types),
+            '- Types d\'aide : '.$this->formatProfileValue($profile->help_types),
             '- Limites : '.$this->formatProfileValue($profile->boundaries),
             '- Public cible : '.$this->formatProfileValue($profile->target_audience),
             '- Problèmes aidés : '.$this->formatProfileValue($profile->problems_helped),
@@ -239,6 +234,31 @@ class MemberProfileAgentResponder
             '- Demandes hors périmètre : '.$this->formatProfileValue($profile->bad_request_examples),
             '- Ton : '.($profile->tone ?: 'Non renseigné'),
             '- Contact préféré : '.($profile->preferred_contact_action ?: 'Non renseigné'),
+        ]);
+
+        return $instructions."\n".$profileData;
+    }
+
+    private function resolveMasterPrompt(): string
+    {
+        $dbPrompt = AdminAiPrompt::active()
+            ->byScenario('profile_agent_master')
+            ->orderByDesc('version')
+            ->first();
+
+        if ($dbPrompt && filled($dbPrompt->prompt_text)) {
+            return $dbPrompt->prompt_text;
+        }
+
+        return implode("\n", [
+            "Tu es l'agent IA commercial et conversationnel du profil d'un membre BouclePro.",
+            "Objectif : aider le visiteur à comprendre concrètement comment ce membre peut l'aider, puis qualifier le besoin pour faciliter la mise en relation.",
+            "Réponds en français, avec un ton naturel, rassurant, professionnel et orienté action.",
+            "Ne te contente pas de recopier les champs : reformule, synthétise, explique la valeur et oriente le visiteur.",
+            "Tu peux poser UNE question de relance pertinente à la fin pour mieux comprendre le besoin du visiteur.",
+            "Reste strictement borné aux informations du profil IA. N'invente ni prestation, ni tarif, ni délai, ni disponibilité, ni coordonnées.",
+            "Si la question sort du périmètre, ramène poliment vers ce que le membre peut présenter et pose une question de qualification liée au profil.",
+            "Pas de promesse commerciale excessive. Pas de conversation persistante. Pas de marketplace.",
         ]);
     }
 

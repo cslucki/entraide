@@ -143,6 +143,46 @@
             </div>
         </div>
 
+        {{-- Configuration Agents profil IA par organisation --}}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">{{ __('admin.ai_profile_config') }}</h3>
+
+            <div class="space-y-4">
+                @forelse($organizations as $org)
+                    <form method="POST" action="{{ route('admin.ai-config.profile') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                        @csrf
+                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
+
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
+                        </div>
+
+                        <div>
+                            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                <input type="hidden" name="ai_profiles_enabled" value="0">
+                                <input type="checkbox" name="ai_profiles_enabled" value="1"
+                                    @checked($org->ai_profiles_enabled ?? true)
+                                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                                {{ __('admin.ai_profile_toggle_label') }}
+                            </label>
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">{{ __('admin.ai_profile_toggle_desc') }}</p>
+                        </div>
+
+                        <div class="flex justify-end">
+                            <button type="submit"
+                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
+                                {{ __('admin.ai_save_for', ['name' => $org->name]) }}
+                            </button>
+                        </div>
+                    </form>
+                @empty
+                    <div class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">
+                        {{ __('admin.ai_no_profiles_config') }}
+                    </div>
+                @endforelse
+            </div>
+        </div>
+
         {{-- Providers disponibles --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
             <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">{{ __('admin.ai_available_providers') }}</h3>

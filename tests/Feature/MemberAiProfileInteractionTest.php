@@ -25,7 +25,7 @@ class MemberAiProfileInteractionTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Organization::factory()->create();
+        $this->org = Organization::factory()->create(['ai_profiles_enabled' => true]);
         $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
         $this->visitor = User::factory()->create(['organization_id' => $this->org->id]);
 
@@ -48,7 +48,7 @@ class MemberAiProfileInteractionTest extends TestCase
         $this->actingAs($this->owner)
             ->get(route('agent-ia.interactions'))
             ->assertOk()
-            ->assertSee('Aucun échange enregistré');
+            ->assertSee(__('ai.no_interactions_title'));
     }
 
     public function test_owner_without_profile_sees_prompt_to_create(): void
@@ -56,7 +56,7 @@ class MemberAiProfileInteractionTest extends TestCase
         $this->actingAs($this->owner)
             ->get(route('agent-ia.interactions'))
             ->assertOk()
-            ->assertSee('Aucun profil IA pour le moment');
+            ->assertSee(__('ai.no_profile_title'));
     }
 
     public function test_owner_cannot_see_other_owner_interactions(): void
@@ -88,7 +88,7 @@ class MemberAiProfileInteractionTest extends TestCase
         $this->actingAs($this->owner)
             ->get(route('agent-ia.interactions'))
             ->assertOk()
-            ->assertSee('Échanges avec mon agent IA');
+            ->assertSee(__('ai.interactions_title'));
 
         $this->assertEquals(3, MemberAiProfileInteraction::where('profile_owner_user_id', $this->owner->id)->count());
     }

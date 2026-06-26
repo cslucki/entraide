@@ -47,6 +47,7 @@ use App\Services\RewardDispatcher;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -192,6 +193,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api-auth', function (Request $request) {
             return Limit::perMinute(10)->by($request->ip());
         });
+
+        Event::listen(
+            Login::class,
+            \App\Listeners\LoginListener::class,
+        );
 
         Gate::policy(FeedPost::class, FeedPostPolicy::class);
         Gate::policy(Service::class, ServicePolicy::class);
