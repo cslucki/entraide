@@ -277,7 +277,7 @@
                     </x-slot>
                 </x-dropdown>
             @else
-                <a href="{{ route('login') }}" class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--bp-primary)] text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]" aria-label="{{ __('navigation.login') }}">
+                <a href="{{ $routeUrl('login', 'organization.login') }}" class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--bp-primary)] text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]" aria-label="{{ __('navigation.login') }}">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
                 </a>
             @endauth
