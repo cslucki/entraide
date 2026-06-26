@@ -416,7 +416,7 @@ class MemberAiProfileWizard extends Component
             ],
             3 => [
                 'preferred_contact_action' => 'nullable|string|max:50',
-                'tone' => 'nullable|string|in:'.implode(',', array_keys(config('member_ai_profile.tones', []))),
+                'tone' => 'nullable|string|in:'.implode(',', config('member_ai_profile.tones', [])),
             ],
             4 => [
                 'good_request_examples' => 'nullable|array|max:3',
@@ -438,21 +438,19 @@ class MemberAiProfileWizard extends Component
             'help_types' => 'required|array|min:1',
             'boundaries' => 'required|array|min:1',
             'preferred_contact_action' => 'required|string|max:50',
-            'tone' => 'required|string|in:'.implode(',', array_keys(config('member_ai_profile.tones', []))),
+            'tone' => 'required|string|in:'.implode(',', config('member_ai_profile.tones', [])),
             'good_request_examples' => 'required|array|min:1',
         ];
     }
 
     public function render()
     {
-        $config = config('member_ai_profile', []);
-
         return view('livewire.member-ai-profile-wizard', [
-            'tones' => $config['tones'] ?? [],
-            'targetAudienceOptions' => $config['target_audience_options'] ?? [],
-            'helpTypeOptions' => $config['help_type_options'] ?? [],
-            'contactOptions' => $config['contact_options'] ?? [],
-            'boundaryOptions' => $config['boundary_options'] ?? [],
+            'tones' => __('member_ai_profile.tones'),
+            'targetAudienceOptions' => __('member_ai_profile.target_audience_options'),
+            'helpTypeOptions' => __('member_ai_profile.help_type_options'),
+            'contactOptions' => __('member_ai_profile.contact_options'),
+            'boundaryOptions' => __('member_ai_profile.boundary_options'),
             'steps' => [
                 ['number' => 1, 'label' => 'Qui êtes-vous ?', 'subtitle' => 'Présentez-vous en quelques mots'],
                 ['number' => 2, 'label' => 'Ce que vous apportez', 'subtitle' => 'Vos compétences et votre offre'],
