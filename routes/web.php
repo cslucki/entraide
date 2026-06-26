@@ -19,7 +19,6 @@ use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
-use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
@@ -27,6 +26,7 @@ use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\Admin\OrgAdminController;
+use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -53,8 +53,8 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
-use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\BoundedMemberAgent;
@@ -335,6 +335,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/email-templates/{emailTemplate}', [AdminEmailTemplatesController::class, 'update'])->name('email-templates.update');
     Route::delete('/email-templates/{emailTemplate}', [AdminEmailTemplatesController::class, 'destroy'])->name('email-templates.destroy');
     Route::post('/email-templates/preview', [AdminEmailTemplatesController::class, 'preview'])->name('email-templates.preview');
+
+    // Emailer send
+    Route::get('/email-templates/{emailTemplate}/send', [AdminEmailTemplatesController::class, 'sendForm'])->name('email-templates.send');
+    Route::get('/email-templates/{emailTemplate}/send/confirm', [AdminEmailTemplatesController::class, 'sendConfirm'])->name('email-templates.send.confirm');
+    Route::post('/email-templates/{emailTemplate}/send', [AdminEmailTemplatesController::class, 'sendExecute'])->name('email-templates.send.execute');
 
     // Email logs
     Route::get('/email-logs', [AdminEmailLogsController::class, 'index'])->name('email-logs');
@@ -623,12 +628,12 @@ Route::prefix('/org/{organization}')
                 // AI
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
-            Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
+                Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
 
-            // Stats
-            Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');
-            Route::get('/stats/login-history/user/{user}', [OrgAdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
-        });
+                // Stats
+                Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');
+                Route::get('/stats/login-history/user/{user}', [OrgAdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
+            });
 
         // Blog (org-scoped, en parallèle des routes /blog root)
         Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
