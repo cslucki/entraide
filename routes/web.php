@@ -611,6 +611,15 @@ Route::prefix('/org/{organization}')
                 Route::get('/identity', [OrgAdminController::class, 'identity'])->name('identity');
                 Route::post('/identity', [OrgAdminController::class, 'updateIdentity'])->name('identity.update');
 
+                // Design / Themes
+                Route::get('/themes', [OrgAdminController::class, 'themes'])->name('themes');
+                Route::get('/themes/create', [OrgAdminController::class, 'themesCreate'])->name('themes.create');
+                Route::post('/themes', [OrgAdminController::class, 'themesStore'])->name('themes.store');
+                Route::get('/themes/{theme}/edit', [OrgAdminController::class, 'themesEdit'])->name('themes.edit');
+                Route::put('/themes/{theme}', [OrgAdminController::class, 'themesUpdate'])->name('themes.update');
+                Route::delete('/themes/{theme}', [OrgAdminController::class, 'themesDestroy'])->name('themes.destroy');
+                Route::post('/themes/{theme}/assign', [OrgAdminController::class, 'themesAssign'])->name('themes.assign');
+
                 // AI
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');

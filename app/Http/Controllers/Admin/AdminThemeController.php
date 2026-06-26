@@ -14,7 +14,8 @@ class AdminThemeController extends Controller
 {
     public function index(Request $request): View
     {
-        $themes = Theme::orderBy('is_default', 'desc')
+        $themes = Theme::with('organization')
+            ->orderBy('is_default', 'desc')
             ->orderBy('label')
             ->get();
 
@@ -31,20 +32,32 @@ class AdminThemeController extends Controller
         $prevTheme = $currentIndex > 0 ? $themes[$currentIndex - 1] : null;
         $nextTheme = $currentIndex < count($themeKeys) - 1 ? $themes[$currentIndex + 1] : null;
 
-        return view('admin.themes.index', compact('themes', 'currentTheme', 'prevTheme', 'nextTheme'));
+        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug']);
+
+        return view('admin.themes.index', compact('themes', 'currentTheme', 'prevTheme', 'nextTheme', 'organizations'));
     }
 
     public function create(): View
     {
-        return view('admin.themes.create');
+        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug']);
+
+        return view('admin.themes.create', compact('organizations'));
     }
 
     public function store(Request $request): RedirectResponse
     {
+        if ($request->has('tokens') && is_string($request->tokens)) {
+            $request->merge(['tokens' => json_decode($request->tokens, true) ?? []]);
+        }
+        if ($request->has('dark_tokens') && is_string($request->dark_tokens)) {
+            $request->merge(['dark_tokens' => json_decode($request->dark_tokens, true) ?? []]);
+        }
+
         $data = $request->validate([
             'key' => 'required|string|max:50|unique:themes,key',
             'label' => 'required|string|max:100',
             'description' => 'nullable|string',
+            'organization_id' => 'nullable|string|exists:organizations,id',
             'tokens' => ['required', 'array', function ($attribute, $value, $fail) {
                 foreach ($value as $key => $color) {
                     if (! preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
@@ -63,6 +76,7 @@ class AdminThemeController extends Controller
         ]);
 
         $data['is_default'] = $data['is_default'] ?? false;
+        $data['dark_tokens'] = $data['dark_tokens'] ?? [];
 
         if ($data['is_default']) {
             Theme::where('is_default', true)->update(['is_default' => false]);
@@ -82,10 +96,18 @@ class AdminThemeController extends Controller
 
     public function update(Request $request, Theme $theme): RedirectResponse
     {
+        if ($request->has('tokens') && is_string($request->tokens)) {
+            $request->merge(['tokens' => json_decode($request->tokens, true) ?? []]);
+        }
+        if ($request->has('dark_tokens') && is_string($request->dark_tokens)) {
+            $request->merge(['dark_tokens' => json_decode($request->dark_tokens, true) ?? []]);
+        }
+
         $data = $request->validate([
             'key' => ['required', 'string', 'max:50', Rule::unique('themes', 'key')->ignore($theme->id)],
             'label' => 'required|string|max:100',
             'description' => 'nullable|string',
+            'organization_id' => 'nullable|string|exists:organizations,id',
             'tokens' => ['required', 'array', function ($attribute, $value, $fail) {
                 foreach ($value as $key => $color) {
                     if (! preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
@@ -104,6 +126,7 @@ class AdminThemeController extends Controller
         ]);
 
         $data['is_default'] = $data['is_default'] ?? false;
+        $data['dark_tokens'] = $data['dark_tokens'] ?? [];
 
         if ($data['is_default']) {
             Theme::where('is_default', true)

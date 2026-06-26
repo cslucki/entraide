@@ -60,6 +60,9 @@
             @if($currentTheme->is_default)
                 <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">Défaut</span>
             @endif
+            @if($currentTheme->organization && !$currentTheme->is_default)
+                <span class="rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">{{ $currentTheme->organization->name }}</span>
+            @endif
         </div>
 
         <div class="flex items-center gap-3">

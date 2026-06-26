@@ -179,15 +179,15 @@
             @endforeach
         </nav>
 
-        <div class="flex flex-col items-center gap-2.5 border-t border-[var(--bp-border)] pt-3">
-            <button type="button" @click="$store.visualTheme.next()" class="flex w-12 flex-col items-center rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-1 py-1.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.change_theme') }}">
-                <span class="h-2.5 w-2.5 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
+        <div class="flex flex-col items-center gap-2 border-t border-[var(--bp-border)] pt-2.5">
+            <button type="button" @click="$store.visualTheme.next()" class="flex w-10 flex-col items-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] px-0.5 py-1 text-[8px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.change_theme') }}">
+                <span class="h-2 w-2 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
                 <span class="mt-0.5 leading-none" x-text="$store.visualTheme.label()">Sable</span>
             </button>
 
-            <button type="button" @click="$store.darkMode.toggle()" class="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.toggle_display_mode') }}">
-                <svg class="h-4 w-4 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-                <svg class="hidden h-4 w-4 dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <button type="button" @click="$store.darkMode.toggle()" class="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.toggle_display_mode') }}">
+                <svg class="h-3.5 w-3.5 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                <svg class="hidden h-3.5 w-3.5 dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
 
             @auth
@@ -277,7 +277,7 @@
                     </x-slot>
                 </x-dropdown>
             @else
-                <a href="{{ route('login') }}" class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--bp-primary)] text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]" aria-label="{{ __('navigation.login') }}">
+                <a href="{{ $routeUrl('login', 'organization.login') }}" class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--bp-primary)] text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]" aria-label="{{ __('navigation.login') }}">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
                 </a>
             @endauth
