@@ -373,6 +373,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-config', [AdminAiConfigController::class, 'index'])->name('ai-config');
     Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
     Route::post('/ai-config/blog', [AdminAiConfigController::class, 'updateBlogConfig'])->name('ai-config.blog');
+    Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
 
     // IA Usage dashboard (TASK-306 Lot 3)
     Route::get('/ia-usage', [AdminAiUsageController::class, 'index'])->name('ia-usage');
