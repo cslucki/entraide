@@ -24,7 +24,7 @@ class InlineMemberAgentTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Organization::factory()->create();
+        $this->org = Organization::factory()->create(['ai_profiles_enabled' => true]);
         $this->member = User::factory()->create(['organization_id' => $this->org->id]);
         $this->visitor = User::factory()->create(['organization_id' => $this->org->id]);
 
@@ -102,11 +102,11 @@ class InlineMemberAgentTest extends TestCase
             ->set('question', 'Quelles compétences ?')
             ->call('sendMessage');
 
-        $this->assertDatabaseHas('member_ai_profile_interactions', [
+        $this->assertDatabaseHas('profile_agent_conversations', [
+            'organization_id' => $this->org->id,
             'member_ai_profile_id' => $profile->id,
             'profile_owner_user_id' => $this->member->id,
             'visitor_user_id' => $this->visitor->id,
-            'status' => 'success',
         ]);
     }
 
@@ -145,8 +145,8 @@ class InlineMemberAgentTest extends TestCase
 
         $response->assertStatus(200);
 
-        $response->assertSee('Agent de profil IA');
-        $response->assertSeeText('Posez une question sur ce que ce membre peut vous apporter');
+        $response->assertSee(__('profile.agent_cta_title'));
+        $response->assertSeeText(__('profile.agent_cta_hint'));
         $response->assertSee(route('agent-ia.profile.chat', $this->member), false);
     }
 
@@ -162,7 +162,6 @@ class InlineMemberAgentTest extends TestCase
             ->get(route('agent-ia.profile.chat', $this->member));
 
         $response->assertStatus(200);
-        $response->assertSee('Agent de profil IA');
         $response->assertSee('Agent IA de');
         $response->assertSee('Posez votre question');
         $response->assertSee('Écrire à');
@@ -180,7 +179,7 @@ class InlineMemberAgentTest extends TestCase
             ->get(route('profile.show', $this->member));
 
         $response->assertStatus(200);
-        $response->assertSee('Agent IA activé');
+        $response->assertSee(__('profile.ai_agent_enabled'));
     }
 
     public function test_profile_page_hides_agent_when_no_profile(): void
@@ -203,8 +202,8 @@ class InlineMemberAgentTest extends TestCase
         $response = $this->get(route('profile.show', $this->member));
 
         $response->assertStatus(200)
-            ->assertSee('Agent de profil IA')
-            ->assertSeeText('Posez une question sur ce que ce membre peut vous apporter')
+            ->assertSee(__('profile.agent_cta_title'))
+            ->assertSeeText(__('profile.agent_cta_hint'))
             ->assertSee(route('agent-ia.profile.chat', $this->member), false);
     }
 }

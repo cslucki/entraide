@@ -30,7 +30,7 @@ class AdminAiConfigTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Réglages IA');
-        $response->assertSee('Configuration IA');
+        $response->assertSee('AI Configuration');
     }
 
     public function test_guest_redirected_to_login(): void
