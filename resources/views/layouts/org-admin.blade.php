@@ -218,13 +218,19 @@
                         </a>
                     @endforeach
 
-                    <!-- Design / themes (à venir) -->
-                    <div class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 mb-2 mt-4 cursor-not-allowed">
+                    <!-- Section: Design / Themes -->
+                    <div class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">{{ __('navigation.org_admin_design') }}</div>
+                    @php
+                        $isDesignActive = $isActive('organization.admin.themes');
+                    @endphp
+                    <a href="{{ route('organization.admin.themes', ['organization' => $organization->slug]) }}"
+                       class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
+                               {{ $isDesignActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($isDesignActive) style="background-color: var(--bp-primary)"@endif">
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828L10.828 18.83"/>
                         </svg>
-                        <span class="text-gray-500 italic text-xs">{{ __('navigation.org_admin_coming_soon', ['section' => __('navigation.org_admin_design')]) }}</span>
-                    </div>
+                        {{ __('navigation.org_admin_themes') }}
+                    </a>
 
                     <!-- IA group -->
                     <div class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">{{ __('navigation.org_admin_ia') }}</div>
