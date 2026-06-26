@@ -22,10 +22,16 @@ class SetLocale
 
     protected function resolveLocale(Request $request): string
     {
-        $sessionLocale = $request->session()->get('locale');
+        $sessionLocale = $request->hasSession() ? $request->session()->get('locale') : null;
 
         if ($sessionLocale && in_array($sessionLocale, $this->supportedLocales, true)) {
             return $sessionLocale;
+        }
+
+        $userLocale = $this->resolveUserLocale($request);
+
+        if ($userLocale !== null) {
+            return $userLocale;
         }
 
         $orgLocale = $this->resolveOrganizationLocale();
@@ -41,6 +47,23 @@ class SetLocale
         }
 
         return config('app.locale', 'fr');
+    }
+
+    protected function resolveUserLocale(Request $request): ?string
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return null;
+        }
+
+        $locale = $user->preferred_locale;
+
+        if ($locale && in_array($locale, $this->supportedLocales, true)) {
+            return $locale;
+        }
+
+        return null;
     }
 
     protected function resolveOrganizationLocale(): ?string

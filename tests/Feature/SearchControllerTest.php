@@ -115,14 +115,14 @@ class SearchControllerTest extends TestCase
             ->assertViewHas('users', fn ($v) => $v->count() === 1 && $v->first()->name === 'Alice Actif');
     }
 
-    public function test_search_finds_users_by_location(): void
+    public function test_search_finds_users_by_city_not_legacy_location(): void
     {
-        User::factory()->create(['name' => 'Bob', 'location' => 'Paris 75']);
-        User::factory()->create(['name' => 'Carol', 'location' => 'Lyon']);
+        User::factory()->create(['name' => 'Bob', 'city' => 'Paris', 'location' => 'Legacy Hidden']);
+        User::factory()->create(['name' => 'Carol', 'city' => 'Lyon', 'location' => 'Paris 75']);
 
         $response = $this->get(route('search', ['q' => 'Paris']));
 
         $response->assertOk()
-            ->assertViewHas('users', fn ($v) => $v->count() === 1);
+            ->assertViewHas('users', fn ($v) => $v->count() === 1 && $v->first()->name === 'Bob');
     }
 }

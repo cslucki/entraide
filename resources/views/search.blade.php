@@ -73,12 +73,16 @@
                         <img src="{{ $user->avatar_url }}" class="w-10 h-10 rounded-full flex-shrink-0" alt="">
                         <div>
                             <p class="font-medium text-gray-900 dark:text-gray-100">{{ $user->name }}</p>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">
-                                {{ $user->location ?? 'Localisation non renseignée' }}
-                                @if($user->rating)
-                                · ★ {{ number_format($user->rating, 1) }}
-                                @endif
-                            </p>
+                            @if($user->public_location || $user->rating)
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    @if($user->public_location)
+                                        {{ $user->public_location }}
+                                    @endif
+                                    @if($user->rating)
+                                        @if($user->public_location) · @endif ★ {{ number_format($user->rating, 1) }}
+                                    @endif
+                                </p>
+                            @endif
                         </div>
                     </a>
                     @endforeach

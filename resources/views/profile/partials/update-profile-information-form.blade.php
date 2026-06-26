@@ -17,42 +17,106 @@
         @csrf
         @method('put')
 
-        <div>
-            <x-input-label for="name" :value="__('profile.name')" />
-            <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $user->name)" required autofocus autocomplete="name" />
-            <x-input-error class="mt-2" :messages="$errors->get('name')" />
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="space-y-6">
             <div>
-                <x-input-label for="email" :value="__('profile.email')" />
-                <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
-                <x-input-error class="mt-2" :messages="$errors->get('email')" />
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.presentation_section') }}</h3>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.presentation_description') }}</p>
+            </div>
 
-                @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())
-                    <div>
-                        <p class="text-sm mt-2 text-gray-800 dark:text-gray-200">
-                            {{ __('Your email address is unverified.') }}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <x-input-label for="first_name" :value="__('profile.first_name')" />
+                    <x-text-input id="first_name" name="first_name" type="text" class="mt-1 block w-full" :value="old('first_name', $user->first_name)" autocomplete="given-name" />
+                    <x-input-error class="mt-2" :messages="$errors->get('first_name')" />
+                </div>
 
-                            <button form="send-verification" class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800">
-                                {{ __('Click here to re-send the verification email.') }}
-                            </button>
-                        </p>
+                <div>
+                    <x-input-label for="name" :value="__('profile.name')" />
+                    <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $user->name)" required autofocus autocomplete="family-name" />
+                    <x-input-error class="mt-2" :messages="$errors->get('name')" />
+                </div>
+            </div>
 
-                        @if (session('status') === 'verification-link-sent')
-                            <p class="mt-2 font-medium text-sm text-green-600 dark:text-green-400">
-                                {{ __('A new verification link has been sent to your email address.') }}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <x-input-label for="email" :value="__('profile.email')" />
+                    <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
+                    <x-input-error class="mt-2" :messages="$errors->get('email')" />
+
+                    @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())
+                        <div>
+                            <p class="text-sm mt-2 text-gray-800 dark:text-gray-200">
+                                {{ __('Your email address is unverified.') }}
+
+                                <button form="send-verification" class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800">
+                                    {{ __('Click here to re-send the verification email.') }}
+                                </button>
                             </p>
-                        @endif
-                    </div>
-                @endif
+
+                            @if (session('status') === 'verification-link-sent')
+                                <p class="mt-2 font-medium text-sm text-green-600 dark:text-green-400">
+                                    {{ __('A new verification link has been sent to your email address.') }}
+                                </p>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+
+                <div>
+                    <x-input-label for="phone" :value="__('profile.phone')" />
+                    <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" :value="old('phone', $user->phone)" required placeholder="{{ __('profile.phone_placeholder') }}" autocomplete="tel" />
+                    <p class="mt-1 text-xs text-gray-500">{{ __('profile.phone_help') }}</p>
+                    <x-input-error class="mt-2" :messages="$errors->get('phone')" />
+                </div>
             </div>
 
             <div>
-                <x-input-label for="phone" :value="__('profile.phone')" />
-                <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" :value="old('phone', $user->phone)" required placeholder="{{ __('profile.phone_placeholder') }}" />
-                <p class="mt-1 text-xs text-gray-500">{{ __('profile.phone_help') }}</p>
-                <x-input-error class="mt-2" :messages="$errors->get('phone')" />
+                <x-input-label for="bio" :value="__('profile.bio')" />
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.bio_help') }}</p>
+                <textarea id="bio" name="bio" rows="5" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" maxlength="500" placeholder="{{ __('profile.bio_placeholder') }}">{{ old('bio', $user->bio) }}</textarea>
+                <p class="mt-1 text-xs text-gray-400">{{ __('profile.bio_max') }}</p>
+                <x-input-error class="mt-2" :messages="$errors->get('bio')" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <x-input-label for="city" :value="__('profile.city')" />
+                    <x-text-input id="city" name="city" type="text" class="mt-1 block w-full" :value="old('city', $user->city)" autocomplete="address-level2" />
+                    <x-input-error class="mt-2" :messages="$errors->get('city')" />
+                </div>
+
+                <div>
+                    <x-input-label for="country_code" :value="__('profile.country')" />
+                    <select id="country_code" name="country_code" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" autocomplete="country">
+                        <option value="">{{ __('profile.country_placeholder') }}</option>
+                        @foreach ($countries as $country)
+                            <option value="{{ $country->code }}" @selected(old('country_code', $user->country_code) === $country->code)>
+                                {{ $country->getLocalizedName() }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <x-input-error class="mt-2" :messages="$errors->get('country_code')" />
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <x-input-label for="preferred_locale" :value="__('profile.preferred_locale')" />
+                    <select id="preferred_locale" name="preferred_locale" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
+                        <option value="">{{ __('profile.preferred_locale_placeholder') }}</option>
+                        <option value="fr" @selected(old('preferred_locale', $user->preferred_locale) === 'fr')>{{ __('profile.locale_fr') }}</option>
+                        <option value="en" @selected(old('preferred_locale', $user->preferred_locale) === 'en')>{{ __('profile.locale_en') }}</option>
+                    </select>
+                    <x-input-error class="mt-2" :messages="$errors->get('preferred_locale')" />
+                </div>
+
+                @if ($organization?->membership_enabled)
+                    <div>
+                        <x-input-label for="membership_value" :value="app()->getLocale() === 'en' ? ($organization->membership_label_en ?: __('profile.membership')) : ($organization->membership_label_fr ?: __('profile.membership'))" />
+                        <x-text-input id="membership_value" name="membership_value" type="text" class="mt-1 block w-full" :value="old('membership_value', $user->membership_value)" />
+                        <x-input-error class="mt-2" :messages="$errors->get('membership_value')" />
+                    </div>
+                @endif
             </div>
         </div>
 
@@ -74,18 +138,29 @@
             </div>
         </div>
 
-        <div>
-            <x-input-label for="location" :value="__('profile.location')" />
-            <x-text-input id="location" name="location" type="text" class="mt-1 block w-full" :value="old('location', $user->location)" placeholder="{{ __('profile.location_placeholder') }}" />
-            <x-input-error class="mt-2" :messages="$errors->get('location')" />
-        </div>
+        <div class="space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">{{ __('profile.private_billing_section') }}</h3>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ __('profile.private_billing_description') }}</p>
+            </div>
 
-        <div>
-            <x-input-label for="bio" :value="__('profile.bio')" />
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('profile.bio_help') }}</p>
-            <textarea id="bio" name="bio" rows="5" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" maxlength="500" placeholder="{{ __('profile.bio_placeholder') }}">{{ old('bio', $user->bio) }}</textarea>
-            <p class="mt-1 text-xs text-gray-400">{{ __('profile.bio_max') }} — <span x-data x-text="500 - ($refs.bio?.value?.length ?? 0)" x-ref="bioCount">500</span> {{ __('profile.bio_remaining') }}</p>
-            <x-input-error class="mt-2" :messages="$errors->get('bio')" />
+            <div>
+                <x-input-label for="address_line1" :value="__('profile.address_line1')" />
+                <x-text-input id="address_line1" name="address_line1" type="text" class="mt-1 block w-full" :value="old('address_line1', $user->address_line1)" autocomplete="address-line1" />
+                <x-input-error class="mt-2" :messages="$errors->get('address_line1')" />
+            </div>
+
+            <div>
+                <x-input-label for="address_line2" :value="__('profile.address_line2')" />
+                <x-text-input id="address_line2" name="address_line2" type="text" class="mt-1 block w-full" :value="old('address_line2', $user->address_line2)" autocomplete="address-line2" />
+                <x-input-error class="mt-2" :messages="$errors->get('address_line2')" />
+            </div>
+
+            <div>
+                <x-input-label for="postal_code" :value="__('profile.postal_code')" />
+                <x-text-input id="postal_code" name="postal_code" type="text" class="mt-1 block w-full" :value="old('postal_code', $user->postal_code)" autocomplete="postal-code" />
+                <x-input-error class="mt-2" :messages="$errors->get('postal_code')" />
+            </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
@@ -50,6 +51,11 @@ class Organization extends Model
         'feed_post_publish_mode',
         'theme_id',
         'locale',
+        'default_country_code',
+        'show_country',
+        'membership_enabled',
+        'membership_label_fr',
+        'membership_label_en',
     ];
 
     protected function casts(): array
@@ -65,6 +71,8 @@ class Organization extends Model
             'maintenance_mode' => 'boolean',
             'header_javascript_enabled' => 'boolean',
             'locale' => 'string',
+            'show_country' => 'boolean',
+            'membership_enabled' => 'boolean',
         ];
     }
 
@@ -111,6 +119,24 @@ class Organization extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function defaultCountry(): BelongsTo
+    {
+        return $this->belongsTo(Country::class, 'default_country_code', 'code');
+    }
+
+    public function priorityCountries(): BelongsToMany
+    {
+        return $this->belongsToMany(Country::class, 'organization_country_preferences', 'organization_id', 'country_code')
+            ->withPivot('sort_order')
+            ->withTimestamps()
+            ->orderBy('organization_country_preferences.sort_order');
+    }
+
+    public function countryPreferences(): HasMany
+    {
+        return $this->hasMany(OrganizationCountryPreference::class);
     }
 
     public function services(): HasMany

@@ -35,12 +35,20 @@ class User extends Authenticatable
     protected $fillable = [
         'organization_id',
         'name',
+        'first_name',
         'email',
         'password',
         'avatar',
         'bio',
         'location',
         'phone',
+        'address_line1',
+        'address_line2',
+        'postal_code',
+        'city',
+        'country_code',
+        'preferred_locale',
+        'membership_value',
         'show_email',
         'show_phone',
         'website',
@@ -76,6 +84,24 @@ class User extends Authenticatable
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'organization_id');
+    }
+
+    public function country(): BelongsTo
+    {
+        return $this->belongsTo(Country::class, 'country_code', 'code');
+    }
+
+    public function getPublicLocationAttribute(): ?string
+    {
+        if (! $this->city) {
+            return null;
+        }
+
+        if ($this->organization?->show_country === false || ! $this->country) {
+            return $this->city;
+        }
+
+        return $this->city.', '.$this->country->getLocalizedName();
     }
 
     public function services(): HasMany

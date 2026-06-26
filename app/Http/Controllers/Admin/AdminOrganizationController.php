@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Country;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -73,7 +74,17 @@ class AdminOrganizationController extends Controller
         $admins = User::orderBy('name')->get();
         $loops = $organization->loops()->orderBy('name')->get();
 
-        return view('admin.organizations.edit', compact('organization', 'admins', 'loops'));
+        $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
+        $countries = Country::where('active', true)->orderBy($localeColumn)->get();
+
+        $priorityCountryCodes = $organization->priorityCountries()
+            ->where('active', true)
+            ->pluck('code')
+            ->toArray();
+
+        return view('admin.organizations.edit', compact(
+            'organization', 'admins', 'loops', 'countries', 'priorityCountryCodes'
+        ));
     }
 
     public function update(Request $request, Organization $organization): RedirectResponse
@@ -113,6 +124,13 @@ class AdminOrganizationController extends Controller
             'locale' => 'nullable|in:fr,en',
             'logo' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'remove_logo' => 'nullable|boolean',
+            'default_country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
+            'show_country' => 'nullable|boolean',
+            'membership_enabled' => 'nullable|boolean',
+            'membership_label_fr' => 'nullable|string|max:255',
+            'membership_label_en' => 'nullable|string|max:255',
+            'priority_country_codes' => 'nullable|array',
+            'priority_country_codes.*' => ['string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
         ]);
 
         $min = $data['service_points_min'] ?? null;
@@ -140,6 +158,8 @@ class AdminOrganizationController extends Controller
         $data['transactions_naming'] = $data['transactions_naming'] ?? $organization->transactions_naming ?? 'b2c';
         $data['feed_post_publish_mode'] = $data['feed_post_publish_mode'] ?? $organization->feed_post_publish_mode ?? 'admin';
         $data['locale'] = $data['locale'] ?? $organization->locale ?? 'fr';
+        $data['show_country'] = ($data['show_country'] ?? '1') === '1';
+        $data['membership_enabled'] = ($data['membership_enabled'] ?? '0') === '1';
 
         if ($data['is_default']) {
             Organization::where('is_default', true)
@@ -151,7 +171,33 @@ class AdminOrganizationController extends Controller
 
         $organization->update($data);
 
+        $this->syncPriorityCountries($data['priority_country_codes'] ?? [], $organization);
+
         return redirect()->route('admin.organizations')->with('success', "Organisation « {$organization->name} » mise à jour.");
+    }
+
+    private function syncPriorityCountries(array $codes, Organization $organization): void
+    {
+
+        $existing = $organization->countryPreferences()->pluck('country_code', 'country_code')->toArray();
+
+        $toDelete = array_diff(array_keys($existing), $codes);
+        if (! empty($toDelete)) {
+            $organization->countryPreferences()->whereIn('country_code', $toDelete)->delete();
+        }
+
+        foreach ($codes as $sortOrder => $code) {
+            if (! isset($existing[$code])) {
+                $organization->countryPreferences()->create([
+                    'country_code' => $code,
+                    'sort_order' => $sortOrder,
+                ]);
+            } elseif ($existing[$code] !== $sortOrder) {
+                $organization->countryPreferences()
+                    ->where('country_code', $code)
+                    ->update(['sort_order' => $sortOrder]);
+            }
+        }
     }
 
     public function toggleActive(Organization $organization): RedirectResponse
