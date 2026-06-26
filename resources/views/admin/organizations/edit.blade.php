@@ -246,6 +246,19 @@
                     </label>
                 </div>
 
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="subscriptions_enabled" value="0">
+                        <input type="checkbox" name="subscriptions_enabled" value="1"
+                            {{ old('subscriptions_enabled', $organization->subscriptions_enabled ?? false) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.subscriptions_toggle_label') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.subscriptions_toggle_desc') }}</p>
+                        </div>
+                    </label>
+                </div>
+
                  <div>
                      <label class="flex items-center gap-3 cursor-pointer">
                          <input type="hidden" name="maintenance_mode" value="0">

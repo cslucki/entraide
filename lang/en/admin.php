@@ -242,6 +242,8 @@ return [
     'user_data_feed_posts' => 'Feed posts',
     'user_data_feed_post_comments' => 'Feed comments',
     'user_data_point_ledger' => 'Point ledger entries',
+    'subscriptions_toggle_label' => 'Offer subscriptions',
+    'subscriptions_toggle_desc' => 'When enabled, a subscription presentation page is shown to visitors of this organization.',
     'user_data_member_ai_profile' => 'AI profile',
     'user_data_loop_memberships' => 'Loop memberships',
     'user_data_orgs_as_admin' => 'Organizations owned',

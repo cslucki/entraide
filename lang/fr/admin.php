@@ -242,6 +242,8 @@ return [
     'user_data_feed_posts' => 'Publications fil',
     'user_data_feed_post_comments' => 'Commentaires fil',
     'user_data_point_ledger' => 'Entrées journal points',
+    'subscriptions_toggle_label' => 'Proposer les abonnements',
+    'subscriptions_toggle_desc' => 'Quand activé, une page de présentation des abonnements est proposée aux visiteurs de l\'organisation.',
     'user_data_member_ai_profile' => 'Profil IA',
     'user_data_loop_memberships' => 'Adhésions boucles',
     'user_data_orgs_as_admin' => 'Organisations possédées',
