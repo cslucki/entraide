@@ -499,14 +499,6 @@ class BlogController extends Controller implements HasMiddleware
                     }
 
                     $orgId = currentOrganization()?->id ?? $user->organization_id;
-
-                    $baseSlug = Str::slug($title);
-                    $slug = $baseSlug;
-                    $suffix = 2;
-                    while (BlogPost::where('slug', $slug)->exists()) {
-                        $slug = $baseSlug.'-'.$suffix++;
-                    }
-
                     $post = BlogPost::create([
                         'user_id' => $user->id,
                         'organization_id' => $orgId,
@@ -515,7 +507,6 @@ class BlogController extends Controller implements HasMiddleware
                         'content' => '<p></p>',
                         'status' => 'draft',
                         'category_id' => $request->input('category_id'),
-                        'slug' => $slug,
                     ]);
                     $isCreateFlow = true;
                 }
