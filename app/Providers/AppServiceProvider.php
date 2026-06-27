@@ -149,8 +149,6 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useTailwind();
 
-        View::addNamespace('mail', resource_path('views/vendor/mail/html'));
-
         Livewire::addPersistentMiddleware(ResolveOrganization::class);
 
         try {
