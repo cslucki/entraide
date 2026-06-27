@@ -87,7 +87,9 @@
                                 <select name="user_id" class="text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1 py-0.5">
                                     <option value="">{{ __('navigation.org_admin_add_member') }}…</option>
                                     @foreach($organization->users as $user)
+                                    @unless($boucle->activeMembers->contains('user_id', $user->id))
                                     <option value="{{ $user->id }}">{{ $user->name }}</option>
+                                    @endunless
                                     @endforeach
                                 </select>
                                 <button type="submit" class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">{{ __('navigation.org_admin_add') }}</button>

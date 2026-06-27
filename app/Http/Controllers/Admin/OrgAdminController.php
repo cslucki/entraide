@@ -220,7 +220,11 @@ class OrgAdminController extends Controller
         $user = User::findOrFail($data['user_id']);
         abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
 
-        app(LoopService::class)->addMemberByUserId($loop, $data['user_id']);
+        try {
+            app(LoopService::class)->addMemberByUserId($loop, $data['user_id']);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', __('loops.member_added'));
     }
