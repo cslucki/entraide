@@ -298,10 +298,6 @@ function registerBlogEditor() {
                     if (data.limit) {
                         this.limits[mode] = data.limit;
                     }
-                    if (data.post_id) {
-                        this.$el.dataset.editorPostId = data.post_id;
-                        this.editing = true;
-                    }
                 } else if (data.error) {
                     this.error = data.error;
                 }
