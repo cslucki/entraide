@@ -175,6 +175,9 @@ return [
     'org_admin_loops_label_active' => 'Active',
     'org_admin_loops_label_archived' => 'Archived',
     'org_admin_table_sender' => 'Sender',
+    'org_admin_add_member' => 'Add member',
+    'org_admin_add' => 'Add',
+    'org_admin_confirm_remove_member' => 'Remove this member?',
 
     // LOT D — Users, Categories, Reports, Invitations
     'org_admin_manage_users' => 'Manage members of your organization.',

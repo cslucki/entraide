@@ -33,7 +33,7 @@
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($loops as $boucle)
-                <tr class="hover:bg-gray-50 {{ $boucle->isArchived() ? 'opacity-50' : '' }}">
+                <tr class="{{ $boucle->isArchived() ? 'opacity-50' : '' }}">
                     <td class="px-4 py-3">
                         <p class="font-medium text-gray-900 dark:text-gray-100">{{ $boucle->name }}</p>
                         <p class="text-xs text-gray-500">{{ $boucle->slug }}</p>
@@ -85,11 +85,12 @@
                             <form method="POST" action="{{ route('organization.admin.loops.members.add', [$organization, $boucle]) }}" class="inline-flex items-center gap-1">
                                 @csrf
                                 <select name="user_id" class="text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1 py-0.5">
-                                    <option value="">+ {{ __('navigation.org_admin_add_member') }}</option>
+                                    <option value="">{{ __('navigation.org_admin_add_member') }}…</option>
                                     @foreach($organization->users as $user)
                                     <option value="{{ $user->id }}">{{ $user->name }}</option>
                                     @endforeach
                                 </select>
+                                <button type="submit" class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">{{ __('navigation.org_admin_add') }}</button>
                             </form>
                         </div>
                     </td>

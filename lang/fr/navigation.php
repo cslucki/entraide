@@ -175,6 +175,9 @@ return [
     'org_admin_loops_label_active' => 'Active',
     'org_admin_loops_label_archived' => 'Archivée',
     'org_admin_table_sender' => 'Expéditeur',
+    'org_admin_add_member' => 'Ajouter un membre',
+    'org_admin_add' => 'Ajouter',
+    'org_admin_confirm_remove_member' => 'Retirer ce membre ?',
 
     // LOT D — Utilisateurs, Catégories, Signalements, Invitations
     'org_admin_manage_users' => 'Gérez les membres de votre organisation.',
