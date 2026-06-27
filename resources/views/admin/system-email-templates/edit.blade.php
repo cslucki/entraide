@@ -41,7 +41,8 @@
                                 <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
                             @enderror
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Variables disponibles : <code class="text-indigo-600 dark:text-indigo-400">@foreach($systemEmailTemplate->variables ?? [] as $var){{ '{{ '.$var.' }}' }} @endforeach</code>
+                                @php $varDisplay = collect($systemEmailTemplate->variables ?? [])->map(fn($v) => '{{ '.$v.' }}')->implode(' '); @endphp
+                                Variables disponibles : <code class="text-indigo-600 dark:text-indigo-400">{{ $varDisplay }}</code>
                             </p>
                         </div>
 
@@ -55,7 +56,7 @@
                                 <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
                             @enderror
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Utilisez <code class="text-indigo-600 dark:text-indigo-400">\{{ variable_name }}</code> pour les variables.
+                                Utilisez <code class="text-indigo-600 dark:text-indigo-400">@{{ variable_name }}</code> pour les variables.
                                 Le HTML brut est injecté dans le layout email.
                             </p>
                         </div>
