@@ -71,10 +71,14 @@ class BlogAiService
 
     public function getProviderInfo(): array
     {
-        $provider = config('ai.default_provider', AiConfig::get('default_provider', 'openai'));
-        $model = $provider === 'ollama'
-            ? config('ai.ollama.model', 'ministral-3:3b')
-            : config('ai.default_model', AiConfig::get('default_model', 'gpt-4o-mini'));
+        $provider = AiConfig::get('default_provider') ?: config('ai.default_provider', 'openai');
+        $model = AiConfig::get('default_model')
+            ?? config('ai.default_model')
+            ?? match ($provider) {
+                'openrouter' => config('ai.openrouter.model'),
+                'ollama' => config('ai.ollama.model'),
+                default => config('ai.openai.model'),
+            };
 
         return compact('provider', 'model');
     }
@@ -98,18 +102,20 @@ class BlogAiService
 
     private function callAi(BlogPost $post, User $user, string $prompt, string $feature): array
     {
-        $provider = config('ai.default_provider', AiConfig::get('default_provider', 'openai'));
-        $model = config('ai.default_model', AiConfig::get('default_model', 'gpt-4o-mini'));
+        $provider = AiConfig::get('default_provider') ?: config('ai.default_provider', 'openai');
+        $model = AiConfig::get('default_model')
+            ?? config('ai.default_model')
+            ?? match ($provider) {
+                'openrouter' => config('ai.openrouter.model'),
+                'ollama' => config('ai.ollama.model'),
+                default => config('ai.openai.model'),
+            };
 
         $config = match ($provider) {
             'ollama' => config('ai.ollama'),
             'openrouter' => config('ai.openrouter'),
             default => config('ai.openai'),
         };
-
-        if ($provider === 'ollama') {
-            $model = config('ai.ollama.model', 'ministral-3:3b');
-        }
 
         $apiKey = $config['api_key'] ?? '';
         $baseUrl = $config['base_url'] ?? 'https://api.openai.com/v1';

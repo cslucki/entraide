@@ -88,17 +88,19 @@ function registerBlogEditor() {
         aiRemainingRoute: '',
         aiGenerateRoute: '',
         aiCorrectRoute: '',
+        editorPostId: '',
 
         init() {
-            const el = this.$el;
-            this.name = el.dataset.editorName || 'content';
-            this.content = el.dataset.editorValue || '';
-            this.editing = el.dataset.editorPostId !== '';
-            this.csrfToken = el.dataset.editorCsrf || '';
-            this.uploadRoute = el.dataset.routeUpload || '';
-            this.aiRemainingRoute = el.dataset.routeAiRemaining || '';
-            this.aiGenerateRoute = el.dataset.routeAiGenerate || '';
-            this.aiCorrectRoute = el.dataset.routeAiCorrect || '';
+            const root = this.$root;
+            this.name = root.dataset.editorName || 'content';
+            this.content = root.dataset.editorValue || '';
+            this.editorPostId = root.dataset.editorPostId || '';
+            this.editing = this.editorPostId !== '';
+            this.csrfToken = root.dataset.editorCsrf || '';
+            this.uploadRoute = root.dataset.routeUpload || '';
+            this.aiRemainingRoute = root.dataset.routeAiRemaining || '';
+            this.aiGenerateRoute = root.dataset.routeAiGenerate || '';
+            this.aiCorrectRoute = root.dataset.routeAiCorrect || '';
 
             if (typeof createBlogEditor === 'undefined') {
                 this.editorError = true;
@@ -232,7 +234,7 @@ function registerBlogEditor() {
         },
 
         loadRemaining() {
-            const postId = this.$el.dataset.editorPostId;
+            const postId = this.editorPostId;
             const body = postId ? { post_id: postId } : {};
 
             fetch(this.aiRemainingRoute, {
@@ -255,7 +257,7 @@ function registerBlogEditor() {
         aiGenerate(mode) {
             if (this.generating) return;
 
-            const postId = this.$el.dataset.editorPostId;
+            const postId = this.editorPostId;
             const form = this.$el.closest('form');
             const title = form?.querySelector('[name="title"]')?.value || '';
             const summary = form?.querySelector('[name="summary"]')?.value || '';
@@ -297,6 +299,10 @@ function registerBlogEditor() {
                     if (data.model) this.aiModel = data.model;
                     if (data.limit) {
                         this.limits[mode] = data.limit;
+                    }
+                    if (data.post_id) {
+                        this.editorPostId = data.post_id;
+                        this.editing = true;
                     }
                 } else if (data.error) {
                     this.error = data.error;

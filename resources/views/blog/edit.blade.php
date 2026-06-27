@@ -49,6 +49,10 @@
                         :value="old('content', $post->content)"
                         :post-id="$post->id"
                         :invalid="$errors->has('content')"
+                        :route-ai-generate="$_blogRoute('ai-generate')"
+                        :route-ai-correct="$_blogRoute('ai-correct')"
+                        :route-ai-remaining="$_blogRoute('ai-remaining')"
+                        :route-upload="$_blogRoute('upload-image')"
                     />
                     @error('content')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
