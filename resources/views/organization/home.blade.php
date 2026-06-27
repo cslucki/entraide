@@ -53,7 +53,7 @@
                     <div class="grid w-full gap-3">
                         @php
                             $features = [
-                                ['label' => org_trans('home.feature_loops'), 'text' => org_trans('home.feature_loops_desc'), 'href' => auth()->check() ? route('organization.loops.index', $organization) : route('boucles.index'), 'tone' => 'bg-[var(--bp-card-loop)] text-black dark:text-black'],
+                                ['label' => org_trans('home.feature_loops'), 'text' => org_trans('home.feature_loops_desc'), 'href' => route('organization.loops.index', $organization), 'tone' => 'bg-[var(--bp-card-loop)] text-black dark:text-black'],
                                 ['label' => org_trans('home.feature_exchanges'), 'text' => org_trans('home.feature_exchanges_desc'), 'href' => route('organization.explorer', $organization), 'tone' => 'bg-[var(--bp-card-exchange)] text-black dark:text-black'],
                                 ['label' => org_trans('home.feature_directory'), 'text' => org_trans('home.feature_directory_desc'), 'href' => auth()->check() ? route('organization.dashboard', $organization) : route('organization.login', $organization), 'tone' => 'bg-[var(--bp-card-directory)] text-black dark:text-black'],
                                 ['label' => org_trans('home.feature_blog'), 'text' => org_trans('home.feature_blog_desc'), 'href' => route('organization.blog.index', $organization), 'tone' => 'bg-[var(--bp-card-news)] text-black dark:text-black'],

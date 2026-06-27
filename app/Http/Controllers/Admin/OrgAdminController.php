@@ -8,6 +8,7 @@ use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\LoginLog;
 use App\Models\Loop;
+use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
 use App\Models\Referral;
@@ -18,6 +19,7 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use Illuminate\Http\RedirectResponse;
@@ -129,7 +131,7 @@ class OrgAdminController extends Controller
     public function loops(Request $request, Organization $organization): View
     {
         $orgId = $organization->id;
-        $query = Loop::where('organization_id', $orgId)->with(['creator']);
+        $query = Loop::where('organization_id', $orgId)->with(['creator', 'activeMembers.user']);
 
         if ($request->filled('search')) {
             $query->where('name', 'like', '%'.$request->search.'%');
@@ -207,6 +209,30 @@ class OrgAdminController extends Controller
         $action = $loop->isActive() ? 'reactivated' : 'archived';
 
         return back()->with('success', __("navigation.org_admin_loop_{$action}"));
+    }
+
+    public function addLoopMember(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $data = $request->validate(['user_id' => 'required|exists:users,id']);
+
+        $user = User::findOrFail($data['user_id']);
+        abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
+
+        app(LoopService::class)->addMemberByUserId($loop, $data['user_id']);
+
+        return back()->with('success', __('loops.member_added'));
+    }
+
+    public function removeLoopMember(Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        app(LoopService::class)->removeMember($member);
+
+        return back()->with('success', __('loops.member_removed'));
     }
 
     public function publishBlogPost(Organization $organization, BlogPost $blogPost): RedirectResponse

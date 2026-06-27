@@ -55,4 +55,13 @@ return [
     'help_type_service' => 'Offer a service',
     'continue_to_exchanges' => 'Continue to Exchanges',
     'clarification_disabled' => 'AI clarification is not enabled for this organization.',
+
+    // Flash messages
+    'already_member' => 'You are already a member of this loop.',
+    'joined' => 'You have joined the loop.',
+    'not_member' => 'You are not a member of this loop.',
+    'owner_cannot_leave' => 'The owner cannot leave the loop.',
+    'left' => 'You have left the loop.',
+    'member_added' => 'Member added to the loop.',
+    'member_removed' => 'Member removed from the loop.',
 ];

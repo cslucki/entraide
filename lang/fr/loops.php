@@ -55,4 +55,13 @@ return [
     'help_type_service' => 'Proposer un service',
     'continue_to_exchanges' => 'Continuer vers Échanges',
     'clarification_disabled' => 'La clarification IA n\'est pas activée pour cette organisation.',
+
+    // Flash messages
+    'already_member' => 'Vous êtes déjà membre de cette boucle.',
+    'joined' => 'Vous avez rejoint la boucle.',
+    'not_member' => 'Vous n\'êtes pas membre de cette boucle.',
+    'owner_cannot_leave' => 'Le propriétaire ne peut pas quitter la boucle.',
+    'left' => 'Vous avez quitté la boucle.',
+    'member_added' => 'Membre ajouté à la boucle.',
+    'member_removed' => 'Membre retiré de la boucle.',
 ];
