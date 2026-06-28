@@ -31,6 +31,8 @@ return [
     'join_loop' => 'Rejoindre la Boucle',
     'see_exchanges' => 'Voir les échanges',
     'home' => 'Accueil',
+    'about' => 'À propos',
+    'subscriptions' => 'Abonnements',
     'feed' => 'Flux',
     'messaging' => 'Messagerie',
     'new_announcement' => 'Nouvelle annonce',

@@ -31,6 +31,8 @@ return [
     'join_loop' => 'Join the Loop',
     'see_exchanges' => 'See exchanges',
     'home' => 'Home',
+    'about' => 'About',
+    'subscriptions' => 'Subscriptions',
     'feed' => 'Feed',
     'messaging' => 'Messaging',
     'new_announcement' => 'New announcement',

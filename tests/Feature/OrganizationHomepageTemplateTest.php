@@ -50,6 +50,29 @@ class OrganizationHomepageTemplateTest extends TestCase
         $response->assertSee('Custom Hero Subtitle');
         $response->assertSee('bp-hero-v2');
         $response->assertSee('https://bouclepro.com/demo');
+        $response->assertSee(route('about'));
+        $response->assertSee(route('organization.subscriptions', $this->org));
+        $response->assertDontSee('theme-toggle');
+    }
+
+    public function test_authenticated_hero_menu_matches_default_user_items(): void
+    {
+        $this->org->update(['homepage_template' => 'bouclepro_hero_v2']);
+        $this->user->update(['organization_id' => $this->org->id]);
+
+        $response = $this->actingAs($this->user)->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertSee(__('navigation.dashboard'));
+        $response->assertSee(__('navigation.profile'));
+        $response->assertSee(__('navigation.settings'));
+        $response->assertSee(__('navigation.points_history'));
+        $response->assertSee(__('navigation.favorites'));
+        $response->assertSee(__('navigation.help'));
+        $response->assertSee(__('navigation.report_bug'));
+        $response->assertSee(__('navigation.logout'));
+        $response->assertSee(__('navigation.legal_notices'));
+        $response->assertSee(__('navigation.version').' '.config('app.version'));
     }
 
     public function test_tenant_isolation(): void
@@ -123,6 +146,44 @@ class OrganizationHomepageTemplateTest extends TestCase
         $this->assertEquals('Custom AI note', $this->org->homepage_settings['ai_note']);
         $this->assertEquals('Get Started', $this->org->homepage_settings['primary_cta_label']);
         $this->assertEquals('/join', $this->org->homepage_settings['primary_cta_url']);
+    }
+
+    public function test_homepage_settings_update_are_visible_on_public_hero(): void
+    {
+        $this->actingAs($this->admin)->put(route('admin.organizations.homepage.update', $this->org), [
+            'homepage_template' => 'bouclepro_hero_v2',
+            'subheadline' => 'Visible public subtitle',
+            'card_create_label' => 'Visible Create Card',
+            'card_meet_label' => 'Visible Meet Card',
+            'card_help_label' => 'Visible Help Card',
+            'card_offer_label' => 'Visible Offer Card',
+            'ai_note' => 'Visible AI note',
+            'primary_cta_label' => 'Visible Primary CTA',
+            'primary_cta_url' => '/custom-primary',
+            'secondary_cta_label' => 'Visible Secondary CTA',
+            'secondary_cta_url' => 'https://bouclepro.com/demo',
+        ]);
+
+        $response = $this->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertSee('Visible public subtitle');
+        $response->assertSee('Visible Create Card');
+        $response->assertSee('Visible Meet Card');
+        $response->assertSee('Visible Help Card');
+        $response->assertSee('Visible Offer Card');
+        $response->assertSee('Visible AI note');
+        $response->assertSee('Visible Primary CTA');
+        $response->assertSee('/custom-primary');
+        $response->assertSee('Visible Secondary CTA');
+    }
+
+    public function test_about_page_is_available_and_translated(): void
+    {
+        $this->get('/about')
+            ->assertOk()
+            ->assertSee(__('about.title'))
+            ->assertSee('about-caveat');
     }
 
     public function test_unsafe_homepage_cta_url_is_rejected(): void

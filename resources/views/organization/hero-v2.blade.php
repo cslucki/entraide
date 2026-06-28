@@ -4,6 +4,24 @@ $demoUrl = 'https://bouclepro.com/demo';
 $heroAvatars = collect($heroAvatars ?? []);
 $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? null) ? e($settings[$key]) : org_trans($fallback);
 $avatar = fn (int $index) => $heroAvatars->get($index) ?? asset('img/bouclepro-symbol.png');
+$profileUrl = fn () => route('organization.profile.show', ['organization' => $organization, 'user' => auth()->user()]);
+$settingsUrl = fn () => route('organization.profile.edit', $organization);
+$bugReportUrl = route('organization.bug-reports.index', $organization);
+$adminUrl = function () use ($organization): ?string {
+    if (! auth()->check()) {
+        return null;
+    }
+
+    if (auth()->user()->is_admin) {
+        return route('admin.dashboard');
+    }
+
+    if ($organization->admin_id === auth()->id()) {
+        return route('organization.admin.dashboard', $organization);
+    }
+
+    return null;
+};
 $settingText = fn (string $key, string $fallback, array $legacyPlaceholders = []) => filled($settings[$key] ?? null) && ! in_array($settings[$key], $legacyPlaceholders, true)
     ? $settings[$key]
     : org_trans($fallback);
@@ -43,6 +61,16 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
     <div class="brand"><span class="flower"></span><b>{{ $organization->name }}</b></div>
     <nav class="nav-right">
       <nav class="nav-menu" aria-label="Menu">
+        <a href="{{ route('about') }}">{{ __('navigation.about') }}</a>
+        <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
+        <div class="lang" aria-label="Langue / Language">
+          @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
+            <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
+              @csrf
+              <button type="submit" @if(app()->getLocale() === $code) aria-current="true" @endif>{{ $label }}</button>
+            </form>
+          @endforeach
+        </div>
         @guest
           <a href="{{ route('organization.login', $organization) }}">{{ org_trans('hero.nav_login') }}</a>
           <a href="{{ route('organization.register', $organization) }}" class="btn-join">{{ org_trans('hero.nav_signup') }}</a>
@@ -60,28 +88,24 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
                 </div>
               </div>
               <a href="{{ route('dashboard') }}">{{ __('navigation.dashboard') }}</a>
-              <a href="{{ route('profile.edit') }}">{{ __('navigation.settings') }}</a>
-              @if(auth()->user()->is_admin)
-                <a href="{{ route('admin.dashboard') }}">{{ __('navigation.administration') }}</a>
+              <a href="{{ $profileUrl() }}">{{ __('navigation.profile') }}</a>
+              <a href="{{ $settingsUrl() }}">{{ __('navigation.settings') }}</a>
+              <a href="{{ route('organization.points.index', $organization) }}">{{ __('navigation.points_history') }}</a>
+              <a href="{{ route('organization.favorites.index', $organization) }}">{{ __('navigation.favorites') }}</a>
+              <a href="{{ route('help') }}">{{ __('navigation.help') }}</a>
+              <a href="{{ $bugReportUrl }}">{{ __('navigation.report_bug') }}</a>
+              @if($adminUrl())
+                <a href="{{ $adminUrl() }}">{{ __('navigation.administration') }}</a>
               @endif
               <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit">{{ __('navigation.logout') }}</button>
               </form>
+              <a href="{{ route('mentions-legales') }}" class="user-dropdown-muted">{{ __('navigation.legal_notices') }}</a>
+              <span class="user-dropdown-version">{{ __('navigation.version') }} {{ config('app.version') }}</span>
             </div>
           </div>
         @endguest
-        <button type="button" class="theme-toggle" aria-label="{{ __('navigation.toggle_display_mode') }}">
-          <i class="ti ti-moon moon"></i><i class="ti ti-sun sun"></i>
-        </button>
-        <div class="lang" aria-label="Langue / Language">
-          @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
-            <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
-              @csrf
-              <button type="submit" @if(app()->getLocale() === $code) aria-current="true" @endif>{{ $label }}</button>
-            </form>
-          @endforeach
-        </div>
       </nav>
       <button class="burger" aria-label="{{ __('common.open_menu') }}" aria-expanded="false" aria-controls="m-menu"><i class="ti ti-menu-2"></i></button>
     </nav>
@@ -89,16 +113,25 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
   {{-- MOBILE MENU --}}
   <div class="m-menu" id="m-menu" hidden>
+    <a href="{{ route('about') }}">{{ __('navigation.about') }}</a>
+    <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
     @guest
       <a href="{{ route('organization.login', $organization) }}">{{ org_trans('hero.nav_login') }}</a>
       <a href="{{ route('organization.register', $organization) }}" class="btn-join">{{ org_trans('hero.nav_signup') }}</a>
     @else
       <a href="{{ route('dashboard') }}">{{ org_trans('navigation.dashboard') }}</a>
-      <a href="{{ route('profile.edit') }}">{{ __('navigation.settings') }}</a>
+      <a href="{{ $profileUrl() }}">{{ __('navigation.profile') }}</a>
+      <a href="{{ $settingsUrl() }}">{{ __('navigation.settings') }}</a>
+      <a href="{{ route('organization.points.index', $organization) }}">{{ __('navigation.points_history') }}</a>
+      <a href="{{ route('organization.favorites.index', $organization) }}">{{ __('navigation.favorites') }}</a>
+      <a href="{{ route('help') }}">{{ __('navigation.help') }}</a>
+      <a href="{{ $bugReportUrl }}">{{ __('navigation.report_bug') }}</a>
+      @if($adminUrl())
+        <a href="{{ $adminUrl() }}">{{ __('navigation.administration') }}</a>
+      @endif
+      <a href="{{ route('mentions-legales') }}">{{ __('navigation.legal_notices') }}</a>
+      <span class="m-version">{{ __('navigation.version') }} {{ config('app.version') }}</span>
     @endguest
-    <button type="button" class="theme-toggle m-theme-toggle" aria-label="{{ __('navigation.toggle_display_mode') }}">
-      <i class="ti ti-moon moon"></i><i class="ti ti-sun sun"></i>
-    </button>
     <div class="m-lang" aria-label="Langue / Language">
       @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
         <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" style="display:inline">
@@ -107,9 +140,6 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         </form>
       @endforeach
     </div>
-    @guest
-      <a href="{{ route('organization.register', $organization) }}" class="btn-join">{{ org_trans('hero.nav_signup') }}</a>
-    @endguest
   </div>
 
   {{-- HERO --}}
@@ -261,19 +291,6 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
   document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) close(); });
   menu.querySelectorAll('a').forEach(a => a.addEventListener('click', close));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-})();
-
-(function () {
-  const apply = theme => document.documentElement.classList.toggle('dark', theme === 'dark');
-  const stored = localStorage.getItem('theme');
-  apply(stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-  document.querySelectorAll('.theme-toggle').forEach(button => {
-    button.addEventListener('click', () => {
-      const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
-      localStorage.setItem('theme', next);
-      apply(next);
-    });
-  });
 })();
 
 (function () {

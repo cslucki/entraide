@@ -74,6 +74,7 @@ require __DIR__.'/auth.php';
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('locale.switch');
 Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
+Route::view('/about', 'about')->name('about');
 Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
 Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
 Route::redirect('/partners', '/partenaires');
