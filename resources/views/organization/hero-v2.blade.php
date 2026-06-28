@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
-<link rel="stylesheet" href="{{ asset('css/bouclepro-hero.css') }}">
+<link rel="stylesheet" href="{{ asset('css/bouclepro-hero.css') }}?v={{ filemtime(public_path('css/bouclepro-hero.css')) }}">
 </head>
 <body class="bp-hero-v2">
 <div class="page">
