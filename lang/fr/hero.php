@@ -19,6 +19,7 @@ return [
 
     'cta_primary' => 'Rejoindre la boucle',
     'cta_secondary' => 'Lancer une boucle',
+    'cta_demo' => 'Voir une démo',
 
     'card_help' => "J'ai besoin<br>d'aide",
     'card_offer' => 'Je peux<br>aider',

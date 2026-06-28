@@ -44,7 +44,9 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
     <nav class="nav-right">
       <nav class="nav-menu" aria-label="Menu">
         <a href="{{ route('about') }}">{{ __('navigation.about') }}</a>
-        <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
+        @if($organization->subscriptions_enabled)
+          <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
+        @endif
         <div class="lang" aria-label="Langue / Language">
           @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
             <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
@@ -54,8 +56,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           @endforeach
         </div>
         @guest
-          <a href="{{ route('organization.login', $organization) }}">{{ org_trans('hero.nav_login') }}</a>
-          <a href="{{ route('organization.register', $organization) }}" class="btn-join">{{ org_trans('hero.nav_signup') }}</a>
+          <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
         @else
           <a href="{{ route('dashboard') }}" class="btn-join">{{ __('navigation.dashboard') }}</a>
         @endguest
@@ -67,10 +68,11 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
   {{-- MOBILE MENU --}}
   <div class="m-menu" id="m-menu" hidden>
     <a href="{{ route('about') }}">{{ __('navigation.about') }}</a>
-    <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
+    @if($organization->subscriptions_enabled)
+      <a href="{{ route('organization.subscriptions', $organization) }}">{{ __('navigation.subscriptions') }}</a>
+    @endif
     @guest
-      <a href="{{ route('organization.login', $organization) }}">{{ org_trans('hero.nav_login') }}</a>
-      <a href="{{ route('organization.register', $organization) }}" class="btn-join">{{ org_trans('hero.nav_signup') }}</a>
+      <a href="{{ route('organization.login', $organization) }}" class="btn-join">{{ org_trans('hero.nav_login') }}</a>
     @else
       <a href="{{ route('dashboard') }}">{{ __('navigation.dashboard') }}</a>
     @endguest
@@ -105,6 +107,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <div class="cta-row" data-anim>
         <a href="{{ $primaryCtaUrl }}" class="cta-primary">{{ $settingText('primary_cta_label', 'hero.cta_primary', ['CTA primaire — label']) }} <i class="ti ti-arrow-right"></i></a>
         <a href="{{ $secondaryCtaUrl }}" class="cta-secondary"><i class="ti ti-circle-plus"></i>{{ $settingText('secondary_cta_label', 'hero.cta_secondary', ['CTA secondaire — label']) }}</a>
+        <a href="{{ $demoUrl }}" class="btn-join">{{ __('hero.cta_demo') }} <i class="ti ti-external-link"></i></a>
       </div>
     </section>
 
@@ -114,7 +117,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
       <div class="slot slot-help" style="--d:0s;--a:0deg">
         <div class="hand">
-          <a href="{{ $demoUrl }}" class="ocard card-help" data-anim>
+          <a href="{{ route('explorer') }}" class="ocard card-help" data-anim>
             <div class="top">
               <span class="ic"><i class="ti ti-heart"></i></span>
               <h3>{!! $cardLabel('card_help_label', 'hero.card_help') !!}</h3>
@@ -131,7 +134,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
       <div class="slot slot-offer" style="--d:-17s;--a:90deg">
         <div class="hand">
-          <a href="{{ $demoUrl }}" class="ocard card-offer" data-anim>
+          <a href="{{ route('explorer').'?tab=requests' }}" class="ocard card-offer" data-anim>
             <div class="top">
               <span class="ic"><i class="ti ti-hand-stop"></i></span>
               <h3>{!! $cardLabel('card_offer_label', 'hero.card_offer') !!}</h3>
@@ -148,7 +151,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
       <div class="slot slot-meet" style="--d:-34s;--a:180deg">
         <div class="hand">
-          <a href="{{ $demoUrl }}" class="ocard card-meet" data-anim>
+          <a href="{{ route('boucles.index') }}" class="ocard card-meet" data-anim>
             <div class="top">
               <span class="ic"><i class="ti ti-link"></i></span>
               <h3>{!! $cardLabel('card_meet_label', 'hero.card_meet') !!}</h3>
@@ -165,7 +168,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
       <div class="slot slot-create" style="--d:-51s;--a:270deg">
         <div class="hand">
-          <a href="{{ $demoUrl }}" class="ocard card-create" data-anim>
+          <a href="{{ route('members.index') }}" class="ocard card-create" data-anim>
             <div class="top">
               <span class="ic"><i class="ti ti-bulb"></i></span>
               <h3>{!! $cardLabel('card_create_label', 'hero.card_create') !!}</h3>
@@ -193,10 +196,13 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
   {{-- FOOTER --}}
   <footer class="foot">
-    <a class="foot-credit" href="https://amteletravail.fr" target="_blank" rel="noopener">{{ __('footer.by_amt') }}</a>
+    <div class="foot-credit">
+      <a href="https://amteletravail.fr" target="_blank" rel="noopener">{{ __('footer.by_amt') }}</a>
+      <span class="foot-sep">·</span>
+      <a href="{{ route('organization.home', 'launchpals') }}">{{ __('footer.partner_artscilab') }}</a>
+    </div>
     <nav class="foot-links">
       <a href="{{ route('mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
-      <a href="{{ $demoUrl }}">{{ __('footer.kit_demo') }}</a>
       <a href="https://github.com/cslucki/entraide" target="_blank" rel="noopener">{{ __('footer.opensource') }}</a>
       <a href="{{ route('organization.bug-reports.index', $organization) }}">{{ __('footer.bug') }}</a>
       <a href="https://github.com/cslucki/entraide" target="_blank" rel="noopener" aria-label="Code source sur GitHub">

@@ -46,6 +46,7 @@ return [
     'forgot_password_subtitle' => 'Enter your email and we\'ll send you a reset link.',
     'forgot_password_button' => 'Send reset link',
     'back_to_login' => 'Back to sign in',
+    'logout' => 'Logout',
 
     // Reset password
     'reset_password_title' => 'New password',

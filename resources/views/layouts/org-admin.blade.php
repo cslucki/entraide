@@ -311,16 +311,46 @@
                         </div>
                     </div>
 
-                    <!-- Design / Themes (standalone) -->
-                    @php $isDesignActive = $isActive('organization.admin.themes'); @endphp
-                    <a href="{{ route('organization.admin.themes', ['organization' => $organization->slug]) }}"
-                       class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
-                               {{ $isDesignActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($isDesignActive) style="background-color: var(--bp-primary)"@endif">
-                        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828L10.828 18.83"/>
-                        </svg>
-                        {{ __('navigation.org_admin_themes') }}
-                    </a>
+                    <!-- Design / Homepage + Themes -->
+                    @php
+                        $designItems = [
+                            ['route' => 'organization.admin.homepage', 'label' => __('navigation.org_admin_homepage'), 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
+                            ['route' => 'organization.admin.themes', 'label' => __('navigation.org_admin_themes'), 'icon' => 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828L10.828 18.83'],
+                        ];
+                        $designGroupActive = $isGroupActive($designItems);
+                    @endphp
+                    <div x-data="{ open: {{ $designGroupActive ? 'true' : "localStorage.getItem('org_admin_sidebar_design_open') !== 'false'" }} }">
+                        <button @click.stop="open = !open; localStorage.setItem('org_admin_sidebar_design_open', open)"
+                                class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
+                                       {{ $designGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                            <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
+                                 :class="{'rotate-180': !open}"
+                                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                            <span class="text-xs font-semibold uppercase tracking-wider">{{ __('navigation.org_admin_design') }}</span>
+                        </button>
+                        <div x-show="open" x-cloak
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 scale-y-95"
+                             x-transition:enter-end="opacity-100 scale-y-100"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 scale-y-100"
+                             x-transition:leave-end="opacity-0 scale-y-95"
+                             class="origin-top">
+                            @foreach($designItems as $item)
+                            @php $itemActive = $isActive($item['route']); @endphp
+                            <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
+                               class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
+                                       {{ $itemActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($itemActive) style="background-color: var(--bp-primary)"@endif">
+                                <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                                </svg>
+                                {{ $item['label'] }}
+                            </a>
+                            @endforeach
+                        </div>
+                    </div>
 
                     <!-- IA -->
                     @php $iaGroupActive = $isGroupActive($orgIaItems); @endphp

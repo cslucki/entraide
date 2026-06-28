@@ -2,6 +2,7 @@
 
 return [
     'by_amt' => 'A project supported by AMT',
+    'partner_artscilab' => 'in partnership with ArtSciLab',
     'mentions_legales' => 'Legal notices',
     'kit_demo' => 'Demo kit',
     'opensource' => 'OpenSource',
