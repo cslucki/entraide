@@ -2,6 +2,7 @@
 
 return [
     'by_amt' => 'Un projet porté par l\'AMT',
+    'partner_artscilab' => 'en partenariat avec ArtSciLab',
     'mentions_legales' => 'Mentions légales',
     'kit_demo' => 'Kit démo',
     'opensource' => 'OpenSource',

@@ -19,6 +19,7 @@ return [
 
     'cta_primary' => 'Join the circle',
     'cta_secondary' => 'Start a circle',
+    'cta_demo' => 'See a demo',
 
     'card_help' => 'I need<br>help',
     'card_offer' => 'I can<br>help',

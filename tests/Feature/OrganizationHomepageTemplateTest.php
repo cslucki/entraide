@@ -42,6 +42,7 @@ class OrganizationHomepageTemplateTest extends TestCase
         $this->org->update([
             'homepage_template' => 'bouclepro_hero_v2',
             'homepage_settings' => ['subheadline' => 'Custom Hero Subtitle'],
+            'subscriptions_enabled' => true,
         ]);
 
         $response = $this->get('/org/test-org');
@@ -53,6 +54,19 @@ class OrganizationHomepageTemplateTest extends TestCase
         $response->assertSee(route('about'));
         $response->assertSee(route('organization.subscriptions', $this->org));
         $response->assertDontSee('theme-toggle');
+    }
+
+    public function test_subscriptions_link_hidden_when_disabled(): void
+    {
+        $this->org->update([
+            'homepage_template' => 'bouclepro_hero_v2',
+            'subscriptions_enabled' => false,
+        ]);
+
+        $response = $this->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertDontSee(route('organization.subscriptions', $this->org));
     }
 
     public function test_authenticated_hero_shows_dashboard_button(): void
@@ -178,6 +192,7 @@ class OrganizationHomepageTemplateTest extends TestCase
         $response->assertOk();
         $response->assertSee(__('about.meta_title'), false);
         $response->assertSee(__('about.cta_primary'));
+        $response->assertSee(__('about.cta_artscilab'));
         $response->assertSee(__('about.s4_compare_rows.0.label'));
         $response->assertSee('<table', false);
     }
@@ -224,14 +239,17 @@ class OrganizationHomepageTemplateTest extends TestCase
 
     public function test_hero_uses_member_avatar_urls_not_inline_letter_svgs(): void
     {
-        User::factory()->count(3)->create(['organization_id' => $this->org->id]);
+        User::factory()->count(3)->create([
+            'organization_id' => $this->org->id,
+            'avatar' => 'avatars/test.jpg',
+        ]);
 
         $this->org->update(['homepage_template' => 'bouclepro_hero_v2']);
 
         $response = $this->get('/org/test-org');
 
         $response->assertOk();
-        $response->assertSee('ui-avatars.com', false);
+        $response->assertSee('/storage/avatars/', false);
         $response->assertDontSee('data:image/svg+xml', false);
     }
 

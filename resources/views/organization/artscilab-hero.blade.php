@@ -83,7 +83,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <div class="orbit" id="bp-orbit">
         <div class="loop"></div>
 
-        <a href="{{ $primaryCtaUrl }}" class="ocard c1">
+        <a href="{{ route('organization.explorer', $organization).'?tab=requests' }}" class="ocard c1">
           <div class="top">
             <span class="ic"><i class="ti ti-hand-stop"></i></span>
             <span class="lbl">{{ $settingText('card_1_label', 'artscilab.card_1_label') }}</span>
@@ -96,7 +96,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           </div>
         </a>
 
-        <a href="{{ $primaryCtaUrl }}" class="ocard c2">
+        <a href="{{ route('organization.explorer', $organization) }}" class="ocard c2">
           <div class="top">
             <span class="ic"><i class="ti ti-lifebuoy"></i></span>
             <span class="lbl">{{ $settingText('card_2_label', 'artscilab.card_2_label') }}</span>
@@ -109,7 +109,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           </div>
         </a>
 
-        <a href="{{ $primaryCtaUrl }}" class="ocard c3">
+        <a href="{{ route('organization.members.index', $organization) }}" class="ocard c3">
           <div class="top">
             <span class="ic"><i class="ti ti-bulb"></i></span>
             <span class="lbl">{{ $settingText('card_3_label', 'artscilab.card_3_label') }}</span>
@@ -122,7 +122,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           </div>
         </a>
 
-        <a href="{{ $primaryCtaUrl }}" class="ocard c4">
+        <a href="{{ route('organization.loops.index', $organization) }}" class="ocard c4">
           <div class="top">
             <span class="ic"><i class="ti ti-friends"></i></span>
             <span class="lbl">{{ $settingText('card_4_label', 'artscilab.card_4_label') }}</span>
@@ -149,7 +149,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
   {{-- FOOTER --}}
   <footer class="foot">
     <div class="foot-left">
-      <span>{{ org_trans('artscilab.powered_by') }}</span>
+      <a href="{{ route('organization.home', 'main') }}">{{ org_trans('artscilab.powered_by') }}</a>
       <img class="foot-symbol" src="{{ asset('img/bouclepro-symbol.png') }}" alt="" aria-hidden="true">
     </div>
     <nav class="foot-right">

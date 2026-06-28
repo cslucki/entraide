@@ -38,6 +38,7 @@ class OrganizationLandingController extends Controller
 
         if ($organization->homepage_template === 'bouclepro_hero_v2') {
             $heroAvatars = $organization->users()
+                ->whereNotNull('avatar')
                 ->latest()
                 ->limit(12)
                 ->get(['id', 'name', 'avatar'])
@@ -49,6 +50,7 @@ class OrganizationLandingController extends Controller
 
         if ($organization->homepage_template === 'artscilab_hero') {
             $heroAvatars = $organization->users()
+                ->whereNotNull('avatar')
                 ->latest()
                 ->limit(16)
                 ->get(['id', 'name', 'avatar'])

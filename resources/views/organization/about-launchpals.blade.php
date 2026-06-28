@@ -339,17 +339,12 @@
       <div class="lp-actions">
         <a href="{{ route('organization.register', $organization) }}" class="lp-button lp-button--primary">Join LaunchPals</a>
         <a href="{{ route('organization.home', $organization) }}" class="lp-button lp-button--secondary">Discover the circles</a>
+        <a href="{{ route('organization.home', 'main') }}" class="lp-button lp-button--primary">Voir BouclePro</a>
+        <a href="https://github.com/cslucki/entraide" target="_blank" rel="noopener" class="lp-button lp-button--secondary">Contribuer sur GitHub</a>
       </div>
     </div>
   </section>
 
-  <footer class="lp-footer">
-    <a href="{{ route('organization.home', $organization) }}">LaunchPals</a>
-    <span>·</span>
-    <a href="{{ route('mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
-    <span>·</span>
-    <span>{{ config('app.version') }}</span>
-  </footer>
 
 </main>
 

@@ -81,4 +81,7 @@ return [
 
     'cta_primary' => 'Create an organization',
     'cta_secondary' => 'Start a loop',
+
+    'cta_artscilab' => 'View ArtSciLab',
+    'cta_github' => 'Contribute on GitHub',
 ];

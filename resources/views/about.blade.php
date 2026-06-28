@@ -266,7 +266,7 @@
     </div>
   </section>
 
-  {{-- Screen 8 : Tableau comparatif --}}
+  {{-- Screen 8 : Comparatif --}}
   <section class="about-panel about-panel--dark about-panel--table" id="s-tableau">
     <div class="about-rings about-rings--tableau" aria-hidden="true"></div>
     <div class="about-panel__content about-panel__content--wide">
@@ -321,17 +321,12 @@
       <div class="about-actions">
         <a href="{{ route('partenaires.request.create') }}" class="about-button about-button--primary">{{ __('about.cta_primary') }}</a>
         <a href="{{ route('partenaires.request.create') }}" class="about-button about-button--secondary">{{ __('about.cta_secondary') }}</a>
+        <a href="{{ route('organization.home', 'launchpals') }}" class="about-button about-button--primary">{{ __('about.cta_artscilab') }}</a>
+        <a href="https://github.com/cslucki/entraide" target="_blank" rel="noopener" class="about-button about-button--secondary">{{ __('about.cta_github') }}</a>
       </div>
     </div>
   </section>
 
-  <footer class="about-footer">
-    <a href="https://amteletravail.fr" target="_blank" rel="noopener">{{ __('footer.by_amt') }}</a>
-    <span>·</span>
-    <a href="{{ route('mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
-    <span>·</span>
-    <span>{{ config('app.version') }}</span>
-  </footer>
 
 </main>
 

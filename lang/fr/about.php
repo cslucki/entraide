@@ -11,7 +11,7 @@ return [
     'nav_memoire' => 'Mémoire',
     'nav_personnes' => 'Personnes',
     'nav_positionnement' => 'Positionnement',
-    'nav_tableau' => 'Tableau',
+    'nav_tableau' => 'Comparatif',
     'nav_cta' => 'Commencer',
 
     // Écran 1 — Besoin
@@ -81,4 +81,7 @@ return [
 
     'cta_primary' => 'Créer une organisation',
     'cta_secondary' => 'Commencer une boucle',
+
+    'cta_artscilab' => 'Voir ArtSciLab',
+    'cta_github' => 'Contribuer sur GitHub',
 ];

@@ -629,7 +629,11 @@ Route::prefix('/org/{organization}')
                 Route::get('/identity', [OrgAdminController::class, 'identity'])->name('identity');
                 Route::post('/identity', [OrgAdminController::class, 'updateIdentity'])->name('identity.update');
 
-                // Design / Themes
+                // Design
+                Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');
+                Route::put('/homepage', [OrgAdminController::class, 'updateHomepage'])->name('homepage.update');
+
+                // Themes
                 Route::get('/themes', [OrgAdminController::class, 'themes'])->name('themes');
                 Route::get('/themes/create', [OrgAdminController::class, 'themesCreate'])->name('themes.create');
                 Route::post('/themes', [OrgAdminController::class, 'themesStore'])->name('themes.store');

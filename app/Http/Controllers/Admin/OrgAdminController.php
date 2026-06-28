@@ -808,6 +808,69 @@ class OrgAdminController extends Controller
         return $this->comingSoon($organization, __('navigation.org_admin_ai_interactions'));
     }
 
+    // ── Design / Homepage ───────────────────────────────────────────────────────
+
+    public function homepage(Organization $organization): View
+    {
+        return view('admin.org.homepage', compact('organization'));
+    }
+
+    public function updateHomepage(Request $request, Organization $organization): RedirectResponse
+    {
+        $validated = $request->validate([
+            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2', 'artscilab_hero'])],
+            'subheadline' => ['nullable', 'string', 'max:500'],
+            'card_create_label' => ['nullable', 'string', 'max:100'],
+            'card_meet_label' => ['nullable', 'string', 'max:100'],
+            'card_help_label' => ['nullable', 'string', 'max:100'],
+            'card_offer_label' => ['nullable', 'string', 'max:100'],
+            'ai_note' => ['nullable', 'string', 'max:255'],
+            'primary_cta_label' => ['nullable', 'string', 'max:100'],
+            'primary_cta_url' => ['nullable', 'string', 'max:500'],
+            'secondary_cta_label' => ['nullable', 'string', 'max:100'],
+            'secondary_cta_url' => ['nullable', 'string', 'max:500'],
+            'headline_solid' => ['nullable', 'string', 'max:100'],
+            'headline_outline' => ['nullable', 'string', 'max:200'],
+            'card_1_label' => ['nullable', 'string', 'max:100'],
+            'card_2_label' => ['nullable', 'string', 'max:100'],
+            'card_3_label' => ['nullable', 'string', 'max:100'],
+            'card_4_label' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        foreach (['primary_cta_url', 'secondary_cta_url'] as $urlField) {
+            if (! empty($validated[$urlField]) && ! $this->isSafeHomepageUrl($validated[$urlField])) {
+                return back()->withErrors([$urlField => 'URL invalide. Utilisez une URL interne relative ou une URL HTTPS.'])->withInput();
+            }
+        }
+
+        $template = $validated['homepage_template'] ?? null;
+
+        $settings = [];
+        foreach (['subheadline', 'card_create_label', 'card_meet_label', 'card_help_label', 'card_offer_label', 'ai_note', 'primary_cta_label', 'primary_cta_url', 'secondary_cta_label', 'secondary_cta_url', 'headline_solid', 'headline_outline', 'card_1_label', 'card_2_label', 'card_3_label', 'card_4_label'] as $field) {
+            if (filled($validated[$field] ?? null)) {
+                $settings[$field] = $validated[$field];
+            }
+        }
+
+        $organization->update([
+            'homepage_template' => $template,
+            'homepage_settings' => ! empty($settings) ? $settings : null,
+        ]);
+
+        return redirect()->route('organization.admin.homepage', $organization)
+            ->with('success', 'Page d\'accueil mise à jour.');
+    }
+
+    private function isSafeHomepageUrl(string $url): bool
+    {
+        if (str_starts_with($url, '/') && ! str_starts_with($url, '//')) {
+            return true;
+        }
+
+        return filter_var($url, FILTER_VALIDATE_URL) !== false
+            && parse_url($url, PHP_URL_SCHEME) === 'https';
+    }
+
     // ── Design / Themes ─────────────────────────────────────────────────────────
 
     public function themes(Request $request, Organization $organization): View
