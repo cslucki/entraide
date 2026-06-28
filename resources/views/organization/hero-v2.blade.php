@@ -1,7 +1,27 @@
 <?php
 $settings = $organization->homepage_settings ?? [];
 $demoUrl = 'https://bouclepro.com/demo';
+$heroAvatars = collect($heroAvatars ?? []);
 $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? null) ? e($settings[$key]) : org_trans($fallback);
+$avatar = fn (int $index) => $heroAvatars->get($index) ?? asset('img/bouclepro-symbol.png');
+$settingText = fn (string $key, string $fallback, array $legacyPlaceholders = []) => filled($settings[$key] ?? null) && ! in_array($settings[$key], $legacyPlaceholders, true)
+    ? $settings[$key]
+    : org_trans($fallback);
+$safeUrl = function (?string $url, string $fallback): string {
+    if (! filled($url)) {
+        return $fallback;
+    }
+
+    if (str_starts_with($url, '/') && ! str_starts_with($url, '//')) {
+        return $url;
+    }
+
+    return filter_var($url, FILTER_VALIDATE_URL) !== false && parse_url($url, PHP_URL_SCHEME) === 'https'
+        ? $url
+        : $fallback;
+};
+$primaryCtaUrl = $safeUrl($settings['primary_cta_url'] ?? null, route('organization.register', $organization));
+$secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organization.loops.index', $organization));
 ?>
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
@@ -102,7 +122,7 @@ $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? nul
         <span class="word2">{{ $settings['word_2'] ?? org_trans('hero.word_2') }}</span><br>
         <span class="word3">{{ $settings['word_3'] ?? org_trans('hero.word_3') }}</span><span class="dot">.</span>
       </h1>
-      <p data-anim>{{ $settings['subheadline'] ?? org_trans('hero.intro') }}</p>
+      <p data-anim>{{ $settingText('subheadline', 'hero.intro', ['Subheadline (sous-titre)']) }}</p>
       <div class="tript" data-anim>
         <span class="t1">{{ org_trans('hero.tript_1') }}</span>
         <span class="dot"></span>
@@ -111,8 +131,8 @@ $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? nul
         <span class="t3">{{ org_trans('hero.tript_3') }}</span>
       </div>
       <div class="cta-row" data-anim>
-        <a href="{{ $settings['primary_cta_url'] ?? route('organization.register', $organization) }}" class="cta-primary">{{ $settings['primary_cta_label'] ?? org_trans('hero.cta_primary') }} <i class="ti ti-arrow-right"></i></a>
-        <a href="{{ $settings['secondary_cta_url'] ?? route('organization.loops.index', $organization) }}" class="cta-secondary"><i class="ti ti-circle-plus"></i>{{ $settings['secondary_cta_label'] ?? org_trans('hero.cta_secondary') }}</a>
+        <a href="{{ $primaryCtaUrl }}" class="cta-primary">{{ $settingText('primary_cta_label', 'hero.cta_primary', ['CTA primaire — label']) }} <i class="ti ti-arrow-right"></i></a>
+        <a href="{{ $secondaryCtaUrl }}" class="cta-secondary"><i class="ti ti-circle-plus"></i>{{ $settingText('secondary_cta_label', 'hero.cta_secondary', ['CTA secondaire — label']) }}</a>
       </div>
     </section>
 
@@ -128,9 +148,9 @@ $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? nul
               <h3>{!! $cardLabel('card_help_label', 'hero.card_help') !!}</h3>
             </div>
             <div class="avatars">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23FBD7E5'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%23FF4F9A'%3EA%3C/text%3E%3C/svg%3E" alt="">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23FBD7E5'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%23FF4F9A'%3EB%3C/text%3E%3C/svg%3E" alt="">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23FBD7E5'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%23FF4F9A'%3EC%3C/text%3E%3C/svg%3E" alt="">
+              <img src="{{ $avatar(0) }}" alt="">
+              <img src="{{ $avatar(1) }}" alt="">
+              <img src="{{ $avatar(2) }}" alt="">
               <span class="more">+12</span>
             </div>
           </a>
@@ -145,9 +165,9 @@ $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? nul
               <h3>{!! $cardLabel('card_offer_label', 'hero.card_offer') !!}</h3>
             </div>
             <div class="avatars">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23DCE4FF'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%234D7CFF'%3ED%3C/text%3E%3C/svg%3E" alt="">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23DCE4FF'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%234D7CFF'%3EE%3C/text%3E%3C/svg%3E" alt="">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23DCE4FF'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%234D7CFF'%3EF%3C/text%3E%3C/svg%3E" alt="">
+              <img src="{{ $avatar(3) }}" alt="">
+              <img src="{{ $avatar(4) }}" alt="">
+              <img src="{{ $avatar(5) }}" alt="">
               <span class="more">+8</span>
             </div>
           </a>
@@ -162,9 +182,9 @@ $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? nul
               <h3>{!! $cardLabel('card_meet_label', 'hero.card_meet') !!}</h3>
             </div>
             <div class="avatars">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23FFE2BD'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%23FF8A3D'%3EG%3C/text%3E%3C/svg%3E" alt="">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23FFE2BD'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%23FF8A3D'%3EH%3C/text%3E%3C/svg%3E" alt="">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23FFE2BD'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%23FF8A3D'%3EI%3C/text%3E%3C/svg%3E" alt="">
+              <img src="{{ $avatar(6) }}" alt="">
+              <img src="{{ $avatar(7) }}" alt="">
+              <img src="{{ $avatar(8) }}" alt="">
               <span class="more">+9</span>
             </div>
           </a>
@@ -179,9 +199,9 @@ $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? nul
               <h3>{!! $cardLabel('card_create_label', 'hero.card_create') !!}</h3>
             </div>
             <div class="avatars">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23D6EECC'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%2356B254'%3EJ%3C/text%3E%3C/svg%3E" alt="">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23D6EECC'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%2356B254'%3EK%3C/text%3E%3C/svg%3E" alt="">
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='33' height='33' viewBox='0 0 33 33'%3E%3Ccircle cx='16.5' cy='16.5' r='16.5' fill='%23D6EECC'/%3E%3Ctext x='16.5' y='21' text-anchor='middle' font-size='14' font-weight='700' fill='%2356B254'%3EL%3C/text%3E%3C/svg%3E" alt="">
+              <img src="{{ $avatar(9) }}" alt="">
+              <img src="{{ $avatar(10) }}" alt="">
+              <img src="{{ $avatar(11) }}" alt="">
               <span class="more">+5</span>
             </div>
           </a>

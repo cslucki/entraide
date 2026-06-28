@@ -37,7 +37,14 @@ class OrganizationLandingController extends Controller
         $categories = Category::where('organization_id', $organization->id)->orderBy('name_b2c')->get();
 
         if ($organization->homepage_template === 'bouclepro_hero_v2') {
-            return view('organization.hero-v2', compact('organization'));
+            $heroAvatars = $organization->users()
+                ->latest()
+                ->limit(12)
+                ->get(['id', 'name', 'avatar'])
+                ->map(fn ($user) => $user->avatar_url)
+                ->values();
+
+            return view('organization.hero-v2', compact('organization', 'heroAvatars'));
         }
 
         $defaultOrganization = $organization;

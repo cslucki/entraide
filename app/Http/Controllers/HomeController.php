@@ -16,7 +16,8 @@ class HomeController extends Controller
 {
     public function index(): RedirectResponse|View
     {
-        $defaultOrganization = Organization::where('is_default', true)->first();
+        $defaultOrganization = Organization::where('is_default', true)->first()
+            ?? Organization::where('slug', 'main')->where('is_active', true)->first();
 
         if ($defaultOrganization?->homepage_template === 'bouclepro_hero_v2') {
             return redirect()->route('organization.home', $defaultOrganization);

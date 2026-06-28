@@ -154,6 +154,30 @@ class OrganizationHomepageTemplateTest extends TestCase
         $this->get('/')->assertRedirect(route('organization.home', $this->org));
     }
 
+    public function test_root_redirects_to_main_custom_homepage_when_no_default_organization(): void
+    {
+        $this->org->update([
+            'slug' => 'main',
+            'is_default' => false,
+            'homepage_template' => 'bouclepro_hero_v2',
+        ]);
+
+        $this->get('/')->assertRedirect(route('organization.home', $this->org));
+    }
+
+    public function test_hero_uses_member_avatar_urls_not_inline_letter_svgs(): void
+    {
+        User::factory()->count(3)->create(['organization_id' => $this->org->id]);
+
+        $this->org->update(['homepage_template' => 'bouclepro_hero_v2']);
+
+        $response = $this->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertSee('ui-avatars.com', false);
+        $response->assertDontSee('data:image/svg+xml', false);
+    }
+
     public function test_invalid_template_is_rejected(): void
     {
         $this->actingAs($this->admin)->put(route('admin.organizations.homepage.update', $this->org), [
