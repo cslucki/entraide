@@ -17,6 +17,6 @@ return [
     'nav_join' => 'Join',
     'nav_login' => 'Log in',
     'nav_dashboard' => 'Dashboard',
-    'powered_by' => 'Powered by',
+    'powered_by' => 'Powered by BouclePro',
     'footer_terms' => 'Terms of use',
 ];

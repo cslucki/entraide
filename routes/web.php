@@ -452,6 +452,7 @@ Route::prefix('/org/{organization}')
     ->name('organization.')
     ->group(function () {
         Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
+        Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
         Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
         Route::middleware('guest')->group(function () {

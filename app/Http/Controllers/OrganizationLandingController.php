@@ -62,4 +62,12 @@ class OrganizationLandingController extends Controller
 
         return view('organization.home', compact('organization', 'stats', 'featuredServices', 'categories', 'defaultOrganization'));
     }
+
+    public function about(string $organization): View
+    {
+        $organization = Organization::findBySlug($organization);
+        abort_if(! $organization || ! $organization->is_active, 404);
+
+        return view('organization.about-launchpals', compact('organization'));
+    }
 }

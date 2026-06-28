@@ -1,7 +1,7 @@
 <?php
 $settings = $organization->homepage_settings ?? [];
 $heroAvatars = collect($heroAvatars ?? []);
-$avatar = fn (int $index) => $heroAvatars->get($index) ?? asset('img/artscilab-icon.png');
+$avatar = fn (int $index) => $heroAvatars->get($index) ?? asset('img/bouclepro-symbol.png');
 $settingText = fn (string $key, string $fallback) => filled($settings[$key] ?? null) && ! in_array($settings[$key], [
     'card_create_label', 'card_meet_label', 'card_help_label', 'card_offer_label',
     'ai_note', 'subheadline', 'headline_solid', 'headline_outline',
@@ -56,7 +56,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         @endforeach
       </div>
       <nav class="nav-links">
-        <a href="{{ route('about') }}">{{ org_trans('artscilab.nav_about') }}</a>
+        <a href="{{ route('organization.about', $organization) }}">{{ org_trans('artscilab.nav_about') }}</a>
         @guest
           @if ($organization->is_public)
             <a href="{{ route('organization.login', $organization) }}">{{ org_trans('artscilab.nav_login') }}</a>
@@ -92,7 +92,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
             <div class="avatars">
               <img src="{{ $avatar(0) }}" alt=""><img src="{{ $avatar(1) }}" alt=""><img src="{{ $avatar(2) }}" alt=""><img src="{{ $avatar(3) }}" alt="">
             </div>
-            <span class="more">{{ org_trans('artscilab.card_more', replace: ['count' => 8]) }}</span>
+            <span class="more">+4</span>
           </div>
         </a>
 
@@ -105,7 +105,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
             <div class="avatars">
               <img src="{{ $avatar(4) }}" alt=""><img src="{{ $avatar(5) }}" alt=""><img src="{{ $avatar(6) }}" alt=""><img src="{{ $avatar(7) }}" alt="">
             </div>
-            <span class="more">{{ org_trans('artscilab.card_more', replace: ['count' => 12]) }}</span>
+            <span class="more">+7</span>
           </div>
         </a>
 
@@ -118,7 +118,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
             <div class="avatars">
               <img src="{{ $avatar(8) }}" alt=""><img src="{{ $avatar(9) }}" alt=""><img src="{{ $avatar(10) }}" alt=""><img src="{{ $avatar(11) }}" alt="">
             </div>
-            <span class="more">{{ org_trans('artscilab.card_more', replace: ['count' => 5]) }}</span>
+            <span class="more">+3</span>
           </div>
         </a>
 
@@ -131,7 +131,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
             <div class="avatars">
               <img src="{{ $avatar(12) }}" alt=""><img src="{{ $avatar(13) }}" alt=""><img src="{{ $avatar(14) }}" alt=""><img src="{{ $avatar(15) }}" alt="">
             </div>
-            <span class="more">{{ org_trans('artscilab.card_more', replace: ['count' => 9]) }}</span>
+            <span class="more">+6</span>
           </div>
         </a>
 
@@ -149,8 +149,8 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
   {{-- FOOTER --}}
   <footer class="foot">
     <div class="foot-left">
+      <img class="foot-symbol" src="{{ asset('img/bouclepro-symbol.png') }}" alt="" aria-hidden="true">
       <span>{{ org_trans('artscilab.powered_by') }}</span>
-      <img src="{{ asset('img/bouclepro-header.png') }}" alt="BouclePro">
     </div>
     <nav class="foot-right">
       <a href="{{ route('mentions-legales') }}">{{ org_trans('artscilab.footer_terms') }}</a>

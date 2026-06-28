@@ -248,7 +248,7 @@ class OrganizationHomepageTemplateTest extends TestCase
         $response->assertSee('Custom ArtSciLab Subtitle');
         $response->assertSee('bp-artscilab');
         $response->assertSee('artscilab-icon.png');
-        $response->assertSee(route('about'));
+        $response->assertSee('/org/test-org/about');
     }
 
     public function test_artscilab_hero_settings_are_visible(): void
@@ -297,7 +297,7 @@ class OrganizationHomepageTemplateTest extends TestCase
         $response = $this->actingAs($this->user)->get('/org/test-org');
 
         $response->assertOk();
-        $response->assertSee(route('about'));
+        $response->assertSee('/org/test-org/about');
         $response->assertSee(route('dashboard'));
     }
 
@@ -380,5 +380,36 @@ class OrganizationHomepageTemplateTest extends TestCase
         $org = Organization::factory()->create();
 
         $this->assertNull($org->homepage_settings);
+    }
+
+    public function test_artscilab_hero_about_page_is_accessible(): void
+    {
+        $response = $this->get('/org/test-org/about');
+
+        $response->assertOk();
+        $response->assertSee('LaunchPals');
+        $response->assertSee('A living digital village for ArtSciLab');
+    }
+
+    public function test_artscilab_hero_nav_links_to_org_about(): void
+    {
+        $this->org->update(['homepage_template' => 'artscilab_hero']);
+
+        $response = $this->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertSee('/org/test-org/about');
+        $response->assertDontSee('/about"');
+    }
+
+    public function test_artscilab_hero_footer_uses_bouclepro_symbol(): void
+    {
+        $this->org->update(['homepage_template' => 'artscilab_hero']);
+
+        $response = $this->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertSee('bouclepro-symbol.png');
+        $response->assertDontSee('bouclepro-header.png');
     }
 }
