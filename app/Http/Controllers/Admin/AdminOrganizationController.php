@@ -229,7 +229,7 @@ class AdminOrganizationController extends Controller
     public function updateHomepage(Request $request, Organization $organization): RedirectResponse
     {
         $validated = $request->validate([
-            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2'])],
+            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2', 'artscilab_hero'])],
             'subheadline' => ['nullable', 'string', 'max:500'],
             'card_create_label' => ['nullable', 'string', 'max:100'],
             'card_meet_label' => ['nullable', 'string', 'max:100'],
@@ -240,6 +240,12 @@ class AdminOrganizationController extends Controller
             'primary_cta_url' => ['nullable', 'string', 'max:500'],
             'secondary_cta_label' => ['nullable', 'string', 'max:100'],
             'secondary_cta_url' => ['nullable', 'string', 'max:500'],
+            'headline_solid' => ['nullable', 'string', 'max:100'],
+            'headline_outline' => ['nullable', 'string', 'max:200'],
+            'card_1_label' => ['nullable', 'string', 'max:100'],
+            'card_2_label' => ['nullable', 'string', 'max:100'],
+            'card_3_label' => ['nullable', 'string', 'max:100'],
+            'card_4_label' => ['nullable', 'string', 'max:100'],
         ]);
 
         foreach (['primary_cta_url', 'secondary_cta_url'] as $urlField) {
@@ -251,7 +257,7 @@ class AdminOrganizationController extends Controller
         $template = $validated['homepage_template'] ?? null;
 
         $settings = [];
-        foreach (['subheadline', 'card_create_label', 'card_meet_label', 'card_help_label', 'card_offer_label', 'ai_note', 'primary_cta_label', 'primary_cta_url', 'secondary_cta_label', 'secondary_cta_url'] as $field) {
+        foreach (['subheadline', 'card_create_label', 'card_meet_label', 'card_help_label', 'card_offer_label', 'ai_note', 'primary_cta_label', 'primary_cta_url', 'secondary_cta_label', 'secondary_cta_url', 'headline_solid', 'headline_outline', 'card_1_label', 'card_2_label', 'card_3_label', 'card_4_label'] as $field) {
             if (filled($validated[$field] ?? null)) {
                 $settings[$field] = $validated[$field];
             }

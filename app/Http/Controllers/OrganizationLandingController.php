@@ -47,6 +47,17 @@ class OrganizationLandingController extends Controller
             return view('organization.hero-v2', compact('organization', 'heroAvatars'));
         }
 
+        if ($organization->homepage_template === 'artscilab_hero') {
+            $heroAvatars = $organization->users()
+                ->latest()
+                ->limit(16)
+                ->get(['id', 'name', 'avatar'])
+                ->map(fn ($user) => $user->avatar_url)
+                ->values();
+
+            return view('organization.artscilab-hero', compact('organization', 'heroAvatars'));
+        }
+
         $defaultOrganization = $organization;
 
         return view('organization.home', compact('organization', 'stats', 'featuredServices', 'categories', 'defaultOrganization'));

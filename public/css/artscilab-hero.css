@@ -1,0 +1,193 @@
+/* ArtSciLab — Hero / Launch-Pals homepage template */
+.bp-artscilab {
+  --magenta:#FF0A5C; --red:#FF3A2E; --orange:#FF7A1C; --gold:#FFB200;
+  --dur:54s; --r:202px;
+  --ease:cubic-bezier(.22,.72,.24,1);
+}
+.bp-artscilab,
+.bp-artscilab *{box-sizing:border-box}
+body.bp-artscilab{margin:0;padding:0}
+body.bp-artscilab{
+  font-family:'Inter',system-ui,sans-serif;color:#fff;min-height:100dvh;overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  background:#FF3A2E;
+  background-image:
+    radial-gradient(78% 66% at 90% 6%, rgba(255,200,40,.62), transparent 55%),
+    radial-gradient(72% 82% at 4% 98%, rgba(255,8,92,.66), transparent 56%),
+    linear-gradient(118deg, var(--magenta) 0%, var(--red) 38%, var(--orange) 70%, var(--gold) 100%);
+  background-attachment:fixed;
+}
+
+/* slow living drift */
+body.bp-artscilab::before{
+  content:"";position:fixed;inset:-25%;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(38% 38% at 28% 32%, rgba(255,120,160,.40), transparent 60%),
+    radial-gradient(42% 42% at 74% 70%, rgba(255,170,40,.38), transparent 62%);
+  filter:blur(12px);
+}
+@media (prefers-reduced-motion:no-preference){body.bp-artscilab::before{animation:bpa-drift 24s ease-in-out infinite alternate}}
+@keyframes bpa-drift{from{transform:translate3d(-3%,-2%,0) scale(1.03)}to{transform:translate3d(4%,3%,0) scale(1.09)}}
+
+/* spatial grid floor */
+.bp-artscilab .grid-plane{
+  position:fixed;left:50%;bottom:-6%;width:260%;height:70%;z-index:0;pointer-events:none;
+  transform:translateX(-50%) perspective(340px) rotateX(61deg);transform-origin:bottom center;
+  background-image:
+    linear-gradient(rgba(255,255,255,.14) 1.4px, transparent 1.4px),
+    linear-gradient(90deg, rgba(255,255,255,.14) 1.4px, transparent 1.4px);
+  background-size:56px 56px;
+  -webkit-mask:linear-gradient(to top,#000 4%, transparent 64%);mask:linear-gradient(to top,#000 4%, transparent 64%);
+}
+@media (prefers-reduced-motion:no-preference){.bp-artscilab .grid-plane{animation:bpa-gridscroll 5.6s linear infinite}}
+@keyframes bpa-gridscroll{from{background-position:0 0}to{background-position:0 56px}}
+
+/* rising stars */
+.bp-artscilab .stars{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  -webkit-mask:linear-gradient(180deg, transparent, rgba(0,0,0,.85) 22%, #000 50%, rgba(0,0,0,.85) 78%, transparent);
+          mask:linear-gradient(180deg, transparent, rgba(0,0,0,.85) 22%, #000 50%, rgba(0,0,0,.85) 78%, transparent)}
+.bp-artscilab .stars i{position:absolute;top:0;left:0;border-radius:50%;background:transparent}
+@media (prefers-reduced-motion:no-preference){.bp-artscilab .stars i{animation:bpa-rise linear infinite}}
+@keyframes bpa-rise{from{transform:translateY(0)}to{transform:translateY(-1000px)}}
+
+/* mouse light */
+.bp-artscilab .mouse-light{position:fixed;inset:0;z-index:40;pointer-events:none;opacity:0;transition:opacity .3s;mix-blend-mode:screen;
+  background:radial-gradient(440px circle at var(--mx,-100px) var(--my,-100px),
+    rgba(255,255,255,.14) 0, rgba(255,255,255,.04) 40%, transparent 70%)}
+
+.bp-artscilab button{font-family:inherit;cursor:pointer;border:none;background:none}
+.bp-artscilab a{text-decoration:none;color:inherit}
+
+.bp-artscilab .page{position:relative;z-index:2;max-width:1280px;margin:0 auto;padding:24px 48px 22px;
+  min-height:100dvh;display:flex;flex-direction:column}
+
+/* ============ HEADER ============ */
+.bp-artscilab .nav{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px}
+.bp-artscilab .brand .logo{height:150px;width:auto;display:block;filter:drop-shadow(0 3px 16px rgba(120,8,30,.32))}
+.bp-artscilab .nav-right{display:flex;flex-direction:column;align-items:flex-end;gap:13px}
+.bp-artscilab .lang{display:flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.06em}
+.bp-artscilab .lang a{color:rgba(255,255,255,.62);font-weight:600;transition:color .15s}
+.bp-artscilab .lang a:hover{color:#fff}
+.bp-artscilab .lang a.on,.bp-artscilab .lang button.on{color:#fff;font-weight:800;border-bottom:1.5px solid #fff;padding-bottom:1px}
+.bp-artscilab .lang form.inline{display:inline}
+.bp-artscilab .lang button{color:rgba(255,255,255,.62);font-weight:600;font-size:12px;letter-spacing:.06em;transition:color .15s;background:none;border:none;cursor:pointer;font-family:inherit}
+.bp-artscilab .lang button:hover{color:#fff}
+.bp-artscilab .lang .sep{color:rgba(255,255,255,.45)}
+.bp-artscilab .nav-links{display:flex;align-items:center;gap:30px}
+.bp-artscilab .nav-links a{font-size:15px;font-weight:500;color:rgba(255,255,255,.9);transition:color .15s}
+.bp-artscilab .nav-links a:not(.btn-join):hover{color:#fff}
+.bp-artscilab .nav-links a.btn-join{background:#fff;color:var(--red);font-weight:700;font-size:14.5px;padding:10px 24px;border-radius:999px;
+  box-shadow:0 10px 24px -8px rgba(120,8,30,.45);transition:transform .14s, box-shadow .2s}
+.bp-artscilab .nav-links a.btn-join:hover{transform:translateY(-1px);box-shadow:0 14px 30px -8px rgba(120,8,30,.55)}
+.bp-artscilab .nav-links a.btn-join:active{transform:scale(.97)}
+.bp-artscilab .nav-links a.btn-join--outline{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.5);font-weight:600;font-size:14px;padding:10px 24px;border-radius:999px;transition:background .15s,border-color .15s}
+.bp-artscilab .nav-links a.btn-join--outline:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.8)}
+
+/* ============ HERO ============ */
+.bp-artscilab .hero{flex:1;display:grid;grid-template-columns:1.04fr 1fr;gap:30px;align-items:center;padding:0 0 14px;margin-top:-56px}
+.bp-artscilab .lead{max-width:600px}
+.bp-artscilab .lead h1{font-family:'Archivo',sans-serif;font-weight:900;line-height:.98;letter-spacing:-.02em;
+  font-size:clamp(34px,4.3vw,58px);margin:0 0 24px;text-wrap:balance}
+.bp-artscilab .lead h1 .solid{color:#fff;text-shadow:0 3px 26px rgba(120,8,30,.28)}
+.bp-artscilab .lead h1 .outline{color:transparent;-webkit-text-stroke:1.7px rgba(255,255,255,.95);text-stroke:1.7px rgba(255,255,255,.95)}
+.bp-artscilab .lead p{font-size:clamp(15.5px,1.15vw,18px);line-height:1.62;color:rgba(255,255,255,.94);margin:0;max-width:540px;font-weight:450;text-wrap:pretty}
+
+/* ============ ORBIT STAGE ============ */
+.bp-artscilab .stage{position:relative;display:flex;align-items:center;justify-content:center}
+.bp-artscilab .orbit{position:relative;width:580px;height:580px;max-width:100%}
+.bp-artscilab .loop{position:absolute;top:50%;left:50%;width:calc(2*var(--r));height:calc(2*var(--r));transform:translate(-50%,-50%);
+  border:1px solid rgba(255,255,255,.30);border-radius:50%}
+.bp-artscilab .loop::before{content:"";position:absolute;inset:34px;border-radius:50%;border:1px dashed rgba(255,255,255,.16)}
+.bp-artscilab .loop::after{content:"";position:absolute;inset:32%;border-radius:50%;
+  background:radial-gradient(closest-side, rgba(255,255,255,.16), transparent 70%);filter:blur(6px)}
+
+.bp-artscilab .ocard{
+  position:absolute;top:50%;left:50%;width:224px;z-index:4;cursor:pointer;
+  display:flex;flex-direction:column;gap:15px;padding:18px;border-radius:20px;overflow:hidden;
+  background:linear-gradient(180deg, rgba(36,10,16,.50), rgba(20,6,11,.60));
+  backdrop-filter:blur(15px) saturate(1.15);-webkit-backdrop-filter:blur(15px) saturate(1.15);
+  border:1px solid rgba(255,255,255,.18);
+  box-shadow:0 26px 56px -24px rgba(70,6,20,.6), inset 0 1px 0 rgba(255,255,255,.16);
+  transition:border-color .2s, box-shadow .25s;
+  animation:bpa-orbit var(--dur) linear infinite;
+}
+.bp-artscilab .ocard::before{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;opacity:0;transition:opacity .25s;
+  background:radial-gradient(220px circle at var(--mx,50%) var(--my,50%), rgba(255,196,150,.26), transparent 60%)}
+.bp-artscilab .ocard:hover::before{opacity:1}
+.bp-artscilab .ocard:hover{border-color:rgba(255,255,255,.4);
+  box-shadow:0 36px 72px -22px rgba(70,6,20,.66), inset 0 1px 0 rgba(255,255,255,.24), 0 0 50px -8px rgba(255,150,90,.4)}
+.bp-artscilab .orbit:hover .ocard{animation-play-state:paused}
+
+.bp-artscilab .ainote{position:absolute;bottom:4px;right:2px;z-index:5;display:flex;align-items:flex-start;gap:8px;pointer-events:none}
+.bp-artscilab .ainote svg{flex-shrink:0;margin-top:3px}
+.bp-artscilab .ainote p{font-family:'Caveat',cursive;font-weight:600;font-size:22px;line-height:1.16;color:rgba(255,255,255,.94);margin:0;max-width:210px;text-shadow:0 2px 10px rgba(120,8,30,.25)}
+
+.bp-artscilab .ocard .top{display:flex;align-items:center;gap:13px;position:relative;z-index:1}
+.bp-artscilab .ocard .ic{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:21px;color:#fff;flex-shrink:0;
+  background:radial-gradient(circle at 36% 30%, rgba(255,255,255,.4), rgba(255,120,80,.28) 72%);
+  border:1px solid rgba(255,255,255,.42);box-shadow:0 0 24px rgba(255,120,70,.4), inset 0 0 14px rgba(255,255,255,.28)}
+.bp-artscilab .ocard .lbl{font-family:'Archivo',sans-serif;font-weight:700;font-size:16px;letter-spacing:-.01em;line-height:1.14;color:#fff}
+.bp-artscilab .ocard .ppl{display:flex;align-items:center;gap:11px;position:relative;z-index:1}
+.bp-artscilab .ocard .avatars{display:flex;align-items:center}
+.bp-artscilab .ocard .avatars img{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.55);object-fit:cover;margin-left:-9px;background:#3a1018}
+.bp-artscilab .ocard .avatars img:first-child{margin-left:0}
+.bp-artscilab .ocard .more{font-size:13px;font-weight:700;color:rgba(255,255,255,.82)}
+
+@keyframes bpa-orbit{
+  from{transform:translate(-50%,-50%) rotate(0deg)   translateY(calc(-1*var(--r))) rotate(0deg)}
+  to  {transform:translate(-50%,-50%) rotate(360deg) translateY(calc(-1*var(--r))) rotate(-360deg)}
+}
+.bp-artscilab .c1{animation-delay:calc(var(--dur)*-0)}
+.bp-artscilab .c2{animation-delay:calc(var(--dur)*-0.25)}
+.bp-artscilab .c3{animation-delay:calc(var(--dur)*-0.5)}
+.bp-artscilab .c4{animation-delay:calc(var(--dur)*-0.75)}
+@media (prefers-reduced-motion:reduce){
+  .bp-artscilab .ocard{animation:none}
+  .bp-artscilab .c1{transform:translate(-50%,-50%) translateY(calc(-1*var(--r)))}
+  .bp-artscilab .c2{transform:translate(-50%,-50%) translateX(var(--r))}
+  .bp-artscilab .c3{transform:translate(-50%,-50%) translateY(var(--r))}
+  .bp-artscilab .c4{transform:translate(-50%,-50%) translateX(calc(-1*var(--r)))}
+}
+
+/* ============ FOOTER ============ */
+.bp-artscilab .foot{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:14px;
+  font-size:12.5px;color:rgba(255,255,255,.82)}
+.bp-artscilab .foot-left{display:flex;align-items:center;gap:9px}
+.bp-artscilab .foot-left img{height:26px;width:auto;display:block;opacity:.95}
+.bp-artscilab .foot-right{display:flex;align-items:center;gap:18px}
+.bp-artscilab .foot-right a{color:rgba(255,255,255,.82);font-weight:500;transition:color .15s;display:inline-flex;align-items:center}
+.bp-artscilab .foot-right a:hover{color:#fff}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width:1080px){
+  .bp-artscilab .page{padding:22px 28px}
+  .bp-artscilab .hero{grid-template-columns:1fr;gap:10px;padding:14px 0 10px;align-items:center;margin-top:0}
+  .bp-artscilab .lead{order:1;max-width:none}
+  .bp-artscilab .stage{order:2}
+  .bp-artscilab .orbit{--r:172px;width:460px;height:460px}
+  .bp-artscilab .brand .logo{height:112px}
+  .bp-artscilab .nav-links a:not(.btn-join):not(.btn-join--outline){display:none}
+}
+@media (max-width:760px){
+  .bp-artscilab .orbit{--r:150px;width:392px;height:392px}
+  .bp-artscilab .ocard{width:184px;padding:15px;gap:12px}
+  .bp-artscilab .ocard .lbl{font-size:15px}
+}
+@media (max-width:640px){
+  .bp-artscilab .page{padding:18px 16px}
+  .bp-artscilab .nav{align-items:center}
+  .bp-artscilab .nav-right{gap:8px}
+  .bp-artscilab .brand .logo{height:84px}
+  .bp-artscilab .hero{padding:8px 0 6px;gap:6px}
+  .bp-artscilab .lead h1{font-size:clamp(28px,8vw,40px)}
+  .bp-artscilab .lead p{font-size:15px}
+  .bp-artscilab .stage{margin-top:8px}
+  .bp-artscilab .orbit{--r:0px;width:100%;max-width:400px;height:auto;margin:0 auto;
+    display:flex;flex-direction:column;gap:14px}
+  .bp-artscilab .loop{display:none}
+  .bp-artscilab .ocard{position:static;width:100%;animation:none!important;transform:none!important;
+    box-shadow:0 18px 40px -22px rgba(70,6,20,.6), inset 0 1px 0 rgba(255,255,255,.16)}
+  .bp-artscilab .ocard::before{display:none}
+  .bp-artscilab .ainote{position:static;margin:6px auto 0;justify-content:center}
+  .bp-artscilab .foot{flex-direction:column;gap:8px;text-align:center}
+}

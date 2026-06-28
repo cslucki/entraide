@@ -17,6 +17,8 @@
                     <td class="px-4 py-3">
                         @if ($org->homepage_template === 'bouclepro_hero_v2')
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">BouclePro_Hero</span>
+                        @elseif($org->homepage_template === 'artscilab_hero')
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200">ArtSciLab_Hero</span>
                         @else
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">Défaut</span>
                         @endif

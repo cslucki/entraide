@@ -19,7 +19,7 @@ class HomeController extends Controller
         $defaultOrganization = Organization::where('is_default', true)->first()
             ?? Organization::where('slug', 'main')->where('is_active', true)->first();
 
-        if ($defaultOrganization?->homepage_template === 'bouclepro_hero_v2') {
+        if ($defaultOrganization?->homepage_template === 'bouclepro_hero_v2' || $defaultOrganization?->homepage_template === 'artscilab_hero') {
             return redirect()->route('organization.home', $defaultOrganization);
         }
 

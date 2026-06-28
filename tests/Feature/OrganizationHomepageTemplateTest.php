@@ -235,6 +235,113 @@ class OrganizationHomepageTemplateTest extends TestCase
         $response->assertDontSee('data:image/svg+xml', false);
     }
 
+    public function test_custom_template_renders_artscilab_hero(): void
+    {
+        $this->org->update([
+            'homepage_template' => 'artscilab_hero',
+            'homepage_settings' => ['subheadline' => 'Custom ArtSciLab Subtitle'],
+        ]);
+
+        $response = $this->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertSee('Custom ArtSciLab Subtitle');
+        $response->assertSee('bp-artscilab');
+        $response->assertSee('artscilab-icon.png');
+        $response->assertSee(route('about'));
+    }
+
+    public function test_artscilab_hero_settings_are_visible(): void
+    {
+        $this->actingAs($this->admin)->put(route('admin.organizations.homepage.update', $this->org), [
+            'homepage_template' => 'artscilab_hero',
+            'headline_solid' => 'Launch-Pals',
+            'headline_outline' => 'is a caravanserai:',
+            'subheadline' => 'ArtSciLab community text',
+            'card_1_label' => 'I can help with…',
+            'card_2_label' => 'I need help with…',
+            'card_3_label' => 'I am fascinated by…',
+            'card_4_label' => 'These two should meet…',
+            'ai_note' => "AI helps.\nHumans stay at center!",
+        ]);
+
+        $response = $this->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertSee('Launch-Pals');
+        $response->assertSee('is a caravanserai:');
+        $response->assertSee('ArtSciLab community text');
+        $response->assertSee('I can help with…');
+        $response->assertSee('I need help with…');
+        $response->assertSee('I am fascinated by…');
+        $response->assertSee('These two should meet…');
+    }
+
+    public function test_artscilab_hero_uses_member_avatar_urls(): void
+    {
+        User::factory()->count(3)->create(['organization_id' => $this->org->id]);
+
+        $this->org->update(['homepage_template' => 'artscilab_hero']);
+
+        $response = $this->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertDontSee('data:image/svg+xml', false);
+    }
+
+    public function test_artscilab_hero_shows_dashboard_button_when_authenticated(): void
+    {
+        $this->org->update(['homepage_template' => 'artscilab_hero']);
+        $this->user->update(['organization_id' => $this->org->id]);
+
+        $response = $this->actingAs($this->user)->get('/org/test-org');
+
+        $response->assertOk();
+        $response->assertSee(route('about'));
+        $response->assertSee(route('dashboard'));
+    }
+
+    public function test_admin_homepages_shows_artscilab_badge(): void
+    {
+        $this->org->update(['homepage_template' => 'artscilab_hero']);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.homepages'));
+
+        $response->assertOk();
+        $response->assertSee('ArtSciLab_Hero');
+    }
+
+    public function test_superadmin_can_select_artscilab_template(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.organizations.homepage', $this->org));
+
+        $response->assertOk();
+        $response->assertSee('artscilab_hero');
+        $response->assertSee('ArtSciLab_Hero');
+    }
+
+    public function test_superadmin_can_update_to_artscilab_hero(): void
+    {
+        $this->actingAs($this->admin)->put(route('admin.organizations.homepage.update', $this->org), [
+            'homepage_template' => 'artscilab_hero',
+            'headline_solid' => 'Launch-Pals',
+            'headline_outline' => 'is a space for exchange:',
+            'subheadline' => 'Private community text',
+            'card_1_label' => 'I can help',
+            'card_2_label' => 'I need help',
+            'card_3_label' => 'I study',
+            'card_4_label' => 'Connect',
+            'ai_note' => 'AI note text',
+        ])->assertRedirect(route('admin.organizations.homepage', $this->org));
+
+        $this->org->refresh();
+
+        $this->assertEquals('artscilab_hero', $this->org->homepage_template);
+        $this->assertEquals('Launch-Pals', $this->org->homepage_settings['headline_solid']);
+        $this->assertEquals('is a space for exchange:', $this->org->homepage_settings['headline_outline']);
+        $this->assertEquals('I can help', $this->org->homepage_settings['card_1_label']);
+    }
+
     public function test_invalid_template_is_rejected(): void
     {
         $this->actingAs($this->admin)->put(route('admin.organizations.homepage.update', $this->org), [
