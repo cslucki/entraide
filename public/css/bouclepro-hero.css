@@ -171,10 +171,10 @@ body.bp-hero-v2{
   position:absolute;inset:-6% -8% -6% -2%;width:auto;height:auto;
   z-index:1;pointer-events:none;user-select:none;
 }
-.bp-hero-v2 .slot{position:absolute;inset:0;transform-origin:50% 50%;z-index:4}
-.bp-hero-v2 .hand{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) translateY(calc(-1 * var(--R)))}
+.bp-hero-v2 .slot{position:absolute;inset:0;transform-origin:50% 50%;z-index:4;pointer-events:none}
+.bp-hero-v2 .hand{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) translateY(calc(-1 * var(--R)));pointer-events:none}
 .bp-hero-v2 .ocard{
-  position:relative;width:224px;display:block;cursor:pointer;
+  position:relative;width:224px;display:block;cursor:pointer;pointer-events:auto;
   background:var(--panel);border-radius:var(--r-card);padding:18px 20px;
   box-shadow:0 26px 56px -20px rgba(20,24,60,.22), 0 3px 10px rgba(20,24,60,.05);
   transition:box-shadow .2s, filter .2s;
@@ -213,18 +213,9 @@ body.bp-hero-v2{
   font-weight:600;max-width:175px;
 }
 
-/* ============ ORBIT MOTION ============ */
-@media (prefers-reduced-motion:no-preference){
-  .bp-hero-v2 .slot{animation:bpOrbit var(--dur,68s) linear var(--d,0s) infinite}
-  .bp-hero-v2 .slot .ocard{animation:bpOrbitRev var(--dur,68s) linear var(--d,0s) infinite}
-  .bp-hero-v2 .orbit:hover .slot,.bp-hero-v2 .orbit:hover .slot .ocard{animation-play-state:paused}
-}
-@media (prefers-reduced-motion:reduce){
-  .bp-hero-v2 .slot{transform:rotate(var(--a,0deg))}
-  .bp-hero-v2 .slot .ocard{transform:rotate(calc(-1 * var(--a,0deg)))}
-}
-@keyframes bpOrbit{to{transform:rotate(360deg)}}
-@keyframes bpOrbitRev{to{transform:rotate(-360deg)}}
+/* ============ ORBIT POSITIONING ============ */
+.bp-hero-v2 .slot{transform:rotate(var(--a,0deg))}
+.bp-hero-v2 .slot .ocard{transform:rotate(calc(-1 * var(--a,0deg)))}
 
 /* ============ RESPONSIVE ============ */
 @media (max-width:1080px){
