@@ -30,8 +30,8 @@ class MembersPageTest extends TestCase
 
         $response->assertOk();
         $response->assertViewIs('members.index');
-        $response->assertSee('Annuaire des membres');
-        $response->assertSee('3 membres');
+        $response->assertSee(__('directory.title'));
+        $response->assertSee(trans_choice('directory.member_count', 3, ['count' => 3]));
     }
 
     public function test_public_pages_show_setup_without_organization(): void
@@ -66,6 +66,6 @@ class MembersPageTest extends TestCase
 
         $response = $this->get('/membres');
         $response->assertOk();
-        $response->assertSee('Annuaire des membres');
+        $response->assertSee(__('directory.title'));
     }
 }

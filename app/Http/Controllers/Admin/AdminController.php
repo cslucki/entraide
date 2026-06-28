@@ -8,6 +8,7 @@ use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Category;
+use App\Models\Country;
 use App\Models\EmailLog;
 use App\Models\Favorite;
 use App\Models\FeedPost;
@@ -39,6 +40,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -102,7 +104,7 @@ class AdminController extends Controller
             'rating' => $query->orderBy('rating', $direction),
             'status' => $query->orderByRaw('banned_at IS NULL '.($direction === 'asc' ? 'ASC' : 'DESC').', banned_at '.$direction),
             'organization_id' => $query->orderBy(
-                \App\Models\Organization::select('name')->whereColumn('id', 'users.organization_id')->limit(1),
+                Organization::select('name')->whereColumn('id', 'users.organization_id')->limit(1),
                 $direction
             ),
             default => $query->latest(),
@@ -118,16 +120,40 @@ class AdminController extends Controller
     {
         $organizations = Organization::where('is_active', true)->orderBy('name')->get();
 
-        return view('admin.users.edit', compact('user', 'organizations'));
+        $userOrg = $user->organization;
+        $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
+
+        if ($userOrg) {
+            $priorityCodes = $userOrg->priorityCountries()->where('active', true)->pluck('code');
+            $priorityCountries = Country::whereIn('code', $priorityCodes)->where('active', true)->get();
+            $otherCountries = Country::where('active', true)
+                ->whereNotIn('code', $priorityCodes)
+                ->orderBy($localeColumn)
+                ->get();
+            $countries = $priorityCountries->concat($otherCountries);
+        } else {
+            $countries = Country::where('active', true)->orderBy($localeColumn)->get();
+        }
+
+        return view('admin.users.edit', compact('user', 'organizations', 'countries'));
     }
 
     public function updateUser(Request $request, User $user): RedirectResponse
     {
+        $organization = $this->resolveOrganizationFromInput($request->input('organization_id'));
+
         $data = $request->validate([
+            'first_name' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email,'.$user->id,
+            'phone' => 'nullable|string|max:30',
             'bio' => 'nullable|string|max:500',
-            'location' => 'nullable|string|max:100',
+            'city' => 'nullable|string|max:255',
+            'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
+            'preferred_locale' => ['nullable', 'string', Rule::in(['fr', 'en'])],
+            'address_line1' => 'nullable|string|max:255',
+            'address_line2' => 'nullable|string|max:255',
+            'postal_code' => 'nullable|string|max:30',
             'website' => 'nullable|url|max:255',
             'linkedin_url' => 'nullable|url|max:255',
             'organization_id' => 'nullable|uuid|exists:organizations,id',
@@ -137,18 +163,28 @@ class AdminController extends Controller
             'banned' => 'boolean',
         ]);
 
-        $organization = $this->resolveOrganizationFromInput($data['organization_id'] ?? null);
-
         $update = [
+            'first_name' => $data['first_name'] ?? null,
             'name' => $data['name'],
             'email' => $data['email'],
+            'phone' => $data['phone'] ?? null,
             'bio' => $data['bio'] ?? null,
-            'location' => $data['location'] ?? null,
+            'city' => $data['city'] ?? null,
+            'country_code' => $data['country_code'] ?? null,
+            'preferred_locale' => $data['preferred_locale'] ?? null,
+            'address_line1' => $data['address_line1'] ?? null,
+            'address_line2' => $data['address_line2'] ?? null,
+            'postal_code' => $data['postal_code'] ?? null,
             'website' => $data['website'] ?? null,
             'linkedin_url' => $data['linkedin_url'] ?? null,
             'organization_id' => $organization->id,
             'is_available' => $request->boolean('is_available'),
         ];
+
+        if ($organization->membership_enabled) {
+            $request->validate(['membership_value' => 'nullable|string|max:255']);
+            $update['membership_value'] = $request->input('membership_value');
+        }
 
         if ($request->hasFile('avatar')) {
             if ($user->avatar) {

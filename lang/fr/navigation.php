@@ -31,6 +31,8 @@ return [
     'join_loop' => 'Rejoindre la Boucle',
     'see_exchanges' => 'Voir les échanges',
     'home' => 'Accueil',
+    'about' => 'À propos',
+    'subscriptions' => 'Abonnements',
     'feed' => 'Flux',
     'messaging' => 'Messagerie',
     'new_announcement' => 'Nouvelle annonce',
@@ -69,6 +71,7 @@ return [
     'org_admin_coming_soon' => ':section (à venir)',
     'org_admin_design' => 'Design',
     'org_admin_themes' => 'Thèmes',
+    'org_admin_homepage' => 'Page d\'accueil',
     'org_admin_exchanges' => 'Échanges',
     'org_admin_organization' => 'Organisation',
     'org_admin_ia' => 'IA',
@@ -175,6 +178,9 @@ return [
     'org_admin_loops_label_active' => 'Active',
     'org_admin_loops_label_archived' => 'Archivée',
     'org_admin_table_sender' => 'Expéditeur',
+    'org_admin_add_member' => 'Ajouter un membre',
+    'org_admin_add' => 'Ajouter',
+    'org_admin_confirm_remove_member' => 'Retirer ce membre ?',
 
     // LOT D — Utilisateurs, Catégories, Signalements, Invitations
     'org_admin_manage_users' => 'Gérez les membres de votre organisation.',

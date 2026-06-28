@@ -4,6 +4,7 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\User;
 use Tests\TestCase;
@@ -368,13 +369,13 @@ class AdminLoopsTest extends TestCase
 
     // ── Destroy protection ────────────────────────────────────────────────────
 
-    public function test_cannot_destroy_loop_with_messages(): void
+    public function test_can_destroy_loop_with_messages(): void
     {
         $org = $this->makeOrg();
         $admin = $this->makeAdmin(['organization_id' => $org->id]);
         $loop = $this->makeLoop($org);
 
-        \App\Models\LoopMessage::factory()->create([
+        $message = LoopMessage::factory()->create([
             'loop_id' => $loop->id,
             'sender_id' => $admin->id,
         ]);
@@ -382,9 +383,10 @@ class AdminLoopsTest extends TestCase
         $this->actingAs($admin)
             ->delete(route('admin.loops.destroy', $loop))
             ->assertRedirect()
-            ->assertSessionHas('error');
+            ->assertSessionHas('success');
 
-        $this->assertDatabaseHas('loops', ['id' => $loop->id]);
+        $this->assertDatabaseMissing('loops', ['id' => $loop->id]);
+        $this->assertDatabaseMissing('loop_messages', ['id' => $message->id]);
     }
 
     public function test_can_destroy_empty_loop(): void
@@ -407,7 +409,7 @@ class AdminLoopsTest extends TestCase
         $loop = $this->makeLoop($org);
         $user = User::factory()->create();
 
-        \App\Models\LoopMessage::factory()->create([
+        LoopMessage::factory()->create([
             'loop_id' => $loop->id,
             'sender_id' => $user->id,
         ]);

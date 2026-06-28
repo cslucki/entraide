@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\SetLocale;
 use App\Models\Organization;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
@@ -80,5 +81,89 @@ class SetLocaleMiddlewareTest extends TestCase
         (new SetLocale)->handle($request, fn () => response('ok'));
 
         $this->assertEquals(config('app.locale', 'fr'), App::getLocale());
+    }
+
+    public function test_user_preferred_locale_en_takes_priority_over_org_fr(): void
+    {
+        $user = User::factory()->create(['preferred_locale' => 'en']);
+        $org = Organization::factory()->create(['locale' => 'fr', 'is_active' => true]);
+
+        app()->instance('current_organization', $org);
+
+        $request = Request::create('/', 'GET');
+        $request->setUserResolver(fn () => $user);
+        (new SetLocale)->handle($request, fn () => response('ok'));
+
+        $this->assertEquals('en', App::getLocale());
+    }
+
+    public function test_user_preferred_locale_fr_takes_priority_over_org_en(): void
+    {
+        $user = User::factory()->create(['preferred_locale' => 'fr']);
+        $org = Organization::factory()->create(['locale' => 'en', 'is_active' => true]);
+
+        app()->instance('current_organization', $org);
+
+        $request = Request::create('/', 'GET');
+        $request->setUserResolver(fn () => $user);
+        (new SetLocale)->handle($request, fn () => response('ok'));
+
+        $this->assertEquals('fr', App::getLocale());
+    }
+
+    public function test_user_without_preferred_locale_uses_org_locale(): void
+    {
+        $user = User::factory()->create(['preferred_locale' => null]);
+        $org = Organization::factory()->create(['locale' => 'en', 'is_active' => true]);
+
+        app()->instance('current_organization', $org);
+
+        $request = Request::create('/', 'GET');
+        $request->setUserResolver(fn () => $user);
+        (new SetLocale)->handle($request, fn () => response('ok'));
+
+        $this->assertEquals('en', App::getLocale());
+    }
+
+    public function test_session_locale_stays_above_user_preferred_locale(): void
+    {
+        $user = User::factory()->create(['preferred_locale' => 'fr']);
+        $org = Organization::factory()->create(['locale' => 'en', 'is_active' => true]);
+
+        app()->instance('current_organization', $org);
+
+        $request = Request::create('/', 'GET');
+        $request->setUserResolver(fn () => $user);
+        $request->setLaravelSession($this->app['session']->driver());
+        $request->session()->put('locale', 'en');
+        (new SetLocale)->handle($request, fn () => response('ok'));
+
+        $this->assertEquals('en', App::getLocale());
+    }
+
+    public function test_visitor_without_user_uses_org_locale(): void
+    {
+        $org = Organization::factory()->create(['locale' => 'en', 'is_active' => true]);
+
+        app()->instance('current_organization', $org);
+
+        $request = Request::create('/', 'GET');
+        (new SetLocale)->handle($request, fn () => response('ok'));
+
+        $this->assertEquals('en', App::getLocale());
+    }
+
+    public function test_invalid_preferred_locale_does_not_break_middleware(): void
+    {
+        $user = User::factory()->create(['preferred_locale' => 'de']);
+        $org = Organization::factory()->create(['locale' => 'fr', 'is_active' => true]);
+
+        app()->instance('current_organization', $org);
+
+        $request = Request::create('/', 'GET');
+        $request->setUserResolver(fn () => $user);
+        (new SetLocale)->handle($request, fn () => response('ok'));
+
+        $this->assertEquals('fr', App::getLocale());
     }
 }

@@ -6,7 +6,7 @@
         </svg>
         <p class="text-sm text-amber-800 dark:text-amber-200">
             <strong>Complétez votre profil avant de publier.</strong>
-            Les champs <strong>Présentation</strong> et <strong>Localisation</strong> sont obligatoires — les membres ont besoin de savoir à qui ils ont affaire avant d'échanger.
+            Les champs <strong>Prénom</strong>, <strong>Nom</strong>, <strong>Téléphone</strong>, <strong>Ville</strong>, <strong>Pays</strong> et <strong>Présentation</strong> sont obligatoires — les membres ont besoin de savoir à qui ils ont affaire avant d'échanger.
         </p>
     </div>
 </div>

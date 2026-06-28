@@ -8,7 +8,8 @@ use App\Models\Organization;
 use App\Models\Service;
 use App\Models\Tag;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class T348TagsTenantScopingTest extends TestCase
@@ -41,10 +42,12 @@ class T348TagsTenantScopingTest extends TestCase
 
         Tag::create(['slug' => 'design', 'name' => 'Design', 'organization_id' => $org->id]);
 
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        $this->expectException(QueryException::class);
         $this->expectExceptionMessageMatches('/unique|duplicate/i');
 
-        Tag::create(['slug' => 'design', 'name' => 'Another Design', 'organization_id' => $org->id]);
+        DB::transaction(function () use ($org): void {
+            Tag::create(['slug' => 'design', 'name' => 'Another Design', 'organization_id' => $org->id]);
+        });
     }
 
     public function test_tags_created_via_service_store_have_organization_id(): void
@@ -52,7 +55,7 @@ class T348TagsTenantScopingTest extends TestCase
         $org = Organization::factory()->create(['is_active' => true]);
         $org->update(['is_default' => true]);
 
-        $user = User::factory()->create(['organization_id' => $org->id]);
+        $user = User::factory()->complete()->create(['organization_id' => $org->id]);
         $category = Category::factory()->create(['organization_id' => $org->id]);
 
         $this->actingAs($user)

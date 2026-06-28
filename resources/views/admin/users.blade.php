@@ -216,6 +216,12 @@
                             </div>
                             @endif
 
+                            <!-- Emailer -->
+                            <a href="{{ route('admin.email-templates') }}"
+                               class="text-xs text-gray-400 hover:text-indigo-500">
+                                {{ __('admin.emailer_single_action') }}
+                            </a>
+
                             <!-- Envoyer lien de réinitialisation -->
                             <form method="POST" action="{{ route('admin.users.send-password-reset', $u) }}"
                                   onsubmit="return confirm('Envoyer un lien de réinitialisation à ce membre ?')">

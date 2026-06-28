@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AiConfig;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
@@ -41,6 +42,9 @@ class LoopHelpRequestTest extends TestCase
         $this->loop = $loopService->createLoop($this->owner, 'Test Loop');
 
         $loopService->addMember($this->loop, $this->member, 'member');
+
+        AiConfig::set('clarification_enabled', true);
+        config()->set('ai.clarify.enabled', false);
 
         $this->messageService = new LoopMessageService;
     }
@@ -199,21 +203,12 @@ class LoopHelpRequestTest extends TestCase
             ->post(route('loops.help-request.publish', $this->loop), [
                 'title' => 'Trouver mes premiers clients',
                 'need' => 'Je cherche des conseils pour trouver mes premiers clients.',
-                'context' => 'Je lance mon activité dans le consulting.',
-                'expected_help_type' => 'conseils, retours d\'expérience',
-                'deadline' => '',
-                'urgency' => 'normal',
+                'help_type' => 'service',
             ]);
 
-        $response->assertRedirect();
-        $response->assertSessionHas('success');
-
-        $this->assertDatabaseHas('loop_messages', [
-            'loop_id' => $this->loop->id,
-            'sender_id' => $this->member->id,
-            'type' => 'help_request',
-            'body' => 'Je cherche des conseils pour trouver mes premiers clients.',
-        ]);
+        $response->assertRedirect(route('services.create'));
+        $this->assertEquals('Trouver mes premiers clients', session('_old_input.title'));
+        $this->assertEquals('Je cherche des conseils pour trouver mes premiers clients.', session('_old_input.description'));
     }
 
     public function test_publish_requires_title(): void

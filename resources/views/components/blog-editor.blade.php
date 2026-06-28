@@ -1,4 +1,4 @@
-@props(['name' => 'content', 'value' => '', 'postId' => null, 'invalid' => false])
+@props(['name' => 'content', 'value' => '', 'postId' => null, 'invalid' => false, 'routeAiGenerate' => null, 'routeAiCorrect' => null, 'routeAiRemaining' => null, 'routeUpload' => null])
 
 <div
     x-data="blogEditor"
@@ -8,10 +8,10 @@
     data-editor-post-id="{{ $postId ?: '' }}"
     data-editor-csrf="{{ csrf_token() }}"
     data-editor-invalid="{{ $invalid ? '1' : '0' }}"
-    data-route-upload="{{ route('blog.upload-image') }}"
-    data-route-ai-remaining="{{ route('blog.ai-remaining') }}"
-    data-route-ai-generate="{{ route('blog.ai-generate') }}"
-    data-route-ai-correct="{{ route('blog.ai-correct') }}"
+    data-route-upload="{{ $routeUpload ?? route('blog.upload-image') }}"
+    data-route-ai-remaining="{{ $routeAiRemaining ?? route('blog.ai-remaining') }}"
+    data-route-ai-generate="{{ $routeAiGenerate ?? route('blog.ai-generate') }}"
+    data-route-ai-correct="{{ $routeAiCorrect ?? route('blog.ai-correct') }}"
     class="space-y-1"
 >
     {{-- Toolbar --}}

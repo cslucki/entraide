@@ -245,6 +245,71 @@ class ClarifyUserHelpRequestServiceTest extends TestCase
         $this->assertSame($expected, $result->expectedHelpType);
     }
 
+    public function test_uses_ai_config_default_provider_when_config_default_null(): void
+    {
+        config([
+            'ai.clarify.enabled' => true,
+            'ai.default_provider' => null,
+            'ai.ollama.enabled' => false,
+            'ai.openrouter.enabled' => true,
+            'ai.openrouter.model' => 'mistralai/ministral-3b-2512',
+        ]);
+
+        $resolver = new SupervisionProviderResolver;
+        $providerName = $resolver->defaultProvider();
+
+        $this->assertSame('openrouter', $providerName);
+    }
+
+    public function test_uses_ai_config_default_model_when_config_default_null(): void
+    {
+        config([
+            'ai.clarify.enabled' => true,
+            'ai.default_provider' => null,
+            'ai.default_model' => null,
+            'ai.openrouter.enabled' => true,
+            'ai.openrouter.model' => 'mistralai/ministral-3b-2512',
+        ]);
+
+        $scenario = $this->createMock(AiScenarioDefinition::class);
+        $this->scenarioFactory->method('resolve')->with('clarify_help_request')->willReturn($scenario);
+        $this->resolver->method('defaultProvider')->willReturn('openrouter');
+
+        $capturedModel = null;
+        $provider = $this->createMock(SupervisionProvider::class);
+        $provider->method('runScenario')->willReturnCallback(
+            function ($scenario, $content, $model = null) use (&$capturedModel) {
+                $capturedModel = $model;
+
+                return $this->createDefaultProviderMock()->runScenario($scenario, $content, $model);
+            }
+        );
+        $this->resolver->method('resolve')->with('openrouter')->willReturn($provider);
+
+        $result = $this->service->analyze('test model resolution');
+
+        $this->assertSame('mistralai/ministral-3b-2512', $capturedModel);
+        $this->assertInstanceOf(AssistedInteractionLabResult::class, $result);
+    }
+
+    public function test_falls_back_to_fake_when_no_provider_and_no_model(): void
+    {
+        config([
+            'ai.clarify.enabled' => true,
+            'ai.default_provider' => null,
+            'ai.default_model' => null,
+            'ai.ollama.enabled' => false,
+            'ai.openrouter.enabled' => false,
+            'ai.openai.supervision_enabled' => false,
+        ]);
+
+        $scenario = $this->createMock(AiScenarioDefinition::class);
+        $this->scenarioFactory->method('resolve')->with('clarify_help_request')->willReturn($scenario);
+
+        $resolver = new SupervisionProviderResolver;
+        $this->assertNull($resolver->defaultProvider());
+    }
+
     private function setUpScenarioAndProvider(?SupervisionProvider $provider = null): void
     {
         $scenario = $this->createMock(AiScenarioDefinition::class);

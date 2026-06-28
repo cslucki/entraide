@@ -82,8 +82,8 @@ class AdminAiConfigController extends Controller
         $config = BlogAiConfig::updateOrCreate(
             ['organization_id' => $validated['organization_id']],
             [
-                'generate_enabled' => $validated['generate_enabled'] ?? true,
-                'correct_enabled' => $validated['correct_enabled'] ?? true,
+                'generate_enabled' => $validated['generate_enabled'] ?? false,
+                'correct_enabled' => $validated['correct_enabled'] ?? false,
                 'generate_limit' => $validated['generate_limit'],
                 'correct_limit' => $validated['correct_limit'],
             ],

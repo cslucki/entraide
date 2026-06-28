@@ -34,6 +34,7 @@ return [
     'forgot_password_subtitle' => 'Renseignez votre e-mail et nous vous enverrons un lien de réinitialisation.',
     'forgot_password_button' => 'Envoyer le lien de réinitialisation',
     'back_to_login' => 'Retour à la connexion',
+    'logout' => 'Déconnexion',
 
     // Réinitialisation
     'reset_password_title' => 'Nouveau mot de passe',

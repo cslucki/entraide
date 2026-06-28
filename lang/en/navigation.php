@@ -31,6 +31,8 @@ return [
     'join_loop' => 'Join the Loop',
     'see_exchanges' => 'See exchanges',
     'home' => 'Home',
+    'about' => 'About',
+    'subscriptions' => 'Subscriptions',
     'feed' => 'Feed',
     'messaging' => 'Messaging',
     'new_announcement' => 'New announcement',
@@ -69,6 +71,7 @@ return [
     'org_admin_coming_soon' => ':section (coming soon)',
     'org_admin_design' => 'Design',
     'org_admin_themes' => 'Themes',
+    'org_admin_homepage' => 'Homepage',
     'org_admin_exchanges' => 'Exchanges',
     'org_admin_organization' => 'Organization',
     'org_admin_ia' => 'AI',
@@ -175,6 +178,9 @@ return [
     'org_admin_loops_label_active' => 'Active',
     'org_admin_loops_label_archived' => 'Archived',
     'org_admin_table_sender' => 'Sender',
+    'org_admin_add_member' => 'Add member',
+    'org_admin_add' => 'Add',
+    'org_admin_confirm_remove_member' => 'Remove this member?',
 
     // LOT D — Users, Categories, Reports, Invitations
     'org_admin_manage_users' => 'Manage members of your organization.',

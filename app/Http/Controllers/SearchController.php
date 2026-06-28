@@ -47,9 +47,11 @@ class SearchController extends Controller
             ->limit(5)
             ->get();
 
-        $users = User::whereNull('banned_at')
+        $users = User::with(['country', 'organization'])
+            ->whereNull('banned_at')
             ->where(fn ($query) => $query->where('name', $likeOperator, $like)
-                ->orWhere('location', $likeOperator, $like)
+                ->orWhere('bio', $likeOperator, $like)
+                ->orWhere('city', $likeOperator, $like)
             )
             ->limit(5)
             ->get();

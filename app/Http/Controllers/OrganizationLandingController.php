@@ -36,8 +36,40 @@ class OrganizationLandingController extends Controller
 
         $categories = Category::where('organization_id', $organization->id)->orderBy('name_b2c')->get();
 
+        if ($organization->homepage_template === 'bouclepro_hero_v2') {
+            $heroAvatars = $organization->users()
+                ->whereNotNull('avatar')
+                ->latest()
+                ->limit(12)
+                ->get(['id', 'name', 'avatar'])
+                ->map(fn ($user) => $user->avatar_url)
+                ->values();
+
+            return view('organization.hero-v2', compact('organization', 'heroAvatars'));
+        }
+
+        if ($organization->homepage_template === 'artscilab_hero') {
+            $heroAvatars = $organization->users()
+                ->whereNotNull('avatar')
+                ->latest()
+                ->limit(16)
+                ->get(['id', 'name', 'avatar'])
+                ->map(fn ($user) => $user->avatar_url)
+                ->values();
+
+            return view('organization.artscilab-hero', compact('organization', 'heroAvatars'));
+        }
+
         $defaultOrganization = $organization;
 
         return view('organization.home', compact('organization', 'stats', 'featuredServices', 'categories', 'defaultOrganization'));
+    }
+
+    public function about(string $organization): View
+    {
+        $organization = Organization::findBySlug($organization);
+        abort_if(! $organization || ! $organization->is_active, 404);
+
+        return view('organization.about-launchpals', compact('organization'));
     }
 }

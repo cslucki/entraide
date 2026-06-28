@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Models\AiConfig;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\Logging\AiBenchmarkLogger;
 use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
@@ -38,7 +39,7 @@ class SupervisionProviderResolver
 
     public function defaultProvider(): ?string
     {
-        $override = config('ai.default_provider');
+        $override = AiConfig::get('default_provider') ?: config('ai.default_provider');
         if ($override) {
             if ($override === 'ollama' && config('ai.ollama.enabled')) {
                 return 'ollama';

@@ -8,6 +8,7 @@ use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\LoginLog;
 use App\Models\Loop;
+use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
 use App\Models\Referral;
@@ -18,6 +19,7 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use Illuminate\Http\RedirectResponse;
@@ -129,7 +131,7 @@ class OrgAdminController extends Controller
     public function loops(Request $request, Organization $organization): View
     {
         $orgId = $organization->id;
-        $query = Loop::where('organization_id', $orgId)->with(['creator']);
+        $query = Loop::where('organization_id', $orgId)->with(['creator', 'activeMembers.user']);
 
         if ($request->filled('search')) {
             $query->where('name', 'like', '%'.$request->search.'%');
@@ -207,6 +209,34 @@ class OrgAdminController extends Controller
         $action = $loop->isActive() ? 'reactivated' : 'archived';
 
         return back()->with('success', __("navigation.org_admin_loop_{$action}"));
+    }
+
+    public function addLoopMember(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $data = $request->validate(['user_id' => 'required|exists:users,id']);
+
+        $user = User::findOrFail($data['user_id']);
+        abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
+
+        try {
+            app(LoopService::class)->addMemberByUserId($loop, $data['user_id']);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('loops.member_added'));
+    }
+
+    public function removeLoopMember(Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        app(LoopService::class)->removeMember($member);
+
+        return back()->with('success', __('loops.member_removed'));
     }
 
     public function publishBlogPost(Organization $organization, BlogPost $blogPost): RedirectResponse
@@ -776,6 +806,69 @@ class OrgAdminController extends Controller
     public function aiInteractions(Organization $organization): View
     {
         return $this->comingSoon($organization, __('navigation.org_admin_ai_interactions'));
+    }
+
+    // ── Design / Homepage ───────────────────────────────────────────────────────
+
+    public function homepage(Organization $organization): View
+    {
+        return view('admin.org.homepage', compact('organization'));
+    }
+
+    public function updateHomepage(Request $request, Organization $organization): RedirectResponse
+    {
+        $validated = $request->validate([
+            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2', 'artscilab_hero'])],
+            'subheadline' => ['nullable', 'string', 'max:500'],
+            'card_create_label' => ['nullable', 'string', 'max:100'],
+            'card_meet_label' => ['nullable', 'string', 'max:100'],
+            'card_help_label' => ['nullable', 'string', 'max:100'],
+            'card_offer_label' => ['nullable', 'string', 'max:100'],
+            'ai_note' => ['nullable', 'string', 'max:255'],
+            'primary_cta_label' => ['nullable', 'string', 'max:100'],
+            'primary_cta_url' => ['nullable', 'string', 'max:500'],
+            'secondary_cta_label' => ['nullable', 'string', 'max:100'],
+            'secondary_cta_url' => ['nullable', 'string', 'max:500'],
+            'headline_solid' => ['nullable', 'string', 'max:100'],
+            'headline_outline' => ['nullable', 'string', 'max:200'],
+            'card_1_label' => ['nullable', 'string', 'max:100'],
+            'card_2_label' => ['nullable', 'string', 'max:100'],
+            'card_3_label' => ['nullable', 'string', 'max:100'],
+            'card_4_label' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        foreach (['primary_cta_url', 'secondary_cta_url'] as $urlField) {
+            if (! empty($validated[$urlField]) && ! $this->isSafeHomepageUrl($validated[$urlField])) {
+                return back()->withErrors([$urlField => 'URL invalide. Utilisez une URL interne relative ou une URL HTTPS.'])->withInput();
+            }
+        }
+
+        $template = $validated['homepage_template'] ?? null;
+
+        $settings = [];
+        foreach (['subheadline', 'card_create_label', 'card_meet_label', 'card_help_label', 'card_offer_label', 'ai_note', 'primary_cta_label', 'primary_cta_url', 'secondary_cta_label', 'secondary_cta_url', 'headline_solid', 'headline_outline', 'card_1_label', 'card_2_label', 'card_3_label', 'card_4_label'] as $field) {
+            if (filled($validated[$field] ?? null)) {
+                $settings[$field] = $validated[$field];
+            }
+        }
+
+        $organization->update([
+            'homepage_template' => $template,
+            'homepage_settings' => ! empty($settings) ? $settings : null,
+        ]);
+
+        return redirect()->route('organization.admin.homepage', $organization)
+            ->with('success', 'Page d\'accueil mise à jour.');
+    }
+
+    private function isSafeHomepageUrl(string $url): bool
+    {
+        if (str_starts_with($url, '/') && ! str_starts_with($url, '//')) {
+            return true;
+        }
+
+        return filter_var($url, FILTER_VALIDATE_URL) !== false
+            && parse_url($url, PHP_URL_SCHEME) === 'https';
     }
 
     // ── Design / Themes ─────────────────────────────────────────────────────────

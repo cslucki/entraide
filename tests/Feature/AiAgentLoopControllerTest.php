@@ -23,7 +23,7 @@ class AiAgentLoopControllerTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Organization::factory()->create();
+        $this->org = Organization::factory()->create(['ai_profiles_enabled' => true]);
         $this->member = User::factory()->create(['organization_id' => $this->org->id]);
         $this->visitor = User::factory()->create(['organization_id' => $this->org->id]);
 

@@ -2,8 +2,10 @@
 
 namespace App\Services\Ai;
 
+use App\Models\AiConfig;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
+use Illuminate\Support\Facades\Schema;
 
 class ClarifyUserHelpRequestService implements AiProvider
 {
@@ -31,9 +33,24 @@ class ClarifyUserHelpRequestService implements AiProvider
             return $this->fallback->analyze($phrase);
         }
 
+        $model = null;
+        if (Schema::hasTable('ai_configs')) {
+            $model = AiConfig::get('default_model');
+        }
+        $model ??= config('ai.default_model')
+            ?? match ($providerName) {
+                'openrouter' => config('ai.openrouter.model'),
+                'ollama' => config('ai.ollama.model'),
+                default => config('ai.openai.model'),
+            };
+
+        if (! $model) {
+            return $this->fallback->analyze($phrase);
+        }
+
         $provider = $this->resolver->resolve($providerName);
 
-        $result = $provider->runScenario($scenario, $phrase);
+        $result = $provider->runScenario($scenario, $phrase, $model);
 
         return $this->mapToDto($result, $phrase);
     }

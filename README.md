@@ -57,6 +57,14 @@ After running `php artisan migrate --seed`, the following demo accounts are avai
 All demo emails use the reserved `.test` domain and are safe for public documentation.  
 Dashboard seeders are skipped in production environments (`app()->environment('production')`).
 
+## License
+
+BouclePro core is released under the MIT License. See [LICENSE](LICENSE).
+
+Plugins and extensions may declare their own open-source license in their own directory. If no specific license is provided for a plugin, the root MIT License applies.
+
+The BouclePro name, logo, and brand assets may be subject to separate usage rules.
+
 ## Links
 
 - Production: https://bouclepro.com

@@ -19,14 +19,15 @@ use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
-use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminSystemEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\Admin\OrgAdminController;
+use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -53,8 +54,8 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
-use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\BoundedMemberAgent;
@@ -73,6 +74,7 @@ require __DIR__.'/auth.php';
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('locale.switch');
 Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
+Route::view('/about', 'about')->name('about');
 Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
 Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
 Route::redirect('/partners', '/partenaires');
@@ -293,6 +295,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/organizations/{organization}', [AdminOrganizationController::class, 'update'])->name('organizations.update');
     Route::post('/organizations/{organization}/toggle-active', [AdminOrganizationController::class, 'toggleActive'])->name('organizations.toggle-active');
     Route::delete('/organizations/{organization}', [AdminOrganizationController::class, 'destroy'])->name('organizations.destroy');
+    Route::get('/organizations/{organization}/homepage', [AdminOrganizationController::class, 'homepage'])->name('organizations.homepage');
+    Route::put('/organizations/{organization}/homepage', [AdminOrganizationController::class, 'updateHomepage'])->name('organizations.homepage.update');
+    Route::get('/homepages', [AdminOrganizationController::class, 'homepages'])->name('homepages');
     Route::get('/organization-requests', [AdminOrganizationRequestController::class, 'index'])->name('organization-requests');
 
     // Messages moderation
@@ -336,9 +341,19 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/email-templates/{emailTemplate}', [AdminEmailTemplatesController::class, 'destroy'])->name('email-templates.destroy');
     Route::post('/email-templates/preview', [AdminEmailTemplatesController::class, 'preview'])->name('email-templates.preview');
 
+    // Emailer send
+    Route::get('/email-templates/{emailTemplate}/send', [AdminEmailTemplatesController::class, 'sendForm'])->name('email-templates.send');
+    Route::get('/email-templates/{emailTemplate}/send/confirm', [AdminEmailTemplatesController::class, 'sendConfirm'])->name('email-templates.send.confirm');
+    Route::post('/email-templates/{emailTemplate}/send', [AdminEmailTemplatesController::class, 'sendExecute'])->name('email-templates.send.execute');
+
     // Email logs
     Route::get('/email-logs', [AdminEmailLogsController::class, 'index'])->name('email-logs');
     Route::get('/email-logs/{emailLog}', [AdminEmailLogsController::class, 'show'])->name('email-logs.show');
+
+    // System email templates (notifications overrides)
+    Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
+    Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
+    Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
 
     // IA Design Lab (test interne)
     Route::get('/ia-design-lab', [AdminIaDesignLabController::class, 'index'])->name('ia-design-lab');
@@ -437,6 +452,7 @@ Route::prefix('/org/{organization}')
     ->name('organization.')
     ->group(function () {
         Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
+        Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
         Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
         Route::middleware('guest')->group(function () {
@@ -592,6 +608,8 @@ Route::prefix('/org/{organization}')
                 // Community
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
                 Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
+                Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
+                Route::delete('/loops/{loop}/members/{member}', [OrgAdminController::class, 'removeLoopMember'])->name('loops.members.remove');
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');
                 Route::patch('/users/{user}/toggle-ban', [OrgAdminController::class, 'toggleUserBan'])->name('users.toggle-ban');
@@ -611,7 +629,11 @@ Route::prefix('/org/{organization}')
                 Route::get('/identity', [OrgAdminController::class, 'identity'])->name('identity');
                 Route::post('/identity', [OrgAdminController::class, 'updateIdentity'])->name('identity.update');
 
-                // Design / Themes
+                // Design
+                Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');
+                Route::put('/homepage', [OrgAdminController::class, 'updateHomepage'])->name('homepage.update');
+
+                // Themes
                 Route::get('/themes', [OrgAdminController::class, 'themes'])->name('themes');
                 Route::get('/themes/create', [OrgAdminController::class, 'themesCreate'])->name('themes.create');
                 Route::post('/themes', [OrgAdminController::class, 'themesStore'])->name('themes.store');
@@ -623,12 +645,12 @@ Route::prefix('/org/{organization}')
                 // AI
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
-            Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
+                Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
 
-            // Stats
-            Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');
-            Route::get('/stats/login-history/user/{user}', [OrgAdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
-        });
+                // Stats
+                Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');
+                Route::get('/stats/login-history/user/{user}', [OrgAdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
+            });
 
         // Blog (org-scoped, en parallèle des routes /blog root)
         Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');

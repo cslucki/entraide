@@ -189,7 +189,7 @@ class LoopVisibilityMembershipTest extends TestCase
             ->get(route('loops.show', $loop));
 
         $response->assertStatus(200);
-        $response->assertSee('Rejoindre cette boucle');
+        $response->assertSee(__('loops.join'));
         $response->assertSee(route('loops.join', $loop));
     }
 

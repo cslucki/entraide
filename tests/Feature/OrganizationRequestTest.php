@@ -16,6 +16,8 @@ class OrganizationRequestTest extends TestCase
             'boucle_name' => 'Test Organization',
             'contact_name' => 'Test Contact',
             'contact_email' => 'test@example.com',
+            'contact_phone' => '+33 6 12 34 56 78',
+            'website_url' => 'https://example.org',
             'description' => 'Test description',
             'context' => 'Test context',
         ];
@@ -27,6 +29,8 @@ class OrganizationRequestTest extends TestCase
         $this->assertDatabaseHas('organization_requests', [
             'boucle_name' => 'Test Organization',
             'contact_email' => 'test@example.com',
+            'contact_phone' => '+33 6 12 34 56 78',
+            'website_url' => 'https://example.org',
         ]);
     }
 
@@ -36,6 +40,8 @@ class OrganizationRequestTest extends TestCase
             'boucle_name' => 'Test Organization',
             'contact_name' => 'Test Contact',
             'contact_email' => 'test@example.com',
+            'contact_phone' => '+33 6 66 77 88 99',
+            'website_url' => null,
             'description' => 'Test description',
             'context' => 'Test context',
         ]);
@@ -43,5 +49,20 @@ class OrganizationRequestTest extends TestCase
         $this->assertModelExists($request);
         $this->assertEquals('organization_requests', $request->getTable());
         $this->assertEquals('Test Organization', $request->boucle_name);
+        $this->assertEquals('+33 6 66 77 88 99', $request->contact_phone);
+        $this->assertNull($request->website_url);
+    }
+
+    public function test_phone_is_required(): void
+    {
+        $data = [
+            'boucle_name' => 'Test Org',
+            'contact_name' => 'Test Contact',
+            'contact_email' => 'test@example.com',
+            'contact_phone' => '',
+            'description' => 'Test description',
+        ];
+
+        $this->post('/partenaires/demande', $data)->assertSessionHasErrors('contact_phone');
     }
 }

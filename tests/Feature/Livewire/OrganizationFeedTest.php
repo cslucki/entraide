@@ -422,10 +422,10 @@ class OrganizationFeedTest extends TestCase
 
     public function test_navigation_contains_flux_links(): void
     {
-        $this->actingAs($this->member)
+        $this->actingAs($this->admin)
             ->get(route('organization.dashboard', ['organization' => $this->organization->slug]))
             ->assertOk()
-            ->assertSee('Flux')
+            ->assertSee(__('navigation.feed'))
             ->assertSee(route('organization.flux', ['organization' => $this->organization->slug]), false);
     }
 

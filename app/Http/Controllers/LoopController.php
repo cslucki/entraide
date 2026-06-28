@@ -230,13 +230,13 @@ class LoopController extends Controller
         if ($existing) {
             if ($existing->status === 'active') {
                 return redirect($this->loopRoute('loops.show', $loop))
-                    ->with('info', 'Vous êtes déjà membre de cette boucle.');
+                    ->with('info', __('loops.already_member'));
             }
 
             $existing->update(['status' => 'active', 'joined_at' => now()]);
 
             return redirect($this->loopRoute('loops.show', $loop))
-                ->with('success', 'Vous avez rejoint la boucle.');
+                ->with('success', __('loops.joined'));
         }
 
         LoopMember::create([
@@ -249,7 +249,7 @@ class LoopController extends Controller
         ]);
 
         return redirect($this->loopRoute('loops.show', $loop))
-            ->with('success', 'Vous avez rejoint la boucle.');
+            ->with('success', __('loops.joined'));
     }
 
     public function leave(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
@@ -271,12 +271,12 @@ class LoopController extends Controller
 
         if (! $member) {
             return redirect($this->loopRoute('loops.show', $loop))
-                ->with('info', 'Vous n\'êtes pas membre de cette boucle.');
+                ->with('info', __('loops.not_member'));
         }
 
         if ($member->role === 'owner') {
             return redirect($this->loopRoute('loops.show', $loop))
-                ->with('error', 'Le propriétaire ne peut pas quitter la boucle.');
+                ->with('error', __('loops.owner_cannot_leave'));
         }
 
         $member->update(['status' => 'left']);
@@ -287,7 +287,7 @@ class LoopController extends Controller
             : route('loops.index');
 
         return redirect($indexRoute)
-            ->with('success', 'Vous avez quitté la boucle.');
+            ->with('success', __('loops.left'));
     }
 
     public function analyzeHelpIntention(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse

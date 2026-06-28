@@ -25,8 +25,8 @@ class MemberAiProfileWizardTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->org = Organization::factory()->create();
-        $this->otherOrg = Organization::factory()->create();
+        $this->org = Organization::factory()->create(['ai_profiles_enabled' => true]);
+        $this->otherOrg = Organization::factory()->create(['ai_profiles_enabled' => true]);
         $this->user = User::factory()->create(['organization_id' => $this->org->id]);
         $this->otherUser = User::factory()->create(['organization_id' => $this->otherOrg->id]);
         app()->instance('current_organization', $this->org);
@@ -44,7 +44,7 @@ class MemberAiProfileWizardTest extends TestCase
         $response = $this->actingAs($this->user)->get(route('agent-ia.wizard'));
 
         $response->assertOk();
-        $response->assertSee('Mon profil IA');
+        $response->assertSee(__('ai.wizard_title'));
     }
 
     public function test_component_renders_without_existing_profile(): void

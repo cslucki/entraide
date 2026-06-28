@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Country;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -73,7 +74,17 @@ class AdminOrganizationController extends Controller
         $admins = User::orderBy('name')->get();
         $loops = $organization->loops()->orderBy('name')->get();
 
-        return view('admin.organizations.edit', compact('organization', 'admins', 'loops'));
+        $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
+        $countries = Country::where('active', true)->orderBy($localeColumn)->get();
+
+        $priorityCountryCodes = $organization->priorityCountries()
+            ->where('active', true)
+            ->pluck('code')
+            ->toArray();
+
+        return view('admin.organizations.edit', compact(
+            'organization', 'admins', 'loops', 'countries', 'priorityCountryCodes'
+        ));
     }
 
     public function update(Request $request, Organization $organization): RedirectResponse
@@ -113,6 +124,13 @@ class AdminOrganizationController extends Controller
             'locale' => 'nullable|in:fr,en',
             'logo' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'remove_logo' => 'nullable|boolean',
+            'default_country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
+            'show_country' => 'nullable|boolean',
+            'membership_enabled' => 'nullable|boolean',
+            'membership_label_fr' => 'nullable|string|max:255',
+            'membership_label_en' => 'nullable|string|max:255',
+            'priority_country_codes' => 'nullable|array',
+            'priority_country_codes.*' => ['string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
         ]);
 
         $min = $data['service_points_min'] ?? null;
@@ -140,6 +158,8 @@ class AdminOrganizationController extends Controller
         $data['transactions_naming'] = $data['transactions_naming'] ?? $organization->transactions_naming ?? 'b2c';
         $data['feed_post_publish_mode'] = $data['feed_post_publish_mode'] ?? $organization->feed_post_publish_mode ?? 'admin';
         $data['locale'] = $data['locale'] ?? $organization->locale ?? 'fr';
+        $data['show_country'] = ($data['show_country'] ?? '1') === '1';
+        $data['membership_enabled'] = ($data['membership_enabled'] ?? '0') === '1';
 
         if ($data['is_default']) {
             Organization::where('is_default', true)
@@ -151,7 +171,33 @@ class AdminOrganizationController extends Controller
 
         $organization->update($data);
 
+        $this->syncPriorityCountries($data['priority_country_codes'] ?? [], $organization);
+
         return redirect()->route('admin.organizations')->with('success', "Organisation « {$organization->name} » mise à jour.");
+    }
+
+    private function syncPriorityCountries(array $codes, Organization $organization): void
+    {
+
+        $existing = $organization->countryPreferences()->pluck('country_code', 'country_code')->toArray();
+
+        $toDelete = array_diff(array_keys($existing), $codes);
+        if (! empty($toDelete)) {
+            $organization->countryPreferences()->whereIn('country_code', $toDelete)->delete();
+        }
+
+        foreach ($codes as $sortOrder => $code) {
+            if (! isset($existing[$code])) {
+                $organization->countryPreferences()->create([
+                    'country_code' => $code,
+                    'sort_order' => $sortOrder,
+                ]);
+            } elseif ($existing[$code] !== $sortOrder) {
+                $organization->countryPreferences()
+                    ->where('country_code', $code)
+                    ->update(['sort_order' => $sortOrder]);
+            }
+        }
     }
 
     public function toggleActive(Organization $organization): RedirectResponse
@@ -164,6 +210,76 @@ class AdminOrganizationController extends Controller
         $status = $organization->is_active ? 'activée' : 'désactivée';
 
         return back()->with('success', "Organisation « {$organization->name} » {$status}.");
+    }
+
+    public function homepages(): View
+    {
+        $organizations = Organization::withCount('users')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'homepage_template', 'is_active']);
+
+        return view('admin.organizations.homepages', compact('organizations'));
+    }
+
+    public function homepage(Organization $organization): View
+    {
+        return view('admin.organizations.homepage', compact('organization'));
+    }
+
+    public function updateHomepage(Request $request, Organization $organization): RedirectResponse
+    {
+        $validated = $request->validate([
+            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2', 'artscilab_hero'])],
+            'subheadline' => ['nullable', 'string', 'max:500'],
+            'card_create_label' => ['nullable', 'string', 'max:100'],
+            'card_meet_label' => ['nullable', 'string', 'max:100'],
+            'card_help_label' => ['nullable', 'string', 'max:100'],
+            'card_offer_label' => ['nullable', 'string', 'max:100'],
+            'ai_note' => ['nullable', 'string', 'max:255'],
+            'primary_cta_label' => ['nullable', 'string', 'max:100'],
+            'primary_cta_url' => ['nullable', 'string', 'max:500'],
+            'secondary_cta_label' => ['nullable', 'string', 'max:100'],
+            'secondary_cta_url' => ['nullable', 'string', 'max:500'],
+            'headline_solid' => ['nullable', 'string', 'max:100'],
+            'headline_outline' => ['nullable', 'string', 'max:200'],
+            'card_1_label' => ['nullable', 'string', 'max:100'],
+            'card_2_label' => ['nullable', 'string', 'max:100'],
+            'card_3_label' => ['nullable', 'string', 'max:100'],
+            'card_4_label' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        foreach (['primary_cta_url', 'secondary_cta_url'] as $urlField) {
+            if (! empty($validated[$urlField]) && ! $this->isSafeHomepageUrl($validated[$urlField])) {
+                return back()->withErrors([$urlField => 'URL invalide. Utilisez une URL interne relative ou une URL HTTPS.'])->withInput();
+            }
+        }
+
+        $template = $validated['homepage_template'] ?? null;
+
+        $settings = [];
+        foreach (['subheadline', 'card_create_label', 'card_meet_label', 'card_help_label', 'card_offer_label', 'ai_note', 'primary_cta_label', 'primary_cta_url', 'secondary_cta_label', 'secondary_cta_url', 'headline_solid', 'headline_outline', 'card_1_label', 'card_2_label', 'card_3_label', 'card_4_label'] as $field) {
+            if (filled($validated[$field] ?? null)) {
+                $settings[$field] = $validated[$field];
+            }
+        }
+
+        $organization->update([
+            'homepage_template' => $template,
+            'homepage_settings' => ! empty($settings) ? $settings : null,
+        ]);
+
+        return redirect()->route('admin.organizations.homepage', $organization)
+            ->with('success', 'Page d\'accueil mise à jour.');
+    }
+
+    private function isSafeHomepageUrl(string $url): bool
+    {
+        if (str_starts_with($url, '/') && ! str_starts_with($url, '//')) {
+            return true;
+        }
+
+        return filter_var($url, FILTER_VALIDATE_URL) !== false
+            && parse_url($url, PHP_URL_SCHEME) === 'https';
     }
 
     public function destroy(Organization $organization): RedirectResponse

@@ -157,7 +157,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
 
     private function createUser(Organization $organization): User
     {
-        return User::factory()->create(['organization_id' => $organization->id]);
+        return User::factory()->complete()->create(['organization_id' => $organization->id]);
     }
 
     private function validServiceData(Category $category): array

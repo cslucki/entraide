@@ -9,12 +9,20 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class HomeController extends Controller
 {
-    public function index(): View
+    public function index(): RedirectResponse|View
     {
+        $defaultOrganization = Organization::where('is_default', true)->first()
+            ?? Organization::where('slug', 'main')->where('is_active', true)->first();
+
+        if ($defaultOrganization?->homepage_template === 'bouclepro_hero_v2' || $defaultOrganization?->homepage_template === 'artscilab_hero') {
+            return redirect()->route('organization.home', $defaultOrganization);
+        }
+
         $stats = [
             'users' => User::count(),
             'services' => Service::where('status', 'active')->count(),
@@ -29,8 +37,6 @@ class HomeController extends Controller
             ->get();
 
         $categories = Category::orderBy('name_b2c')->get();
-
-        $defaultOrganization = Organization::where('is_default', true)->first();
 
         return view('home', compact('stats', 'featuredServices', 'categories', 'defaultOrganization'));
     }

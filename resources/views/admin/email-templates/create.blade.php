@@ -41,7 +41,7 @@
                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                    value="{{ old('subject') }}">
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Variables disponibles : {{ '{{user_name}}', '{{app_name}}' }}
+                                Variables disponibles : @{{user_name}}, @{{app_name}}
                             </p>
                         </div>
 
