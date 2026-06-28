@@ -212,6 +212,15 @@ class AdminOrganizationController extends Controller
         return back()->with('success', "Organisation « {$organization->name} » {$status}.");
     }
 
+    public function homepages(): View
+    {
+        $organizations = Organization::withCount('users')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'homepage_template', 'is_active']);
+
+        return view('admin.organizations.homepages', compact('organizations'));
+    }
+
     public function homepage(Organization $organization): View
     {
         return view('admin.organizations.homepage', compact('organization'));
