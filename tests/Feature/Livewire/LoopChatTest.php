@@ -172,7 +172,7 @@ class LoopChatTest extends TestCase
 
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee('Demande d\'aide', false)
+            ->assertSee(__('loops.help_request_badge'))
             ->assertSee('Design Help');
     }
 

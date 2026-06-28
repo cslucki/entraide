@@ -79,7 +79,7 @@ class LoopOrganizationModeTest extends TestCase
             ->get(route('loops.index'));
 
         $response->assertStatus(200);
-        $response->assertSee('Boucle par défaut');
+        $response->assertSee(__('loops.default_missing_title'));
     }
 
     public function test_organization_prefixed_mono_loop_without_primary_shows_warning(): void
@@ -103,7 +103,7 @@ class LoopOrganizationModeTest extends TestCase
             ->get(route('organization.loops.index', ['organization' => 'cpme']));
 
         $response->assertOk();
-        $response->assertSee('Boucle par défaut');
+        $response->assertSee(__('loops.default_missing_title'));
         $response->assertDontSee('Default Organization Loop');
     }
 

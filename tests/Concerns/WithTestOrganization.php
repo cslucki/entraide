@@ -17,7 +17,7 @@ trait WithTestOrganization
 
     protected function orgUser(array $overrides = []): User
     {
-        return User::factory()->create(array_merge([
+        return User::factory()->complete()->create(array_merge([
             'organization_id' => $this->testOrganization->id,
         ], $overrides));
     }
