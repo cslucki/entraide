@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class T348TagsTenantScopingTest extends TestCase
@@ -44,7 +45,9 @@ class T348TagsTenantScopingTest extends TestCase
         $this->expectException(QueryException::class);
         $this->expectExceptionMessageMatches('/unique|duplicate/i');
 
-        Tag::create(['slug' => 'design', 'name' => 'Another Design', 'organization_id' => $org->id]);
+        DB::transaction(function () use ($org): void {
+            Tag::create(['slug' => 'design', 'name' => 'Another Design', 'organization_id' => $org->id]);
+        });
     }
 
     public function test_tags_created_via_service_store_have_organization_id(): void
