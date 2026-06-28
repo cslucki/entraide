@@ -6,9 +6,10 @@
   --grad:conic-gradient(from 88deg,#8A2CFF,#FF4F9A,#FF8A3D,#FFD23D,#56B254,#4D7CFF,#8A2CFF);
   --ease:cubic-bezier(.22,.72,.24,1);
 }
+.bp-hero-v2,
 .bp-hero-v2 *{box-sizing:border-box}
-.bp-hero-v2 html,.bp-hero-v2 body{margin:0;padding:0}
-.bp-hero-v2 body{
+body.bp-hero-v2{margin:0;padding:0}
+body.bp-hero-v2{
   font-family:'Inter',system-ui,sans-serif;color:var(--ink);
   background:var(--cream);
   background-image:radial-gradient(120% 120% at 88% 8%, #FFFFFF 0%, var(--cream) 52%);
@@ -31,15 +32,16 @@
 .bp-hero-v2 .brand .flower{width:34px;height:34px}
 .bp-hero-v2 .brand b{font-size:23px;font-weight:800;letter-spacing:-.03em}
 .bp-hero-v2 .lang{display:flex;align-items:center;gap:2px;font-size:14px;font-weight:600}
-.bp-hero-v2 .lang a{color:#A8AAB6;padding:5px 9px;border-radius:9px;transition:color .15s,background .15s}
-.bp-hero-v2 .lang a:hover{color:var(--ink-soft)}
-.bp-hero-v2 .lang a[aria-current="true"]{color:var(--ink);background:#EFEBE0}
+.bp-hero-v2 .lang form{display:inline}
+.bp-hero-v2 .lang a,.bp-hero-v2 .lang button{color:#A8AAB6;padding:5px 9px;border-radius:9px;transition:color .15s,background .15s;font-size:inherit;font-weight:inherit}
+.bp-hero-v2 .lang a:hover,.bp-hero-v2 .lang button:hover{color:var(--ink-soft)}
+.bp-hero-v2 .lang a[aria-current="true"],.bp-hero-v2 .lang button[aria-current="true"]{color:var(--ink);background:#EFEBE0}
 .bp-hero-v2 .nav-right{display:flex;align-items:center;gap:24px}
 .bp-hero-v2 .nav-menu{display:flex;align-items:center;gap:24px;font-size:15px;font-weight:600}
 .bp-hero-v2 .nav-menu a:not(.btn-join){color:var(--ink-soft);transition:color .15s}
 .bp-hero-v2 .nav-menu a:not(.btn-join):hover{color:var(--ink)}
 .bp-hero-v2 .nav-menu .lang{margin-left:6px;margin-right:-12px;font-size:13px}
-.bp-hero-v2 .lang a:not([aria-current="true"]){color:#CBCDD6}
+.bp-hero-v2 .lang a:not([aria-current="true"]),.bp-hero-v2 .lang button:not([aria-current="true"]){color:#CBCDD6}
 .bp-hero-v2 .btn-join{
   background:#fff;color:var(--ink);font-weight:700;font-size:15px;
   padding:11px 22px;border-radius:var(--r-btn);
@@ -67,8 +69,8 @@
 .bp-hero-v2 .m-menu a:not(.btn-join){padding:12px 14px;border-radius:11px;font-weight:600;font-size:15.5px;color:var(--ink-soft)}
 .bp-hero-v2 .m-menu a:not(.btn-join):hover{background:var(--cream)}
 .bp-hero-v2 .m-menu .m-lang{display:flex;align-items:center;gap:4px;padding:6px 10px 8px;font-size:14px;font-weight:700}
-.bp-hero-v2 .m-menu .m-lang a{padding:5px 11px;border-radius:9px;color:#A8AAB6}
-.bp-hero-v2 .m-menu .m-lang a[aria-current="true"]{color:var(--ink);background:#EFEBE0}
+.bp-hero-v2 .m-menu .m-lang a,.bp-hero-v2 .m-menu .m-lang button{padding:5px 11px;border-radius:9px;color:#A8AAB6;font-size:inherit;font-weight:inherit}
+.bp-hero-v2 .m-menu .m-lang a[aria-current="true"],.bp-hero-v2 .m-menu .m-lang button[aria-current="true"]{color:var(--ink);background:#EFEBE0}
 .bp-hero-v2 .m-menu .btn-join{margin-top:6px;text-align:center;font-size:15.5px}
 
 /* ============ HERO GRID ============ */

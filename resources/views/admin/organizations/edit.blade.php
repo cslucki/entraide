@@ -1,5 +1,11 @@
 <x-admin-layout title="Éditer l'organisation">
     <div class="max-w-2xl">
+        <div class="mb-4 flex items-center justify-between">
+            <div></div>
+            <a href="{{ route('admin.organizations.homepage', $organization) }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+                Page d'accueil &nearr;
+            </a>
+        </div>
         <form method="POST" action="{{ route('admin.organizations.update', $organization) }}" enctype="multipart/form-data" class="space-y-6">
             @csrf
             @method('PUT')

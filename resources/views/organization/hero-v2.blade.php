@@ -27,7 +27,10 @@
         @endguest
         <div class="lang" aria-label="Langue / Language">
           @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
-            <a href="{{ route('locale.switch', $code) }}" @if(app()->getLocale() === $code) aria-current="true" @endif>{{ $label }}</a>
+            <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" class="inline">
+              @csrf
+              <button type="submit" @if(app()->getLocale() === $code) aria-current="true" @endif>{{ $label }}</button>
+            </form>
           @endforeach
         </div>
       </nav>
@@ -45,7 +48,10 @@
     @endguest
     <div class="m-lang" aria-label="Langue / Language">
       @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)
-        <a href="{{ route('locale.switch', $code) }}" @if(app()->getLocale() === $code) aria-current="true" @endif>{{ $label }}</a>
+        <form method="POST" action="{{ route('locale.switch', ['locale' => $code]) }}" style="display:inline">
+          @csrf
+          <button type="submit" @if(app()->getLocale() === $code) aria-current="true" @endif>{{ $label }}</button>
+        </form>
       @endforeach
     </div>
     <a href="{{ route('organization.register', $organization) }}" class="btn-join">{{ org_trans('hero.nav_signup') }}</a>
