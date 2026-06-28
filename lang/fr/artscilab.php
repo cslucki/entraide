@@ -3,7 +3,7 @@
 return [
     'meta_title' => 'Launch-Pals',
     'headline_solid' => 'Launch-Pals',
-    'headline_outline' => 'est une caravansérail pour l\'âge mycélien.',
+    'headline_outline' => 'est un caravansérail pour l\'âge mycélien.',
     'subheadline' => 'ArtSciLab Launch-Pals opère comme une communauté privée dédiée, organisée autour de quatre formes simples d\'échange :',
     'card_1_label' => 'Je peux aider avec…',
     'card_2_label' => 'Je cherche de l\'aide pour…',

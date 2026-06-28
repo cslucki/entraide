@@ -149,8 +149,8 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
   {{-- FOOTER --}}
   <footer class="foot">
     <div class="foot-left">
-      <img class="foot-symbol" src="{{ asset('img/bouclepro-symbol.png') }}" alt="" aria-hidden="true">
       <span>{{ org_trans('artscilab.powered_by') }}</span>
+      <img class="foot-symbol" src="{{ asset('img/bouclepro-symbol.png') }}" alt="" aria-hidden="true">
     </div>
     <nav class="foot-right">
       <a href="{{ route('mentions-legales') }}">{{ org_trans('artscilab.footer_terms') }}</a>

@@ -64,11 +64,19 @@
 
     /* ── Section backgrounds ── */
     .lp-panel--hero{background:#f9f6f0;color:#1a1a1a}
-    .lp-panel--green{background:#154734}
+    .lp-panel--green{background:#154734;color:#ebe0c8}
+    .lp-panel--green .lp-kicker,.lp-panel--green .lp-support,.lp-panel--green .lp-text{color:#d9ceb0}
+    .lp-panel--green .lp-punch{color:#f5efe0}
+    .lp-panel--silver{background:#5fe0b7;color:#1a1a1a}
     .lp-panel--orange{background:#e87500}
     .lp-panel--light{background:#f9f6f0;color:#1a1a1a}
-    .lp-panel--dark{background:#2d2a24}
-    .lp-panel--final{background:linear-gradient(135deg,#154734 0%,#e87500 100%)}
+    .lp-panel--dark{background:#2d2a24;color:#ebe0c8}
+    .lp-panel--dark .lp-kicker,.lp-panel--dark .lp-support,.lp-panel--dark .lp-text{color:#d9ceb0}
+    .lp-panel--dark .lp-punch{color:#f5efe0}
+    .lp-panel--anthra{background:#303030;color:#ebe0c8}
+    .lp-panel--anthra .lp-kicker,.lp-panel--anthra .lp-support,.lp-panel--anthra .lp-text{color:#d9ceb0}
+    .lp-panel--anthra .lp-punch{color:#f5efe0}
+    .lp-panel--final{background:linear-gradient(135deg,#FF0A5C 0%,#FF3A2E 38%,#FF7A1C 70%,#FFB200 100%);color:#fff}
 
     .lp-actions{display:flex;gap:1rem;flex-wrap:wrap;margin-top:2.5rem;justify-content:flex-start}
     .lp-button{display:inline-flex;align-items:center;justify-content:center;min-height:3.25rem;padding:0 1.4rem;border-radius:999px;text-decoration:none;font-weight:700;transition:transform 180ms ease,background 180ms ease,color 180ms ease}
@@ -216,7 +224,7 @@
   </section>
 
   {{-- Section 5 : MYCELIAL NETWORK --}}
-  <section class="lp-panel lp-panel--green" id="s-mycelium">
+  <section class="lp-panel lp-panel--silver" id="s-mycelium">
     <div class="lp-panel__content lp-panel__content--center">
       <p class="lp-kicker">The Network Idea</p>
       <h2 class="lp-title lp-title--lg">A mycelial network of mutual support.</h2>
@@ -302,7 +310,7 @@
   </section>
 
   {{-- Section 9 : FUTURE --}}
-  <section class="lp-panel lp-panel--green" id="s-future">
+  <section class="lp-panel lp-panel--anthra" id="s-future">
     <div class="lp-panel__content">
       <p class="lp-kicker">A First Node</p>
       <h2 class="lp-title lp-title--lg">One village. Then a federation of villages.</h2>
