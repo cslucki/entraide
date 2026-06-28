@@ -22,7 +22,8 @@ class AdminOrganizationRequestController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('boucle_name', 'like', '%'.$search.'%')
                     ->orWhere('contact_name', 'like', '%'.$search.'%')
-                    ->orWhere('contact_email', 'like', '%'.$search.'%');
+                    ->orWhere('contact_email', 'like', '%'.$search.'%')
+                    ->orWhere('contact_phone', 'like', '%'.$search.'%');
             });
         }
 

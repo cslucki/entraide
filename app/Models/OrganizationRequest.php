@@ -14,6 +14,8 @@ class OrganizationRequest extends Model
         'boucle_name',
         'contact_name',
         'contact_email',
+        'contact_phone',
+        'website_url',
         'description',
         'context',
         'status',

@@ -20,6 +20,8 @@ class OrganizationRequestController extends Controller
             'boucle_name' => 'required|string|max:100',
             'contact_name' => 'required|string|max:100',
             'contact_email' => 'required|email|max:150',
+            'contact_phone' => 'required|string|max:30',
+            'website_url' => 'nullable|url|max:255',
             'description' => 'required|string|max:1000',
             'context' => 'nullable|string|max:500',
         ]);

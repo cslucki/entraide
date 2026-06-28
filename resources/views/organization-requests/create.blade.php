@@ -21,7 +21,7 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Nom de votre boucle <span class="text-red-500">*</span>
+                    Nom de votre organisation <span class="text-red-500">*</span>
                 </label>
                 <input type="text" name="boucle_name" value="{{ old('boucle_name') }}" required
                        placeholder="Ex : BNI Lyon Est, Réseau artisans 06, Startup Nation…"
@@ -45,12 +45,38 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Contexte ou association porteuse
+                    Contexte de votre projet
                     <span class="text-gray-400 font-normal">(facultatif)</span>
                 </label>
                 <input type="text" name="context" value="{{ old('context') }}"
                        placeholder="Ex : association AMT, club BNI, réseau de co-working…"
                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Téléphone <span class="text-red-500">*</span>
+                    </label>
+                    <input type="tel" name="contact_phone" value="{{ old('contact_phone') }}" required
+                           placeholder="+33 6 12 34 56 78"
+                           class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500">
+                    @error('contact_phone')
+                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Site web
+                        <span class="text-gray-400 font-normal">(facultatif)</span>
+                    </label>
+                    <input type="url" name="website_url" value="{{ old('website_url') }}"
+                           placeholder="https://monassociation.fr"
+                           class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500">
+                    @error('website_url')
+                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
             </div>
 
             <div class="grid sm:grid-cols-2 gap-4">

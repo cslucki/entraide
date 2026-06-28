@@ -4,24 +4,6 @@ $demoUrl = 'https://bouclepro.com/demo';
 $heroAvatars = collect($heroAvatars ?? []);
 $cardLabel = fn (string $key, string $fallback) => filled($settings[$key] ?? null) ? e($settings[$key]) : org_trans($fallback);
 $avatar = fn (int $index) => $heroAvatars->get($index) ?? asset('img/bouclepro-symbol.png');
-$profileUrl = fn () => route('organization.profile.show', ['organization' => $organization, 'user' => auth()->user()]);
-$settingsUrl = fn () => route('organization.profile.edit', $organization);
-$bugReportUrl = route('organization.bug-reports.index', $organization);
-$adminUrl = function () use ($organization): ?string {
-    if (! auth()->check()) {
-        return null;
-    }
-
-    if (auth()->user()->is_admin) {
-        return route('admin.dashboard');
-    }
-
-    if ($organization->admin_id === auth()->id()) {
-        return route('organization.admin.dashboard', $organization);
-    }
-
-    return null;
-};
 $settingText = fn (string $key, string $fallback, array $legacyPlaceholders = []) => filled($settings[$key] ?? null) && ! in_array($settings[$key], $legacyPlaceholders, true)
     ? $settings[$key]
     : org_trans($fallback);
@@ -75,36 +57,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           <a href="{{ route('organization.login', $organization) }}">{{ org_trans('hero.nav_login') }}</a>
           <a href="{{ route('organization.register', $organization) }}" class="btn-join">{{ org_trans('hero.nav_signup') }}</a>
         @else
-          <div class="user-menu">
-            <button type="button" class="user-trigger" aria-label="{{ __('navigation.user_menu') }}" aria-expanded="false">
-              <img src="{{ auth()->user()->avatar_url }}" alt="{{ auth()->user()->name }}">
-            </button>
-            <div class="user-dropdown" hidden>
-              <div class="user-summary">
-                <img src="{{ auth()->user()->avatar_url }}" alt="{{ auth()->user()->name }}">
-                <div>
-                  <strong>{{ auth()->user()->name }}</strong>
-                  <span>{{ auth()->user()->points_balance }} pts</span>
-                </div>
-              </div>
-              <a href="{{ route('dashboard') }}">{{ __('navigation.dashboard') }}</a>
-              <a href="{{ $profileUrl() }}">{{ __('navigation.profile') }}</a>
-              <a href="{{ $settingsUrl() }}">{{ __('navigation.settings') }}</a>
-              <a href="{{ route('organization.points.index', $organization) }}">{{ __('navigation.points_history') }}</a>
-              <a href="{{ route('organization.favorites.index', $organization) }}">{{ __('navigation.favorites') }}</a>
-              <a href="{{ route('help') }}">{{ __('navigation.help') }}</a>
-              <a href="{{ $bugReportUrl }}">{{ __('navigation.report_bug') }}</a>
-              @if($adminUrl())
-                <a href="{{ $adminUrl() }}">{{ __('navigation.administration') }}</a>
-              @endif
-              <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit">{{ __('navigation.logout') }}</button>
-              </form>
-              <a href="{{ route('mentions-legales') }}" class="user-dropdown-muted">{{ __('navigation.legal_notices') }}</a>
-              <span class="user-dropdown-version">{{ __('navigation.version') }} {{ config('app.version') }}</span>
-            </div>
-          </div>
+          <a href="{{ route('dashboard') }}" class="btn-join">{{ __('navigation.dashboard') }}</a>
         @endguest
       </nav>
       <button class="burger" aria-label="{{ __('common.open_menu') }}" aria-expanded="false" aria-controls="m-menu"><i class="ti ti-menu-2"></i></button>
@@ -119,18 +72,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <a href="{{ route('organization.login', $organization) }}">{{ org_trans('hero.nav_login') }}</a>
       <a href="{{ route('organization.register', $organization) }}" class="btn-join">{{ org_trans('hero.nav_signup') }}</a>
     @else
-      <a href="{{ route('dashboard') }}">{{ org_trans('navigation.dashboard') }}</a>
-      <a href="{{ $profileUrl() }}">{{ __('navigation.profile') }}</a>
-      <a href="{{ $settingsUrl() }}">{{ __('navigation.settings') }}</a>
-      <a href="{{ route('organization.points.index', $organization) }}">{{ __('navigation.points_history') }}</a>
-      <a href="{{ route('organization.favorites.index', $organization) }}">{{ __('navigation.favorites') }}</a>
-      <a href="{{ route('help') }}">{{ __('navigation.help') }}</a>
-      <a href="{{ $bugReportUrl }}">{{ __('navigation.report_bug') }}</a>
-      @if($adminUrl())
-        <a href="{{ $adminUrl() }}">{{ __('navigation.administration') }}</a>
-      @endif
-      <a href="{{ route('mentions-legales') }}">{{ __('navigation.legal_notices') }}</a>
-      <span class="m-version">{{ __('navigation.version') }} {{ config('app.version') }}</span>
+      <a href="{{ route('dashboard') }}">{{ __('navigation.dashboard') }}</a>
     @endguest
     <div class="m-lang" aria-label="Langue / Language">
       @foreach (['fr' => 'FR', 'en' => 'EN'] as $code => $label)

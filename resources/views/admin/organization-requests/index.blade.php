@@ -6,7 +6,7 @@
     </div>
 
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
-        <input type="text" name="search" value="{{ request('search') }}" placeholder="Nom, contact, email..."
+        <input type="text" name="search" value="{{ request('search') }}" placeholder="Nom, contact, email, téléphone..."
             class="flex-1 min-w-48 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
         <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
             <option value="">Tous les statuts</option>
@@ -49,6 +49,12 @@
                     <td class="px-4 py-3">
                         <p class="text-xs font-medium text-gray-900 dark:text-gray-100">{{ $organizationRequest->contact_name }}</p>
                         <a href="mailto:{{ $organizationRequest->contact_email }}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">{{ $organizationRequest->contact_email }}</a>
+                        @if($organizationRequest->contact_phone)
+                        <p class="mt-1 text-xs text-gray-500">{{ $organizationRequest->contact_phone }}</p>
+                        @endif
+                        @if($organizationRequest->website_url)
+                        <a href="{{ $organizationRequest->website_url }}" target="_blank" rel="noopener" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline block mt-0.5">Site web</a>
+                        @endif
                         @if($organizationRequest->user)
                         <p class="mt-1 text-[11px] text-gray-400">Compte lié : {{ $organizationRequest->user->name }}</p>
                         @endif
