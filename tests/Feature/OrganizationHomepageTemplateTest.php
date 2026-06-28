@@ -41,21 +41,22 @@ class OrganizationHomepageTemplateTest extends TestCase
     {
         $this->org->update([
             'homepage_template' => 'bouclepro_hero_v2',
-            'homepage_settings' => ['headline' => 'Custom Hero Title'],
+            'homepage_settings' => ['subheadline' => 'Custom Hero Subtitle'],
         ]);
 
         $response = $this->get('/org/test-org');
 
         $response->assertOk();
-        $response->assertSee('Custom Hero Title');
+        $response->assertSee('Custom Hero Subtitle');
         $response->assertSee('bp-hero-v2');
+        $response->assertSee('https://bouclepro.com/demo');
     }
 
     public function test_tenant_isolation(): void
     {
         $this->org->update([
             'homepage_template' => 'bouclepro_hero_v2',
-            'homepage_settings' => ['headline' => 'Org A Hero'],
+            'homepage_settings' => ['subheadline' => 'Org A Hero'],
         ]);
 
         $responseA = $this->get('/org/test-org');
@@ -85,6 +86,7 @@ class OrganizationHomepageTemplateTest extends TestCase
         $response->assertOk();
         $response->assertSee('Template');
         $response->assertSee('bouclepro_hero_v2');
+        $response->assertSee('BouclePro_Hero');
     }
 
     public function test_non_admin_cannot_access_homepage_settings(): void
@@ -101,21 +103,55 @@ class OrganizationHomepageTemplateTest extends TestCase
     {
         $this->actingAs($this->admin)->put(route('admin.organizations.homepage.update', $this->org), [
             'homepage_template' => 'bouclepro_hero_v2',
-            'headline' => 'Test Headline',
             'subheadline' => 'Test Subheadline',
+            'card_create_label' => 'Custom Card Create',
+            'card_meet_label' => 'Custom Card Meet',
+            'card_help_label' => 'Custom Card Help',
+            'card_offer_label' => 'Custom Card Offer',
+            'ai_note' => 'Custom AI note',
             'primary_cta_label' => 'Get Started',
             'primary_cta_url' => '/join',
             'secondary_cta_label' => 'Learn More',
-            'secondary_cta_url' => '/about',
+            'secondary_cta_url' => 'https://bouclepro.com/demo',
         ])->assertRedirect(route('admin.organizations.homepage', $this->org));
 
         $this->org->refresh();
 
         $this->assertEquals('bouclepro_hero_v2', $this->org->homepage_template);
-        $this->assertEquals('Test Headline', $this->org->homepage_settings['headline']);
         $this->assertEquals('Test Subheadline', $this->org->homepage_settings['subheadline']);
+        $this->assertEquals('Custom Card Create', $this->org->homepage_settings['card_create_label']);
+        $this->assertEquals('Custom AI note', $this->org->homepage_settings['ai_note']);
         $this->assertEquals('Get Started', $this->org->homepage_settings['primary_cta_label']);
         $this->assertEquals('/join', $this->org->homepage_settings['primary_cta_url']);
+    }
+
+    public function test_unsafe_homepage_cta_url_is_rejected(): void
+    {
+        $this->actingAs($this->admin)->put(route('admin.organizations.homepage.update', $this->org), [
+            'homepage_template' => 'bouclepro_hero_v2',
+            'primary_cta_url' => 'javascript:alert(1)',
+        ])->assertSessionHasErrors('primary_cta_url');
+    }
+
+    public function test_admin_homepages_page_uses_homepage_design_title(): void
+    {
+        $this->org->update(['homepage_template' => 'bouclepro_hero_v2']);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.homepages'));
+
+        $response->assertOk();
+        $response->assertSee('Homepage design');
+        $response->assertSee('BouclePro_Hero');
+    }
+
+    public function test_root_redirects_to_default_organization_custom_homepage(): void
+    {
+        $this->org->update([
+            'is_default' => true,
+            'homepage_template' => 'bouclepro_hero_v2',
+        ]);
+
+        $this->get('/')->assertRedirect(route('organization.home', $this->org));
     }
 
     public function test_invalid_template_is_rejected(): void
@@ -129,7 +165,7 @@ class OrganizationHomepageTemplateTest extends TestCase
     {
         $this->org->update([
             'homepage_template' => 'bouclepro_hero_v2',
-            'homepage_settings' => ['headline' => 'Old'],
+            'homepage_settings' => ['subheadline' => 'Old'],
         ]);
 
         $this->actingAs($this->admin)->put(route('admin.organizations.homepage.update', $this->org), [
@@ -144,11 +180,11 @@ class OrganizationHomepageTemplateTest extends TestCase
     public function test_homepage_settings_casts_to_array(): void
     {
         $org = Organization::factory()->create([
-            'homepage_settings' => ['headline' => 'Array Test'],
+            'homepage_settings' => ['subheadline' => 'Array Test'],
         ]);
 
         $this->assertIsArray($org->homepage_settings);
-        $this->assertEquals('Array Test', $org->homepage_settings['headline']);
+        $this->assertEquals('Array Test', $org->homepage_settings['subheadline']);
     }
 
     public function test_homepage_settings_null_when_not_set(): void

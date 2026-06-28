@@ -1,4 +1,4 @@
-<x-admin-layout title="Homepages">
+<x-admin-layout title="Homepage design">
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
@@ -16,7 +16,7 @@
                     <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{{ $org->name }}</td>
                     <td class="px-4 py-3">
                         @if ($org->homepage_template === 'bouclepro_hero_v2')
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">BouclePro Hero v2</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">BouclePro_Hero</span>
                         @else
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">Défaut</span>
                         @endif

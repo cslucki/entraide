@@ -7,7 +7,7 @@
 
             <div class="flex items-center justify-between">
                 <div>
-                    <a href="{{ route('admin.organizations.edit', $organization) }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">&larr; Retour à l'organisation</a>
+                    <a href="{{ route('admin.homepages') }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">&larr; Retour à Homepage design</a>
                 </div>
                 <a href="{{ route('organization.home', $organization) }}" target="_blank" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Prévisualiser &nearr;</a>
             </div>
@@ -19,7 +19,7 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template de page d'accueil</label>
                     <select name="homepage_template" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
                         <option value="default" @selected(($organization->homepage_template ?? 'default') === 'default')>Default (existant)</option>
-                        <option value="bouclepro_hero_v2" @selected($organization->homepage_template === 'bouclepro_hero_v2')>BouclePro Hero v2</option>
+                        <option value="bouclepro_hero_v2" @selected($organization->homepage_template === 'bouclepro_hero_v2')>BouclePro_Hero</option>
                     </select>
                 </div>
             </div>
@@ -29,33 +29,37 @@
                 <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Contenu</h2>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Headline (titre principal)</label>
-                    <input type="text" name="headline" value="{{ old('headline', $settings['headline'] ?? '') }}" maxlength="255" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
-                </div>
-
-                <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subheadline (sous-titre)</label>
                     <textarea name="subheadline" rows="2" maxlength="500" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">{{ old('subheadline', $settings['subheadline'] ?? '') }}</textarea>
                 </div>
 
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mot 1 (violet)</label>
-                        <input type="text" name="word_1" value="{{ old('word_1', $settings['word_1'] ?? '') }}" maxlength="100" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Card 1 — "J'explore une piste"</label>
+                        <input type="text" name="card_create_label" value="{{ old('card_create_label', $settings['card_create_label'] ?? '') }}" maxlength="100" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mot 2 (orange)</label>
-                        <input type="text" name="word_2" value="{{ old('word_2', $settings['word_2'] ?? '') }}" maxlength="100" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Card 2 — "Je crée du lien"</label>
+                        <input type="text" name="card_meet_label" value="{{ old('card_meet_label', $settings['card_meet_label'] ?? '') }}" maxlength="100" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mot 3 (vert)</label>
-                        <input type="text" name="word_3" value="{{ old('word_3', $settings['word_3'] ?? '') }}" maxlength="100" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Card 3 — "J'ai besoin d'aide"</label>
+                        <input type="text" name="card_help_label" value="{{ old('card_help_label', $settings['card_help_label'] ?? '') }}" maxlength="100" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Card 4 — "Je peux aider"</label>
+                        <input type="text" name="card_offer_label" value="{{ old('card_offer_label', $settings['card_offer_label'] ?? '') }}" maxlength="100" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Texte sur rôle de l'IA</label>
+                    <textarea name="ai_note" rows="2" maxlength="255" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">{{ old('ai_note', $settings['ai_note'] ?? '') }}</textarea>
                 </div>
             </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">CTA</h2>
+                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Footer</h2>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -80,14 +84,6 @@
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Footer</h2>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom / crédit footer</label>
-                    <input type="text" name="footer_contact_name" value="{{ old('footer_contact_name', $settings['footer_contact_name'] ?? '') }}" maxlength="255" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
-                </div>
-            </div>
             @endif
 
             <div class="flex items-center gap-3">

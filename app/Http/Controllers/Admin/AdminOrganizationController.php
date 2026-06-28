@@ -230,23 +230,29 @@ class AdminOrganizationController extends Controller
     {
         $validated = $request->validate([
             'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2'])],
-            'headline' => ['nullable', 'string', 'max:255'],
             'subheadline' => ['nullable', 'string', 'max:500'],
-            'word_1' => ['nullable', 'string', 'max:100'],
-            'word_2' => ['nullable', 'string', 'max:100'],
-            'word_3' => ['nullable', 'string', 'max:100'],
+            'card_create_label' => ['nullable', 'string', 'max:100'],
+            'card_meet_label' => ['nullable', 'string', 'max:100'],
+            'card_help_label' => ['nullable', 'string', 'max:100'],
+            'card_offer_label' => ['nullable', 'string', 'max:100'],
+            'ai_note' => ['nullable', 'string', 'max:255'],
             'primary_cta_label' => ['nullable', 'string', 'max:100'],
             'primary_cta_url' => ['nullable', 'string', 'max:500'],
             'secondary_cta_label' => ['nullable', 'string', 'max:100'],
             'secondary_cta_url' => ['nullable', 'string', 'max:500'],
-            'footer_contact_name' => ['nullable', 'string', 'max:255'],
         ]);
+
+        foreach (['primary_cta_url', 'secondary_cta_url'] as $urlField) {
+            if (! empty($validated[$urlField]) && ! $this->isSafeHomepageUrl($validated[$urlField])) {
+                return back()->withErrors([$urlField => 'URL invalide. Utilisez une URL interne relative ou une URL HTTPS.'])->withInput();
+            }
+        }
 
         $template = $validated['homepage_template'] ?? null;
 
         $settings = [];
-        foreach (['headline', 'subheadline', 'word_1', 'word_2', 'word_3', 'primary_cta_label', 'primary_cta_url', 'secondary_cta_label', 'secondary_cta_url', 'footer_contact_name'] as $field) {
-            if (isset($validated[$field])) {
+        foreach (['subheadline', 'card_create_label', 'card_meet_label', 'card_help_label', 'card_offer_label', 'ai_note', 'primary_cta_label', 'primary_cta_url', 'secondary_cta_label', 'secondary_cta_url'] as $field) {
+            if (filled($validated[$field] ?? null)) {
                 $settings[$field] = $validated[$field];
             }
         }
@@ -258,6 +264,16 @@ class AdminOrganizationController extends Controller
 
         return redirect()->route('admin.organizations.homepage', $organization)
             ->with('success', 'Page d\'accueil mise à jour.');
+    }
+
+    private function isSafeHomepageUrl(string $url): bool
+    {
+        if (str_starts_with($url, '/') && ! str_starts_with($url, '//')) {
+            return true;
+        }
+
+        return filter_var($url, FILTER_VALIDATE_URL) !== false
+            && parse_url($url, PHP_URL_SCHEME) === 'https';
     }
 
     public function destroy(Organization $organization): RedirectResponse
