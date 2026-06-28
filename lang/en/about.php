@@ -2,59 +2,83 @@
 
 return [
     'meta_title' => 'About BouclePro',
-    'eyebrow' => 'About BouclePro',
-    'title' => 'Human intelligence in motion',
-    'intro' => 'BouclePro is an AI-assisted professional mutual-aid platform. Its goal is simple: help needs, skills, ideas, contacts and projects circulate between the right people at the right time.',
-    'ai_line' => 'AI helps clarify. Humans stay at the center.',
-    'cta_primary' => 'Create your organization',
-    'cta_secondary' => 'See the demo',
-    'proof_points' => [
-        'Clarified needs',
-        'Visible know-how',
-        'Tracked actions',
+
+    // Navigation sidebar
+    'nav_besoin' => 'Need',
+    'nav_mission' => 'Mission',
+    'nav_boucle' => 'Loop',
+    'nav_transmission' => 'Transmission',
+    'nav_memoire' => 'Memory',
+    'nav_personnes' => 'People',
+    'nav_positionnement' => 'Positioning',
+    'nav_tableau' => 'Comparison',
+    'nav_cta' => 'Start',
+
+    // Screen 1 — Need
+    's1_kicker' => 'Need',
+    's1_title' => 'Connect the right people at the right moment.',
+    's1_text' => 'Collective intelligence is born not from a feed, but from a meeting: a few people gathered around a shared subject.',
+    's1_support' => 'A need, a skill, an intuition — and exchange becomes action.',
+
+    // Screen 2 — The mission
+    's2_kicker' => 'The mission',
+    's2_title' => 'From a fuzzy need to a clear mission.',
+    's2_text' => 'You express your need in natural language. AI clarifies it — objective, context, required expertise — and BouclePro points you to those who can truly help.',
+    's2_support' => 'The right expertise is found in minutes, where it used to take days.',
+    's2_cycle' => ['Mission', 'Loop', 'Result', 'Memory'],
+
+    // Screen 3 — The loop
+    's3_kicker' => 'The loop, concretely',
+    's3_title' => 'A few people. Not a crowd.',
+    's3_text' => 'A loop gathers at most ten members around a precise mission. Few enough that everyone counts, enough to unlock a situation: ask for help, transmit know-how, progress, bounce back, coordinate.',
+    'loop_types' => ['Help', 'Transmission', 'Progression', 'Bounce back', 'Coordination'],
+
+    // Screen 4 — Transmission & companionship
+    's4_kicker' => 'Transmission & companionship',
+    's4_title' => 'We learn by moving forward with others.',
+    's4_text' => 'A pedagogy through mutual aid: knowledge circulates when the need emerges, peer to peer, in the flow of work.',
+    's4_support' => 'AI can accompany this learning — assisted companionship — without ever replacing the human relationship.',
+
+    // Screen 5 — Collective memory
+    's5_kicker' => 'Collective memory',
+    's5_title' => 'The feed forgets. The loop remembers.',
+    's5_text' => 'The fruit of a mission — answer, decision, deliverable — settles in a living journal. Nothing to reread: the essentials remain dated, findable, reusable.',
+    's5_support' => 'An organization then stops losing what it learns. AI synthesizes and maintains context; the decision remains human.',
+
+    // Screen 6 — People
+    's6_kicker' => 'People',
+    's6_title' => 'Not a fixed profile. A living signal.',
+    's6_text' => "Everyone says what drives them today: what they're looking for, what they can transmit, or those two people who should be connected.",
+    's6_punch' => "It's from these brief signals, offered without expecting anything in return, that improbable encounters are born.",
+
+    // Screen 7 — Positioning + comparison table
+    's7_kicker' => 'Positioning',
+    's7_title' => 'This is not just another social network.',
+    's7_punch' => 'Where classic platforms optimize visibility, BouclePro cultivates cooperation.',
+    's7_text' => 'Nothing here is designed to publish, capture attention or collect contacts. Everything is designed to create belonging, circulate mutual aid, learn through practice and build a common memory — open code, sovereign data.',
+    's4_compare_headers' => ['Use case', 'LinkedIn', 'Reddit', 'Discord', 'BouclePro'],
+    's4_compare_rows' => [
+        ['label' => 'Gain visibility', 'linkedin' => '✓', 'reddit' => '△', 'discord' => '△', 'bouclepro' => '△'],
+        ['label' => 'Discuss around a topic', 'linkedin' => '△', 'reddit' => '✓', 'discord' => '✓', 'bouclepro' => '✓'],
+        ['label' => 'Create a trusted space', 'linkedin' => '△', 'reddit' => '△', 'discord' => '✓', 'bouclepro' => '✓'],
+        ['label' => 'Ask for or offer help', 'linkedin' => '△', 'reddit' => '△', 'discord' => '△', 'bouclepro' => '✓'],
+        ['label' => 'Learn at the right moment', 'linkedin' => '✕', 'reddit' => '△', 'discord' => '△', 'bouclepro' => '✓'],
+        ['label' => 'Turn an exchange into a result', 'linkedin' => '✕', 'reddit' => '△', 'discord' => '△', 'bouclepro' => '✓'],
+        ['label' => 'Capitalize collective memory', 'linkedin' => '✕', 'reddit' => '△', 'discord' => '✕', 'bouclepro' => '✓'],
+        ['label' => 'Control your code and data', 'linkedin' => '✕', 'reddit' => '✕', 'discord' => '✕', 'bouclepro' => '✓'],
     ],
-    'sections' => [
-        [
-            'title' => 'Ask. Share. Move forward.',
-            'body' => 'We all have poorly formulated needs, underused skills, ideas waiting to happen, projects lacking support or contacts who could help someone. BouclePro helps turn a vague intention into a clear action.',
-            'items' => ['I need help.', 'I can help.', 'I am exploring an idea.', 'I am creating a connection.', 'I want to move forward with others.'],
-            'tone' => 'purple',
-        ],
-        [
-            'title' => 'A loop is not a social network',
-            'body' => 'A loop is an action-oriented mutual-aid space where conversations are connected to needs, people, projects and shared memory. People do not come only to publish. They come to move forward.',
-            'items' => ['Develop an activity', 'Launch a project', 'Share a skill', 'Connect members with each other', 'Build useful collective memory'],
-            'tone' => 'orange',
-        ],
-        [
-            'title' => 'AI clarifies. Humans respond.',
-            'body' => 'BouclePro uses AI as a clarification assistant, not as a substitute for people. Good technology does not replace human ties: it makes them more visible, more fluid and more useful.',
-            'items' => ['Rephrase a request', 'Summarize a discussion', 'Prepare a connection', 'Keep a record in the loop journal', 'Structure collective memory'],
-            'tone' => 'green',
-        ],
-    ],
-    'village_title' => 'A living digital village',
-    'village_body' => 'BouclePro is inspired by a strong idea: a community should not be only a member list or a message feed. It can become a living digital village where everyone can ask, help, share or connect people.',
-    'village_quotes' => ['I can help on this topic.', 'I am looking for help to move forward.', 'I am fascinated by this question.', 'These two people should meet.'],
-    'comparison_title' => 'BouclePro compared with LinkedIn, Slack and WhatsApp',
-    'comparison_intro' => 'LinkedIn helps people become visible. Slack helps teams discuss. WhatsApp helps groups stay in touch. BouclePro helps a community circulate help, structure exchanges and move forward together.',
-    'comparison_headers' => ['Need', 'LinkedIn', 'Slack', 'WhatsApp', 'BouclePro'],
-    'comparison' => [
-        ['need' => 'Become visible', 'linkedin' => 'Very useful to publish and grow a network', 'slack' => 'Poorly suited to external visibility', 'whatsapp' => 'Limited to existing groups', 'bouclepro' => 'Useful to make needs, skills and contributions visible inside an organization'],
-        ['need' => 'Exchange quickly', 'linkedin' => 'Possible, but scattered', 'slack' => 'Very good for team conversations', 'whatsapp' => 'Very good for short exchanges', 'bouclepro' => 'Designed to connect exchanges to requests, loops and actions'],
-        ['need' => 'Ask for help', 'linkedin' => 'Possible, but often drowned in the feed', 'slack' => 'Possible, but channel-dependent', 'whatsapp' => 'Possible, but quickly disorganized', 'bouclepro' => 'Central: a request can be clarified, shared and followed up'],
-        ['need' => 'Offer help', 'linkedin' => 'Possible through posts or messages', 'slack' => 'Possible in a channel', 'whatsapp' => 'Possible in a group', 'bouclepro' => 'Central: everyone can signal what they can bring to the loop'],
-        ['need' => 'Create connections between people', 'linkedin' => 'Possible, but manual', 'slack' => 'Possible, but loosely structured', 'whatsapp' => 'Possible, but informal', 'bouclepro' => 'Designed to foster useful introductions'],
-        ['need' => 'Keep collective memory', 'linkedin' => 'Weak: posts disappear quickly', 'slack' => 'Medium: information gets lost in threads', 'whatsapp' => 'Weak: limited search and context', 'bouclepro' => 'Strong: exchanges can feed shared memory and a loop journal'],
-        ['need' => 'Structure a community', 'linkedin' => 'Broad network, but poorly contextualized', 'slack' => 'Good for internal teams', 'whatsapp' => 'Good for simple groups', 'bouclepro' => 'Designed to create organizations, loops, roles and mutual-aid dynamics'],
-        ['need' => 'Use AI', 'linkedin' => 'AI mostly oriented toward publishing or search', 'slack' => 'AI oriented toward team productivity', 'whatsapp' => 'Limited or external AI', 'bouclepro' => 'AI oriented toward clarification, synthesis, memory and human coordination'],
-        ['need' => 'Take action', 'linkedin' => 'Depends on people', 'slack' => 'Possible, but often fragmented', 'whatsapp' => 'Possible, but lightly tracked', 'bouclepro' => 'Core goal: transform exchanges into useful next actions'],
-    ],
-    'audience_title' => 'Who is it for?',
-    'audience' => 'BouclePro is for people, collectives and organizations that want to create useful mutual aid: freelancers, entrepreneurs, job seekers, trainers, associations, professional networks, schools, labs and local or international communities.',
-    'cyberworkers_title' => 'A continuity with Cyberworkers',
-    'cyberworkers' => 'BouclePro follows the path opened by Cyberworkers.com, launched in 1996 around telework, remote learning and new forms of collaboration.',
-    'closing_title' => 'Create your organization',
-    'closing' => 'Open a first loop to welcome your members, then create loops adapted to your community: mutual aid, learning, projects, alumni network, professional community, support, innovation or professional development.',
-    'closing_line' => 'Create your organization. Launch your first loops. Move your community forward.',
+    's4_legend' => '✓ suited · △ possible · ✕ not central · open code, sovereign data',
+
+    // Screen 8 — Comparison table
+    's8_kicker' => 'Comparison',
+    's8_title' => 'At a glance.',
+
+    // Screen 9 — Start
+    's9_kicker' => 'Start',
+    's9_title' => 'Start with one loop.',
+    's9_text' => 'One need, one subject, a few people: a space to reflect, decide and act.',
+    's9_support' => 'BouclePro transforms a relationship into cooperation, and cooperation into shared memory. This is how people propel each other toward what they could not have reached alone.',
+
+    'cta_primary' => 'Create an organization',
+    'cta_secondary' => 'Start a loop',
 ];

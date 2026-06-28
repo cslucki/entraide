@@ -178,8 +178,8 @@ class OrganizationHomepageTemplateTest extends TestCase
         $response->assertOk();
         $response->assertSee(__('about.meta_title'), false);
         $response->assertSee(__('about.cta_primary'));
-        $response->assertSee(__('about.comparison.0.need'));
-        $response->assertSee('<details', false);
+        $response->assertSee(__('about.s4_compare_rows.0.label'));
+        $response->assertSee('<table', false);
     }
 
     public function test_unsafe_homepage_cta_url_is_rejected(): void

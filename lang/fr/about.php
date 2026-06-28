@@ -2,59 +2,83 @@
 
 return [
     'meta_title' => 'À propos de BouclePro',
-    'eyebrow' => 'À propos de BouclePro',
-    'title' => 'L’intelligence humaine en circulation',
-    'intro' => 'BouclePro est une plateforme d’entraide professionnelle augmentée par l’IA. Son objectif est simple : faire circuler les besoins, les savoir-faire, les idées, les contacts et les projets entre les bonnes personnes, au bon moment.',
-    'ai_line' => 'L’IA aide à clarifier. Les humains restent au centre.',
-    'cta_primary' => 'Créer votre organisation',
-    'cta_secondary' => 'Voir la démo',
-    'proof_points' => [
-        'Besoins clarifiés',
-        'Savoir-faire visibles',
-        'Actions suivies',
+
+    // Navigation sidebar
+    'nav_besoin' => 'Besoin',
+    'nav_mission' => 'Mission',
+    'nav_boucle' => 'Boucle',
+    'nav_transmission' => 'Transmission',
+    'nav_memoire' => 'Mémoire',
+    'nav_personnes' => 'Personnes',
+    'nav_positionnement' => 'Positionnement',
+    'nav_tableau' => 'Tableau',
+    'nav_cta' => 'Commencer',
+
+    // Écran 1 — Besoin
+    's1_kicker' => 'Besoin',
+    's1_title' => 'Relier les bonnes personnes, au bon moment.',
+    's1_text' => "L'intelligence collective ne naît pas d'un flux, mais d'une rencontre : quelques personnes réunies autour d'un même sujet.",
+    's1_support' => "Un besoin, une compétence, une intuition — et l'échange devient action.",
+
+    // Écran 2 — La mission
+    's2_kicker' => 'La mission',
+    's2_title' => "D'un besoin flou à une mission claire.",
+    's2_text' => "Vous formulez votre besoin en langage naturel. L'IA le met au net — objectif, contexte, savoir-faire requis — et BouclePro vous oriente vers celles et ceux qui peuvent vraiment aider.",
+    's2_support' => 'La compétence juste se trouve en quelques minutes, là où il fallait des jours.',
+    's2_cycle' => ['Mission', 'Boucle', 'Résultat', 'Mémoire'],
+
+    // Écran 3 — La boucle
+    's3_kicker' => 'La boucle, concrètement',
+    's3_title' => 'Quelques personnes. Pas une foule.',
+    's3_text' => "Une boucle rassemble dix membres au plus, autour d'une mission précise. Assez peu pour que chacun compte, assez pour qu'une situation se débloque : demander de l'aide, transmettre un savoir-faire, progresser, rebondir, coordonner.",
+    'loop_types' => ['Aide', 'Transmission', 'Progression', 'Rebond', 'Coordination'],
+
+    // Écran 4 — Transmission & compagnonnage
+    's4_kicker' => 'Transmission & compagnonnage',
+    's4_title' => "On apprend en avançant avec d'autres.",
+    's4_text' => "Une pédagogie par l'entraide : le savoir circule quand le besoin émerge, de pair à pair, dans le flux du travail.",
+    's4_support' => "L'IA peut accompagner cet apprentissage — un compagnonnage assisté — sans jamais se substituer à la relation humaine.",
+
+    // Écran 5 — Mémoire collective
+    's5_kicker' => 'Mémoire collective',
+    's5_title' => 'Le fil oublie. La boucle se souvient.',
+    's5_text' => "Le fruit d'une mission — réponse, décision, livrable — se dépose dans un journal vivant. Rien à relire : l'essentiel reste daté, retrouvable, réutilisable.",
+    's5_support' => "Une organisation cesse alors de perdre ce qu'elle apprend. L'IA synthétise et tient le contexte ; la décision, elle, demeure humaine.",
+
+    // Écran 6 — Les personnes
+    's6_kicker' => 'Les personnes',
+    's6_title' => 'Pas un profil figé. Un signal vivant.',
+    's6_text' => "Chacun dit ce qui l'anime aujourd'hui : ce qu'il cherche, ce qu'il peut transmettre, ou ces deux personnes qu'il faudrait relier.",
+    's6_punch' => "C'est de ces signaux brefs, lancés sans rien attendre en retour, que naissent les rencontres improbables.",
+
+    // Écran 7 — Positionnement + tableau comparatif
+    's7_kicker' => 'Positionnement',
+    's7_title' => "Ce n'est pas un réseau social de plus.",
+    's7_punch' => 'Là où les plateformes classiques optimisent la visibilité, BouclePro cultive la coopération.',
+    's7_text' => "Rien ici n'est pensé pour publier, capter l'attention ou collectionner des contacts. Tout est pensé pour créer de l'appartenance, faire circuler l'entraide, apprendre par la pratique et bâtir une mémoire commune — code ouvert, données souveraines.",
+    's4_compare_headers' => ['Usage', 'LinkedIn', 'Reddit', 'Discord', 'BouclePro'],
+    's4_compare_rows' => [
+        ['label' => 'Gagner en visibilité', 'linkedin' => '✓', 'reddit' => '△', 'discord' => '△', 'bouclepro' => '△'],
+        ['label' => "Discuter autour d'un sujet", 'linkedin' => '△', 'reddit' => '✓', 'discord' => '✓', 'bouclepro' => '✓'],
+        ['label' => 'Créer un espace de confiance', 'linkedin' => '△', 'reddit' => '△', 'discord' => '✓', 'bouclepro' => '✓'],
+        ['label' => "Demander ou proposer de l'aide", 'linkedin' => '△', 'reddit' => '△', 'discord' => '△', 'bouclepro' => '✓'],
+        ['label' => 'Apprendre au bon moment', 'linkedin' => '✕', 'reddit' => '△', 'discord' => '△', 'bouclepro' => '✓'],
+        ['label' => "Transformer l'échange en résultat", 'linkedin' => '✕', 'reddit' => '△', 'discord' => '△', 'bouclepro' => '✓'],
+        ['label' => 'Capitaliser la mémoire collective', 'linkedin' => '✕', 'reddit' => '△', 'discord' => '✕', 'bouclepro' => '✓'],
+        ['label' => 'Maîtriser son code et ses données', 'linkedin' => '✕', 'reddit' => '✕', 'discord' => '✕', 'bouclepro' => '✓'],
     ],
-    'sections' => [
-        [
-            'title' => 'Demandez. Partagez. Progressez.',
-            'body' => 'Nous avons tous des besoins mal formulés, des compétences sous-utilisées, des idées en attente, des projets qui manquent d’appui ou des contacts qui pourraient aider quelqu’un. BouclePro aide à transformer une intention floue en action claire.',
-            'items' => ['J’ai besoin d’aide.', 'Je peux aider.', 'J’explore une piste.', 'Je crée du lien.', 'Je veux avancer avec d’autres.'],
-            'tone' => 'purple',
-        ],
-        [
-            'title' => 'Une boucle, ce n’est pas un réseau social',
-            'body' => 'Une boucle est un espace d’entraide orienté action, où les échanges sont reliés à des besoins, des personnes, des projets et une mémoire commune. On n’y vient pas seulement pour publier. On y vient pour avancer.',
-            'items' => ['Développer une activité', 'Lancer un projet', 'Transmettre une compétence', 'Connecter des membres entre eux', 'Construire une mémoire collective utile'],
-            'tone' => 'orange',
-        ],
-        [
-            'title' => 'L’IA clarifie. Les humains répondent.',
-            'body' => 'BouclePro utilise l’IA comme un assistant de clarification, pas comme un substitut aux personnes. La bonne technologie ne remplace pas les liens humains : elle les rend plus visibles, plus fluides et plus utiles.',
-            'items' => ['Reformuler une demande', 'Résumer une discussion', 'Préparer une mise en relation', 'Garder une trace dans le journal de la boucle', 'Structurer une mémoire collective'],
-            'tone' => 'green',
-        ],
-    ],
-    'village_title' => 'Un village numérique vivant',
-    'village_body' => 'BouclePro s’inspire d’une idée forte : une communauté ne devrait pas être seulement une liste de membres ou un fil de messages. Elle peut devenir un village numérique vivant, où chacun peut demander, aider, partager ou mettre en relation.',
-    'village_quotes' => ['Je peux aider sur ce sujet.', 'Je cherche de l’aide pour avancer.', 'Je suis fasciné par cette question.', 'Ces deux personnes devraient se rencontrer.'],
-    'comparison_title' => 'BouclePro face à LinkedIn, Slack et WhatsApp',
-    'comparison_intro' => 'LinkedIn aide à se rendre visible. Slack aide les équipes à discuter. WhatsApp aide les groupes à rester en contact. BouclePro aide une communauté à faire circuler l’aide, structurer les échanges et avancer ensemble.',
-    'comparison_headers' => ['Besoin', 'LinkedIn', 'Slack', 'WhatsApp', 'BouclePro'],
-    'comparison' => [
-        ['need' => 'Se rendre visible', 'linkedin' => 'Très utile pour publier et développer son réseau', 'slack' => 'Peu adapté à la visibilité externe', 'whatsapp' => 'Limité aux groupes existants', 'bouclepro' => 'Utile pour rendre visibles les besoins, les compétences et les contributions dans une organisation'],
-        ['need' => 'Échanger rapidement', 'linkedin' => 'Possible, mais dispersé', 'slack' => 'Très bon pour les conversations d’équipe', 'whatsapp' => 'Très bon pour les échanges courts', 'bouclepro' => 'Conçu pour relier les échanges à des demandes, des boucles et des actions'],
-        ['need' => 'Demander de l’aide', 'linkedin' => 'Possible, mais souvent noyé dans le flux', 'slack' => 'Possible, mais dépend des canaux', 'whatsapp' => 'Possible, mais vite désorganisé', 'bouclepro' => 'Central : une demande peut être clarifiée, partagée et suivie'],
-        ['need' => 'Proposer son aide', 'linkedin' => 'Possible via posts ou messages', 'slack' => 'Possible dans un canal', 'whatsapp' => 'Possible dans un groupe', 'bouclepro' => 'Central : chacun peut signaler ce qu’il peut apporter à la boucle'],
-        ['need' => 'Créer du lien entre personnes', 'linkedin' => 'Possible, mais manuel', 'slack' => 'Possible, mais peu structuré', 'whatsapp' => 'Possible, mais informel', 'bouclepro' => 'Pensé pour favoriser les mises en relation utiles'],
-        ['need' => 'Garder une mémoire collective', 'linkedin' => 'Faible : les posts disparaissent vite', 'slack' => 'Moyenne : l’information se perd dans les fils', 'whatsapp' => 'Faible : recherche et contexte limités', 'bouclepro' => 'Forte : les échanges peuvent nourrir une mémoire commune et un journal de boucle'],
-        ['need' => 'Structurer une communauté', 'linkedin' => 'Réseau large, mais peu contextualisé', 'slack' => 'Bon pour les équipes internes', 'whatsapp' => 'Bon pour des groupes simples', 'bouclepro' => 'Conçu pour créer des organisations, des boucles, des rôles et des dynamiques d’entraide'],
-        ['need' => 'Utiliser l’IA', 'linkedin' => 'IA surtout orientée publication ou recherche', 'slack' => 'IA orientée productivité d’équipe', 'whatsapp' => 'IA limitée ou externe', 'bouclepro' => 'IA orientée clarification, synthèse, mémoire et coordination humaine'],
-        ['need' => 'Passer à l’action', 'linkedin' => 'Dépend des personnes', 'slack' => 'Possible, mais souvent fragmenté', 'whatsapp' => 'Possible, mais peu suivi', 'bouclepro' => 'Objectif central : transformer les échanges en prochaines actions utiles'],
-    ],
-    'audience_title' => 'Pour qui ?',
-    'audience' => 'BouclePro s’adresse aux personnes, collectifs et organisations qui veulent créer une entraide utile : indépendants, entrepreneurs, demandeurs d’emploi, formateurs, associations, réseaux professionnels, écoles, laboratoires et communautés locales ou internationales.',
-    'cyberworkers_title' => 'Une continuité avec Cyberworkers',
-    'cyberworkers' => 'BouclePro s’inscrit dans la continuité de Cyberworkers.com, lancé en 1996 autour du télétravail, de la téléformation et des nouvelles formes de collaboration.',
-    'closing_title' => 'Créez votre organisation',
-    'closing' => 'Ouvrez une première boucle pour accueillir vos membres, puis créez des boucles adaptées à votre communauté : entraide, apprentissage, projet, réseau d’anciens, communauté métier, accompagnement, innovation ou développement professionnel.',
-    'closing_line' => 'Créez votre organisation. Lancez vos premières boucles. Faites avancer votre communauté.',
+    's4_legend' => '✓ adapté · △ possible · ✕ non central · code ouvert, données souveraines',
+
+    // Écran 8 — Tableau comparatif
+    's8_kicker' => 'Comparatif',
+    's8_title' => 'En un coup d\'œil.',
+
+    // Écran 9 — Commencer
+    's9_kicker' => 'Commencer',
+    's9_title' => 'Commencer par une boucle.',
+    's9_text' => 'Un besoin, un sujet, quelques personnes : un espace pour réfléchir, décider et agir.',
+    's9_support' => "BouclePro transforme une relation en coopération, et une coopération en mémoire partagée. C'est ainsi que des personnes s'élancent les unes les autres vers ce qu'elles n'auraient pas atteint seules.",
+
+    'cta_primary' => 'Créer une organisation',
+    'cta_secondary' => 'Commencer une boucle',
 ];
