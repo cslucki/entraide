@@ -183,7 +183,10 @@ class OrganizationHomepageTemplateTest extends TestCase
         $this->get('/about')
             ->assertOk()
             ->assertSee(__('about.title'))
-            ->assertSee('about-caveat');
+            ->assertSee('class="script', false)
+            ->assertSee(__('about.cyberworkers'))
+            ->assertSee(__('about.comparison.0.need'))
+            ->assertSee('<details', false);
     }
 
     public function test_unsafe_homepage_cta_url_is_rejected(): void
