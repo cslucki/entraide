@@ -56,6 +56,8 @@ class Organization extends Model
         'membership_enabled',
         'membership_label_fr',
         'membership_label_en',
+        'homepage_template',
+        'homepage_settings',
     ];
 
     protected function casts(): array
@@ -73,6 +75,7 @@ class Organization extends Model
             'locale' => 'string',
             'show_country' => 'boolean',
             'membership_enabled' => 'boolean',
+            'homepage_settings' => 'array',
         ];
     }
 

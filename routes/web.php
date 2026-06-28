@@ -294,6 +294,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/organizations/{organization}', [AdminOrganizationController::class, 'update'])->name('organizations.update');
     Route::post('/organizations/{organization}/toggle-active', [AdminOrganizationController::class, 'toggleActive'])->name('organizations.toggle-active');
     Route::delete('/organizations/{organization}', [AdminOrganizationController::class, 'destroy'])->name('organizations.destroy');
+    Route::get('/organizations/{organization}/homepage', [AdminOrganizationController::class, 'homepage'])->name('organizations.homepage');
+    Route::put('/organizations/{organization}/homepage', [AdminOrganizationController::class, 'updateHomepage'])->name('organizations.homepage.update');
     Route::get('/organization-requests', [AdminOrganizationRequestController::class, 'index'])->name('organization-requests');
 
     // Messages moderation

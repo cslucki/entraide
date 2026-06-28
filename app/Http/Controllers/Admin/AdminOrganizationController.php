@@ -212,6 +212,45 @@ class AdminOrganizationController extends Controller
         return back()->with('success', "Organisation « {$organization->name} » {$status}.");
     }
 
+    public function homepage(Organization $organization): View
+    {
+        return view('admin.organizations.homepage', compact('organization'));
+    }
+
+    public function updateHomepage(Request $request, Organization $organization): RedirectResponse
+    {
+        $validated = $request->validate([
+            'homepage_template' => ['nullable', 'string', Rule::in(['default', 'bouclepro_hero_v2'])],
+            'headline' => ['nullable', 'string', 'max:255'],
+            'subheadline' => ['nullable', 'string', 'max:500'],
+            'word_1' => ['nullable', 'string', 'max:100'],
+            'word_2' => ['nullable', 'string', 'max:100'],
+            'word_3' => ['nullable', 'string', 'max:100'],
+            'primary_cta_label' => ['nullable', 'string', 'max:100'],
+            'primary_cta_url' => ['nullable', 'string', 'max:500'],
+            'secondary_cta_label' => ['nullable', 'string', 'max:100'],
+            'secondary_cta_url' => ['nullable', 'string', 'max:500'],
+            'footer_contact_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $template = $validated['homepage_template'] ?? null;
+
+        $settings = [];
+        foreach (['headline', 'subheadline', 'word_1', 'word_2', 'word_3', 'primary_cta_label', 'primary_cta_url', 'secondary_cta_label', 'secondary_cta_url', 'footer_contact_name'] as $field) {
+            if (isset($validated[$field])) {
+                $settings[$field] = $validated[$field];
+            }
+        }
+
+        $organization->update([
+            'homepage_template' => $template,
+            'homepage_settings' => ! empty($settings) ? $settings : null,
+        ]);
+
+        return redirect()->route('admin.organizations.homepage', $organization)
+            ->with('success', 'Page d\'accueil mise à jour.');
+    }
+
     public function destroy(Organization $organization): RedirectResponse
     {
         $organization->users()->update(['organization_id' => null]);
