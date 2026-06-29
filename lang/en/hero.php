@@ -1,15 +1,15 @@
 <?php
 
 return [
-    'meta_title' => 'BouclePro — Human intelligence in circulation',
+    'meta_title' => 'BouclePro — Intelligence augmented by your peers',
 
     'nav_about' => 'About',
     'nav_login' => 'Log in',
     'nav_signup' => 'Join',
 
-    'word_1' => 'Human',
-    'word_2' => 'intelligence',
-    'word_3' => 'in circulation',
+    'word_1' => 'Intelligence',
+    'word_2' => 'augmented',
+    'word_3' => 'by your peers',
 
     'intro' => 'What if your needs, your skills and your projects met the right people at the right time?',
 
