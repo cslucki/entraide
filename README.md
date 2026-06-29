@@ -59,11 +59,11 @@ Dashboard seeders are skipped in production environments (`app()->environment('p
 
 ## License
 
-BouclePro core is released under the MIT License. See [LICENSE](LICENSE).
+BouclePro Core is licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).
 
-Plugins and extensions may declare their own open-source license in their own directory. If no specific license is provided for a plugin, the root MIT License applies.
+Commercial licenses, plugin exceptions, and integration exceptions may be discussed on a case-by-case basis.
 
-The BouclePro name, logo, and brand assets may be subject to separate usage rules.
+Existing third-party dependencies keep their own licenses.
 
 ## Links
 
