@@ -1,15 +1,15 @@
 <?php
 
 return [
-    'meta_title' => "BouclePro — L'intelligence humaine en circulation",
+    'meta_title' => "BouclePro — L'intelligence augmentée par vos pairs",
 
     'nav_about' => 'À propos',
     'nav_login' => 'Connexion',
     'nav_signup' => 'Rejoindre',
 
     'word_1' => "L'intelligence",
-    'word_2' => 'humaine',
-    'word_3' => 'en circulation',
+    'word_2' => 'augmentée',
+    'word_3' => 'par vos pairs',
 
     'intro' => 'Et si vos besoins, vos savoir-faire et vos projets rencontraient les bonnes personnes au bon moment ?',
 
