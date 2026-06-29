@@ -1,11 +1,11 @@
 <x-org-admin-layout :title="__('admin.emailer_system')" :organization="$organization">
     <div class="flex items-center justify-between mb-6">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200">
-            Modifier : {{ $systemEmailTemplate->name }}
+            {{ __('admin.edit_title', ['name' => $systemEmailTemplate->name]) }}
         </h2>
         <a href="{{ route('organization.admin.system-email-templates', $organization) }}"
            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-            ← Retour à la liste
+            {{ __('admin.back_to_list') }}
         </a>
     </div>
 
@@ -13,9 +13,9 @@
         <div class="p-6">
             <div class="mb-4 flex gap-4 text-sm text-gray-500 dark:text-gray-400">
                 @if($systemEmailTemplate->locale)
-                    <span>Locale : <strong>{{ strtoupper($systemEmailTemplate->locale) }}</strong></span>
+                    <span>{{ __('admin.locale') }} : <strong>{{ strtoupper($systemEmailTemplate->locale) }}</strong></span>
                 @endif
-                <span>Slug : <strong class="font-mono">{{ $systemEmailTemplate->slug }}</strong></span>
+                <span>{{ __('admin.slug') }} : <strong class="font-mono">{{ $systemEmailTemplate->slug }}</strong></span>
             </div>
 
             <form method="POST" action="{{ route('organization.admin.system-email-templates.update', [$organization, $systemEmailTemplate]) }}" class="space-y-6">
@@ -24,18 +24,18 @@
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slug</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.slug') }}</label>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 font-mono">{{ $systemEmailTemplate->slug }}</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.common_name') }}</label>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $systemEmailTemplate->name }}</p>
                     </div>
                 </div>
 
                 <div>
                     <label for="subject" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Sujet *
+                        {{ __('admin.subject_required') }}
                     </label>
                     <input type="text" name="subject" id="subject" required
                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 @error('subject') border-red-500 @enderror"
@@ -45,13 +45,13 @@
                     @enderror
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         @php $varDisplay = collect($systemEmailTemplate->variables ?? [])->map(fn($v) => '{{ '.$v.' }}')->implode(' '); @endphp
-                        Variables disponibles : <code class="text-indigo-600 dark:text-indigo-400">{{ $varDisplay }}</code>
+                        {{ __('admin.variables_available') }} <code class="text-indigo-600 dark:text-indigo-400">{{ $varDisplay }}</code>
                     </p>
                 </div>
 
                 <div>
                     <label for="content_html" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Contenu HTML *
+                        {{ __('admin.html_content_required') }}
                     </label>
                     <textarea name="content_html" id="content_html" rows="15" required
                               class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm @error('content_html') border-red-500 @enderror">{{ old('content_html', $systemEmailTemplate->content_html) }}</textarea>
@@ -59,8 +59,7 @@
                         <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
                     @enderror
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Utilisez <code class="text-indigo-600 dark:text-indigo-400">@{{ variable_name }}</code> pour les variables.
-                        Le HTML brut est injecté dans le layout email.
+                        {{ __('admin.variable_hint') }}
                     </p>
                 </div>
 
@@ -69,21 +68,21 @@
                            class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 shadow-sm focus:ring-indigo-500"
                            @checked(old('enabled', $systemEmailTemplate->enabled))>
                     <label for="enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Template actif
+                        {{ __('admin.template_active') }}
                     </label>
                 </div>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 ml-6">
-                    Si désactivé, la notification utilisera la vue Blade par défaut.
+                    {{ __('admin.template_inactive_hint') }}
                 </p>
 
                 <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
                     <a href="{{ route('organization.admin.system-email-templates', $organization) }}"
                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                        ← Retour à la liste
+                        {{ __('admin.back_to_list') }}
                     </a>
                     <button type="submit"
                             class="px-4 py-2 bg-indigo-600 border border-transparent rounded-md text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                        Mettre à jour
+                            {{ __('admin.update') }}
                     </button>
                 </div>
             </form>

@@ -1079,8 +1079,10 @@ class OrgAdminController extends Controller
             ->orderBy('locale')
             ->orderBy('name');
 
-        if ($request->filled('locale')) {
-            $query->where('locale', $request->locale);
+        $locale = $request->input('locale', $organization->locale);
+
+        if ($locale) {
+            $query->where('locale', $locale);
         }
 
         $templates = $query->get();
@@ -1088,6 +1090,7 @@ class OrgAdminController extends Controller
         return view('admin.org.system-email-templates', [
             'organization' => $organization,
             'templates' => $templates,
+            'currentLocale' => $locale,
         ]);
     }
 
