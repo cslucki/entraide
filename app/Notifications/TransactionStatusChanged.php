@@ -19,7 +19,7 @@ class TransactionStatusChanged extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $template = SystemEmailTemplate::where('slug', 'transaction_status_changed')->where('enabled', true)->first();
+        $template = $this->resolveTemplate('transaction_status_changed', $notifiable);
 
         if ($template) {
             $service = $this->transaction->service;
@@ -47,5 +47,43 @@ class TransactionStatusChanged extends Notification
                 'user' => $notifiable,
                 'transaction' => $this->transaction,
             ]);
+    }
+
+    private function resolveTemplate(string $slug, object $notifiable): ?SystemEmailTemplate
+    {
+        $organizationId = $notifiable->organization_id ?? null;
+        $locale = $notifiable->preferred_locale ?? app()->getLocale();
+
+        if (! $organizationId) {
+            return SystemEmailTemplate::where('slug', $slug)->where('enabled', true)->first();
+        }
+
+        $organization = $notifiable->organization;
+
+        $query = SystemEmailTemplate::where('slug', $slug)->where('enabled', true);
+
+        $template = (clone $query)
+            ->where('organization_id', $organizationId)
+            ->where('locale', $locale)
+            ->first();
+
+        if ($template) {
+            return $template;
+        }
+
+        $defaultLocale = $organization?->locale ?? 'fr';
+
+        if ($locale !== $defaultLocale) {
+            $template = (clone $query)
+                ->where('organization_id', $organizationId)
+                ->where('locale', $defaultLocale)
+                ->first();
+
+            if ($template) {
+                return $template;
+            }
+        }
+
+        return null;
     }
 }
