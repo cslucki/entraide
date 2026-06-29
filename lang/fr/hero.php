@@ -11,7 +11,7 @@ return [
     'word_2' => 'augmentée',
     'word_3' => 'par vos pairs',
 
-    'intro' => 'Et si vos besoins, vos savoir-faire et vos projets rencontraient les bonnes personnes au bon moment ?',
+    'intro' => 'Et si vos besoins, vos savoir-faire et vos projets rencontraient les bonnes personnes, au bon moment ?',
 
     'tript_1' => 'Demandez.',
     'tript_2' => 'Partagez.',
