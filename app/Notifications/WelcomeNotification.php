@@ -16,7 +16,7 @@ class WelcomeNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $template = SystemEmailTemplate::where('slug', 'welcome')->where('enabled', true)->first();
+        $template = $this->resolveTemplate('welcome', $notifiable);
 
         if ($template) {
             $emailer = app(EmailerService::class);
@@ -35,5 +35,43 @@ class WelcomeNotification extends Notification
             ->markdown('emails.welcome', [
                 'user' => $notifiable,
             ]);
+    }
+
+    private function resolveTemplate(string $slug, object $notifiable): ?SystemEmailTemplate
+    {
+        $organizationId = $notifiable->organization_id ?? null;
+        $locale = $notifiable->preferred_locale ?? app()->getLocale();
+
+        if (! $organizationId) {
+            return SystemEmailTemplate::where('slug', $slug)->where('enabled', true)->first();
+        }
+
+        $organization = $notifiable->organization;
+
+        $query = SystemEmailTemplate::where('slug', $slug)->where('enabled', true);
+
+        $template = (clone $query)
+            ->where('organization_id', $organizationId)
+            ->where('locale', $locale)
+            ->first();
+
+        if ($template) {
+            return $template;
+        }
+
+        $defaultLocale = $organization?->locale ?? 'fr';
+
+        if ($locale !== $defaultLocale) {
+            $template = (clone $query)
+                ->where('organization_id', $organizationId)
+                ->where('locale', $defaultLocale)
+                ->first();
+
+            if ($template) {
+                return $template;
+            }
+        }
+
+        return null;
     }
 }

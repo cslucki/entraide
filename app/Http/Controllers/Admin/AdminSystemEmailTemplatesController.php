@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Organization;
 use App\Models\SystemEmailTemplate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -10,11 +11,22 @@ use Illuminate\View\View;
 
 class AdminSystemEmailTemplatesController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $templates = SystemEmailTemplate::orderBy('name')->get();
+        $query = SystemEmailTemplate::with('organization')->orderBy('name');
 
-        return view('admin.system-email-templates.index', compact('templates'));
+        if ($request->filled('organization_id')) {
+            $query->where('organization_id', $request->organization_id);
+        }
+
+        if ($request->filled('locale')) {
+            $query->where('locale', $request->locale);
+        }
+
+        $templates = $query->get();
+        $organizations = Organization::orderBy('name')->get();
+
+        return view('admin.system-email-templates.index', compact('templates', 'organizations'));
     }
 
     public function edit(SystemEmailTemplate $systemEmailTemplate): View
@@ -34,7 +46,9 @@ class AdminSystemEmailTemplatesController extends Controller
 
         $systemEmailTemplate->update($validated);
 
-        return redirect()->route('admin.system-email-templates')
+        $redirect = $request->input('redirect', route('admin.system-email-templates'));
+
+        return redirect($redirect)
             ->with('success', __('admin.emailer_updated'));
     }
 }

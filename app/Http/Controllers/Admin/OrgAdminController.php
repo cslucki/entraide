@@ -15,6 +15,7 @@ use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Skill;
+use App\Models\SystemEmailTemplate;
 use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
@@ -1069,6 +1070,56 @@ class OrgAdminController extends Controller
             'user' => $user,
             'logs' => $logs,
         ]);
+    }
+
+    public function systemEmailTemplates(Request $request, Organization $organization): View
+    {
+        $query = SystemEmailTemplate::with('organization')
+            ->where('organization_id', $organization->id)
+            ->orderBy('locale')
+            ->orderBy('name');
+
+        $locale = $request->input('locale', $organization->locale);
+
+        if ($locale) {
+            $query->where('locale', $locale);
+        }
+
+        $templates = $query->get();
+
+        return view('admin.org.system-email-templates', [
+            'organization' => $organization,
+            'templates' => $templates,
+            'currentLocale' => $locale,
+        ]);
+    }
+
+    public function editSystemEmailTemplate(Organization $organization, SystemEmailTemplate $systemEmailTemplate): View
+    {
+        abort_if($systemEmailTemplate->organization_id !== $organization->id, 404);
+
+        return view('admin.org.system-email-template-edit', [
+            'organization' => $organization,
+            'systemEmailTemplate' => $systemEmailTemplate,
+        ]);
+    }
+
+    public function updateSystemEmailTemplate(Request $request, Organization $organization, SystemEmailTemplate $systemEmailTemplate): RedirectResponse
+    {
+        abort_if($systemEmailTemplate->organization_id !== $organization->id, 404);
+
+        $validated = $request->validate([
+            'subject' => 'required|string|max:255',
+            'content_html' => 'required|string',
+            'enabled' => 'boolean',
+        ]);
+
+        $validated['enabled'] = $request->boolean('enabled');
+
+        $systemEmailTemplate->update($validated);
+
+        return redirect()->route('organization.admin.system-email-templates', $organization)
+            ->with('success', __('admin.emailer_updated'));
     }
 
     private function comingSoon(Organization $organization, string $sectionName): View
