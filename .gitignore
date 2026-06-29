@@ -113,3 +113,4 @@ test-results/
 # Local build artifacts
 /bouclepro
 public/modele_homepage.html
+after-upload-attempt.yml
