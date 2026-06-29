@@ -4,7 +4,7 @@
             <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
                 Modifier : {{ $systemEmailTemplate->name }}
             </h2>
-            <a href="{{ route('admin.system-email-templates') }}"
+            <a href="{{ request('redirect', route('admin.system-email-templates')) }}"
                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                 ← Retour à la liste
             </a>
@@ -15,9 +15,23 @@
         <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg">
                 <div class="p-6">
+                    <div class="mb-4 flex gap-4 text-sm text-gray-500 dark:text-gray-400">
+                        @if($systemEmailTemplate->organization)
+                            <span>Organisation : <strong>{{ $systemEmailTemplate->organization->name }}</strong></span>
+                        @else
+                            <span class="italic">Globale</span>
+                        @endif
+                        @if($systemEmailTemplate->locale)
+                            <span>Locale : <strong>{{ strtoupper($systemEmailTemplate->locale) }}</strong></span>
+                        @endif
+                        <span>Slug : <strong class="font-mono">{{ $systemEmailTemplate->slug }}</strong></span>
+                    </div>
+
                     <form method="POST" action="{{ route('admin.system-email-templates.update', $systemEmailTemplate) }}" class="space-y-6">
                         @csrf
                         @method('PUT')
+
+                        <input type="hidden" name="redirect" value="{{ request('redirect', route('admin.system-email-templates')) }}">
 
                         <div class="grid grid-cols-2 gap-4">
                             <div>
@@ -74,7 +88,7 @@
                         </p>
 
                         <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                            <a href="{{ route('admin.system-email-templates') }}"
+                            <a href="{{ request('redirect', route('admin.system-email-templates')) }}"
                                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                                 ← Retour à la liste
                             </a>

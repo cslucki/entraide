@@ -650,6 +650,11 @@ Route::prefix('/org/{organization}')
                 // Stats
                 Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');
                 Route::get('/stats/login-history/user/{user}', [OrgAdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
+
+                // System email templates (org-scoped)
+                Route::get('/system-email-templates', [OrgAdminController::class, 'systemEmailTemplates'])->name('system-email-templates');
+                Route::get('/system-email-templates/{systemEmailTemplate}/edit', [OrgAdminController::class, 'editSystemEmailTemplate'])->name('system-email-templates.edit');
+                Route::put('/system-email-templates/{systemEmailTemplate}', [OrgAdminController::class, 'updateSystemEmailTemplate'])->name('system-email-templates.update');
             });
 
         // Blog (org-scoped, en parallèle des routes /blog root)
