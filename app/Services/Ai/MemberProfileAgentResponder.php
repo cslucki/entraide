@@ -4,6 +4,7 @@ namespace App\Services\Ai;
 
 use App\Models\AdminAiPrompt;
 use App\Models\MemberAiProfile;
+use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
@@ -11,6 +12,7 @@ class MemberProfileAgentResponder
 {
     public function __construct(
         private readonly SupervisionProviderResolver $resolver,
+        private readonly AdminAiInteractionPersistence $logger,
     ) {}
 
     public function answerWithDefaultProvider(MemberAiProfile $profile, string $question): array
@@ -121,6 +123,92 @@ class MemberProfileAgentResponder
             'model' => null,
             'latency_ms' => 0,
         ];
+    }
+
+    public function chatWithSetupPrompt(array $messages, string $provider, string $model): array
+    {
+        $config = $this->resolver->providerConfig($provider);
+        $startedAt = (int) (microtime(true) * 1000);
+
+        $systemPrompt = $this->resolveSetupPrompt();
+
+        $chatMessages = array_merge(
+            [['role' => 'system', 'content' => $systemPrompt]],
+            $messages,
+        );
+
+        $payload = [
+            'model' => $model,
+            'messages' => $chatMessages,
+            'max_tokens' => (int) ($config['max_output_tokens'] ?? 1000),
+            'temperature' => 0.5,
+        ];
+
+        $answer = match ($provider) {
+            'ollama' => $this->callOllamaChat($payload, $config),
+            default => $this->callChatCompletions($payload, $config, $provider),
+        };
+
+        return [
+            'response' => $answer,
+            'provider' => $provider,
+            'model' => $model,
+            'latency_ms' => (int) (microtime(true) * 1000) - $startedAt,
+        ];
+    }
+
+    private function callOllamaChat(array $payload, array $config): string
+    {
+        $response = Http::timeout((int) ($config['timeout'] ?? 30))
+            ->acceptJson()
+            ->asJson()
+            ->post(rtrim((string) $config['base_url'], '/').'/api/chat', [
+                'model' => $payload['model'],
+                'messages' => $payload['messages'],
+                'stream' => false,
+                'options' => [
+                    'num_predict' => $payload['max_tokens'] ?? 1000,
+                    'temperature' => $payload['temperature'] ?? 0.5,
+                ],
+            ]);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException(sprintf('Réponse Ollama invalide (HTTP %d).', $response->status()));
+        }
+
+        return trim((string) ($response->json('message.content') ?? ''));
+    }
+
+    private function callChatCompletions(array $payload, array $config, string $provider): string
+    {
+        if (empty($config['api_key'])) {
+            $label = $provider === 'openrouter' ? 'OpenRouter' : 'du provider';
+
+            throw new \RuntimeException("Clé API {$label} manquante.");
+        }
+
+        $http = Http::withToken((string) $config['api_key'])
+            ->timeout((int) ($config['timeout'] ?? 30))
+            ->acceptJson()
+            ->asJson();
+
+        if ($provider === 'openrouter') {
+            $http->withHeaders([
+                'HTTP-Referer' => config('ai.openrouter.site_url', config('app.url')),
+                'X-Title' => config('ai.openrouter.site_name', config('app.name')),
+            ]);
+        }
+
+        $response = $http->post(
+            rtrim((string) $config['base_url'], '/').'/chat/completions',
+            $payload,
+        );
+
+        if (! $response->successful()) {
+            throw new \RuntimeException(sprintf('Réponse %s invalide (HTTP %d).', $provider, $response->status()));
+        }
+
+        return trim((string) ($response->json('choices.0.message.content') ?? ''));
     }
 
     private function callOllama(MemberAiProfile $profile, array $config, string $model, string $question): string
@@ -285,6 +373,51 @@ class MemberProfileAgentResponder
             "Reste strictement borné aux informations du profil IA. N'invente ni prestation, ni tarif, ni délai, ni disponibilité, ni coordonnées.",
             'Si la question sort du périmètre, ramène poliment vers ce que le membre peut présenter et pose une question de qualification liée au profil.',
             'Pas de promesse commerciale excessive. Pas de conversation persistante. Pas de marketplace.',
+        ]);
+    }
+
+    private function resolveSetupPrompt(): string
+    {
+        $dbPrompt = AdminAiPrompt::active()
+            ->byScenario('profile_agent_setup')
+            ->orderByDesc('version')
+            ->first();
+
+        if ($dbPrompt && filled($dbPrompt->prompt_text)) {
+            return $dbPrompt->prompt_text;
+        }
+
+        return implode("\n", [
+            'Tu es un assistant de création de profil IA pour la plateforme BouclePro.',
+            'Guide le membre pas à pas pour construire son profil de présentation IA.',
+            'Pose une question à la fois. Adapte la suivante en fonction de la réponse.',
+            'À la fin, résume le profil en JSON structuré avec les clés : summary, service_scope, experience_context, skills, help_types, target_audience, problems_helped, boundaries, preferred_contact_action, tone.',
+            'Demande la validation du membre avant de finaliser.',
+        ]);
+    }
+
+    public function logSetupInteraction(
+        string $question,
+        string $response,
+        array $result,
+        ?MemberAiProfile $profile = null,
+    ): void {
+        $metadata = [];
+
+        if ($profile) {
+            $metadata['profile_id'] = $profile->id;
+            $metadata['profile_status'] = $profile->status;
+        }
+
+        $this->logger->persist([
+            'scenario_id' => 'profile_agent_setup',
+            'provider' => $result['provider'] ?? 'unknown',
+            'model' => $result['model'] ?? null,
+            'status' => 'success',
+            'content' => $question,
+            'result_summary' => $response,
+            'latency_ms' => $result['latency_ms'] ?? null,
+            'metadata' => $metadata,
         ]);
     }
 
