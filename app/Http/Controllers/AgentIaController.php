@@ -28,4 +28,9 @@ class AgentIaController extends Controller
     {
         return view('agent-ia.test');
     }
+
+    public function setup(): View
+    {
+        return view('agent-ia.setup');
+    }
 }

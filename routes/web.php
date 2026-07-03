@@ -191,6 +191,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('ai-profiles.enabled')->group(function () {
         Route::get('/agent-ia', [AgentIaController::class, 'index'])->name('agent-ia.index');
         Route::get('/agent-ia/edit', [AgentIaController::class, 'wizard'])->name('agent-ia.wizard');
+        Route::get('/agent-ia/setup', [AgentIaController::class, 'setup'])->name('agent-ia.setup');
         Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
         Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
 
@@ -526,6 +527,7 @@ Route::prefix('/org/{organization}')
             Route::middleware('ai-profiles.enabled')->group(function () {
                 Route::get('/agent-ia', [AgentIaController::class, 'index'])->name('agent-ia.index');
                 Route::get('/agent-ia/edit', [AgentIaController::class, 'wizard'])->name('agent-ia.wizard');
+                Route::get('/agent-ia/setup', [AgentIaController::class, 'setup'])->name('agent-ia.setup');
                 Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
                 Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
             });
