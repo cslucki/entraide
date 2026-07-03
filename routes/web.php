@@ -43,6 +43,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LoopController;
+use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\OrganizationLandingController;
@@ -194,6 +195,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/agent-ia/setup', [AgentIaController::class, 'setup'])->name('agent-ia.setup');
         Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
         Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
+        Route::get('/agent-ia/echanges/conversations', [MemberAiProfileConversationsController::class, 'index'])->name('agent-ia.conversations');
+        Route::get('/agent-ia/echanges/conversations/{conversation}', [MemberAiProfileConversationsController::class, 'show'])->name('agent-ia.conversations.show');
 
         Route::delete('/agent-ia/profile', function () {
             MemberAiProfile::where('user_id', auth()->id())->delete();

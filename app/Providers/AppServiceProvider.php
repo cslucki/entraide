@@ -14,6 +14,7 @@ use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\OrganizationRequest;
+use App\Models\ProfileAgentConversation;
 use App\Models\Report;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -25,6 +26,7 @@ use App\Observers\TransactionObserver;
 use App\Observers\TranslationOverrideObserver;
 use App\Policies\FeedPostPolicy;
 use App\Policies\MessagePolicy;
+use App\Policies\ProfileAgentConversationPolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
@@ -240,6 +242,7 @@ class AppServiceProvider extends ServiceProvider
         );
 
         Gate::policy(FeedPost::class, FeedPostPolicy::class);
+        Gate::policy(ProfileAgentConversation::class, ProfileAgentConversationPolicy::class);
         Gate::policy(Service::class, ServicePolicy::class);
         Gate::policy(ServiceRequest::class, ServiceRequestPolicy::class);
         Gate::policy(Transaction::class, TransactionPolicy::class);
