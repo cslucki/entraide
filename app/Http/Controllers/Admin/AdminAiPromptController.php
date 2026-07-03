@@ -33,7 +33,7 @@ class AdminAiPromptController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'scenario_id' => 'required|string|in:supervision_content,clarify_help_request,blog_generate,blog_correct,profile_agent_master',
+            'scenario_id' => 'required|string|in:supervision_content,clarify_help_request,blog_generate,blog_correct,profile_agent_master,profile_agent_setup',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'prompt_text' => 'required|string',
