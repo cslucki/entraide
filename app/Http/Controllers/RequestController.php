@@ -111,7 +111,7 @@ class RequestController extends Controller
         $categories = Category::where('organization_id', $organization->id)->with('pointGuidelines')->get();
         $request->load(['attachments']);
 
-        return view('requests.edit', compact('request', 'categories'));
+        return view('requests.edit', compact('request', 'categories', 'organization'));
     }
 
     public function update(Request $httpRequest, ServiceRequest $request): RedirectResponse
