@@ -5,6 +5,7 @@
         'blog_generate' => 'Blog — Génération d\'article',
         'blog_correct' => 'Blog — Correction d\'article',
         'profile_agent_master' => 'Agent de profil IA — Prompt master',
+        'profile_agent_setup' => 'Agent de profil IA — Prompt setup',
     ];
 @endphp
 
@@ -45,6 +46,7 @@
                                 <option value="blog_generate" @selected($scenarioId === 'blog_generate')>Blog — Génération d'article</option>
                                 <option value="blog_correct" @selected($scenarioId === 'blog_correct')>Blog — Correction d'article</option>
                                 <option value="profile_agent_master" @selected($scenarioId === 'profile_agent_master')>Agent de profil IA — Prompt master</option>
+                                <option value="profile_agent_setup" @selected($scenarioId === 'profile_agent_setup')>Agent de profil IA — Prompt setup</option>
                             </select>
                         </div>
                         <button type="submit"

@@ -234,4 +234,60 @@ class MemberAiProfileTest extends TestCase
 
         $this->assertDatabaseMissing('member_ai_profiles', ['organization_id' => $org->id]);
     }
+
+    public function test_structured_profile_stores_and_retrieves_array(): void
+    {
+        $org = Organization::factory()->create();
+        $user = User::factory()->create(['organization_id' => $org->id]);
+
+        $profile = MemberAiProfile::factory()->create([
+            'organization_id' => $org->id,
+            'user_id' => $user->id,
+            'structured_profile' => [
+                'summary' => 'Designer graphique spécialisé en identité visuelle',
+                'skills' => ['logo', 'charte graphique', 'typographie'],
+                'help_types' => ['conseil', 'prestation'],
+                'boundaries' => ['pas de web design', 'pas de motion design'],
+                'tone' => 'professionnel',
+                'preferred_contact_action' => 'email',
+            ],
+        ]);
+
+        $this->assertIsArray($profile->structured_profile);
+        $this->assertEquals('Designer graphique spécialisé en identité visuelle', $profile->structured_profile['summary']);
+        $this->assertCount(3, $profile->structured_profile['skills']);
+        $this->assertEquals('professionnel', $profile->structured_profile['tone']);
+    }
+
+    public function test_structured_profile_defaults_to_null(): void
+    {
+        $org = Organization::factory()->create();
+        $user = User::factory()->create(['organization_id' => $org->id]);
+
+        $profile = MemberAiProfile::factory()->create([
+            'organization_id' => $org->id,
+            'user_id' => $user->id,
+        ]);
+
+        $this->assertNull($profile->structured_profile);
+    }
+
+    public function test_legacy_fields_still_work_without_structured_profile(): void
+    {
+        $org = Organization::factory()->create();
+        $user = User::factory()->create(['organization_id' => $org->id]);
+
+        $profile = MemberAiProfile::factory()->create([
+            'organization_id' => $org->id,
+            'user_id' => $user->id,
+            'member_profile_summary' => 'Développeur full-stack',
+            'skills' => ['PHP', 'Laravel', 'Vue.js'],
+            'service_scope' => 'Création d\'applications web sur mesure',
+        ]);
+
+        $this->assertEquals('Développeur full-stack', $profile->member_profile_summary);
+        $this->assertCount(3, $profile->skills);
+        $this->assertEquals('Création d\'applications web sur mesure', $profile->service_scope);
+        $this->assertNull($profile->structured_profile);
+    }
 }
