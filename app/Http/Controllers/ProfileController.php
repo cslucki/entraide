@@ -97,20 +97,32 @@ class ProfileController extends Controller
         $organization = currentOrganization() ?? $request->user()->organization;
         $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
 
+        $defaultCountry = $organization?->defaultCountry()->where('active', true)->first();
         $priorityCountries = $organization
             ? $organization->priorityCountries()->where('active', true)->get()
             : collect();
-        $priorityCountryCodes = $priorityCountries->pluck('code');
+
+        $excludedCodes = $priorityCountries->pluck('code');
+        if ($defaultCountry) {
+            $excludedCodes->push($defaultCountry->code);
+            $priorityCountries = $priorityCountries->filter(fn ($c) => $c->code !== $defaultCountry->code);
+        }
+
         $otherCountries = Country::query()
             ->where('active', true)
-            ->when($priorityCountryCodes->isNotEmpty(), fn ($query) => $query->whereNotIn('code', $priorityCountryCodes))
+            ->when($excludedCodes->isNotEmpty(), fn ($q) => $q->whereNotIn('code', $excludedCodes))
             ->orderBy($localeColumn)
             ->get();
+
+        $countries = collect();
+        if ($defaultCountry) {
+            $countries->push($defaultCountry);
+        }
 
         return view('profile.edit', [
             'user' => $request->user(),
             'organization' => $organization,
-            'countries' => $priorityCountries->concat($otherCountries),
+            'countries' => $countries->concat($priorityCountries)->concat($otherCountries),
         ]);
     }
 

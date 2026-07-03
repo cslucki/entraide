@@ -163,6 +163,44 @@ class TASK358Lot2ProfileEditTest extends TestCase
         );
     }
 
+    public function test_default_country_appears_first_then_priority_countries_then_others(): void
+    {
+        app()->setLocale('en');
+
+        $organization = Organization::factory()->create([
+            'default_country_code' => 'DE',
+        ]);
+        app()->instance('current_organization', $organization);
+        $organization->priorityCountries()->attach('US', ['sort_order' => 0]);
+        $organization->priorityCountries()->attach('GB', ['sort_order' => 1]);
+
+        $user = User::factory()->create(['organization_id' => $organization->id]);
+
+        $content = $this->actingAs($user)->get(route('profile.edit'))
+            ->assertOk()
+            ->getContent();
+
+        $posDE = strpos($content, 'value="DE"');
+        $posUS = strpos($content, 'value="US"');
+        $posGB = strpos($content, 'value="GB"');
+        $posFR = strpos($content, 'value="FR"');
+
+        $this->assertNotFalse($posDE, 'Default country DE must appear in the list');
+        $this->assertNotFalse($posUS, 'Priority country US must appear in the list');
+        $this->assertNotFalse($posGB, 'Priority country GB must appear in the list');
+
+        // DE (default) should appear before US and GB (priority)
+        $this->assertLessThan($posUS, $posDE);
+        $this->assertLessThan($posGB, $posDE);
+
+        // US and GB (priority) should appear before FR (other)
+        $this->assertLessThan($posFR, $posUS);
+        $this->assertLessThan($posFR, $posGB);
+
+        // Default country must not appear as a duplicate
+        $this->assertEquals(1, substr_count($content, 'value="DE"'));
+    }
+
     private function createUserForProfile(array $attributes = []): User
     {
         $organization = Organization::factory()->create();
