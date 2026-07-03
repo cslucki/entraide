@@ -216,27 +216,53 @@ class MemberProfileAgentResponder
 
         $instructions = $this->resolveMasterPrompt();
 
-        $profileData = implode("\n", [
+        $profileData = $this->buildProfileDataLines($profile);
+
+        return $instructions."\n".$profileData;
+    }
+
+    private function buildProfileDataLines(MemberAiProfile $profile): string
+    {
+        $profile->loadMissing(['user', 'organization']);
+
+        $lines = [
             '',
             'Profil IA du membre :',
             '- Membre : '.($profile->user?->name ?? 'Utilisateur inconnu'),
             '- Organisation : '.($profile->organization?->name ?? 'Organisation inconnue'),
-            '- Résumé : '.($profile->member_profile_summary ?: 'Non renseigné'),
-            '- Résumé généré : '.($profile->generated_summary ?: 'Non renseigné'),
-            '- Périmètre d\'aide / prestation : '.($profile->service_scope ?: 'Non renseigné'),
-            '- Contexte d\'expérience : '.($profile->experience_context ?: 'Non renseigné'),
-            '- Compétences : '.$this->formatProfileValue($profile->skills),
-            '- Types d\'aide : '.$this->formatProfileValue($profile->help_types),
-            '- Limites : '.$this->formatProfileValue($profile->boundaries),
-            '- Public cible : '.$this->formatProfileValue($profile->target_audience),
-            '- Problèmes aidés : '.$this->formatProfileValue($profile->problems_helped),
-            '- Bons exemples de demande : '.$this->formatProfileValue($profile->good_request_examples),
-            '- Demandes hors périmètre : '.$this->formatProfileValue($profile->bad_request_examples),
-            '- Ton : '.($profile->tone ?: 'Non renseigné'),
-            '- Contact préféré : '.($profile->preferred_contact_action ?: 'Non renseigné'),
-        ]);
+        ];
 
-        return $instructions."\n".$profileData;
+        $structured = $profile->structured_profile;
+
+        if (is_array($structured) && $structured !== []) {
+            $lines[] = '- Résumé : '.($structured['summary'] ?? $profile->member_profile_summary ?: 'Non renseigné');
+            $lines[] = '- Résumé généré : '.($profile->generated_summary ?: 'Non renseigné');
+            $lines[] = '- Périmètre d\'aide / prestation : '.($structured['service_scope'] ?? $profile->service_scope ?: 'Non renseigné');
+            $lines[] = '- Contexte d\'expérience : '.($structured['experience_context'] ?? $profile->experience_context ?: 'Non renseigné');
+            $lines[] = '- Compétences : '.$this->formatProfileValue($structured['skills'] ?? $profile->skills);
+            $lines[] = '- Types d\'aide : '.$this->formatProfileValue($structured['help_types'] ?? $profile->help_types);
+            $lines[] = '- Limites : '.$this->formatProfileValue($structured['boundaries'] ?? $profile->boundaries);
+            $lines[] = '- Public cible : '.($structured['target_audience'] ?? $this->formatProfileValue($profile->target_audience));
+            $lines[] = '- Problèmes aidés : '.($structured['problems_helped'] ?? $this->formatProfileValue($profile->problems_helped));
+            $lines[] = '- Ton : '.($structured['tone'] ?? $profile->tone ?: 'Non renseigné');
+            $lines[] = '- Contact préféré : '.($structured['preferred_contact_action'] ?? $profile->preferred_contact_action ?: 'Non renseigné');
+        } else {
+            $lines[] = '- Résumé : '.($profile->member_profile_summary ?: 'Non renseigné');
+            $lines[] = '- Résumé généré : '.($profile->generated_summary ?: 'Non renseigné');
+            $lines[] = '- Périmètre d\'aide / prestation : '.($profile->service_scope ?: 'Non renseigné');
+            $lines[] = '- Contexte d\'expérience : '.($profile->experience_context ?: 'Non renseigné');
+            $lines[] = '- Compétences : '.$this->formatProfileValue($profile->skills);
+            $lines[] = '- Types d\'aide : '.$this->formatProfileValue($profile->help_types);
+            $lines[] = '- Limites : '.$this->formatProfileValue($profile->boundaries);
+            $lines[] = '- Public cible : '.$this->formatProfileValue($profile->target_audience);
+            $lines[] = '- Problèmes aidés : '.$this->formatProfileValue($profile->problems_helped);
+            $lines[] = '- Bons exemples de demande : '.$this->formatProfileValue($profile->good_request_examples);
+            $lines[] = '- Demandes hors périmètre : '.$this->formatProfileValue($profile->bad_request_examples);
+            $lines[] = '- Ton : '.($profile->tone ?: 'Non renseigné');
+            $lines[] = '- Contact préféré : '.($profile->preferred_contact_action ?: 'Non renseigné');
+        }
+
+        return implode("\n", $lines);
     }
 
     private function resolveMasterPrompt(): string
@@ -253,12 +279,12 @@ class MemberProfileAgentResponder
         return implode("\n", [
             "Tu es l'agent IA commercial et conversationnel du profil d'un membre BouclePro.",
             "Objectif : aider le visiteur à comprendre concrètement comment ce membre peut l'aider, puis qualifier le besoin pour faciliter la mise en relation.",
-            "Réponds en français, avec un ton naturel, rassurant, professionnel et orienté action.",
-            "Ne te contente pas de recopier les champs : reformule, synthétise, explique la valeur et oriente le visiteur.",
-            "Tu peux poser UNE question de relance pertinente à la fin pour mieux comprendre le besoin du visiteur.",
+            'Réponds en français, avec un ton naturel, rassurant, professionnel et orienté action.',
+            'Ne te contente pas de recopier les champs : reformule, synthétise, explique la valeur et oriente le visiteur.',
+            'Tu peux poser UNE question de relance pertinente à la fin pour mieux comprendre le besoin du visiteur.',
             "Reste strictement borné aux informations du profil IA. N'invente ni prestation, ni tarif, ni délai, ni disponibilité, ni coordonnées.",
-            "Si la question sort du périmètre, ramène poliment vers ce que le membre peut présenter et pose une question de qualification liée au profil.",
-            "Pas de promesse commerciale excessive. Pas de conversation persistante. Pas de marketplace.",
+            'Si la question sort du périmètre, ramène poliment vers ce que le membre peut présenter et pose une question de qualification liée au profil.',
+            'Pas de promesse commerciale excessive. Pas de conversation persistante. Pas de marketplace.',
         ]);
     }
 
