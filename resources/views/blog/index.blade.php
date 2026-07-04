@@ -88,7 +88,7 @@
                                         @endif
                                         @endauth
                                         @if($post->read_time)
-                                        <span class="hidden sm:inline">{{ $post->read_time }} min</span>
+                                        <span class="hidden sm:inline">{{ __('blog.read_time', ['count' => $post->read_time]) }}</span>
                                         @endif
                                     </div>
                                 </div>
@@ -96,7 +96,7 @@
                                 @if($showStats)
                                 <div class="flex items-center gap-3">
                                     @if($post->read_time)
-                                    <span class="sm:hidden">{{ $post->read_time }} min</span>
+                                    <span class="sm:hidden">{{ __('blog.read_time', ['count' => $post->read_time]) }}</span>
                                     @endif
                                     @if($post->likes_count > 0)
                                     <span class="flex items-center gap-1">

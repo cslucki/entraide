@@ -35,7 +35,7 @@ class BlogCommentController extends Controller
             'is_approved' => true,
         ]);
 
-        return redirect(URL::previous().'#commentaires')->with('success', 'Commentaire ajouté.');
+        return redirect(URL::previous().'#commentaires')->with('success', __('blog.comment_added'));
     }
 
     public function orgStore(Request $request, string $org, BlogPost $post): RedirectResponse
@@ -54,7 +54,7 @@ class BlogCommentController extends Controller
         abort_unless(auth()->id() === $comment->user_id || auth()->user()->is_admin, 403);
         $comment->delete();
 
-        return redirect(URL::previous().'#commentaires')->with('success', 'Commentaire supprimé.');
+        return redirect(URL::previous().'#commentaires')->with('success', __('blog.comment_deleted'));
     }
 
     public function orgDestroy(string $org, BlogComment $comment): RedirectResponse
