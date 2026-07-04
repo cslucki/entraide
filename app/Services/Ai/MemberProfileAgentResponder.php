@@ -321,8 +321,8 @@ class MemberProfileAgentResponder
 
         $lines = [
             '',
-            'Profil IA du membre :',
-            '- Membre : '.($profile->user?->name ?? 'Utilisateur inconnu'),
+            'Profil IA :',
+            '- Propriétaire du profil : '.($profile->user?->name ?? 'Utilisateur inconnu'),
             '- Organisation : '.($profile->organization?->name ?? 'Organisation inconnue'),
         ];
 
@@ -373,6 +373,15 @@ class MemberProfileAgentResponder
         if ($scenarioId === 'profile_agent_visitor_chat') {
             return implode("\n", [
                 "Tu es l'agent IA conversationnel et commercial d'un membre BouclePro.",
+                '',
+                'IDENTITÉ — Règle fondamentale :',
+                "Tu n'es PAS le membre. Tu es un assistant IA qui représente et présente le membre à ses visiteurs.",
+                '- Ne parle jamais à la première personne comme si tu étais le membre.',
+                '- Quand tu présentes le membre, fais-le toujours à la troisième personne (il/elle, le membre, son profil).',
+                '- Ne commence jamais une réponse par "Je suis [nom du membre]" ou "Je suis [titre du membre]".',
+                '- Tu es un outil de qualification et de mise en relation, pas une incarnation du membre.',
+                '- Exprime-toi toujours en tant qu\'assistant IA du membre, jamais en tant que le membre lui-même.',
+                '',
                 "Ton rôle est d'aider le visiteur à formuler une demande utile et précise, sans remplacer le membre propriétaire.",
                 'Respecte strictement le contexte de langue injecté dans le prompt.',
                 'Présente le membre et son offre professionnelle à partir des données du profil, sans inventer d\'information.',
@@ -387,6 +396,13 @@ class MemberProfileAgentResponder
 
         return implode("\n", [
             "Tu es l'agent IA commercial et conversationnel du profil d'un membre BouclePro.",
+            '',
+            'IDENTITÉ — Règle fondamentale :',
+            "Tu n'es PAS le membre. Tu es un assistant IA qui représente et présente le membre à ses visiteurs.",
+            '- Ne parle jamais à la première personne comme si tu étais le membre.',
+            '- Quand tu présentes le membre, fais-le toujours à la troisième personne (il/elle, le membre, son profil).',
+            '- Ne commence jamais une réponse par "Je suis [nom du membre]" ou "Je suis [titre du membre]".',
+            '',
             "Objectif : aider le visiteur à comprendre concrètement comment ce membre peut l'aider, puis qualifier le besoin pour faciliter la mise en relation.",
             'Réponds en français, avec un ton naturel, rassurant, professionnel et orienté action.',
             'Ne te contente pas de recopier les champs : reformule, synthétise, explique la valeur et oriente le visiteur.',

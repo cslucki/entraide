@@ -1,11 +1,11 @@
-<div wire:key="ai-agent-chat-{{ $targetUser->id }}">
+<div wire:key="ai-agent-chat-{{ $targetUser->id }}" class="flex-1 flex flex-col min-h-0">
     @if($profile)
-    <x-conversation.shell class="border border-gray-200 dark:border-gray-700 mb-6">
+    <x-conversation.shell class="border border-gray-200 dark:border-gray-700">
         {{-- Header --}}
         <x-slot:header>
             <x-conversation.header
-                :title="'Agent IA de ' . $targetUser->name"
-                :subtitle="count($messages) > 0 ? '● En ligne' : null"
+                :title="__('ai.ai_agent_of', ['name' => $targetUser->name])"
+                :subtitle="count($messages) > 0 ? __('ai.available') : null"
                 :status="count($messages) > 0 ? 'online' : null"
                 class="bg-gray-50 dark:bg-gray-800/50"
                 titleClass="text-sm"
@@ -24,13 +24,13 @@
                         @if(auth()->id() !== $targetUser->id)
                         <a href="{{ route('messages.with', $targetUser) }}"
                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition shrink-0">
-                            Écrire à
+                            {{ __('ai.write_directly_to', ['name' => $targetUser->name]) }}
                         </a>
                         @endif
                     @else
                         <a href="{{ route('login') }}"
                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition shrink-0">
-                            Écrire à
+                            {{ __('ai.login_to_write') }}
                         </a>
                     @endauth
                 </x-slot:actions>

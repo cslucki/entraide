@@ -85,4 +85,11 @@ return [
     'visitor_chat_profile_missing' => 'Ce membre n\'a pas encore publié son profil IA.',
     'visitor_chat_generation_failed' => 'Je n\'ai pas pu générer une réponse pour le moment.',
     'visitor_chat_error' => 'Une erreur est survenue. Veuillez réessayer.',
+
+    'back_to_profile' => 'Retour au profil',
+    'available' => '● Disponible',
+    'visitor_sidebar_description' => 'Posez vos questions sur son profil, ses compétences et la manière dont il peut vous aider.',
+    'write_directly_to' => 'Écrire directement à :name',
+    'login_to_write' => 'Se connecter pour écrire au membre',
+    'ai_agent_of' => 'Agent IA de :name',
 ];
