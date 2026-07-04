@@ -5,6 +5,7 @@
         $_reqProfileHref = $_reqOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_reqOrgSlug, 'user' => $request->user]) : route('profile.show', $request->user);
         $_reqReportAction = $_reqOrgSlug && Route::has('organization.reports.request') ? route('organization.reports.request', ['organization' => $_reqOrgSlug, 'serviceRequest' => $request]) : route('reports.request', $request);
         $_reqTxStoreAction = $_reqOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_reqOrgSlug]) : route('transactions.store');
+        $_reqEditHref = $_reqOrgSlug && Route::has('organization.requests.edit') ? route('organization.requests.edit', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.edit', $request);
     @endphp
         <div class="mb-6">
             <a href="{{ $_reqExplorerHref }}" class="text-sm text-gray-500 hover:text-indigo-600">← Retour à l'explorateur</a>
@@ -111,6 +112,10 @@
                     @endif
                 </div>
                 @endif
+                @else
+                <div class="border-t border-gray-100 dark:border-gray-700 pt-6 flex gap-3">
+                    <a href="{{ $_reqEditHref }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Modifier</a>
+                </div>
                 @endif
                 @endauth
             </div>
