@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\RequestAttachment;
 use App\Models\ServiceRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -133,9 +135,20 @@ class RequestController extends Controller
             'deadline' => 'nullable|date',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
+            'delete_attachments' => 'nullable|array',
+            'delete_attachments.*' => 'uuid|exists:request_attachments,id',
         ];
 
         $data = $httpRequest->validate($rules);
+
+        if (! empty($data['delete_attachments'])) {
+            $attachmentsToDelete = RequestAttachment::whereIn('id', $data['delete_attachments'])
+                ->where('service_request_id', $request->id)->get();
+            foreach ($attachmentsToDelete as $attachment) {
+                Storage::disk('public')->delete($attachment->path);
+                $attachment->delete();
+            }
+        }
 
         $request->update([
             'title' => $data['title'],

@@ -68,11 +68,15 @@
                 @if($service->images->isNotEmpty())
                 <div class="flex flex-wrap gap-3 mb-4">
                     @foreach($service->images as $img)
-                    <div class="relative group">
-                        <img src="{{ $img->url }}" class="w-24 h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700">
-                        <label class="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition">
-                            <input type="checkbox" name="delete_images[]" value="{{ $img->id }}" class="hidden">
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                    <div class="relative" x-data="{ deleting: false }">
+                        <img src="{{ $img->url }}"
+                             class="w-24 h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                             :class="deleting ? 'opacity-40 ring-2 ring-red-500' : ''">
+                        <label class="absolute top-1 right-1 text-white p-1 rounded-full cursor-pointer transition"
+                               :class="deleting ? 'bg-gray-500' : 'bg-red-600 hover:bg-red-700'">
+                            <input type="checkbox" name="delete_images[]" value="{{ $img->id }}"
+                                   @change="deleting = $event.target.checked" class="sr-only">
+                            <svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
                         </label>
                     </div>
                     @endforeach

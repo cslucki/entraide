@@ -14,7 +14,18 @@
         @endif
 
         <form method="POST" action="{{ $_reqUpdateAction }}" enctype="multipart/form-data"
-              x-data="{ selectedCategory: '{{ old('category_id', $request->category_id) }}' }">
+              x-data="{
+                  selectedCategory: '{{ old('category_id', $request->category_id) }}',
+                  deleteAttachmentIds: [],
+                  toggleDeleteAttachment(id) {
+                      const idx = this.deleteAttachmentIds.indexOf(id);
+                      if (idx === -1) this.deleteAttachmentIds.push(id);
+                      else this.deleteAttachmentIds.splice(idx, 1);
+                  },
+                  isAttachmentMarked(id) {
+                      return this.deleteAttachmentIds.includes(id);
+                  }
+              }">
             @csrf @method('PUT')
 
             <div class="mb-5">
@@ -97,11 +108,24 @@
                 @if($request->attachments->isNotEmpty())
                 <div class="flex flex-wrap gap-2 mb-3">
                     @foreach($request->attachments as $attachment)
-                    <a href="{{ Storage::url($attachment->file_path) }}" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
-                        📎 {{ $attachment->original_name ?? $attachment->file_name }}
-                    </a>
+                    <div class="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs border"
+                         :class="isAttachmentMarked('{{ $attachment->id }}')
+                             ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
+                             : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'">
+                        <a href="{{ $attachment->url }}" target="_blank"
+                           class="text-gray-600 dark:text-gray-400"
+                           :class="isAttachmentMarked('{{ $attachment->id }}') ? 'line-through text-red-500 dark:text-red-400' : ''">
+                            📎 {{ $attachment->original_name }}
+                        </a>
+                        <button type="button" @click="toggleDeleteAttachment('{{ $attachment->id }}')"
+                                class="text-white rounded-full transition w-5 h-5 flex items-center justify-center text-xs font-bold"
+                                :class="isAttachmentMarked('{{ $attachment->id }}') ? 'bg-gray-500' : 'bg-red-600 hover:bg-red-700'">&times;</button>
+                    </div>
                     @endforeach
                 </div>
+                <template x-for="id in deleteAttachmentIds" :key="id">
+                    <input type="hidden" name="delete_attachments[]" :value="id">
+                </template>
                 @endif
 
                 <label class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors bg-gray-50 dark:bg-gray-800/50">
