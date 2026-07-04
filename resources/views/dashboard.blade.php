@@ -33,71 +33,69 @@
             </form>
         </div>
 
-        <!-- Onboarding -->
-        <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6 mb-5">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">{{ __('dashboard.onboarding_badge') }}</p>
-                    <h2 class="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.onboarding_title') }}</h2>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('dashboard.onboarding_intro') }}</p>
+        <!-- Onboarding accordion -->
+        @php $stepsDoneCount = collect($onboardingSteps)->filter(fn($s) => $s['status'] === 'done')->count(); @endphp
+        <div x-data="{ open: false }" class="mb-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <button type="button" @click="open = !open"
+                class="w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-xs font-bold">
+                        {{ $stepsDoneCount }}/4
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">{{ __('dashboard.onboarding_badge') }}</p>
+                        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dashboard.onboarding_title') }}</h2>
+                    </div>
                 </div>
-            </div>
-
-            <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <svg x-show="!open" class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                <svg x-show="open" class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" x-cloak><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+            </button>
+            <div x-show="open" x-cloak class="divide-y divide-gray-100 dark:divide-gray-700 border-t border-gray-100 dark:border-gray-700">
                 @foreach($onboardingSteps as $step)
-                <div class="rounded-xl border p-4
-                    @if($step['status'] === 'done')
-                        border-green-200 bg-green-50/70 dark:border-green-900 dark:bg-green-950/20
-                    @elseif($step['status'] === 'disabled')
-                        border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900/20
-                    @else
-                        border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40
-                    @endif">
-                    <div class="flex items-start gap-3">
-                        <div class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full
-                            @if($step['status'] === 'done')
-                                bg-green-600 text-white
-                            @elseif($step['status'] === 'disabled')
-                                bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500
-                            @else
-                                bg-white text-gray-400 ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700
-                            @endif">
-                            @if($step['status'] === 'done')
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                            @elseif($step['status'] === 'disabled')
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                            @else
-                            <span class="h-2 w-2 rounded-full bg-current"></span>
-                            @endif
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                <div>
-                                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $step['title'] }}</h3>
-                                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $step['description'] }}</p>
-                                </div>
-                                <span class="inline-flex w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-medium
-                                    @if($step['status'] === 'done')
-                                        bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300
-                                    @elseif($step['status'] === 'disabled')
-                                        bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400
-                                    @else
-                                        bg-white text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700
-                                    @endif">
-                                    {{ $step['status_label'] }}
-                                </span>
+                <div class="px-5 sm:px-6 py-4 flex items-start gap-3 @if($step['status'] === 'done') bg-green-50/30 dark:bg-green-950/10 @endif">
+                    <div class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full
+                        @if($step['status'] === 'done')
+                            bg-green-600 text-white
+                        @elseif($step['status'] === 'disabled')
+                            bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500
+                        @else
+                            bg-white text-gray-400 ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700
+                        @endif">
+                        @if($step['status'] === 'done')
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        @elseif($step['status'] === 'disabled')
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                        @else
+                        <span class="h-2 w-2 rounded-full bg-current"></span>
+                        @endif
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $step['title'] }}</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $step['description'] }}</p>
                             </div>
-                            @if($step['cta_url'])
-                            <a href="{{ $step['cta_url'] }}" class="mt-3 inline-flex items-center text-sm font-medium
-                                @if($step['status'] === 'disabled') text-gray-500 cursor-not-allowed @else text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300 @endif">
-                                {{ $step['cta_label'] }}
-                            </a>
-                            @else
-                            <span class="mt-3 inline-flex items-center text-sm font-medium text-gray-400">
-                                {{ $step['cta_label'] }}
+                            <span class="inline-flex w-fit shrink-0 rounded-full px-2 py-0.5 text-xs font-medium
+                                @if($step['status'] === 'done')
+                                    bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300
+                                @elseif($step['status'] === 'disabled')
+                                    bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400
+                                @else
+                                    bg-white text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700
+                                @endif">
+                                {{ $step['status_label'] }}
                             </span>
-                            @endif
                         </div>
+                        @if($step['cta_url'])
+                        <a href="{{ $step['cta_url'] }}" class="mt-2 inline-flex items-center text-xs font-medium
+                            @if($step['status'] === 'disabled') text-gray-500 cursor-not-allowed @else text-indigo-600 hover:text-indigo-700 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300 @endif">
+                            {{ $step['cta_label'] }}
+                        </a>
+                        @else
+                        <span class="mt-2 inline-flex items-center text-xs font-medium text-gray-400">
+                            {{ $step['cta_label'] }}
+                        </span>
+                        @endif
                     </div>
                 </div>
                 @endforeach
@@ -171,6 +169,26 @@
             </div>
         </div>
         @endif
+
+        <!-- Nav shortcuts -->
+        <div class="mb-6 flex flex-wrap gap-2">
+            <a href="{{ $_dashRoute('points.index') }}" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {{ __('dashboard.points_history') }}
+            </a>
+            <a href="{{ $_dashRoute('favorites.index') }}" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" /></svg>
+                {{ __('dashboard.my_favorites') }}
+            </a>
+            <a href="{{ $_dashRoute('profile.show', ['user' => $user]) }}" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
+                {{ __('dashboard.public_profile') }}
+            </a>
+            <a href="{{ $_dashRoute('points.index') }}#invitations" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
+                {{ __('dashboard.invitations') }}
+            </a>
+        </div>
 
         @if(session('success'))
         <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
@@ -340,6 +358,7 @@
                 </div>
             </div>
 
+            @if($user->is_admin || ($user->organization && $user->organization->admin_id === $user->id))
             <!-- Feed posts -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
@@ -375,6 +394,7 @@
                 </div>
                 @endif
             </div>
+            @endif
 
             <!-- Recent messages -->
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -401,22 +421,9 @@
             </div>
         </div>
 
-        <!-- Shortcuts -->
+        <!-- Admin shortcuts -->
+        @if($user->is_admin || ($user->organization && $user->organization->admin_id === $user->id))
         <div class="mt-6 flex flex-wrap gap-3">
-            <a href="{{ $_dashRoute('points.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
-                {{ __('dashboard.points_history') }}
-            </a>
-            @if($referralLink)
-            <a href="{{ $_dashRoute('points.index') }}#invitations" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
-                {{ __('dashboard.invitation_points') }}
-            </a>
-            @endif
-            <a href="{{ $_dashRoute('favorites.index') }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
-                {{ __('dashboard.my_favorites') }}
-            </a>
-            <a href="{{ $_dashRoute('profile.show', ['user' => $user]) }}" class="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition">
-                {{ __('dashboard.public_profile') }}
-            </a>
             @if($user->is_admin)
             <a href="{{ route('admin.dashboard') }}" class="px-4 py-2 text-sm border border-purple-300 dark:border-purple-700 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition font-medium">
                 {{ __('dashboard.admin_dashboard') }}
@@ -427,5 +434,6 @@
             </a>
             @endif
         </div>
+        @endif
     </div>
 </x-app-layout>
