@@ -90,7 +90,7 @@ class AdminAiConfigController extends Controller
         );
 
         return redirect()->route('admin.ai-config')
-            ->with('success', 'Configuration IA Blog mise à jour pour l\'organisation.');
+            ->with('success', __('blog.ai_config_updated'));
     }
 
     public function updateProfileConfig(Request $request): RedirectResponse
