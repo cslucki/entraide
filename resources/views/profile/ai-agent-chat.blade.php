@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="title">Agent IA de {{ $user->name }}</x-slot>
+    <x-slot name="title">{{ __('ai.ai_agent_of', ['name' => $user->name]) }}</x-slot>
 
     @php
         $organizationRouteParam = request()->route('organization');
@@ -14,7 +14,7 @@
                 <div class="p-4 border-b border-gray-200 dark:border-gray-700">
                     <a href="{{ $profileUrl }}" class="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                        Retour au profil
+                        {{ __('ai.back_to_profile') }}
                     </a>
                 </div>
 
@@ -27,25 +27,25 @@
                             </span>
                         </div>
                         <div class="min-w-0">
-                            <p class="font-semibold text-gray-900 dark:text-gray-100 truncate">Agent de profil IA</p>
-                            <p class="text-xs text-green-600 dark:text-green-400">● Disponible</p>
+                            <p class="font-semibold text-gray-900 dark:text-gray-100 truncate">{{ __('ai.profile_agent') }}</p>
+                            <p class="text-xs text-green-600 dark:text-green-400">{{ __('ai.available') }}</p>
                         </div>
                     </div>
 
                     <p class="mt-5 text-sm leading-6 text-gray-600 dark:text-gray-400">
-                        Posez vos questions sur son profil, ses compétences et la manière dont il peut vous aider.
+                        {{ __('ai.visitor_sidebar_description') }}
                     </p>
 
                     @auth
                         @if(auth()->id() !== $user->id)
                             <a href="{{ route('messages.with', $user) }}" class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 transition">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                                Écrire directement à {{ $user->name }}
+                                {{ __('ai.write_directly_to', ['name' => $user->name]) }}
                             </a>
                         @endif
                     @else
                         <a href="{{ route('login') }}" class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 transition">
-                            Se connecter pour écrire au membre
+                            {{ __('ai.login_to_write') }}
                         </a>
                     @endauth
                 </div>
@@ -53,16 +53,16 @@
 
             <section class="flex-1 min-w-0 flex flex-col bg-white dark:bg-gray-800">
                 <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3 sm:hidden">
-                    <a href="{{ $profileUrl }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300" aria-label="Retour au profil">
+                    <a href="{{ $profileUrl }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300" aria-label="{{ __('ai.back_to_profile') }}">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                     </a>
                     <div class="min-w-0">
-                        <p class="font-medium text-gray-900 dark:text-gray-100 truncate">Agent de profil IA</p>
-                        <p class="text-xs text-green-600 dark:text-green-400">● Disponible</p>
+                        <p class="font-medium text-gray-900 dark:text-gray-100 truncate">{{ __('ai.profile_agent') }}</p>
+                        <p class="text-xs text-green-600 dark:text-green-400">{{ __('ai.available') }}</p>
                     </div>
                 </div>
 
-                <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 bg-gray-50 dark:bg-gray-900/30">
+                <div class="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900/30">
                     @livewire('ai-agent-chat', ['user' => $user])
                 </div>
             </section>

@@ -85,4 +85,11 @@ return [
     'visitor_chat_profile_missing' => 'This member has not published their AI profile yet.',
     'visitor_chat_generation_failed' => 'I could not generate a response right now.',
     'visitor_chat_error' => 'An error occurred. Please try again.',
+
+    'back_to_profile' => 'Back to profile',
+    'available' => '● Available',
+    'visitor_sidebar_description' => 'Ask questions about their profile, skills and how they can help.',
+    'write_directly_to' => 'Write directly to :name',
+    'login_to_write' => 'Log in to write to the member',
+    'ai_agent_of' => ':name\'s AI Agent',
 ];
