@@ -55,7 +55,12 @@
                                 <td class="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $req->attachments->isNotEmpty() ? __('dashboard.has_attachments') : __('dashboard.no_attachments') }}</td>
                                 <td class="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ trans_choice('dashboard.respondent_count', $req->transactions->count()) }}</td>
                                 <td class="px-5 py-4 whitespace-nowrap">
-                                    <a href="{{ $_dashRoute('dashboard.requests.detail', ['serviceRequest' => $req]) }}" class="text-indigo-600 hover:underline text-xs font-medium">{{ __('dashboard.view_all') }}</a>
+                                    <div class="flex items-center gap-2">
+                                        <a href="{{ $_dashRoute('dashboard.requests.detail', ['serviceRequest' => $req]) }}" class="text-indigo-600 hover:underline text-xs font-medium">{{ __('dashboard.view_all') }}</a>
+                                        @can('update', $req)
+                                        <a href="{{ $_dashRoute('requests.edit', ['request' => $req]) }}" class="text-indigo-600 hover:underline text-xs font-medium">{{ __('dashboard.edit_request') }}</a>
+                                        @endcan
+                                    </div>
                                 </td>
                             </tr>
                             @endforeach
