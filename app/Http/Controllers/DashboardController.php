@@ -96,8 +96,6 @@ class DashboardController extends Controller
         $hasServiceRequest = $user->serviceRequests()->where('organization_id', $organization->id)->exists();
         $hasService = $user->services()->where('organization_id', $organization->id)->exists();
         $hasPublishedAiProfile = $aiProfile?->status === MemberAiProfile::STATUS_PUBLISHED;
-        $hasFavorite = $user->favorites()->where('organization_id', $organization->id)->exists();
-        $hasSentReferral = $sentReferralsCount > 0;
 
         $onboardingRoute = function (string $name, array $parameters = []) use ($organization): string {
             $orgRoute = 'organization.'.$name;
@@ -111,8 +109,8 @@ class DashboardController extends Controller
         $aiProfileDisabled = ! $organization->ai_profiles_enabled;
         $subscriptionsEnabled = $organization->subscriptions_enabled;
 
-        $stepsKeys = ['presentation', 'request', 'service', 'ai_profile', 'leads', 'invite'];
-        $stepsDone = [$hasPresentation, $hasServiceRequest, $hasService, $hasPublishedAiProfile, $hasFavorite, $hasSentReferral];
+        $stepsKeys = ['presentation', 'request', 'service', 'ai_profile'];
+        $stepsDone = [$hasPresentation, $hasServiceRequest, $hasService, $hasPublishedAiProfile];
         $stepsCtaUrls = [
             $hasPresentation ? $onboardingRoute('profile.show', ['user' => $user]) : $onboardingRoute('profile.edit'),
             $hasServiceRequest ? $onboardingRoute('dashboard.requests') : $onboardingRoute('requests.create'),
@@ -120,8 +118,6 @@ class DashboardController extends Controller
             $aiProfileDisabled
                 ? ($subscriptionsEnabled ? $onboardingRoute('subscriptions') : null)
                 : $onboardingRoute('agent-ia.wizard'),
-            $hasFavorite ? $onboardingRoute('favorites.index') : $onboardingRoute('explorer'),
-            url()->current().'#invitations',
         ];
 
         $onboardingSteps = array_map(function ($key, $done, $ctaUrl) use ($aiProfileDisabled, $subscriptionsEnabled) {
