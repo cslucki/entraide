@@ -79,6 +79,7 @@ class T218AdminBlogEditAuthorMarkdownTest extends TestCase
     {
         $this->actingAs($this->admin)
             ->put(route('admin.blog.update', $this->post), [
+                'organization_id' => $this->post->organization_id,
                 'user_id' => $this->author->id,
                 'title' => 'Titre modifié',
                 'content' => str_repeat('Nouveau contenu mis à jour. ', 10),
@@ -100,6 +101,7 @@ class T218AdminBlogEditAuthorMarkdownTest extends TestCase
     {
         $this->actingAs($this->admin)
             ->put(route('admin.blog.update', $this->post), [
+                'organization_id' => $this->post->organization_id,
                 'user_id' => $this->newAuthor->id,
                 'title' => $this->post->title,
                 'content' => $this->post->content,
@@ -206,6 +208,7 @@ class T218AdminBlogEditAuthorMarkdownTest extends TestCase
 
         $this->actingAs($this->admin)
             ->put(route('admin.blog.update', $this->post), [
+                'organization_id' => $this->post->organization_id,
                 'user_id' => $this->author->id,
                 'title' => 'Avec catégorie',
                 'content' => str_repeat('Contenu avec catégorie. ', 10),
