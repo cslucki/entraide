@@ -46,7 +46,7 @@
                     <a href="{{ route('profile.show', $service->user) }}"
                        class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                         <img src="{{ $service->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
-                        {{ $service->user->name }}
+                        {{ $service->user->fullName }}
                     </a>
                 </div>
             </div>

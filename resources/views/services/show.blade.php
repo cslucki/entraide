@@ -9,7 +9,7 @@
     @endphp
     {{-- Desktop topbar --}}
     <div class="hidden md:flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-gray-200 dark:border-gray-700 bg-[var(--bp-surface)] sticky top-0 z-30">
-        <a href="{{ $_serviceExplorerHref }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="Retour à l'explorateur">
+        <a href="{{ $_serviceExplorerHref }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('services.show.back') }}">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </a>
         <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $service->title }}</span>
@@ -20,8 +20,8 @@
         @if($isPaused)
         <div class="mb-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            Ce service est en pause — il n'est pas visible par les autres utilisateurs.
-            <a href="{{ $_serviceEditHref }}" class="ml-auto font-medium underline">Modifier</a>
+            {{ __('services.show.paused_banner') }}
+            <a href="{{ $_serviceEditHref }}" class="ml-auto font-medium underline">{{ __('services.show.edit') }}</a>
         </div>
         @endif
 
@@ -68,7 +68,7 @@
                         @if(auth()->id() !== $service->user_id)
                         <form method="POST" action="{{ $_serviceOrgSlug ? route('organization.favorites.toggle', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('favorites.toggle', $service) }}" class="flex-shrink-0 mt-1">
                             @csrf
-                            <button type="submit" title="{{ $isFavorited ? 'Retirer des favoris' : 'Ajouter aux favoris' }}"
+                            <button type="submit" title="{{ $isFavorited ? __('explorer.remove_favorite') : __('explorer.add_favorite') }}"
                                 class="p-2 rounded-lg border {{ $isFavorited ? 'border-red-300 bg-red-50 dark:bg-red-900/20 text-red-500' : 'border-gray-200 dark:border-gray-600 text-gray-400 hover:text-red-400 hover:border-red-300' }} transition">
                                 <svg class="w-5 h-5" fill="{{ $isFavorited ? 'currentColor' : 'none' }}" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
@@ -79,7 +79,7 @@
                         @endauth
                         <div class="text-right">
                             <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{{ $service->points_cost }}</p>
-                            <p class="text-xs text-gray-500">points</p>
+                            <p class="text-xs text-gray-500">{{ __('services.show.points') }}</p>
                         </div>
                     </div>
                 </div>
@@ -88,11 +88,11 @@
                 <div class="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100 dark:border-gray-700">
                     <img src="{{ $service->user->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
                     <div>
-                        <a href="{{ $_serviceProfileHref }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $service->user->name }}</a>
+                        <a href="{{ $_serviceProfileHref }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $service->user->fullName }}</a>
                         <div class="flex items-center gap-2 text-xs text-gray-500">
-                            <span>{{ match($service->delivery_mode) { 'remote' => '🌐 À distance', 'onsite' => '📍 Sur site', 'both' => '🌐📍 Distance ou sur site' } }}</span>
+                            <span>{{ __('marketplace.delivery.' . $service->delivery_mode) }}</span>
                             @if($service->user->is_available)
-                            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>Disponible</span>
+                            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>{{ __('profile.available') }}</span>
                             @endif
                         </div>
                     </div>
@@ -106,7 +106,7 @@
                 <!-- Skills & Tags -->
                 @if($service->skills->isNotEmpty())
                 <div class="mb-4">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Compétences</p>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{{ __('services.show.skills') }}</p>
                     <div class="flex flex-wrap gap-2">
                         @foreach($service->skills as $skill)
                         <span class="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-sm">{{ $skill->name }}</span>
@@ -117,7 +117,7 @@
 
                 @if($service->tags->isNotEmpty())
                 <div class="mb-6">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tags</p>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{{ __('services.show.tags') }}</p>
                     <div class="flex flex-wrap gap-2">
                         @foreach($service->tags as $tag)
                         <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-xs">#{{ $tag->name }}</span>
@@ -131,20 +131,20 @@
                 @if(auth()->id() !== $service->user_id)
                 <!-- Signalement -->
                 <div class="mb-4" x-data="{ open: false }">
-                    <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler ce service</button>
+                    <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">{{ __('services.show.report_button') }}</button>
                     <div x-show="open" x-cloak class="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                         <form method="POST" action="{{ $_serviceReportAction }}">
                             @csrf
                             <select name="reason" required class="w-full mb-2 px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
-                                <option value="">Motif du signalement...</option>
-                                <option value="Contenu inapproprié">Contenu inapproprié</option>
-                                <option value="Arnaque ou fraude">Arnaque ou fraude</option>
-                                <option value="Spam">Spam</option>
-                                <option value="Autre">Autre</option>
+                                <option value="">{{ __('services.show.report_placeholder') }}</option>
+                                <option value="Contenu inapproprié">{{ __('services.show.report_inappropriate') }}</option>
+                                <option value="Arnaque ou fraude">{{ __('services.show.report_scam') }}</option>
+                                <option value="Spam">{{ __('services.show.report_spam') }}</option>
+                                <option value="Autre">{{ __('services.show.report_other') }}</option>
                             </select>
-                            <textarea name="details" rows="2" placeholder="Détails (optionnel)..."
+                            <textarea name="details" rows="2" placeholder="{{ __('services.show.report_details') }}"
                                 class="w-full px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm mb-2 resize-none"></textarea>
-                            <button type="submit" class="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700">Envoyer le signalement</button>
+                            <button type="submit" class="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700">{{ __('services.show.report_submit') }}</button>
                         </form>
                     </div>
                 </div>
@@ -156,9 +156,9 @@
                         <input type="number" name="points_proposed" value="{{ $service->points_cost }}" min="1"
                             class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                         <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-                            Proposer cet échange
+                            {{ __('services.show.propose_exchange') }}
                         </button>
-                        <span class="text-xs text-gray-500">Votre solde : {{ auth()->user()->points_balance }} pts</span>
+                        <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['points' => auth()->user()->points_balance]) }}</span>
                     </form>
                     @if($errors->any())
                     <p class="text-red-500 text-sm mt-2">{{ $errors->first() }}</p>
@@ -166,7 +166,7 @@
                 </div>
                 @else
                 <div class="border-t border-gray-100 dark:border-gray-700 pt-6 flex gap-3">
-                    <a href="{{ $_serviceEditHref }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Modifier</a>
+                    <a href="{{ $_serviceEditHref }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">{{ __('services.show.edit') }}</a>
                 </div>
                 @endif
                 @endauth

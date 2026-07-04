@@ -88,7 +88,7 @@
                                     <option value="">{{ __('navigation.org_admin_add_member') }}…</option>
                                     @foreach($organization->users as $user)
                                     @unless($boucle->activeMembers->contains('user_id', $user->id))
-                                    <option value="{{ $user->id }}">{{ $user->name }}</option>
+                                    <option value="{{ $user->id }}">{{ $user->fullName }}</option>
                                     @endunless
                                     @endforeach
                                 </select>

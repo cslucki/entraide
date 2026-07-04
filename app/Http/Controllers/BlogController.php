@@ -207,7 +207,7 @@ class BlogController extends Controller implements HasMiddleware
             $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $organization->id]);
         }
 
-        $message = $data['status'] === 'published' ? 'Article publié.' : 'Brouillon enregistré.';
+        $message = $data['status'] === 'published' ? __('blog.created_published') : __('blog.created_draft');
 
         return redirect($this->blogUrl('show', ['post' => $post]))->with('success', $message);
     }
@@ -276,7 +276,7 @@ class BlogController extends Controller implements HasMiddleware
             $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $post->organization_id]);
         }
 
-        return redirect($this->blogUrl('show', ['post' => $post]))->with('success', 'Article mis à jour.');
+        return redirect($this->blogUrl('show', ['post' => $post]))->with('success', __('blog.updated'));
     }
 
     public function orgUpdate(Request $request, string $org, BlogPost $post): RedirectResponse
@@ -297,7 +297,7 @@ class BlogController extends Controller implements HasMiddleware
             'published_at' => $post->published_at ?? now(),
         ]);
 
-        return back()->with('success', 'Article publié.');
+        return back()->with('success', __('blog.published'));
     }
 
     public function orgPublish(string $org, BlogPost $post): RedirectResponse
@@ -315,7 +315,7 @@ class BlogController extends Controller implements HasMiddleware
         $this->authorize('delete', $post);
         $post->delete();
 
-        return redirect($this->blogUrl('my-posts'))->with('success', 'Article supprimé.');
+        return redirect($this->blogUrl('my-posts'))->with('success', __('blog.deleted'));
     }
 
     public function orgDestroy(string $org, BlogPost $post): RedirectResponse
@@ -495,7 +495,7 @@ class BlogController extends Controller implements HasMiddleware
                     $post->content = $request->input('content');
                 } else {
                     if (empty($title) || empty($summary)) {
-                        return response()->json(['error' => 'Ajoutez un titre et un résumé avant de générer l\'article.'], 422);
+                        return response()->json(['error' => __('blog.ai_need_title_summary')], 422);
                     }
 
                     $orgId = currentOrganization()?->id ?? $user->organization_id;
@@ -516,9 +516,9 @@ class BlogController extends Controller implements HasMiddleware
 
             $featureConfig = $ai->checkEnabled($feature, $user);
             if (! $featureConfig['enabled']) {
-                $label = $mode === 'generate' ? 'génération' : 'correction';
+                $label = $mode === 'generate' ? __('blog.ai_label_generation') : __('blog.ai_label_correction');
 
-                return response()->json(['error' => "La fonctionnalité de {$label} IA est désactivée pour votre organisation."], 403);
+                return response()->json(['error' => __('blog.ai_disabled', ['label' => $label])], 403);
             }
 
             $remaining = $ai->remainingCount($post, $user, $feature);
@@ -526,7 +526,7 @@ class BlogController extends Controller implements HasMiddleware
             if ($remaining <= 0) {
                 $allowed = $ai->checkEnabled($feature, $user);
 
-                return response()->json(['error' => 'Limite de '.$allowed['limit'].' utilisations atteinte pour cet article.'], 429);
+                return response()->json(['error' => __('blog.ai_limit_reached', ['limit' => $allowed['limit']])], 429);
             }
 
             if ($mode === 'correct') {
@@ -646,7 +646,7 @@ class BlogController extends Controller implements HasMiddleware
             'summary' => [$isPublished ? 'required' : 'nullable', 'string', 'max:500'],
             'content' => [$isPublished ? 'required' : 'nullable', 'string', function (string $attribute, mixed $value, \Closure $fail) use ($isPublished): void {
                 if ($isPublished && $this->plainTextContent((string) $value) === '') {
-                    $fail('Le contenu est obligatoire pour publier.');
+                    $fail(__('blog.validation_content_required'));
                 }
             }],
             'image' => ['nullable', 'image', 'max:5120', 'mimes:jpeg,png,webp,gif'],
@@ -657,20 +657,20 @@ class BlogController extends Controller implements HasMiddleware
             'meta_title' => ['nullable', 'string', 'max:255'],
             'meta_description' => ['nullable', 'string', 'max:320'],
         ], [
-            'title.required' => 'Le titre est obligatoire.',
-            'summary.required' => 'Le résumé est obligatoire pour publier.',
-            'content.required' => 'Le contenu est obligatoire pour publier.',
-            'category_id.required' => 'La catégorie est obligatoire pour publier.',
-            'category_id.exists' => 'Catégorie invalide.',
-            'image.image' => 'L’image de couverture doit être une image valide.',
-            'image.mimes' => 'L’image de couverture doit être au format jpeg, png, webp ou gif.',
-            'image.max' => 'L’image de couverture ne doit pas dépasser 5 Mo.',
+            'title.required' => __('blog.validation_title_required'),
+            'summary.required' => __('blog.validation_summary_required'),
+            'content.required' => __('blog.validation_content_required'),
+            'category_id.required' => __('blog.validation_category_required'),
+            'category_id.exists' => __('blog.validation_category_invalid'),
+            'image.image' => __('blog.validation_image_valid'),
+            'image.mimes' => __('blog.validation_image_format'),
+            'image.max' => __('blog.validation_image_size'),
         ]);
 
         $validator->after(function ($validator) use ($request, $organization): void {
             $categoryId = $request->input('category_id');
             if ($categoryId && ! Category::where('id', $categoryId)->where('organization_id', $organization->id)->exists()) {
-                $validator->errors()->add('category_id', 'Catégorie invalide.');
+                $validator->errors()->add('category_id', __('blog.validation_category_invalid'));
             }
         });
 

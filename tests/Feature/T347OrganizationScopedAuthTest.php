@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\EmailTemplate;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -319,7 +320,7 @@ class T347OrganizationScopedAuthTest extends TestCase
 
     public function test_email_templates_page_shows_content(): void
     {
-        $template = \App\Models\EmailTemplate::factory()->create([
+        $template = EmailTemplate::factory()->create([
             'name' => 'Test Template',
             'subject' => 'Test Subject',
         ]);

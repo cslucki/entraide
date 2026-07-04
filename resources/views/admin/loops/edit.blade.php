@@ -107,7 +107,7 @@
                     <div class="py-3 flex items-center gap-3">
                         <img src="{{ $member->user->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                         <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $member->user->name }}</p>
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $member->user->fullName }}</p>
                             <p class="text-xs text-gray-500">
                                 {{ match($member->role) { 'owner' => 'Propriétaire', 'moderator' => 'Modérateur', default => 'Membre' } }}
                                 @if($member->joined_at)
@@ -121,7 +121,7 @@
                         </span>
                         @if($member->role !== 'owner')
                         <form method="POST" action="{{ route('admin.loops.members.remove', [$boucle, $member]) }}"
-                              onsubmit="return confirm('Retirer {{ addslashes($member->user->name) }} de la boucle ?')">
+                              onsubmit="return confirm('Retirer {{ addslashes($member->user->fullName) }} de la boucle ?')">
                             @csrf @method('DELETE')
                             <button class="text-xs text-red-500 hover:underline">Retirer</button>
                         </form>

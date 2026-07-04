@@ -14,7 +14,18 @@
         @endif
 
         <form method="POST" action="{{ $_reqUpdateAction }}" enctype="multipart/form-data"
-              x-data="{ selectedCategory: '{{ old('category_id', $request->category_id) }}' }">
+              x-data="{
+                  selectedCategory: '{{ old('category_id', $request->category_id) }}',
+                  deleteAttachmentIds: [],
+                  toggleDeleteAttachment(id) {
+                      const idx = this.deleteAttachmentIds.indexOf(id);
+                      if (idx === -1) this.deleteAttachmentIds.push(id);
+                      else this.deleteAttachmentIds.splice(idx, 1);
+                  },
+                  isAttachmentMarked(id) {
+                      return this.deleteAttachmentIds.includes(id);
+                  }
+              }">
             @csrf @method('PUT')
 
             <div class="mb-5">
@@ -24,13 +35,13 @@
             </div>
 
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description *</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('requests.edit.description') }}</label>
                 <textarea name="description" rows="5" required
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">{{ old('description', $request->description) }}</textarea>
             </div>
 
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégorie *</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('requests.edit.category') }}</label>
                 <select name="category_id" required x-model="selectedCategory"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                     @foreach($categories as $cat)
@@ -40,9 +51,9 @@
             </div>
 
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mode de prestation *</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('requests.edit.delivery_mode') }}</label>
                 <div class="flex gap-3">
-                    @foreach(['remote' => '🌐 À distance', 'onsite' => '📍 Sur site', 'both' => '🌐📍 Les deux'] as $val => $label)
+                    @foreach(['remote' => __('requests.edit.remote'), 'onsite' => __('requests.edit.onsite'), 'both' => __('requests.edit.both')] as $val => $label)
                     <label class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border rounded-lg cursor-pointer text-sm font-medium hover:border-indigo-400 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/30 dark:text-gray-300 border-gray-200 dark:border-gray-600 transition">
                         <input type="radio" name="delivery_mode" value="{{ $val }}" {{ (old('delivery_mode', $request->delivery_mode) === $val) ? 'checked' : '' }} required class="sr-only">
                         {{ $label }}
@@ -53,12 +64,12 @@
 
             <div class="mb-5 grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Budget min *</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('requests.edit.budget_min') }}</label>
                     <input type="number" name="budget_min" value="{{ old('budget_min', $request->budget_min) }}" min="1" required
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Budget max <span class="text-gray-400">(optionnel)</span></label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('requests.edit.budget_max') }} <span class="text-gray-400">{{ __('requests.edit.optional') }}</span></label>
                     <input type="number" name="budget_max" value="{{ old('budget_max', $request->budget_max) }}" min="1"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                 </div>
@@ -91,23 +102,36 @@
                     }
                  }">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Pièces jointes <span class="text-gray-400">(max 5 fichiers, optionnel)</span>
+                    {{ __('requests.edit.attachments') }} <span class="text-gray-400">({{ __('marketplace.attachments_help') }})</span>
                 </label>
 
                 @if($request->attachments->isNotEmpty())
                 <div class="flex flex-wrap gap-2 mb-3">
                     @foreach($request->attachments as $attachment)
-                    <a href="{{ Storage::url($attachment->file_path) }}" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
-                        📎 {{ $attachment->original_name ?? $attachment->file_name }}
-                    </a>
+                    <div class="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs border"
+                         :class="isAttachmentMarked('{{ $attachment->id }}')
+                             ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
+                             : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'">
+                        <a href="{{ $attachment->url }}" target="_blank"
+                           class="text-gray-600 dark:text-gray-400"
+                           :class="isAttachmentMarked('{{ $attachment->id }}') ? 'line-through text-red-500 dark:text-red-400' : ''">
+                            📎 {{ $attachment->original_name }}
+                        </a>
+                        <button type="button" @click="toggleDeleteAttachment('{{ $attachment->id }}')"
+                                class="text-white rounded-full transition w-5 h-5 flex items-center justify-center text-xs font-bold"
+                                :class="isAttachmentMarked('{{ $attachment->id }}') ? 'bg-gray-500' : 'bg-red-600 hover:bg-red-700'">&times;</button>
+                    </div>
                     @endforeach
                 </div>
+                <template x-for="id in deleteAttachmentIds" :key="id">
+                    <input type="hidden" name="delete_attachments[]" :value="id">
+                </template>
                 @endif
 
                 <label class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors bg-gray-50 dark:bg-gray-800/50">
                     <svg class="w-6 h-6 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                    <span class="text-sm text-gray-500 dark:text-gray-400">Ajouter des fichiers</span>
-                    <span class="text-xs text-gray-400 mt-0.5">JPG, PNG, PDF, DOC, XLS — max 10 Mo</span>
+                    <span class="text-sm text-gray-500 dark:text-gray-400">{{ __('requests.edit.attachments_add') }}</span>
+                    <span class="text-xs text-gray-400 mt-0.5">{{ __('requests.edit.attachments_types') }}</span>
                     <input id="edit-attachments-input" type="file" name="attachments[]" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
                         class="hidden" @change="addFiles($event)">
                 </label>
@@ -123,14 +147,14 @@
             </div>
 
             <div class="mb-8">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Délai <span class="text-gray-400">(optionnel)</span></label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('requests.edit.deadline') }} <span class="text-gray-400">{{ __('requests.edit.optional') }}</span></label>
                 <input type="date" name="deadline" value="{{ old('deadline', $request->deadline?->format('Y-m-d')) }}"
                     class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
             </div>
 
             <div class="flex gap-3">
-                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Enregistrer</button>
-                <a href="{{ $_reqOrgSlug ? route('organization.dashboard.requests', ['organization' => $_reqOrgSlug]) : route('dashboard.requests') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</a>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">{{ __('requests.edit.save') }}</button>
+                <a href="{{ $_reqOrgSlug ? route('organization.dashboard.requests', ['organization' => $_reqOrgSlug]) : route('dashboard.requests') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">{{ __('requests.edit.cancel') }}</a>
             </div>
         </form>
     </div>

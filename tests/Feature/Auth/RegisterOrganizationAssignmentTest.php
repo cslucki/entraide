@@ -16,6 +16,7 @@ class RegisterOrganizationAssignmentTest extends TestCase
 
     public function test_global_registration_assigns_the_default_active_organization(): void
     {
+
         $organization = Organization::factory()->create([
             'slug' => 'main',
             'is_active' => true,
@@ -23,8 +24,11 @@ class RegisterOrganizationAssignmentTest extends TestCase
         ]);
 
         $this->post(route('register'), [
-            'name' => 'Alice Dupont',
+            'name' => 'Dupont',
+            'first_name' => 'Alice',
             'email' => 'alice@example.com',
+            'phone' => '+33612345678',
+            'country_code' => 'FR',
             'password' => 'password',
             'password_confirmation' => 'password',
         ])->assertRedirect(route('loops.index'));

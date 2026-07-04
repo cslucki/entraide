@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
-use App\Models\Transaction;
 use App\Models\User;
 use Tests\TestCase;
 

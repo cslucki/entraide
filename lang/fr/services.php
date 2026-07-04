@@ -1,0 +1,50 @@
+<?php
+
+return [
+    'notification' => [
+        'created' => 'Service publié avec succès.',
+        'updated' => 'Service mis à jour.',
+        'deleted' => 'Service supprimé.',
+        'delete_blocked' => 'Impossible de supprimer un service avec des transactions en cours.',
+    ],
+
+    'show' => [
+        'back' => 'Retour à l\'explorateur',
+        'paused_banner' => 'Ce service est en pause — il n\'est pas visible par les autres utilisateurs.',
+        'edit' => 'Modifier',
+        'points' => 'points',
+        'skills' => 'Compétences',
+        'tags' => 'Tags',
+        'report_button' => 'Signaler ce service',
+        'report_placeholder' => 'Motif du signalement...',
+        'report_inappropriate' => 'Contenu inapproprié',
+        'report_scam' => 'Arnaque ou fraude',
+        'report_spam' => 'Spam',
+        'report_other' => 'Autre',
+        'report_details' => 'Détails (optionnel)...',
+        'report_submit' => 'Envoyer le signalement',
+        'propose_exchange' => 'Proposer cet échange',
+        'your_balance' => 'Votre solde : :points pts',
+    ],
+
+    'edit' => [
+        'heading' => 'Modifier le service',
+        'status_label' => 'Statut',
+        'status_active' => 'Actif (visible)',
+        'status_paused' => 'Pause (masqué)',
+        'save' => 'Enregistrer',
+        'cancel' => 'Annuler',
+        'images_label' => 'Images (max 5)',
+        'images_help' => 'Ajouter des images (JPG, PNG, WebP — max 2 Mo)',
+        'add_tag' => 'Ajouter',
+        'add_tag_placeholder' => 'Ajouter un tag...',
+        'delivery_mode' => 'Mode de prestation *',
+        'remote' => '🌐 À distance',
+        'onsite' => '📍 Sur site',
+        'both' => '🌐📍 Les deux',
+        'skill_label' => 'Compétences',
+        'points_requested' => 'Points demandés *',
+        'tags_label' => 'Tags',
+        'tags_hint' => '(max 5)',
+    ],
+];

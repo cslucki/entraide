@@ -38,9 +38,9 @@ class LocaleFallbackTranslationTest extends TestCase
     public function test_supports_replacement_parameters(): void
     {
         App::setLocale('fr');
-        $this->assertEquals('Proposer un service', __('navigation.offer_service', ['service' => 'service']));
+        $this->assertEquals('Proposer mon aide', __('navigation.offer_service', ['service' => 'service']));
 
         App::setLocale('en');
-        $this->assertEquals('Offer a service', __('navigation.offer_service', ['service' => 'service']));
+        $this->assertEquals('Offer my help', __('navigation.offer_service', ['service' => 'service']));
     }
 }

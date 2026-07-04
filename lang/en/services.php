@@ -1,0 +1,50 @@
+<?php
+
+return [
+    'notification' => [
+        'created' => 'Service published successfully.',
+        'updated' => 'Service updated.',
+        'deleted' => 'Service deleted.',
+        'delete_blocked' => 'Cannot delete a service with ongoing transactions.',
+    ],
+
+    'show' => [
+        'back' => 'Back to explorer',
+        'paused_banner' => 'This service is paused — it is not visible to other users.',
+        'edit' => 'Edit',
+        'points' => 'points',
+        'skills' => 'Skills',
+        'tags' => 'Tags',
+        'report_button' => 'Report this service',
+        'report_placeholder' => 'Reason for the report...',
+        'report_inappropriate' => 'Inappropriate content',
+        'report_scam' => 'Scam or fraud',
+        'report_spam' => 'Spam',
+        'report_other' => 'Other',
+        'report_details' => 'Details (optional)...',
+        'report_submit' => 'Send report',
+        'propose_exchange' => 'Propose an exchange',
+        'your_balance' => 'Your balance: :points pts',
+    ],
+
+    'edit' => [
+        'heading' => 'Edit the service',
+        'status_label' => 'Status',
+        'status_active' => 'Active (visible)',
+        'status_paused' => 'Paused (hidden)',
+        'save' => 'Save',
+        'cancel' => 'Cancel',
+        'images_label' => 'Images (max 5)',
+        'images_help' => 'Add images (JPG, PNG, WebP — max 2 MB)',
+        'add_tag' => 'Add',
+        'add_tag_placeholder' => 'Add a tag...',
+        'delivery_mode' => 'Delivery mode *',
+        'remote' => '🌐 Remote',
+        'onsite' => '📍 On site',
+        'both' => '🌐📍 Both',
+        'skill_label' => 'Skills',
+        'points_requested' => 'Requested points *',
+        'tags_label' => 'Tags',
+        'tags_hint' => '(max 5)',
+    ],
+];

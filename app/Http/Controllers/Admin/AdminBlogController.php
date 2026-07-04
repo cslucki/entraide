@@ -116,7 +116,7 @@ class AdminBlogController extends Controller
         }
 
         return redirect()->route('admin.blog.edit', $post)
-            ->with('success', 'Article mis à jour.');
+            ->with('success', __('blog.updated'));
     }
 
     public function updateStatus(Request $request, BlogPost $post): RedirectResponse
@@ -130,14 +130,14 @@ class AdminBlogController extends Controller
         $post->status = $request->status;
         $post->save();
 
-        return back()->with('success', 'Statut mis à jour.');
+        return back()->with('success', __('blog.status_updated'));
     }
 
     public function destroy(BlogPost $post): RedirectResponse
     {
         $post->delete();
 
-        return back()->with('success', 'Article supprimé.');
+        return back()->with('success', __('blog.deleted'));
     }
 
     public function previewMarkdown(Request $request): JsonResponse

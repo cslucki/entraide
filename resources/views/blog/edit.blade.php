@@ -8,42 +8,42 @@
             return route('organization.blog.'.$name, array_merge(['organization' => $orgSlug], $parameters));
         };
     @endphp
-    <x-slot name="title">Modifier — {{ $post->title }}</x-slot>
+    <x-slot name="title">{{ __('blog.title_edit', ['title' => $post->title]) }}</x-slot>
 
     <div class="max-w-3xl mx-auto px-4 py-8">
 
         <div class="mb-6">
-            <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← Retour à l'article</a>
+            <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← {{ __('blog.back_to_article') }}</a>
         </div>
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Modifier l'article</h1>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('blog.heading_edit') }}</h1>
 
             <form action="{{ $_blogRoute('update', ['post' => $post]) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 @csrf @method('PUT')
 
                 @if($errors->any())
                 <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300" role="alert">
-                    <p class="font-semibold">Impossible d’enregistrer l’article. Merci de corriger les champs indiqués.</p>
+                    <p class="font-semibold">{{ __('blog.error_alert') }}</p>
                 </div>
                 @endif
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre *</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_title') }}</label>
                     <input type="text" name="title" value="{{ old('title', $post->title) }}"
                         class="w-full px-3 py-2 border @error('title') border-red-500 ring-1 ring-red-500 dark:border-red-500 @else border-gray-300 dark:border-gray-600 @enderror rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                     @error('title')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Résumé</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_summary') }}</label>
                     <textarea name="summary" rows="2" maxlength="500"
                         class="w-full px-3 py-2 border @error('summary') border-red-500 ring-1 ring-red-500 dark:border-red-500 @else border-gray-300 dark:border-gray-600 @enderror rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">{{ old('summary', $post->summary) }}</textarea>
                     @error('summary')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contenu *</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_content') }}</label>
                     <x-blog-editor
                         name="content"
                         :value="old('content', $post->content)"
@@ -58,7 +58,7 @@
                 </div>
 
                 <div x-data="{ preview: null }">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Image de couverture</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_cover_image') }}</label>
                     @if($post->image)
                     <div class="mb-2" x-show="!preview">
                         <img src="{{ $post->image_url }}" alt="" class="h-36 rounded-lg object-cover shadow-sm">
@@ -80,16 +80,16 @@
                     @if($post->image)
                     <div class="flex items-center gap-2 mt-2">
                         <input type="checkbox" name="remove_image" id="remove_image" value="1">
-                        <label for="remove_image" class="text-sm text-gray-500 dark:text-gray-400">Supprimer l'image actuelle</label>
+                        <label for="remove_image" class="text-sm text-gray-500 dark:text-gray-400">{{ __('blog.remove_current_image') }}</label>
                     </div>
                     @endif
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Catégorie</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('blog.label_category') }}</label>
                     <select name="category_id"
                         class="w-full px-3 py-2 border @error('category_id') border-red-500 ring-1 ring-red-500 dark:border-red-500 @else border-gray-300 dark:border-gray-600 @enderror rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
-                        <option value="">— Aucune —</option>
+                        <option value="">{{ __('blog.option_none') }}</option>
                         @foreach($categories as $cat)
                         <option value="{{ $cat->id }}" {{ old('category_id', $post->category_id) === $cat->id ? 'selected' : '' }}>{{ $cat->displayName('blog') }}</option>
                         @endforeach
@@ -98,22 +98,22 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tags</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_tags') }}</label>
                     <input type="text" name="tags" value="{{ old('tags', $post->tags->pluck('name')->implode(', ')) }}"
-                        placeholder="php, laravel, conseil (séparés par des virgules)"
+                        placeholder="{{ __('blog.placeholder_tags') }}"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
                 </div>
 
                 <details class="group">
-                    <summary class="text-sm font-medium text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 transition">SEO (optionnel)</summary>
+                    <summary class="text-sm font-medium text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 transition">{{ __('blog.label_seo') }}</summary>
                     <div class="mt-3 space-y-3 pl-4 border-l-2 border-gray-100 dark:border-gray-700">
                         <div>
-                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Meta titre</label>
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('blog.label_meta_title') }}</label>
                             <input type="text" name="meta_title" value="{{ old('meta_title', $post->meta_title) }}" maxlength="255"
                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Meta description</label>
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('blog.label_meta_description') }}</label>
                             <textarea name="meta_description" rows="2" maxlength="320"
                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">{{ old('meta_description', $post->meta_description) }}</textarea>
                         </div>
@@ -121,9 +121,9 @@
                 </details>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Statut *</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('blog.label_status') }}</label>
                     <div class="flex gap-4">
-                        @foreach(['draft' => 'Brouillon', 'pending' => 'En attente', 'published' => 'Publié', 'archived' => 'Archivé'] as $val => $label)
+                        @foreach(['draft' => __('blog.status_draft'), 'pending' => __('blog.status_pending'), 'published' => __('blog.status_published'), 'archived' => __('blog.status_archived')] as $val => $label)
                         <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <input type="radio" name="status" value="{{ $val }}" {{ old('status', $post->status) === $val ? 'checked' : '' }} class="text-indigo-600">
                             {{ $label }}
@@ -135,10 +135,10 @@
 
                 <div class="flex items-center gap-3 pt-2">
                     <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
-                        Enregistrer les modifications
+                        {{ __('blog.btn_save') }}
                     </button>
                     <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        Annuler
+                        {{ __('blog.btn_cancel') }}
                     </a>
                 </div>
             </form>
@@ -146,10 +146,10 @@
             {{-- Formulaire de suppression EN DEHORS du formulaire principal --}}
             <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
                 <form action="{{ $_blogRoute('destroy', ['post' => $post]) }}" method="POST"
-                      onsubmit="return confirm('Supprimer cet article définitivement ?')">
+                      onsubmit="return confirm('{{ __('blog.confirm_delete_post') }}')">
                     @csrf @method('DELETE')
                     <button type="submit" class="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
-                        Supprimer l'article
+                        {{ __('blog.btn_delete_post') }}
                     </button>
                 </form>
             </div>

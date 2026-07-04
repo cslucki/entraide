@@ -94,7 +94,7 @@
                                         {{ $log->to_email }}
                                         @if($log->user)
                                             <span class="block text-xs text-gray-500 dark:text-gray-500">
-                                                {{ $log->user->name }}
+                                                {{ $log->user->fullName }}
                                             </span>
                                         @endif
                                     </td>

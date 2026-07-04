@@ -47,13 +47,14 @@ class TranslationService
     {
         $result = [];
         foreach ($array as $key => $value) {
-            $fullKey = $prefix ? $prefix . '.' . $key : $key;
+            $fullKey = $prefix ? $prefix.'.'.$key : $key;
             if (is_array($value)) {
                 $result = array_merge($result, $this->flattenArray($value, $fullKey));
             } else {
                 $result[$fullKey] = $value;
             }
         }
+
         return $result;
     }
 

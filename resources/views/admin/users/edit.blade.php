@@ -7,7 +7,7 @@
             <div class="flex items-center gap-3">
                 <img src="{{ $user->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
                 <div>
-                    <h1 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">{{ $user->name }}</h1>
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">{{ $user->fullName }}</h1>
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ $user->email }} · Inscrit le {{ $user->created_at->format('d/m/Y') }}</p>
                 </div>
             </div>

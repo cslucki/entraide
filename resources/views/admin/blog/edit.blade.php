@@ -1,24 +1,24 @@
-<x-admin-layout title="Modifier — {{ $post->title }}">
+<x-admin-layout title="{{ __('blog.title_edit', ['title' => $post->title]) }}">
     <div class="mb-6">
         <a href="{{ route('admin.blog') }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">
-            ← Retour à la liste des articles
+            {{ __('blog.back_to_list') }}
         </a>
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Modifier l'article</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('blog.heading_edit') }}</h1>
 
         <form action="{{ route('admin.blog.update', $post) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
             @csrf @method('PUT')
 
             {{-- Auteur --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Auteur *</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_author') }}</label>
                 <select name="user_id" required
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
                     @foreach($users as $user)
                     <option value="{{ $user->id }}" {{ old('user_id', $post->user_id) === $user->id ? 'selected' : '' }}>
-                        {{ $user->name }} ({{ $user->email }})
+                        {{ $user->fullName }} ({{ $user->email }})
                     </option>
                     @endforeach
                 </select>
@@ -27,7 +27,7 @@
 
             {{-- Titre --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre *</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_title') }}</label>
                 <input type="text" name="title" value="{{ old('title', $post->title) }}" required
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                 @error('title')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror
@@ -35,16 +35,16 @@
 
             {{-- Slug --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slug</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_slug') }}</label>
                 <input type="text" name="slug" value="{{ old('slug', $post->slug) }}"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm font-mono">
-                <p class="text-xs text-gray-400 mt-1">Laissez vide pour génération automatique.</p>
+                <p class="text-xs text-gray-400 mt-1">{{ __('blog.slug_help') }}</p>
                 @error('slug')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror
             </div>
 
             {{-- Résumé --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Résumé</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_summary') }}</label>
                 <textarea name="summary" rows="2" maxlength="500"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">{{ old('summary', $post->summary) }}</textarea>
                 @error('summary')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror
@@ -53,14 +53,14 @@
             {{-- Contenu + Markdown Preview --}}
             <div x-data="{ tab: 'editor' }">
                 <div class="flex items-center gap-1 mb-2">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Contenu *</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('blog.label_content') }}</label>
                     <span class="ml-auto flex gap-1">
                         <button type="button" @click="tab = 'editor'"
                             :class="tab === 'editor' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'"
-                            class="px-3 py-1 text-xs font-medium rounded-lg transition">✏️ Éditeur</button>
+                            class="px-3 py-1 text-xs font-medium rounded-lg transition">✏️ {{ __('blog.editor_editor_tab') }}</button>
                         <button type="button" @click="tab = 'preview'; $nextTick(() => renderPreview())"
                             :class="tab === 'preview' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'"
-                            class="px-3 py-1 text-xs font-medium rounded-lg transition">👁️ Aperçu</button>
+                            class="px-3 py-1 text-xs font-medium rounded-lg transition">👁️ {{ __('blog.editor_preview_tab') }}</button>
                     </span>
                 </div>
 
@@ -73,14 +73,14 @@
                 <div x-show="tab === 'preview'" x-cloak>
                     <div id="markdown-preview"
                          class="w-full min-h-[24rem] px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 prose prose-sm dark:prose-invert max-w-none overflow-auto">
-                        <p class="text-gray-400 italic">Chargement...</p>
+                        <p class="text-gray-400 italic">{{ __('blog.loading') }}</p>
                     </div>
                 </div>
             </div>
 
             {{-- Image de couverture --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Image de couverture</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_cover_image') }}</label>
                 @if($post->image)
                 <div class="mb-2">
                     <img src="{{ $post->image_url }}" alt="" class="h-24 rounded-lg object-cover">
@@ -94,10 +94,10 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {{-- Catégorie --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégorie</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_category') }}</label>
                     <select name="category_id"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
-                        <option value="">— Aucune —</option>
+                        <option value="">{{ __('blog.option_none') }}</option>
                         @foreach($categories as $cat)
                         <option value="{{ $cat->id }}" {{ old('category_id', $post->category_id) === $cat->id ? 'selected' : '' }}>{{ $cat->name_b2c }}</option>
                         @endforeach
@@ -107,9 +107,9 @@
 
                 {{-- Tags --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tags</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_tags') }}</label>
                     <input type="text" name="tags" value="{{ old('tags', $post->tags->pluck('name')->implode(', ')) }}"
-                        placeholder="php, laravel, conseil (séparés par des virgules)"
+                        placeholder="{{ __('blog.placeholder_tags') }}"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
                     @error('tags')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -117,9 +117,9 @@
 
             {{-- Statut --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Statut *</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('blog.label_status') }}</label>
                 <div class="flex gap-4 flex-wrap">
-                    @foreach(['draft' => 'Brouillon', 'pending' => 'En attente', 'published' => 'Publié', 'archived' => 'Archivé'] as $val => $label)
+                    @foreach(['draft' => __('blog.status_draft'), 'pending' => __('blog.status_pending'), 'published' => __('blog.status_published'), 'archived' => __('blog.status_archived')] as $val => $label)
                     <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                         <input type="radio" name="status" value="{{ $val }}" {{ old('status', $post->status) === $val ? 'checked' : '' }} class="text-indigo-600">
                         {{ $label }}
@@ -131,15 +131,15 @@
 
             {{-- SEO --}}
             <details class="group">
-                <summary class="text-sm font-medium text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 transition">SEO (optionnel)</summary>
+                <summary class="text-sm font-medium text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 transition">{{ __('blog.label_seo') }}</summary>
                 <div class="mt-3 space-y-3 pl-4 border-l-2 border-gray-100 dark:border-gray-700">
                     <div>
-                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Meta titre</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('blog.label_meta_title') }}</label>
                         <input type="text" name="meta_title" value="{{ old('meta_title', $post->meta_title) }}" maxlength="255"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Meta description</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('blog.label_meta_description') }}</label>
                         <textarea name="meta_description" rows="2" maxlength="320"
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">{{ old('meta_description', $post->meta_description) }}</textarea>
                     </div>
@@ -149,14 +149,14 @@
             {{-- Actions --}}
             <div class="flex items-center gap-3 pt-2">
                 <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
-                    Enregistrer les modifications
+                    {{ __('blog.btn_save') }}
                 </button>
                 <a href="{{ route('admin.blog') }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    Annuler
+                    {{ __('blog.btn_cancel') }}
                 </a>
                 <a href="{{ route('blog.show', $post) }}" target="_blank"
                    class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm">
-                    Voir l'article →
+                    {{ __('blog.btn_view_article') }}
                 </a>
             </div>
         </form>
@@ -164,10 +164,10 @@
         {{-- Suppression --}}
         <div class="mt-6 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
             <form action="{{ route('admin.blog.destroy', $post) }}" method="POST"
-                  onsubmit="return confirm('Supprimer « {{ addslashes($post->title) }} » définitivement ?')">
+                  onsubmit="return confirm('{{ __('blog.confirm_delete_post_admin_permanent', ['title' => addslashes($post->title)]) }}')">
                 @csrf @method('DELETE')
                 <button type="submit" class="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
-                    Supprimer l'article
+                    {{ __('blog.btn_delete_post') }}
                 </button>
             </form>
         </div>
@@ -178,7 +178,7 @@
 function renderPreview() {
     const content = document.getElementById('md-content').value;
     const preview = document.getElementById('markdown-preview');
-    preview.innerHTML = '<p class="text-gray-400 italic">Chargement...</p>';
+    preview.innerHTML = '<p class="text-gray-400 italic">' + '{{ __('blog.loading') }}' + '</p>';
 
     fetch('{{ route('admin.blog.preview-markdown') }}', {
         method: 'POST',
@@ -193,7 +193,7 @@ function renderPreview() {
         preview.innerHTML = data.html;
     })
     .catch(() => {
-        preview.innerHTML = '<p class="text-red-500">Erreur lors du rendu.</p>';
+        preview.innerHTML = '<p class="text-red-500">' + '{{ __('blog.editor_render_error') }}' + '</p>';
     });
 }
 </script>

@@ -104,6 +104,15 @@ class User extends Authenticatable
         return $this->city.', '.$this->country->getLocalizedName();
     }
 
+    public function getFullNameAttribute(): string
+    {
+        if ($this->first_name) {
+            return trim($this->first_name.' '.$this->name);
+        }
+
+        return $this->name ?? '';
+    }
+
     public function services(): HasMany
     {
         return $this->hasMany(Service::class);
@@ -199,6 +208,6 @@ class User extends Authenticatable
             return Storage::disk('public')->url($this->avatar);
         }
 
-        return 'https://ui-avatars.com/api/?name='.urlencode($this->name).'&background=6366f1&color=fff';
+        return 'https://ui-avatars.com/api/?name='.urlencode($this->full_name).'&background=6366f1&color=fff';
     }
 }

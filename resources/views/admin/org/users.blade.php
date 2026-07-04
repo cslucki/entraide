@@ -67,7 +67,7 @@
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2">
                             <img src="{{ $user->avatar_url }}" class="w-7 h-7 rounded-full" alt="">
-                            <span class="font-medium text-gray-900 dark:text-gray-100">{{ $user->name }}</span>
+                            <span class="font-medium text-gray-900 dark:text-gray-100">{{ $user->fullName }}</span>
                         </div>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">{{ $user->email }}</td>

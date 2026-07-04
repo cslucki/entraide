@@ -27,7 +27,7 @@
                         <div>
                             <p class="font-medium text-gray-900 dark:text-gray-100">{{ $service->title }}</p>
                             <p class="text-sm text-gray-500 dark:text-gray-400">
-                                {{ $service->category->displayName('transactions') }} · {{ $service->user->name }}
+                                {{ $service->category->displayName('transactions') }} · {{ $service->user->fullName }}
                             </p>
                         </div>
                         <span class="text-indigo-600 dark:text-indigo-400 font-semibold text-sm">{{ $service->points_cost }} pts</span>
@@ -50,7 +50,7 @@
                         <div>
                             <p class="font-medium text-gray-900 dark:text-gray-100">{{ $request->title }}</p>
                             <p class="text-sm text-gray-500 dark:text-gray-400">
-                                {{ $request->category->displayName('transactions') }} · {{ $request->user->name }}
+                                {{ $request->category->displayName('transactions') }} · {{ $request->user->fullName }}
                             </p>
                         </div>
                         <span class="text-orange-500 font-semibold text-sm">{{ $request->budget_min }}–{{ $request->budget_max ?? '?' }} pts</span>
@@ -72,7 +72,7 @@
                        class="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition">
                         <img src="{{ $user->avatar_url }}" class="w-10 h-10 rounded-full flex-shrink-0" alt="">
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ $user->name }}</p>
+                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ $user->fullName }}</p>
                             @if($user->public_location || $user->rating)
                                 <p class="text-sm text-gray-500 dark:text-gray-400">
                                     @if($user->public_location)
@@ -103,7 +103,7 @@
                         <div>
                             <p class="font-medium text-gray-900 dark:text-gray-100">{{ $post->title }}</p>
                             <p class="text-sm text-gray-500 dark:text-gray-400">
-                                {{ $post->user->name }}
+                                {{ $post->user->fullName }}
                                 @if($post->category)
                                 · {{ $post->category->displayName('blog') }}
                                 @endif

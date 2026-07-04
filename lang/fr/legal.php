@@ -3,7 +3,7 @@
 return [
     'badge' => 'Mentions légales',
     'title' => 'Mentions légales',
-    'intro' => "Informations relatives à l’édition et à l’hébergement de la plateforme BouclePro.",
+    'intro' => 'Informations relatives à l’édition et à l’hébergement de la plateforme BouclePro.',
     'editor_title' => 'Éditeur du site',
     'editor_text' => 'Le site <strong>amteletravail.fr</strong> est édité par :',
     'director_title' => 'Directeur de la publication',

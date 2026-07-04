@@ -139,7 +139,7 @@ class ServiceController extends Controller
             ? route('organization.dashboard.services', ['organization' => $organization->slug])
             : route('dashboard.services');
 
-        return redirect($redirectRoute)->with('success', 'Service publié avec succès.');
+        return redirect($redirectRoute)->with('success', __('services.notification.created'));
     }
 
     public function edit(Service $service): View
@@ -238,7 +238,7 @@ class ServiceController extends Controller
             }
         }
 
-        return redirect()->route('dashboard')->with('success', 'Service mis à jour.');
+        return redirect()->route('dashboard')->with('success', __('services.notification.updated'));
     }
 
     public function destroy(Service $service): RedirectResponse
@@ -251,12 +251,12 @@ class ServiceController extends Controller
         $this->authorize('delete', $service);
 
         if ($service->hasActiveTransaction()) {
-            return redirect()->route('dashboard')->with('error', 'Impossible de supprimer un service avec des transactions en cours.');
+            return redirect()->route('dashboard')->with('error', __('services.notification.delete_blocked'));
         }
 
         $service->update(['status' => 'deleted']);
         $service->delete();
 
-        return redirect()->route('dashboard')->with('success', 'Service supprimé.');
+        return redirect()->route('dashboard')->with('success', __('services.notification.deleted'));
     }
 }

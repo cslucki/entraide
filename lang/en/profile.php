@@ -81,4 +81,21 @@ return [
     'available_label' => 'I am available for exchanges',
     'save' => 'Save',
     'saved' => 'Saved.',
+    'cancel' => 'Cancel',
+
+    'password_section_heading' => 'Update password',
+    'password_section_description' => 'Use a long, random password to keep your account secure.',
+    'current_password' => 'Current password',
+    'new_password' => 'New password',
+    'confirm_password' => 'Confirm password',
+
+    'delete_account' => 'Delete account',
+    'delete_account_warning' => 'Once your account is deleted, all its resources and data will be permanently deleted. Please download any data or information you wish to retain before deleting your account.',
+    'delete_account_confirm' => 'Are you sure you want to delete your account?',
+    'delete_account_instructions' => 'Once your account is deleted, all of its resources and data will be permanently deleted. Please enter your password to confirm you would like to permanently delete your account.',
+    'delete_account_password' => 'Password',
+
+    'profile_reminder_title' => 'Complete your profile before publishing.',
+    'profile_reminder_body' => 'The :fields fields are required — members need to know who they are dealing with before exchanging.',
+    'reminder_fields' => 'First name, Last name, Phone, City, Country and Introduction',
 ];

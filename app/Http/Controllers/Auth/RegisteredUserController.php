@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Country;
 use App\Models\PointLedger;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
@@ -24,7 +25,23 @@ class RegisteredUserController extends Controller
      */
     public function create(Request $request): View
     {
-        return view('auth.register', ['ref' => $request->input('ref')]);
+        $organization = currentOrganization();
+        $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
+
+        $priorityCountries = $organization
+            ? $organization->priorityCountries()->where('active', true)->get()
+            : collect();
+        $priorityCountryCodes = $priorityCountries->pluck('code');
+        $otherCountries = Country::query()
+            ->where('active', true)
+            ->when($priorityCountryCodes->isNotEmpty(), fn ($query) => $query->whereNotIn('code', $priorityCountryCodes))
+            ->orderBy($localeColumn)
+            ->get();
+
+        return view('auth.register', [
+            'ref' => $request->input('ref'),
+            'countries' => $priorityCountries->concat($otherCountries),
+        ]);
     }
 
     /**
@@ -36,7 +53,10 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'phone' => ['required', 'string', 'max:30'],
+            'country_code' => ['required', 'string', 'size:2', 'exists:countries,code'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
@@ -50,7 +70,10 @@ class RegisteredUserController extends Controller
 
         $user = User::create([
             'name' => $request->name,
+            'first_name' => $request->first_name,
             'email' => $request->email,
+            'phone' => $request->phone,
+            'country_code' => $request->country_code,
             'password' => Hash::make($request->password),
             'points_balance' => 100,
             'organization_id' => $organization->id,

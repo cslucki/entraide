@@ -159,6 +159,7 @@ class BoundedMemberAgent extends Component
                 if (is_array($v)) {
                     return implode(', ', array_map(fn ($k) => $options[$k] ?? $k, $v));
                 }
+
                 return $options[$v] ?? $v;
             };
 
@@ -172,6 +173,7 @@ class BoundedMemberAgent extends Component
                 };
                 if ($field === 'preferred_contact_action') {
                     $parts[] = "**{$label} :** {$formatted}";
+
                     continue;
                 }
                 $parts[] = "**{$label} :** {$formatted}";

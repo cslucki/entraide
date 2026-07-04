@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\RequestAttachment;
 use App\Models\ServiceRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -79,7 +81,7 @@ class RequestController extends Controller
             ? route('organization.dashboard.requests', ['organization' => $organization->slug])
             : route('dashboard.requests');
 
-        return redirect($redirectRoute)->with('success', 'Demande publiée avec succès.');
+        return redirect($redirectRoute)->with('success', __('requests.notification.created'));
     }
 
     private function storeAttachments(Request $httpRequest, ServiceRequest $serviceRequest): void
@@ -133,9 +135,20 @@ class RequestController extends Controller
             'deadline' => 'nullable|date',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
+            'delete_attachments' => 'nullable|array',
+            'delete_attachments.*' => 'uuid|exists:request_attachments,id',
         ];
 
         $data = $httpRequest->validate($rules);
+
+        if (! empty($data['delete_attachments'])) {
+            $attachmentsToDelete = RequestAttachment::whereIn('id', $data['delete_attachments'])
+                ->where('service_request_id', $request->id)->get();
+            foreach ($attachmentsToDelete as $attachment) {
+                Storage::disk('public')->delete($attachment->path);
+                $attachment->delete();
+            }
+        }
 
         $request->update([
             'title' => $data['title'],
@@ -153,7 +166,7 @@ class RequestController extends Controller
             ? route('organization.dashboard.requests', ['organization' => $organization->slug])
             : route('dashboard.requests');
 
-        return redirect($redirectRoute)->with('success', 'Demande mise à jour.');
+        return redirect($redirectRoute)->with('success', __('requests.notification.updated'));
     }
 
     public function destroy(ServiceRequest $request): RedirectResponse
@@ -167,6 +180,6 @@ class RequestController extends Controller
 
         $request->update(['status' => 'closed']);
 
-        return redirect()->route('dashboard')->with('success', 'Demande fermée.');
+        return redirect()->route('dashboard')->with('success', __('requests.notification.closed'));
     }
 }

@@ -39,8 +39,7 @@ class AdminTranslationController extends Controller
 
         if ($status && $status !== '_all') {
             if ($status === 'OVERRIDDEN') {
-                $entries = $entries->filter(fn ($e) =>
-                    isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:fr"])
+                $entries = $entries->filter(fn ($e) => isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:fr"])
                     || isset($globalOverridesKeyed["{$e['group']}.{$e['key']}:en"])
                 );
             } else {

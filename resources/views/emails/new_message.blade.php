@@ -1,9 +1,9 @@
 @component('mail::message')
 # Nouveau message reçu
 
-Bonjour {{ $user->name }},
+Bonjour {{ $user->fullName }},
 
-**{{ $message->sender?->name ?? 'Système' }}** vous a envoyé un message :
+**{{ $message->sender?->fullName ?? 'Système' }}** vous a envoyé un message :
 
 @component('mail::panel')
 {{ Str::limit($message->body, 300) }}
