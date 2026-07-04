@@ -2,8 +2,10 @@
 
 return [
     'title' => 'Exchanges',
-    'requests' => 'Help requests',
-    'services' => 'Services',
+    'requests' => 'Requests',
+    'services' => 'Proposals',
+    'help_requests' => 'Help requests',
+    'service_proposals' => 'Help proposals',
     'request' => 'help request',
     'service' => 'service',
     'offer_service' => 'Offer my help',

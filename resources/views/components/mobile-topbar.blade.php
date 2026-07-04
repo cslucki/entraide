@@ -3,12 +3,16 @@
     $organizationRouteParam = request()->route('organization');
     $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
 
-    $routeUrl = function (string $rootRoute, ?string $organizationRoute = null) use ($organizationRouteParam): string {
+    if (! $organizationRouteParam && request()->routeIs('organization.*') && isset($currentOrganization)) {
+        $organizationRouteParam = $currentOrganization;
+    }
+
+    $routeUrl = function (string $rootRoute, ?string $organizationRoute = null, array $params = []) use ($organizationRouteParam): string {
         if ($organizationRouteParam && $organizationRoute && Route::has($organizationRoute)) {
-            return route($organizationRoute, ['organization' => $organizationRouteParam]);
+            return route($organizationRoute, ['organization' => $organizationRouteParam] + $params);
         }
 
-        return route($rootRoute);
+        return route($rootRoute, $params);
     };
     $bugReportUrl = $routeUrl('bug-reports.index', 'organization.bug-reports.index');
 
@@ -35,16 +39,26 @@
     $routeTitle = null;
 
     if (! $isLevelOne) {
-        if (request()->routeIs('services.show', 'organization.services.show')) {
-            $routeTitle = request()->route('service')?->title;
+        if (request()->routeIs('dashboard.services', 'organization.dashboard.services')) {
+            $routeTitle = __('dashboard.my_services_page_title');
+        } elseif (request()->routeIs('dashboard.requests', 'organization.dashboard.requests')) {
+            $routeTitle = __('dashboard.my_requests_page_title');
+        } elseif (request()->routeIs('dashboard.services.detail', 'organization.dashboard.services.detail')) {
+            $routeTitle = __('dashboard.service_proposals_title');
+        } elseif (request()->routeIs('dashboard.requests.detail', 'organization.dashboard.requests.detail')) {
+            $routeTitle = __('dashboard.help_requests_title');
+        } elseif (request()->routeIs('services.show', 'organization.services.show')) {
+            $routeTitle = __('explorer.service_proposals');
         } elseif (request()->routeIs('services.create', 'organization.services.create')) {
-            $routeTitle = __('navigation.offer_service', ['service' => __('navigation.services')]);
+            $routeTitle = __('marketplace.service_create_heading');
         } elseif (request()->routeIs('services.edit', 'organization.services.edit')) {
-            $routeTitle = __('navigation.edit_service');
+            $routeTitle = __('services.edit.heading');
         } elseif (request()->routeIs('requests.show', 'organization.requests.show')) {
-            $routeTitle = request()->route('request')?->title;
+            $routeTitle = __('explorer.help_requests');
         } elseif (request()->routeIs('requests.create', 'organization.requests.create')) {
             $routeTitle = __('navigation.make_request', ['request' => __('navigation.services')]);
+        } elseif (request()->routeIs('requests.edit', 'organization.requests.edit')) {
+            $routeTitle = __('requests.edit.heading');
         } elseif (request()->routeIs('blog.show', 'organization.blog.show')) {
             $routeTitle = request()->route('post')?->title;
         } elseif (request()->routeIs('blog.create', 'organization.blog.create')) {
@@ -76,8 +90,15 @@
     $backHref = null;
 
     if (! $isLevelOne) {
-        if (request()->routeIs('services.*', 'requests.*', 'organization.services.*', 'organization.requests.*')) {
-            $backHref = $routeUrl('explorer', 'organization.explorer');
+        if (request()->routeIs('dashboard.services.detail', 'organization.dashboard.services.detail')) {
+            $backHref = $routeUrl('dashboard.services', 'organization.dashboard.services');
+        } elseif (request()->routeIs('dashboard.requests.detail', 'organization.dashboard.requests.detail')) {
+            $backHref = $routeUrl('dashboard.requests', 'organization.dashboard.requests');
+        } elseif (request()->routeIs('dashboard.services', 'dashboard.requests', 'organization.dashboard.services', 'organization.dashboard.requests')) {
+            $backHref = $routeUrl('dashboard', 'organization.dashboard');
+        } elseif (request()->routeIs('services.*', 'requests.*', 'organization.services.*', 'organization.requests.*')) {
+            $tab = request()->routeIs('services.*', 'organization.services.*') ? 'services' : 'requests';
+            $backHref = $routeUrl('explorer', 'organization.explorer').'?tab='.$tab;
         } elseif (request()->routeIs('blog.*', 'organization.blog.*')) {
             $backHref = $routeUrl('blog.index', 'organization.blog.index');
         } elseif (request()->routeIs('loops.*', 'organization.loops.*')) {

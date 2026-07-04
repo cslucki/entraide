@@ -1,14 +1,14 @@
 <x-page :title="$request->title" width="7xl">
     @php
         $_reqOrgSlug = request()->route('organization');
-        $_reqExplorerHref = $_reqOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_reqOrgSlug]) : route('explorer');
+        $_reqExplorerHref = ($_reqOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_reqOrgSlug]) : route('explorer')).'?tab=requests';
         $_reqProfileHref = $_reqOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_reqOrgSlug, 'user' => $request->user]) : route('profile.show', $request->user);
         $_reqReportAction = $_reqOrgSlug && Route::has('organization.reports.request') ? route('organization.reports.request', ['organization' => $_reqOrgSlug, 'serviceRequest' => $request]) : route('reports.request', $request);
         $_reqTxStoreAction = $_reqOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_reqOrgSlug]) : route('transactions.store');
         $_reqEditHref = $_reqOrgSlug && Route::has('organization.requests.edit') ? route('organization.requests.edit', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.edit', $request);
     @endphp
         <div class="mb-6">
-            <a href="{{ $_reqExplorerHref }}" class="text-sm text-gray-500 hover:text-indigo-600">← {{ __('requests.show.back') }}</a>
+            <a href="{{ $_reqExplorerHref }}" class="text-sm text-gray-500 hover:text-indigo-600">← {{ __('explorer.help_requests') }}</a>
         </div>
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -46,15 +46,15 @@
                 </div>
 
                 @if($request->attachments->isNotEmpty())
-                <div class="mb-6 border-t border-gray-100 dark:border-gray-700 pt-5">
+                <div class="mb-6 border-t border-gray-100 dark:border-gray-700 pt-5" x-data="{ imageOpen: false, imageUrl: null }" x-on:keydown.escape.window="imageOpen = false">
                     <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{{ __('requests.show.attachments') }}</h3>
                     <div class="flex flex-wrap gap-3">
                         @foreach($request->attachments as $att)
                             @if($att->isImage())
-                            <a href="{{ $att->url }}" target="_blank" rel="noopener noreferrer"
-                               class="block w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 hover:opacity-80 transition">
-                                <img src="{{ $att->url }}" alt="{{ $att->original_name }}" class="w-full h-full object-cover">
-                            </a>
+                            <button type="button" @click="imageUrl = @js($att->url); imageOpen = true"
+                               class="group block w-24 h-24 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-offset-gray-800">
+                                 <img src="{{ $att->url }}" alt="{{ $att->original_name }}" class="w-full h-full object-cover">
+                            </button>
                             @else
                             <a href="{{ $att->url }}" target="_blank" rel="noopener noreferrer"
                                class="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-indigo-400 transition text-sm text-gray-700 dark:text-gray-300">
@@ -69,6 +69,19 @@
                             </a>
                             @endif
                         @endforeach
+                    </div>
+
+                    <div x-show="imageOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true">
+                        <div x-show="imageOpen" x-transition.opacity class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="imageOpen = false"></div>
+
+                        <div x-show="imageOpen" x-transition class="relative max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10">
+                            <button type="button" @click="imageOpen = false" class="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white" aria-label="{{ __('ui.close') }}">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <img :src="imageUrl" alt="" class="max-h-[88vh] w-full object-contain">
+                        </div>
                     </div>
                 </div>
                 @endif

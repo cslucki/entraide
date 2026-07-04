@@ -86,7 +86,7 @@ class ServiceController extends Controller
             'tags' => 'nullable|string',
             'images' => 'nullable|array|max:5',
             'images.*' => 'image|max:2048',
-        ]);
+        ], [], __('marketplace.validation_attributes'));
 
         $service = Service::create([
             'user_id' => auth()->id(),
@@ -180,7 +180,7 @@ class ServiceController extends Controller
             'images.*' => 'image|max:2048',
             'delete_images' => 'nullable|array',
             'delete_images.*' => 'uuid|exists:service_images,id',
-        ]);
+        ], [], __('marketplace.validation_attributes'));
 
         $service->update([
             'title' => $data['title'],

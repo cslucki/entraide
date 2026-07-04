@@ -26,6 +26,7 @@ return [
     ],
 
     'edit' => [
+        'heading' => 'Demande d\'aide',
         'description' => 'Description *',
         'category' => 'Catégorie *',
         'delivery_mode' => 'Mode de prestation *',

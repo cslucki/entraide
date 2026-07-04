@@ -5,7 +5,7 @@
         $_reqUpdateAction = $_reqOrgSlug && Route::has('organization.requests.update') ? route('organization.requests.update', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.update', $request);
     @endphp
     <div class="max-w-3xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('dashboard.detail_request_title') }}</h1>
+        <h1 class="hidden text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6 md:block">{{ __('requests.edit.heading') }}</h1>
 
         @if($errors->any())
         <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
@@ -13,7 +13,9 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ $_reqUpdateAction }}" enctype="multipart/form-data"
+        <x-marketplace-form-validation :attribute-labels="__('marketplace.validation_attributes')" />
+
+        <form method="POST" action="{{ $_reqUpdateAction }}" enctype="multipart/form-data" data-marketplace-validation
               x-data="{
                   selectedCategory: '{{ old('category_id', $request->category_id) }}',
                   deleteAttachmentIds: [],

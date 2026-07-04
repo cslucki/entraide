@@ -1,7 +1,7 @@
 <x-app-layout :title="$service->title">
     @php
         $_serviceOrgSlug = request()->route('organization');
-        $_serviceExplorerHref = $_serviceOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_serviceOrgSlug]) : route('explorer');
+        $_serviceExplorerHref = ($_serviceOrgSlug && Route::has('organization.explorer') ? route('organization.explorer', ['organization' => $_serviceOrgSlug]) : route('explorer')).'?tab=services';
         $_serviceProfileHref = $_serviceOrgSlug && Route::has('organization.profile.show') ? route('organization.profile.show', ['organization' => $_serviceOrgSlug, 'user' => $service->user]) : route('profile.show', $service->user);
         $_serviceReportAction = $_serviceOrgSlug && Route::has('organization.reports.service') ? route('organization.reports.service', ['organization' => $_serviceOrgSlug, 'service' => $service]) : route('reports.service', $service);
         $_serviceTxStoreAction = $_serviceOrgSlug && Route::has('organization.transactions.store') ? route('organization.transactions.store', ['organization' => $_serviceOrgSlug]) : route('transactions.store');
@@ -12,7 +12,7 @@
         <a href="{{ $_serviceExplorerHref }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('services.show.back') }}">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </a>
-        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $service->title }}</span>
+        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ __('explorer.service_proposals') }}</span>
         <span class="ml-auto px-2 py-0.5 rounded-full text-xs font-medium text-white shrink-0" style="background-color:{{ $service->category->color }}">{{ $service->category->displayName('transactions') }}</span>
     </div>
 
@@ -26,34 +26,6 @@
         @endif
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-            @if($service->images->isNotEmpty())
-            <div class="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50" x-data="{ active: 0 }">
-                <div class="relative aspect-video">
-                    @foreach($service->images as $index => $img)
-                    <img x-show="active === {{ $index }}" src="{{ $img->url }}" class="w-full h-full object-cover">
-                    @endforeach
-
-                    @if($service->images->count() > 1)
-                    <button @click="active = (active > 0) ? active - 1 : {{ $service->images->count() - 1 }}" class="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full backdrop-blur-sm transition">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                    </button>
-                    <button @click="active = (active < {{ $service->images->count() - 1 }}) ? active + 1 : 0" class="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full backdrop-blur-sm transition">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                    </button>
-                    @endif
-                </div>
-                @if($service->images->count() > 1)
-                <div class="flex gap-2 p-4 overflow-x-auto">
-                    @foreach($service->images as $index => $img)
-                    <button @click="active = {{ $index }}" class="flex-shrink-0 w-20 aspect-video rounded-lg border-2 transition overflow-hidden" :class="active === {{ $index }} ? 'border-indigo-500' : 'border-transparent'">
-                        <img src="{{ $img->url }}" class="w-full h-full object-cover">
-                    </button>
-                    @endforeach
-                </div>
-                @endif
-            </div>
-            @endif
-
             <div class="p-6">
                 <!-- Header -->
                 <div class="flex items-start justify-between mb-4">
@@ -102,6 +74,32 @@
                 <div class="prose dark:prose-invert max-w-none mb-6">
                     <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ $service->description }}</p>
                 </div>
+
+                @if($service->images->isNotEmpty())
+                <div class="mb-6" x-data="{ imageOpen: false, imageUrl: null }" x-on:keydown.escape.window="imageOpen = false">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{{ __('marketplace.images') }}</p>
+                    <div class="flex flex-wrap gap-3">
+                        @foreach($service->images as $img)
+                        <button type="button" @click="imageUrl = @js($img->url); imageOpen = true" class="group block h-20 w-20 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:border-gray-700 dark:bg-gray-700 dark:focus:ring-offset-gray-800">
+                            <img src="{{ $img->url }}" alt="" class="h-full w-full object-cover">
+                        </button>
+                        @endforeach
+                    </div>
+
+                    <div x-show="imageOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true">
+                        <div x-show="imageOpen" x-transition.opacity class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="imageOpen = false"></div>
+
+                        <div x-show="imageOpen" x-transition class="relative max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10">
+                            <button type="button" @click="imageOpen = false" class="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white" aria-label="{{ __('ui.close') }}">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <img :src="imageUrl" alt="" class="max-h-[88vh] w-full object-contain">
+                        </div>
+                    </div>
+                </div>
+                @endif
 
                 <!-- Skills & Tags -->
                 @if($service->skills->isNotEmpty())
