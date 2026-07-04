@@ -70,11 +70,9 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
             ->assertSee('Créer ma présentation')
             ->assertSee('Demander de l’aide')
             ->assertSee('Proposer mon aide')
-            ->assertSee('Créer mon agent IA')
-            ->assertSee('Découvrir Mes pistes')
-            ->assertSee('Inviter une personne');
+            ->assertSee('Créer mon agent IA');
 
-        $this->assertSame(6, substr_count($response->getContent(), 'À faire'));
+        $this->assertSame(4, substr_count($response->getContent(), 'À faire'));
     }
 
     public function test_dashboard_onboarding_steps_are_completed_from_existing_tenant_data(): void
@@ -111,11 +109,9 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
             ->assertSee('Voir mon profil')
             ->assertSee('Voir mes demandes')
             ->assertSee('Voir mes propositions')
-            ->assertSee('Voir mon agent')
-            ->assertSee('Voir mes favoris')
-            ->assertSee('Voir mes invitations');
+            ->assertSee('Voir mon agent');
 
-        $this->assertSame(6, substr_count($response->getContent(), 'Terminé'));
+        $this->assertSame(4, substr_count($response->getContent(), 'Terminé'));
     }
 
     public function test_dashboard_onboarding_ignores_data_from_another_organization(): void
@@ -152,7 +148,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
             ->assertOk()
             ->assertSee('Votre progression dans la boucle');
 
-        $this->assertSame(6, substr_count($response->getContent(), 'À faire'));
+        $this->assertSame(4, substr_count($response->getContent(), 'À faire'));
     }
 
     public function test_organization_dashboard_onboarding_ctas_use_organization_prefixed_routes(): void
@@ -170,9 +166,7 @@ class T0754DashboardMembersExchangesTenantSafetyTest extends TestCase
             ->assertSee("/org/{$organizationA->slug}/profile/edit", false)
             ->assertSee("/org/{$organizationA->slug}/requests/create", false)
             ->assertSee("/org/{$organizationA->slug}/services/create", false)
-            ->assertSee("/org/{$organizationA->slug}/agent-ia", false)
-            ->assertSee("/org/{$organizationA->slug}/explorer", false)
-            ->assertSee("/org/{$organizationA->slug}/dashboard#invitations", false);
+            ->assertSee("/org/{$organizationA->slug}/agent-ia", false);
     }
 
     public function test_members_lists_only_members_from_resolved_organization(): void

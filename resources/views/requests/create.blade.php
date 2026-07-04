@@ -23,7 +23,9 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ $_reqStoreAction }}" enctype="multipart/form-data"
+        <x-marketplace-form-validation :attribute-labels="__('marketplace.validation_attributes')" />
+
+        <form method="POST" action="{{ $_reqStoreAction }}" enctype="multipart/form-data" data-marketplace-validation
               x-data="{ selectedCategory: '{{ old('category_id', '') }}', files: [] }">
             @csrf
 

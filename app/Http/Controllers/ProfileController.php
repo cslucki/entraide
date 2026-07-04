@@ -174,7 +174,7 @@ class ProfileController extends Controller
         $user = $request->user();
         $user->update(['is_available' => ! $user->is_available]);
 
-        return back()->with('success', 'Disponibilité mise à jour.');
+        return back()->with('success', __('dashboard.availability_updated'));
     }
 
     public function destroy(Request $request): RedirectResponse

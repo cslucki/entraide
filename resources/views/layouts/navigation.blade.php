@@ -115,7 +115,7 @@
                 </div>
 
                 <!-- Points balance -->
-                <a href="{{ route('points.index') }}" class="flex items-center gap-1 px-3 py-1 bg-indigo-50 dark:bg-indigo-900 rounded-full text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                <a href="{{ $organizationRouteParam ? route('organization.points.index', ['organization' => $organizationRouteParam]) : route('points.index') }}" class="flex items-center gap-1 px-3 py-1 bg-indigo-50 dark:bg-indigo-900 rounded-full text-sm font-semibold text-indigo-700 dark:text-indigo-300">
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm1 11H9V9h2v4zm0-6H9V5h2v2z"/></svg>
                     {{ Auth::user()->points_balance }} pts
                 </a>
@@ -148,8 +148,8 @@
                         <x-dropdown-link :href="$_pubServicesCreateHref">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-dropdown-link>
                         <x-dropdown-link :href="$_pubRequestsCreateHref">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-dropdown-link>
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
-                        <x-dropdown-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
-                        <x-dropdown-link :href="route('points.index') . '#invitations'">{{ __('navigation.invitations') }}</x-dropdown-link>
+                        <x-dropdown-link :href="$organizationRouteParam ? route('organization.points.index', ['organization' => $organizationRouteParam]) : route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
+                        <x-dropdown-link :href="$organizationRouteParam ? route('organization.invitations.index', ['organization' => $organizationRouteParam]) : route('invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
@@ -254,8 +254,8 @@
                 @endif
                 <x-responsive-nav-link :href="$_pubServicesCreateHref">{{ __('navigation.offer_service', ['service' => $T['service']]) }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="$_pubRequestsCreateHref">{{ __('navigation.make_request', ['request' => $T['request']]) }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('points.index') . '#invitations'">{{ __('navigation.invitations') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.points.index', ['organization' => $organizationRouteParam]) : route('points.index')">{{ __('navigation.points_history') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.invitations.index', ['organization' => $organizationRouteParam]) : route('invitations.index')">{{ __('navigation.invitations') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-responsive-nav-link>

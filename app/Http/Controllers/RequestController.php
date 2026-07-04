@@ -60,7 +60,7 @@ class RequestController extends Controller
             'deadline' => 'nullable|date|after:today',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
-        ]);
+        ], [], __('marketplace.validation_attributes'));
 
         $serviceRequest = ServiceRequest::create([
             'user_id' => auth()->id(),
@@ -139,7 +139,7 @@ class RequestController extends Controller
             'delete_attachments.*' => 'uuid|exists:request_attachments,id',
         ];
 
-        $data = $httpRequest->validate($rules);
+        $data = $httpRequest->validate($rules, [], __('marketplace.validation_attributes'));
 
         if (! empty($data['delete_attachments'])) {
             $attachmentsToDelete = RequestAttachment::whereIn('id', $data['delete_attachments'])

@@ -40,6 +40,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LoopController;
@@ -171,6 +172,8 @@ Route::middleware('auth')->group(function () {
 
     // Points history
     Route::get('/points', [PointController::class, 'index'])->name('points.index');
+    Route::post('/points/invitation', [PointController::class, 'sendInvitation'])->middleware('throttle:10,1')->name('points.invitation.send');
+    Route::get('/invitations', [InvitationController::class, 'index'])->name('invitations.index');
 
     // Favorites
     Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
@@ -512,6 +515,8 @@ Route::prefix('/org/{organization}')
             Route::get('/messages/{transaction}', [MessageController::class, 'orgShow'])->name('messages.show');
 
             Route::get('/points', [PointController::class, 'index'])->name('points.index');
+            Route::post('/points/invitation', [PointController::class, 'sendInvitation'])->middleware('throttle:10,1')->middleware('consume.org')->name('points.invitation.send');
+            Route::get('/invitations', [InvitationController::class, 'index'])->name('invitations.index');
 
             Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
             Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->middleware('consume.org')->name('favorites.toggle');

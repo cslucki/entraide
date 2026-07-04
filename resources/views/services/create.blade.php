@@ -23,7 +23,9 @@
         </div>
         @endif
 
-        <form method="POST" action="{{ $_svcStoreAction }}" enctype="multipart/form-data"
+        <x-marketplace-form-validation :attribute-labels="__('marketplace.validation_attributes')" />
+
+        <form method="POST" action="{{ $_svcStoreAction }}" enctype="multipart/form-data" data-marketplace-validation
               x-data="{
                 selectedCategory: '{{ old('category_id', '') }}',
                 guidelines: @js($categories->keyBy('id')->map(fn($c) => $c->pointGuidelines)),

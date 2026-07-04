@@ -10,7 +10,7 @@
     @endphp
     <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="flex items-center justify-between mb-6">
-            <div>
+            <div class="hidden md:block">
                 <a href="{{ $_dashRoute('dashboard') }}" class="text-sm text-indigo-600 hover:underline">&larr; {{ __('dashboard.back_to_dashboard') }}</a>
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ __('dashboard.my_requests_page_title') }}</h1>
             </div>

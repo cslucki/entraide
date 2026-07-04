@@ -45,8 +45,6 @@ class FavoriteController extends Controller
             return response()->json(['favorited' => $favorited]);
         }
 
-        $message = $favorited ? 'Service ajouté aux favoris.' : 'Service retiré des favoris.';
-
-        return back()->with('success', $message);
+        return back()->with('success', __($favorited ? 'favorites.added' : 'favorites.removed'));
     }
 }

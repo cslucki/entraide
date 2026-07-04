@@ -28,7 +28,7 @@ return [
     ],
 
     'edit' => [
-        'heading' => 'Modifier le service',
+        'heading' => 'Proposition d\'aide',
         'status_label' => 'Statut',
         'status_active' => 'Actif (visible)',
         'status_paused' => 'Pause (masqué)',
