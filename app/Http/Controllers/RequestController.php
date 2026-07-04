@@ -79,7 +79,7 @@ class RequestController extends Controller
             ? route('organization.dashboard.requests', ['organization' => $organization->slug])
             : route('dashboard.requests');
 
-        return redirect($redirectRoute)->with('success', 'Demande publiée avec succès.');
+        return redirect($redirectRoute)->with('success', __('requests.notification.created'));
     }
 
     private function storeAttachments(Request $httpRequest, ServiceRequest $serviceRequest): void
@@ -153,7 +153,7 @@ class RequestController extends Controller
             ? route('organization.dashboard.requests', ['organization' => $organization->slug])
             : route('dashboard.requests');
 
-        return redirect($redirectRoute)->with('success', 'Demande mise à jour.');
+        return redirect($redirectRoute)->with('success', __('requests.notification.updated'));
     }
 
     public function destroy(ServiceRequest $request): RedirectResponse
@@ -167,6 +167,6 @@ class RequestController extends Controller
 
         $request->update(['status' => 'closed']);
 
-        return redirect()->route('dashboard')->with('success', 'Demande fermée.');
+        return redirect()->route('dashboard')->with('success', __('requests.notification.closed'));
     }
 }

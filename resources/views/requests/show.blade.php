@@ -8,7 +8,7 @@
         $_reqEditHref = $_reqOrgSlug && Route::has('organization.requests.edit') ? route('organization.requests.edit', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.edit', $request);
     @endphp
         <div class="mb-6">
-            <a href="{{ $_reqExplorerHref }}" class="text-sm text-gray-500 hover:text-indigo-600">← Retour à l'explorateur</a>
+            <a href="{{ $_reqExplorerHref }}" class="text-sm text-gray-500 hover:text-indigo-600">← {{ __('requests.show.back') }}</a>
         </div>
 
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -33,9 +33,9 @@
                     <div>
                         <a href="{{ $_reqProfileHref }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $request->user->name }}</a>
                         <div class="flex items-center gap-3 text-xs text-gray-500">
-                            <span>{{ match($request->delivery_mode) { 'remote' => '🌐 À distance', 'onsite' => '📍 Sur site', 'both' => '🌐📍 Distance ou sur site' } }}</span>
+                            <span>{{ __('marketplace.delivery.' . $request->delivery_mode) }}</span>
                             @if($request->deadline)
-                            <span>⏰ Avant le {{ $request->deadline->format('d/m/Y') }}</span>
+                            <span>⏰ {{ __('requests.show.before', ['date' => $request->deadline->format('d/m/Y')]) }}</span>
                             @endif
                         </div>
                     </div>
@@ -47,7 +47,7 @@
 
                 @if($request->attachments->isNotEmpty())
                 <div class="mb-6 border-t border-gray-100 dark:border-gray-700 pt-5">
-                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Pièces jointes</h3>
+                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{{ __('requests.show.attachments') }}</h3>
                     <div class="flex flex-wrap gap-3">
                         @foreach($request->attachments as $att)
                             @if($att->isImage())
@@ -77,20 +77,20 @@
                 @if(auth()->id() !== $request->user_id)
                 <!-- Signalement -->
                 <div class="mb-4" x-data="{ open: false }">
-                    <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">Signaler cette demande</button>
+                    <button @click="open = !open" class="text-xs text-gray-400 hover:text-red-500 transition">{{ __('requests.show.report_button') }}</button>
                     <div x-show="open" x-cloak class="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                         <form method="POST" action="{{ $_reqReportAction }}">
                             @csrf
                             <select name="reason" required class="w-full mb-2 px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
-                                <option value="">Motif du signalement...</option>
-                                <option value="Contenu inapproprié">Contenu inapproprié</option>
-                                <option value="Arnaque ou fraude">Arnaque ou fraude</option>
-                                <option value="Spam">Spam</option>
-                                <option value="Autre">Autre</option>
+                                <option value="">{{ __('requests.show.report_placeholder') }}</option>
+                                <option value="Contenu inapproprié">{{ __('requests.show.report_inappropriate') }}</option>
+                                <option value="Arnaque ou fraude">{{ __('requests.show.report_scam') }}</option>
+                                <option value="Spam">{{ __('requests.show.report_spam') }}</option>
+                                <option value="Autre">{{ __('requests.show.report_other') }}</option>
                             </select>
-                            <textarea name="details" rows="2" placeholder="Détails (optionnel)..."
+                            <textarea name="details" rows="2" placeholder="{{ __('requests.show.report_details') }}"
                                 class="w-full px-3 py-2 border border-red-200 dark:border-red-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm mb-2 resize-none"></textarea>
-                            <button type="submit" class="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700">Envoyer le signalement</button>
+                            <button type="submit" class="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700">{{ __('requests.show.report_submit') }}</button>
                         </form>
                     </div>
                 </div>
@@ -103,9 +103,9 @@
                         <input type="number" name="points_proposed" value="{{ $request->budget_min }}" min="1"
                             class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
                         <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-                            Proposer mon aide
+                            {{ __('requests.show.propose_help') }}
                         </button>
-                        <span class="text-xs text-gray-500">Votre solde : {{ auth()->user()->points_balance }} pts</span>
+                        <span class="text-xs text-gray-500">{{ __('services.show.your_balance', ['points' => auth()->user()->points_balance]) }}</span>
                     </form>
                     @if($errors->any())
                     <p class="text-red-500 text-sm mt-2">{{ $errors->first() }}</p>
@@ -114,7 +114,7 @@
                 @endif
                 @else
                 <div class="border-t border-gray-100 dark:border-gray-700 pt-6 flex gap-3">
-                    <a href="{{ $_reqEditHref }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Modifier</a>
+                    <a href="{{ $_reqEditHref }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">{{ __('requests.show.edit') }}</a>
                 </div>
                 @endif
                 @endauth

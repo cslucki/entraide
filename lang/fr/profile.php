@@ -81,4 +81,21 @@ return [
     'available_label' => 'Je suis disponible pour des échanges',
     'save' => 'Enregistrer',
     'saved' => 'Enregistré.',
+    'cancel' => 'Annuler',
+
+    'password_section_heading' => 'Modifier le mot de passe',
+    'password_section_description' => 'Utilisez un mot de passe long et aléatoire pour sécuriser votre compte.',
+    'current_password' => 'Mot de passe actuel',
+    'new_password' => 'Nouveau mot de passe',
+    'confirm_password' => 'Confirmer le mot de passe',
+
+    'delete_account' => 'Supprimer le compte',
+    'delete_account_warning' => 'Une fois votre compte supprimé, toutes ses ressources et données seront définitivement effacées. Téléchargez au préalable toute information que vous souhaitez conserver.',
+    'delete_account_confirm' => 'Êtes-vous sûr de vouloir supprimer votre compte ?',
+    'delete_account_instructions' => 'Une fois votre compte supprimé, toutes ses ressources et données seront définitivement effacées. Saisissez votre mot de passe pour confirmer la suppression définitive.',
+    'delete_account_password' => 'Mot de passe',
+
+    'profile_reminder_title' => 'Complétez votre profil avant de publier.',
+    'profile_reminder_body' => 'Les champs :fields sont obligatoires — les membres ont besoin de savoir à qui ils ont affaire avant d\'échanger.',
+    'reminder_fields' => 'Prénom, Nom, Téléphone, Ville, Pays et Présentation',
 ];
