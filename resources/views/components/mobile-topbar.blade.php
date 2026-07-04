@@ -1,6 +1,7 @@
 @php
     $routeName = request()->route()?->getName() ?? '';
     $organizationRouteParam = request()->route('organization');
+    $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
 
     $routeUrl = function (string $rootRoute, ?string $organizationRoute = null) use ($organizationRouteParam): string {
         if ($organizationRouteParam && $organizationRoute && Route::has($organizationRoute)) {
@@ -24,8 +25,8 @@
         'blog.index' => __('navigation.blog'),
         'organization.blog.index' => __('navigation.blog'),
         'mentions-legales' => __('navigation.legal_notices'),
-        'dashboard' => __('navigation.my_space'),
-        'organization.dashboard' => __('navigation.my_space'),
+        'dashboard' => __('navigation.dashboard'),
+        'organization.dashboard' => __('navigation.dashboard'),
         'login' => __('navigation.login'),
         'organization.login' => __('navigation.login'),
     ];
@@ -63,7 +64,7 @@
         } elseif (request()->routeIs('messages.*', 'organization.messages.*')) {
             $routeTitle = __('navigation.messages');
         } elseif (request()->routeIs('points.*', 'organization.points.*')) {
-            $routeTitle = __('navigation.points');
+            $routeTitle = __('navigation.points_history');
         } elseif (request()->routeIs('favorites.*', 'organization.favorites.*')) {
             $routeTitle = __('navigation.favorites');
         } elseif (request()->routeIs('bug-reports.*', 'organization.bug-reports.*')) {
@@ -86,7 +87,7 @@
             } else {
                 $backHref = auth()->check() && Route::has('loops.index') ? route('loops.index') : route('boucles.index');
             }
-        } elseif (request()->routeIs('messages.*', 'points.*', 'favorites.*', 'profile.*', 'organization.messages.*', 'organization.points.*', 'organization.favorites.*', 'organization.profile.*')) {
+        } elseif (request()->routeIs('messages.*', 'points.*', 'favorites.*', 'profile.*', 'invitations.*', 'agent-ia.*', 'organization.messages.*', 'organization.points.*', 'organization.favorites.*', 'organization.profile.*', 'organization.invitations.*', 'organization.agent-ia.*')) {
             $backHref = auth()->check() ? $routeUrl('dashboard', 'organization.dashboard') : route('home');
         } elseif (request()->routeIs('bug-reports.*', 'organization.bug-reports.*')) {
             $backHref = $routeUrl('home', 'organization.home');
@@ -145,16 +146,32 @@
                 <x-slot name="content">
                     <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                         <div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ auth()->user()->name }}</div>
-                        <a href="{{ route('points.index') }}" class="mt-1 inline-flex text-xs font-medium text-indigo-600 dark:text-indigo-400">{{ auth()->user()->points_balance }} pts</a>
+                        <a href="{{ $routeUrl('points.index', 'organization.points.index') }}" class="mt-1 inline-flex text-xs font-medium text-indigo-600 dark:text-indigo-400">{{ auth()->user()->points_balance }} pts</a>
                     </div>
 
-                    <x-dropdown-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">{{ __('navigation.dashboard') }}</x-dropdown-link>
+                    <a href="{{ $routeUrl('dashboard', 'organization.dashboard') }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-sky-700 transition duration-150 ease-in-out hover:bg-sky-50 focus:bg-sky-50 focus:outline-none dark:text-sky-300 dark:hover:bg-sky-950/40 dark:focus:bg-sky-950/40">
+                        {{ __('navigation.dashboard') }}
+                    </a>
+                    @if($canSeeFlux && $organizationRouteParam)
+                        <a href="{{ route('organization.flux', ['organization' => $organizationRouteParam]) }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-emerald-700 transition duration-150 ease-in-out hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none dark:text-emerald-300 dark:hover:bg-emerald-950/40 dark:focus:bg-emerald-950/40">
+                            {{ __('navigation.feed') }}
+                        </a>
+                    @endif
+                    <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}">
+                        @csrf
+                        @method('PATCH')
+                        <button type="submit" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 transition duration-150 ease-in-out focus:outline-none {{ auth()->user()->is_available ? 'text-emerald-700 hover:bg-emerald-50 focus:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40 dark:focus:bg-emerald-950/40' : 'text-gray-600 hover:bg-gray-100 focus:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:bg-gray-700' }}">
+                            <span class="mr-2 inline-block h-2 w-2 rounded-full align-middle {{ auth()->user()->is_available ? 'bg-emerald-500' : 'bg-gray-400 dark:bg-gray-500' }}"></span>
+                            {{ auth()->user()->is_available ? __('dashboard.available') : __('dashboard.unavailable') }}
+                        </button>
+                    </form>
                     <x-dropdown-link :href="$organizationRouteParam ? route('organization.profile.show', ['organization' => $organizationRouteParam, 'user' => auth()->user()]) : route('profile.show', auth()->user())">{{ __('navigation.profile') }}</x-dropdown-link>
                     @if(!$currentOrganization || $currentOrganization->ai_profiles_enabled)
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                    <x-dropdown-link :href="route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$routeUrl('points.index', 'organization.points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
+                    <x-dropdown-link :href="$routeUrl('invitations.index', 'organization.invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>

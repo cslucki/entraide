@@ -56,6 +56,21 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><a href="{{ url }}">View conversation</a></p>',
             'variables' => ['name', 'title', 'status_label', 'points', 'url'],
         ],
+        'referral_invitation' => [
+            'name_fr' => 'Invitation parrainage',
+            'name_en' => 'Referral invitation',
+            'subject_fr' => '{{ sender_name }} vous invite à rejoindre {{ organization }}',
+            'subject_en' => '{{ sender_name }} invites you to join {{ organization }}',
+            'content_html_fr' => '<h1>{{ sender_name }} vous invite à rejoindre {{ organization }}</h1>
+<p>{{ sender_name }} vous a envoyé le message suivant :</p>
+<blockquote>{{ sender_message }}</blockquote>
+<p><a href="{{ referral_link }}">Rejoindre {{ organization }}</a></p>',
+            'content_html_en' => '<h1>{{ sender_name }} invites you to join {{ organization }}</h1>
+<p>{{ sender_name }} sent you the following message:</p>
+<blockquote>{{ sender_message }}</blockquote>
+<p><a href="{{ referral_link }}">Join {{ organization }}</a></p>',
+            'variables' => ['sender_name', 'recipient_name', 'sender_message', 'referral_link'],
+        ],
         'ai_budget_exceeded' => [
             'name_fr' => 'Alerte budget IA dépassé',
             'name_en' => 'AI budget exceeded alert',

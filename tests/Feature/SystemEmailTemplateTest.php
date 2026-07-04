@@ -31,7 +31,7 @@ class SystemEmailTemplateTest extends TestCase
         Mail::fake();
         $this->org = Organization::factory()->create(['is_active' => true, 'locale' => 'fr', 'slug' => 'main']);
         $this->user = User::factory()->complete()->create([
-            'name' => 'Alice Martin',
+            'name' => 'Martin',
             'first_name' => 'Alice',
             'email' => 'alice@example.com',
             'city' => 'Paris',
@@ -50,8 +50,8 @@ class SystemEmailTemplateTest extends TestCase
 
         $this->seed(SystemEmailTemplateSeeder::class);
 
-        $this->assertSame(4 * 2 * 3, SystemEmailTemplate::count());
-        $this->assertSame(8, SystemEmailTemplate::where('organization_id', $this->org->id)->count());
+        $this->assertSame(5 * 2 * 3, SystemEmailTemplate::count());
+        $this->assertSame(10, SystemEmailTemplate::where('organization_id', $this->org->id)->count());
     }
 
     public function test_seeder_does_not_duplicate(): void
@@ -86,6 +86,7 @@ class SystemEmailTemplateTest extends TestCase
     {
         $userWithoutOrg = User::factory()->complete()->create([
             'name' => 'Bob Legacy',
+            'first_name' => null,
             'email' => 'bob@example.com',
             'organization_id' => null,
             'preferred_locale' => 'fr',

@@ -74,7 +74,7 @@ class ReferralRegistrationTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => 'new@example.com']);
     }
 
-    public function test_dashboard_shows_referral_link(): void
+    public function test_dashboard_shows_user_navigation_shortcuts(): void
     {
         $user = User::factory()->create([
             'organization_id' => $this->org->id,
@@ -84,8 +84,12 @@ class ReferralRegistrationTest extends TestCase
         $response = $this->actingAs($user)->get("/org/{$this->org->slug}/dashboard");
 
         $response->assertStatus(200);
-        $response->assertSee('Mes invitations');
-        $response->assertSee('mylink');
-        $response->assertSee("/org/{$this->org->slug}/register?ref=mylink");
+        $response->assertSee('Profil public');
+        $response->assertSee('Agent IA');
+        $response->assertSee('Invitations');
+        $response->assertSee('Mes points');
+        $response->assertSee(route('organization.invitations.index', ['organization' => $this->org->slug]));
+        $response->assertDontSee('Mes invitations');
+        $response->assertDontSee(__('dashboard.metrics.balance'));
     }
 }
