@@ -1,8 +1,15 @@
 <x-app-layout title="{{ __('ai.conversation_detail_title') }}">
+    @php
+        $_isOrgRoute = str_starts_with(Route::currentRouteName(), 'organization.');
+        $_orgSlug = $_isOrgRoute ? currentOrganization()?->slug : null;
+        $_conversationsUrl = $_orgSlug && Route::has('organization.agent-ia.conversations') ? route('organization.agent-ia.conversations', ['organization' => $_orgSlug]) : route('agent-ia.conversations');
+        $_wizardUrl = $_orgSlug && Route::has('organization.agent-ia.wizard') ? route('organization.agent-ia.wizard', ['organization' => $_orgSlug]) : route('agent-ia.wizard');
+    @endphp
+
     <x-slot name="header">
         <div class="flex items-center justify-between gap-4">
             <div class="flex items-center gap-4">
-                <a href="{{ route('agent-ia.conversations') }}"
+                <a href="{{ $_conversationsUrl }}"
                    class="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
@@ -10,7 +17,7 @@
                     {{ __('ai.back_to_conversations') }}
                 </a>
             </div>
-            <a href="{{ route('agent-ia.wizard') }}" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+            <a href="{{ $_wizardUrl }}" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
                 {{ __('ai.edit_profile') }}
             </a>
         </div>

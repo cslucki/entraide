@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAiPrompt;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminAiPromptController extends Controller
@@ -14,6 +15,7 @@ class AdminAiPromptController extends Controller
     {
         $search = $request->input('search');
         $scenarioId = $request->input('scenario_id');
+        $scenarioLabels = $this->scenarioLabels();
 
         $prompts = AdminAiPrompt::when($search, fn ($q) => $q->where('name', 'like', "%{$search}%")
             ->orWhere('description', 'like', "%{$search}%"))
@@ -22,18 +24,18 @@ class AdminAiPromptController extends Controller
             ->orderBy('version', 'desc')
             ->paginate(25);
 
-        return view('admin.ai-prompts.index', compact('prompts', 'search', 'scenarioId'));
+        return view('admin.ai-prompts.index', compact('prompts', 'search', 'scenarioId', 'scenarioLabels'));
     }
 
     public function create(): View
     {
-        return view('admin.ai-prompts.create');
+        return view('admin.ai-prompts.create', ['scenarioLabels' => $this->scenarioLabels()]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'scenario_id' => 'required|string|in:supervision_content,clarify_help_request,blog_generate,blog_correct,profile_agent_master,profile_agent_setup',
+            'scenario_id' => ['required', 'string', Rule::in(array_keys($this->scenarioLabels()))],
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'prompt_text' => 'required|string',
@@ -63,7 +65,10 @@ class AdminAiPromptController extends Controller
 
     public function edit(AdminAiPrompt $prompt): View
     {
-        return view('admin.ai-prompts.edit', compact('prompt'));
+        return view('admin.ai-prompts.edit', [
+            'prompt' => $prompt,
+            'scenarioLabels' => $this->scenarioLabels(),
+        ]);
     }
 
     public function update(Request $request, AdminAiPrompt $prompt): RedirectResponse
@@ -95,5 +100,18 @@ class AdminAiPromptController extends Controller
 
         return redirect()->route('admin.ai-prompts')
             ->with('success', 'Prompt IA supprimé avec succès.');
+    }
+
+    private function scenarioLabels(): array
+    {
+        return [
+            'supervision_content' => 'Supervision de contenu',
+            'clarify_help_request' => 'Clarification de demande d\'aide',
+            'blog_generate' => 'Blog — Génération d\'article',
+            'blog_correct' => 'Blog — Correction d\'article',
+            'profile_agent_master' => 'Agent de profil IA — Prompt master',
+            'profile_agent_setup' => 'Agent de profil IA — Prompt setup',
+            'profile_agent_visitor_chat' => 'Agent de profil IA — Chat visiteur',
+        ];
     }
 }

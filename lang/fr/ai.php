@@ -76,4 +76,13 @@ return [
     'model_label' => 'Modèle',
     'latency_label' => 'Temps de réponse',
     'latency_ms' => '{ms} ms',
+
+    'visitor_chat_disclaimer' => 'Vous échangez avec l\'agent IA du membre. Il vous aide à formuler votre demande. Le membre pourra lire cet échange.',
+    'visitor_chat_initial_message' => 'Bonjour ! Je suis l’agent IA de :member_name. Je peux vous parler de ses compétences, de son expérience et de la manière dont il peut vous aider. Que souhaitez-vous savoir ?',
+    'visitor_chat_placeholder' => 'Posez votre question...',
+    'visitor_chat_composer_disabled' => 'La conversation est terminée',
+    'visitor_chat_max_turns_reached' => 'Votre demande est suffisamment formulée. Le membre pourra consulter cet échange.',
+    'visitor_chat_profile_missing' => 'Ce membre n\'a pas encore publié son profil IA.',
+    'visitor_chat_generation_failed' => 'Je n\'ai pas pu générer une réponse pour le moment.',
+    'visitor_chat_error' => 'Une erreur est survenue. Veuillez réessayer.',
 ];
