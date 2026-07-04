@@ -60,8 +60,8 @@
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ __('dashboard.table_attachments') }}</h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         @foreach($service->images as $image)
-                        <a href="{{ Storage::url($image->file_path) }}" target="_blank" class="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                            <img src="{{ Storage::url($image->file_path) }}" alt="" class="w-full h-full object-cover hover:opacity-90 transition">
+                        <a href="{{ $image->url }}" target="_blank" class="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                            <img src="{{ $image->url }}" alt="" class="w-full h-full object-cover hover:opacity-90 transition">
                         </a>
                         @endforeach
                     </div>
