@@ -56,7 +56,7 @@
                         <a href="{{ $organizationRequest->website_url }}" target="_blank" rel="noopener" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline block mt-0.5">Site web</a>
                         @endif
                         @if($organizationRequest->user)
-                        <p class="mt-1 text-[11px] text-gray-400">Compte lié : {{ $organizationRequest->user->name }}</p>
+                        <p class="mt-1 text-[11px] text-gray-400">Compte lié : {{ $organizationRequest->user->fullName }}</p>
                         @endif
                     </td>
                     <td class="px-4 py-3 hidden md:table-cell text-xs text-gray-600 dark:text-gray-400 max-w-xs">

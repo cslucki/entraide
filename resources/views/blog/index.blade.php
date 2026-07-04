@@ -79,7 +79,7 @@
                                     <a href="{{ route('profile.show', $post->user) }}" class="shrink-0">
                                         <img src="{{ $post->user->avatar_url }}" alt="" class="w-5 h-5 rounded-full">
                                     </a>
-                                    <a href="{{ route('profile.show', $post->user) }}" class="truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $post->user->name }}</a>
+                                    <a href="{{ route('profile.show', $post->user) }}" class="truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $post->user->fullName }}</a>
                                 </div>
                                 <div class="flex items-center gap-3 flex-shrink-0">
                                         @auth

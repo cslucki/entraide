@@ -40,7 +40,7 @@
                     </td>
                     <td class="px-4 py-3">
                         @if($service->user)
-                        <a href="{{ route('profile.show', $service->user) }}" class="text-indigo-600 hover:underline text-xs">{{ $service->user->name }}</a>
+                        <a href="{{ route('profile.show', $service->user) }}" class="text-indigo-600 hover:underline text-xs">{{ $service->user->fullName }}</a>
                         @else
                         <span class="text-xs text-gray-400">{{ __('navigation.org_admin_deleted') }}</span>
                         @endif

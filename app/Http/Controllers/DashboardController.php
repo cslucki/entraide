@@ -7,7 +7,6 @@ use App\Models\MemberAiProfile;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 

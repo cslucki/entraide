@@ -16,9 +16,13 @@ class ProfileController extends Controller
         return response()->json([
             'id' => $user->id,
             'name' => $user->name,
+            'first_name' => $user->first_name,
+            'full_name' => $user->fullName,
             'email' => $user->email,
             'bio' => $user->bio,
-            'location' => $user->location,
+            'city' => $user->city,
+            'country_code' => $user->country_code,
+            'phone' => $user->phone,
             'points_balance' => $user->points_balance,
             'is_available' => $user->is_available,
             'rating' => $user->rating,
@@ -30,8 +34,11 @@ class ProfileController extends Controller
     {
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
+            'first_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'bio' => ['sometimes', 'nullable', 'string', 'max:500'],
-            'location' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'city' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'country_code' => ['sometimes', 'nullable', 'string', 'size:2', 'exists:countries,code'],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:30'],
             'is_available' => ['sometimes', 'boolean'],
         ]);
 
@@ -62,8 +69,11 @@ class ProfileController extends Controller
         return response()->json([
             'id' => $user->id,
             'name' => $user->name,
+            'first_name' => $user->first_name,
+            'full_name' => $user->fullName,
             'bio' => $user->bio,
-            'location' => $user->location,
+            'city' => $user->city,
+            'country_code' => $user->country_code,
             'is_available' => $user->is_available,
             'rating' => $user->rating,
             'avatar_url' => $user->avatar_url,

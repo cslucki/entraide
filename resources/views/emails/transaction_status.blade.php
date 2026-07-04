@@ -1,7 +1,7 @@
 @component('mail::message')
 # Mise à jour de votre échange
 
-Bonjour {{ $user->name }},
+Bonjour {{ $user->fullName }},
 
 Le statut de votre échange a changé : **{{ $transaction->status_label }}**.
 

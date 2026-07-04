@@ -62,7 +62,7 @@
                     </td>
                     <td class="px-4 py-3 hidden sm:table-cell">
                         @if($post->user)
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ $post->user->name }}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ $post->user->fullName }}</span>
                         @else
                         <span class="text-xs text-gray-400">Supprimé</span>
                         @endif

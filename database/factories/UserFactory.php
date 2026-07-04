@@ -28,7 +28,8 @@ class UserFactory extends Factory
     {
         return [
             'organization_id' => DefaultOrganizationResolver::resolve()?->getKey() ?? Organization::factory(),
-            'name' => fake()->name(),
+            'name' => fake()->lastName(),
+            'first_name' => fake()->firstName(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
@@ -39,7 +40,8 @@ class UserFactory extends Factory
             'banned_at' => null,
             'rating' => null,
             'bio' => fake()->sentence(6),
-            'location' => fake()->city(),
+            'city' => fake()->city(),
+            'country_code' => 'FR',
             'phone' => fake()->phoneNumber(),
         ];
     }

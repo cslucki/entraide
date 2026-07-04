@@ -1,5 +1,5 @@
 @component('mail::message')
-# Bienvenue sur Entraide, {{ $user->name }} !
+# Bienvenue sur Entraide, {{ $user->fullName }} !
 
 Votre compte a bien été créé. Vous avez reçu **100 points de bienvenue** pour démarrer vos premiers échanges.
 

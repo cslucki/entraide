@@ -21,7 +21,7 @@
                         @endif
                     </div>
                     <div class="min-w-0">
-                        <p class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">{{ $member->name }}</p>
+                        <p class="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">{{ $member->fullName }}</p>
                         @if($member->public_location)
                         <p class="text-xs text-gray-400 truncate">📍 {{ $member->public_location }}</p>
                         @endif

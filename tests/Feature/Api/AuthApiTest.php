@@ -10,20 +10,25 @@ class AuthApiTest extends TestCase
 {
     public function test_register_creates_user_with_welcome_bonus(): void
     {
+
         $organization = Organization::factory()->create(['slug' => 'main', 'is_active' => true]);
 
         $response = $this->postJson('/api/auth/register', [
-            'name' => 'Alice Dupont',
+            'name' => 'Dupont',
+            'first_name' => 'Alice',
             'email' => 'alice@example.com',
+            'phone' => '+33612345678',
+            'country_code' => 'FR',
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);
 
         $response->assertCreated()
-            ->assertJsonStructure(['token', 'user' => ['id', 'name', 'email', 'points_balance']]);
+            ->assertJsonStructure(['token', 'user' => ['id', 'name', 'first_name', 'full_name', 'email', 'points_balance']]);
 
         $this->assertDatabaseHas('users', [
             'email' => 'alice@example.com',
+            'first_name' => 'Alice',
             'points_balance' => 100,
             'organization_id' => $organization->id,
         ]);
@@ -40,7 +45,7 @@ class AuthApiTest extends TestCase
     {
         $this->postJson('/api/auth/register', [])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name', 'email', 'password']);
+            ->assertJsonValidationErrors(['name', 'first_name', 'email', 'phone', 'country_code', 'password']);
     }
 
     public function test_register_rejects_duplicate_email(): void
@@ -49,7 +54,10 @@ class AuthApiTest extends TestCase
 
         $this->postJson('/api/auth/register', [
             'name' => 'Bob',
+            'first_name' => 'Bob',
             'email' => 'bob@example.com',
+            'phone' => '+33612345678',
+            'country_code' => 'FR',
             'password' => 'password',
             'password_confirmation' => 'password',
         ])->assertUnprocessable()
@@ -66,7 +74,7 @@ class AuthApiTest extends TestCase
         ]);
 
         $response->assertOk()
-            ->assertJsonStructure(['token', 'user' => ['id', 'email', 'points_balance']]);
+            ->assertJsonStructure(['token', 'user' => ['id', 'first_name', 'full_name', 'email', 'points_balance']]);
     }
 
     public function test_login_rejects_wrong_password(): void
@@ -103,7 +111,6 @@ class AuthApiTest extends TestCase
             ->postJson('/api/auth/logout')
             ->assertOk();
 
-        // Token must be removed from the database
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 

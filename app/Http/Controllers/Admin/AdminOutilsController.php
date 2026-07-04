@@ -20,6 +20,7 @@ use App\Models\Skill;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Tenancy\DefaultOrganizationResolver;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -45,6 +46,7 @@ class AdminOutilsController extends Controller
         'private_key',
         'secret',
     ];
+
     private function categoryFixes(): array
     {
         return [
@@ -301,7 +303,7 @@ class AdminOutilsController extends Controller
 
     private function sanitizeRow(mixed $row): array
     {
-        if ($row instanceof \Illuminate\Database\Eloquent\Model) {
+        if ($row instanceof Model) {
             $data = $row->toArray();
         } else {
             $data = (array) $row;

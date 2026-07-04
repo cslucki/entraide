@@ -16,13 +16,25 @@
             <input type="hidden" name="ref" value="{{ $ref ?? '' }}">
 
             <div class="space-y-5">
+                <!-- Prénom -->
+                <div>
+                    <label for="first_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('auth.first_name_label') }}
+                    </label>
+                    <input id="first_name" type="text" name="first_name" value="{{ old('first_name') }}"
+                           required autofocus autocomplete="given-name"
+                           placeholder="{{ __('auth.first_name_placeholder') }}"
+                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                    <x-input-error :messages="$errors->get('first_name')" class="mt-1.5" />
+                </div>
+
                 <!-- Nom -->
                 <div>
                     <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         {{ __('auth.name_label') }}
                     </label>
                     <input id="name" type="text" name="name" value="{{ old('name') }}"
-                           required autofocus autocomplete="name"
+                           required autocomplete="family-name"
                            placeholder="{{ __('auth.name_placeholder') }}"
                            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
                     <x-input-error :messages="$errors->get('name')" class="mt-1.5" />
@@ -37,6 +49,35 @@
                            required autocomplete="username"
                            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
                     <x-input-error :messages="$errors->get('email')" class="mt-1.5" />
+                </div>
+
+                <!-- Téléphone -->
+                <div>
+                    <label for="phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('auth.phone_label') }}
+                    </label>
+                    <input id="phone" type="tel" name="phone" value="{{ old('phone') }}"
+                           required autocomplete="tel"
+                           placeholder="{{ __('auth.phone_placeholder') }}"
+                           class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                    <x-input-error :messages="$errors->get('phone')" class="mt-1.5" />
+                </div>
+
+                <!-- Pays -->
+                <div>
+                    <label for="country_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('auth.country_label') }}
+                    </label>
+                    <select id="country_code" name="country_code" required
+                            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-sm">
+                        <option value="">{{ __('auth.country_placeholder') }}</option>
+                        @foreach ($countries as $country)
+                            <option value="{{ $country->code }}" {{ old('country_code') == $country->code ? 'selected' : '' }}>
+                                {{ $country->getLocalizedName() }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <x-input-error :messages="$errors->get('country_code')" class="mt-1.5" />
                 </div>
 
                 <!-- Mot de passe -->

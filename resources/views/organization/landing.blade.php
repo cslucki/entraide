@@ -90,7 +90,7 @@
                     <div class="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
                         <div class="flex items-center gap-2">
                             <img src="{{ $service->user->avatar_url }}" class="w-6 h-6 rounded-full" alt="">
-                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ $service->user->name }}</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ $service->user->fullName }}</span>
                         </div>
                         <span class="text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ $service->cost }} pts</span>
                     </div>

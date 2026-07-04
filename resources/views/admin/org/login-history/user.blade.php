@@ -1,7 +1,7 @@
-<x-org-admin-layout :title="'Connexions — '.$user->name" :organization="$organization">
+<x-org-admin-layout :title="'Connexions — '.$user->fullName" :organization="$organization">
     <div class="mb-6">
         <a href="{{ route('organization.admin.stats.login-history', $organization) }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">&larr; Retour à l'historique</a>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">Connexions de {{ $user->name }}</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">Connexions de {{ $user->fullName }}</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $user->email }}</p>
     </div>
 

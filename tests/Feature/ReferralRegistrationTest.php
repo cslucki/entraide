@@ -32,8 +32,11 @@ class ReferralRegistrationTest extends TestCase
     public function test_register_with_valid_ref_creates_referral(): void
     {
         $response = $this->post("/org/{$this->org->slug}/register", [
-            'name' => 'New Member',
+            'name' => 'Member',
+            'first_name' => 'New',
             'email' => 'new@example.com',
+            'phone' => '+33612345678',
+            'country_code' => 'FR',
             'password' => 'password',
             'password_confirmation' => 'password',
             'ref' => 'testref',
@@ -56,8 +59,11 @@ class ReferralRegistrationTest extends TestCase
     public function test_register_with_invalid_ref_still_succeeds(): void
     {
         $response = $this->post("/org/{$this->org->slug}/register", [
-            'name' => 'New Member',
+            'name' => 'Member',
+            'first_name' => 'New',
             'email' => 'new@example.com',
+            'phone' => '+33612345678',
+            'country_code' => 'FR',
             'password' => 'password',
             'password_confirmation' => 'password',
             'ref' => 'nonexistent',

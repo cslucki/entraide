@@ -25,7 +25,7 @@ class EmailerServiceTest extends TestCase
     {
         $user = User::factory()->create([
             'first_name' => 'Jean',
-            'name' => 'Jean Dupont',
+            'name' => 'Dupont',
             'email' => 'jean@example.com',
             'city' => 'Paris',
         ]);
@@ -37,6 +37,7 @@ class EmailerServiceTest extends TestCase
         $this->assertEquals('jean@example.com', $vars['email']);
         $this->assertEquals('Paris', $vars['city']);
         $this->assertArrayHasKey('organization', $vars);
+        $this->assertEquals('Jean Dupont', $vars['full_name']);
     }
 
     public function test_interpolates_all_allowed_variables()

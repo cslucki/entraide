@@ -19,7 +19,7 @@
                     @if($tenant)
                         {{ __('dashboard.title_with_tenant', ['name' => $tenant->name]) }}
                     @else
-                        {{ __('dashboard.hello', ['name' => $user->name]) }}
+                        {{ __('dashboard.hello', ['name' => $user->fullName]) }}
                     @endif
                 </h1>
                 <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">{{ __('dashboard.summary') }}</p>

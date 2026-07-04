@@ -40,7 +40,7 @@
                     @endif
                     <a href="{{ route('profile.show', $post->user) }}" class="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
                         <img src="{{ $post->user->avatar_url }}" alt="" class="w-4 h-4 rounded-full">
-                        <span>{{ $post->user->name }}</span>
+                        <span>{{ $post->user->fullName }}</span>
                         @if($post->read_time)<span>· {{ $post->read_time }} min</span>@endif
                     </a>
                 </div>

@@ -60,7 +60,7 @@
                             <img src="{{ $log->user->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                             <div class="min-w-0">
                                 <a href="{{ route('admin.stats.login-history.user', $log->user) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 truncate">
-                                    {{ $log->user->name }}
+                                    {{ $log->user->fullName }}
                                 </a>
                                 <p class="text-xs text-gray-500 truncate">{{ $log->user->email }}</p>
                                 <p class="text-xs text-gray-400 font-mono">{{ $log->user->id }}</p>

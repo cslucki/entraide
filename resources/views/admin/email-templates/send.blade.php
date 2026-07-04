@@ -102,7 +102,7 @@
                                                            class="user-checkbox rounded border-gray-300 dark:border-gray-600">
                                                 </td>
                                                 <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                                                    {{ $user->name }}
+                                                    {{ $user->fullName }}
                                                 </td>
                                                 <td class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
                                                     {{ $user->email }}

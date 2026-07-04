@@ -10,13 +10,14 @@ use Throwable;
 
 class EmailerService
 {
-    public const ALLOWED_VARS = ['first_name', 'name', 'email', 'organization', 'city'];
+    public const ALLOWED_VARS = ['first_name', 'name', 'full_name', 'email', 'organization', 'city'];
 
     public function availableVariables(User $user): array
     {
         return [
             'first_name' => $user->first_name ?? '',
-            'name' => $user->name,
+            'name' => $user->fullName,
+            'full_name' => $user->fullName,
             'email' => $user->email,
             'organization' => $user->organization?->name ?? '',
             'city' => $user->city ?? '',
@@ -59,11 +60,11 @@ class EmailerService
 
         try {
             Mail::html($html, function ($message) use ($user, $subject, $sender) {
-                $message->to($user->email, $user->name)
+                $message->to($user->email, $user->fullName)
                     ->subject($subject);
 
                 if ($sender) {
-                    $message->replyTo($sender->email, $sender->name);
+                    $message->replyTo($sender->email, $sender->fullName);
                 }
             });
 

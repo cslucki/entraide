@@ -115,7 +115,7 @@
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 transition">
                             <td class="px-4 py-3">
                                 @if($user)
-                                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ $user->name }}</div>
+                                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ $user->fullName }}</div>
                                     <div class="text-xs text-gray-500">{{ $user->email }}</div>
                                 @else
                                     <span class="text-gray-400 italic">Utilisateur supprimé</span>

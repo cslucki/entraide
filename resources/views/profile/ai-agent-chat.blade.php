@@ -21,7 +21,7 @@
                 <div class="p-5">
                     <div class="flex items-center gap-3">
                         <div class="relative flex-shrink-0">
-                            <img src="{{ $user->avatar_url }}" class="w-12 h-12 rounded-full object-cover" alt="{{ $user->name }}">
+                            <img src="{{ $user->avatar_url }}" class="w-12 h-12 rounded-full object-cover" alt="{{ $user->fullName }}">
                             <span class="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white ring-2 ring-gray-50 dark:ring-gray-900">
                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                             </span>

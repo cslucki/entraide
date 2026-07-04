@@ -31,7 +31,7 @@
                 <div class="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100 dark:border-gray-700">
                     <img src="{{ $request->user->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
                     <div>
-                        <a href="{{ $_reqProfileHref }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $request->user->name }}</a>
+                        <a href="{{ $_reqProfileHref }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $request->user->fullName }}</a>
                         <div class="flex items-center gap-3 text-xs text-gray-500">
                             <span>{{ __('marketplace.delivery.' . $request->delivery_mode) }}</span>
                             @if($request->deadline)

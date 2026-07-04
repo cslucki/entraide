@@ -7,7 +7,7 @@
             <div class="flex items-center gap-3">
                 <img src="{{ $user->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
                 <div>
-                    <h1 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">{{ $user->name }}</h1>
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">{{ $user->fullName }}</h1>
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ $user->email }} · {{ $user->organization?->name ?? '—' }}</p>
                 </div>
             </div>
@@ -121,7 +121,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Tapez <strong>{{ $user->name }}</strong> pour confirmer
+                        Tapez <strong>{{ $user->fullName }}</strong> pour confirmer
                     </label>
                     <input type="text" name="confirmation" required autocomplete="off" placeholder="Tapez le nom exact de l'utilisateur"
                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-red-500">
@@ -130,9 +130,9 @@
 
                 <button type="submit" class="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-sm transition disabled:opacity-50">
                     @if(collect($counts['own'])->sum() + collect($counts['part'])->sum() + collect($counts['audit'])->sum() > 0)
-                    Supprimer {{ $user->name }} ({{ collect($counts['own'])->sum() + collect($counts['part'])->sum() + collect($counts['audit'])->sum() }} lignes)
+                    Supprimer {{ $user->fullName }} ({{ collect($counts['own'])->sum() + collect($counts['part'])->sum() + collect($counts['audit'])->sum() }} lignes)
                     @else
-                    Supprimer {{ $user->name }}
+                    Supprimer {{ $user->fullName }}
                     @endif
                 </button>
             </div>

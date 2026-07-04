@@ -197,7 +197,7 @@
                             <a href="{{ $_orgSlug ? route('organization.profile.show', ['organization' => $_orgSlug, 'user' => $service->user]) : route('profile.show', $service->user) }}"
                                class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                 <img src="{{ $service->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
-                                {{ $service->user->name }}
+                                {{ $service->user->fullName }}
                                 @if($service->user->rating)
                                 <span class="text-yellow-500">★ {{ number_format($service->user->rating, 1) }}</span>
                                 @endif
@@ -253,7 +253,7 @@
                                 <a href="{{ $_orgSlug ? route('organization.profile.show', ['organization' => $_orgSlug, 'user' => $request->user]) : route('profile.show', $request->user) }}"
                                    class="flex items-center gap-2 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     <img src="{{ $request->user->avatar_url }}" class="w-5 h-5 rounded-full" alt="">
-                                    {{ $request->user->name }}
+                                    {{ $request->user->fullName }}
                                 </a>
                                 @if($request->deadline)
                                 <span class="ml-auto">⏰ {{ $request->deadline->format('d/m/Y') }}</span>

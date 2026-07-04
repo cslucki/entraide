@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -124,7 +125,7 @@ class T126ExplorerTenantScopingTest extends TestCase
     // le tampering côté client.
     // -------------------------------------------------------------------------
 
-    public function test_explorer_locked_orgId_prevents_client_side_tampering(): void
+    public function test_explorer_locked_org_id_prevents_client_side_tampering(): void
     {
         Service::factory()->forUser($this->userB)->for($this->category)->create([
             'title' => 'T126_SERVICE_ORG_B_TAMPERING_TARGET',
@@ -138,7 +139,7 @@ class T126ExplorerTenantScopingTest extends TestCase
         try {
             $component->set('orgId', $this->orgB->id);
             $this->fail('CannotUpdateLockedPropertyException should have been thrown');
-        } catch (\Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException $e) {
+        } catch (CannotUpdateLockedPropertyException $e) {
             $this->assertStringContainsString('orgId', $e->getMessage());
         }
 

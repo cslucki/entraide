@@ -51,7 +51,7 @@
                     <a href="{{ route('profile.show', $post->user) }}" class="flex items-center gap-3 group min-w-0">
                         <img src="{{ $post->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full flex-shrink-0">
                         <div class="min-w-0">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">{{ $post->user->name }}</p>
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">{{ $post->user->fullName }}</p>
                             <p class="text-xs text-gray-400">{{ $post->published_at?->translatedFormat('d F Y') }}</p>
                         </div>
                     </a>
@@ -151,7 +151,7 @@
                     <div class="flex items-start gap-2 mt-4">
                         <img src="{{ $lastComment->user->avatar_url }}" alt="" class="w-5 h-5 rounded-full flex-shrink-0 mt-0.5">
                         <div class="flex-1 min-w-0">
-                            <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $lastComment->user->name }}</span>
+                            <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $lastComment->user->fullName }}</span>
                             <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{{ $lastComment->content }}</p>
                         </div>
                     </div>
@@ -180,7 +180,7 @@
                                 <div class="flex-1">
                                     <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl px-4 py-3">
                                         <div class="flex items-center justify-between mb-1">
-                                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $comment->user->name }}</span>
+                                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $comment->user->fullName }}</span>
                                             <span class="text-xs text-gray-400">{{ $comment->created_at->diffForHumans() }}</span>
                                         </div>
                                         <p class="text-sm text-gray-700 dark:text-gray-300">{{ $comment->content }}</p>
@@ -213,7 +213,7 @@
                                         <img src="{{ $reply->user->avatar_url }}" alt="" class="w-6 h-6 rounded-full flex-shrink-0 mt-0.5">
                                         <div class="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-xl px-3 py-2">
                                             <div class="flex items-center justify-between mb-1">
-                                                <span class="text-xs font-medium text-gray-900 dark:text-gray-100">{{ $reply->user->name }}</span>
+                                                <span class="text-xs font-medium text-gray-900 dark:text-gray-100">{{ $reply->user->fullName }}</span>
                                                 <span class="text-xs text-gray-400">{{ $reply->created_at->diffForHumans() }}</span>
                                             </div>
                                             <p class="text-xs text-gray-700 dark:text-gray-300">{{ $reply->content }}</p>
@@ -246,7 +246,7 @@
                         @foreach($relatedPosts as $related)
                         <a href="{{ $_blogRoute('show', ['post' => $related]) }}" class="block group">
                             <p class="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition leading-snug">{{ $related->title }}</p>
-                            <p class="text-xs text-gray-400 mt-0.5">{{ $related->user->name }} · {{ $related->read_time }} min</p>
+                            <p class="text-xs text-gray-400 mt-0.5">{{ $related->user->fullName }} · {{ $related->read_time }} min</p>
                         </a>
                         @endforeach
                     </div>
