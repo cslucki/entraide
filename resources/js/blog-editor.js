@@ -18,7 +18,7 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
         extensions: [
             StarterKit.configure({
                 heading: { levels: [2, 3] },
-                codeBlock: false,
+                codeBlock: true,
                 link: false,
                 underline: false,
             }),
@@ -26,7 +26,25 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
                 openOnClick: false,
                 HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
             }),
-            Image.configure({
+            Image.extend({
+                addAttributes() {
+                    return {
+                        src: { default: null },
+                        alt: { default: null },
+                        title: { default: null },
+                        width: { default: null },
+                        height: { default: null },
+                        resized: {
+                            default: null,
+                            parseHTML: element => element.getAttribute('data-resized'),
+                            renderHTML: attributes => {
+                                if (!attributes.resized) return {};
+                                return { 'data-resized': attributes.resized };
+                            },
+                        },
+                    };
+                },
+            }).configure({
                 inline: false,
                 allowBase64: false,
             }),

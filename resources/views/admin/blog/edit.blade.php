@@ -8,21 +8,46 @@
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('blog.heading_edit') }}</h1>
 
-        <form action="{{ route('admin.blog.update', $post) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+        <form action="{{ route('admin.blog.update', $post) }}" method="POST" enctype="multipart/form-data" class="space-y-6"
+              x-data="{
+                  selectedOrgId: '{{ old('organization_id', $post->organization_id) }}',
+                  categoriesByOrg: {{ Js::from($categories->groupBy('organization_id')->map->values()->toArray()) }},
+                  get filteredCategories() {
+                      return (this.categoriesByOrg[this.selectedOrgId] || []);
+                  }
+              }">
             @csrf @method('PUT')
 
-            {{-- Auteur --}}
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_author') }}</label>
-                <select name="user_id" required
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
-                    @foreach($users as $user)
-                    <option value="{{ $user->id }}" {{ old('user_id', $post->user_id) === $user->id ? 'selected' : '' }}>
-                        {{ $user->fullName }} ({{ $user->email }})
-                    </option>
-                    @endforeach
-                </select>
-                @error('user_id')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {{-- Organisation --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_organization') }}</label>
+                    <select name="organization_id" required x-model="selectedOrgId"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
+                        @foreach($organizations as $org)
+                        <option value="{{ $org->id }}" {{ old('organization_id', $post->organization_id) === $org->id ? 'selected' : '' }}>{{ $org->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('organization_id')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                {{-- Auteur --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_author') }}</label>
+                    <select name="user_id" required
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
+                        @foreach($usersByOrg as $orgName => $orgUsers)
+                        <optgroup label="{{ $orgName }}">
+                            @foreach($orgUsers as $user)
+                            <option value="{{ $user->id }}" {{ old('user_id', $post->user_id) === $user->id ? 'selected' : '' }}>
+                                {{ $user->fullName }} ({{ $user->email }})
+                            </option>
+                            @endforeach
+                        </optgroup>
+                        @endforeach
+                    </select>
+                    @error('user_id')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
             </div>
 
             {{-- Titre --}}
@@ -98,9 +123,10 @@
                     <select name="category_id"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
                         <option value="">{{ __('blog.option_none') }}</option>
-                        @foreach($categories as $cat)
-                        <option value="{{ $cat->id }}" {{ old('category_id', $post->category_id) === $cat->id ? 'selected' : '' }}>{{ $cat->name_b2c }}</option>
-                        @endforeach
+                        <template x-for="cat in filteredCategories" :key="cat.id">
+                            <option :value="cat.id" x-text="cat.name_b2c"
+                                :selected="cat.id === '{{ old('category_id', $post->category_id) }}'"></option>
+                        </template>
                     </select>
                     @error('category_id')<p class="text-sm text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>

@@ -89,6 +89,11 @@ function registerBlogEditor() {
         aiGenerateRoute: '',
         aiCorrectRoute: '',
         editorPostId: '',
+        errorUpload: '',
+        errorAi: '',
+        linkPrompt: '',
+        msgGenerateRequire: '',
+        msgCorrectRequire: '',
 
         init() {
             const root = this.$root;
@@ -97,6 +102,11 @@ function registerBlogEditor() {
             this.editorPostId = root.dataset.editorPostId || '';
             this.editing = this.editorPostId !== '';
             this.csrfToken = root.dataset.editorCsrf || '';
+            this.errorUpload = root.dataset.editorErrorUpload || '';
+            this.errorAi = root.dataset.editorErrorAi || '';
+            this.linkPrompt = root.dataset.editorLinkPrompt || 'Link URL:';
+            this.msgGenerateRequire = root.dataset.editorGenerateRequire || '';
+            this.msgCorrectRequire = root.dataset.editorCorrectRequire || '';
             this.uploadRoute = root.dataset.routeUpload || '';
             this.aiRemainingRoute = root.dataset.routeAiRemaining || '';
             this.aiGenerateRoute = root.dataset.routeAiGenerate || '';
@@ -152,6 +162,8 @@ function registerBlogEditor() {
                 heading3: editor.isActive('heading', { level: 3 }),
                 bulletList: editor.isActive('bulletList'),
                 link: editor.isActive('link'),
+                codeBlock: editor.isActive('codeBlock'),
+                image: editor.isActive('image'),
             };
         },
 
@@ -180,6 +192,7 @@ function registerBlogEditor() {
                 case 'toggleH2': chain.toggleHeading({ level: 2 }).run(); break;
                 case 'toggleH3': chain.toggleHeading({ level: 3 }).run(); break;
                 case 'toggleBulletList': chain.toggleBulletList().run(); break;
+                case 'toggleCodeBlock': chain.toggleCodeBlock().run(); break;
                 case 'insertTable': chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
             }
             this.updateActiveStates();
@@ -188,7 +201,7 @@ function registerBlogEditor() {
         openLink() {
             if (!editor) return;
             const prev = editor.getAttributes('link').href;
-            const url = window.prompt('URL du lien :', prev || 'https://');
+            const url = window.prompt(this.linkPrompt, prev || 'https://');
             if (url === null) return;
             if (url === '') {
                 editor.chain().focus().unsetLink().run();
@@ -200,6 +213,22 @@ function registerBlogEditor() {
 
         triggerImageUpload() {
             this.$refs.imageInput.click();
+        },
+
+        resizeImage() {
+            if (!editor || !editor.isActive('image')) return;
+            const { state } = editor;
+            const { from } = state.selection;
+            const node = state.doc.nodeAt(from);
+            if (!node || node.type.name !== 'image') return;
+            const resized = node.attrs.resized === 'true';
+            const { tr } = state;
+            tr.setNodeMarkup(from, null, {
+                ...node.attrs,
+                resized: resized ? null : 'true',
+            });
+            editor.view.dispatch(tr);
+            this.updateActiveStates();
         },
 
         uploadImage(event) {
@@ -226,7 +255,7 @@ function registerBlogEditor() {
                     this.error = data.error;
                 }
             })
-            .catch(() => { this.error = 'Erreur lors de l\'upload.'; })
+            .catch(() => { this.error = this.errorUpload; })
             .finally(() => {
                 this.loading = false;
                 event.target.value = '';
@@ -263,12 +292,12 @@ function registerBlogEditor() {
             const summary = form?.querySelector('[name="summary"]')?.value || '';
 
             if (mode === 'generate' && (!title || !summary)) {
-                this.error = 'Ajoutez un titre et un résumé avant de générer l\'article.';
+                this.error = this.msgGenerateRequire;
                 return;
             }
 
             if (mode === 'correct' && !this.contentHasText()) {
-                this.error = 'Ajoutez du contenu avant de corriger l\'article.';
+                this.error = this.msgCorrectRequire;
                 return;
             }
 
@@ -308,7 +337,7 @@ function registerBlogEditor() {
                     this.error = data.error;
                 }
             })
-            .catch(() => { this.error = 'Erreur de communication avec le service IA.'; })
+            .catch(() => { this.error = this.errorAi; })
             .finally(() => {
                 this.generating = false;
             });
