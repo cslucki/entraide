@@ -3,16 +3,10 @@
         @php
             $currentRoute = request()->route()?->getName() ?? '';
             $currentOrganization = currentOrganization();
-            $adminOrganization = auth()->check()
-                ? \App\Models\Organization::where('admin_id', auth()->id())->first()
-                : null;
-            $menuOrganization = $adminOrganization ?? (auth()->check() ? auth()->user()->organization : null) ?? $currentOrganization;
+            $menuOrganization = (auth()->check() ? auth()->user()->organization : null) ?? $currentOrganization;
             $organizationRouteParam = request()->route('organization') ?: (auth()->check() ? $menuOrganization?->slug : null);
-            $usesDefaultOrganizationRoute = (bool) $menuOrganization?->is_default;
-    $canSeeFlux = auth()->check()
-        && $menuOrganization
-        && auth()->id() === $menuOrganization->admin_id;
-    $loopsEnabled = $currentOrganization?->loops_enabled ?? $menuOrganization?->loops_enabled ?? true;
+            $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
+            $loopsEnabled = $currentOrganization?->loops_enabled ?? $menuOrganization?->loops_enabled ?? true;
             $tabUrl = function (string $rootRoute, ?string $organizationRoute = null) use ($organizationRouteParam): string {
                 if ($organizationRouteParam && $organizationRoute && Route::has($organizationRoute)) {
                     return route($organizationRoute, ['organization' => $organizationRouteParam]);
@@ -22,7 +16,7 @@
             };
             $tabs = auth()->check() ? [
                 ['url' => $tabUrl('loops.index', 'organization.loops.index'), 'active' => 'loops', 'label' => __('navigation.loops'), 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', 'visible' => $loopsEnabled],
-                ['url' => $usesDefaultOrganizationRoute && Route::has('flux') ? route('flux') : ($organizationRouteParam ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard')), 'active' => 'flux', 'label' => __('navigation.feed'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z', 'visible' => $canSeeFlux],
+                ['url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'), 'active' => 'flux', 'label' => __('navigation.feed'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z', 'visible' => $canSeeFlux],
                 ['url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4'],
                 ['url' => $tabUrl('messages.index', 'organization.messages.index'), 'active' => 'messages', 'label' => __('navigation.messaging'), 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z'],
                 ['url' => $tabUrl('members.index', 'organization.members.index'), 'active' => 'members', 'label' => __('navigation.directory'), 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],

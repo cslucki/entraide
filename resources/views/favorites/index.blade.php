@@ -3,7 +3,8 @@
     <x-slot name="title">{{ __('favorites.title') }}</x-slot>
 
     <x-page-container>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">{{ __('favorites.title') }}</h1>
+        <h1 class="mb-8 hidden text-3xl font-bold text-gray-900 dark:text-gray-100 sm:block">{{ __('favorites.title') }}</h1>
+        <x-user-dashboard-nav class="mb-8" />
 
         @if($favorites->isEmpty())
         <div class="text-center py-16 text-gray-400">

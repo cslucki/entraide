@@ -1,6 +1,6 @@
 <x-app-layout>
     <div class="max-w-3xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('services.edit.heading') }}</h1>
+        <h1 class="hidden text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6 md:block">{{ __('services.edit.heading') }}</h1>
 
         @if($errors->any())
         <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
@@ -9,7 +9,9 @@
         @endif
 
         @php $_isOrgRoute = str_starts_with(Route::currentRouteName(), 'organization.'); $_svcOrgSlug = $_isOrgRoute ? $organization?->slug : null; $_svcUpdateAction = $_svcOrgSlug && Route::has('organization.services.update') ? route('organization.services.update', ['organization' => $_svcOrgSlug, 'service' => $service]) : route('services.update', $service); @endphp
-    <form method="POST" action="{{ $_svcUpdateAction }}" enctype="multipart/form-data"
+        <x-marketplace-form-validation :attribute-labels="__('marketplace.validation_attributes')" />
+
+    <form method="POST" action="{{ $_svcUpdateAction }}" enctype="multipart/form-data" data-marketplace-validation
               x-data="{
                 selectedCategory: '{{ old('category_id', $service->category_id) }}',
                 tags: '{{ old('tags', $service->tags->pluck('name')->join(',')) }}',

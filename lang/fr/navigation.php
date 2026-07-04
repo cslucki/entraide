@@ -12,7 +12,7 @@ return [
     'profile' => 'Mon profil public',
     'ai_profile' => 'Mon profil IA',
     'ai_interactions' => 'Échanges agent IA',
-    'points_history' => 'Historique des points',
+    'points_history' => 'Mes points',
     'invitations' => 'Invitations',
     'favorites' => 'Mes favoris',
     'my_articles' => 'Mes articles',

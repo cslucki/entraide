@@ -2,11 +2,15 @@
     <x-slot name="title">{{ __('points.title') }}</x-slot>
 
     <x-page-container>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ __('points.history_title') }}</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">{{ __('points.history_intro') }}</p>
+        <div class="mb-6 hidden sm:block">
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">{{ __('points.history_title') }}</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('points.history_intro') }}</p>
+        </div>
+
+        <x-user-dashboard-nav class="mb-8" />
 
         <!-- Summary -->
-        <div class="grid grid-cols-3 gap-4 mb-8">
+        <div class="grid grid-cols-2 gap-4 mb-8 sm:grid-cols-3 lg:grid-cols-5">
             <div class="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 text-center border border-indigo-100 dark:border-indigo-800">
                 <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ auth()->user()->points_balance }}</p>
                 <p class="text-xs text-gray-500 mt-1">{{ __('points.current_balance') }}</p>
@@ -19,6 +23,14 @@
                 <p class="text-2xl font-bold text-red-500 dark:text-red-400">-{{ $spent }}</p>
                 <p class="text-xs text-gray-500 mt-1">{{ __('points.total_spent') }}</p>
             </div>
+            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-center border border-blue-100 dark:border-blue-800">
+                <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ $completedCount }}</p>
+                <p class="text-xs text-gray-500 mt-1">{{ __('points.completed_exchanges') }}</p>
+            </div>
+            <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 text-center border border-yellow-100 dark:border-yellow-800">
+                <p class="text-2xl font-bold text-yellow-500 dark:text-yellow-400">{{ auth()->user()->rating ? number_format(auth()->user()->rating, 1).'/5' : '—' }}</p>
+                <p class="text-xs text-gray-500 mt-1">{{ __('points.average_rating') }}</p>
+            </div>
         </div>
 
         <!-- Chart -->
@@ -28,51 +40,6 @@
                 <canvas id="pointsChart"></canvas>
             </div>
         </div>
-
-        @if($referralLink)
-        <div id="invitations" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-8">
-            <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ __('points.invitations') }}</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                {{ __('points.invitation_help') }}
-            </p>
-            <div class="flex gap-6 text-sm text-gray-600 dark:text-gray-400 mb-4">
-                <div>
-                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $sentReferralsCount }}</span>
-                    <span class="ml-1">{{ __('points.invitation_count') }}</span>
-                </div>
-                <div>
-                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $activatedReferralsCount }}</span>
-                    <span class="ml-1">{{ __('points.activation_count') }}</span>
-                </div>
-                <div>
-                    <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $referralPointsEarned }}</span>
-                    <span class="ml-1">{{ __('points.points_earned') }}</span>
-                </div>
-            </div>
-            <div class="flex gap-2" x-data="{ copied: false, link: @js($referralLink) }">
-                <input type="text" readonly value="{{ $referralLink }}" data-referral-link-points
-                       class="flex-1 max-w-xs px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 select-all">
-                <button type="button" @click="
-                    const input = $root.querySelector('[data-referral-link-points]');
-                    if (navigator.clipboard && window.isSecureContext) {
-                        navigator.clipboard.writeText(link);
-                    } else if (input) {
-                        input.select();
-                        document.execCommand('copy');
-                    }
-                    copied = true;
-                    setTimeout(() => copied = false, 2000);
-                " class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
-                    <span x-show="!copied">{{ __('points.copy') }}</span>
-                    <span x-show="copied">{{ __('points.copied') }}</span>
-                </button>
-                <a href="https://wa.me/?text={{ urlencode($referralLink) }}" target="_blank" rel="noopener noreferrer"
-                   class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition whitespace-nowrap">
-                    WhatsApp
-                </a>
-            </div>
-        </div>
-        @endif
 
         <!-- Ledger -->
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">

@@ -2,11 +2,13 @@
 
 return [
     'title' => 'Échanges',
-    'requests' => 'Demandes d\'aide',
-    'services' => 'Services',
+    'requests' => 'Demandes',
+    'services' => 'Propositions',
+    'help_requests' => 'Demandes d\'aide',
+    'service_proposals' => 'Propositions d\'aide',
     'request' => 'demande d\'aide',
     'service' => 'service',
-    'offer_service' => 'Proposer mon aide',
+    'offer_service' => 'Proposer de l\'aide',
     'create_request' => 'Demander de l\'aide',
     'search_placeholder' => 'Rechercher...',
     'sort_latest' => 'Plus récents',
