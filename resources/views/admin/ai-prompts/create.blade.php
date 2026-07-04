@@ -19,11 +19,9 @@
                             <select name="scenario_id" id="scenario_id" required
                                     class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="">Sélectionner un scénario</option>
-                                <option value="supervision_content" @selected(old('scenario_id') === 'supervision_content')>Supervision de contenu</option>
-                                <option value="clarify_help_request" @selected(old('scenario_id') === 'clarify_help_request')>Clarification de demande d'aide</option>
-                                <option value="blog_generate" @selected(old('scenario_id') === 'blog_generate')>Blog — Génération d'article</option>
-                                <option value="blog_correct" @selected(old('scenario_id') === 'blog_correct')>Blog — Correction d'article</option>
-                                <option value="profile_agent_master" @selected(old('scenario_id') === 'profile_agent_master')>Agent de profil IA — Prompt master</option>
+                                @foreach($scenarioLabels as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('scenario_id') === $value)>{{ $label }}</option>
+                                @endforeach
                             </select>
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 La version sera automatiquement incrémentée.

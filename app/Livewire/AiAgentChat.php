@@ -13,6 +13,8 @@ use Livewire\Component;
 
 class AiAgentChat extends Component
 {
+    const MAX_VISITOR_TURNS = 8;
+
     public User $targetUser;
 
     public ?MemberAiProfile $profile = null;
@@ -24,6 +26,10 @@ class AiAgentChat extends Component
     public bool $isTyping = false;
 
     public ?string $error = null;
+
+    public bool $maxTurnsReached = false;
+
+    public int $visitorTurnCount = 0;
 
     private ?ProfileAgentConversation $conversation = null;
 
@@ -54,10 +60,16 @@ class AiAgentChat extends Component
         if (empty($this->messages)) {
             $this->messages[] = [
                 'role' => 'assistant',
-                'text' => "Bonjour ! 👋 Je suis l'agent IA de **{$user->name}**. Je peux vous parler de ses compétences, de son expérience et de comment il peut vous aider. Que souhaitez-vous savoir ?",
+                'text' => $this->initialAssistantMessage($user),
                 'time' => now()->format('H:i'),
             ];
         }
+
+        $this->visitorTurnCount = ProfileAgentMessage::where('conversation_id', $this->conversation->id)
+            ->where('role', 'user')
+            ->count();
+
+        $this->maxTurnsReached = $this->visitorTurnCount >= self::MAX_VISITOR_TURNS;
     }
 
     public function sendMessage(): void
@@ -65,13 +77,19 @@ class AiAgentChat extends Component
         $this->error = null;
 
         if (! $this->profile) {
-            $this->error = "Ce membre n'a pas encore publié son profil IA.";
+            $this->error = __('ai.visitor_chat_profile_missing');
 
             return;
         }
 
         $question = trim($this->question);
         if ($question === '') {
+            return;
+        }
+
+        if ($this->maxTurnsReached) {
+            $this->error = __('ai.visitor_chat_max_turns_reached');
+
             return;
         }
 
@@ -88,9 +106,9 @@ class AiAgentChat extends Component
 
         try {
             $responder = app(MemberProfileAgentResponder::class);
-            $result = $responder->answerWithDefaultProvider($this->profile, $question);
+            $result = $responder->answerWithDefaultProvider($this->profile, $question, 'profile_agent_visitor_chat');
 
-            $response = $result['response'] ?? "Je n'ai pas pu générer une réponse pour le moment.";
+            $response = $result['response'] ?? __('ai.visitor_chat_generation_failed');
 
             $this->messages[] = [
                 'role' => 'assistant',
@@ -99,8 +117,13 @@ class AiAgentChat extends Component
             ];
 
             $this->storeMessage('assistant', $response, $result);
+
+            $responder->logVisitorInteraction($question, $response, $result);
+
+            $this->visitorTurnCount++;
+            $this->maxTurnsReached = $this->visitorTurnCount >= self::MAX_VISITOR_TURNS;
         } catch (\Throwable $e) {
-            $this->error = 'Une erreur est survenue. Veuillez réessayer.';
+            $this->error = __('ai.visitor_chat_error');
         } finally {
             $this->isTyping = false;
         }
@@ -111,6 +134,8 @@ class AiAgentChat extends Component
         $this->messages = [];
         $this->error = null;
         $this->question = '';
+        $this->maxTurnsReached = false;
+        $this->visitorTurnCount = 0;
 
         if ($this->conversation) {
             $this->conversation->messages()->delete();
@@ -122,9 +147,14 @@ class AiAgentChat extends Component
 
         $this->messages[] = [
             'role' => 'assistant',
-            'text' => "Bonjour ! 👋 Je suis l'agent IA de **{$this->targetUser->name}**. Je peux vous parler de ses compétences, de son expérience et de comment il peut vous aider. Que souhaitez-vous savoir ?",
+            'text' => $this->initialAssistantMessage($this->targetUser),
             'time' => now()->format('H:i'),
         ];
+    }
+
+    private function initialAssistantMessage(User $user): string
+    {
+        return __('ai.visitor_chat_initial_message', ['member_name' => $user->name]);
     }
 
     private function findOrCreateConversation(): ProfileAgentConversation

@@ -533,6 +533,8 @@ Route::prefix('/org/{organization}')
                 Route::get('/agent-ia/setup', [AgentIaController::class, 'setup'])->name('agent-ia.setup');
                 Route::get('/agent-ia/test', [AgentIaController::class, 'test'])->name('agent-ia.test');
                 Route::get('/agent-ia/echanges', [MemberAiProfileInteractionController::class, 'index'])->name('agent-ia.interactions');
+                Route::get('/agent-ia/echanges/conversations', [MemberAiProfileConversationsController::class, 'index'])->middleware('consume.org')->name('agent-ia.conversations');
+                Route::get('/agent-ia/echanges/conversations/{conversation}', [MemberAiProfileConversationsController::class, 'show'])->middleware('consume.org')->name('agent-ia.conversations.show');
             });
 
             Route::middleware('loops.enabled')->group(function () {
@@ -580,6 +582,9 @@ Route::prefix('/org/{organization}')
         Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->name('requests.show')->whereUuid('request');
         Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show')->whereUuid('user');
+        Route::middleware('ai-profiles.enabled')->group(function () {
+            Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->middleware('consume.org')->name('agent-ia.profile.chat')->whereUuid('user');
+        });
 
         Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
         Route::get('/membres', [HomeController::class, 'members'])->name('members.index');

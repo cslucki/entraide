@@ -73,10 +73,27 @@
 
         {{-- Composer --}}
         <x-slot:composer>
+            @if(!$maxTurnsReached)
+                <div class="mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2">
+                    <p class="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+                        <svg class="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/>
+                        </svg>
+                        <span>{{ __('ai.visitor_chat_disclaimer') }}</span>
+                    </p>
+                </div>
+            @else
+                <div class="mb-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2 text-center">
+                    <p class="text-sm font-medium text-green-700 dark:text-green-400">
+                        {{ __('ai.visitor_chat_max_turns_reached') }}
+                    </p>
+                </div>
+            @endif
+
             <x-conversation.composer
                 model="question"
-                placeholder="Posez votre question..."
-                :disabled="$isTyping"
+                placeholder="{{ $maxTurnsReached ? __('ai.visitor_chat_composer_disabled') : __('ai.visitor_chat_placeholder') }}"
+                :disabled="$isTyping || $maxTurnsReached"
                 :loading="$isTyping"
                 :error="$error"
                 :rows="1"

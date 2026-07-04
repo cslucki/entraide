@@ -1,11 +1,19 @@
 <x-app-layout title="{{ __('ai.conversations_title') }}">
+    @php
+        $_isOrgRoute = str_starts_with(Route::currentRouteName(), 'organization.');
+        $_orgSlug = $_isOrgRoute ? currentOrganization()?->slug : null;
+        $_wizardUrl = $_orgSlug && Route::has('organization.agent-ia.wizard') ? route('organization.agent-ia.wizard', ['organization' => $_orgSlug]) : route('agent-ia.wizard');
+        $_interactionsUrl = $_orgSlug && Route::has('organization.agent-ia.interactions') ? route('organization.agent-ia.interactions', ['organization' => $_orgSlug]) : route('agent-ia.interactions');
+        $_conversationsUrl = $_orgSlug && Route::has('organization.agent-ia.conversations') ? route('organization.agent-ia.conversations', ['organization' => $_orgSlug]) : route('agent-ia.conversations');
+    @endphp
+
     <x-slot name="header">
         <div class="flex items-center justify-between gap-4">
             <div>
                 <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.conversations_title') }}</h1>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('ai.conversations_subtitle') }}</p>
             </div>
-            <a href="{{ route('agent-ia.wizard') }}" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+            <a href="{{ $_wizardUrl }}" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
                 {{ __('ai.edit_profile') }}
             </a>
         </div>
@@ -14,11 +22,11 @@
     <div class="max-w-5xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <div class="mb-6">
             <div class="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <a href="{{ route('agent-ia.interactions') }}"
+                <a href="{{ $_interactionsUrl }}"
                    class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     {{ __('ai.tab_interactions') }}
                 </a>
-                <a href="{{ route('agent-ia.conversations') }}"
+                <a href="{{ $_conversationsUrl }}"
                    class="px-4 py-2 text-sm font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 transition">
                     {{ __('ai.tab_conversations') }}
                 </a>
@@ -29,7 +37,7 @@
             <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-800">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.no_profile_title') }}</h2>
                 <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ __('ai.no_profile_body') }}</p>
-                <a href="{{ route('agent-ia.wizard') }}" class="mt-5 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ __('ai.create_profile') }}</a>
+                <a href="{{ $_wizardUrl }}" class="mt-5 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ __('ai.create_profile') }}</a>
             </div>
         @elseif($conversations->isEmpty())
             <div class="rounded-2xl border border-gray-200 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-800">
@@ -72,7 +80,7 @@
                         @endif
 
                         <div class="mt-4">
-                            <a href="{{ route('agent-ia.conversations.show', $conversation) }}"
+                            <a href="{{ $_orgSlug && Route::has('organization.agent-ia.conversations.show') ? route('organization.agent-ia.conversations.show', ['organization' => $_orgSlug, 'conversation' => $conversation]) : route('agent-ia.conversations.show', $conversation) }}"
                                class="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition">
                                 {{ __('ai.view_conversation') }}
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

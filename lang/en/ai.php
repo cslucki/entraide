@@ -76,4 +76,13 @@ return [
     'model_label' => 'Model',
     'latency_label' => 'Response time',
     'latency_ms' => '{ms} ms',
+
+    'visitor_chat_disclaimer' => 'You are talking to the member\'s AI agent. It helps you formulate your request. The member will be able to read this exchange.',
+    'visitor_chat_initial_message' => 'Hello! I’m :member_name’s AI agent. I can tell you about their skills, experience, and how they may be able to help. What would you like to know?',
+    'visitor_chat_placeholder' => 'Ask your question...',
+    'visitor_chat_composer_disabled' => 'The conversation is closed',
+    'visitor_chat_max_turns_reached' => 'Your request has been sufficiently formulated. The member will be able to review this exchange.',
+    'visitor_chat_profile_missing' => 'This member has not published their AI profile yet.',
+    'visitor_chat_generation_failed' => 'I could not generate a response right now.',
+    'visitor_chat_error' => 'An error occurred. Please try again.',
 ];
