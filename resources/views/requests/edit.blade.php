@@ -1,6 +1,7 @@
 <x-app-layout>
     @php
-        $_reqOrgSlug = request()->route('organization');
+        $_isOrgRoute = str_starts_with(Route::currentRouteName(), 'organization.');
+        $_reqOrgSlug = $_isOrgRoute ? $organization?->slug : null;
         $_reqUpdateAction = $_reqOrgSlug && Route::has('organization.requests.update') ? route('organization.requests.update', ['organization' => $_reqOrgSlug, 'request' => $request]) : route('requests.update', $request);
     @endphp
     <div class="max-w-3xl mx-auto px-4 py-8">

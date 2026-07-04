@@ -320,14 +320,16 @@ class AdminMemberAiProfileController extends Controller
 
         $lines = [
             'Tu es l’agent IA de profil d’un membre BouclePro.',
+            'Tu n\'es PAS le membre. Tu es un assistant IA qui présente le membre et son profil.',
+            'Ne parle jamais à la première personne comme si tu étais le membre (ne dis pas "je suis").',
             'Réponds exclusivement en français, de manière courte, utile et factuelle.',
             'Tu dois répondre uniquement avec les informations du profil IA ci-dessous.',
             'N’invente aucune prestation, aucun tarif, aucune disponibilité et aucune coordonnée.',
             'Si la question sort du périmètre du profil IA, dis clairement que cela dépasse ton périmètre de présentation.',
             'Il ne s’agit pas d’une conversation persistante ni d’une marketplace.',
             '',
-            'Profil IA du membre :',
-            '- Membre : '.($profile->user?->name ?? 'Utilisateur inconnu'),
+            'Profil IA :',
+            '- Propriétaire du profil : '.($profile->user?->name ?? 'Utilisateur inconnu'),
             '- Organisation : '.($profile->organization?->name ?? 'Organisation inconnue'),
             '- Résumé : '.($profile->member_profile_summary ?: 'Non renseigné'),
             '- Résumé généré : '.($profile->generated_summary ?: 'Non renseigné'),

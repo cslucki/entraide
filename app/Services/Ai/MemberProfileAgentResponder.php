@@ -15,7 +15,7 @@ class MemberProfileAgentResponder
         private readonly AdminAiInteractionPersistence $logger,
     ) {}
 
-    public function answerWithDefaultProvider(MemberAiProfile $profile, string $question): array
+    public function answerWithDefaultProvider(MemberAiProfile $profile, string $question, string $scenarioId = 'profile_agent_master'): array
     {
         $providers = $this->resolver->availableProviders();
         $provider = $this->resolver->defaultProvider() ?? array_key_first($providers);
@@ -28,21 +28,21 @@ class MemberProfileAgentResponder
             ?? $this->resolver->providerConfig($provider)['model'];
 
         try {
-            return $this->answerWithProvider($profile, $question, $provider, $model);
+            return $this->answerWithProvider($profile, $question, $provider, $model, $scenarioId);
         } catch (\Throwable) {
             return $this->answerRuleBased($profile, $question);
         }
     }
 
-    public function answerWithProvider(MemberAiProfile $profile, string $question, string $provider, string $model): array
+    public function answerWithProvider(MemberAiProfile $profile, string $question, string $provider, string $model, string $scenarioId = 'profile_agent_master'): array
     {
         $config = $this->resolver->providerConfig($provider);
         $startedAt = (int) (microtime(true) * 1000);
 
         $answer = match ($provider) {
-            'ollama' => $this->callOllama($profile, $config, $model, $question),
-            'openrouter' => $this->callOpenRouter($profile, $config, $model, $question),
-            default => $this->callOpenAiCompatible($profile, $config, $model, $question),
+            'ollama' => $this->callOllama($profile, $config, $model, $question, $scenarioId),
+            'openrouter' => $this->callOpenRouter($profile, $config, $model, $question, $scenarioId),
+            default => $this->callOpenAiCompatible($profile, $config, $model, $question, $scenarioId),
         };
 
         return [
@@ -96,7 +96,7 @@ class MemberProfileAgentResponder
 
         if (empty($matchedFields)) {
             return [
-                'response' => 'Je peux surtout vous aider à comprendre si ce membre correspond à votre besoin. Pouvez-vous préciser ce que vous cherchez : un conseil, un avis rapide, une méthode ou un accompagnement ?',
+                'response' => $this->ruleBasedClarificationResponse(),
                 'fields' => [],
                 'provider' => 'rule_based',
                 'model' => null,
@@ -108,7 +108,7 @@ class MemberProfileAgentResponder
 
         if ($highlights === []) {
             return [
-                'response' => "Je n'ai pas assez d'information publiée pour répondre précisément, mais je peux vous aider à qualifier votre demande. Quel est votre contexte ou votre objectif principal ?",
+                'response' => $this->ruleBasedMissingProfileResponse(),
                 'fields' => $matchedFields,
                 'provider' => 'rule_based',
                 'model' => null,
@@ -211,14 +211,14 @@ class MemberProfileAgentResponder
         return trim((string) ($response->json('choices.0.message.content') ?? ''));
     }
 
-    private function callOllama(MemberAiProfile $profile, array $config, string $model, string $question): string
+    private function callOllama(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): string
     {
         $response = Http::timeout((int) ($config['timeout'] ?? 30))
             ->acceptJson()
             ->asJson()
             ->post(rtrim((string) $config['base_url'], '/').'/api/generate', [
                 'model' => $model,
-                'prompt' => $this->buildPrompt($profile, $question),
+                'prompt' => $this->buildPrompt($profile, $question, $scenarioId),
                 'stream' => false,
                 'think' => false,
                 'options' => [
@@ -234,7 +234,7 @@ class MemberProfileAgentResponder
         return trim((string) ($response->json('response') ?? $response->json('thinking') ?? ''));
     }
 
-    private function callOpenRouter(MemberAiProfile $profile, array $config, string $model, string $question): string
+    private function callOpenRouter(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): string
     {
         if (empty($config['api_key'])) {
             throw new \RuntimeException('Clé API OpenRouter manquante.');
@@ -249,7 +249,7 @@ class MemberProfileAgentResponder
                 ->timeout((int) ($config['timeout'] ?? 30))
                 ->acceptJson()
                 ->asJson()
-                ->post(rtrim((string) $config['base_url'], '/').'/chat/completions', $this->chatPayload($profile, $config, $model, $question));
+                ->post(rtrim((string) $config['base_url'], '/').'/chat/completions', $this->chatPayload($profile, $config, $model, $question, $scenarioId));
         } catch (ConnectionException $e) {
             throw $e;
         }
@@ -261,7 +261,7 @@ class MemberProfileAgentResponder
         return trim((string) ($response->json('choices.0.message.content') ?? ''));
     }
 
-    private function callOpenAiCompatible(MemberAiProfile $profile, array $config, string $model, string $question): string
+    private function callOpenAiCompatible(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): string
     {
         if (empty($config['api_key'])) {
             throw new \RuntimeException('Clé API du provider manquante.');
@@ -271,7 +271,7 @@ class MemberProfileAgentResponder
             ->timeout((int) ($config['timeout'] ?? 30))
             ->acceptJson()
             ->asJson()
-            ->post(rtrim((string) $config['base_url'], '/').'/chat/completions', $this->chatPayload($profile, $config, $model, $question));
+            ->post(rtrim((string) $config['base_url'], '/').'/chat/completions', $this->chatPayload($profile, $config, $model, $question, $scenarioId));
 
         if (! $response->successful()) {
             throw new \RuntimeException(sprintf('Réponse IA invalide (HTTP %d).', $response->status()));
@@ -280,12 +280,12 @@ class MemberProfileAgentResponder
         return trim((string) ($response->json('choices.0.message.content') ?? ''));
     }
 
-    private function chatPayload(MemberAiProfile $profile, array $config, string $model, string $question): array
+    private function chatPayload(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): array
     {
         return [
             'model' => $model,
             'messages' => [
-                ['role' => 'system', 'content' => $this->buildSystemPrompt($profile)],
+                ['role' => 'system', 'content' => $this->buildSystemPrompt($profile, $scenarioId)],
                 ['role' => 'user', 'content' => $question],
             ],
             'max_tokens' => (int) ($config['max_output_tokens'] ?? 650),
@@ -293,16 +293,22 @@ class MemberProfileAgentResponder
         ];
     }
 
-    private function buildPrompt(MemberAiProfile $profile, string $question): string
+    private function buildPrompt(MemberAiProfile $profile, string $question, string $scenarioId = 'profile_agent_master'): string
     {
-        return $this->buildSystemPrompt($profile)."\n\nQuestion du visiteur :\n".$question;
+        $questionLabel = $this->currentLocale() === 'en' ? 'Visitor question' : 'Question du visiteur';
+
+        return $this->buildSystemPrompt($profile, $scenarioId)."\n\n{$questionLabel} :\n".$question;
     }
 
-    private function buildSystemPrompt(MemberAiProfile $profile): string
+    private function buildSystemPrompt(MemberAiProfile $profile, string $scenarioId = 'profile_agent_master'): string
     {
         $profile->loadMissing(['user', 'organization']);
 
-        $instructions = $this->resolveMasterPrompt();
+        $instructions = $this->resolveMasterPrompt($scenarioId);
+
+        if ($scenarioId === 'profile_agent_visitor_chat') {
+            $instructions .= "\n\n".$this->visitorChatLocaleInstructions();
+        }
 
         $profileData = $this->buildProfileDataLines($profile);
 
@@ -315,8 +321,8 @@ class MemberProfileAgentResponder
 
         $lines = [
             '',
-            'Profil IA du membre :',
-            '- Membre : '.($profile->user?->name ?? 'Utilisateur inconnu'),
+            'Profil IA :',
+            '- Propriétaire du profil : '.($profile->user?->name ?? 'Utilisateur inconnu'),
             '- Organisation : '.($profile->organization?->name ?? 'Organisation inconnue'),
         ];
 
@@ -353,19 +359,50 @@ class MemberProfileAgentResponder
         return implode("\n", $lines);
     }
 
-    private function resolveMasterPrompt(): string
+    private function resolveMasterPrompt(string $scenarioId = 'profile_agent_master'): string
     {
         $dbPrompt = AdminAiPrompt::active()
-            ->byScenario('profile_agent_master')
+            ->byScenario($scenarioId)
             ->orderByDesc('version')
             ->first();
 
         if ($dbPrompt && filled($dbPrompt->prompt_text)) {
-            return $dbPrompt->prompt_text;
+            return str_contains($dbPrompt->prompt_text, 'Profil du membre à présenter :') ? $this->appendProfilePlaceholder($dbPrompt->prompt_text) : $dbPrompt->prompt_text;
+        }
+
+        if ($scenarioId === 'profile_agent_visitor_chat') {
+            return implode("\n", [
+                "Tu es l'agent IA conversationnel et commercial d'un membre BouclePro.",
+                '',
+                'IDENTITÉ — Règle fondamentale :',
+                "Tu n'es PAS le membre. Tu es un assistant IA qui représente et présente le membre à ses visiteurs.",
+                '- Ne parle jamais à la première personne comme si tu étais le membre.',
+                '- Quand tu présentes le membre, fais-le toujours à la troisième personne (il/elle, le membre, son profil).',
+                '- Ne commence jamais une réponse par "Je suis [nom du membre]" ou "Je suis [titre du membre]".',
+                '- Tu es un outil de qualification et de mise en relation, pas une incarnation du membre.',
+                '- Exprime-toi toujours en tant qu\'assistant IA du membre, jamais en tant que le membre lui-même.',
+                '',
+                "Ton rôle est d'aider le visiteur à formuler une demande utile et précise, sans remplacer le membre propriétaire.",
+                'Respecte strictement le contexte de langue injecté dans le prompt.',
+                'Présente le membre et son offre professionnelle à partir des données du profil, sans inventer d\'information.',
+                'Si le visiteur exprime un besoin, pose UNE SEULE question de qualification à la fois.',
+                'Qualifie progressivement selon : objectif concret, contexte, type d\'aide recherchée, urgence ou horizon, résultat attendu.',
+                'Ne promets jamais disponibilité, tarif, délai, résultat garanti ou compétence non déclarée.',
+                'Si la question sort du périmètre du profil, ramène poliment vers ce que le membre propose.',
+                'Rappelle en fin de réponse que le membre propriétaire pourra lire l\'échange.',
+                'Reste concis : privilégie des réponses courtes et actionnables.',
+            ]);
         }
 
         return implode("\n", [
             "Tu es l'agent IA commercial et conversationnel du profil d'un membre BouclePro.",
+            '',
+            'IDENTITÉ — Règle fondamentale :',
+            "Tu n'es PAS le membre. Tu es un assistant IA qui représente et présente le membre à ses visiteurs.",
+            '- Ne parle jamais à la première personne comme si tu étais le membre.',
+            '- Quand tu présentes le membre, fais-le toujours à la troisième personne (il/elle, le membre, son profil).',
+            '- Ne commence jamais une réponse par "Je suis [nom du membre]" ou "Je suis [titre du membre]".',
+            '',
             "Objectif : aider le visiteur à comprendre concrètement comment ce membre peut l'aider, puis qualifier le besoin pour faciliter la mise en relation.",
             'Réponds en français, avec un ton naturel, rassurant, professionnel et orienté action.',
             'Ne te contente pas de recopier les champs : reformule, synthétise, explique la valeur et oriente le visiteur.',
@@ -374,6 +411,15 @@ class MemberProfileAgentResponder
             'Si la question sort du périmètre, ramène poliment vers ce que le membre peut présenter et pose une question de qualification liée au profil.',
             'Pas de promesse commerciale excessive. Pas de conversation persistante. Pas de marketplace.',
         ]);
+    }
+
+    private function appendProfilePlaceholder(string $prompt): string
+    {
+        if (str_contains($prompt, 'Profil du membre à présenter')) {
+            return $prompt;
+        }
+
+        return $prompt."\n\nProfil du membre à présenter :\n";
     }
 
     private function resolveSetupPrompt(): string
@@ -421,6 +467,22 @@ class MemberProfileAgentResponder
         ]);
     }
 
+    public function logVisitorInteraction(
+        string $question,
+        string $response,
+        array $result,
+    ): void {
+        $this->logger->persist([
+            'scenario_id' => 'profile_agent_visitor_chat',
+            'provider' => $result['provider'] ?? 'unknown',
+            'model' => $result['model'] ?? null,
+            'status' => 'success',
+            'content' => $question,
+            'result_summary' => $response,
+            'latency_ms' => $result['latency_ms'] ?? null,
+        ]);
+    }
+
     private function collectHighlights(MemberAiProfile $profile, array $fields): array
     {
         $labels = [
@@ -451,7 +513,57 @@ class MemberProfileAgentResponder
     {
         $summary = implode(' ', array_slice($highlights, 0, 3));
 
+        if ($this->currentLocale() === 'en') {
+            return "Yes. Based on this member's profile, they may be able to help with this need: {$summary}.\n\nTo guide you usefully, what is your concrete goal or the main problem you want to solve?";
+        }
+
         return "Oui. D'après son profil, ce membre peut vous aider sur ce besoin : {$summary}.\n\nPour vous orienter utilement, quel est votre objectif concret ou le problème que vous voulez résoudre en priorité ?";
+    }
+
+    private function visitorChatLocaleInstructions(): string
+    {
+        $locale = $this->currentLocale();
+
+        return implode("\n", [
+            'Language context:',
+            '- current_locale='.$locale,
+            '- response_language='.$this->responseLanguage($locale),
+            '- Respond in English when current_locale is en.',
+            '- Réponds en français quand current_locale est fr.',
+            '- If the visitor writes in another language, you may follow the visitor language, but never default to French when current_locale is en.',
+            '- When the visitor asks about a skill or tool that is not specified in the member profile, say that the published profile does not specify this competency; do not say that the member cannot or does not offer it.',
+            '- Quand le visiteur demande une compétence ou un outil non renseigné dans le profil, dis que le profil publié ne précise pas cette compétence ; ne conclus pas que le membre ne peut pas ou ne propose pas cette aide.',
+            '- Then propose to qualify the request so the member can read and assess it.',
+            '- Propose ensuite de qualifier la demande afin que le membre puisse la lire et l’évaluer.',
+        ]);
+    }
+
+    private function responseLanguage(string $locale): string
+    {
+        return $locale === 'en' ? 'English' : 'French';
+    }
+
+    private function currentLocale(): string
+    {
+        return app()->getLocale() === 'en' ? 'en' : 'fr';
+    }
+
+    private function ruleBasedClarificationResponse(): string
+    {
+        if ($this->currentLocale() === 'en') {
+            return 'I can mainly help you understand whether this member matches your need. Could you clarify what you are looking for: advice, a quick opinion, a method, or support?';
+        }
+
+        return 'Je peux surtout vous aider à comprendre si ce membre correspond à votre besoin. Pouvez-vous préciser ce que vous cherchez : un conseil, un avis rapide, une méthode ou un accompagnement ?';
+    }
+
+    private function ruleBasedMissingProfileResponse(): string
+    {
+        if ($this->currentLocale() === 'en') {
+            return 'I do not have enough published information to answer precisely, but I can help qualify your request. What is your context or main goal?';
+        }
+
+        return "Je n'ai pas assez d'information publiée pour répondre précisément, mais je peux vous aider à qualifier votre demande. Quel est votre contexte ou votre objectif principal ?";
     }
 
     private function formatProfileValue(mixed $value): string

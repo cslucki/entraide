@@ -154,7 +154,7 @@ class ServiceController extends Controller
         $skills = Skill::where('organization_id', $organization->id)->with('category')->get()->groupBy('category_id');
         $service->load(['skills', 'tags', 'category']);
 
-        return view('services.edit', compact('service', 'categories', 'skills'));
+        return view('services.edit', compact('service', 'categories', 'skills', 'organization'));
     }
 
     public function update(Request $request, Service $service): RedirectResponse

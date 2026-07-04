@@ -1,14 +1,3 @@
-@php
-    $scenarioLabels = [
-        'supervision_content' => 'Supervision de contenu',
-        'clarify_help_request' => 'Clarification de demande d\'aide',
-        'blog_generate' => 'Blog — Génération d\'article',
-        'blog_correct' => 'Blog — Correction d\'article',
-        'profile_agent_master' => 'Agent de profil IA — Prompt master',
-        'profile_agent_setup' => 'Agent de profil IA — Prompt setup',
-    ];
-@endphp
-
 <x-admin-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
@@ -40,13 +29,10 @@
                             <select name="scenario_id"
                                     class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                     onchange="this.form.submit()">
-                                <option value="">Tous les scénarios</option>
-                                <option value="supervision_content" @selected($scenarioId === 'supervision_content')>Supervision de contenu</option>
-                                <option value="clarify_help_request" @selected($scenarioId === 'clarify_help_request')>Clarification de demande d'aide</option>
-                                <option value="blog_generate" @selected($scenarioId === 'blog_generate')>Blog — Génération d'article</option>
-                                <option value="blog_correct" @selected($scenarioId === 'blog_correct')>Blog — Correction d'article</option>
-                                <option value="profile_agent_master" @selected($scenarioId === 'profile_agent_master')>Agent de profil IA — Prompt master</option>
-                                <option value="profile_agent_setup" @selected($scenarioId === 'profile_agent_setup')>Agent de profil IA — Prompt setup</option>
+                                 <option value="">Tous les scénarios</option>
+                                @foreach($scenarioLabels as $value => $label)
+                                    <option value="{{ $value }}" @selected($scenarioId === $value)>{{ $label }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <button type="submit"

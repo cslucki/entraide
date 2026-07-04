@@ -163,7 +163,7 @@ class InlineMemberAgentTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('Agent IA de');
-        $response->assertSee('Posez votre question');
+        $response->assertSee(__('ai.visitor_chat_placeholder'));
         $response->assertSee('Écrire à');
     }
 
