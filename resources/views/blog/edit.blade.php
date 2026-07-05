@@ -192,7 +192,6 @@
                 </div>
 
                 <div class="flex items-center gap-3 pt-2">
-                    <input type="hidden" name="active_snapshot_id" value="">
                     <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
                         {{ __('blog.btn_save') }}
                     </button>
@@ -224,7 +223,7 @@
     {{-- Right sidebar --}}
     <aside
         :style="`width: ${width}px`"
-        class="shrink-0 hidden md:flex flex-col space-y-2 overflow-y-auto max-h-[80vh]"
+        class="shrink-0 hidden md:flex flex-col space-y-2"
     >
         {{-- Generic cards (boucle, coecriture, annotations) --}}
         <template x-for="card in cards" :key="card.key">
@@ -242,7 +241,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
-                <div x-show="card.open" x-cloak class="px-3 pb-3 text-xs text-gray-500 dark:text-gray-400">
+                <div x-show="card.open" x-cloak class="px-3 pb-3 text-xs text-gray-500 dark:text-gray-400 max-h-40 overflow-y-auto">
                     <span x-text="card.placeholder"></span>
                 </div>
             </div>
@@ -256,6 +255,7 @@
                 restoreUrlBase: @js($_blogRoute('snapshots.restore', ['post' => $post, 'snapshot' => '__PLACEHOLDER__'])),
                 i18n: {
                     snapshotCreated: @js(__('blog.snapshot_created')),
+                    snapshotNamed: @js(__('blog.snapshot_named')),
                     snapshotLoadError: @js(__('blog.snapshot_load_error')),
                     snapshotRestoreError: @js(__('blog.snapshot_restore_error')),
                     snapshotRestored: @js(__('blog.snapshot_restored')),
@@ -278,14 +278,14 @@
                 </svg>
             </button>
 
-            <div x-show="open" x-cloak class="px-3 pb-3 space-y-2">
+            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[32rem] overflow-y-auto">
                 {{-- Success message --}}
                 <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
                 {{-- Error message --}}
                 <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
 
-                {{-- View: Create --}}
-                <div x-show="view === 'create'">
+                {{-- Manual create form --}}
+                <div>
                     <input type="text" x-model="name" :placeholder="@js(__('blog.snapshot_name_placeholder'))" maxlength="255"
                         class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500 mb-1">
                     <textarea x-model="comment" :placeholder="@js(__('blog.snapshot_comment_placeholder'))" rows="2" maxlength="1000"
@@ -300,41 +300,49 @@
                     </button>
                 </div>
 
-                {{-- View: History --}}
-                <div x-show="view === 'history'">
-                    <template x-if="loading">
-                        <div class="flex items-center justify-center py-4">
-                            <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                        </div>
-                    </template>
-                    <template x-if="!loading && snapshots.length === 0">
-                        <p class="text-xs text-gray-400 dark:text-gray-500 py-2">{{ __('blog.snapshot_history_empty') }}</p>
-                    </template>
-                    <template x-for="s in snapshots" :key="s.id">
-                        <div class="border-b border-gray-100 dark:border-gray-700 last:border-0 py-1.5">
-                            <p class="text-xs font-semibold text-gray-800 dark:text-gray-200" x-text="s.name"></p>
-                            <p class="text-[10px] text-gray-400 dark:text-gray-500" x-text="'{{ __('blog.snapshot_created_by') }}'.replace(':name', s.creator_name) + ' · ' + s.created_at"></p>
-                            <template x-if="s.comment">
-                                <p class="text-[10px] text-gray-500 dark:text-gray-400 italic" x-text="s.comment"></p>
-                            </template>
-                            <template x-if="s.is_restored">
-                                <p class="text-[10px] text-amber-600 dark:text-amber-400">({{ __('blog.snapshot_restored_label') }})</p>
-                            </template>
-                            <button @click="restoreSnapshot(s.id)"
-                                class="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 mt-0.5 transition">
-                                {{ __('blog.snapshot_restore') }}
+                {{-- Inline history --}}
+                <template x-if="loading && snapshots.length === 0">
+                    <div class="flex items-center justify-center py-4">
+                        <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    </div>
+                </template>
+
+                <template x-if="!loading && snapshots.length === 0">
+                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2">{{ __('blog.snapshot_history_empty') }}</p>
+                </template>
+
+                <template x-for="s in snapshots" :key="s.id">
+                    <div class="rounded-lg border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 space-y-1">
+                        <div class="flex items-start justify-between gap-1">
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="s.name"></p>
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400" x-text="s.created_at + (s.creator_name ? ' · ' + s.creator_name : '')"></p>
+                            </div>
+                            <button type="button" @click="restoreSnapshot(s.id)"
+                                class="shrink-0 rounded-md border border-indigo-200 dark:border-indigo-700 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition"
+                                :disabled="loading">
+                                {{ __('blog.snapshot_restore_btn') }}
                             </button>
                         </div>
-                    </template>
-                </div>
+                        <template x-if="s.comment">
+                            <p class="text-[10px] text-gray-500 dark:text-gray-400 italic truncate" x-text="'— ' + s.comment"></p>
+                        </template>
+                        <template x-if="s.is_restored">
+                            <p class="inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">{{ __('blog.snapshot_restored_label') }}</p>
+                        </template>
+                    </div>
+                </template>
 
-                {{-- View switcher --}}
-                <div class="flex gap-1 pt-1">
-                    <button @click="switchView('create')" :class="view === 'create' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'"
-                        class="text-[10px] font-semibold px-2 py-1 rounded transition">{{ __('blog.snapshot_create') }}</button>
-                    <button @click="switchView('history')" :class="view === 'history' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'"
-                        class="text-[10px] font-semibold px-2 py-1 rounded transition" x-text="'{{ __('blog.snapshot_history') }}'.replace(':count', snapshots.length)"></button>
-                </div>
+                <button type="button" x-show="hasMore" @click="loadMore()" :disabled="loading"
+                    class="w-full rounded-md border border-dashed border-gray-300 dark:border-gray-600 px-2 py-1 text-[10px] font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+                    <span x-show="!loading">
+                        <span x-text="'{{ __('blog.snapshot_load_more') }}'.replace(':remaining', remainingCount())"></span>
+                    </span>
+                    <span x-show="loading" class="flex items-center justify-center gap-1">
+                        <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {{ __('blog.snapshot_loading') }}
+                    </span>
+                </button>
             </div>
         </div>
         {{-- /Snapshot card --}}

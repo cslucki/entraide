@@ -128,9 +128,11 @@ class T962BlogSnapshotTest extends TestCase
         $this->actingAs($user)
             ->getJson(route('blog.snapshots.index', $post))
             ->assertOk()
-            ->assertJsonCount(2)
-            ->assertJsonPath('0.name', 'Version 2')
-            ->assertJsonPath('1.name', 'Version 1');
+            ->assertJsonPath('snapshots', fn ($s) => count($s) === 2)
+            ->assertJsonPath('snapshots.0.name', 'Version 2')
+            ->assertJsonPath('snapshots.1.name', 'Version 1')
+            ->assertJsonPath('has_more', false)
+            ->assertJsonPath('total', 2);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -251,7 +253,7 @@ class T962BlogSnapshotTest extends TestCase
         $this->actingAs($admin)
             ->getJson(route('blog.snapshots.index', $post))
             ->assertOk()
-            ->assertJsonCount(1);
+            ->assertJsonPath('snapshots', fn ($s) => count($s) === 1);
 
         // Admin can restore
         $snapshot = $post->snapshots()->first();
@@ -261,66 +263,133 @@ class T962BlogSnapshotTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 8. Update article with active_snapshot_id updates snapshot
+    // 8. Auto-snapshot created on article update when content changes
     // ─────────────────────────────────────────────────────────────
 
-    public function test_update_with_active_snapshot_id_updates_snapshot(): void
+    public function test_auto_creates_snapshot_on_update_if_changed(): void
     {
         [$organization] = $this->createOrganizations();
         $user = $this->createUser($organization);
         $post = $this->createPost($user, $organization, ['status' => 'draft']);
 
-        $snapshot = BlogSnapshot::create([
-            'blog_post_id' => $post->id,
-            'name' => 'Version initiale',
-            'title' => 'Titre initial',
-            'content' => '<p>Contenu initial</p>',
-            'status' => 'draft',
-            'created_by' => $user->id,
-        ]);
+        $this->assertEquals(0, BlogSnapshot::where('blog_post_id', $post->id)->count());
 
         $this->actingAs($user)
             ->put(route('blog.update', $post), [
                 'title' => 'Titre mis à jour',
                 'content' => '<p>Contenu mis à jour</p>',
                 'status' => 'draft',
-                'meta_title' => 'Meta mis à jour',
-                'meta_description' => 'Meta desc mis à jour',
-                'active_snapshot_id' => $snapshot->id,
             ])
             ->assertRedirect();
 
-        $snapshot->refresh();
+        $this->assertEquals(1, BlogSnapshot::where('blog_post_id', $post->id)->count());
 
+        $snapshot = $post->snapshots()->first();
         $this->assertEquals('Titre mis à jour', $snapshot->title);
         $this->assertEquals('<p>Contenu mis à jour</p>', $snapshot->content);
-        $this->assertEquals('Meta mis à jour', $snapshot->meta_title);
-        $this->assertEquals('Meta desc mis à jour', $snapshot->meta_description);
-        $this->assertEquals($user->id, $snapshot->updated_by);
+        $this->assertStringStartsWith('Auto ', $snapshot->name);
+        $this->assertEquals($user->id, $snapshot->created_by);
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 9. Update without active_snapshot_id does not create snapshot
+    // 9. No auto-snapshot on update if content unchanged
     // ─────────────────────────────────────────────────────────────
 
-    public function test_update_without_active_snapshot_id_does_not_create_snapshot(): void
+    public function test_auto_does_not_create_snapshot_if_unchanged(): void
     {
         [$organization] = $this->createOrganizations();
         $user = $this->createUser($organization);
         $post = $this->createPost($user, $organization);
 
-        $snapshotsBefore = BlogSnapshot::where('blog_post_id', $post->id)->count();
-
+        // First save: create auto-snapshot with current content
         $this->actingAs($user)
             ->put(route('blog.update', $post), [
-                'title' => 'Titre sans snapshot',
-                'summary' => 'Résumé',
-                'content' => '<p>Contenu</p>',
+                'title' => $post->title,
+                'content' => $post->content,
                 'status' => 'draft',
             ]);
 
-        $snapshotsAfter = BlogSnapshot::where('blog_post_id', $post->id)->count();
+        $this->assertEquals(1, BlogSnapshot::where('blog_post_id', $post->id)->count());
 
-        $this->assertEquals($snapshotsBefore, $snapshotsAfter);
+        $post->refresh();
+
+        // Second save with same content: no new snapshot
+        $this->actingAs($user)
+            ->put(route('blog.update', $post), [
+                'title' => $post->title,
+                'content' => $post->content,
+                'status' => 'draft',
+            ]);
+
+        $this->assertEquals(1, BlogSnapshot::where('blog_post_id', $post->id)->count());
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 10. Manual snapshot with no changes updates name/comment
+    // ─────────────────────────────────────────────────────────────
+
+    public function test_manual_snapshot_updates_name_if_no_changes(): void
+    {
+        [$organization] = $this->createOrganizations();
+        $user = $this->createUser($organization);
+        $post = $this->createPost($user, $organization);
+
+        $data = $this->validSnapshotData();
+
+        $this->actingAs($user)
+            ->postJson(route('blog.snapshots.store', $post), $data)
+            ->assertOk();
+
+        $this->assertEquals(1, BlogSnapshot::where('blog_post_id', $post->id)->count());
+
+        $renamedData = $data;
+        $renamedData['name'] = 'Nouveau nom '.uniqid();
+        $renamedData['comment'] = 'Nouveau commentaire';
+
+        $this->actingAs($user)
+            ->postJson(route('blog.snapshots.store', $post), $renamedData)
+            ->assertOk()
+            ->assertJsonPath('updated', true);
+
+        $this->assertEquals(1, BlogSnapshot::where('blog_post_id', $post->id)->count());
+
+        $snapshot = $post->snapshots()->first();
+        $this->assertEquals($renamedData['name'], $snapshot->name);
+        $this->assertEquals($renamedData['comment'], $snapshot->comment);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 11. Manual snapshot with different content creates new
+    // ─────────────────────────────────────────────────────────────
+
+    public function test_manual_snapshot_creates_new_if_changes(): void
+    {
+        [$organization] = $this->createOrganizations();
+        $user = $this->createUser($organization);
+        $post = $this->createPost($user, $organization);
+
+        $data = $this->validSnapshotData();
+
+        $this->actingAs($user)
+            ->postJson(route('blog.snapshots.store', $post), $data)
+            ->assertOk();
+
+        $renamedData = $data;
+        $renamedData['name'] = 'Version renommee '.uniqid();
+        $this->actingAs($user)
+            ->postJson(route('blog.snapshots.store', $post), $renamedData)
+            ->assertOk()
+            ->assertJsonPath('updated', true);
+
+        $modifiedData = $data;
+        $modifiedData['name'] = 'Version modifiée '.uniqid();
+        $modifiedData['title'] = 'Titre modifié';
+        $modifiedData['content'] = '<p>Contenu modifié</p>';
+
+        $this->actingAs($user)
+            ->postJson(route('blog.snapshots.store', $post), $modifiedData)
+            ->assertOk();
+
+        $this->assertEquals(2, BlogSnapshot::where('blog_post_id', $post->id)->count());
     }
 }

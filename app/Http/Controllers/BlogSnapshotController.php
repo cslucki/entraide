@@ -37,13 +37,41 @@ class BlogSnapshotController extends Controller
             'status' => ['nullable', 'string', 'max:20'],
         ]);
 
+        $lastSnapshot = $post->snapshots()->latest()->first();
+        $sanitizedContent = $this->sanitizeHtml($data['content']);
+
+        $changed = (
+            ! $lastSnapshot
+            || $lastSnapshot->title !== $data['title']
+            || $lastSnapshot->summary !== ($data['summary'] ?? null)
+            || $lastSnapshot->content !== $sanitizedContent
+            || $lastSnapshot->meta_title !== ($data['meta_title'] ?? null)
+            || $lastSnapshot->meta_description !== ($data['meta_description'] ?? null)
+            || $lastSnapshot->status !== ($data['status'] ?? null)
+        );
+
+        if (! $changed && $lastSnapshot) {
+            $lastSnapshot->update([
+                'name' => $data['name'],
+                'comment' => $data['comment'] ?? null,
+            ]);
+
+            return response()->json([
+                'id' => $lastSnapshot->id,
+                'name' => $lastSnapshot->name,
+                'created_at' => $lastSnapshot->created_at,
+                'message' => __('blog.snapshot_named'),
+                'updated' => true,
+            ]);
+        }
+
         $snapshot = BlogSnapshot::create([
             'blog_post_id' => $post->id,
             'name' => $data['name'],
             'comment' => $data['comment'] ?? null,
             'title' => $data['title'],
             'summary' => $data['summary'] ?? null,
-            'content' => $this->sanitizeHtml($data['content']),
+            'content' => $sanitizedContent,
             'meta_title' => $data['meta_title'] ?? null,
             'meta_description' => $data['meta_description'] ?? null,
             'status' => $data['status'] ?? null,
@@ -67,11 +95,20 @@ class BlogSnapshotController extends Controller
 
         Gate::authorize('update', $post);
 
-        $snapshots = $post->snapshots()
-            ->with(['creator', 'updater'])
-            ->latest()
-            ->get()
-            ->map(fn (BlogSnapshot $s) => [
+        $limit = min((int) request()->input('limit', 5), 50);
+        $offset = (int) request()->input('offset', 0);
+
+        $snapshotsQuery = $post->snapshots()->with(['creator', 'updater'])->latest();
+        $total = $snapshotsQuery->count();
+
+        $snapshots = $snapshotsQuery->skip($offset)->take($limit + 1)->get();
+        $hasMore = $snapshots->count() > $limit;
+        if ($hasMore) {
+            $snapshots->pop();
+        }
+
+        return response()->json([
+            'snapshots' => $snapshots->map(fn (BlogSnapshot $s) => [
                 'id' => $s->id,
                 'name' => $s->name,
                 'comment' => $s->comment,
@@ -81,9 +118,10 @@ class BlogSnapshotController extends Controller
                 'creator_name' => $s->creator?->fullName ?? __('blog.legend_deleted_user'),
                 'updater_name' => $s->updater?->fullName ?? __('blog.legend_deleted_user'),
                 'is_restored' => $s->restored_at !== null,
-            ]);
-
-        return response()->json($snapshots);
+            ]),
+            'has_more' => $hasMore,
+            'total' => $total,
+        ]);
     }
 
     public function restore(BlogPost $post, BlogSnapshot $snapshot): JsonResponse

@@ -71,10 +71,12 @@ function registerBlogSnapshotCard() {
 
     Alpine.data('blogSnapshotCard', (config) => ({
         open: false,
-        view: 'create',
         name: '',
         comment: '',
         snapshots: [],
+        hasMore: false,
+        total: 0,
+        page: 0,
         saving: false,
         loading: false,
         error: '',
@@ -96,12 +98,16 @@ function registerBlogSnapshotCard() {
             this.loadHistory();
         },
 
-        switchView(view) {
-            this.view = view;
-            this.error = '';
-            if (view === 'history' && this.snapshots.length === 0) {
-                this.loadHistory();
-            }
+        latestSnapshot() {
+            return this.snapshots[0] || null;
+        },
+
+        remainingCount() {
+            return Math.max(0, this.total - this.snapshots.length);
+        },
+
+        async loadMore() {
+            await this.loadHistory(false);
         },
 
         async createSnapshot() {
@@ -137,12 +143,11 @@ function registerBlogSnapshotCard() {
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || this.i18n.snapshotCreated);
 
-                const activeInput = document.querySelector('input[name="active_snapshot_id"]');
-                if (activeInput) activeInput.value = data.id;
-
-                this.success = data.message || this.i18n.snapshotCreated;
+                this.success = data.message || (data.updated ? this.i18n.snapshotNamed : this.i18n.snapshotCreated);
                 this.name = '';
                 this.comment = '';
+
+                await this.loadHistory();
 
                 setTimeout(() => { this.success = ''; }, 3000);
             } catch (e) {
@@ -152,16 +157,26 @@ function registerBlogSnapshotCard() {
             }
         },
 
-        async loadHistory() {
+        async loadHistory(reset = true) {
             this.loading = true;
             this.error = '';
 
             try {
-                const resp = await fetch(this.indexUrl, {
+                const offset = reset ? 0 : this.snapshots.length;
+                const resp = await fetch(this.indexUrl + '?_=' + Date.now() + '&offset=' + offset + '&limit=5', {
                     headers: { 'Accept': 'application/json' },
                 });
                 if (!resp.ok) throw new Error(this.i18n.snapshotLoadError);
-                this.snapshots = await resp.json();
+                const data = await resp.json();
+                if (reset) {
+                    this.snapshots = data.snapshots;
+                    this.page = 0;
+                } else {
+                    this.snapshots = [...this.snapshots, ...data.snapshots];
+                    this.page++;
+                }
+                this.hasMore = data.has_more;
+                this.total = data.total;
             } catch (e) {
                 this.error = e.message;
             } finally {
@@ -202,9 +217,6 @@ function registerBlogSnapshotCard() {
                 setVal('meta_title', data.meta_title);
                 setVal('meta_description', data.meta_description);
                 setVal('status', data.status);
-
-                const activeInput = document.querySelector('[name="active_snapshot_id"]');
-                if (activeInput) activeInput.value = id;
 
                 window.dispatchEvent(new CustomEvent('snapshot-restore', { detail: { content: data.content || '' } }));
 

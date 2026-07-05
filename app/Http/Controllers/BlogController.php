@@ -277,7 +277,7 @@ class BlogController extends Controller implements HasMiddleware
             $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $post->organization_id]);
         }
 
-        $this->handleActiveSnapshot($request, $post, $data);
+        $this->createAutoSnapshot($post, $data, $request->user());
 
         return redirect($this->blogUrl('show', ['post' => $post]))->with('success', __('blog.updated'));
     }
@@ -693,26 +693,36 @@ class BlogController extends Controller implements HasMiddleware
         return trim($text);
     }
 
-    private function handleActiveSnapshot(Request $request, BlogPost $post, array $data): void
+    private function createAutoSnapshot(BlogPost $post, array $data, $user): void
     {
-        $snapshotId = $request->input('active_snapshot_id');
-        if (! $snapshotId) {
+        $lastSnapshot = $post->snapshots()->latest()->first();
+
+        $sanitizedContent = $this->sanitizeHtml($data['content']);
+
+        $changed = (
+            ! $lastSnapshot
+            || $lastSnapshot->title !== $data['title']
+            || $lastSnapshot->summary !== ($data['summary'] ?? null)
+            || $lastSnapshot->content !== $sanitizedContent
+            || $lastSnapshot->meta_title !== ($data['meta_title'] ?? null)
+            || $lastSnapshot->meta_description !== ($data['meta_description'] ?? null)
+            || $lastSnapshot->status !== ($data['status'] ?? $post->status)
+        );
+
+        if (! $changed) {
             return;
         }
 
-        $snapshot = BlogSnapshot::find($snapshotId);
-        if (! $snapshot || $snapshot->blog_post_id !== $post->id) {
-            return;
-        }
-
-        $snapshot->update([
+        BlogSnapshot::create([
+            'blog_post_id' => $post->id,
+            'name' => __('blog.snapshot_auto_prefix').now()->format('Y-m-d H:i'),
             'title' => $data['title'],
             'summary' => $data['summary'] ?? null,
-            'content' => $data['content'],
+            'content' => $sanitizedContent,
             'meta_title' => $data['meta_title'] ?? null,
             'meta_description' => $data['meta_description'] ?? null,
             'status' => $data['status'] ?? $post->status,
-            'updated_by' => $request->user()->id,
+            'created_by' => $user->id,
         ]);
     }
 }
