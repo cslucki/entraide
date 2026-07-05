@@ -74,6 +74,7 @@ function registerBlogSnapshotCard() {
         name: '',
         comment: '',
         snapshots: [],
+        selectedSnapshotId: null,
         hasMore: false,
         total: 0,
         page: 0,
@@ -100,6 +101,52 @@ function registerBlogSnapshotCard() {
 
         latestSnapshot() {
             return this.snapshots[0] || null;
+        },
+
+        selectedSnapshot() {
+            return this.snapshots.find((snapshot) => snapshot.id === this.selectedSnapshotId) || this.latestSnapshot();
+        },
+
+        selectedIndex() {
+            return this.snapshots.findIndex((snapshot) => snapshot.id === this.selectedSnapshot()?.id);
+        },
+
+        selectSnapshot(id) {
+            this.selectedSnapshotId = id;
+        },
+
+        canGoPrevious() {
+            const index = this.selectedIndex();
+
+            return index > 0;
+        },
+
+        canGoNext() {
+            const index = this.selectedIndex();
+
+            return index >= 0 && index < this.snapshots.length - 1;
+        },
+
+        selectPrevious() {
+            const index = this.selectedIndex();
+            if (index > 0) {
+                this.selectedSnapshotId = this.snapshots[index - 1].id;
+            }
+        },
+
+        selectNext() {
+            const index = this.selectedIndex();
+            if (index >= 0 && index < this.snapshots.length - 1) {
+                this.selectedSnapshotId = this.snapshots[index + 1].id;
+            }
+        },
+
+        previewText(snapshot) {
+            const content = snapshot?.content || '';
+            const doc = new DOMParser().parseFromString(content, 'text/html');
+            const text = doc.body.textContent?.replace(/\s+/g, ' ').trim() || '';
+
+            return text.length > 260 ? text.slice(0, 260).trim() + '…' : text;
         },
 
         remainingCount() {
@@ -171,9 +218,13 @@ function registerBlogSnapshotCard() {
                 if (reset) {
                     this.snapshots = data.snapshots;
                     this.page = 0;
+                    this.selectedSnapshotId = this.snapshots[0]?.id || null;
                 } else {
                     this.snapshots = [...this.snapshots, ...data.snapshots];
                     this.page++;
+                    if (!this.selectedSnapshotId) {
+                        this.selectedSnapshotId = this.snapshots[0]?.id || null;
+                    }
                 }
                 this.hasMore = data.has_more;
                 this.total = data.total;

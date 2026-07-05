@@ -232,4 +232,11 @@ return [
     'snapshot_load_more' => 'Load more (:remaining remaining)',
     'snapshot_restore_btn' => 'Restore',
     'snapshot_loading' => 'Loading…',
+    'snapshot_preview' => 'Preview',
+    'snapshot_preview_empty' => 'No content to preview.',
+    'snapshot_previous' => 'Previous',
+    'snapshot_next' => 'Next',
+    'snapshot_position' => ':current / :total loaded',
+    'snapshot_loaded_versions' => 'Loaded versions',
+    'snapshot_selected' => 'Selected',
 ];

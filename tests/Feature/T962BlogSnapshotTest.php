@@ -130,6 +130,8 @@ class T962BlogSnapshotTest extends TestCase
             ->assertOk()
             ->assertJsonPath('snapshots', fn ($s) => count($s) === 2)
             ->assertJsonPath('snapshots.0.name', 'Version 2')
+            ->assertJsonPath('snapshots.0.title', 'Titre 2')
+            ->assertJsonPath('snapshots.0.content', '<p>Contenu 2</p>')
             ->assertJsonPath('snapshots.1.name', 'Version 1')
             ->assertJsonPath('has_more', false)
             ->assertJsonPath('total', 2);

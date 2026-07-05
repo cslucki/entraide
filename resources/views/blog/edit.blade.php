@@ -311,26 +311,80 @@
                     <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2">{{ __('blog.snapshot_history_empty') }}</p>
                 </template>
 
+                <template x-if="selectedSnapshot()">
+                    <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{{ __('blog.snapshot_preview') }}</p>
+                                <h3 class="mt-0.5 truncate text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="selectedSnapshot().name"></h3>
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400" x-text="selectedSnapshot().created_at + (selectedSnapshot().creator_name ? ' · ' + selectedSnapshot().creator_name : '')"></p>
+                            </div>
+                            <button type="button" @click="restoreSnapshot(selectedSnapshot().id)"
+                                class="shrink-0 rounded-md bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                                :disabled="loading">
+                                {{ __('blog.snapshot_restore_btn') }}
+                            </button>
+                        </div>
+
+                        <div class="mt-2 space-y-1 rounded-lg bg-white/80 p-2 dark:bg-gray-900/70">
+                            <p class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="selectedSnapshot().title"></p>
+                            <template x-if="selectedSnapshot().summary">
+                                <p class="text-[10px] text-gray-600 dark:text-gray-300" x-text="selectedSnapshot().summary"></p>
+                            </template>
+                            <p class="line-clamp-4 text-[10px] leading-4 text-gray-500 dark:text-gray-400" x-text="previewText(selectedSnapshot()) || '{{ __('blog.snapshot_preview_empty') }}'"></p>
+                            <template x-if="selectedSnapshot().comment">
+                                <p class="border-t border-gray-100 pt-1 text-[10px] italic text-gray-500 dark:border-gray-700 dark:text-gray-400" x-text="'— ' + selectedSnapshot().comment"></p>
+                            </template>
+                        </div>
+
+                        <div class="mt-2 flex items-center justify-between gap-2">
+                            <button type="button" @click="selectPrevious()" :disabled="!canGoPrevious()"
+                                class="rounded-md border border-gray-200 px-2 py-1 text-[10px] font-semibold text-gray-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900">
+                                {{ __('blog.snapshot_previous') }}
+                            </button>
+                            <span class="text-[10px] text-gray-500 dark:text-gray-400" x-text="'{{ __('blog.snapshot_position') }}'.replace(':current', selectedIndex() + 1).replace(':total', snapshots.length)"></span>
+                            <button type="button" @click="selectNext()" :disabled="!canGoNext()"
+                                class="rounded-md border border-gray-200 px-2 py-1 text-[10px] font-semibold text-gray-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900">
+                                {{ __('blog.snapshot_next') }}
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <template x-if="snapshots.length > 0">
+                    <div class="rounded-lg border border-gray-100 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
+                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('blog.snapshot_loaded_versions') }}</p>
+                        <div class="flex gap-1 overflow-x-auto pb-1">
+                            <template x-for="s in snapshots" :key="s.id">
+                                <button type="button" @click="selectSnapshot(s.id)"
+                                    :title="s.name"
+                                    :class="selectedSnapshot()?.id === s.id ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'"
+                                    class="h-2.5 min-w-8 rounded-full transition">
+                                    <span class="sr-only" x-text="s.name"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
                 <template x-for="s in snapshots" :key="s.id">
-                    <div class="rounded-lg border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 space-y-1">
+                    <button type="button" @click="selectSnapshot(s.id)"
+                        :class="selectedSnapshot()?.id === s.id ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/30' : 'border-gray-100 bg-white hover:border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600'"
+                        class="block w-full rounded-lg border p-2 text-left transition">
                         <div class="flex items-start justify-between gap-1">
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="s.name"></p>
                                 <p class="text-[10px] text-gray-500 dark:text-gray-400" x-text="s.created_at + (s.creator_name ? ' · ' + s.creator_name : '')"></p>
                             </div>
-                            <button type="button" @click="restoreSnapshot(s.id)"
-                                class="shrink-0 rounded-md border border-indigo-200 dark:border-indigo-700 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition"
-                                :disabled="loading">
-                                {{ __('blog.snapshot_restore_btn') }}
-                            </button>
+                            <span x-show="selectedSnapshot()?.id === s.id" class="shrink-0 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200">{{ __('blog.snapshot_selected') }}</span>
                         </div>
                         <template x-if="s.comment">
-                            <p class="text-[10px] text-gray-500 dark:text-gray-400 italic truncate" x-text="'— ' + s.comment"></p>
+                            <p class="mt-1 truncate text-[10px] italic text-gray-500 dark:text-gray-400" x-text="'— ' + s.comment"></p>
                         </template>
                         <template x-if="s.is_restored">
-                            <p class="inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">{{ __('blog.snapshot_restored_label') }}</p>
+                            <p class="mt-1 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">{{ __('blog.snapshot_restored_label') }}</p>
                         </template>
-                    </div>
+                    </button>
                 </template>
 
                 <button type="button" x-show="hasMore" @click="loadMore()" :disabled="loading"

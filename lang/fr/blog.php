@@ -232,4 +232,11 @@ return [
     'snapshot_load_more' => 'Charger plus (:remaining restantes)',
     'snapshot_restore_btn' => 'Restaurer',
     'snapshot_loading' => 'Chargement…',
+    'snapshot_preview' => 'Aperçu',
+    'snapshot_preview_empty' => 'Aucun contenu à prévisualiser.',
+    'snapshot_previous' => 'Précédent',
+    'snapshot_next' => 'Suivant',
+    'snapshot_position' => ':current / :total chargées',
+    'snapshot_loaded_versions' => 'Versions chargées',
+    'snapshot_selected' => 'Sélectionnée',
 ];
