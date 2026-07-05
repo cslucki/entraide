@@ -88,7 +88,17 @@ function registerBlogEditor() {
         aiRemainingRoute: '',
         aiGenerateRoute: '',
         aiCorrectRoute: '',
-        editorPostId: '',
+        fullscreen: false,
+        editorDark: localStorage.getItem('bp-editor-dark') === 'true',
+        linkPopupOpen: false,
+        linkUrl: '',
+        hasLink: false,
+        linkType: 'url',
+        errorUpload: '',
+        errorAi: '',
+        linkPrompt: '',
+        msgGenerateRequire: '',
+        msgCorrectRequire: '',
 
         init() {
             const root = this.$root;
@@ -97,6 +107,11 @@ function registerBlogEditor() {
             this.editorPostId = root.dataset.editorPostId || '';
             this.editing = this.editorPostId !== '';
             this.csrfToken = root.dataset.editorCsrf || '';
+            this.errorUpload = root.dataset.editorErrorUpload || '';
+            this.errorAi = root.dataset.editorErrorAi || '';
+            this.linkPrompt = root.dataset.editorLinkPrompt || 'Link URL:';
+            this.msgGenerateRequire = root.dataset.editorGenerateRequire || '';
+            this.msgCorrectRequire = root.dataset.editorCorrectRequire || '';
             this.uploadRoute = root.dataset.routeUpload || '';
             this.aiRemainingRoute = root.dataset.routeAiRemaining || '';
             this.aiGenerateRoute = root.dataset.routeAiGenerate || '';
@@ -131,8 +146,19 @@ function registerBlogEditor() {
                 });
             }
 
+            this.$watch('editorDark', (val) => {
+                localStorage.setItem('bp-editor-dark', val);
+            });
+
             this.updateActiveStates();
             this.loadRemaining();
+
+            this.$el.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.fullscreen) {
+                    this.fullscreen = false;
+                    document.body.style.overflow = '';
+                }
+            });
         },
 
         destroy() {
@@ -144,14 +170,36 @@ function registerBlogEditor() {
 
         updateActiveStates() {
             if (!editor) return;
+            const isImage = editor.isActive('image');
+            let imageResized = false;
+            if (isImage) {
+                try {
+                    const { from } = editor.state.selection;
+                    const n = editor.state.doc.nodeAt(from);
+                    imageResized = n?.attrs?.resized === 'true';
+                } catch (e) { /* ignore */ }
+            }
             this.activeStates = {
                 bold: editor.isActive('bold'),
                 italic: editor.isActive('italic'),
                 underline: editor.isActive('underline'),
+                heading1: editor.isActive('heading', { level: 1 }),
                 heading2: editor.isActive('heading', { level: 2 }),
                 heading3: editor.isActive('heading', { level: 3 }),
+                heading4: editor.isActive('heading', { level: 4 }),
                 bulletList: editor.isActive('bulletList'),
+                orderedList: editor.isActive('orderedList'),
                 link: editor.isActive('link'),
+                codeBlock: editor.isActive('codeBlock'),
+                image: isImage,
+                imageResized,
+                highlight: editor.isActive('highlight'),
+                textAlign: editor.isActive({ textAlign: 'left' }) ? 'left'
+                    : editor.isActive({ textAlign: 'center' }) ? 'center'
+                    : editor.isActive({ textAlign: 'right' }) ? 'right'
+                    : editor.isActive({ textAlign: 'justify' }) ? 'justify'
+                    : '',
+                textColor: editor.getAttributes('textStyle')?.color || null,
             };
         },
 
@@ -174,12 +222,19 @@ function registerBlogEditor() {
             if (!editor) return;
             const chain = editor.chain().focus();
             switch (command) {
+                case 'undo': chain.undo().run(); break;
+                case 'redo': chain.redo().run(); break;
                 case 'toggleBold': chain.toggleBold().run(); break;
                 case 'toggleItalic': chain.toggleItalic().run(); break;
                 case 'toggleUnderline': chain.toggleUnderline().run(); break;
+                case 'toggleH1': chain.toggleHeading({ level: 1 }).run(); break;
                 case 'toggleH2': chain.toggleHeading({ level: 2 }).run(); break;
                 case 'toggleH3': chain.toggleHeading({ level: 3 }).run(); break;
+                case 'toggleH4': chain.toggleHeading({ level: 4 }).run(); break;
+                case 'toggleParagraph': chain.setParagraph().run(); break;
                 case 'toggleBulletList': chain.toggleBulletList().run(); break;
+                case 'toggleOrderedList': chain.toggleOrderedList().run(); break;
+                case 'toggleCodeBlock': chain.toggleCodeBlock().run(); break;
                 case 'insertTable': chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
             }
             this.updateActiveStates();
@@ -187,19 +242,123 @@ function registerBlogEditor() {
 
         openLink() {
             if (!editor) return;
-            const prev = editor.getAttributes('link').href;
-            const url = window.prompt('URL du lien :', prev || 'https://');
-            if (url === null) return;
-            if (url === '') {
+            this.hasLink = editor.isActive('link');
+            this.linkUrl = editor.getAttributes('link').href || '';
+            this.linkType = 'url';
+            this.linkPopupOpen = true;
+        },
+
+        applyLink() {
+            if (!editor || !this.linkUrl) return;
+            const url = this.linkUrl.trim();
+            if (!url) {
                 editor.chain().focus().unsetLink().run();
             } else {
                 editor.chain().focus().setLink({ href: url }).run();
             }
+            this.linkPopupOpen = false;
+            this.updateActiveStates();
+        },
+
+        removeLink() {
+            if (!editor) return;
+            editor.chain().focus().unsetLink().run();
+            this.linkPopupOpen = false;
+            this.linkUrl = '';
+            this.hasLink = false;
             this.updateActiveStates();
         },
 
         triggerImageUpload() {
             this.$refs.imageInput.click();
+        },
+
+        toggleFullscreen() {
+            this.fullscreen = !this.fullscreen;
+            document.body.style.overflow = this.fullscreen ? 'hidden' : '';
+        },
+
+        resizeImage() {
+            if (!editor || !editor.isActive('image')) return;
+            const { state } = editor;
+            const { from } = state.selection;
+            const node = state.doc.nodeAt(from);
+            if (!node || node.type.name !== 'image') return;
+
+            const resized = node.attrs.resized === 'true';
+
+            if (resized) {
+                const { tr } = state;
+                tr.setNodeMarkup(from, null, {
+                    ...node.attrs,
+                    resized: null,
+                    width: null,
+                    height: null,
+                });
+                editor.view.dispatch(tr);
+            } else {
+                let targetW = null, targetH = null;
+                try {
+                    const dom = editor.view.nodeDOM(from);
+                    let imgEl = dom?.querySelector?.('img') || dom;
+                    if (imgEl && imgEl.tagName !== 'IMG') imgEl = null;
+                    if (imgEl) {
+                        targetW = imgEl.naturalWidth || null;
+                        targetH = imgEl.naturalHeight || null;
+                    }
+                } catch (e) { /* fallback below */ }
+
+                if (targetW && targetH) {
+                    const { tr } = state;
+                    tr.setNodeMarkup(from, null, {
+                        ...node.attrs,
+                        resized: 'true',
+                        width: Math.round(targetW * 0.5),
+                        height: Math.round(targetH * 0.5),
+                    });
+                    editor.view.dispatch(tr);
+                } else {
+                    const { tr } = state;
+                    tr.setNodeMarkup(from, null, {
+                        ...node.attrs,
+                        resized: 'true',
+                    });
+                    editor.view.dispatch(tr);
+                }
+            }
+            this.updateActiveStates();
+            editor.commands.focus();
+        },
+
+        toggleHighlight(color) {
+            if (!editor) return;
+            editor.chain().focus().unsetHighlight().run();
+            if (color) {
+                editor.chain().focus().toggleHighlight({ color }).run();
+            }
+            this.updateActiveStates();
+        },
+
+        setTextAlign(align) {
+            if (!editor) return;
+            if (editor.isActive({ textAlign: align })) {
+                editor.chain().focus().unsetTextAlign().run();
+            } else {
+                editor.chain().focus().setTextAlign(align).run();
+            }
+            this.updateActiveStates();
+        },
+
+        setColor(color) {
+            if (!editor) return;
+            editor.chain().focus().setColor(color).run();
+            this.updateActiveStates();
+        },
+
+        unsetColor() {
+            if (!editor) return;
+            editor.chain().focus().unsetColor().run();
+            this.updateActiveStates();
         },
 
         uploadImage(event) {
@@ -226,7 +385,7 @@ function registerBlogEditor() {
                     this.error = data.error;
                 }
             })
-            .catch(() => { this.error = 'Erreur lors de l\'upload.'; })
+            .catch(() => { this.error = this.errorUpload; })
             .finally(() => {
                 this.loading = false;
                 event.target.value = '';
@@ -263,12 +422,12 @@ function registerBlogEditor() {
             const summary = form?.querySelector('[name="summary"]')?.value || '';
 
             if (mode === 'generate' && (!title || !summary)) {
-                this.error = 'Ajoutez un titre et un résumé avant de générer l\'article.';
+                this.error = this.msgGenerateRequire;
                 return;
             }
 
             if (mode === 'correct' && !this.contentHasText()) {
-                this.error = 'Ajoutez du contenu avant de corriger l\'article.';
+                this.error = this.msgCorrectRequire;
                 return;
             }
 
@@ -308,7 +467,7 @@ function registerBlogEditor() {
                     this.error = data.error;
                 }
             })
-            .catch(() => { this.error = 'Erreur de communication avec le service IA.'; })
+            .catch(() => { this.error = this.errorAi; })
             .finally(() => {
                 this.generating = false;
             });

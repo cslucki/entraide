@@ -68,16 +68,21 @@ class AdminBlogController extends Controller
 
     public function edit(BlogPost $post): View
     {
-        $categories = Category::orderBy('name_b2c')->get();
+        $organizations = Organization::orderBy('name')->get(['id', 'name']);
+        $categories = Category::with('organization')->orderBy('name_b2c')->get();
         $tags = Tag::orderBy('name')->get();
-        $users = User::orderBy('name')->get(['id', 'name', 'email']);
+        $usersByOrg = User::with('organization')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'organization_id'])
+            ->groupBy(fn ($u) => $u->organization?->name ?? __('blog.organization_none'));
 
-        return view('admin.blog.edit', compact('post', 'categories', 'tags', 'users'));
+        return view('admin.blog.edit', compact('post', 'organizations', 'categories', 'tags', 'usersByOrg'));
     }
 
     public function update(Request $request, BlogPost $post): RedirectResponse
     {
         $data = $request->validate([
+            'organization_id' => 'required|uuid|exists:organizations,id',
             'user_id' => 'required|uuid|exists:users,id',
             'title' => 'required|string|max:255',
             'slug' => 'nullable|string|max:255|unique:blog_posts,slug,'.$post->id,

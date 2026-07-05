@@ -32,7 +32,7 @@ class BlogController extends Controller implements HasMiddleware
 
     private const ALLOWED_HTML_TAGS = [
         'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
-        'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code',
+        'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code', 'pre',
         'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
         'caption', 'col', 'colgroup',
     ];
