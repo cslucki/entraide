@@ -5,6 +5,9 @@ import Image from '@tiptap/extension-image';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
+import Highlight from '@tiptap/extension-highlight';
+import TextAlign from '@tiptap/extension-text-align';
+import { TextStyle, Color } from '@tiptap/extension-text-style';
 
 const editors = new WeakMap();
 
@@ -17,7 +20,7 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
         element,
         extensions: [
             StarterKit.configure({
-                heading: { levels: [2, 3] },
+                heading: { levels: [1, 2, 3, 4] },
                 codeBlock: true,
                 link: false,
                 underline: false,
@@ -127,6 +130,10 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
             TableHeader,
             Placeholder.configure({ placeholder }),
             Underline,
+            Highlight.configure({ multicolor: true }),
+            TextAlign.configure({ types: ['heading', 'paragraph'] }),
+            TextStyle,
+            Color,
         ],
         content,
         onUpdate: ({ editor: ed }) => {

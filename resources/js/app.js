@@ -89,6 +89,11 @@ function registerBlogEditor() {
         aiGenerateRoute: '',
         aiCorrectRoute: '',
         fullscreen: false,
+        editorDark: localStorage.getItem('bp-editor-dark') === 'true',
+        linkPopupOpen: false,
+        linkUrl: '',
+        hasLink: false,
+        linkType: 'url',
         errorUpload: '',
         errorAi: '',
         linkPrompt: '',
@@ -141,6 +146,10 @@ function registerBlogEditor() {
                 });
             }
 
+            this.$watch('editorDark', (val) => {
+                localStorage.setItem('bp-editor-dark', val);
+            });
+
             this.updateActiveStates();
             this.loadRemaining();
 
@@ -174,13 +183,23 @@ function registerBlogEditor() {
                 bold: editor.isActive('bold'),
                 italic: editor.isActive('italic'),
                 underline: editor.isActive('underline'),
+                heading1: editor.isActive('heading', { level: 1 }),
                 heading2: editor.isActive('heading', { level: 2 }),
                 heading3: editor.isActive('heading', { level: 3 }),
+                heading4: editor.isActive('heading', { level: 4 }),
                 bulletList: editor.isActive('bulletList'),
+                orderedList: editor.isActive('orderedList'),
                 link: editor.isActive('link'),
                 codeBlock: editor.isActive('codeBlock'),
                 image: isImage,
                 imageResized,
+                highlight: editor.isActive('highlight'),
+                textAlign: editor.isActive({ textAlign: 'left' }) ? 'left'
+                    : editor.isActive({ textAlign: 'center' }) ? 'center'
+                    : editor.isActive({ textAlign: 'right' }) ? 'right'
+                    : editor.isActive({ textAlign: 'justify' }) ? 'justify'
+                    : '',
+                textColor: editor.getAttributes('textStyle')?.color || null,
             };
         },
 
@@ -203,12 +222,18 @@ function registerBlogEditor() {
             if (!editor) return;
             const chain = editor.chain().focus();
             switch (command) {
+                case 'undo': chain.undo().run(); break;
+                case 'redo': chain.redo().run(); break;
                 case 'toggleBold': chain.toggleBold().run(); break;
                 case 'toggleItalic': chain.toggleItalic().run(); break;
                 case 'toggleUnderline': chain.toggleUnderline().run(); break;
+                case 'toggleH1': chain.toggleHeading({ level: 1 }).run(); break;
                 case 'toggleH2': chain.toggleHeading({ level: 2 }).run(); break;
                 case 'toggleH3': chain.toggleHeading({ level: 3 }).run(); break;
+                case 'toggleH4': chain.toggleHeading({ level: 4 }).run(); break;
+                case 'toggleParagraph': chain.setParagraph().run(); break;
                 case 'toggleBulletList': chain.toggleBulletList().run(); break;
+                case 'toggleOrderedList': chain.toggleOrderedList().run(); break;
                 case 'toggleCodeBlock': chain.toggleCodeBlock().run(); break;
                 case 'insertTable': chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
             }
@@ -217,14 +242,30 @@ function registerBlogEditor() {
 
         openLink() {
             if (!editor) return;
-            const prev = editor.getAttributes('link').href;
-            const url = window.prompt(this.linkPrompt, prev || 'https://');
-            if (url === null) return;
-            if (url === '') {
+            this.hasLink = editor.isActive('link');
+            this.linkUrl = editor.getAttributes('link').href || '';
+            this.linkType = 'url';
+            this.linkPopupOpen = true;
+        },
+
+        applyLink() {
+            if (!editor || !this.linkUrl) return;
+            const url = this.linkUrl.trim();
+            if (!url) {
                 editor.chain().focus().unsetLink().run();
             } else {
                 editor.chain().focus().setLink({ href: url }).run();
             }
+            this.linkPopupOpen = false;
+            this.updateActiveStates();
+        },
+
+        removeLink() {
+            if (!editor) return;
+            editor.chain().focus().unsetLink().run();
+            this.linkPopupOpen = false;
+            this.linkUrl = '';
+            this.hasLink = false;
             this.updateActiveStates();
         },
 
@@ -287,6 +328,37 @@ function registerBlogEditor() {
             }
             this.updateActiveStates();
             editor.commands.focus();
+        },
+
+        toggleHighlight(color) {
+            if (!editor) return;
+            editor.chain().focus().unsetHighlight().run();
+            if (color) {
+                editor.chain().focus().toggleHighlight({ color }).run();
+            }
+            this.updateActiveStates();
+        },
+
+        setTextAlign(align) {
+            if (!editor) return;
+            if (editor.isActive({ textAlign: align })) {
+                editor.chain().focus().unsetTextAlign().run();
+            } else {
+                editor.chain().focus().setTextAlign(align).run();
+            }
+            this.updateActiveStates();
+        },
+
+        setColor(color) {
+            if (!editor) return;
+            editor.chain().focus().setColor(color).run();
+            this.updateActiveStates();
+        },
+
+        unsetColor() {
+            if (!editor) return;
+            editor.chain().focus().unsetColor().run();
+            this.updateActiveStates();
         },
 
         uploadImage(event) {
