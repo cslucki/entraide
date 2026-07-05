@@ -10,7 +10,7 @@
     @endphp
     <x-slot name="title">{{ __('blog.title_edit', ['title' => $post->title]) }}</x-slot>
 
-    <div class="max-w-3xl mx-auto px-4 py-8">
+    <div class="max-w-7xl mx-auto px-4 py-8">
 
         <div class="mb-6">
             <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← {{ __('blog.back_to_article') }}</a>

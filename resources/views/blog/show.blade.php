@@ -96,7 +96,7 @@
                 @endauth
 
                 <!-- Contenu -->
-                <div class="max-w-none mb-8 text-gray-800 dark:text-gray-200 leading-relaxed text-base prose prose-sm dark:prose-invert max-w-none">
+                <div class="max-w-none mb-8 text-gray-800 dark:text-gray-200 leading-relaxed text-base prose prose-sm dark:prose-invert max-w-none [&_img[data-resized]]:!max-w-[70%] [&_pre]:bg-gray-100 [&_pre]:dark:bg-gray-900 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:dark:bg-gray-900 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:p-0">
                     {!! $post->content !!}
                 </div>
 
