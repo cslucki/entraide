@@ -189,4 +189,13 @@ return [
     'validation_image_format' => 'L\'image de couverture doit être au format jpeg, png, webp ou gif.',
     'validation_image_size' => 'L\'image de couverture ne doit pas dépasser 5 Mo.',
     'organization_none' => 'Sans organisation',
+
+    'sidebar_boucle' => 'Boucle',
+    'sidebar_snapshot' => 'Snapshot',
+    'sidebar_co_ecriture' => 'Co-écriture',
+    'sidebar_annotations' => 'Annotations',
+    'sidebar_boucle_placeholder' => 'Associer une boucle',
+    'sidebar_snapshot_placeholder' => 'Créer un snapshot',
+    'sidebar_co_ecriture_placeholder' => 'Ajouter des co-auteurs',
+    'sidebar_annotations_placeholder' => 'Sélectionnez du texte pour ajouter une annotation',
 ];

@@ -189,4 +189,13 @@ return [
     'validation_image_format' => 'Cover image must be jpeg, png, webp or gif.',
     'validation_image_size' => 'Cover image must not exceed 5 MB.',
     'organization_none' => 'No organization',
+
+    'sidebar_boucle' => 'Loop',
+    'sidebar_snapshot' => 'Snapshot',
+    'sidebar_co_ecriture' => 'Co-writing',
+    'sidebar_annotations' => 'Annotations',
+    'sidebar_boucle_placeholder' => 'Link a loop',
+    'sidebar_snapshot_placeholder' => 'Create a snapshot',
+    'sidebar_co_ecriture_placeholder' => 'Add co-authors',
+    'sidebar_annotations_placeholder' => 'Select text to add an annotation',
 ];

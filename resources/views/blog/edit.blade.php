@@ -16,8 +16,67 @@
             <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← {{ __('blog.back_to_article') }}</a>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('blog.heading_edit') }}</h1>
+        {{-- Editor layout: main panel + resize handle + sidebar --}}
+        <div class="flex flex-col md:flex-row gap-0"
+             x-data="{
+                cards: [
+                    { key: 'boucle', label: @js(__('blog.sidebar_boucle')), open: false, placeholder: @js(__('blog.sidebar_boucle_placeholder')) },
+                    { key: 'snapshot', label: @js(__('blog.sidebar_snapshot')), open: false, placeholder: @js(__('blog.sidebar_snapshot_placeholder')) },
+                    { key: 'coecriture', label: @js(__('blog.sidebar_co_ecriture')), open: false, placeholder: @js(__('blog.sidebar_co_ecriture_placeholder')) },
+                    { key: 'annotations', label: @js(__('blog.sidebar_annotations')), open: true, placeholder: @js(__('blog.sidebar_annotations_placeholder')) },
+                ],
+                width: 280,
+                resizing: false,
+
+                toggle(key) {
+                    const card = this.cards.find(c => c.key === key);
+                    if (!card) return;
+                    card.open = !card.open;
+                    localStorage.setItem('editor_sidebar_card_' + key, card.open ? '1' : '0');
+                },
+
+                startResize(e) {
+                    this.resizing = true;
+                    const startX = e.clientX;
+                    const startWidth = this.width;
+                    const self = this;
+
+                    const onMove = (e) => {
+                        if (!self.resizing) return;
+                        self.width = Math.max(200, Math.min(480, startWidth + startX - e.clientX));
+                    };
+
+                    const onUp = () => {
+                        self.resizing = false;
+                        localStorage.setItem('editor_sidebar_width', self.width);
+                        window.removeEventListener('mousemove', onMove);
+                        window.removeEventListener('mouseup', onUp);
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                    };
+
+                    window.addEventListener('mousemove', onMove);
+                    window.addEventListener('mouseup', onUp);
+                    document.body.style.cursor = 'col-resize';
+                    document.body.style.userSelect = 'none';
+                },
+
+                init() {
+                    const stored = localStorage.getItem('editor_sidebar_width');
+                    if (stored) this.width = parseInt(stored, 10);
+                    this.cards.forEach(c => {
+                        const v = localStorage.getItem('editor_sidebar_card_' + c.key);
+                        if (v !== null) c.open = v === '1';
+                    });
+                },
+             }"
+             x-init="init()">
+
+            {{-- Main article panel --}}
+            <div class="flex-1 min-w-0">
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('blog.heading_edit') }}</h1>
 
             <form action="{{ $_blogRoute('update', ['post' => $post]) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 @csrf @method('PUT')
@@ -155,4 +214,40 @@
             </div>
         </div>
     </div>
+
+    {{-- Resize handle --}}
+    <div
+        @mousedown="startResize"
+        class="shrink-0 w-1.5 cursor-col-resize bg-transparent hover:bg-indigo-300 dark:hover:bg-indigo-600 active:bg-indigo-400 dark:active:bg-indigo-500 transition-colors hidden md:block"
+    ></div>
+
+    {{-- Right sidebar --}}
+    <aside
+        :style="`width: ${width}px`"
+        class="shrink-0 hidden md:flex flex-col space-y-2 overflow-y-auto max-h-[80vh]"
+    >
+        <template x-for="card in cards" :key="card.key">
+            <div class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
+                <button
+                    @click="toggle(card.key)"
+                    class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                >
+                    <span x-text="card.label"></span>
+                    <svg
+                        class="w-3 h-3 transition-transform"
+                        :class="{ 'rotate-180': card.open }"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div x-show="card.open" x-cloak class="px-3 pb-3 text-xs text-gray-500 dark:text-gray-400">
+                    <span x-text="card.placeholder"></span>
+                </div>
+            </div>
+        </template>
+    </aside>
+
+    </div>
+</div>
 </x-app-layout>
