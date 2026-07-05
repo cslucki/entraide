@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BlogComment;
 use App\Models\BlogPost;
+use App\Models\BlogSnapshot;
 use App\Models\Category;
 use App\Models\Tag;
 use App\Services\BlogAiService;
@@ -275,6 +276,8 @@ class BlogController extends Controller implements HasMiddleware
                 ->all();
             $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $post->organization_id]);
         }
+
+        $this->handleActiveSnapshot($request, $post, $data);
 
         return redirect($this->blogUrl('show', ['post' => $post]))->with('success', __('blog.updated'));
     }
@@ -688,5 +691,28 @@ class BlogController extends Controller implements HasMiddleware
         $text = str_replace("\xc2\xa0", ' ', $text);
 
         return trim($text);
+    }
+
+    private function handleActiveSnapshot(Request $request, BlogPost $post, array $data): void
+    {
+        $snapshotId = $request->input('active_snapshot_id');
+        if (! $snapshotId) {
+            return;
+        }
+
+        $snapshot = BlogSnapshot::find($snapshotId);
+        if (! $snapshot || $snapshot->blog_post_id !== $post->id) {
+            return;
+        }
+
+        $snapshot->update([
+            'title' => $data['title'],
+            'summary' => $data['summary'] ?? null,
+            'content' => $data['content'],
+            'meta_title' => $data['meta_title'] ?? null,
+            'meta_description' => $data['meta_description'] ?? null,
+            'status' => $data['status'] ?? $post->status,
+            'updated_by' => $request->user()->id,
+        ]);
     }
 }

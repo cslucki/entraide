@@ -83,6 +83,11 @@ class BlogPost extends Model
         return $this->morphMany(Like::class, 'likeable');
     }
 
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(BlogSnapshot::class);
+    }
+
     public function isLikedBy(?User $user): bool
     {
         if (! $user) {

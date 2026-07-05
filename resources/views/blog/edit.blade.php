@@ -21,7 +21,6 @@
              x-data="{
                 cards: [
                     { key: 'boucle', label: @js(__('blog.sidebar_boucle')), open: false, placeholder: @js(__('blog.sidebar_boucle_placeholder')) },
-                    { key: 'snapshot', label: @js(__('blog.sidebar_snapshot')), open: false, placeholder: @js(__('blog.sidebar_snapshot_placeholder')) },
                     { key: 'coecriture', label: @js(__('blog.sidebar_co_ecriture')), open: false, placeholder: @js(__('blog.sidebar_co_ecriture_placeholder')) },
                     { key: 'annotations', label: @js(__('blog.sidebar_annotations')), open: true, placeholder: @js(__('blog.sidebar_annotations_placeholder')) },
                 ],
@@ -193,6 +192,7 @@
                 </div>
 
                 <div class="flex items-center gap-3 pt-2">
+                    <input type="hidden" name="active_snapshot_id" value="">
                     <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
                         {{ __('blog.btn_save') }}
                     </button>
@@ -226,6 +226,7 @@
         :style="`width: ${width}px`"
         class="shrink-0 hidden md:flex flex-col space-y-2 overflow-y-auto max-h-[80vh]"
     >
+        {{-- Generic cards (boucle, coecriture, annotations) --}}
         <template x-for="card in cards" :key="card.key">
             <div class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                 <button
@@ -246,6 +247,97 @@
                 </div>
             </div>
         </template>
+
+        {{-- Snapshot card --}}
+        <div
+            x-data="blogSnapshotCard({
+                storeUrl: @js($_blogRoute('snapshots.store', ['post' => $post])),
+                indexUrl: @js($_blogRoute('snapshots.index', ['post' => $post])),
+                restoreUrlBase: @js($_blogRoute('snapshots.restore', ['post' => $post, 'snapshot' => '__PLACEHOLDER__'])),
+                i18n: {
+                    snapshotCreated: @js(__('blog.snapshot_created')),
+                    snapshotLoadError: @js(__('blog.snapshot_load_error')),
+                    snapshotRestoreError: @js(__('blog.snapshot_restore_error')),
+                    snapshotRestored: @js(__('blog.snapshot_restored')),
+                    snapshotConfirmRestore: @js(__('blog.snapshot_confirm_restore')),
+                },
+            })"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+        >
+            <button
+                @click="toggle()"
+                class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+            >
+                <span>{{ __('blog.sidebar_snapshot') }}</span>
+                <svg
+                    class="w-3 h-3 transition-transform"
+                    :class="{ 'rotate-180': open }"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            <div x-show="open" x-cloak class="px-3 pb-3 space-y-2">
+                {{-- Success message --}}
+                <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                {{-- Error message --}}
+                <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                {{-- View: Create --}}
+                <div x-show="view === 'create'">
+                    <input type="text" x-model="name" :placeholder="@js(__('blog.snapshot_name_placeholder'))" maxlength="255"
+                        class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500 mb-1">
+                    <textarea x-model="comment" :placeholder="@js(__('blog.snapshot_comment_placeholder'))" rows="2" maxlength="1000"
+                        class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500 mb-1"></textarea>
+                    <button @click="createSnapshot()" :disabled="saving || !name"
+                        class="w-full px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                        <span x-show="!saving">{{ __('blog.snapshot_btn_create') }}</span>
+                        <span x-show="saving" class="flex items-center justify-center gap-1">
+                            <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            {{ __('blog.snapshot_btn_create') }}
+                        </span>
+                    </button>
+                </div>
+
+                {{-- View: History --}}
+                <div x-show="view === 'history'">
+                    <template x-if="loading">
+                        <div class="flex items-center justify-center py-4">
+                            <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        </div>
+                    </template>
+                    <template x-if="!loading && snapshots.length === 0">
+                        <p class="text-xs text-gray-400 dark:text-gray-500 py-2">{{ __('blog.snapshot_history_empty') }}</p>
+                    </template>
+                    <template x-for="s in snapshots" :key="s.id">
+                        <div class="border-b border-gray-100 dark:border-gray-700 last:border-0 py-1.5">
+                            <p class="text-xs font-semibold text-gray-800 dark:text-gray-200" x-text="s.name"></p>
+                            <p class="text-[10px] text-gray-400 dark:text-gray-500" x-text="'{{ __('blog.snapshot_created_by') }}'.replace(':name', s.creator_name) + ' · ' + s.created_at"></p>
+                            <template x-if="s.comment">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 italic" x-text="s.comment"></p>
+                            </template>
+                            <template x-if="s.is_restored">
+                                <p class="text-[10px] text-amber-600 dark:text-amber-400">({{ __('blog.snapshot_restored_label') }})</p>
+                            </template>
+                            <button @click="restoreSnapshot(s.id)"
+                                class="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 mt-0.5 transition">
+                                {{ __('blog.snapshot_restore') }}
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                {{-- View switcher --}}
+                <div class="flex gap-1 pt-1">
+                    <button @click="switchView('create')" :class="view === 'create' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'"
+                        class="text-[10px] font-semibold px-2 py-1 rounded transition">{{ __('blog.snapshot_create') }}</button>
+                    <button @click="switchView('history')" :class="view === 'history' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'"
+                        class="text-[10px] font-semibold px-2 py-1 rounded transition" x-text="'{{ __('blog.snapshot_history') }}'.replace(':count', snapshots.length)"></button>
+                </div>
+            </div>
+        </div>
+        {{-- /Snapshot card --}}
     </aside>
 
     </div>

@@ -62,6 +62,163 @@ function registerAlpineStores() {
     });
 }
 
+function registerBlogSnapshotCard() {
+    if (!window.Alpine || window.__blogSnapshotCardRegistered) {
+        return;
+    }
+
+    window.__blogSnapshotCardRegistered = true;
+
+    Alpine.data('blogSnapshotCard', (config) => ({
+        open: false,
+        view: 'create',
+        name: '',
+        comment: '',
+        snapshots: [],
+        saving: false,
+        loading: false,
+        error: '',
+        success: '',
+
+        storeUrl: config.storeUrl,
+        indexUrl: config.indexUrl,
+        restoreUrlBase: config.restoreUrlBase,
+        i18n: config.i18n || {},
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_snapshot', this.open ? '1' : '0');
+        },
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_snapshot');
+            if (stored !== null) this.open = stored === '1';
+            this.loadHistory();
+        },
+
+        switchView(view) {
+            this.view = view;
+            this.error = '';
+            if (view === 'history' && this.snapshots.length === 0) {
+                this.loadHistory();
+            }
+        },
+
+        async createSnapshot() {
+            if (!this.name) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+
+            try {
+                const title = document.querySelector('input[name="title"]')?.value || '';
+                const summary = document.querySelector('textarea[name="summary"]')?.value || '';
+                const content = (typeof editor !== 'undefined' && editor) ? editor.getHTML() : '';
+                const metaTitle = document.querySelector('input[name="meta_title"]')?.value || '';
+                const metaDesc = document.querySelector('textarea[name="meta_description"], input[name="meta_description"]')?.value || '';
+                const statusEl = document.querySelector('[name="status"]:checked');
+                const status = statusEl?.value || 'draft';
+
+                const resp = await fetch(this.storeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                    body: JSON.stringify({
+                        name: this.name,
+                        comment: this.comment,
+                        title,
+                        summary,
+                        content,
+                        meta_title: metaTitle,
+                        meta_description: metaDesc,
+                        status,
+                    }),
+                });
+
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.message || this.i18n.snapshotCreated);
+
+                const activeInput = document.querySelector('input[name="active_snapshot_id"]');
+                if (activeInput) activeInput.value = data.id;
+
+                this.success = data.message || this.i18n.snapshotCreated;
+                this.name = '';
+                this.comment = '';
+
+                setTimeout(() => { this.success = ''; }, 3000);
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async loadHistory() {
+            this.loading = true;
+            this.error = '';
+
+            try {
+                const resp = await fetch(this.indexUrl, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!resp.ok) throw new Error(this.i18n.snapshotLoadError);
+                this.snapshots = await resp.json();
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async restoreSnapshot(id) {
+            if (!confirm(this.i18n.snapshotConfirmRestore)) return;
+            this.loading = true;
+            this.error = '';
+            this.success = '';
+
+            try {
+                const url = this.restoreUrlBase.replace('__PLACEHOLDER__', id);
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                });
+
+                if (!resp.ok) throw new Error(this.i18n.snapshotRestoreError);
+                const data = await resp.json();
+
+                const setVal = (name, val) => {
+                    const el = document.querySelector(`[name="${name}"]`);
+                    if (el) {
+                        if (el.type === 'radio') {
+                            const radio = document.querySelector(`[name="${name}"][value="${val}"]`);
+                            if (radio) radio.checked = true;
+                        } else {
+                            el.value = val || '';
+                        }
+                    }
+                };
+
+                setVal('title', data.title);
+                setVal('summary', data.summary);
+                setVal('meta_title', data.meta_title);
+                setVal('meta_description', data.meta_description);
+                setVal('status', data.status);
+
+                const activeInput = document.querySelector('[name="active_snapshot_id"]');
+                if (activeInput) activeInput.value = id;
+
+                window.dispatchEvent(new CustomEvent('snapshot-restore', { detail: { content: data.content || '' } }));
+
+                this.success = this.i18n.snapshotRestored;
+                setTimeout(() => { this.success = ''; }, 3000);
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+    }));
+}
+
 function registerBlogEditor() {
     if (!window.Alpine || window.__blogEditorRegistered) {
         return;
@@ -157,6 +314,17 @@ function registerBlogEditor() {
                 if (e.key === 'Escape' && this.fullscreen) {
                     this.fullscreen = false;
                     document.body.style.overflow = '';
+                }
+            });
+
+            window.addEventListener('snapshot-restore', (e) => {
+                if (editor) {
+                    editor.commands.setContent(e.detail.content);
+                    this.content = e.detail.content;
+                    this.syncHidden();
+                } else {
+                    const ta = this.$refs?.fallbackTextarea;
+                    if (ta) ta.value = e.detail.content;
                 }
             });
         },
@@ -497,10 +665,12 @@ let editor = null;
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();
+    registerBlogSnapshotCard();
     registerBlogEditor();
 });
 
 registerAlpineStores();
+registerBlogSnapshotCard();
 registerBlogEditor();
 
 // Service Worker registration
