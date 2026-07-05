@@ -44,6 +44,15 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
                         },
                     };
                 },
+                renderHTML({ node, HTMLAttributes }) {
+                    return ['div', { class: 'bp-image-wrap' },
+                        ['img', HTMLAttributes],
+                        ['button', { class: 'bp-resize-btn', type: 'button' }, '↔'],
+                    ];
+                },
+                parseHTML() {
+                    return [{ tag: 'img[src]' }];
+                },
             }).configure({
                 inline: false,
                 allowBase64: false,

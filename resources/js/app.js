@@ -134,6 +134,13 @@ function registerBlogEditor() {
                 this.updateActiveStates();
             });
 
+            editorEl.addEventListener('click', (e) => {
+                if (e.target.closest('.bp-resize-btn')) {
+                    e.preventDefault();
+                    this.resizeImage();
+                }
+            });
+
             const form = this.$el.closest('form');
             if (form) {
                 form.addEventListener('submit', () => {
@@ -154,6 +161,15 @@ function registerBlogEditor() {
 
         updateActiveStates() {
             if (!editor) return;
+            const isImage = editor.isActive('image');
+            let imageResized = false;
+            if (isImage) {
+                try {
+                    const { from } = editor.state.selection;
+                    const n = editor.state.doc.nodeAt(from);
+                    imageResized = n?.attrs?.resized === 'true';
+                } catch (e) { /* ignore */ }
+            }
             this.activeStates = {
                 bold: editor.isActive('bold'),
                 italic: editor.isActive('italic'),
@@ -163,7 +179,8 @@ function registerBlogEditor() {
                 bulletList: editor.isActive('bulletList'),
                 link: editor.isActive('link'),
                 codeBlock: editor.isActive('codeBlock'),
-                image: editor.isActive('image'),
+                image: isImage,
+                imageResized,
             };
         },
 
@@ -221,14 +238,52 @@ function registerBlogEditor() {
             const { from } = state.selection;
             const node = state.doc.nodeAt(from);
             if (!node || node.type.name !== 'image') return;
+
             const resized = node.attrs.resized === 'true';
-            const { tr } = state;
-            tr.setNodeMarkup(from, null, {
-                ...node.attrs,
-                resized: resized ? null : 'true',
-            });
-            editor.view.dispatch(tr);
+
+            if (resized) {
+                const { tr } = state;
+                tr.setNodeMarkup(from, null, {
+                    ...node.attrs,
+                    resized: null,
+                    width: null,
+                    height: null,
+                });
+                editor.view.dispatch(tr);
+            } else {
+                let targetW = null, targetH = null;
+                try {
+                    const dom = editor.view.nodeDOM(from);
+                    let imgEl = dom;
+                    if (imgEl && imgEl.tagName !== 'IMG') {
+                        imgEl = imgEl.querySelector('img');
+                    }
+                    if (imgEl) {
+                        targetW = imgEl.naturalWidth || null;
+                        targetH = imgEl.naturalHeight || null;
+                    }
+                } catch (e) { /* fallback below */ }
+
+                if (targetW && targetH) {
+                    const { tr } = state;
+                    tr.setNodeMarkup(from, null, {
+                        ...node.attrs,
+                        resized: 'true',
+                        width: Math.round(targetW * 0.5),
+                        height: Math.round(targetH * 0.5),
+                    });
+                    editor.view.dispatch(tr);
+                } else {
+                    const { tr } = state;
+                    tr.setNodeMarkup(from, null, {
+                        ...node.attrs,
+                        resized: 'true',
+                    });
+                    editor.view.dispatch(tr);
+                }
+            }
             this.updateActiveStates();
+            editor.commands.focus();
         },
 
         uploadImage(event) {
