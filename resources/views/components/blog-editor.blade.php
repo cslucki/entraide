@@ -94,7 +94,7 @@
         <button type="button" @click="resizeImage" x-show="activeStates?.image"
             x-cloak class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition"
             :title="activeStates?.imageResized ? @js(__('blog.editor_reset_size')) : @js(__('blog.editor_resize_image'))">
-            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+            <span x-text="activeStates?.imageResized ? '100%' : '50%'"></span>
         </button>
         <button type="button" @click="toggleFullscreen" x-cloak
             class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition ml-auto"
