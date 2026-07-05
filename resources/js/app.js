@@ -88,7 +88,7 @@ function registerBlogEditor() {
         aiRemainingRoute: '',
         aiGenerateRoute: '',
         aiCorrectRoute: '',
-        editorPostId: '',
+        fullscreen: false,
         errorUpload: '',
         errorAi: '',
         linkPrompt: '',
@@ -134,13 +134,6 @@ function registerBlogEditor() {
                 this.updateActiveStates();
             });
 
-            editorEl.addEventListener('click', (e) => {
-                if (e.target.closest('.bp-resize-btn')) {
-                    e.preventDefault();
-                    this.resizeImage();
-                }
-            });
-
             const form = this.$el.closest('form');
             if (form) {
                 form.addEventListener('submit', () => {
@@ -150,6 +143,13 @@ function registerBlogEditor() {
 
             this.updateActiveStates();
             this.loadRemaining();
+
+            this.$el.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.fullscreen) {
+                    this.fullscreen = false;
+                    document.body.style.overflow = '';
+                }
+            });
         },
 
         destroy() {
@@ -232,6 +232,11 @@ function registerBlogEditor() {
             this.$refs.imageInput.click();
         },
 
+        toggleFullscreen() {
+            this.fullscreen = !this.fullscreen;
+            document.body.style.overflow = this.fullscreen ? 'hidden' : '';
+        },
+
         resizeImage() {
             if (!editor || !editor.isActive('image')) return;
             const { state } = editor;
@@ -254,10 +259,8 @@ function registerBlogEditor() {
                 let targetW = null, targetH = null;
                 try {
                     const dom = editor.view.nodeDOM(from);
-                    let imgEl = dom;
-                    if (imgEl && imgEl.tagName !== 'IMG') {
-                        imgEl = imgEl.querySelector('img');
-                    }
+                    let imgEl = dom?.querySelector?.('img') || dom;
+                    if (imgEl && imgEl.tagName !== 'IMG') imgEl = null;
                     if (imgEl) {
                         targetW = imgEl.naturalWidth || null;
                         targetH = imgEl.naturalHeight || null;

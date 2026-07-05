@@ -124,6 +124,8 @@ return [
     'editor_code' => 'Bloc de code',
     'editor_resize_image' => 'Redimensionner l\'image à 50 %',
     'editor_reset_size' => 'Rétablir la taille originale de l\'image',
+    'editor_fullscreen' => 'Passer l\'éditeur en plein écran',
+    'editor_exit_fullscreen' => 'Quitter le plein écran',
     'editor_upload_error' => 'Erreur lors de l\'upload.',
     'editor_ai_error' => 'Erreur de communication avec le service IA.',
     'editor_link_prompt' => 'URL du lien :',

@@ -1,4 +1,4 @@
-import { Editor } from '@tiptap/core';
+import { Editor, mergeAttributes, ResizableNodeView } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
@@ -21,6 +21,7 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
                 codeBlock: true,
                 link: false,
                 underline: false,
+                horizontalRule: false,
             }),
             Link.configure({
                 openOnClick: false,
@@ -44,18 +45,79 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
                         },
                     };
                 },
-                renderHTML({ node, HTMLAttributes }) {
-                    return ['div', { class: 'bp-image-wrap' },
-                        ['img', HTMLAttributes],
-                        ['button', { class: 'bp-resize-btn', type: 'button' }, '↔'],
-                    ];
+                renderHTML({ HTMLAttributes }) {
+                    return ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)];
                 },
                 parseHTML() {
                     return [{ tag: 'img[src]' }];
                 },
+                addNodeView() {
+                    if (!this.options.resize?.enabled || typeof document === 'undefined') return null;
+                    const { directions, minWidth, minHeight, alwaysPreserveAspectRatio } = this.options.resize;
+                    return ({ node, getPos, HTMLAttributes, editor }) => {
+                        const el = document.createElement('img');
+                        el.draggable = false;
+                        const merged = mergeAttributes(this.options.HTMLAttributes, HTMLAttributes);
+                        Object.entries(merged).forEach(([key, value]) => {
+                            if (value == null) return;
+                            if (key === 'width' || key === 'height') return;
+                            el.setAttribute(key, String(value));
+                        });
+                        if (merged.src !== null) el.src = merged.src;
+                        const nodeView = new ResizableNodeView({
+                            element: el,
+                            editor,
+                            node,
+                            getPos,
+                            onResize: (width, height) => {
+                                el.style.width = `${width}px`;
+                                el.style.height = `${height}px`;
+                            },
+                            onCommit: (width, height) => {
+                                const pos = getPos();
+                                if (pos === undefined) return;
+                                this.editor.chain().setNodeSelection(pos).updateAttributes('image', {
+                                    width, height,
+                                }).run();
+                            },
+                            onUpdate: (updatedNode) => {
+                                if (updatedNode.type !== node.type) return false;
+                                if (updatedNode.attrs.width != null) {
+                                    el.style.width = `${updatedNode.attrs.width}px`;
+                                    el.style.height = `${updatedNode.attrs.height}px`;
+                                } else {
+                                    el.style.width = '';
+                                    el.style.height = '';
+                                }
+                                return true;
+                            },
+                            options: {
+                                directions: directions ?? ['bottom-right', 'bottom-left', 'top-right', 'top-left'],
+                                min: { width: minWidth ?? 80, height: minHeight ?? 80 },
+                                preserveAspectRatio: alwaysPreserveAspectRatio === true,
+                                className: { handle: 'bp-resize-handle' },
+                            },
+                        });
+                        const dom = nodeView.dom;
+                        dom.style.visibility = 'hidden';
+                        dom.style.pointerEvents = 'none';
+                        el.onload = () => {
+                            dom.style.visibility = '';
+                            dom.style.pointerEvents = '';
+                        };
+                        return nodeView;
+                    };
+                },
             }).configure({
                 inline: false,
                 allowBase64: false,
+                resize: {
+                    enabled: true,
+                    directions: ['bottom-right', 'bottom-left', 'top-right', 'top-left'],
+                    minWidth: 80,
+                    minHeight: 80,
+                    alwaysPreserveAspectRatio: true,
+                },
             }),
             Table.configure({
                 resizable: true,

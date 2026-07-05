@@ -124,6 +124,8 @@ return [
     'editor_code' => 'Code block',
     'editor_resize_image' => 'Resize image to 50%',
     'editor_reset_size' => 'Reset image to original size',
+    'editor_fullscreen' => 'Enter fullscreen mode',
+    'editor_exit_fullscreen' => 'Exit fullscreen mode',
     'editor_upload_error' => 'Upload error.',
     'editor_ai_error' => 'Communication error with the AI service.',
     'editor_link_prompt' => 'Link URL:',

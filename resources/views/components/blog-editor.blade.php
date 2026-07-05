@@ -1,40 +1,55 @@
 @props(['name' => 'content', 'value' => '', 'postId' => null, 'invalid' => false, 'routeAiGenerate' => null, 'routeAiCorrect' => null, 'routeAiRemaining' => null, 'routeUpload' => null])
 
 <style>
-.bp-image-wrap {
-  position: relative;
-  display: inline-block;
-}
-.bp-image-wrap .bp-resize-btn {
-  display: none;
+.bp-resize-handle {
   position: absolute;
-  bottom: 6px;
-  right: 6px;
-  width: 28px;
-  height: 28px;
-  border-radius: 9999px;
+  width: 10px;
+  height: 10px;
   background: #fff;
-  border: 1px solid #d1d5db;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  cursor: pointer;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  line-height: 1;
-  color: #374151;
+  border: 2px solid #6366f1;
+  border-radius: 1px;
   z-index: 10;
 }
-.bp-image-wrap:hover .bp-resize-btn,
-.bp-image-wrap.ProseMirror-selectednode .bp-resize-btn {
-  display: flex;
+.bp-resize-handle[data-resize-handle="bottom-right"] {
+  cursor: nwse-resize;
+  transform: translate(50%, 50%);
 }
-.bp-resize-btn:hover {
-  background: #f3f4f6;
+.bp-resize-handle[data-resize-handle="bottom-left"] {
+  cursor: nesw-resize;
+  transform: translate(-50%, 50%);
+}
+.bp-resize-handle[data-resize-handle="top-right"] {
+  cursor: nesw-resize;
+  transform: translate(50%, -50%);
+}
+.bp-resize-handle[data-resize-handle="top-left"] {
+  cursor: nwse-resize;
+  transform: translate(-50%, -50%);
+}
+[data-resize-container].ProseMirror-selectednode {
+  outline: 2px solid #6366f1;
+  border-radius: 4px;
+}
+.bp-fullscreen {
+  position: fixed !important;
+  inset: 1.5rem !important;
+  z-index: 50 !important;
+  background: #fff !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25) !important;
+}
+.dark .bp-fullscreen {
+  background: #111827 !important;
+}
+.bp-fullscreen .ProseMirror {
+  min-height: calc(100vh - 12rem) !important;
+  max-height: calc(100vh - 12rem) !important;
 }
 </style>
 
 <div
     x-data="blogEditor"
+    :class="{ 'bp-fullscreen': fullscreen }"
     x-id="['blog-editor']"
     data-editor-name="{{ $name }}"
     data-editor-value="{{ $value }}"
@@ -75,6 +90,17 @@
         <button type="button" @click="triggerImageUpload" title="{{ __('blog.editor_image') }}"
             class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </button>
+        <button type="button" @click="resizeImage" x-show="activeStates?.image"
+            x-cloak class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition"
+            :title="activeStates?.imageResized ? @js(__('blog.editor_reset_size')) : @js(__('blog.editor_resize_image'))">
+            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+        </button>
+        <button type="button" @click="toggleFullscreen" x-cloak
+            class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition ml-auto"
+            :title="fullscreen ? @js(__('blog.editor_exit_fullscreen')) : @js(__('blog.editor_fullscreen'))">
+            <svg x-show="!fullscreen" class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
+            <svg x-show="fullscreen" class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"/></svg>
         </button>
         <input type="file" accept="image/*" class="hidden" x-ref="imageInput" @change="uploadImage($event)">
     </div>
