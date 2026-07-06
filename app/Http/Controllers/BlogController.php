@@ -351,11 +351,22 @@ class BlogController extends Controller implements HasMiddleware
             ->latest()
             ->paginate(15, ['*'], 'published_page');
 
-        $coAuthoredPosts = $user->coAuthoredBlogPosts()
+        $coAuthorIds = $user->coAuthoredBlogPosts()
+            ->where('organization_id', $organization->id)
+            ->pluck('blog_posts.id');
+
+        $ownedWithCoAuthorIds = BlogPost::where('user_id', $user->id)
+            ->where('organization_id', $organization->id)
+            ->whereHas('coAuthors')
+            ->pluck('id');
+
+        $allCollaborativeIds = $coAuthorIds->merge($ownedWithCoAuthorIds)->unique()->values();
+
+        $coAuthoredPosts = BlogPost::whereIn('id', $allCollaborativeIds)
             ->where('organization_id', $organization->id)
             ->with(['user', 'coAuthors'])
             ->withCount(['comments', 'likes', 'coAuthors'])
-            ->latest('blog_post_user.created_at')
+            ->latest()
             ->paginate(15, ['*'], 'coauthored_page');
 
         $comments = BlogComment::where('user_id', $user->id)

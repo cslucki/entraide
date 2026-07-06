@@ -22,6 +22,9 @@
         <a href="{{ $_blogRoute('index') }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" aria-label="{{ __('blog.back_to_blog') }}">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </a>
+        <a href="{{ $_blogRoute('my-posts') }}" class="text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline ml-2 shrink-0">
+            {{ __('blog.back_to_my_articles') }}
+        </a>
         <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $post->title }}</span>
     </div>
 

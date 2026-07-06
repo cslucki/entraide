@@ -21,6 +21,7 @@ return [
     'no_posts_published' => "Cet utilisateur n'a pas encore publié d'article.",
     'read_time' => ':count min',
 
+    'back_to_my_articles' => '← Mes articles',
     'back_to_blog' => '← Retour au blog',
     'back_to_article' => '← Retour à l\'article',
     'back_to_list' => '← Retour à la liste des articles',

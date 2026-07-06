@@ -100,13 +100,16 @@
                                     @if($coAuthors->isNotEmpty())
                                         <div class="flex -space-x-2">
                                             @foreach($visible as $ca)
-                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300"
-                                                      title="{{ $ca->name }}">{{ Str::limit($ca->name, 2, '') }}</span>
+                                            <div class="group relative">
+                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 cursor-default">{{ $ca->initials }}</span>
+                                                <div class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg">{{ $ca->fullName }}</div>
+                                            </div>
                                             @endforeach
                                         </div>
                                         @if($remaining > 0)
                                             <span class="text-xs text-gray-400">+{{ $remaining }}</span>
                                         @endif
+                                        <span class="hidden lg:inline text-xs text-gray-500 dark:text-gray-400 truncate max-w-[120px] ml-1">{{ $visible->pluck('fullName')->implode(', ') }}</span>
                                     @else
                                         <span class="text-xs text-gray-400">&mdash;</span>
                                     @endif
@@ -176,13 +179,16 @@
                                     @if($coAuthors->isNotEmpty())
                                         <div class="flex -space-x-2">
                                             @foreach($visible as $ca)
-                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300"
-                                                      title="{{ $ca->name }}">{{ Str::limit($ca->name, 2, '') }}</span>
+                                            <div class="group relative">
+                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 cursor-default">{{ $ca->initials }}</span>
+                                                <div class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg">{{ $ca->fullName }}</div>
+                                            </div>
                                             @endforeach
                                         </div>
                                         @if($remaining > 0)
                                             <span class="text-xs text-gray-400">+{{ $remaining }}</span>
                                         @endif
+                                        <span class="hidden lg:inline text-xs text-gray-500 dark:text-gray-400 truncate max-w-[120px] ml-1">{{ $visible->pluck('fullName')->implode(', ') }}</span>
                                     @else
                                         <span class="text-xs text-gray-400">&mdash;</span>
                                     @endif
@@ -252,9 +258,11 @@
                             </td>
                             <td class="px-5 py-4 hidden lg:table-cell">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200"
-                                          title="{{ $post->user?->name ?? '—' }}">{{ $post->user ? Str::limit($post->user->name, 2, '') : '?' }}</span>
-                                    <span class="text-xs text-gray-600 dark:text-gray-400 truncate max-w-[100px]">{{ $post->user?->name ?? '—' }}</span>
+                                    <div class="group relative">
+                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 cursor-default">{{ $post->user?->initials ?? '?' }}</span>
+                                        <div class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg">{{ $post->user?->fullName ?? '—' }}</div>
+                                    </div>
+                                    <span class="text-xs text-gray-600 dark:text-gray-400 truncate max-w-[100px]">{{ $post->user?->fullName ?? '—' }}</span>
                                 </div>
                             </td>
                             <td class="px-5 py-4 hidden lg:table-cell">
@@ -263,13 +271,16 @@
                                     @if($coAuthors->isNotEmpty())
                                         <div class="flex -space-x-2">
                                             @foreach($visible as $ca)
-                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300"
-                                                      title="{{ $ca->name }}">{{ Str::limit($ca->name, 2, '') }}</span>
+                                            <div class="group relative">
+                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 cursor-default">{{ $ca->initials }}</span>
+                                                <div class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg">{{ $ca->fullName }}</div>
+                                            </div>
                                             @endforeach
                                         </div>
                                         @if($remaining > 0)
                                             <span class="text-xs text-gray-400">+{{ $remaining }}</span>
                                         @endif
+                                        <span class="hidden lg:inline text-xs text-gray-500 dark:text-gray-400 truncate max-w-[120px] ml-1">{{ $visible->pluck('fullName')->implode(', ') }}</span>
                                     @else
                                         <span class="text-xs text-gray-400">&mdash;</span>
                                     @endif
