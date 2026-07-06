@@ -223,7 +223,7 @@
     {{-- Right sidebar --}}
     <aside
         :style="`width: ${width}px`"
-        class="shrink-0 hidden md:flex flex-col space-y-2"
+        class="flex w-full shrink-0 flex-col space-y-2 md:w-auto"
     >
         {{-- Generic cards (boucle, coecriture, annotations) --}}
         <template x-for="card in cards" :key="card.key">
@@ -278,14 +278,15 @@
                 </svg>
             </button>
 
-            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[32rem] overflow-y-auto">
+            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
                 {{-- Success message --}}
                 <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
                 {{-- Error message --}}
                 <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
 
                 {{-- Manual create form --}}
-                <div>
+                <div class="rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50">
+                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('blog.snapshot_manual_title') }}</p>
                     <input type="text" x-model="name" :placeholder="@js(__('blog.snapshot_name_placeholder'))" maxlength="255"
                         class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500 mb-1">
                     <textarea x-model="comment" :placeholder="@js(__('blog.snapshot_comment_placeholder'))" rows="2" maxlength="1000"
@@ -298,6 +299,7 @@
                             {{ __('blog.snapshot_btn_create') }}
                         </span>
                     </button>
+                    <p class="mt-1 text-[10px] leading-4 text-gray-400 dark:text-gray-500">{{ __('blog.snapshot_manual_hint') }}</p>
                 </div>
 
                 {{-- Inline history --}}
@@ -312,7 +314,7 @@
                 </template>
 
                 <template x-if="selectedSnapshot()">
-                    <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+                    <div class="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 shadow-sm dark:border-indigo-900/60 dark:bg-indigo-950/10">
                         <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0">
                                 <p class="text-[10px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{{ __('blog.snapshot_preview') }}</p>
@@ -326,7 +328,7 @@
                             </button>
                         </div>
 
-                        <div class="mt-2 space-y-1 rounded-lg bg-white/80 p-2 dark:bg-gray-900/70">
+                        <div class="mt-2 space-y-1 rounded-lg bg-white/85 p-2 dark:bg-gray-900/70">
                             <p class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="selectedSnapshot().title"></p>
                             <template x-if="selectedSnapshot().summary">
                                 <p class="text-[10px] text-gray-600 dark:text-gray-300" x-text="selectedSnapshot().summary"></p>
@@ -337,7 +339,7 @@
                             </template>
                         </div>
 
-                        <div class="mt-2 rounded-lg border border-gray-100 bg-white/90 p-2 dark:border-gray-700 dark:bg-gray-900/80">
+                        <div class="mt-2 rounded-lg border border-gray-100 bg-gray-50/80 p-2 dark:border-gray-700 dark:bg-gray-900/70">
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
                                     <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">{{ __('blog.snapshot_diff_title') }}</p>
@@ -366,7 +368,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="max-h-28 overflow-y-auto rounded-md bg-gray-50 p-2 text-[10px] leading-5 dark:bg-gray-950/60">
+                                    <div class="max-h-24 overflow-y-auto rounded-md bg-white p-2 text-[10px] leading-5 dark:bg-gray-950/60">
                                         <template x-for="(part, index) in diffText(selectedSnapshot(), comparisonSnapshot())" :key="index">
                                             <span>
                                                 <span x-show="part.type === 'added'" class="rounded bg-green-100 px-1 py-0.5 font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-200" x-text="'{{ __('blog.snapshot_added') }} + ' + part.text"></span>
@@ -395,14 +397,14 @@
                 </template>
 
                 <template x-if="snapshots.length > 0">
-                    <div class="rounded-lg border border-gray-100 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
+                    <div class="rounded-lg border border-gray-100 bg-gray-50/80 p-2 dark:border-gray-700 dark:bg-gray-900/70">
                         <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('blog.snapshot_loaded_versions') }}</p>
                         <div class="flex gap-1 overflow-x-auto pb-1">
                             <template x-for="s in snapshots" :key="s.id">
                                 <button type="button" @click="selectSnapshot(s.id)"
                                     :title="s.name"
                                     :class="selectedSnapshot()?.id === s.id ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'"
-                                    class="h-2.5 min-w-8 rounded-full transition">
+                                    class="h-2 min-w-7 rounded-full transition">
                                     <span class="sr-only" x-text="s.name"></span>
                                 </button>
                             </template>
@@ -413,7 +415,7 @@
                 <template x-for="s in snapshots" :key="s.id">
                     <button type="button" @click="selectSnapshot(s.id)"
                         :class="selectedSnapshot()?.id === s.id ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/30' : 'border-gray-100 bg-white hover:border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600'"
-                        class="block w-full rounded-lg border p-2 text-left transition">
+                        class="block w-full rounded-lg border p-2 text-left transition focus:outline-none focus:ring-2 focus:ring-indigo-500/40">
                         <div class="flex items-start justify-between gap-1">
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="s.name"></p>

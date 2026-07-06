@@ -229,6 +229,8 @@ return [
     'snapshot_no_changes' => 'No changes since the last version.',
     'snapshot_named' => 'Version named.',
     'snapshot_auto_prefix' => 'Auto ',
+    'snapshot_manual_title' => 'Name an important version',
+    'snapshot_manual_hint' => 'If the content has not changed, the latest version name and comment will be updated.',
     'snapshot_load_more' => 'Load more (:remaining remaining)',
     'snapshot_restore_btn' => 'Restore',
     'snapshot_loading' => 'Loading…',
