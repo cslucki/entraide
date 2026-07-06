@@ -155,11 +155,40 @@
                     @error('category_id')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_tags') }}</label>
-                    <input type="text" name="tags" value="{{ old('tags', $post->tags->pluck('name')->implode(', ')) }}"
-                        placeholder="{{ __('blog.placeholder_tags') }}"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
+                <div x-data="{
+                    tags: '{{ old('tags', $post->tags->pluck('name')->implode(', ')) }}',
+                    tagList: [],
+                    tagInput: '',
+                    addTag() {
+                        let t = this.tagInput.trim();
+                        if (!t || this.tagList.length >= 10) return;
+                        this.tagList.push(t);
+                        this.tags = this.tagList.join(',');
+                        this.tagInput = '';
+                    },
+                    removeTag(i) {
+                        this.tagList.splice(i, 1);
+                        this.tags = this.tagList.join(',');
+                    },
+                    init() {
+                        if (this.tags) this.tagList = this.tags.split(',').map(t => t.trim()).filter(t => t);
+                    }
+                }">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_tags') }} <span class="text-gray-400">{{ __('blog.tags_max_10') }}</span></label>
+                    <input type="hidden" name="tags" x-bind:value="tags">
+                    <div class="flex flex-wrap gap-2 mb-2">
+                        <template x-for="(tag, i) in tagList" :key="i">
+                            <span class="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded text-sm">
+                                <span x-text="tag"></span>
+                                <button type="button" @click="removeTag(i)" class="ml-1 text-indigo-400 hover:text-indigo-700">&times;</button>
+                            </span>
+                        </template>
+                    </div>
+                    <div class="flex gap-2" x-show="tagList.length < 10">
+                        <input type="text" x-model="tagInput" @keydown.enter.prevent="addTag" placeholder="{{ __('blog.add_tag_placeholder') }}"
+                            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
+                        <button type="button" @click="addTag" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300">{{ __('blog.add_tag') }}</button>
+                    </div>
                 </div>
 
                 <details class="group">
