@@ -7,6 +7,13 @@
             }
             return route('organization.blog.'.$name, array_merge(['organization' => $orgSlug], $parameters));
         };
+        $_profileRoute = function ($user) {
+            $orgSlug = request()->route('organization');
+            if ($orgSlug && Route::has('organization.profile.show')) {
+                return route('organization.profile.show', ['organization' => $orgSlug, 'user' => $user]);
+            }
+            return route('profile.show', $user);
+        };
     @endphp
     <x-slot name="title">{{ $category->displayName('blog') }} {{ __('blog.blog_brand_suffix') }}</x-slot>
 
@@ -38,7 +45,7 @@
                     @if($post->summary)
                     <p class="text-sm text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">{{ $post->summary }}</p>
                     @endif
-                    <a href="{{ route('profile.show', $post->user) }}" class="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+                    <a href="{{ $_profileRoute($post->user) }}" class="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
                         <img src="{{ $post->user->avatar_url }}" alt="" class="w-4 h-4 rounded-full">
                         <span>{{ $post->user->fullName }}</span>
                         @if($post->read_time)<span>· {{ __('blog.read_time', ['count' => $post->read_time]) }}</span>@endif

@@ -111,13 +111,10 @@ class AdminBlogController extends Controller
         $post->update($data);
 
         if (isset($data['tags'])) {
-            $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
-                ->map(fn ($name) => Tag::firstOrCreate(
-                    ['slug' => Str::slug($name), 'organization_id' => $post->organization_id],
-                    ['name' => $name, 'slug' => Str::slug($name)]
-                )->id)
-                ->all();
-            $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $post->organization_id]);
+            $post->tags()->syncWithPivotValues(
+                $this->tagIdsFromInput($data['tags'], $post->organization_id),
+                ['organization_id' => $post->organization_id]
+            );
         }
 
         return redirect()->route('admin.blog.edit', $post)
@@ -143,6 +140,34 @@ class AdminBlogController extends Controller
         $post->delete();
 
         return back()->with('success', __('blog.deleted'));
+    }
+
+    /** @return array<int, string> */
+    private function tagIdsFromInput(?string $input, string $organizationId): array
+    {
+        $tagIds = [];
+        $seenSlugs = [];
+
+        foreach (explode(',', (string) $input) as $rawName) {
+            $name = trim(preg_replace('/^#+/', '', trim($rawName)) ?? '');
+            $slug = Str::slug($name);
+
+            if ($name === '' || $slug === '' || isset($seenSlugs[$slug])) {
+                continue;
+            }
+
+            $seenSlugs[$slug] = true;
+            $tagIds[] = Tag::firstOrCreate(
+                ['slug' => $slug, 'organization_id' => $organizationId],
+                ['name' => $name, 'slug' => $slug]
+            )->id;
+
+            if (count($tagIds) >= 10) {
+                break;
+            }
+        }
+
+        return $tagIds;
     }
 
     public function previewMarkdown(Request $request): JsonResponse

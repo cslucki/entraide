@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminSystemEmailTemplatesController;
+use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\Admin\OrgAdminController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogSnapshotController;
 use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExplorerController;
@@ -109,6 +111,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
     Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
     Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
+
+    // Blog snapshot endpoints
+    Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'store'])->name('blog.snapshots.store');
+    Route::get('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'index'])->name('blog.snapshots.index');
+    Route::post('/blog/{post:slug}/snapshots/{snapshot}/restore', [BlogSnapshotController::class, 'restore'])->name('blog.snapshots.restore');
 });
 
 // Blog — wildcard slug EN DERNIER
@@ -420,6 +427,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/blog/preview-markdown', [AdminBlogController::class, 'previewMarkdown'])->name('blog.preview-markdown');
     Route::delete('/blog/{post}', [AdminBlogController::class, 'destroy'])->name('blog.destroy');
 
+    // Tags
+    Route::get('/tags', [AdminTagController::class, 'index'])->name('tags');
+    Route::get('/tags/{tag}/edit', [AdminTagController::class, 'edit'])->name('tags.edit');
+    Route::put('/tags/{tag}', [AdminTagController::class, 'update'])->name('tags.update');
+    Route::delete('/tags/{tag}', [AdminTagController::class, 'destroy'])->name('tags.destroy');
+
     // Loops Center
     Route::get('/loops', [AdminLoopController::class, 'index'])->name('loops');
     Route::get('/loops/create', [AdminLoopController::class, 'create'])->name('loops.create');
@@ -573,6 +586,11 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/ai-correct', [BlogController::class, 'orgAiCorrect'])->name('blog.ai-correct');
                 Route::post('/blog/ai-remaining', [BlogController::class, 'orgAiRemaining'])->name('blog.ai-remaining');
                 Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->name('blog.create-draft');
+
+                // Blog snapshot endpoints (org-scoped)
+                Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'orgStore'])->name('blog.snapshots.store');
+                Route::get('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'orgIndex'])->name('blog.snapshots.index');
+                Route::post('/blog/{post:slug}/snapshots/{snapshot}/restore', [BlogSnapshotController::class, 'orgRestore'])->name('blog.snapshots.restore');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');

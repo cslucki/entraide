@@ -100,7 +100,6 @@
     data-route-ai-remaining="{{ $routeAiRemaining ?? route('blog.ai-remaining') }}"
     data-route-ai-generate="{{ $routeAiGenerate ?? route('blog.ai-generate') }}"
     data-route-ai-correct="{{ $routeAiCorrect ?? route('blog.ai-correct') }}"
-    class="space-y-1"
 >
     {{-- Toolbar --}}
     <div class="flex flex-wrap items-center gap-1 pb-2 border-b border-gray-200 dark:border-gray-700">
@@ -434,4 +433,7 @@
 
     {{-- Erreur IA --}}
     <div x-show="error" x-cloak class="mt-2 text-sm text-red-500" x-text="error"></div>
+
+
+
 </div>

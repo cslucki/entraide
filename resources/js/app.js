@@ -62,6 +62,312 @@ function registerAlpineStores() {
     });
 }
 
+function registerBlogSnapshotCard() {
+    if (!window.Alpine || window.__blogSnapshotCardRegistered) {
+        return;
+    }
+
+    window.__blogSnapshotCardRegistered = true;
+
+    Alpine.data('blogSnapshotCard', (config) => ({
+        open: false,
+        name: '',
+        comment: '',
+        snapshots: [],
+        selectedSnapshotId: null,
+        hasMore: false,
+        total: 0,
+        page: 0,
+        saving: false,
+        loading: false,
+        error: '',
+        success: '',
+
+        storeUrl: config.storeUrl,
+        indexUrl: config.indexUrl,
+        restoreUrlBase: config.restoreUrlBase,
+        i18n: config.i18n || {},
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_snapshot', this.open ? '1' : '0');
+        },
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_snapshot');
+            if (stored !== null) this.open = stored === '1';
+            this.loadHistory();
+        },
+
+        latestSnapshot() {
+            return this.snapshots[0] || null;
+        },
+
+        selectedSnapshot() {
+            return this.snapshots.find((snapshot) => snapshot.id === this.selectedSnapshotId) || this.latestSnapshot();
+        },
+
+        selectedIndex() {
+            return this.snapshots.findIndex((snapshot) => snapshot.id === this.selectedSnapshot()?.id);
+        },
+
+        selectSnapshot(id) {
+            this.selectedSnapshotId = id;
+        },
+
+        canGoPrevious() {
+            const index = this.selectedIndex();
+
+            return index > 0;
+        },
+
+        canGoNext() {
+            const index = this.selectedIndex();
+
+            return index >= 0 && index < this.snapshots.length - 1;
+        },
+
+        selectPrevious() {
+            const index = this.selectedIndex();
+            if (index > 0) {
+                this.selectedSnapshotId = this.snapshots[index - 1].id;
+            }
+        },
+
+        selectNext() {
+            const index = this.selectedIndex();
+            if (index >= 0 && index < this.snapshots.length - 1) {
+                this.selectedSnapshotId = this.snapshots[index + 1].id;
+            }
+        },
+
+        comparisonSnapshot() {
+            const index = this.selectedIndex();
+
+            return index >= 0 ? this.snapshots[index + 1] || null : null;
+        },
+
+        canCompare() {
+            return Boolean(this.selectedSnapshot() && this.comparisonSnapshot());
+        },
+
+        fieldChanged(field) {
+            if (!this.canCompare()) return false;
+
+            return (this.selectedSnapshot()?.[field] || '') !== (this.comparisonSnapshot()?.[field] || '');
+        },
+
+        changedFields() {
+            return ['title', 'summary', 'status', 'meta_title', 'meta_description']
+                .filter((field) => this.fieldChanged(field));
+        },
+
+        plainTextFromHtml(html) {
+            const doc = new DOMParser().parseFromString(html || '', 'text/html');
+
+            return doc.body.textContent?.replace(/\s+/g, ' ').trim() || '';
+        },
+
+        previewText(snapshot) {
+            const text = this.plainTextFromHtml(snapshot?.content || '');
+
+            return text.length > 260 ? text.slice(0, 260).trim() + '…' : text;
+        },
+
+        diffText(current, previous) {
+            return this.tokenizeDiff(
+                this.plainTextFromHtml(previous?.content || ''),
+                this.plainTextFromHtml(current?.content || ''),
+            );
+        },
+
+        tokenizeDiff(previousText, currentText) {
+            const limit = 90;
+            const previous = previousText.split(/\s+/).filter(Boolean).slice(0, limit);
+            const current = currentText.split(/\s+/).filter(Boolean).slice(0, limit);
+            const table = Array.from({ length: previous.length + 1 }, () => Array(current.length + 1).fill(0));
+
+            for (let i = previous.length - 1; i >= 0; i--) {
+                for (let j = current.length - 1; j >= 0; j--) {
+                    table[i][j] = previous[i] === current[j]
+                        ? table[i + 1][j + 1] + 1
+                        : Math.max(table[i + 1][j], table[i][j + 1]);
+                }
+            }
+
+            const segments = [];
+            let i = 0;
+            let j = 0;
+
+            const push = (type, word) => {
+                const last = segments[segments.length - 1];
+                if (last?.type === type) {
+                    last.text += ' ' + word;
+                } else {
+                    segments.push({ type, text: word });
+                }
+            };
+
+            while (i < previous.length && j < current.length) {
+                if (previous[i] === current[j]) {
+                    push('unchanged', current[j]);
+                    i++;
+                    j++;
+                } else if (table[i + 1][j] >= table[i][j + 1]) {
+                    push('removed', previous[i]);
+                    i++;
+                } else {
+                    push('added', current[j]);
+                    j++;
+                }
+            }
+
+            while (i < previous.length) {
+                push('removed', previous[i]);
+                i++;
+            }
+
+            while (j < current.length) {
+                push('added', current[j]);
+                j++;
+            }
+
+            return segments.slice(0, 28);
+        },
+
+        remainingCount() {
+            return Math.max(0, this.total - this.snapshots.length);
+        },
+
+        async loadMore() {
+            await this.loadHistory(false);
+        },
+
+        async createSnapshot() {
+            if (!this.name) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+
+            try {
+                const title = document.querySelector('input[name="title"]')?.value || '';
+                const summary = document.querySelector('textarea[name="summary"]')?.value || '';
+                const content = (typeof editor !== 'undefined' && editor) ? editor.getHTML() : '';
+                const metaTitle = document.querySelector('input[name="meta_title"]')?.value || '';
+                const metaDesc = document.querySelector('textarea[name="meta_description"], input[name="meta_description"]')?.value || '';
+                const statusEl = document.querySelector('[name="status"]:checked');
+                const status = statusEl?.value || 'draft';
+
+                const resp = await fetch(this.storeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                    body: JSON.stringify({
+                        name: this.name,
+                        comment: this.comment,
+                        title,
+                        summary,
+                        content,
+                        meta_title: metaTitle,
+                        meta_description: metaDesc,
+                        status,
+                    }),
+                });
+
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.message || this.i18n.snapshotCreated);
+
+                this.success = data.message || (data.updated ? this.i18n.snapshotNamed : this.i18n.snapshotCreated);
+                this.name = '';
+                this.comment = '';
+
+                await this.loadHistory();
+
+                setTimeout(() => { this.success = ''; }, 3000);
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async loadHistory(reset = true) {
+            this.loading = true;
+            this.error = '';
+
+            try {
+                const offset = reset ? 0 : this.snapshots.length;
+                const resp = await fetch(this.indexUrl + '?_=' + Date.now() + '&offset=' + offset + '&limit=5', {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!resp.ok) throw new Error(this.i18n.snapshotLoadError);
+                const data = await resp.json();
+                if (reset) {
+                    this.snapshots = data.snapshots;
+                    this.page = 0;
+                    this.selectedSnapshotId = this.snapshots[0]?.id || null;
+                } else {
+                    this.snapshots = [...this.snapshots, ...data.snapshots];
+                    this.page++;
+                    if (!this.selectedSnapshotId) {
+                        this.selectedSnapshotId = this.snapshots[0]?.id || null;
+                    }
+                }
+                this.hasMore = data.has_more;
+                this.total = data.total;
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async restoreSnapshot(id) {
+            if (!confirm(this.i18n.snapshotConfirmRestore)) return;
+            this.loading = true;
+            this.error = '';
+            this.success = '';
+
+            try {
+                const url = this.restoreUrlBase.replace('__PLACEHOLDER__', id);
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                });
+
+                if (!resp.ok) throw new Error(this.i18n.snapshotRestoreError);
+                const data = await resp.json();
+
+                const setVal = (name, val) => {
+                    const el = document.querySelector(`[name="${name}"]`);
+                    if (el) {
+                        if (el.type === 'radio') {
+                            const radio = document.querySelector(`[name="${name}"][value="${val}"]`);
+                            if (radio) radio.checked = true;
+                        } else {
+                            el.value = val || '';
+                        }
+                    }
+                };
+
+                setVal('title', data.title);
+                setVal('summary', data.summary);
+                setVal('meta_title', data.meta_title);
+                setVal('meta_description', data.meta_description);
+                setVal('status', data.status);
+
+                window.dispatchEvent(new CustomEvent('snapshot-restore', { detail: { content: data.content || '' } }));
+
+                this.success = this.i18n.snapshotRestored;
+                setTimeout(() => { this.success = ''; }, 3000);
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+    }));
+}
+
 function registerBlogEditor() {
     if (!window.Alpine || window.__blogEditorRegistered) {
         return;
@@ -157,6 +463,17 @@ function registerBlogEditor() {
                 if (e.key === 'Escape' && this.fullscreen) {
                     this.fullscreen = false;
                     document.body.style.overflow = '';
+                }
+            });
+
+            window.addEventListener('snapshot-restore', (e) => {
+                if (editor) {
+                    editor.commands.setContent(e.detail.content);
+                    this.content = e.detail.content;
+                    this.syncHidden();
+                } else {
+                    const ta = this.$refs?.fallbackTextarea;
+                    if (ta) ta.value = e.detail.content;
                 }
             });
         },
@@ -497,10 +814,12 @@ let editor = null;
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();
+    registerBlogSnapshotCard();
     registerBlogEditor();
 });
 
 registerAlpineStores();
+registerBlogSnapshotCard();
 registerBlogEditor();
 
 // Service Worker registration

@@ -7,6 +7,13 @@
             }
             return route('organization.blog.'.$name, array_merge(['organization' => $orgSlug], $parameters));
         };
+        $_profileRoute = function ($user) {
+            $orgSlug = request()->route('organization');
+            if ($orgSlug && Route::has('organization.profile.show')) {
+                return route('organization.profile.show', ['organization' => $orgSlug, 'user' => $user]);
+            }
+            return route('profile.show', $user);
+        };
     @endphp
     <x-slot name="title">{{ $post->meta_title ?: $post->title }} {{ __('blog.blog_brand_suffix') }}</x-slot>
 
@@ -48,7 +55,7 @@
 
                 <!-- Auteur + méta -->
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                    <a href="{{ route('profile.show', $post->user) }}" class="flex items-center gap-3 group min-w-0">
+                    <a href="{{ $_profileRoute($post->user) }}" class="flex items-center gap-3 group min-w-0">
                         <img src="{{ $post->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full flex-shrink-0">
                         <div class="min-w-0">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">{{ $post->user->fullName }}</p>
@@ -106,7 +113,7 @@
                     @foreach($post->tags as $tag)
                     <a href="{{ $_blogRoute('tag', ['slug' => $tag->slug]) }}"
                        class="text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 hover:text-indigo-700 transition">
-                        #{{ $tag->name }}
+                        #{{ ltrim($tag->name, '#') }}
                     </a>
                     @endforeach
                 </div>
