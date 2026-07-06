@@ -33,7 +33,7 @@
                 tagList: [],
                 tagInput: '',
                 addTag() {
-                    if (!this.tagInput.trim() || this.tagList.length >= 5) return;
+                    if (!this.tagInput.trim() || this.tagList.length >= 10) return;
                     this.tagList.push(this.tagInput.trim());
                     this.tags = this.tagList.join(',');
                     this.tagInput = '';
@@ -111,7 +111,7 @@
 
             <!-- Tags -->
             <div class="mb-5">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.tags') }} <span class="text-gray-400">{{ __('marketplace.max_5') }}</span></label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.tags') }} <span class="text-gray-400">{{ __('marketplace.max_10') }}</span></label>
                 <input type="hidden" name="tags" x-bind:value="tags">
                 <div class="flex flex-wrap gap-2 mb-2">
                     <template x-for="(tag, i) in tagList" :key="i">
@@ -121,7 +121,7 @@
                         </span>
                     </template>
                 </div>
-                <div class="flex gap-2" x-show="tagList.length < 5">
+                <div class="flex gap-2" x-show="tagList.length < 10">
                     <input type="text" x-model="tagInput" @keydown.enter.prevent="addTag" placeholder="{{ __('marketplace.add_tag_placeholder') }}"
                         class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
                     <button type="button" @click="addTag" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300">{{ __('marketplace.add') }}</button>

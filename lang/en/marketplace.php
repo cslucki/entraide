@@ -23,6 +23,7 @@ return [
     'image_help' => 'JPG, PNG or WebP — max 2 MB per image',
     'tags' => 'Tags',
     'max_5' => '(max 5)',
+    'max_10' => '(max 10)',
     'add_tag_placeholder' => 'Add a tag...',
     'add' => 'Add',
     'delivery_mode' => 'Delivery mode',
