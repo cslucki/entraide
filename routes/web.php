@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminSystemEmailTemplatesController;
+use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\Admin\OrgAdminController;
@@ -425,6 +426,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('/blog/{post}/status', [AdminBlogController::class, 'updateStatus'])->name('blog.status');
     Route::post('/blog/preview-markdown', [AdminBlogController::class, 'previewMarkdown'])->name('blog.preview-markdown');
     Route::delete('/blog/{post}', [AdminBlogController::class, 'destroy'])->name('blog.destroy');
+
+    // Tags
+    Route::get('/tags', [AdminTagController::class, 'index'])->name('tags');
+    Route::get('/tags/{tag}/edit', [AdminTagController::class, 'edit'])->name('tags.edit');
+    Route::put('/tags/{tag}', [AdminTagController::class, 'update'])->name('tags.update');
+    Route::delete('/tags/{tag}', [AdminTagController::class, 'destroy'])->name('tags.destroy');
 
     // Loops Center
     Route::get('/loops', [AdminLoopController::class, 'index'])->name('loops');
