@@ -202,10 +202,10 @@ class BlogController extends Controller implements HasMiddleware
         $post = BlogPost::create($data);
 
         if (! empty($data['tags'])) {
-            $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
-                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name), 'organization_id' => $organization->id], ['name' => $name, 'slug' => Str::slug($name)])->id)
-                ->all();
-            $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $organization->id]);
+            $post->tags()->syncWithPivotValues(
+                $this->tagIdsFromInput($data['tags'], $organization->id),
+                ['organization_id' => $organization->id]
+            );
         }
 
         $message = $data['status'] === 'published' ? __('blog.created_published') : __('blog.created_draft');
@@ -271,10 +271,10 @@ class BlogController extends Controller implements HasMiddleware
         $post->update($data);
 
         if (isset($data['tags'])) {
-            $tagIds = collect(array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 10))
-                ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name), 'organization_id' => $post->organization_id], ['name' => $name, 'slug' => Str::slug($name)])->id)
-                ->all();
-            $post->tags()->syncWithPivotValues($tagIds, ['organization_id' => $post->organization_id]);
+            $post->tags()->syncWithPivotValues(
+                $this->tagIdsFromInput($data['tags'], $post->organization_id),
+                ['organization_id' => $post->organization_id]
+            );
         }
 
         $this->createAutoSnapshot($post, $data, $request->user());
@@ -691,6 +691,34 @@ class BlogController extends Controller implements HasMiddleware
         $text = str_replace("\xc2\xa0", ' ', $text);
 
         return trim($text);
+    }
+
+    /** @return array<int, string> */
+    private function tagIdsFromInput(?string $input, string $organizationId): array
+    {
+        $tagIds = [];
+        $seenSlugs = [];
+
+        foreach (explode(',', (string) $input) as $rawName) {
+            $name = trim(preg_replace('/^#+/', '', trim($rawName)) ?? '');
+            $slug = Str::slug($name);
+
+            if ($name === '' || $slug === '' || isset($seenSlugs[$slug])) {
+                continue;
+            }
+
+            $seenSlugs[$slug] = true;
+            $tagIds[] = Tag::firstOrCreate(
+                ['slug' => $slug, 'organization_id' => $organizationId],
+                ['name' => $name, 'slug' => $slug]
+            )->id;
+
+            if (count($tagIds) >= 10) {
+                break;
+            }
+        }
+
+        return $tagIds;
     }
 
     private function createAutoSnapshot(BlogPost $post, array $data, $user): void

@@ -7,6 +7,13 @@
             }
             return route('organization.blog.'.$name, array_merge(['organization' => $orgSlug], $parameters));
         };
+        $_profileRoute = function ($user) {
+            $orgSlug = request()->route('organization');
+            if ($orgSlug && Route::has('organization.profile.show')) {
+                return route('organization.profile.show', ['organization' => $orgSlug, 'user' => $user]);
+            }
+            return route('profile.show', $user);
+        };
     @endphp
     <x-slot name="title">{{ __('blog.title') }} — {{ $brandOrganizationName ?? 'BouclePro' }}</x-slot>
 
@@ -76,10 +83,10 @@
                             <div class="flex flex-col gap-2 text-xs text-gray-500 dark:text-gray-400">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2 min-w-0">
-                                    <a href="{{ route('profile.show', $post->user) }}" class="shrink-0">
+                                    <a href="{{ $_profileRoute($post->user) }}" class="shrink-0">
                                         <img src="{{ $post->user->avatar_url }}" alt="" class="w-5 h-5 rounded-full">
                                     </a>
-                                    <a href="{{ route('profile.show', $post->user) }}" class="truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $post->user->fullName }}</a>
+                                    <a href="{{ $_profileRoute($post->user) }}" class="truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $post->user->fullName }}</a>
                                 </div>
                                 <div class="flex items-center gap-3 flex-shrink-0">
                                         @auth
@@ -173,7 +180,7 @@
                         @foreach($popularTags as $tag)
                         <a href="{{ $_blogRoute('tag', ['slug' => $tag->slug]) }}"
                            class="text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 hover:text-indigo-700 dark:hover:text-indigo-400 transition">
-                            #{{ $tag->name }}
+                            #{{ ltrim($tag->name, '#') }}
                         </a>
                         @endforeach
                     </div>
