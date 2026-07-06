@@ -810,17 +810,163 @@ function registerBlogEditor() {
     }));
 }
 
+function registerBlogCoAuthorCard() {
+    if (!window.Alpine || window.__blogCoAuthorCardRegistered) {
+        return;
+    }
+
+    window.__blogCoAuthorCardRegistered = true;
+
+    Alpine.data('blogCoAuthorCard', (config) => ({
+        open: false,
+        coAuthors: [],
+        searchResults: [],
+        loading: false,
+        adding: false,
+        removing: false,
+        searching: false,
+        error: '',
+        success: '',
+        selectedUserId: null,
+        userQuery: '',
+
+        indexUrl: config.indexUrl,
+        storeUrl: config.storeUrl,
+        destroyUrlBase: config.destroyUrlBase,
+        searchUrl: config.searchUrl,
+        isOwner: config.isOwner,
+        isAdmin: config.isAdmin,
+        postOwnerId: config.postOwnerId,
+        i18n: config.i18n || {},
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_coecriture', this.open ? '1' : '0');
+        },
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_coecriture');
+            if (stored !== null) this.open = stored === '1';
+            this.loadCoAuthors();
+        },
+
+        canManage() {
+            return this.isOwner || this.isAdmin;
+        },
+
+        loadCoAuthors() {
+            this.loading = true;
+            this.error = '';
+            fetch(this.indexUrl)
+                .then(r => r.json())
+                .then(data => {
+                    this.coAuthors = data.co_authors;
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.error = this.i18n.loadError || 'Failed to load co-authors.';
+                    this.loading = false;
+                });
+        },
+
+        searchUsers() {
+            const q = (this.userQuery || '').trim();
+            if (!q || q.length < 2) {
+                this.searchResults = [];
+                return;
+            }
+            this.searching = true;
+            fetch(this.searchUrl + '?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(data => {
+                    this.searchResults = (data.users || []).filter(u => {
+                        if (u.id === this.postOwnerId) return false;
+                        return !this.coAuthors.some(c => c.id === u.id);
+                    });
+                    this.searching = false;
+                })
+                .catch(() => {
+                    this.searchResults = [];
+                    this.searching = false;
+                });
+        },
+
+        selectUser(user) {
+            this.selectedUserId = user.id;
+            this.userQuery = user.name;
+            this.searchResults = [];
+        },
+
+        addCoAuthor() {
+            if (!this.selectedUserId || this.adding) return;
+            this.adding = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.storeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ user_id: this.selectedUserId }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.addError || 'Failed to add co-author.';
+                        return;
+                    }
+                    this.coAuthors.push(data.co_author);
+                    this.selectedUserId = null;
+                    this.userQuery = '';
+                    this.success = data.message || this.i18n.added || 'Co-author added.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.addError || 'Failed to add co-author.';
+                })
+                .finally(() => { this.adding = false; });
+        },
+
+        removeCoAuthor(userId) {
+            if (this.removing) return;
+            if (!confirm(this.i18n.confirmRemove || 'Remove this co-author?')) return;
+            this.removing = true;
+            this.error = '';
+            this.success = '';
+            const url = this.destroyUrlBase.replace('__USER_ID__', userId);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.removeError || 'Failed to remove co-author.';
+                        return;
+                    }
+                    this.coAuthors = this.coAuthors.filter(c => c.id !== userId);
+                    this.success = data.message || this.i18n.removed || 'Co-author removed.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.removeError || 'Failed to remove co-author.';
+                })
+                .finally(() => { this.removing = false; });
+        },
+    }));
+}
+
 let editor = null;
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();
     registerBlogSnapshotCard();
     registerBlogEditor();
+    registerBlogCoAuthorCard();
 });
 
 registerAlpineStores();
 registerBlogSnapshotCard();
 registerBlogEditor();
+registerBlogCoAuthorCard();
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {

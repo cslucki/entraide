@@ -202,6 +202,13 @@ class User extends Authenticatable
         return $this->hasMany(LoopMember::class);
     }
 
+    public function coAuthoredBlogPosts(): BelongsToMany
+    {
+        return $this->belongsToMany(BlogPost::class, 'blog_post_user')
+            ->withPivot('role', 'added_by')
+            ->withTimestamps();
+    }
+
     public function getAvatarUrlAttribute(): string
     {
         if ($this->avatar) {

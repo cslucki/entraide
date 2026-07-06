@@ -21,7 +21,6 @@
              x-data="{
                 cards: [
                     { key: 'boucle', label: @js(__('blog.sidebar_boucle')), open: false, placeholder: @js(__('blog.sidebar_boucle_placeholder')) },
-                    { key: 'coecriture', label: @js(__('blog.sidebar_co_ecriture')), open: false, placeholder: @js(__('blog.sidebar_co_ecriture_placeholder')) },
                     { key: 'annotations', label: @js(__('blog.sidebar_annotations')), open: true, placeholder: @js(__('blog.sidebar_annotations_placeholder')) },
                 ],
                 width: 280,
@@ -230,16 +229,18 @@
                 </div>
             </form>
 
-            {{-- Formulaire de suppression EN DEHORS du formulaire principal --}}
-            <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                <form action="{{ $_blogRoute('destroy', ['post' => $post]) }}" method="POST"
-                      onsubmit="return confirm('{{ __('blog.confirm_delete_post') }}')">
-                    @csrf @method('DELETE')
-                    <button type="submit" class="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
-                        {{ __('blog.btn_delete_post') }}
-                    </button>
-                </form>
-            </div>
+            @can('delete', $post)
+                {{-- Formulaire de suppression EN DEHORS du formulaire principal --}}
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                    <form action="{{ $_blogRoute('destroy', ['post' => $post]) }}" method="POST"
+                          onsubmit="return confirm('{{ __('blog.confirm_delete_post') }}')">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
+                            {{ __('blog.btn_delete_post') }}
+                        </button>
+                    </form>
+                </div>
+            @endcan
         </div>
     </div>
 
@@ -275,6 +276,107 @@
                 </div>
             </div>
         </template>
+
+        {{-- Co-authors card --}}
+        <div
+            x-data="blogCoAuthorCard({
+                indexUrl: @js($_blogRoute('co-authors.index', ['post' => $post])),
+                storeUrl: @js($_blogRoute('co-authors.store', ['post' => $post])),
+                destroyUrlBase: @js($_blogRoute('co-authors.destroy', ['post' => $post, 'user' => '__USER_ID__'])),
+                searchUrl: @js($_blogRoute('co-authors.search', ['post' => $post])),
+                isOwner: {{ Auth::id() === $post->user_id ? 'true' : 'false' }},
+                isAdmin: {{ Auth::user()->is_admin ? 'true' : 'false' }},
+                postOwnerId: @js($post->user_id),
+                i18n: {
+                    empty: @js(__('blog.co_author_empty')),
+                    hint: @js(__('blog.co_author_hint')),
+                    add: @js(__('blog.co_author_add')),
+                    remove: @js(__('blog.co_author_remove')),
+                    confirmRemove: @js(__('blog.co_author_remove_confirm')),
+                    selectPlaceholder: @js(__('blog.co_author_select_placeholder')),
+                    added: @js(__('blog.co_author_added')),
+                    removed: @js(__('blog.co_author_removed')),
+                    loadError: @js(__('blog.co_author_load_error')),
+                    addError: @js(__('blog.co_author_add_error')),
+                    removeError: @js(__('blog.co_author_remove_error')),
+                    you: @js(__('blog.co_author_manage_you')),
+                    csrfToken: @js(csrf_token()),
+                },
+            })"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+        >
+            <button
+                @click="toggle()"
+                class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+            >
+                <span>{{ __('blog.sidebar_co_ecriture') }}</span>
+                <svg
+                    class="w-3 h-3 transition-transform"
+                    :class="{ 'rotate-180': open }"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+                <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                <template x-if="!loading && coAuthors.length === 0">
+                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.empty"></p>
+                </template>
+
+                <template x-if="loading">
+                    <div class="flex items-center justify-center py-4">
+                        <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    </div>
+                </template>
+
+                <template x-for="author in coAuthors" :key="author.id">
+                    <div class="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <img :src="author.avatar_url" :alt="author.name" class="w-6 h-6 rounded-full shrink-0">
+                            <div class="min-w-0">
+                                <p class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="author.name"></p>
+                            </div>
+                        </div>
+                        <button
+                            x-show="canManage() && author.id !== postOwnerId"
+                            type="button"
+                            @click="removeCoAuthor(author.id)"
+                            :disabled="removing"
+                            class="shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition disabled:opacity-50"
+                            x-text="i18n.remove"
+                        ></button>
+                    </div>
+                </template>
+
+                <div x-show="canManage()" class="border-t border-gray-100 dark:border-gray-700 pt-3">
+                    <div class="flex gap-2">
+                        <input type="text" x-model="userQuery" @input.debounce="searchUsers()" :placeholder="i18n.selectPlaceholder"
+                            class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500">
+                        <button type="button" @click="addCoAuthor()" :disabled="adding || !selectedUserId"
+                            class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                            <span x-text="i18n.add"></span>
+                        </button>
+                    </div>
+                    <div x-show="searchResults.length > 0" class="mt-1 rounded-lg border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 max-h-28 overflow-y-auto">
+                        <template x-for="u in searchResults" :key="u.id">
+                            <button type="button" @click="selectUser(u)"
+                                class="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                            >
+                                <img :src="u.avatar_url" :alt="u.name" class="w-5 h-5 rounded-full">
+                                <span x-text="u.name" class="text-gray-800 dark:text-gray-100"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <p class="text-[10px] leading-4 text-gray-400 dark:text-gray-500" x-text="i18n.hint"></p>
+            </div>
+        </div>
+        {{-- /Co-authors card --}}
 
         {{-- Snapshot card --}}
         <div

@@ -34,6 +34,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\BlogSnapshotController;
@@ -116,6 +117,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'store'])->name('blog.snapshots.store');
     Route::get('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'index'])->name('blog.snapshots.index');
     Route::post('/blog/{post:slug}/snapshots/{snapshot}/restore', [BlogSnapshotController::class, 'restore'])->name('blog.snapshots.restore');
+
+    // Blog co-author endpoints
+    Route::get('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'index'])->name('blog.co-authors.index');
+    Route::post('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'store'])->name('blog.co-authors.store');
+    Route::delete('/blog/{post:slug}/co-authors/{user}', [BlogCoAuthorController::class, 'destroy'])->name('blog.co-authors.destroy');
+    Route::get('/blog/{post:slug}/co-authors/search', [BlogCoAuthorController::class, 'search'])->name('blog.co-authors.search');
 });
 
 // Blog — wildcard slug EN DERNIER
@@ -591,6 +598,12 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'orgStore'])->name('blog.snapshots.store');
                 Route::get('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'orgIndex'])->name('blog.snapshots.index');
                 Route::post('/blog/{post:slug}/snapshots/{snapshot}/restore', [BlogSnapshotController::class, 'orgRestore'])->name('blog.snapshots.restore');
+
+                // Blog co-author endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'orgIndex'])->name('blog.co-authors.index');
+                Route::post('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'orgStore'])->name('blog.co-authors.store');
+                Route::delete('/blog/{post:slug}/co-authors/{user}', [BlogCoAuthorController::class, 'orgDestroy'])->name('blog.co-authors.destroy');
+                Route::get('/blog/{post:slug}/co-authors/search', [BlogCoAuthorController::class, 'orgSearch'])->name('blog.co-authors.search');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');

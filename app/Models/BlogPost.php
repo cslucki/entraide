@@ -88,6 +88,13 @@ class BlogPost extends Model
         return $this->hasMany(BlogSnapshot::class);
     }
 
+    public function coAuthors(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'blog_post_user')
+            ->withPivot('role', 'added_by')
+            ->withTimestamps();
+    }
+
     public function isLikedBy(?User $user): bool
     {
         if (! $user) {
