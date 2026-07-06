@@ -80,6 +80,33 @@
   filter: brightness(1.2) !important;
 }
 
+.bp-annotation-mark {
+  border-bottom: 2px solid #f59e0b;
+  background: linear-gradient(to bottom, transparent 60%, #fef3c7 40%);
+  cursor: pointer;
+  position: relative;
+}
+.dark .bp-annotation-mark {
+  border-bottom-color: #d97706;
+  background: linear-gradient(to bottom, transparent 60%, rgba(217,119,6,0.15) 40%);
+}
+.bp-annotation-mark:hover {
+  background: #fef3c7;
+}
+.dark .bp-annotation-mark:hover {
+  background: rgba(217,119,6,0.25);
+}
+.bp-annotation-highlight {
+  background: #fde68a !important;
+  border-bottom-color: #d97706 !important;
+  box-shadow: 0 0 0 2px rgba(217,119,6,0.3);
+  border-radius: 2px;
+}
+.dark .bp-annotation-highlight {
+  background: rgba(217,119,6,0.35) !important;
+  box-shadow: 0 0 0 2px rgba(217,119,6,0.5);
+}
+
 </style>
 
 <div
@@ -185,6 +212,18 @@
             <span x-text="activeStates?.imageResized ? '100%' : '50%'"></span>
         </button>
         <input type="file" accept="image/*" class="hidden" x-ref="imageInput" @change="uploadImage($event)">
+
+        <span class="shrink-0 w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></span>
+
+        {{-- Annotation --}}
+        <button type="button" @click="startEditorAnnotation()"
+            :class="btnClass('annotation')"
+            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition"
+            :title="'{{ __('blog.editor_annotation') }}'">
+            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+            </svg>
+        </button>
 
         <span class="shrink-0 w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></span>
 

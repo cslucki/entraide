@@ -173,8 +173,12 @@ class BlogSnapshotController extends Controller
 
     private function sanitizeHtml(string $html): string
     {
-        $allowed = self::ALLOWED_HTML_TAGS;
+        // Step 1 — extract valid annotation spans as safe placeholders
+        $annotationSpans = [];
+        $html = $this->extractAnnotationSpans($html, $annotationSpans);
 
+        // Step 2 — standard sanitization (span is NOT in allowed tags)
+        $allowed = self::ALLOWED_HTML_TAGS;
         $html = strip_tags($html, '<'.implode('><', $allowed).'>');
 
         $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
@@ -183,6 +187,49 @@ class BlogSnapshotController extends Controller
         $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html);
         $html = preg_replace('/\{\{.*?\}\}/s', '', $html);
         $html = preg_replace('/<(\w+)[^>]*style\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+
+        // Step 3 — restore annotation spans from placeholders
+        foreach ($annotationSpans as $key => $safeSpan) {
+            $html = str_replace($key, $safeSpan, $html);
+        }
+
+        return $html;
+    }
+
+    private function extractAnnotationSpans(string $html, array &$protected): string
+    {
+        $previous = null;
+
+        while ($previous !== $html) {
+            $previous = $html;
+            $html = preg_replace_callback(
+                '/<span\b([^>]*)>((?:(?!<\/?span\b).)*)<\/span>/is',
+                function (array $match) use (&$protected): string {
+                    $attrs = $match[1];
+                    $inner = $match[2];
+
+                    if (preg_match('/data-annotation-id\s*=\s*"([^"]+)"/i', $attrs, $idMatch)) {
+                        $id = $idMatch[1];
+                        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id)) {
+                            $classMatch = [];
+                            $hasClass = preg_match('/class\s*=\s*"([^"]*)"/i', $attrs, $classMatch);
+                            $classes = $hasClass ? preg_split('/\s+/', trim($classMatch[1])) : [];
+                            if (in_array('bp-annotation-mark', $classes, true)) {
+                                $openKey = '@@@BPAO_'.count($protected).'@@@';
+                                $closeKey = '@@@BPAC_'.count($protected).'@@@';
+                                $protected[$openKey] = '<span data-annotation-id="'.$id.'" class="bp-annotation-mark">';
+                                $protected[$closeKey] = '</span>';
+
+                                return $openKey.$inner.$closeKey;
+                            }
+                        }
+                    }
+
+                    return $inner;
+                },
+                $html
+            );
+        }
 
         return $html;
     }

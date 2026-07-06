@@ -95,6 +95,11 @@ class BlogPost extends Model
             ->withTimestamps();
     }
 
+    public function annotations(): HasMany
+    {
+        return $this->hasMany(BlogPostAnnotation::class);
+    }
+
     public function isLikedBy(?User $user): bool
     {
         if (! $user) {

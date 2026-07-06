@@ -34,6 +34,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\BlogAnnotationController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
@@ -112,6 +113,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
     Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
     Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
+
+    // Blog annotation endpoints (root)
+    Route::get('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'index'])->name('blog.annotations.index');
+    Route::post('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'store'])->name('blog.annotations.store');
+    Route::put('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'update'])->name('blog.annotations.update');
+    Route::delete('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'destroy'])->name('blog.annotations.destroy');
+    Route::patch('/blog/{post:slug}/annotations/{annotation}/resolve', [BlogAnnotationController::class, 'resolve'])->name('blog.annotations.resolve');
 
     // Blog snapshot endpoints
     Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'store'])->name('blog.snapshots.store');
@@ -593,6 +601,13 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/ai-correct', [BlogController::class, 'orgAiCorrect'])->name('blog.ai-correct');
                 Route::post('/blog/ai-remaining', [BlogController::class, 'orgAiRemaining'])->name('blog.ai-remaining');
                 Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->name('blog.create-draft');
+
+                // Blog annotation endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'orgIndex'])->name('blog.annotations.index');
+                Route::post('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'orgStore'])->name('blog.annotations.store');
+                Route::put('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'orgUpdate'])->name('blog.annotations.update');
+                Route::delete('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'orgDestroy'])->name('blog.annotations.destroy');
+                Route::patch('/blog/{post:slug}/annotations/{annotation}/resolve', [BlogAnnotationController::class, 'orgResolve'])->name('blog.annotations.resolve');
 
                 // Blog snapshot endpoints (org-scoped)
                 Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'orgStore'])->name('blog.snapshots.store');

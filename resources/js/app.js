@@ -466,6 +466,15 @@ function registerBlogEditor() {
                 }
             });
 
+            this.$el.addEventListener('click', (e) => {
+                const mark = e.target.closest('.bp-annotation-mark[data-annotation-id]');
+                if (mark) {
+                    document.dispatchEvent(new CustomEvent('annotation-selected', {
+                        detail: { id: mark.dataset.annotationId }
+                    }));
+                }
+            });
+
             window.addEventListener('snapshot-restore', (e) => {
                 if (editor) {
                     editor.commands.setContent(e.detail.content);
@@ -517,6 +526,7 @@ function registerBlogEditor() {
                     : editor.isActive({ textAlign: 'justify' }) ? 'justify'
                     : '',
                 textColor: editor.getAttributes('textStyle')?.color || null,
+                annotation: editor.isActive('annotation'),
             };
         },
 
@@ -795,6 +805,20 @@ function registerBlogEditor() {
             return text.length > 0;
         },
 
+        startEditorAnnotation() {
+            if (!editor) return;
+            const { from, to } = editor.state.selection;
+            if (from === to) {
+                document.dispatchEvent(new CustomEvent('annotation-error'));
+                return;
+            }
+            const text = editor.state.doc.textBetween(from, to, ' ').trim();
+            if (text.length === 0) return;
+            document.dispatchEvent(new CustomEvent('annotation-start', {
+                detail: { from, to, selectedText: text.substring(0, 200) }
+            }));
+        },
+
         usedCount(mode) {
             return Math.max(0, this.limits[mode] - this.remaining[mode]);
         },
@@ -952,6 +976,292 @@ function registerBlogCoAuthorCard() {
                 .finally(() => { this.removing = false; });
         },
     }));
+}
+
+window.blogAnnotationCard = function (config) {
+    return {
+        isOpen: false,
+        annotations: [],
+        loading: false,
+        saving: false,
+        error: '',
+        success: '',
+        filterTab: 'open',
+        selectedAnnotationId: null,
+        showCreateForm: false,
+        pendingHint: false,
+        _pendingHintTimer: null,
+        newContent: '',
+        editingId: null,
+        editContent: '',
+        pendingAnnotation: null,
+
+        indexUrl: config.indexUrl,
+        storeUrl: config.storeUrl,
+        updateUrlBase: config.updateUrlBase,
+        destroyUrlBase: config.destroyUrlBase,
+        resolveUrlBase: config.resolveUrlBase,
+        i18n: config.i18n || {},
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_annotations');
+            if (stored !== null) this.isOpen = stored === '1';
+            this.loadAnnotations();
+
+            document.addEventListener('annotation-selected', (e) => {
+                this.selectAnnotation(e.detail.id);
+            });
+
+            document.addEventListener('annotation-start', (e) => {
+                this.pendingAnnotation = e.detail;
+                this.showCreateForm = true;
+                this.pendingHint = false;
+                this.newContent = '';
+                this.isOpen = true;
+            });
+
+            document.addEventListener('annotation-error', () => {
+                this.showCreateForm = false;
+                this.pendingAnnotation = null;
+            });
+        },
+
+        requestAnnotation() {
+            if (!editor) {
+                this.pendingHint = true;
+                this._clearHintAfterDelay();
+                return;
+            }
+            const { from, to, empty } = editor.state.selection;
+            if (empty || from === to) {
+                this.pendingHint = true;
+                this._clearHintAfterDelay();
+                return;
+            }
+            const selectedText = editor.state.doc.textBetween(from, to, ' ');
+            document.dispatchEvent(new CustomEvent('annotation-start', {
+                detail: { from, to, selectedText },
+            }));
+        },
+
+        _clearHintAfterDelay() {
+            if (this._pendingHintTimer) clearTimeout(this._pendingHintTimer);
+            this._pendingHintTimer = setTimeout(() => {
+                this.pendingHint = false;
+                this._pendingHintTimer = null;
+            }, 3000);
+        },
+
+        get filteredAnnotations() {
+            if (this.filterTab === 'open') {
+                return this.annotations.filter(a => a.status === 'open');
+            }
+            return this.annotations.filter(a => a.status === 'resolved');
+        },
+
+        toggle() {
+            this.isOpen = !this.isOpen;
+            localStorage.setItem('editor_sidebar_card_annotations', this.isOpen ? '1' : '0');
+        },
+
+        cancelCreate() {
+            this.showCreateForm = false;
+            this.newContent = '';
+            this.pendingAnnotation = null;
+        },
+
+        loadAnnotations() {
+            this.loading = true;
+            this.error = '';
+            fetch(this.indexUrl)
+                .then(r => r.json())
+                .then(data => {
+                    this.annotations = data.annotations || [];
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.error = this.i18n.loadError || 'Failed to load annotations.';
+                    this.loading = false;
+                });
+        },
+
+        createAnnotation() {
+            if (this.saving || !this.newContent.trim() || !this.pendingAnnotation) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.storeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({
+                    selected_text: this.pendingAnnotation.selectedText,
+                    content: this.newContent.trim(),
+                }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.createError || 'Failed to create annotation.';
+                        return;
+                    }
+                    this.annotations.push(data.annotation);
+                    const range = this.pendingAnnotation;
+                    if (typeof editor !== 'undefined' && editor && range) {
+                        editor.chain()
+                            .setTextSelection({ from: range.from, to: range.to })
+                            .setAnnotation(data.annotation.id)
+                            .run();
+                    }
+                    this.showCreateForm = false;
+                    this.newContent = '';
+                    this.pendingAnnotation = null;
+                    this.success = data.message || this.i18n.confirmed || 'Annotation created.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.createError || 'Failed to create annotation.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        editAnnotation(annotation) {
+            this.editingId = annotation.id;
+            this.editContent = annotation.content;
+        },
+
+        cancelEdit() {
+            this.editingId = null;
+            this.editContent = '';
+        },
+
+        updateAnnotation() {
+            if (this.saving || !this.editContent.trim()) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            const url = this.updateUrlBase.replace('__ANNOTATION_ID__', this.editingId);
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ content: this.editContent.trim() }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.updateError || 'Failed to update annotation.';
+                        return;
+                    }
+                    const idx = this.annotations.findIndex(a => a.id === this.editingId);
+                    if (idx !== -1) {
+                        this.annotations[idx] = data.annotation;
+                    }
+                    this.editingId = null;
+                    this.editContent = '';
+                    this.success = data.message || this.i18n.updated || 'Annotation updated.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.updateError || 'Failed to update annotation.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        deleteAnnotation(id) {
+            if (!confirm(this.i18n.confirmDelete || 'Delete this annotation?')) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            const url = this.destroyUrlBase.replace('__ANNOTATION_ID__', id);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.deleteError || 'Failed to delete annotation.';
+                        return;
+                    }
+                    this.annotations = this.annotations.filter(a => a.id !== id);
+                    if (this.selectedAnnotationId === id) {
+                        this.selectedAnnotationId = null;
+                    }
+                    if (typeof editor !== 'undefined' && editor) {
+                        const { state } = editor;
+                        const mark = state.schema.marks.annotation;
+                        if (mark) {
+                            const { tr } = state;
+                            state.doc.descendants((node, pos) => {
+                                if (node.marks.length) {
+                                    const m = node.marks.find(m => m.type === mark && m.attrs.annotationId === id);
+                                    if (m) {
+                                        tr.removeMark(pos, pos + node.nodeSize, mark);
+                                    }
+                                }
+                            });
+                            if (tr.steps.length > 0) {
+                                editor.view.dispatch(tr);
+                            }
+                        }
+                    }
+                    this.success = data.message || this.i18n.deleted || 'Annotation deleted.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.deleteError || 'Failed to delete annotation.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        resolveAnnotation(id) {
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            const url = this.resolveUrlBase.replace('__ANNOTATION_ID__', id);
+            fetch(url, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.resolveError || 'Failed to resolve annotation.';
+                        return;
+                    }
+                    const idx = this.annotations.findIndex(a => a.id === id);
+                    if (idx !== -1) {
+                        this.annotations[idx] = data.annotation;
+                    }
+                    this.success = data.message || this.i18n.resolved || 'Annotation resolved.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.resolveError || 'Failed to resolve annotation.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        selectAnnotation(id) {
+            this.selectedAnnotationId = id;
+            const marks = document.querySelectorAll(`[data-annotation-id="${id}"]`);
+            document.querySelectorAll('.bp-annotation-highlight').forEach(el => {
+                el.classList.remove('bp-annotation-highlight');
+            });
+            marks.forEach(mark => {
+                mark.classList.add('bp-annotation-highlight');
+                mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+            const card = document.querySelector(`[data-annotation-card-id="${id}"]`);
+            if (card) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            this.filterTab = 'open';
+        },
+    };
+};
+
+if (window.Alpine) {
+    Alpine.data('blogAnnotationCard', window.blogAnnotationCard);
 }
 
 let editor = null;
