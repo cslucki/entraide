@@ -239,4 +239,11 @@ return [
     'snapshot_position' => ':current / :total chargées',
     'snapshot_loaded_versions' => 'Versions chargées',
     'snapshot_selected' => 'Sélectionnée',
+    'snapshot_diff_title' => 'Diff avec la version précédente chargée',
+    'snapshot_compare_previous' => 'Comparaison avec :name',
+    'snapshot_no_previous_loaded' => 'Chargez plus de versions pour comparer.',
+    'snapshot_added' => 'Ajouté',
+    'snapshot_removed' => 'Supprimé',
+    'snapshot_unchanged' => 'Inchangé',
+    'snapshot_changed_fields' => 'Champs changés',
 ];

@@ -337,6 +337,49 @@
                             </template>
                         </div>
 
+                        <div class="mt-2 rounded-lg border border-gray-100 bg-white/90 p-2 dark:border-gray-700 dark:bg-gray-900/80">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">{{ __('blog.snapshot_diff_title') }}</p>
+                                    <template x-if="canCompare()">
+                                        <p class="truncate text-[10px] text-gray-500 dark:text-gray-400" x-text="'{{ __('blog.snapshot_compare_previous') }}'.replace(':name', comparisonSnapshot().name)"></p>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <template x-if="!canCompare()">
+                                <p class="mt-2 rounded-md bg-gray-50 px-2 py-1 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">{{ __('blog.snapshot_no_previous_loaded') }}</p>
+                            </template>
+
+                            <template x-if="canCompare()">
+                                <div class="mt-2 space-y-2">
+                                    <div>
+                                        <p class="mb-1 text-[10px] font-semibold text-gray-500 dark:text-gray-400">{{ __('blog.snapshot_changed_fields') }}</p>
+                                        <template x-if="changedFields().length === 0">
+                                            <span class="inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-400">{{ __('blog.snapshot_unchanged') }}</span>
+                                        </template>
+                                        <div x-show="changedFields().length > 0" class="flex flex-wrap gap-1">
+                                            <template x-for="field in changedFields()" :key="field">
+                                                <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+                                                    x-text="({ title: @js(__('blog.label_title')), summary: @js(__('blog.label_summary')), status: @js(__('blog.label_status')), meta_title: @js(__('blog.label_meta_title')), meta_description: @js(__('blog.label_meta_description')) })[field] || field"></span>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <div class="max-h-28 overflow-y-auto rounded-md bg-gray-50 p-2 text-[10px] leading-5 dark:bg-gray-950/60">
+                                        <template x-for="(part, index) in diffText(selectedSnapshot(), comparisonSnapshot())" :key="index">
+                                            <span>
+                                                <span x-show="part.type === 'added'" class="rounded bg-green-100 px-1 py-0.5 font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-200" x-text="'{{ __('blog.snapshot_added') }} + ' + part.text"></span>
+                                                <span x-show="part.type === 'removed'" class="rounded bg-red-100 px-1 py-0.5 font-semibold text-red-800 dark:bg-red-900/40 dark:text-red-200" x-text="'{{ __('blog.snapshot_removed') }} - ' + part.text"></span>
+                                                <span x-show="part.type === 'unchanged'" class="text-gray-500 dark:text-gray-400" x-text="part.text"></span>
+                                                <span> </span>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
                         <div class="mt-2 flex items-center justify-between gap-2">
                             <button type="button" @click="selectPrevious()" :disabled="!canGoPrevious()"
                                 class="rounded-md border border-gray-200 px-2 py-1 text-[10px] font-semibold text-gray-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900">

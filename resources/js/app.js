@@ -141,12 +141,98 @@ function registerBlogSnapshotCard() {
             }
         },
 
+        comparisonSnapshot() {
+            const index = this.selectedIndex();
+
+            return index >= 0 ? this.snapshots[index + 1] || null : null;
+        },
+
+        canCompare() {
+            return Boolean(this.selectedSnapshot() && this.comparisonSnapshot());
+        },
+
+        fieldChanged(field) {
+            if (!this.canCompare()) return false;
+
+            return (this.selectedSnapshot()?.[field] || '') !== (this.comparisonSnapshot()?.[field] || '');
+        },
+
+        changedFields() {
+            return ['title', 'summary', 'status', 'meta_title', 'meta_description']
+                .filter((field) => this.fieldChanged(field));
+        },
+
+        plainTextFromHtml(html) {
+            const doc = new DOMParser().parseFromString(html || '', 'text/html');
+
+            return doc.body.textContent?.replace(/\s+/g, ' ').trim() || '';
+        },
+
         previewText(snapshot) {
-            const content = snapshot?.content || '';
-            const doc = new DOMParser().parseFromString(content, 'text/html');
-            const text = doc.body.textContent?.replace(/\s+/g, ' ').trim() || '';
+            const text = this.plainTextFromHtml(snapshot?.content || '');
 
             return text.length > 260 ? text.slice(0, 260).trim() + '…' : text;
+        },
+
+        diffText(current, previous) {
+            return this.tokenizeDiff(
+                this.plainTextFromHtml(previous?.content || ''),
+                this.plainTextFromHtml(current?.content || ''),
+            );
+        },
+
+        tokenizeDiff(previousText, currentText) {
+            const limit = 90;
+            const previous = previousText.split(/\s+/).filter(Boolean).slice(0, limit);
+            const current = currentText.split(/\s+/).filter(Boolean).slice(0, limit);
+            const table = Array.from({ length: previous.length + 1 }, () => Array(current.length + 1).fill(0));
+
+            for (let i = previous.length - 1; i >= 0; i--) {
+                for (let j = current.length - 1; j >= 0; j--) {
+                    table[i][j] = previous[i] === current[j]
+                        ? table[i + 1][j + 1] + 1
+                        : Math.max(table[i + 1][j], table[i][j + 1]);
+                }
+            }
+
+            const segments = [];
+            let i = 0;
+            let j = 0;
+
+            const push = (type, word) => {
+                const last = segments[segments.length - 1];
+                if (last?.type === type) {
+                    last.text += ' ' + word;
+                } else {
+                    segments.push({ type, text: word });
+                }
+            };
+
+            while (i < previous.length && j < current.length) {
+                if (previous[i] === current[j]) {
+                    push('unchanged', current[j]);
+                    i++;
+                    j++;
+                } else if (table[i + 1][j] >= table[i][j + 1]) {
+                    push('removed', previous[i]);
+                    i++;
+                } else {
+                    push('added', current[j]);
+                    j++;
+                }
+            }
+
+            while (i < previous.length) {
+                push('removed', previous[i]);
+                i++;
+            }
+
+            while (j < current.length) {
+                push('added', current[j]);
+                j++;
+            }
+
+            return segments.slice(0, 28);
         },
 
         remainingCount() {

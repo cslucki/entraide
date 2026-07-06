@@ -239,4 +239,11 @@ return [
     'snapshot_position' => ':current / :total loaded',
     'snapshot_loaded_versions' => 'Loaded versions',
     'snapshot_selected' => 'Selected',
+    'snapshot_diff_title' => 'Diff with the previous loaded version',
+    'snapshot_compare_previous' => 'Comparing with :name',
+    'snapshot_no_previous_loaded' => 'Load more versions to compare.',
+    'snapshot_added' => 'Added',
+    'snapshot_removed' => 'Removed',
+    'snapshot_unchanged' => 'Unchanged',
+    'snapshot_changed_fields' => 'Changed fields',
 ];
