@@ -333,27 +333,40 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
-        $drafts = BlogPost::where('user_id', auth()->id())
+        $user = auth()->user();
+
+        $drafts = BlogPost::where('user_id', $user->id)
             ->where('organization_id', $organization->id)
             ->whereIn('status', ['draft', 'pending'])
-            ->withCount(['comments', 'likes'])
+            ->with(['user', 'coAuthors'])
+            ->withCount(['comments', 'likes', 'coAuthors'])
             ->latest()
-            ->paginate(15, ['*'], 'drafts');
+            ->paginate(15, ['*'], 'drafts_page');
 
-        $publishedPosts = BlogPost::where('user_id', auth()->id())
+        $publishedPosts = BlogPost::where('user_id', $user->id)
             ->where('organization_id', $organization->id)
             ->where('status', 'published')
-            ->withCount(['comments', 'likes'])
+            ->with(['user', 'coAuthors'])
+            ->withCount(['comments', 'likes', 'coAuthors'])
             ->latest()
-            ->paginate(15, ['*'], 'published');
+            ->paginate(15, ['*'], 'published_page');
 
-        $comments = BlogComment::where('user_id', auth()->id())
+        $coAuthoredPosts = $user->coAuthoredBlogPosts()
+            ->where('organization_id', $organization->id)
+            ->with(['user', 'coAuthors'])
+            ->withCount(['comments', 'likes', 'coAuthors'])
+            ->latest('blog_post_user.created_at')
+            ->paginate(15, ['*'], 'coauthored_page');
+
+        $comments = BlogComment::where('user_id', $user->id)
             ->whereHas('post', fn ($q) => $q->where('organization_id', $organization->id))
             ->with('post')
             ->latest()
-            ->paginate(15, ['*'], 'comments');
+            ->paginate(15, ['*'], 'comments_page');
 
-        return view('blog.my-posts', compact('drafts', 'publishedPosts', 'comments'));
+        return view('blog.my-posts', compact(
+            'drafts', 'publishedPosts', 'coAuthoredPosts', 'comments', 'user'
+        ));
     }
 
     public function orgMyPosts(string $org): View

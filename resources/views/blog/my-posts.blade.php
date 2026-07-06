@@ -23,20 +23,35 @@
         </div>
 
         <div x-data="{ tab: 'drafts' }">
-        <div class="flex gap-1 mb-6 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex gap-1 mb-6 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
             <button @click="tab = 'drafts'" :class="tab === 'drafts' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-                    class="px-4 py-3 text-sm font-medium border-b-2 transition -mb-px">
+                    class="px-4 py-3 text-sm font-medium border-b-2 transition -mb-px shrink-0">
                 {{ __('blog.tab_drafts') }} ({{ $drafts->total() }})
             </button>
             <button @click="tab = 'published'" :class="tab === 'published' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-                    class="px-4 py-3 text-sm font-medium border-b-2 transition -mb-px">
+                    class="px-4 py-3 text-sm font-medium border-b-2 transition -mb-px shrink-0">
                 {{ __('blog.tab_published') }} ({{ $publishedPosts->total() }})
             </button>
+            <button @click="tab = 'coauthored'" :class="tab === 'coauthored' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
+                    class="px-4 py-3 text-sm font-medium border-b-2 transition -mb-px shrink-0">
+                {{ __('blog.tab_coauthors') }} ({{ $coAuthoredPosts->total() }})
+            </button>
             <button @click="tab = 'comments'" :class="tab === 'comments' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-                    class="px-4 py-3 text-sm font-medium border-b-2 transition -mb-px">
+                    class="px-4 py-3 text-sm font-medium border-b-2 transition -mb-px shrink-0">
                 {{ __('blog.tab_comments') }} ({{ $comments->total() }})
             </button>
         </div>
+
+        @php
+            $cols = '';
+
+            $isAdmin = auth()->user()?->is_admin ?? false;
+
+            $responsibleColor = 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20';
+            $coauthorColor = 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20';
+
+            $maxVisibleCoAuthors = 3;
+        @endphp
 
         {{-- DRAFTS --}}
         <div x-show="tab === 'drafts'">
@@ -53,12 +68,15 @@
                         <tr>
                             <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('blog.table_title') }}</th>
                             <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">{{ __('blog.table_status') }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">{{ __('blog.table_date') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">{{ __('blog.table_role') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">{{ __('blog.table_coauthors') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden xl:table-cell">{{ __('blog.table_last_modified') }}</th>
                             <th class="px-5 py-3"></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                         @foreach($drafts as $post)
+                        @php $role = $post->user_id === $user->id ? 'responsible' : 'coauthor'; @endphp
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
                             <td class="px-5 py-4">
                                 <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition line-clamp-1">
@@ -71,9 +89,41 @@
                                     {{ ['draft' => __('blog.status_draft'), 'pending' => __('blog.status_pending')][$post->status] ?? $post->status }}
                                 </span>
                             </td>
-                            <td class="px-5 py-4 text-gray-400 hidden md:table-cell text-xs">{{ $post->created_at->format('d/m/Y') }}</td>
+                            <td class="px-5 py-4 hidden lg:table-cell">
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {{ $role === 'responsible' ? $responsibleColor : $coauthorColor }}">
+                                    {{ $role === 'responsible' ? __('blog.role_responsible') : __('blog.role_coauthor') }}
+                                </span>
+                            </td>
+                            <td class="px-5 py-4 hidden lg:table-cell">
+                                <div class="flex items-center gap-1.5">
+                                    @php $coAuthors = $post->coAuthors ?? collect(); $visible = $coAuthors->take($maxVisibleCoAuthors); $remaining = $coAuthors->count() - $maxVisibleCoAuthors; @endphp
+                                    @if($coAuthors->isNotEmpty())
+                                        <div class="flex -space-x-2">
+                                            @foreach($visible as $ca)
+                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300"
+                                                      title="{{ $ca->name }}">{{ Str::limit($ca->name, 2, '') }}</span>
+                                            @endforeach
+                                        </div>
+                                        @if($remaining > 0)
+                                            <span class="text-xs text-gray-400">+{{ $remaining }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-xs text-gray-400">&mdash;</span>
+                                    @endif
+                                </div>
+                            </td>
+                            <td class="px-5 py-4 text-gray-400 hidden xl:table-cell text-xs">{{ $post->updated_at->diffForHumans() }}</td>
                             <td class="px-5 py-4 text-right">
-                                <a href="{{ $_blogRoute('edit', ['post' => $post]) }}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">{{ __('blog.btn_edit') }}</a>
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{{ $_blogRoute('edit', ['post' => $post]) }}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">{{ __('blog.btn_edit') }}</a>
+                                    @can('delete', $post)
+                                    <form action="{{ $_blogRoute('destroy', ['post' => $post]) }}" method="POST"
+                                          onsubmit="return confirm('{{ __('blog.confirm_delete_post') }}')" class="inline">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:underline">{{ __('blog.btn_delete_post') }}</button>
+                                    </form>
+                                    @endcan
+                                </div>
                             </td>
                         </tr>
                         @endforeach
@@ -98,27 +148,60 @@
                     <thead class="bg-gray-50 dark:bg-gray-700/50">
                         <tr>
                             <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('blog.table_title') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">{{ __('blog.table_role') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">{{ __('blog.table_coauthors') }}</th>
                             <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">{{ __('blog.table_views') }}</th>
                             <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">{{ __('blog.table_likes') }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">{{ __('blog.table_comments') }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">{{ __('blog.table_date') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden xl:table-cell">{{ __('blog.table_last_modified') }}</th>
                             <th class="px-5 py-3"></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                         @foreach($publishedPosts as $post)
+                        @php $role = $post->user_id === $user->id ? 'responsible' : 'coauthor'; @endphp
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
                             <td class="px-5 py-4">
                                 <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition line-clamp-1">
                                     {{ $post->title }}
                                 </a>
                             </td>
+                            <td class="px-5 py-4 hidden lg:table-cell">
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {{ $role === 'responsible' ? $responsibleColor : $coauthorColor }}">
+                                    {{ $role === 'responsible' ? __('blog.role_responsible') : __('blog.role_coauthor') }}
+                                </span>
+                            </td>
+                            <td class="px-5 py-4 hidden lg:table-cell">
+                                <div class="flex items-center gap-1.5">
+                                    @php $coAuthors = $post->coAuthors ?? collect(); $visible = $coAuthors->take($maxVisibleCoAuthors); $remaining = $coAuthors->count() - $maxVisibleCoAuthors; @endphp
+                                    @if($coAuthors->isNotEmpty())
+                                        <div class="flex -space-x-2">
+                                            @foreach($visible as $ca)
+                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300"
+                                                      title="{{ $ca->name }}">{{ Str::limit($ca->name, 2, '') }}</span>
+                                            @endforeach
+                                        </div>
+                                        @if($remaining > 0)
+                                            <span class="text-xs text-gray-400">+{{ $remaining }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-xs text-gray-400">&mdash;</span>
+                                    @endif
+                                </div>
+                            </td>
                             <td class="px-5 py-4 text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ number_format($post->views_count) }}</td>
                             <td class="px-5 py-4 text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ $post->likes_count }}</td>
-                            <td class="px-5 py-4 text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ $post->comments_count }}</td>
-                            <td class="px-5 py-4 text-gray-400 hidden lg:table-cell text-xs">{{ $post->published_at?->format('d/m/Y') ?? $post->created_at->format('d/m/Y') }}</td>
+                            <td class="px-5 py-4 text-gray-400 hidden xl:table-cell text-xs">{{ $post->updated_at->diffForHumans() }}</td>
                             <td class="px-5 py-4 text-right">
-                                <a href="{{ $_blogRoute('edit', ['post' => $post]) }}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">{{ __('blog.btn_edit') }}</a>
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{{ $_blogRoute('edit', ['post' => $post]) }}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">{{ __('blog.btn_edit') }}</a>
+                                    @can('delete', $post)
+                                    <form action="{{ $_blogRoute('destroy', ['post' => $post]) }}" method="POST"
+                                          onsubmit="return confirm('{{ __('blog.confirm_delete_post') }}')" class="inline">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:underline">{{ __('blog.btn_delete_post') }}</button>
+                                    </form>
+                                    @endcan
+                                </div>
                             </td>
                         </tr>
                         @endforeach
@@ -126,6 +209,85 @@
                 </table>
             </div>
             <div class="mt-4">{{ $publishedPosts->links() }}</div>
+            @endif
+        </div>
+
+        {{-- CO-AUTHORS --}}
+        <div x-show="tab === 'coauthored'">
+            @if($coAuthoredPosts->isEmpty())
+            <div class="text-center py-16 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                <svg class="w-12 h-12 mx-auto mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/></svg>
+                <p>{{ __('blog.empty_coauthored') }}</p>
+            </div>
+            @else
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-700/50">
+                        <tr>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('blog.table_title') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">{{ __('blog.table_status') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">{{ __('blog.table_responsible') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">{{ __('blog.table_coauthors') }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden xl:table-cell">{{ __('blog.table_last_modified') }}</th>
+                            <th class="px-5 py-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        @foreach($coAuthoredPosts as $post)
+                        @php $role = $post->user_id === $user->id ? 'responsible' : 'coauthor'; @endphp
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
+                            <td class="px-5 py-4">
+                                <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition line-clamp-1">
+                                    {{ $post->title }}
+                                </a>
+                            </td>
+                            <td class="px-5 py-4 hidden sm:table-cell">
+                                @php
+                                    $statusColors = ['draft' => 'text-gray-500 bg-gray-100 dark:bg-gray-700', 'pending' => 'text-yellow-700 bg-yellow-50 dark:bg-yellow-900/20', 'published' => 'text-green-700 bg-green-50 dark:bg-green-900/20'];
+                                    $statusLabels = ['draft' => __('blog.status_draft'), 'pending' => __('blog.status_pending'), 'published' => __('blog.status_published')];
+                                @endphp
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$post->status] ?? '' }}">
+                                    {{ $statusLabels[$post->status] ?? $post->status }}
+                                </span>
+                            </td>
+                            <td class="px-5 py-4 hidden lg:table-cell">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200"
+                                          title="{{ $post->user?->name ?? '—' }}">{{ $post->user ? Str::limit($post->user->name, 2, '') : '?' }}</span>
+                                    <span class="text-xs text-gray-600 dark:text-gray-400 truncate max-w-[100px]">{{ $post->user?->name ?? '—' }}</span>
+                                </div>
+                            </td>
+                            <td class="px-5 py-4 hidden lg:table-cell">
+                                <div class="flex items-center gap-1.5">
+                                    @php $coAuthors = $post->coAuthors ?? collect(); $visible = $coAuthors->take($maxVisibleCoAuthors); $remaining = $coAuthors->count() - $maxVisibleCoAuthors; @endphp
+                                    @if($coAuthors->isNotEmpty())
+                                        <div class="flex -space-x-2">
+                                            @foreach($visible as $ca)
+                                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium ring-2 ring-white dark:ring-gray-800 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300"
+                                                      title="{{ $ca->name }}">{{ Str::limit($ca->name, 2, '') }}</span>
+                                            @endforeach
+                                        </div>
+                                        @if($remaining > 0)
+                                            <span class="text-xs text-gray-400">+{{ $remaining }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-xs text-gray-400">&mdash;</span>
+                                    @endif
+                                </div>
+                            </td>
+                            <td class="px-5 py-4 text-gray-400 hidden xl:table-cell text-xs">{{ $post->updated_at->diffForHumans() }}</td>
+                            <td class="px-5 py-4 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{{ $_blogRoute('edit', ['post' => $post]) }}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">{{ __('blog.btn_edit') }}</a>
+                                    <a href="{{ $_blogRoute('edit', ['post' => $post]) }}" class="text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">{{ __('blog.action_manage_coauthors') }}</a>
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-4">{{ $coAuthoredPosts->links() }}</div>
             @endif
         </div>
 
