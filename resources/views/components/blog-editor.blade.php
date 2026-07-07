@@ -113,6 +113,18 @@
   box-shadow: 0 0 0 2px rgba(217,119,6,0.5);
 }
 
+.bp-toolbar-scroll {
+  -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.bp-toolbar-scroll::-webkit-scrollbar {
+  display: none;
+}
+.bp-toolbar-open-dropdown {
+  overflow: visible !important;
+}
+
 </style>
 
 <div
@@ -139,7 +151,7 @@
     data-annotation-content-save-url="{{ $routeAnnotationContentSave ?? '' }}"
 >
     {{-- Toolbar --}}
-    <div class="flex flex-wrap items-center gap-1 pb-2 border-b border-gray-200 dark:border-gray-700">
+    <div class="bp-toolbar-scroll flex overflow-x-auto md:overflow-visible flex-nowrap md:flex-wrap items-center gap-1 pb-2 border-b border-gray-200 dark:border-gray-700 px-1 md:px-0">
         {{-- Undo / Redo --}}
         <button type="button" @click="exec('undo')" class="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition" title="{{ __('blog.editor_undo') }}">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
@@ -161,8 +173,8 @@
         <span class="shrink-0 w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></span>
 
         {{-- Heading dropdown --}}
-        <div x-data="{ headingOpen: false }" class="relative shrink-0" @click.outside="headingOpen = false">
-            <button type="button" @click="headingOpen = !headingOpen" :class="btnClass(activeStates?.heading1 ? 'heading1' : activeStates?.heading2 ? 'heading2' : activeStates?.heading3 ? 'heading3' : activeStates?.heading4 ? 'heading4' : '' )"
+        <div x-data="{ headingOpen: false }" class="relative shrink-0" @click.outside="headingOpen = false; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.remove('bp-toolbar-open-dropdown'))">
+            <button type="button" @click="headingOpen = !headingOpen; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.toggle('bp-toolbar-open-dropdown', headingOpen))" :class="btnClass(activeStates?.heading1 ? 'heading1' : activeStates?.heading2 ? 'heading2' : activeStates?.heading3 ? 'heading3' : activeStates?.heading4 ? 'heading4' : '' )"
                 class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
                 <span x-text="activeStates?.heading1 ? 'H1' : activeStates?.heading2 ? 'H2' : activeStates?.heading3 ? 'H3' : activeStates?.heading4 ? 'H4' : 'P'"></span>
                 <svg class="w-3 h-3 inline ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -177,8 +189,8 @@
         </div>
 
         {{-- Lists dropdown (bullet + ordered merged) --}}
-        <div x-data="{ listsOpen: false }" class="relative shrink-0" @click.outside="listsOpen = false">
-            <button type="button" @click="listsOpen = !listsOpen" :class="activeStates?.bulletList || activeStates?.orderedList ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
+        <div x-data="{ listsOpen: false }" class="relative shrink-0" @click.outside="listsOpen = false; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.remove('bp-toolbar-open-dropdown'))">
+            <button type="button" @click="listsOpen = !listsOpen; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.toggle('bp-toolbar-open-dropdown', listsOpen))" :class="activeStates?.bulletList || activeStates?.orderedList ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
                 class="rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="{{ __('blog.editor_list') }}">
                 <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 <svg class="w-3 h-3 inline ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -238,8 +250,8 @@
         <span class="shrink-0 w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></span>
 
         {{-- Highlight dropdown --}}
-        <div x-data="{ highlightOpen: false }" class="relative shrink-0" @click.outside="highlightOpen = false">
-            <button type="button" @click="highlightOpen = !highlightOpen" :class="btnClass('highlight')"
+        <div x-data="{ highlightOpen: false }" class="relative shrink-0" @click.outside="highlightOpen = false; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.remove('bp-toolbar-open-dropdown'))">
+            <button type="button" @click="highlightOpen = !highlightOpen; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.toggle('bp-toolbar-open-dropdown', highlightOpen))" :class="btnClass('highlight')"
                 class="rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="{{ __('blog.editor_highlight') }}">
                 <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
             </button>
@@ -267,8 +279,8 @@
         </div>
 
         {{-- Text align dropdown --}}
-        <div x-data="{ alignOpen: false }" class="relative shrink-0" @click.outside="alignOpen = false">
-            <button type="button" @click="alignOpen = !alignOpen" class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition" title="{{ __('blog.editor_align_left') }}">
+        <div x-data="{ alignOpen: false }" class="relative shrink-0" @click.outside="alignOpen = false; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.remove('bp-toolbar-open-dropdown'))">
+            <button type="button" @click="alignOpen = !alignOpen; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.toggle('bp-toolbar-open-dropdown', alignOpen))" class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition" title="{{ __('blog.editor_align_left') }}">
                 <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" opacity="0.3"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h8M4 12h8M4 18h8"/></svg>
             </button>
             <div x-show="alignOpen" x-cloak class="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-[120px]">
@@ -288,8 +300,8 @@
         </div>
 
         {{-- Text color dropdown --}}
-        <div x-data="{ colorOpen: false }" class="relative shrink-0" @click.outside="colorOpen = false">
-            <button type="button" @click="colorOpen = !colorOpen" class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition" title="{{ __('blog.editor_text_color') }}">
+        <div x-data="{ colorOpen: false }" class="relative shrink-0" @click.outside="colorOpen = false; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.remove('bp-toolbar-open-dropdown'))">
+            <button type="button" @click="colorOpen = !colorOpen; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.toggle('bp-toolbar-open-dropdown', colorOpen))" class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition" title="{{ __('blog.editor_text_color') }}">
                 <span class="inline-flex items-center gap-1">
                     <span class="text-xs underline" :style="'text-decoration-color: ' + (activeStates?.textColor || '#000') + '; text-decoration-thickness: 3px'">A</span>
                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
