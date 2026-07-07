@@ -865,6 +865,7 @@ function registerAnnotationModal() {
 
     Alpine.data('annotationModal', () => ({
         open: false,
+        mode: 'create',
         selectedText: '',
         from: null,
         to: null,
@@ -873,17 +874,22 @@ function registerAnnotationModal() {
         error: '',
         storeUrl: '',
         contentSaveUrl: '',
+        updateUrl: '',
+        annotationId: null,
         csrfToken: '',
 
         init() {
             document.addEventListener('open-annotation-modal', (e) => {
+                this.mode = e.detail.mode || 'create';
                 this.selectedText = e.detail.selectedText || '';
                 this.from = e.detail.from || null;
                 this.to = e.detail.to || null;
                 this.storeUrl = e.detail.storeUrl || '';
                 this.contentSaveUrl = e.detail.contentSaveUrl || '';
                 this.csrfToken = e.detail.csrfToken || '';
-                this.content = '';
+                this.content = e.detail.content || '';
+                this.updateUrl = e.detail.updateUrl || '';
+                this.annotationId = e.detail.annotationId || null;
                 this.error = '';
                 this.saving = false;
                 this.open = true;
@@ -894,6 +900,32 @@ function registerAnnotationModal() {
             if (this.saving || !this.content.trim()) return;
             this.saving = true;
             this.error = '';
+
+            if (this.mode === 'edit') {
+                fetch(this.updateUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
+                    body: JSON.stringify({ content: this.content.trim() }),
+                })
+                    .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                    .then(({ ok, data }) => {
+                        if (!ok) {
+                            this.error = data.message || 'Failed to update annotation.';
+                            this.saving = false;
+                            return;
+                        }
+                        this.open = false;
+                        this.content = '';
+                        document.dispatchEvent(new CustomEvent('annotation-updated', {
+                            detail: { annotation: data.annotation },
+                        }));
+                    })
+                    .catch(() => {
+                        this.error = 'Communication error.';
+                        this.saving = false;
+                    });
+                return;
+            }
 
             fetch(this.storeUrl, {
                 method: 'POST',
@@ -1143,13 +1175,14 @@ window.blogAnnotationCard = function (config) {
         success: '',
         filterTab: 'open',
         selectedAnnotationId: null,
-        editingId: null,
-        editContent: '',
         deletedFeedbackAnnotationId: null,
         replyContents: {},
         replySaving: false,
         replyEditingId: null,
         replyEditContent: '',
+        pendingDeleteAnnotationId: null,
+        pendingDeleteReplyId: null,
+        pendingDeleteReplyParentId: null,
         _pollInterval: null,
         _fingerprint: '',
 
@@ -1176,6 +1209,10 @@ window.blogAnnotationCard = function (config) {
                 this.loadAnnotations();
             });
 
+            document.addEventListener('annotation-updated', () => {
+                this.loadAnnotations();
+            });
+
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible' && this.isOpen) {
                     this.loadAnnotations();
@@ -1187,7 +1224,7 @@ window.blogAnnotationCard = function (config) {
             if (this._pollInterval) return;
             this._pollInterval = setInterval(() => {
                 if (!this.isOpen) return;
-                if (this.editingId || this.replyEditingId) return;
+                if (this.replyEditingId) return;
                 this.loadAnnotations({ silent: true });
             }, 8000);
         },
@@ -1242,49 +1279,28 @@ window.blogAnnotationCard = function (config) {
         },
 
         editAnnotation(annotation) {
-            this.editingId = annotation.id;
-            this.editContent = annotation.content;
+            document.dispatchEvent(new CustomEvent('open-annotation-modal', {
+                detail: {
+                    mode: 'edit',
+                    annotationId: annotation.id,
+                    selectedText: annotation.selected_text,
+                    content: annotation.content,
+                    updateUrl: this.updateUrlBase.replace('__ANNOTATION_ID__', annotation.id),
+                    csrfToken: this.i18n.csrfToken || '',
+                },
+            }));
         },
 
-        cancelEdit() {
-            this.editingId = null;
-            this.editContent = '';
+        askDeleteAnnotation(id) {
+            this.pendingDeleteAnnotationId = id;
         },
-
-        updateAnnotation() {
-            if (this.saving || !this.editContent.trim()) return;
-            this.saving = true;
-            this.error = '';
-            this.success = '';
-            const url = this.updateUrlBase.replace('__ANNOTATION_ID__', this.editingId);
-            fetch(url, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
-                body: JSON.stringify({ content: this.editContent.trim() }),
-            })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
-                    if (!ok) {
-                        this.error = data.message || this.i18n.updateError || 'Failed to update annotation.';
-                        return;
-                    }
-                    const idx = this.annotations.findIndex(a => a.id === this.editingId);
-                    if (idx !== -1) {
-                        this.annotations[idx] = data.annotation;
-                    }
-                    this.editingId = null;
-                    this.editContent = '';
-                    this.success = data.message || this.i18n.updated || 'Annotation updated.';
-                    setTimeout(() => { this.success = ''; }, 3000);
-                })
-                .catch(() => {
-                    this.error = this.i18n.updateError || 'Failed to update annotation.';
-                })
-                .finally(() => { this.saving = false; });
+        cancelDeleteAnnotation() {
+            this.pendingDeleteAnnotationId = null;
         },
-
-        deleteAnnotation(id) {
-            if (!confirm(this.i18n.confirmDelete || 'Delete this annotation?')) return;
+        confirmDeleteAnnotation() {
+            const id = this.pendingDeleteAnnotationId;
+            this.pendingDeleteAnnotationId = null;
+            if (!id) return;
             this.saving = true;
             this.error = '';
             this.success = '';
@@ -1431,8 +1447,20 @@ window.blogAnnotationCard = function (config) {
                 .finally(() => { this.replySaving = false; });
         },
 
-        deleteReply(replyId, annotationId) {
-            if (!confirm(this.i18n.replyConfirmDelete || 'Delete this reply?')) return;
+        askDeleteReply(annotationId, replyId) {
+            this.pendingDeleteReplyId = replyId;
+            this.pendingDeleteReplyParentId = annotationId;
+        },
+        cancelDeleteReply() {
+            this.pendingDeleteReplyId = null;
+            this.pendingDeleteReplyParentId = null;
+        },
+        confirmDeleteReply() {
+            const replyId = this.pendingDeleteReplyId;
+            const annotationId = this.pendingDeleteReplyParentId;
+            this.pendingDeleteReplyId = null;
+            this.pendingDeleteReplyParentId = null;
+            if (!replyId) return;
             this.replySaving = true;
             this.error = '';
             const url = this.getReplyDestroyUrl(annotationId, replyId);
