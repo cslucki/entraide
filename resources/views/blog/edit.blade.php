@@ -109,6 +109,8 @@
                         :route-ai-correct="$_blogRoute('ai-correct')"
                         :route-ai-remaining="$_blogRoute('ai-remaining')"
                         :route-upload="$_blogRoute('upload-image')"
+                        :route-annotation-store="$_blogRoute('annotations.store', ['post' => $post])"
+                        :route-annotation-content-save="$_blogRoute('save-content', ['post' => $post])"
                     />
                     @error('content')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -280,28 +282,25 @@
                 <div
                     x-data="blogAnnotationCard({
                         indexUrl: @js($_blogRoute('annotations.index', ['post' => $post])),
-                        storeUrl: @js($_blogRoute('annotations.store', ['post' => $post])),
                         updateUrlBase: @js($_blogRoute('annotations.update', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
                         destroyUrlBase: @js($_blogRoute('annotations.destroy', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
                         resolveUrlBase: @js($_blogRoute('annotations.resolve', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
                         i18n: {
                             openTab: @js(__('blog.open_annotations')),
                             resolvedTab: @js(__('blog.resolved_annotations')),
-                            add: @js(__('blog.add_annotation')),
-                            selectionRequired: @js(__('blog.selection_required')),
                             save: @js(__('blog.save')),
                             cancel: @js(__('blog.btn_cancel')),
                             edit: @js(__('blog.edit_annotation')),
                             delete: @js(__('blog.delete_annotation')),
                             resolve: @js(__('blog.resolve_annotation')),
-                            confirmed: @js(__('blog.annotation_created')),
                             resolved: @js(__('blog.annotation_resolved')),
                             deleted: @js(__('blog.annotation_deleted')),
                             updated: @js(__('blog.annotation_updated')),
                             noOpen: @js(__('blog.no_open_annotations')),
                             noResolved: @js(__('blog.no_resolved_annotations')),
                             confirmDelete: @js(__('blog.confirm_delete_annotation')),
-                            annotationPlaceholder: @js(__('blog.annotation_placeholder')),
+                            badgeDeleted: @js(__('blog.annotation_badge_deleted')),
+                            textDeleted: @js(__('blog.annotation_text_deleted')),
                             csrfToken: @js(csrf_token()),
                         },
                     })"
@@ -309,9 +308,12 @@
                 >
                     <button
                         @click="toggle()"
-                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                        class="bp-annotation-card-header flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
                     >
-                        <span>{{ __('blog.sidebar_annotations') }}</span>
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                            <span>{{ __('blog.sidebar_annotations') }}</span>
+                        </span>
                         <svg
                             class="w-3 h-3 transition-transform"
                             :class="{ 'rotate-180': isOpen }"
@@ -336,34 +338,6 @@
                                 :class="filterTab === 'resolved' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
                                 class="px-2 py-1 text-[10px] font-semibold rounded transition"
                                 x-text="i18n.resolvedTab"></button>
-                        </div>
-
-                        {{-- Add annotation trigger + hint --}}
-                        <div x-show="!showCreateForm" class="pt-1">
-                            <button type="button" @click="requestAnnotation()"
-                                class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 border border-dashed border-indigo-300 dark:border-indigo-700 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition">
-                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                                <span x-text="i18n.add"></span>
-                            </button>
-                            <div x-show="pendingHint" x-cloak
-                                class="mt-1 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded text-center"
-                                x-text="i18n.selectionRequired"></div>
-                        </div>
-
-                        {{-- Add annotation form (shown when triggered from toolbar or card) --}}
-                        <div x-show="showCreateForm" x-cloak class="rounded-lg border border-indigo-100 bg-indigo-50/40 p-2 dark:border-indigo-900/60 dark:bg-indigo-950/10">
-                            <p class="mb-1 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">{{ __('blog.add_annotation') }}</p>
-                            <p class="mb-1 text-[10px] text-gray-500 dark:text-gray-400 italic truncate" x-text="'&ldquo;' + (pendingAnnotation?.selectedText || '') + '&rdquo;'"></p>
-                            <textarea x-model="newContent" :placeholder="i18n.annotationPlaceholder" rows="2" maxlength="5000"
-                                class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500 mb-1"></textarea>
-                            <div class="flex gap-2">
-                                <button type="button" @click="createAnnotation()" :disabled="saving || !newContent.trim()"
-                                    class="px-3 py-1 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
-                                    x-text="i18n.save"></button>
-                                <button type="button" @click="cancelCreate()"
-                                    class="px-3 py-1 text-[10px] font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
-                                    x-text="i18n.cancel"></button>
-                            </div>
                         </div>
 
                         {{-- Loading --}}
@@ -406,7 +380,12 @@
                                 {{-- Display --}}
                                 <template x-if="editingId !== a.id">
                                     <div class="space-y-1">
-                                        <p class="text-[10px] text-gray-500 dark:text-gray-400 italic truncate" x-text="'&ldquo;' + a.selected_text + '&rdquo;'"></p>
+                                        <span x-show="a._orphaned"
+                                            class="inline-block text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none"
+                                            x-text="i18n.badgeDeleted"></span>
+                                        <p class="text-[10px] italic truncate"
+                                            :class="a._orphaned ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-500 dark:text-gray-400'"
+                                            x-text="'&ldquo;' + a.selected_text + '&rdquo;'"></p>
                                         <p class="text-xs text-gray-800 dark:text-gray-100" x-text="a.content"></p>
                                         <p class="text-[10px] text-gray-400 dark:text-gray-500">
                                             <span x-text="a.author_name"></span>
@@ -435,6 +414,10 @@
                                                 {{ __('blog.resolved_by') }} <span x-text="a.resolved_by_name"></span>
                                             </p>
                                         </template>
+                                        <p x-show="deletedFeedbackAnnotationId === a.id"
+                                            x-cloak
+                                            class="text-[10px] text-amber-600 dark:text-amber-400"
+                                            x-text="i18n.textDeleted"></p>
                                     </div>
                                 </template>
                             </div>
@@ -448,7 +431,68 @@
                 </div>
                 {{-- /Annotations card --}}
 
-                {{-- Co-authors card --}}
+                {{-- Blue accent on annotation card header --}}
+    <style>
+    .bp-annotation-card-header {
+        border-left: 3px solid #6366f1;
+    }
+    .dark .bp-annotation-card-header {
+        border-left-color: #818cf8;
+    }
+    </style>
+
+    {{-- Annotation creation modal --}}
+    <div
+        x-data="annotationModal"
+        x-show="open"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @keydown.escape.window="cancel()"
+    >
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-lg mx-4" @click.stop>
+            <div class="p-5 space-y-4">
+                <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+                    </svg>
+                    <span>{{ __('blog.add_annotation') }}</span>
+                </h3>
+
+                <div class="rounded-lg bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/60 p-3">
+                    <p class="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 mb-1">{{ __('blog.annotation_selected_text') }}</p>
+                    <p class="text-sm text-gray-700 dark:text-gray-300 italic leading-relaxed" x-text="'&ldquo;' + selectedText + '&rdquo;'"></p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('blog.annotation_your_note') }}</label>
+                    <textarea x-model="content"
+                        placeholder="{{ __('blog.annotation_placeholder') }}"
+                        rows="3" maxlength="5000"
+                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 resize-none"
+                        :disabled="saving"
+                    ></textarea>
+                </div>
+
+                <div x-show="error" x-cloak class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg" x-text="error"></div>
+
+                <div class="flex items-center justify-end gap-3 pt-1">
+                    <button type="button" @click="cancel()" :disabled="saving"
+                        class="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        x-text="'{{ __('blog.btn_cancel') }}'"></button>
+                    <button type="button" @click="save()" :disabled="saving || !content.trim()"
+                        class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition inline-flex items-center gap-2">
+                        <svg x-show="saving" class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        <span x-text="saving ? '{{ __('blog.annotation_saving') }}' : '{{ __('blog.save') }}'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Co-authors card --}}
         <div
             x-data="blogCoAuthorCard({
                 indexUrl: @js($_blogRoute('co-authors.index', ['post' => $post])),

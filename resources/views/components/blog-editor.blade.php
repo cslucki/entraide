@@ -1,4 +1,4 @@
-@props(['name' => 'content', 'value' => '', 'postId' => null, 'invalid' => false, 'routeAiGenerate' => null, 'routeAiCorrect' => null, 'routeAiRemaining' => null, 'routeUpload' => null])
+@props(['name' => 'content', 'value' => '', 'postId' => null, 'invalid' => false, 'routeAiGenerate' => null, 'routeAiCorrect' => null, 'routeAiRemaining' => null, 'routeUpload' => null, 'routeAnnotationStore' => null, 'routeAnnotationContentSave' => null])
 
 <style>
 .bp-resize-handle {
@@ -96,6 +96,12 @@
 .dark .bp-annotation-mark:hover {
   background: rgba(217,119,6,0.25);
 }
+.bp-btn-annotation {
+  color: #4f46e5 !important;
+}
+.dark .bp-btn-annotation {
+  color: #818cf8 !important;
+}
 .bp-annotation-highlight {
   background: #fde68a !important;
   border-bottom-color: #d97706 !important;
@@ -123,10 +129,14 @@
     data-editor-link-prompt="{{ __('blog.editor_link_prompt') }}"
     data-editor-generate-require="{{ __('blog.editor_generate_require_input') }}"
     data-editor-correct-require="{{ __('blog.editor_correct_require_input') }}"
+    data-editor-annotation-too-short="{{ __('blog.annotation_selection_too_short') }}"
+    data-editor-annotation-too-long="{{ __('blog.annotation_selection_too_long') }}"
     data-route-upload="{{ $routeUpload ?? route('blog.upload-image') }}"
     data-route-ai-remaining="{{ $routeAiRemaining ?? route('blog.ai-remaining') }}"
     data-route-ai-generate="{{ $routeAiGenerate ?? route('blog.ai-generate') }}"
     data-route-ai-correct="{{ $routeAiCorrect ?? route('blog.ai-correct') }}"
+    data-annotation-store-url="{{ $routeAnnotationStore ?? '' }}"
+    data-annotation-content-save-url="{{ $routeAnnotationContentSave ?? '' }}"
 >
     {{-- Toolbar --}}
     <div class="flex flex-wrap items-center gap-1 pb-2 border-b border-gray-200 dark:border-gray-700">
@@ -218,7 +228,7 @@
         {{-- Annotation --}}
         <button type="button" @click="startEditorAnnotation()"
             :class="btnClass('annotation')"
-            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition"
+            class="bp-btn-annotation shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition"
             :title="'{{ __('blog.editor_annotation') }}'">
             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>

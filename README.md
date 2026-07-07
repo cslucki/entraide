@@ -40,6 +40,7 @@ After running `php artisan migrate --seed`, the following demo accounts are avai
 | `main.member2@bouclepro.test` | Demo Main Member 2 | Main | Member | `password` |
 | `launchpals.member1@bouclepro.test` | Demo LaunchPals Member 1 | LaunchPals | Admin | `password` |
 | `launchpals.member2@bouclepro.test` | Demo LaunchPals Member 2 | LaunchPals | Member | `password` |
+Local Apache server (as an example for testing) : https://test.laravel 
 
 ### Organizations
 

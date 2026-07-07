@@ -1,5 +1,5 @@
 // BouclePro — Service Worker (PWA shell offline)
-const CACHE_NAME = 'bouclepro-v2';
+const CACHE_NAME = 'bouclepro-v3';
 
 const SHELL_ASSETS = [
   '/site.webmanifest',
@@ -71,6 +71,14 @@ self.addEventListener('fetch', (event) => {
         });
       })
     );
+    return;
+  }
+
+  // Bypass cache for blog API endpoints (annotations, co-authors, snapshots)
+  if (url.pathname.includes('/annotations') ||
+      url.pathname.includes('/co-authors') ||
+      url.pathname.includes('/snapshots')) {
+    event.respondWith(fetch(request));
     return;
   }
 

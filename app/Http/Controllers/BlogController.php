@@ -326,6 +326,31 @@ class BlogController extends Controller implements HasMiddleware
         return $this->destroy($post);
     }
 
+    public function saveContent(Request $request, BlogPost $post): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $post);
+
+        $data = $request->validate([
+            'content' => 'required|string',
+        ]);
+
+        $post->update([
+            'content' => $this->sanitizeHtml($data['content']),
+        ]);
+
+        return response()->json(['message' => __('blog.content_saved')]);
+    }
+
+    public function orgSaveContent(Request $request, string $org, BlogPost $post): JsonResponse
+    {
+        return $this->saveContent($request, $post);
+    }
+
     public function myPosts(): View
     {
         $organization = currentOrganization();

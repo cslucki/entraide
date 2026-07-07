@@ -405,6 +405,10 @@ function registerBlogEditor() {
         linkPrompt: '',
         msgGenerateRequire: '',
         msgCorrectRequire: '',
+        msgAnnotationTooShort: '',
+        annotationStoreUrl: '',
+        annotationContentSaveUrl: '',
+        msgAnnotationTooLong: '',
 
         init() {
             const root = this.$root;
@@ -415,13 +419,17 @@ function registerBlogEditor() {
             this.csrfToken = root.dataset.editorCsrf || '';
             this.errorUpload = root.dataset.editorErrorUpload || '';
             this.errorAi = root.dataset.editorErrorAi || '';
+            this.msgAnnotationTooLong = root.dataset.editorAnnotationTooLong || '';
             this.linkPrompt = root.dataset.editorLinkPrompt || 'Link URL:';
             this.msgGenerateRequire = root.dataset.editorGenerateRequire || '';
             this.msgCorrectRequire = root.dataset.editorCorrectRequire || '';
+            this.msgAnnotationTooShort = root.dataset.editorAnnotationTooShort || '';
             this.uploadRoute = root.dataset.routeUpload || '';
             this.aiRemainingRoute = root.dataset.routeAiRemaining || '';
             this.aiGenerateRoute = root.dataset.routeAiGenerate || '';
             this.aiCorrectRoute = root.dataset.routeAiCorrect || '';
+            this.annotationStoreUrl = root.dataset.annotationStoreUrl || '';
+            this.annotationContentSaveUrl = root.dataset.annotationContentSaveUrl || '';
 
             if (typeof createBlogEditor === 'undefined') {
                 this.editorError = true;
@@ -532,9 +540,10 @@ function registerBlogEditor() {
 
         btnClass(name) {
             if (!this.activeStates) return 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800';
-            return this.activeStates[name]
-                ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
-                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800';
+            if (this.activeStates[name]) {
+                return 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300';
+            }
+            return 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800';
         },
 
         syncHidden() {
@@ -808,14 +817,27 @@ function registerBlogEditor() {
         startEditorAnnotation() {
             if (!editor) return;
             const { from, to } = editor.state.selection;
-            if (from === to) {
-                document.dispatchEvent(new CustomEvent('annotation-error'));
-                return;
-            }
+            if (from === to) return;
             const text = editor.state.doc.textBetween(from, to, ' ').trim();
             if (text.length === 0) return;
-            document.dispatchEvent(new CustomEvent('annotation-start', {
-                detail: { from, to, selectedText: text.substring(0, 200) }
+            if (text.trim().length < 2) {
+                this.error = this.msgAnnotationTooShort;
+                return;
+            }
+            const words = text.split(/\s+/).filter(Boolean).length;
+            if (words > 80 || text.length > 600) {
+                this.error = this.msgAnnotationTooLong;
+                return;
+            }
+            document.dispatchEvent(new CustomEvent('open-annotation-modal', {
+                detail: {
+                    from,
+                    to,
+                    selectedText: text.substring(0, 200),
+                    storeUrl: this.annotationStoreUrl || '',
+                    contentSaveUrl: this.annotationContentSaveUrl || '',
+                    csrfToken: this.csrfToken || '',
+                },
             }));
         },
 
@@ -830,6 +852,139 @@ function registerBlogEditor() {
             const label = mode === 'generate' ? 'génération' : 'correction';
             const limit = this.limits[mode];
             return `${used}${suffix} ${label} sur ${limit} possibles`;
+        },
+    }));
+}
+
+function registerAnnotationModal() {
+    if (!window.Alpine || window.__annotationModalRegistered) {
+        return;
+    }
+
+    window.__annotationModalRegistered = true;
+
+    Alpine.data('annotationModal', () => ({
+        open: false,
+        selectedText: '',
+        from: null,
+        to: null,
+        content: '',
+        saving: false,
+        error: '',
+        storeUrl: '',
+        contentSaveUrl: '',
+        csrfToken: '',
+
+        init() {
+            document.addEventListener('open-annotation-modal', (e) => {
+                this.selectedText = e.detail.selectedText || '';
+                this.from = e.detail.from || null;
+                this.to = e.detail.to || null;
+                this.storeUrl = e.detail.storeUrl || '';
+                this.contentSaveUrl = e.detail.contentSaveUrl || '';
+                this.csrfToken = e.detail.csrfToken || '';
+                this.content = '';
+                this.error = '';
+                this.saving = false;
+                this.open = true;
+            });
+        },
+
+        save() {
+            if (this.saving || !this.content.trim()) return;
+            this.saving = true;
+            this.error = '';
+
+            fetch(this.storeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
+                body: JSON.stringify({
+                    selected_text: this.selectedText,
+                    content: this.content.trim(),
+                }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to create annotation.';
+                        this.saving = false;
+                        return;
+                    }
+
+                    const annotation = data.annotation;
+
+                    if (typeof editor !== 'undefined' && editor && this.from !== null && this.to !== null) {
+                        editor.chain()
+                            .setTextSelection({ from: this.from, to: this.to })
+                            .setAnnotation(annotation.id)
+                            .run();
+
+                        const html = editor.getHTML();
+                        fetch(this.contentSaveUrl, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
+                            body: JSON.stringify({ content: html }),
+                        })
+                            .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                            .then(({ ok }) => {
+                                if (!ok) {
+                                    this._removeMark(annotation.id);
+                                    this.error = 'Failed to save content.';
+                                    this.saving = false;
+                                    return;
+                                }
+
+                                this.open = false;
+                                this.content = '';
+                                document.dispatchEvent(new CustomEvent('annotation-created', {
+                                    detail: { annotation },
+                                }));
+                            })
+                            .catch(() => {
+                                this._removeMark(annotation.id);
+                                this.error = 'Communication error while saving content.';
+                                this.saving = false;
+                            });
+                    } else {
+                        this.open = false;
+                        this.content = '';
+                        document.dispatchEvent(new CustomEvent('annotation-created', {
+                            detail: { annotation },
+                        }));
+                    }
+                })
+                .catch(() => {
+                    this.error = 'Communication error.';
+                    this.saving = false;
+                });
+        },
+
+        _removeMark(id) {
+            if (typeof editor === 'undefined' || !editor) return;
+            const mark = editor.state.schema.marks.annotation;
+            if (!mark) return;
+            const { state } = editor;
+            const tr = state.tr;
+            state.doc.descendants((node, pos) => {
+                if (node.marks.length) {
+                    const m = node.marks.find(m => m.type === mark && m.attrs.annotationId === id);
+                    if (m) {
+                        tr.removeMark(pos, pos + node.nodeSize, mark);
+                    }
+                }
+            });
+            if (tr.steps.length > 0) {
+                editor.view.dispatch(tr);
+            }
+        },
+
+        cancel() {
+            this.open = false;
+            this.content = '';
+            this.selectedText = '';
+            this.from = null;
+            this.to = null;
+            this.error = '';
         },
     }));
 }
@@ -988,16 +1143,11 @@ window.blogAnnotationCard = function (config) {
         success: '',
         filterTab: 'open',
         selectedAnnotationId: null,
-        showCreateForm: false,
-        pendingHint: false,
-        _pendingHintTimer: null,
-        newContent: '',
         editingId: null,
         editContent: '',
-        pendingAnnotation: null,
+        deletedFeedbackAnnotationId: null,
 
         indexUrl: config.indexUrl,
-        storeUrl: config.storeUrl,
         updateUrlBase: config.updateUrlBase,
         destroyUrlBase: config.destroyUrlBase,
         resolveUrlBase: config.resolveUrlBase,
@@ -1012,44 +1162,9 @@ window.blogAnnotationCard = function (config) {
                 this.selectAnnotation(e.detail.id);
             });
 
-            document.addEventListener('annotation-start', (e) => {
-                this.pendingAnnotation = e.detail;
-                this.showCreateForm = true;
-                this.pendingHint = false;
-                this.newContent = '';
-                this.isOpen = true;
+            document.addEventListener('annotation-created', () => {
+                this.loadAnnotations();
             });
-
-            document.addEventListener('annotation-error', () => {
-                this.showCreateForm = false;
-                this.pendingAnnotation = null;
-            });
-        },
-
-        requestAnnotation() {
-            if (!editor) {
-                this.pendingHint = true;
-                this._clearHintAfterDelay();
-                return;
-            }
-            const { from, to, empty } = editor.state.selection;
-            if (empty || from === to) {
-                this.pendingHint = true;
-                this._clearHintAfterDelay();
-                return;
-            }
-            const selectedText = editor.state.doc.textBetween(from, to, ' ');
-            document.dispatchEvent(new CustomEvent('annotation-start', {
-                detail: { from, to, selectedText },
-            }));
-        },
-
-        _clearHintAfterDelay() {
-            if (this._pendingHintTimer) clearTimeout(this._pendingHintTimer);
-            this._pendingHintTimer = setTimeout(() => {
-                this.pendingHint = false;
-                this._pendingHintTimer = null;
-            }, 3000);
         },
 
         get filteredAnnotations() {
@@ -1064,64 +1179,20 @@ window.blogAnnotationCard = function (config) {
             localStorage.setItem('editor_sidebar_card_annotations', this.isOpen ? '1' : '0');
         },
 
-        cancelCreate() {
-            this.showCreateForm = false;
-            this.newContent = '';
-            this.pendingAnnotation = null;
-        },
-
         loadAnnotations() {
             this.loading = true;
             this.error = '';
-            fetch(this.indexUrl)
+            fetch(this.indexUrl, { cache: 'no-store' })
                 .then(r => r.json())
                 .then(data => {
                     this.annotations = data.annotations || [];
+                    this._computeOrphaned();
                     this.loading = false;
                 })
                 .catch(() => {
                     this.error = this.i18n.loadError || 'Failed to load annotations.';
                     this.loading = false;
                 });
-        },
-
-        createAnnotation() {
-            if (this.saving || !this.newContent.trim() || !this.pendingAnnotation) return;
-            this.saving = true;
-            this.error = '';
-            this.success = '';
-            fetch(this.storeUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
-                body: JSON.stringify({
-                    selected_text: this.pendingAnnotation.selectedText,
-                    content: this.newContent.trim(),
-                }),
-            })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
-                    if (!ok) {
-                        this.error = data.message || this.i18n.createError || 'Failed to create annotation.';
-                        return;
-                    }
-                    this.annotations.push(data.annotation);
-                    const range = this.pendingAnnotation;
-                    if (typeof editor !== 'undefined' && editor && range) {
-                        editor.chain()
-                            .setTextSelection({ from: range.from, to: range.to })
-                            .setAnnotation(data.annotation.id)
-                            .run();
-                    }
-                    this.showCreateForm = false;
-                    this.newContent = '';
-                    this.pendingAnnotation = null;
-                    this.success = data.message || this.i18n.confirmed || 'Annotation created.';
-                    setTimeout(() => { this.success = ''; }, 3000);
-                })
-                .catch(() => {
-                    this.error = this.i18n.createError || 'Failed to create annotation.';
-                })
-                .finally(() => { this.saving = false; });
         },
 
         editAnnotation(annotation) {
@@ -1243,19 +1314,33 @@ window.blogAnnotationCard = function (config) {
 
         selectAnnotation(id) {
             this.selectedAnnotationId = id;
+            this.deletedFeedbackAnnotationId = null;
             const marks = document.querySelectorAll(`[data-annotation-id="${id}"]`);
             document.querySelectorAll('.bp-annotation-highlight').forEach(el => {
                 el.classList.remove('bp-annotation-highlight');
             });
-            marks.forEach(mark => {
-                mark.classList.add('bp-annotation-highlight');
-                mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            });
+            if (marks.length === 0) {
+                this.deletedFeedbackAnnotationId = id;
+                setTimeout(() => { if (this.deletedFeedbackAnnotationId === id) this.deletedFeedbackAnnotationId = null; }, 3000);
+            } else {
+                marks.forEach(mark => {
+                    mark.classList.add('bp-annotation-highlight');
+                    mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
+            }
             const card = document.querySelector(`[data-annotation-card-id="${id}"]`);
             if (card) {
                 card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
-            this.filterTab = 'open';
+        },
+
+        _computeOrphaned() {
+            const editorEl = document.querySelector('.ProseMirror');
+            if (!editorEl) return;
+            const html = editorEl.innerHTML;
+            this.annotations.forEach(a => {
+                a._orphaned = !html.includes(`data-annotation-id="${a.id}"`);
+            });
         },
     };
 };
@@ -1270,12 +1355,14 @@ document.addEventListener('alpine:init', () => {
     registerAlpineStores();
     registerBlogSnapshotCard();
     registerBlogEditor();
+    registerAnnotationModal();
     registerBlogCoAuthorCard();
 });
 
 registerAlpineStores();
 registerBlogSnapshotCard();
 registerBlogEditor();
+registerAnnotationModal();
 registerBlogCoAuthorCard();
 
 // Service Worker registration

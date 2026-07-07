@@ -25,7 +25,8 @@ class BlogAnnotationController extends Controller
             ->get()
             ->map(fn (BlogPostAnnotation $a) => $this->serialize($a));
 
-        return response()->json(['annotations' => $annotations]);
+        return response()->json(['annotations' => $annotations])
+            ->header('Cache-Control', 'no-cache, private');
     }
 
     public function store(Request $request, BlogPost $post): JsonResponse
