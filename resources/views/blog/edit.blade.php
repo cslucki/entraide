@@ -522,10 +522,16 @@
         x-data="annotationModal"
         x-show="open"
         x-cloak
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 translate-y-4 md:translate-y-0 md:scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 md:scale-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100 translate-y-0 md:scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 md:translate-y-0 md:scale-95"
+        class="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40"
         @keydown.escape.window="cancel()"
     >
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-lg mx-4" @click.stop>
+        <div class="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full md:max-w-lg md:mx-4 max-h-[85dvh] md:max-h-none overflow-y-auto" @click.stop>
             <div class="p-5 space-y-4">
                 <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                     <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
