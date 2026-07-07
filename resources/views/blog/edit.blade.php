@@ -10,10 +10,15 @@
     @endphp
     <x-slot name="title">{{ __('blog.title_edit', ['title' => $post->title]) }}</x-slot>
 
+    @php
+        $backRouteName = $post->status === 'published' ? 'show' : 'my-posts';
+        $backLabel = $post->status === 'published' ? __('blog.back_to_article') : __('blog.back_to_my_articles');
+    @endphp
+
     <div class="max-w-7xl mx-auto px-4 py-8">
 
         <div class="mb-6">
-            <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← {{ __('blog.back_to_article') }}</a>
+            <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← {{ $backLabel }}</a>
         </div>
 
         {{-- Editor layout: main panel + resize handle + sidebar --}}
@@ -224,7 +229,7 @@
                     <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
                         {{ __('blog.btn_save') }}
                     </button>
-                    <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         {{ __('blog.btn_cancel') }}
                     </a>
                 </div>
@@ -285,6 +290,9 @@
                         updateUrlBase: @js($_blogRoute('annotations.update', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
                         destroyUrlBase: @js($_blogRoute('annotations.destroy', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
                         resolveUrlBase: @js($_blogRoute('annotations.resolve', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
+                        replyStoreUrlBase: @js($_blogRoute('annotations.replies.store', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
+                        replyUpdateUrlBase: @js($_blogRoute('annotations.replies.update', ['post' => $post, 'annotation' => '__ANNOTATION_ID__', 'reply' => '__REPLY_ID__'])),
+                        replyDestroyUrlBase: @js($_blogRoute('annotations.replies.destroy', ['post' => $post, 'annotation' => '__ANNOTATION_ID__', 'reply' => '__REPLY_ID__'])),
                         i18n: {
                             openTab: @js(__('blog.open_annotations')),
                             resolvedTab: @js(__('blog.resolved_annotations')),
@@ -301,6 +309,9 @@
                             confirmDelete: @js(__('blog.confirm_delete_annotation')),
                             badgeDeleted: @js(__('blog.annotation_badge_deleted')),
                             textDeleted: @js(__('blog.annotation_text_deleted')),
+                            badgeStale: @js(__('blog.annotation_badge_stale')),
+                            textStale: @js(__('blog.annotation_text_stale')),
+                            refreshDoc: @js(__('blog.annotation_refresh_doc')),
                             csrfToken: @js(csrf_token()),
                         },
                     })"
@@ -381,8 +392,12 @@
                                 <template x-if="editingId !== a.id">
                                     <div class="space-y-1">
                                         <span x-show="a._orphaned"
-                                            class="inline-block text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none"
-                                            x-text="i18n.badgeDeleted"></span>
+                                            class="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none">
+                                            <span x-text="i18n.badgeStale"></span>
+                                            <button type="button" @click.stop="refreshDocument()"
+                                                class="underline hover:text-amber-900 dark:hover:text-amber-100"
+                                                x-text="i18n.refreshDoc"></button>
+                                        </span>
                                         <p class="text-[10px] italic truncate"
                                             :class="a._orphaned ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-500 dark:text-gray-400'"
                                             x-text="'&ldquo;' + a.selected_text + '&rdquo;'"></p>
@@ -414,10 +429,63 @@
                                                 {{ __('blog.resolved_by') }} <span x-text="a.resolved_by_name"></span>
                                             </p>
                                         </template>
+
+                                        {{-- Replies section --}}
+                                        <div class="mt-2 border-t border-gray-100 dark:border-gray-700 pt-2 space-y-1.5" @click.stop>
+                                            <template x-for="r in (a.replies || [])" :key="r.id">
+                                                <div class="rounded bg-white dark:bg-gray-800 px-2 py-1.5 text-xs border border-gray-50 dark:border-gray-700">
+                                                    <template x-if="replyEditingId === r.id">
+                                                        <div class="space-y-1">
+                                                            <textarea x-model="replyEditContent" rows="2" maxlength="5000"
+                                                                class="w-full px-2 py-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500"></textarea>
+                                                            <div class="flex gap-1.5">
+                                                                <button type="button" @click="updateReply(a.id, r.id)" :disabled="replySaving || !replyEditContent.trim()"
+                                                                    class="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                                                    x-text="'{{ __('blog.save') }}'"></button>
+                                                                <button type="button" @click="cancelReplyEdit()"
+                                                                    class="px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+                                                                    x-text="i18n.cancel"></button>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="replyEditingId !== r.id">
+                                                        <div>
+                                                            <p class="text-[10px] text-gray-800 dark:text-gray-100" x-text="r.content"></p>
+                                                            <div class="flex items-center gap-1.5 mt-0.5">
+                                                                <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="r.author_name + ' · ' + r.created_at_human"></span>
+                                                                <button type="button" x-show="r.can_edit"
+                                                                    @click="editReply(r)"
+                                                                    class="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                                                    x-text="'{{ __('blog.annotation_reply_edit') }}'"></button>
+                                                                <button type="button" x-show="r.can_delete"
+                                                                    @click="deleteReply(a.id, r.id)"
+                                                                    class="text-[9px] font-semibold text-red-600 dark:text-red-400 hover:underline"
+                                                                    x-text="'{{ __('blog.annotation_reply_delete') }}'"></button>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            <template x-if="!(a.replies && a.replies.length)">
+                                                <p class="text-[10px] text-gray-400 dark:text-gray-500 italic" x-text="'{{ __('blog.annotation_reply_empty') }}'"></p>
+                                            </template>
+                                            <div class="flex gap-1.5">
+                                                <input type="text" x-model="replyContents[a.id]"
+                                                    :placeholder="'{{ __('blog.annotation_reply_placeholder') }}'"
+                                                    maxlength="5000"
+                                                    @keydown.enter.prevent="submitReply(a.id)"
+                                                    class="flex-1 px-2 py-1 text-[10px] border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500"
+                                                    :disabled="replySaving">
+                                                <button type="button" @click="submitReply(a.id)" :disabled="replySaving || !(replyContents[a.id] || '').trim()"
+                                                    class="shrink-0 px-2 py-1 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                                    x-text="replySaving ? '{{ __('blog.annotation_reply_saving') }}' : '{{ __('blog.annotation_reply_btn') }}'"></button>
+                                            </div>
+                                        </div>
+
                                         <p x-show="deletedFeedbackAnnotationId === a.id"
                                             x-cloak
                                             class="text-[10px] text-amber-600 dark:text-amber-400"
-                                            x-text="i18n.textDeleted"></p>
+                                            x-text="i18n.textStale"></p>
                                     </div>
                                 </template>
                             </div>

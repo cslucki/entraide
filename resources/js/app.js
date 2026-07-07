@@ -1146,17 +1146,27 @@ window.blogAnnotationCard = function (config) {
         editingId: null,
         editContent: '',
         deletedFeedbackAnnotationId: null,
+        replyContents: {},
+        replySaving: false,
+        replyEditingId: null,
+        replyEditContent: '',
+        _pollInterval: null,
+        _fingerprint: '',
 
         indexUrl: config.indexUrl,
         updateUrlBase: config.updateUrlBase,
         destroyUrlBase: config.destroyUrlBase,
         resolveUrlBase: config.resolveUrlBase,
+        replyStoreUrlBase: config.replyStoreUrlBase || '',
+        replyUpdateUrlBase: config.replyUpdateUrlBase || '',
+        replyDestroyUrlBase: config.replyDestroyUrlBase || '',
         i18n: config.i18n || {},
 
         init() {
             const stored = localStorage.getItem('editor_sidebar_card_annotations');
             if (stored !== null) this.isOpen = stored === '1';
             this.loadAnnotations();
+            if (this.isOpen) this._startPolling();
 
             document.addEventListener('annotation-selected', (e) => {
                 this.selectAnnotation(e.detail.id);
@@ -1165,6 +1175,28 @@ window.blogAnnotationCard = function (config) {
             document.addEventListener('annotation-created', () => {
                 this.loadAnnotations();
             });
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && this.isOpen) {
+                    this.loadAnnotations();
+                }
+            });
+        },
+
+        _startPolling() {
+            if (this._pollInterval) return;
+            this._pollInterval = setInterval(() => {
+                if (!this.isOpen) return;
+                if (this.editingId || this.replyEditingId) return;
+                this.loadAnnotations({ silent: true });
+            }, 8000);
+        },
+
+        _stopPolling() {
+            if (this._pollInterval) {
+                clearInterval(this._pollInterval);
+                this._pollInterval = null;
+            }
         },
 
         get filteredAnnotations() {
@@ -1177,16 +1209,30 @@ window.blogAnnotationCard = function (config) {
         toggle() {
             this.isOpen = !this.isOpen;
             localStorage.setItem('editor_sidebar_card_annotations', this.isOpen ? '1' : '0');
+            if (this.isOpen) {
+                this.loadAnnotations();
+                this._startPolling();
+            } else {
+                this._stopPolling();
+            }
         },
 
-        loadAnnotations() {
-            this.loading = true;
+        loadAnnotations(options) {
+            const silent = options && options.silent;
+            if (!silent) this.loading = true;
             this.error = '';
             fetch(this.indexUrl, { cache: 'no-store' })
                 .then(r => r.json())
                 .then(data => {
+                    const raw = JSON.stringify(data.annotations || []);
+                    if (silent && raw === this._fingerprint) {
+                        this.loading = false;
+                        return;
+                    }
+                    this._fingerprint = raw;
                     this.annotations = data.annotations || [];
                     this._computeOrphaned();
+                    this.annotations.forEach(a => { this.replyContents[a.id] = this.replyContents[a.id] || ''; });
                     this.loading = false;
                 })
                 .catch(() => {
@@ -1341,6 +1387,112 @@ window.blogAnnotationCard = function (config) {
             this.annotations.forEach(a => {
                 a._orphaned = !html.includes(`data-annotation-id="${a.id}"`);
             });
+        },
+
+        getReplyStoreUrl(annotationId) {
+            return this.replyStoreUrlBase.replace('__ANNOTATION_ID__', annotationId);
+        },
+
+        getReplyUpdateUrl(annotationId, replyId) {
+            return this.replyUpdateUrlBase
+                .replace('__ANNOTATION_ID__', annotationId)
+                .replace('__REPLY_ID__', replyId);
+        },
+
+        getReplyDestroyUrl(annotationId, replyId) {
+            return this.replyDestroyUrlBase
+                .replace('__ANNOTATION_ID__', annotationId)
+                .replace('__REPLY_ID__', replyId);
+        },
+
+        submitReply(annotationId) {
+            const text = (this.replyContents[annotationId] || '').trim();
+            if (!text) return;
+            this.replySaving = true;
+            this.error = '';
+            const url = this.getReplyStoreUrl(annotationId);
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ content: text }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to add reply.';
+                        return;
+                    }
+                    this.replyContents[annotationId] = '';
+                    this.loadAnnotations();
+                })
+                .catch(() => {
+                    this.error = 'Failed to add reply.';
+                })
+                .finally(() => { this.replySaving = false; });
+        },
+
+        deleteReply(replyId, annotationId) {
+            if (!confirm(this.i18n.replyConfirmDelete || 'Delete this reply?')) return;
+            this.replySaving = true;
+            this.error = '';
+            const url = this.getReplyDestroyUrl(annotationId, replyId);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to delete reply.';
+                        return;
+                    }
+                    this.loadAnnotations();
+                })
+                .catch(() => {
+                    this.error = 'Failed to delete reply.';
+                })
+                .finally(() => { this.replySaving = false; });
+        },
+
+        editReply(reply) {
+            this.replyEditingId = reply.id;
+            this.replyEditContent = reply.content;
+        },
+
+        cancelReplyEdit() {
+            this.replyEditingId = null;
+            this.replyEditContent = '';
+        },
+
+        updateReply(annotationId) {
+            const text = this.replyEditContent.trim();
+            if (!text || this.replySaving) return;
+            this.replySaving = true;
+            this.error = '';
+            const url = this.getReplyUpdateUrl(annotationId, this.replyEditingId);
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ content: text }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to update reply.';
+                        return;
+                    }
+                    this.replyEditingId = null;
+                    this.replyEditContent = '';
+                    this.loadAnnotations();
+                })
+                .catch(() => {
+                    this.error = 'Failed to update reply.';
+                })
+                .finally(() => { this.replySaving = false; });
+        },
+
+        refreshDocument() {
+            location.reload();
         },
     };
 };

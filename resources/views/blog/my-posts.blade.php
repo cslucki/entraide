@@ -241,9 +241,10 @@
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                         @foreach($coAuthoredPosts as $post)
                         @php $role = $post->user_id === $user->id ? 'responsible' : 'coauthor'; @endphp
+                        @php $coauthorLink = $post->status === 'published' ? 'show' : 'edit'; @endphp
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
                             <td class="px-5 py-4">
-                                <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition line-clamp-1">
+                                <a href="{{ $_blogRoute($coauthorLink, ['post' => $post]) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition line-clamp-1">
                                     {{ $post->title }}
                                 </a>
                             </td>
