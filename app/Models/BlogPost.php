@@ -33,12 +33,14 @@ class BlogPost extends Model
         'read_time',
         'meta_title',
         'meta_description',
+        'show_toc',
     ];
 
     protected $casts = [
         'published_at' => 'datetime',
         'views_count' => 'integer',
         'read_time' => 'integer',
+        'show_toc' => 'boolean',
     ];
 
     protected static function booted(): void

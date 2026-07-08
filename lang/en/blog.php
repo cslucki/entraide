@@ -368,4 +368,12 @@ return [
     'todo_hide_comments' => 'Hide comments',
     'todo_show_comments' => 'Show comments (:count)',
     'todo_add_comment' => 'Add a comment',
+
+    'sidebar_plan' => 'Plan',
+    'sidebar_plan_placeholder' => 'Extract headings from the article',
+    'plan_title' => 'Plan',
+    'plan_empty' => 'No headings found.',
+    'plan_toggle' => 'Show on published article',
+    'plan_collapse' => 'Collapse',
+    'plan_expand' => 'Expand',
 ];

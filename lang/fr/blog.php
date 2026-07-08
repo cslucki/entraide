@@ -368,4 +368,12 @@ return [
     'todo_hide_comments' => 'Masquer les commentaires',
     'todo_show_comments' => 'Afficher les commentaires (:count)',
     'todo_add_comment' => 'Ajouter un commentaire',
+
+    'sidebar_plan' => 'Plan',
+    'sidebar_plan_placeholder' => 'Extraire les titres de l\'article',
+    'plan_title' => 'Plan',
+    'plan_empty' => 'Aucun titre trouvé.',
+    'plan_toggle' => 'Afficher sur l\'article publié',
+    'plan_collapse' => 'Réduire',
+    'plan_expand' => 'Développer',
 ];
