@@ -1211,6 +1211,8 @@ function registerBlogLoopCard() {
         i18n: config.i18n || {},
         messageDrafts: {},
         sendingMessage: '',
+        _pollInterval: null,
+        _fingerprint: '',
 
         get availableLoops() {
             const linkedIds = new Set(this.linkedLoops.map(l => l.id));
@@ -1221,9 +1223,13 @@ function registerBlogLoopCard() {
             this.open = !this.open;
             localStorage.setItem('editor_sidebar_card_boucle', this.open ? '1' : '0');
             if (this.open) {
+                this.loadMessages();
+                this._startPolling();
                 this._dispatching = true;
                 window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
                 this._dispatching = false;
+            } else {
+                this._stopPolling();
             }
         },
 
@@ -1231,20 +1237,51 @@ function registerBlogLoopCard() {
             const stored = localStorage.getItem('editor_sidebar_card_boucle');
             if (stored !== null) this.open = stored === '1';
             this.loadMessages();
+            if (this.open) this._startPolling();
 
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
                 localStorage.setItem('editor_sidebar_card_boucle', '0');
+                this._stopPolling();
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && this.open) {
+                    this.loadMessages({ silent: true });
+                }
             });
         },
 
-        loadMessages() {
+        _startPolling() {
+            if (this._pollInterval) return;
+            this._pollInterval = setInterval(() => {
+                if (!this.open) return;
+                if (this.sendingMessage) return;
+                this.loadMessages({ silent: true });
+            }, 8000);
+        },
+
+        _stopPolling() {
+            if (this._pollInterval) {
+                clearInterval(this._pollInterval);
+                this._pollInterval = null;
+            }
+        },
+
+        loadMessages(options) {
             if (this.linkedLoops.length === 0) return;
-            this.loading = true;
-            fetch(this.messagesUrl)
+            const silent = options && options.silent;
+            if (!silent) this.loading = true;
+            fetch(this.messagesUrl, { cache: 'no-store' })
                 .then(r => r.json())
                 .then(data => {
+                    const raw = JSON.stringify(data.loops || []);
+                    if (silent && raw === this._fingerprint) {
+                        this.loading = false;
+                        return;
+                    }
+                    this._fingerprint = raw;
                     if (data.loops) {
                         this.linkedLoops = data.loops;
                     }
@@ -1327,7 +1364,7 @@ function registerBlogLoopCard() {
                         return;
                     }
                     this.messageDrafts[loopId] = '';
-                    this.loadMessages();
+                    this.loadMessages({ silent: true });
                 })
                 .catch(() => {
                     this.error = 'Failed to send message.';
