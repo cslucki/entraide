@@ -1403,6 +1403,330 @@ function registerBlogLoopCard() {
     }));
 }
 
+function registerBlogTodoCard() {
+    if (!window.Alpine || window.__blogTodoCardRegistered) {
+        return;
+    }
+
+    window.__blogTodoCardRegistered = true;
+
+    Alpine.data('blogTodoCard', (config) => ({
+        open: false,
+        loading: false,
+        creating: false,
+        saving: false,
+        error: '',
+        success: '',
+        todos: [],
+        newTitle: '',
+        editingTodo: null,
+        editTitle: '',
+        activeTab: 'todo',
+        threadDrafts: {},
+        threadsOpen: {},
+        sendingThread: false,
+        assignableUsers: config.assignableUsers || [],
+        currentUserId: config.currentUserId || null,
+        newAssignee: config.currentUserId || null,
+        editingAssignee: null,
+        pendingDelete: null,
+
+        indexUrl: config.indexUrl,
+        storeUrl: config.storeUrl,
+        updateUrlBase: config.updateUrlBase,
+        destroyUrlBase: config.destroyUrlBase,
+        threadStoreUrlBase: config.threadStoreUrlBase,
+        threadDestroyUrlBase: config.threadDestroyUrlBase,
+        i18n: config.i18n,
+
+        get filteredTodos() {
+            return this.todos.filter(t => t.status === this.activeTab);
+        },
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_todo', this.open ? '1' : '0');
+            if (this.open) {
+                this.loadTodos();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
+        },
+
+        init() {
+            if (localStorage.getItem('editor_sidebar_card_todo') === '1') {
+                this.open = true;
+                this.loadTodos();
+            }
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_todo', '0');
+            });
+            window.addEventListener('snapshot-restore', () => {
+                if (this.open) this.loadTodos();
+            });
+        },
+
+        isThreadsOpen(todo) {
+            return this.threadsOpen[todo.id] ?? false;
+        },
+
+        toggleThreads(todo) {
+            this.threadsOpen[todo.id] = !(this.threadsOpen[todo.id] ?? false);
+        },
+
+        loadTodos() {
+            this.loading = true;
+            this.error = '';
+            fetch(this.indexUrl, { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    this.todos = (data.todos || []).map(t => ({ ...t, assigned_to: t.assigned_to || '' }));
+                    this.todos.forEach(t => { if (this.threadsOpen[t.id] === undefined) this.threadsOpen[t.id] = false; });
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.error = this.i18n.loadError || 'Failed to load tasks.';
+                    this.loading = false;
+                });
+        },
+
+        createTodo() {
+            const title = this.newTitle.trim();
+            if (!title || this.creating) return;
+            this.creating = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.storeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ title, assigned_to: this.newAssignee }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.createError || 'Failed to create task.';
+                        return;
+                    }
+                    this.todos.push(data.todo);
+                    this.threadsOpen[data.todo.id] = false;
+                    this.activeTab = 'todo';
+                    this.newAssignee = this.currentUserId;
+                    this.newTitle = '';
+                    this.success = data.message || this.i18n.created || 'Task created.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.createError || 'Failed to create task.';
+                })
+                .finally(() => { this.creating = false; });
+        },
+
+        startEdit(todo) {
+            this.editingTodo = todo.id;
+            this.editTitle = todo.title;
+        },
+
+        saveEdit(todo) {
+            const title = this.editTitle.trim();
+            if (!title || this.saving) return;
+            this.saving = true;
+            this.error = '';
+            const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ title }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) this.todos[idx] = data.todo;
+                    this.editingTodo = null;
+                    this.success = data.message || this.i18n.updated;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.updateError || 'Failed to update task.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        changeStatus(todo) {
+            this.error = '';
+            const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ status: todo.status }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
+                        this.loadTodos();
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) this.todos[idx] = data.todo;
+                })
+                .catch(() => {
+                    this.error = this.i18n.updateError || 'Failed to update task.';
+                    this.loadTodos();
+                });
+        },
+
+        toggleDone(todo) {
+            const newStatus = todo.status === 'done' ? 'todo' : 'done';
+            const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
+            this.error = '';
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ status: newStatus }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
+                        this.loadTodos();
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) this.todos[idx] = data.todo;
+                })
+                .catch(() => {
+                    this.error = this.i18n.updateError || 'Failed to update task.';
+                    this.loadTodos();
+                });
+        },
+
+        confirmDeleteTodo(todo) {
+            this.pendingDelete = todo.id;
+        },
+
+        cancelDeleteTodo() {
+            this.pendingDelete = null;
+        },
+
+        doDeleteTodo(todo) {
+            this.pendingDelete = null;
+            this.error = '';
+            const url = this.destroyUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.deleteError || 'Failed to delete task.';
+                        return;
+                    }
+                    this.todos = this.todos.filter(t => t.id !== todo.id);
+                    this.success = data.message || this.i18n.deleted;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.deleteError || 'Failed to delete task.';
+                });
+        },
+
+        startEditAssignee(todo) {
+            this.editingAssignee = todo.id;
+        },
+
+        saveEditAssignee(todo) {
+            this.editingAssignee = null;
+            this.error = '';
+            const assignedTo = todo.assigned_to || null;
+            const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ assigned_to: assignedTo }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.assignError || 'Failed to update assignee.';
+                        this.loadTodos();
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) this.todos[idx] = data.todo;
+                })
+                .catch(() => {
+                    this.error = this.i18n.assignError || 'Failed to update assignee.';
+                    this.loadTodos();
+                });
+        },
+
+        addThread(todo) {
+            const body = (this.threadDrafts[todo.id] || '').trim();
+            if (!body || this.sendingThread) return;
+            this.sendingThread = true;
+            const url = this.threadStoreUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ body }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.threadError || 'Failed to add comment.';
+                        return;
+                    }
+                    this.threadDrafts[todo.id] = '';
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) {
+                        if (!this.todos[idx].threads) this.todos[idx].threads = [];
+                        this.todos[idx].threads.push(data.thread);
+                    }
+                    this.threadsOpen[todo.id] = true;
+                    this.success = data.message || this.i18n.threadAdded;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.threadError || 'Failed to add comment.';
+                })
+                .finally(() => { this.sendingThread = false; });
+        },
+
+        deleteThread(todo, thread) {
+            this.error = '';
+            const url = this.threadDestroyUrlBase
+                .replace('__TODO_ID__', todo.id)
+                .replace('__THREAD_ID__', thread.id);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.threadDeleteError || 'Failed to delete comment.';
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1 && this.todos[idx].threads) {
+                        this.todos[idx].threads = this.todos[idx].threads.filter(t => t.id !== thread.id);
+                    }
+                })
+                .catch(() => {
+                    this.error = this.i18n.threadDeleteError || 'Failed to delete comment.';
+                });
+        },
+    }));
+}
+
 window.blogAnnotationCard = function (config) {
     return {
         isOpen: false,
@@ -1786,6 +2110,7 @@ document.addEventListener('alpine:init', () => {
     registerAnnotationModal();
     registerBlogCoAuthorCard();
     registerBlogLoopCard();
+    registerBlogTodoCard();
 });
 
 registerAlpineStores();
@@ -1794,6 +2119,7 @@ registerBlogEditor();
 registerAnnotationModal();
 registerBlogCoAuthorCard();
 registerBlogLoopCard();
+registerBlogTodoCard();
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {

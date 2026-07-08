@@ -41,6 +41,7 @@ use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\BlogPostLoopController;
 use App\Http\Controllers\BlogSnapshotController;
+use App\Http\Controllers\BlogTodoController;
 use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExplorerController;
@@ -147,6 +148,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'store'])->name('blog.co-authors.store');
     Route::delete('/blog/{post:slug}/co-authors/{user}', [BlogCoAuthorController::class, 'destroy'])->name('blog.co-authors.destroy');
     Route::get('/blog/{post:slug}/co-authors/search', [BlogCoAuthorController::class, 'search'])->name('blog.co-authors.search');
+
+    // Blog todo endpoints
+    Route::get('/blog/{post:slug}/todos', [BlogTodoController::class, 'index'])->name('blog.todos.index');
+    Route::post('/blog/{post:slug}/todos', [BlogTodoController::class, 'store'])->name('blog.todos.store');
+    Route::put('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'update'])->name('blog.todos.update');
+    Route::delete('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'destroy'])->name('blog.todos.destroy');
+    Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'threadStore'])->name('blog.todos.threads.store');
+    Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'threadDestroy'])->name('blog.todos.threads.destroy');
 });
 
 // Blog — wildcard slug EN DERNIER
@@ -649,6 +658,14 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'orgStore'])->name('blog.co-authors.store');
                 Route::delete('/blog/{post:slug}/co-authors/{user}', [BlogCoAuthorController::class, 'orgDestroy'])->name('blog.co-authors.destroy');
                 Route::get('/blog/{post:slug}/co-authors/search', [BlogCoAuthorController::class, 'orgSearch'])->name('blog.co-authors.search');
+
+                // Blog todo endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/todos', [BlogTodoController::class, 'orgIndex'])->name('blog.todos.index');
+                Route::post('/blog/{post:slug}/todos', [BlogTodoController::class, 'orgStore'])->name('blog.todos.store');
+                Route::put('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'orgUpdate'])->name('blog.todos.update');
+                Route::delete('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'orgDestroy'])->name('blog.todos.destroy');
+                Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'orgThreadStore'])->name('blog.todos.threads.store');
+                Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'orgThreadDestroy'])->name('blog.todos.threads.destroy');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');
