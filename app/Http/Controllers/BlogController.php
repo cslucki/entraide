@@ -165,7 +165,7 @@ class BlogController extends Controller implements HasMiddleware
             libxml_clear_errors();
 
             $xpath = new DOMXPath($dom);
-            $headingNodes = $xpath->query('//h1 | //h2 | //h3');
+            $headingNodes = $xpath->query('//h2 | //h3 | //h4');
 
             if ($headingNodes && $headingNodes->length > 0) {
                 $headingCounts = [];
@@ -399,6 +399,33 @@ class BlogController extends Controller implements HasMiddleware
     public function orgSaveContent(Request $request, string $org, BlogPost $post): JsonResponse
     {
         return $this->saveContent($request, $post);
+    }
+
+    public function updatePlan(Request $request, BlogPost $post): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $post);
+
+        $data = $request->validate([
+            'show_toc' => 'required|boolean',
+        ]);
+
+        $post->update(['show_toc' => $data['show_toc']]);
+
+        $message = $data['show_toc']
+            ? __('blog.plan_visible')
+            : __('blog.plan_hidden');
+
+        return response()->json(['message' => $message]);
+    }
+
+    public function orgUpdatePlan(string $org, BlogPost $post): JsonResponse
+    {
+        return $this->updatePlan(request(), $post);
     }
 
     public function myPosts(): View

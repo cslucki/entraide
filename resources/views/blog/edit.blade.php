@@ -654,7 +654,7 @@
                 <div
                     x-data="blogPlanCard({
                         csrfToken: @js(csrf_token()),
-                        planUrl: @js($_blogRoute('update', ['post' => $post])),
+                        planUrl: @js($_blogRoute('plan.update', ['post' => $post])),
                         showToc: @json($post->show_toc),
                         i18n: {
                             title: @js(__('blog.plan_title')),
@@ -662,11 +662,15 @@
                             toggle: @js(__('blog.plan_toggle')),
                             collapse: @js(__('blog.plan_collapse')),
                             expand: @js(__('blog.plan_expand')),
+                            collapseAll: @js(__('blog.plan_collapse_all')),
+                            expandAll: @js(__('blog.plan_expand_all')),
+                            loading: @js(__('blog.plan_loading')),
+                            updateError: @js(__('blog.plan_update_error')),
                         },
-                    })"
+                    }                    )"
                     class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 >
-                    <button
+                    <button type="button"
                         @click="toggle()"
                         class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
                     >
@@ -688,7 +692,7 @@
                         <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
 
                         <template x-if="loading">
-                            <p class="text-xs text-gray-400 text-center py-4">{{ __('blog.loading') }}</p>
+                            <p class="text-xs text-gray-400 text-center py-4" x-text="i18n.loading"></p>
                         </template>
 
                         <template x-if="!loading && headings.length === 0">
@@ -697,20 +701,7 @@
 
                         <template x-if="!loading && headings.length > 0">
                             <div>
-                                <ul class="space-y-0.5">
-                                    <template x-for="(h, i) in headings" :key="i">
-                                        <li>
-                                            <a :href="h.id"
-                                               :style="{ paddingLeft: ((h.level - 1) * 12) + 'px' }"
-                                               class="block text-xs text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition py-0.5 truncate"
-                                               x-text="h.text"
-                                               @click.prevent="scrollToHeading(h.id)"
-                                            ></a>
-                                        </li>
-                                    </template>
-                                </ul>
-
-                                <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                <div class="mt-1 mb-2 pt-2 border-t border-gray-100 dark:border-gray-700">
                                     <label class="flex items-center gap-2 cursor-pointer">
                                         <input type="checkbox" x-model="showToc" @change="toggleShowToc"
                                             class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
@@ -718,6 +709,36 @@
                                         <span class="text-xs text-gray-600 dark:text-gray-400" x-text="i18n.toggle"></span>
                                     </label>
                                 </div>
+
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-xs text-gray-400" x-text="headings.length + ' heading' + (headings.length !== 1 ? 's' : '')"></span>
+                                    <span class="text-xs text-gray-300">·</span>
+                                    <button type="button" @click="expandAll()" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.expandAll"></button>
+                                    <span class="text-xs text-gray-300">|</span>
+                                    <button type="button" @click="collapseAll()" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.collapseAll"></button>
+                                </div>
+
+                                <ul class="space-y-0.5">
+                                    <template x-for="(h, i) in headings" :key="i">
+                                        <li x-show="!h.parentCollapsed">
+                                            <a :href="'#' + h.id"
+                                               :style="{ paddingLeft: ((h.level - 1) * 12) + 'px' }"
+                                               class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition py-0.5 truncate"
+                                               @click.prevent="scrollToHeading(h.id)"
+                                            >
+                                                <template x-if="h.children && h.children.length > 0">
+                                                    <span @click.prevent.stop="toggleCollapse(h)" class="shrink-0 w-3 h-3 flex items-center justify-center cursor-pointer hover:text-indigo-500">
+                                                        <svg class="w-2.5 h-2.5 transition-transform" :class="{ 'rotate-90': !h.collapsed }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                                    </span>
+                                                </template>
+                                                <template x-if="!h.children || h.children.length === 0">
+                                                    <span class="shrink-0 w-3 h-3"></span>
+                                                </template>
+                                                <span class="truncate" x-text="h.text"></span>
+                                            </a>
+                                        </li>
+                                    </template>
+                                </ul>
                             </div>
                         </template>
                     </div>

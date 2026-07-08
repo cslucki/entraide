@@ -2112,15 +2112,20 @@ function registerBlogPlanCard() {
         headings: [],
         showToc: false,
         i18n: config.i18n,
+        _debounceTimer: null,
+        _editorUpdateHandler: null,
 
         toggle() {
             this.open = !this.open;
             localStorage.setItem('editor_sidebar_card_plan', this.open ? '1' : '0');
             if (this.open) {
                 this.extractHeadings();
+                this._startListening();
                 this._dispatching = true;
                 window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
                 this._dispatching = false;
+            } else {
+                this._stopListening();
             }
         },
 
@@ -2129,14 +2134,34 @@ function registerBlogPlanCard() {
             if (localStorage.getItem('editor_sidebar_card_plan') === '1') {
                 this.open = true;
                 this.extractHeadings();
+                this.$nextTick(() => this._startListening());
             }
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
+                this._stopListening();
                 localStorage.setItem('editor_sidebar_card_plan', '0');
             });
         },
 
+        _startListening() {
+            this._stopListening();
+            if (typeof editor === 'undefined' || !editor) return;
+            const self = this;
+            this._editorUpdateHandler = () => {
+                if (self._debounceTimer) clearTimeout(self._debounceTimer);
+                self._debounceTimer = setTimeout(() => {
+                    self.extractHeadings();
+                }, 300);
+            };
+            editor.on('update', this._editorUpdateHandler);
+        },
+
+        _stopListening() {
+            if (typeof editor !== 'undefined' && editor && this._editorUpdateHandler) {
+                editor.off('update', this._editorUpdateHandler);
+            }
+        },
         extractHeadings() {
             if (typeof editor === 'undefined' || !editor) {
                 this.headings = [];
@@ -2146,42 +2171,104 @@ function registerBlogPlanCard() {
             this.error = '';
             this.success = '';
 
-            const html = editor.getHTML();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const hTags = doc.querySelectorAll('h1, h2, h3');
-            const result = [];
-
-            hTags.forEach((h) => {
-                const level = parseInt(h.tagName[1], 10);
-                const text = h.textContent.trim();
-                if (!text) return;
-                const baseId = 'heading-' + text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-                result.push({ level, text, id: baseId });
+            const flatHeadings = [];
+            editor.state.doc.descendants((node, pos) => {
+                if (node.type.name === 'heading') {
+                    const level = node.attrs.level || 1;
+                    const text = node.textContent.trim();
+                    if (!text) return;
+                    const baseId = 'heading-' + text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                    flatHeadings.push({ level, text, id: baseId, pos, collapsed: false, parentCollapsed: false, children: [] });
+                }
             });
 
-            this.headings = result;
+            const tree = [];
+            const stack = [];
+            flatHeadings.forEach((h) => {
+                while (stack.length > 0 && stack[stack.length - 1].level >= h.level) {
+                    stack.pop();
+                }
+                if (stack.length > 0) {
+                    stack[stack.length - 1].children.push(h);
+                    h.parentCollapsed = stack[stack.length - 1].collapsed || stack[stack.length - 1].parentCollapsed;
+                }
+                tree.push(h);
+                stack.push(h);
+            });
+
+            this.headings = tree;
             this.loading = false;
+        },
+        toggleCollapse(h) {
+            h.collapsed = !h.collapsed;
+            this._updateParentCollapsed();
+            this.headings = Array.from(this.headings);
+        },
+
+        expandAll() {
+            const expand = (items) => {
+                items.forEach((h) => {
+                    h.collapsed = false;
+                    h.parentCollapsed = false;
+                    if (h.children && h.children.length > 0) expand(h.children);
+                });
+            };
+            expand(this.headings);
+            this.headings = Array.from(this.headings);
+        },
+
+        collapseAll() {
+            const collapse = (items) => {
+                items.forEach((h) => {
+                    if (h.children && h.children.length > 0) {
+                        h.collapsed = true;
+                        collapse(h.children);
+                    }
+                });
+            };
+            collapse(this.headings);
+            this._updateParentCollapsed();
+            this.headings = Array.from(this.headings);
+        },
+
+        _updateParentCollapsed() {
+            const visited = new Set();
+            const propagate = (items, parentCollapsed) => {
+                items.forEach((h) => {
+                    if (visited.has(h)) return;
+                    visited.add(h);
+                    h.parentCollapsed = parentCollapsed;
+                    if (h.children && h.children.length > 0) {
+                        propagate(h.children, parentCollapsed || h.collapsed);
+                    }
+                });
+            };
+            propagate(this.headings, false);
         },
 
         scrollToHeading(id) {
             if (typeof editor === 'undefined' || !editor) return;
-            const el = editor.view.dom.querySelector('#' + CSS.escape(id));
-            if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const heading = this.headings.find((h) => h.id === id);
+            if (!heading) return;
+            const dom = editor.view.nodeDOM(heading.pos);
+            if (dom) {
+                dom.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (dom.focus) dom.focus({ preventScroll: true });
+            } else {
+                const coords = editor.view.coordsAtPos(heading.pos);
+                if (coords) {
+                    window.scrollTo({ top: coords.top - 100, behavior: 'smooth' });
+                }
             }
         },
 
         toggleShowToc() {
-            this.saving = true;
             this.error = '';
             this.success = '';
             const formData = new FormData();
             formData.append('_token', config.csrfToken);
             formData.append('_method', 'PATCH');
             formData.append('show_toc', this.showToc ? '1' : '0');
-            formData.append('status', document.querySelector('[name="status"]:checked')?.value || 'draft');
-            formData.append('title', document.querySelector('[name="title"]')?.value || '');
 
             fetch(config.planUrl, {
                 method: 'POST',
@@ -2190,14 +2277,14 @@ function registerBlogPlanCard() {
             })
                 .then((r) => {
                     if (!r.ok) throw new Error('Request failed');
-                    this.success = this.showToc ? 'Plan visible' : 'Plan masqué';
+                    return r.json();
+                })
+                .then((data) => {
+                    this.success = data.message || (this.showToc ? 'Plan visible' : 'Plan masqué');
                 })
                 .catch(() => {
                     this.showToc = !this.showToc;
-                    this.error = 'Erreur lors de la mise à jour.';
-                })
-                .finally(() => {
-                    this.saving = false;
+                    this.error = this.i18n.updateError || 'Update failed.';
                 });
         },
     }));

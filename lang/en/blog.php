@@ -376,4 +376,11 @@ return [
     'plan_toggle' => 'Show on published article',
     'plan_collapse' => 'Collapse',
     'plan_expand' => 'Expand',
+    'plan_visible' => 'Plan visible on published article.',
+    'plan_hidden' => 'Plan hidden on published article.',
+    'plan_updated' => 'Plan preferences updated.',
+    'plan_update_error' => 'Error updating plan settings.',
+    'plan_collapse_all' => 'Collapse all',
+    'plan_expand_all' => 'Expand all',
+    'plan_loading' => 'Loading plan…',
 ];

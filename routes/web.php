@@ -156,6 +156,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'destroy'])->name('blog.todos.destroy');
     Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'threadStore'])->name('blog.todos.threads.store');
     Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'threadDestroy'])->name('blog.todos.threads.destroy');
+
+    // Blog plan endpoint
+    Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
 });
 
 // Blog — wildcard slug EN DERNIER
@@ -666,6 +669,9 @@ Route::prefix('/org/{organization}')
                 Route::delete('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'orgDestroy'])->name('blog.todos.destroy');
                 Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'orgThreadStore'])->name('blog.todos.threads.store');
                 Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'orgThreadDestroy'])->name('blog.todos.threads.destroy');
+
+                // Blog plan endpoint (org-scoped)
+                Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'orgUpdatePlan'])->name('blog.plan.update');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');
