@@ -140,6 +140,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/{post:slug}/loops', [BlogPostLoopController::class, 'store'])->name('blog.loops.store');
     Route::delete('/blog/{post:slug}/loops/{loop}', [BlogPostLoopController::class, 'destroy'])->name('blog.loops.destroy');
     Route::get('/blog/{post:slug}/loop-messages', [BlogPostLoopController::class, 'messages'])->name('blog.loops.messages');
+    Route::post('/blog/{post:slug}/loops/{loop}/messages', [BlogPostLoopController::class, 'storeMessage'])->name('blog.loops.messages.store');
 
     // Blog co-author endpoints
     Route::get('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'index'])->name('blog.co-authors.index');
@@ -641,6 +642,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/{post:slug}/loops', [BlogPostLoopController::class, 'orgStore'])->name('blog.loops.store');
                 Route::delete('/blog/{post:slug}/loops/{loop}', [BlogPostLoopController::class, 'orgDestroy'])->name('blog.loops.destroy');
                 Route::get('/blog/{post:slug}/loop-messages', [BlogPostLoopController::class, 'orgMessages'])->name('blog.loops.messages');
+                Route::post('/blog/{post:slug}/loops/{loop}/messages', [BlogPostLoopController::class, 'orgStoreMessage'])->name('blog.loops.messages.store');
 
                 // Blog co-author endpoints (org-scoped)
                 Route::get('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'orgIndex'])->name('blog.co-authors.index');

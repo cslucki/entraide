@@ -331,4 +331,9 @@ return [
     'loop_no_messages' => 'Aucun message pour le moment.',
     'loop_view_discussion' => 'Voir toute la discussion',
     'loop_system' => 'Système',
+    'loop_message_placeholder' => 'Écrire un message…',
+    'loop_message_send' => 'Envoyer',
+    'loop_message_sending' => 'Envoi…',
+    'loop_message_readonly' => 'Vous devez être membre de cette boucle pour écrire.',
+    'loop_message_sent' => 'Message envoyé.',
 ];

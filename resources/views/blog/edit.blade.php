@@ -265,6 +265,7 @@
                         storeUrl: @js($_blogRoute('loops.store', ['post' => $post])),
                         destroyUrlBase: @js($_blogRoute('loops.destroy', ['post' => $post, 'loop' => '__LOOP_ID__'])),
                         messagesUrl: @js($_blogRoute('loops.messages', ['post' => $post])),
+                        storeMessageUrlBase: @js($_blogRoute('loops.messages.store', ['post' => $post, 'loop' => '__LOOP_ID__'])),
                         userLoops: @js($userLoops->map(fn ($l) => ['id' => $l->id, 'name' => $l->name, 'slug' => $l->slug])->values()->toArray()),
                         linkedLoops: @js($postLoops->map(fn ($l) => ['id' => $l->id, 'name' => $l->name, 'slug' => $l->slug])->values()->toArray()),
                         i18n: {
@@ -278,6 +279,10 @@
                             linked: @js(__('blog.loop_linked')),
                             unlinked: @js(__('blog.loop_unlinked')),
                             csrfToken: @js(csrf_token()),
+                            messagePlaceholder: @js(__('blog.loop_message_placeholder')),
+                            messageSend: @js(__('blog.loop_message_send')),
+                            messageSending: @js(__('blog.loop_message_sending')),
+                            messageReadonly: @js(__('blog.loop_message_readonly')),
                         },
                     })"
                     class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
@@ -323,7 +328,10 @@
                                     <div class="mt-1.5 space-y-1">
                                         <template x-for="msg in loop.messages" :key="msg.id">
                                             <div class="rounded bg-white/80 px-1.5 py-1 text-[10px] dark:bg-gray-900/60">
-                                                <span class="font-semibold text-gray-700 dark:text-gray-300" x-text="msg.sender_name + ':'"></span>
+                                                <div class="flex items-baseline gap-1">
+                                                    <span class="font-semibold text-gray-700 dark:text-gray-300" x-text="msg.sender_name"></span>
+                                                    <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="'· ' + msg.created_at_human"></span>
+                                                </div>
                                                 <span class="text-gray-600 dark:text-gray-400" x-text="msg.body.length > 80 ? msg.body.slice(0, 80) + '…' : msg.body"></span>
                                             </div>
                                         </template>
@@ -335,6 +343,28 @@
                                 <a :href="loop.discussionUrl" target="_blank"
                                     class="mt-1 inline-block text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
                                     x-text="i18n.viewDiscussion"></a>
+
+                                {{-- Message composer --}}
+                                <template x-if="loop.is_member">
+                                    <div class="mt-2 flex gap-1.5">
+                                        <input type="text"
+                                            x-model="messageDrafts[loop.id]"
+                                            :placeholder="i18n.messagePlaceholder"
+                                            @keydown.enter="sendMessage(loop.id)"
+                                            class="flex-1 min-w-0 px-2 py-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                        >
+                                        <button type="button"
+                                            @click="sendMessage(loop.id)"
+                                            :disabled="sendingMessage === loop.id || !(messageDrafts[loop.id] || '').trim()"
+                                            class="shrink-0 px-2 py-1 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                        >
+                                            <span x-text="sendingMessage === loop.id ? i18n.messageSending : i18n.messageSend"></span>
+                                        </button>
+                                    </div>
+                                </template>
+                                <template x-if="!loop.is_member">
+                                    <p class="mt-1.5 text-[10px] text-gray-400 dark:text-gray-500 italic" x-text="i18n.messageReadonly"></p>
+                                </template>
                             </div>
                         </template>
 
