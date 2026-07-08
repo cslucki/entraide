@@ -139,7 +139,7 @@ class BlogAnnotationReplyController extends Controller
         return $this->update($request, $post, $annotation, $reply);
     }
 
-    public function orgDestroy(Request $request, string $org, BlogPost $post, BlogPostAnnotation $annotation, BlogAnnotationReply $reply): JsonResponse
+    public function orgDestroy(Request $request, string $org, BlogPost $post, BlogPostAnnotation $annotation, BlogAnnotationReply $reply): Response
     {
         return $this->destroy($request, $post, $annotation, $reply);
     }
