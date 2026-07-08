@@ -1349,8 +1349,24 @@ function registerBlogLoopCard() {
         sendMessage(loopId) {
             const draft = (this.messageDrafts[loopId] || '').trim();
             if (!draft || this.sendingMessage) return;
+
+            const tempId = '__pending__' + Date.now();
+            const optimistic = {
+                id: tempId,
+                body: draft,
+                sender_name: '…',
+                created_at_human: "à l'instant",
+                _optimistic: true,
+            };
+
+            this.messageDrafts[loopId] = '';
+            this.linkedLoops = this.linkedLoops.map(l => {
+                if (l.id !== loopId) return l;
+                return { ...l, messages: [...(l.messages || []), optimistic].slice(-3) };
+            });
             this.sendingMessage = loopId;
             this.error = '';
+
             const url = this.storeMessageUrlBase.replace('__LOOP_ID__', loopId);
             fetch(url, {
                 method: 'POST',
@@ -1360,17 +1376,26 @@ function registerBlogLoopCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
+                        this.linkedLoops = this.linkedLoops.map(l => {
+                            if (l.id !== loopId) return l;
+                            return { ...l, messages: (l.messages || []).filter(m => m.id !== tempId) };
+                        });
+                        this.messageDrafts[loopId] = draft;
                         this.error = data.message || 'Failed to send message.';
                         return;
                     }
-                    this.messageDrafts[loopId] = '';
-                    const loop = this.linkedLoops.find(l => l.id === loopId);
-                    if (loop && data.message) {
-                        loop.messages = [...(loop.messages || []), data.message].slice(-3);
-                    }
+                    this.linkedLoops = this.linkedLoops.map(l => {
+                        if (l.id !== loopId) return l;
+                        return { ...l, messages: [...(l.messages || []).filter(m => m.id !== tempId), data.message].slice(-3) };
+                    });
                     this.loadMessages({ silent: true });
                 })
                 .catch(() => {
+                    this.linkedLoops = this.linkedLoops.map(l => {
+                        if (l.id !== loopId) return l;
+                        return { ...l, messages: (l.messages || []).filter(m => m.id !== tempId) };
+                    });
+                    this.messageDrafts[loopId] = draft;
                     this.error = 'Failed to send message.';
                 })
                 .finally(() => { this.sendingMessage = ''; });
