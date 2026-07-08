@@ -20,7 +20,7 @@ class BlogAnnotationController extends Controller
         Gate::authorize('update', $post);
 
         $annotations = $post->annotations()
-            ->with(['user', 'resolvedBy'])
+            ->with(['user', 'resolvedBy', 'replies.user'])
             ->latest()
             ->get()
             ->map(fn (BlogPostAnnotation $a) => $this->serialize($a));
@@ -173,6 +173,19 @@ class BlogAnnotationController extends Controller
         $user = request()->user();
         $postOwnerId = $a->blogPost->user_id;
 
+        $replies = $a->relationLoaded('replies')
+            ? $a->replies->map(fn ($r) => [
+                'id' => $r->id,
+                'content' => $r->content,
+                'author_name' => $r->user?->fullName ?? __('blog.legend_deleted_user'),
+                'author_id' => $r->user_id,
+                'created_at' => $r->created_at->toIso8601String(),
+                'created_at_human' => $r->created_at->diffForHumans(),
+                'can_edit' => $user && ($r->user_id === $user->id || $user->is_admin),
+                'can_delete' => $user && ($r->user_id === $user->id || $user->is_admin),
+            ])->values()->toArray()
+            : [];
+
         return [
             'id' => $a->id,
             'selected_text' => $a->selected_text,
@@ -188,6 +201,7 @@ class BlogAnnotationController extends Controller
             'can_edit' => $user && ($a->user_id === $user->id || $user->is_admin),
             'can_delete' => $user && ($a->user_id === $user->id || $user->is_admin),
             'can_resolve' => $user && ($postOwnerId === $user->id || $user->is_admin),
+            'replies' => $replies,
         ];
     }
 }

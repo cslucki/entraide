@@ -35,6 +35,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\BlogAnnotationController;
+use App\Http\Controllers\BlogAnnotationReplyController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
@@ -120,6 +121,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'update'])->name('blog.annotations.update');
     Route::delete('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'destroy'])->name('blog.annotations.destroy');
     Route::patch('/blog/{post:slug}/annotations/{annotation}/resolve', [BlogAnnotationController::class, 'resolve'])->name('blog.annotations.resolve');
+
+    // Blog annotation reply endpoints (root)
+    Route::get('/blog/{post:slug}/annotations/{annotation}/replies', [BlogAnnotationReplyController::class, 'index'])->name('blog.annotations.replies.index');
+    Route::post('/blog/{post:slug}/annotations/{annotation}/replies', [BlogAnnotationReplyController::class, 'store'])->name('blog.annotations.replies.store');
+    Route::put('/blog/{post:slug}/annotations/{annotation}/replies/{reply}', [BlogAnnotationReplyController::class, 'update'])->name('blog.annotations.replies.update');
+    Route::delete('/blog/{post:slug}/annotations/{annotation}/replies/{reply}', [BlogAnnotationReplyController::class, 'destroy'])->name('blog.annotations.replies.destroy');
+
     Route::put('/blog/{post:slug}/content', [BlogController::class, 'saveContent'])->name('blog.save-content');
 
     // Blog snapshot endpoints
@@ -609,6 +617,13 @@ Route::prefix('/org/{organization}')
                 Route::put('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'orgUpdate'])->name('blog.annotations.update');
                 Route::delete('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'orgDestroy'])->name('blog.annotations.destroy');
                 Route::patch('/blog/{post:slug}/annotations/{annotation}/resolve', [BlogAnnotationController::class, 'orgResolve'])->name('blog.annotations.resolve');
+
+                // Blog annotation reply endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/annotations/{annotation}/replies', [BlogAnnotationReplyController::class, 'orgIndex'])->name('blog.annotations.replies.index');
+                Route::post('/blog/{post:slug}/annotations/{annotation}/replies', [BlogAnnotationReplyController::class, 'orgStore'])->name('blog.annotations.replies.store');
+                Route::put('/blog/{post:slug}/annotations/{annotation}/replies/{reply}', [BlogAnnotationReplyController::class, 'orgUpdate'])->name('blog.annotations.replies.update');
+                Route::delete('/blog/{post:slug}/annotations/{annotation}/replies/{reply}', [BlogAnnotationReplyController::class, 'orgDestroy'])->name('blog.annotations.replies.destroy');
+
                 Route::put('/blog/{post:slug}/content', [BlogController::class, 'orgSaveContent'])->name('blog.save-content');
 
                 // Blog snapshot endpoints (org-scoped)

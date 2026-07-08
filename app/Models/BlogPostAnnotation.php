@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BlogPostAnnotation extends Model
 {
@@ -36,6 +37,11 @@ class BlogPostAnnotation extends Model
             'start_offset' => 'integer',
             'end_offset' => 'integer',
         ];
+    }
+
+    public function replies(): HasMany
+    {
+        return $this->hasMany(BlogAnnotationReply::class, 'annotation_id')->oldest();
     }
 
     public function blogPost(): BelongsTo
