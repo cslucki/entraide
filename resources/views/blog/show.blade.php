@@ -29,6 +29,11 @@
     </div>
 
     <x-page-container>
+        @php
+            $hasToc = ! empty($headers);
+            $usesNavigationToc = $hasToc && $post->toc_navigation_enabled;
+        @endphp
+
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
             <!-- Article -->
@@ -106,11 +111,11 @@
                 @endauth
 
                 <!-- Contenu -->
-                @if(!empty($headers))
+                @if($hasToc && ! $usesNavigationToc)
                 <div x-data="planToc({
                     headings: @js($headers),
-                    i18n: { title: @js(__('blog.plan_title')), expandAll: @js(__('blog.plan_expand_all')), collapseAll: @js(__('blog.plan_collapse_all')) },
-                })" class="mb-8 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                    i18n: { title: @js(__('blog.toc_publication_title')), expandAll: @js(__('blog.plan_expand_all')), collapseAll: @js(__('blog.plan_collapse_all')) },
+                })" data-testid="blog-toc" class="mb-8 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-950/20">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.title"></h3>
                         <div class="flex items-center gap-2" x-show="tree.length > 0">
@@ -122,6 +127,72 @@
                     <template x-if="tree.length === 0">
                         <p class="text-sm text-gray-400 dark:text-gray-500 py-2">{{ __('blog.plan_empty') }}</p>
                     </template>
+                    <ul class="space-y-0.5" x-show="tree.length > 0">
+                        <template x-for="(h, i) in flatVisible" :key="h.id">
+                            <li>
+                                <a :href="'#' + h.id"
+                                   :class="{
+                                       'text-sm font-semibold text-gray-800 dark:text-gray-100': h.level === 2,
+                                       'text-xs text-gray-500 dark:text-gray-400 pl-3': h.level === 3,
+                                       'text-xs text-gray-400 dark:text-gray-500 pl-5': h.level >= 4,
+                                   }"
+                                   class="block rounded-r-lg border-l-2 border-transparent py-1 hover:border-indigo-400 hover:bg-indigo-50/70 hover:text-indigo-600 dark:hover:bg-indigo-950/30 dark:hover:text-indigo-400 transition"
+                                   @click.prevent="scrollTo(h.id)"
+                                >
+                                    <span class="flex items-center gap-1 truncate">
+                                        <template x-if="childCount(h) > 0">
+                                            <span @click.prevent.stop="toggle(h)" class="shrink-0 w-3 h-3 flex items-center justify-center cursor-pointer hover:text-indigo-500">
+                                                <svg class="w-2.5 h-2.5 transition-transform" :class="{ 'rotate-90': !isCollapsed(h) }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                            </span>
+                                        </template>
+                                        <template x-if="childCount(h) === 0">
+                                            <span class="shrink-0 w-3 h-3"></span>
+                                        </template>
+                                        <span class="truncate" x-text="h.text"></span>
+                                    </span>
+                                </a>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+
+                    <!-- Back to outline (desktop only, normal mode) -->
+                    <div x-data="{ showBackBtn: false }"
+                         x-init="
+                             const tocEl = $el.closest('article').querySelector('[data-testid=&quot;blog-toc&quot;]');
+                             if (tocEl) {
+                                 new IntersectionObserver((entries) => { showBackBtn = !entries[0].isIntersecting; }, { threshold: 0 }).observe(tocEl);
+                             }
+                         "
+                         x-show="showBackBtn"
+                         x-transition:enter="transition ease-out duration-300"
+                         x-transition:enter-start="opacity-0 translate-y-2"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-200"
+                         x-transition:leave-start="opacity-100 translate-y-0"
+                         x-transition:leave-end="opacity-0 translate-y-2"
+                         @click="document.querySelector('[data-testid=&quot;blog-toc&quot;]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                         class="hidden lg:flex fixed bottom-6 right-6 z-40 items-center gap-2 cursor-pointer rounded-full bg-white dark:bg-gray-800 px-5 py-2.5 shadow-xl ring-1 ring-gray-200 dark:ring-gray-700 backdrop-blur text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:shadow-2xl transition-all select-none"
+                         role="button"
+                         tabindex="0"
+                    >
+                        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                        <span>{{ __('blog.back_to_outline') }}</span>
+                    </div>
+
+                @elseif($usesNavigationToc)
+                <div x-data="planToc({
+                    headings: @js($headers),
+                    i18n: { title: @js(__('blog.toc_publication_title')), expandAll: @js(__('blog.plan_expand_all')), collapseAll: @js(__('blog.plan_collapse_all')) },
+                })" class="mb-8 rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm dark:border-indigo-900/50 dark:bg-gray-900 lg:hidden">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.title"></h3>
+                        <div class="flex items-center gap-2" x-show="tree.length > 0">
+                            <button type="button" @click="expandAll" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.expandAll"></button>
+                            <span class="text-xs text-gray-300">|</span>
+                            <button type="button" @click="collapseAll" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.collapseAll"></button>
+                        </div>
+                    </div>
                     <ul class="space-y-0.5" x-show="tree.length > 0">
                         <template x-for="(h, i) in flatVisible" :key="h.id">
                             <li>
@@ -143,7 +214,9 @@
                         </template>
                     </ul>
                 </div>
+                @endif
 
+                @if($hasToc)
                 <script>
                 function planToc(config) {
                     return {
@@ -407,6 +480,35 @@
 
             <!-- Sidebar -->
             <aside class="space-y-6">
+                @if($usesNavigationToc)
+                <nav x-data="planToc({
+                    headings: @js($headers),
+                    i18n: { title: @js(__('blog.toc_navigation_title')), expandAll: @js(__('blog.plan_expand_all')), collapseAll: @js(__('blog.plan_collapse_all')) },
+                })" class="hidden rounded-2xl border border-indigo-100/80 bg-white/95 p-5 shadow-xl shadow-indigo-950/5 ring-1 ring-indigo-100/50 backdrop-blur dark:border-indigo-900/50 dark:bg-gray-900/95 dark:shadow-black/20 dark:ring-indigo-900/40 lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto" aria-label="{{ __('blog.toc_navigation_title') }}">
+                    <div class="mb-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-500 dark:text-indigo-400">{{ __('blog.toc_navigation_label') }}</p>
+                        <h3 class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.title"></h3>
+                    </div>
+                    <ul class="space-y-1.5 border-l border-indigo-100 pl-3 dark:border-indigo-900/60" x-show="tree.length > 0">
+                        <template x-for="h in flatVisible" :key="h.id">
+                            <li>
+                                <a :href="'#' + h.id"
+                                   :class="{
+                                       '-ml-3 pl-3 text-sm font-semibold text-gray-800 dark:text-gray-100': h.level === 2,
+                                       'pl-3 text-xs text-gray-500 dark:text-gray-400': h.level === 3,
+                                       'pl-6 text-xs text-gray-400 dark:text-gray-500': h.level >= 4,
+                                   }"
+                                   class="block rounded-r-lg border-l-2 border-transparent py-1 hover:border-indigo-400 hover:bg-indigo-50/70 hover:text-indigo-600 dark:hover:bg-indigo-950/30 dark:hover:text-indigo-400 transition"
+                                   @click.prevent="scrollTo(h.id)"
+                                >
+                                    <span class="line-clamp-2" x-text="h.text"></span>
+                                </a>
+                            </li>
+                        </template>
+                    </ul>
+                </nav>
+                @endif
+
                 <!-- Articles liés -->
                 @if($relatedPosts->isNotEmpty())
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">

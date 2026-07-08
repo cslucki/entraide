@@ -153,40 +153,7 @@ class BlogController extends Controller implements HasMiddleware
 
         $isLiked = auth()->check() && $post->isLikedBy(auth()->user());
 
-        $headers = [];
-        $postContent = $post->content;
-
-        if ($post->show_toc) {
-            $dom = new DOMDocument;
-            $dom->preserveWhiteSpace = false;
-            $dom->formatOutput = false;
-            libxml_use_internal_errors(true);
-            $dom->loadHTML('<?xml encoding="utf-8" ?>'.$postContent, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
-            libxml_clear_errors();
-
-            $xpath = new DOMXPath($dom);
-            $headingNodes = $xpath->query('//h2 | //h3 | //h4');
-
-            if ($headingNodes && $headingNodes->length > 0) {
-                $headingCounts = [];
-                foreach ($headingNodes as $node) {
-                    $rawText = $node->textContent;
-                    $baseId = 'heading-'.Str::slug($rawText);
-                    $headingCounts[$baseId] = ($headingCounts[$baseId] ?? 0) + 1;
-                    $id = $headingCounts[$baseId] > 1 ? $baseId.'-'.$headingCounts[$baseId] : $baseId;
-
-                    $node->setAttribute('id', $id);
-
-                    $headers[] = [
-                        'level' => (int) $node->tagName[1],
-                        'text' => $rawText,
-                        'id' => $id,
-                    ];
-                }
-
-                $postContent = $dom->saveHTML();
-            }
-        }
+        [$headers, $postContent] = $this->extractPublishedToc($post);
 
         return view('blog.show', compact('post', 'relatedPosts', 'isLiked', 'headers', 'postContent'));
     }
@@ -315,8 +282,6 @@ class BlogController extends Controller implements HasMiddleware
         }
 
         unset($data['remove_image']);
-
-        $data['show_toc'] = $request->boolean('show_toc');
 
         $post->update($data);
 
@@ -832,6 +797,8 @@ class BlogController extends Controller implements HasMiddleware
             'meta_title' => ['nullable', 'string', 'max:255'],
             'meta_description' => ['nullable', 'string', 'max:320'],
             'show_toc' => ['nullable', 'boolean'],
+            'toc_max_level' => ['nullable', Rule::in([2, 3, 4])],
+            'toc_navigation_enabled' => ['nullable', 'boolean'],
         ], [
             'title.required' => __('blog.validation_title_required'),
             'summary.required' => __('blog.validation_summary_required'),
@@ -854,8 +821,64 @@ class BlogController extends Controller implements HasMiddleware
 
         $data['content'] = filled($data['content'] ?? null) ? $data['content'] : '<p></p>';
         $data['category_id'] = filled($data['category_id'] ?? null) ? $data['category_id'] : null;
+        $data['show_toc'] = $request->boolean('show_toc');
+        $data['toc_max_level'] = (int) ($data['toc_max_level'] ?? 4);
+        $data['toc_navigation_enabled'] = $request->boolean('toc_navigation_enabled');
 
         return $data;
+    }
+
+    /**
+     * @return array{0: array<int, array{level: int, text: string, id: string}>, 1: string}
+     */
+    private function extractPublishedToc(BlogPost $post): array
+    {
+        $headers = [];
+        $postContent = $post->content;
+
+        if (! $post->show_toc) {
+            return [$headers, $postContent];
+        }
+
+        $maxLevel = min(4, max(2, (int) ($post->toc_max_level ?: 4)));
+        $headingQuery = implode(' | ', array_map(fn (int $level) => '//h'.$level, range(2, $maxLevel)));
+
+        $dom = new DOMDocument;
+        $dom->preserveWhiteSpace = false;
+        $dom->formatOutput = false;
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$postContent, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+
+        $xpath = new DOMXPath($dom);
+        $headingNodes = $xpath->query($headingQuery);
+
+        if (! $headingNodes || $headingNodes->length === 0) {
+            return [$headers, $postContent];
+        }
+
+        $headingCounts = [];
+        foreach ($headingNodes as $node) {
+            $rawText = trim($node->textContent);
+            if ($rawText === '') {
+                continue;
+            }
+
+            $baseId = 'heading-'.Str::slug($rawText);
+            $baseId = $baseId === 'heading-' ? 'heading-section' : $baseId;
+            $headingCounts[$baseId] = ($headingCounts[$baseId] ?? 0) + 1;
+            $id = $headingCounts[$baseId] > 1 ? $baseId.'-'.$headingCounts[$baseId] : $baseId;
+
+            $node->setAttribute('id', $id);
+
+            $headers[] = [
+                'level' => (int) $node->tagName[1],
+                'text' => $rawText,
+                'id' => $id,
+            ];
+        }
+
+        return [$headers, $headers === [] ? $postContent : $dom->saveHTML()];
     }
 
     private function plainTextContent(string $html): string

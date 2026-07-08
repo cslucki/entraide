@@ -34,6 +34,8 @@ class BlogPost extends Model
         'meta_title',
         'meta_description',
         'show_toc',
+        'toc_max_level',
+        'toc_navigation_enabled',
     ];
 
     protected $casts = [
@@ -41,6 +43,8 @@ class BlogPost extends Model
         'views_count' => 'integer',
         'read_time' => 'integer',
         'show_toc' => 'boolean',
+        'toc_max_level' => 'integer',
+        'toc_navigation_enabled' => 'boolean',
     ];
 
     protected static function booted(): void
