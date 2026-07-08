@@ -106,8 +106,23 @@
                 @endauth
 
                 <!-- Contenu -->
+                @if(!empty($headers))
+                <nav class="mb-8 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{{ __('blog.plan_title') }}</h3>
+                    <ul class="space-y-1">
+                        @foreach($headers as $header)
+                        <li class="{{ $header['level'] === 2 ? 'ml-4' : ($header['level'] === 3 ? 'ml-8' : '') }}">
+                            <a href="#{{ $header['id'] }}"
+                               class="text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition block py-0.5">
+                                {{ $header['text'] }}
+                            </a>
+                        </li>
+                        @endforeach
+                    </ul>
+                </nav>
+                @endif
                 <div class="max-w-none mb-8 text-gray-800 dark:text-gray-200 leading-relaxed text-base prose prose-sm dark:prose-invert max-w-none [&_img[data-resized]]:!max-w-[70%] [&_pre]:bg-gray-100 [&_pre]:dark:bg-gray-900 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:dark:bg-gray-900 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:p-0">
-                    {!! $post->content !!}
+                    {!! $postContent !!}
                 </div>
 
                 <!-- Tags -->

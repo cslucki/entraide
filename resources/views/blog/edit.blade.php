@@ -650,6 +650,80 @@
                 </div>
                 {{-- /Todo card --}}
 
+                {{-- Plan card --}}
+                <div
+                    x-data="blogPlanCard({
+                        csrfToken: @js(csrf_token()),
+                        planUrl: @js($_blogRoute('update', ['post' => $post])),
+                        showToc: @json($post->show_toc),
+                        i18n: {
+                            title: @js(__('blog.plan_title')),
+                            empty: @js(__('blog.plan_empty')),
+                            toggle: @js(__('blog.plan_toggle')),
+                            collapse: @js(__('blog.plan_collapse')),
+                            expand: @js(__('blog.plan_expand')),
+                        },
+                    })"
+                    class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                            <span>{{ __('blog.sidebar_plan') }}</span>
+                        </span>
+                        <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="{ 'rotate-180': open }"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+                        <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                        <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                        <template x-if="loading">
+                            <p class="text-xs text-gray-400 text-center py-4">{{ __('blog.loading') }}</p>
+                        </template>
+
+                        <template x-if="!loading && headings.length === 0">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.empty"></p>
+                        </template>
+
+                        <template x-if="!loading && headings.length > 0">
+                            <div>
+                                <ul class="space-y-0.5">
+                                    <template x-for="(h, i) in headings" :key="i">
+                                        <li>
+                                            <a :href="h.id"
+                                               :style="{ paddingLeft: ((h.level - 1) * 12) + 'px' }"
+                                               class="block text-xs text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition py-0.5 truncate"
+                                               x-text="h.text"
+                                               @click.prevent="scrollToHeading(h.id)"
+                                            ></a>
+                                        </li>
+                                    </template>
+                                </ul>
+
+                                <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" x-model="showToc" @change="toggleShowToc"
+                                            class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                                        >
+                                        <span class="text-xs text-gray-600 dark:text-gray-400" x-text="i18n.toggle"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {{-- /Plan card --}}
+
                 {{-- Annotations card --}}
                 <div
                     x-data="blogAnnotationCard({

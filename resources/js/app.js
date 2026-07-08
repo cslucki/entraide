@@ -2097,6 +2097,112 @@ window.blogAnnotationCard = function (config) {
     };
 };
 
+function registerBlogPlanCard() {
+    if (!window.Alpine || window.__blogPlanCardRegistered) {
+        return;
+    }
+
+    window.__blogPlanCardRegistered = true;
+
+    Alpine.data('blogPlanCard', (config) => ({
+        open: false,
+        loading: false,
+        error: '',
+        success: '',
+        headings: [],
+        showToc: false,
+        i18n: config.i18n,
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_plan', this.open ? '1' : '0');
+            if (this.open) {
+                this.extractHeadings();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
+        },
+
+        init() {
+            this.showToc = config.showToc === true;
+            if (localStorage.getItem('editor_sidebar_card_plan') === '1') {
+                this.open = true;
+                this.extractHeadings();
+            }
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_plan', '0');
+            });
+        },
+
+        extractHeadings() {
+            if (typeof editor === 'undefined' || !editor) {
+                this.headings = [];
+                return;
+            }
+            this.loading = true;
+            this.error = '';
+            this.success = '';
+
+            const html = editor.getHTML();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const hTags = doc.querySelectorAll('h1, h2, h3');
+            const result = [];
+
+            hTags.forEach((h) => {
+                const level = parseInt(h.tagName[1], 10);
+                const text = h.textContent.trim();
+                if (!text) return;
+                const baseId = 'heading-' + text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                result.push({ level, text, id: baseId });
+            });
+
+            this.headings = result;
+            this.loading = false;
+        },
+
+        scrollToHeading(id) {
+            if (typeof editor === 'undefined' || !editor) return;
+            const el = editor.view.dom.querySelector('#' + CSS.escape(id));
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        },
+
+        toggleShowToc() {
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            const formData = new FormData();
+            formData.append('_token', config.csrfToken);
+            formData.append('_method', 'PATCH');
+            formData.append('show_toc', this.showToc ? '1' : '0');
+            formData.append('status', document.querySelector('[name="status"]:checked')?.value || 'draft');
+            formData.append('title', document.querySelector('[name="title"]')?.value || '');
+
+            fetch(config.planUrl, {
+                method: 'POST',
+                body: formData,
+                headers: { Accept: 'application/json' },
+            })
+                .then((r) => {
+                    if (!r.ok) throw new Error('Request failed');
+                    this.success = this.showToc ? 'Plan visible' : 'Plan masqué';
+                })
+                .catch(() => {
+                    this.showToc = !this.showToc;
+                    this.error = 'Erreur lors de la mise à jour.';
+                })
+                .finally(() => {
+                    this.saving = false;
+                });
+        },
+    }));
+}
+
 if (window.Alpine) {
     Alpine.data('blogAnnotationCard', window.blogAnnotationCard);
 }
@@ -2111,6 +2217,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogCoAuthorCard();
     registerBlogLoopCard();
     registerBlogTodoCard();
+    registerBlogPlanCard();
 });
 
 registerAlpineStores();
@@ -2120,6 +2227,7 @@ registerAnnotationModal();
 registerBlogCoAuthorCard();
 registerBlogLoopCard();
 registerBlogTodoCard();
+registerBlogPlanCard();
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {

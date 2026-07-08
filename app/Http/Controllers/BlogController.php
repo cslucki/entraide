@@ -9,6 +9,8 @@ use App\Models\Category;
 use App\Models\LoopMember;
 use App\Models\Tag;
 use App\Services\BlogAiService;
+use DOMDocument;
+use DOMXPath;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -151,7 +153,42 @@ class BlogController extends Controller implements HasMiddleware
 
         $isLiked = auth()->check() && $post->isLikedBy(auth()->user());
 
-        return view('blog.show', compact('post', 'relatedPosts', 'isLiked'));
+        $headers = [];
+        $postContent = $post->content;
+
+        if ($post->show_toc) {
+            $dom = new DOMDocument;
+            $dom->preserveWhiteSpace = false;
+            $dom->formatOutput = false;
+            libxml_use_internal_errors(true);
+            $dom->loadHTML('<?xml encoding="utf-8" ?>'.$postContent, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+            libxml_clear_errors();
+
+            $xpath = new DOMXPath($dom);
+            $headingNodes = $xpath->query('//h1 | //h2 | //h3');
+
+            if ($headingNodes && $headingNodes->length > 0) {
+                $headingCounts = [];
+                foreach ($headingNodes as $node) {
+                    $rawText = $node->textContent;
+                    $baseId = 'heading-'.Str::slug($rawText);
+                    $headingCounts[$baseId] = ($headingCounts[$baseId] ?? 0) + 1;
+                    $id = $headingCounts[$baseId] > 1 ? $baseId.'-'.$headingCounts[$baseId] : $baseId;
+
+                    $node->setAttribute('id', $id);
+
+                    $headers[] = [
+                        'level' => (int) $node->tagName[1],
+                        'text' => $rawText,
+                        'id' => $id,
+                    ];
+                }
+
+                $postContent = $dom->saveHTML();
+            }
+        }
+
+        return view('blog.show', compact('post', 'relatedPosts', 'isLiked', 'headers', 'postContent'));
     }
 
     public function orgShow(string $org, BlogPost $post): View
@@ -278,6 +315,8 @@ class BlogController extends Controller implements HasMiddleware
         }
 
         unset($data['remove_image']);
+
+        $data['show_toc'] = $request->boolean('show_toc');
 
         $post->update($data);
 
@@ -765,6 +804,7 @@ class BlogController extends Controller implements HasMiddleware
             'tags' => ['nullable', 'string'],
             'meta_title' => ['nullable', 'string', 'max:255'],
             'meta_description' => ['nullable', 'string', 'max:320'],
+            'show_toc' => ['nullable', 'boolean'],
         ], [
             'title.required' => __('blog.validation_title_required'),
             'summary.required' => __('blog.validation_summary_required'),
