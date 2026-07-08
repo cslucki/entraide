@@ -1423,11 +1423,13 @@ function registerBlogTodoCard() {
         editTitle: '',
         activeTab: 'todo',
         threadDrafts: {},
+        threadsOpen: {},
         sendingThread: false,
         assignableUsers: config.assignableUsers || [],
         currentUserId: config.currentUserId || null,
         newAssignee: config.currentUserId || null,
         editingAssignee: null,
+        pendingDelete: null,
 
         indexUrl: config.indexUrl,
         storeUrl: config.storeUrl,
@@ -1467,6 +1469,14 @@ function registerBlogTodoCard() {
             });
         },
 
+        isThreadsOpen(todo) {
+            return this.threadsOpen[todo.id] ?? false;
+        },
+
+        toggleThreads(todo) {
+            this.threadsOpen[todo.id] = !(this.threadsOpen[todo.id] ?? false);
+        },
+
         loadTodos() {
             this.loading = true;
             this.error = '';
@@ -1474,10 +1484,11 @@ function registerBlogTodoCard() {
                 .then(r => r.json())
                 .then(data => {
                     this.todos = (data.todos || []).map(t => ({ ...t, assigned_to: t.assigned_to || '' }));
+                    this.todos.forEach(t => { if (this.threadsOpen[t.id] === undefined) this.threadsOpen[t.id] = false; });
                     this.loading = false;
                 })
                 .catch(() => {
-                    this.error = 'Failed to load tasks.';
+                    this.error = this.i18n.loadError || 'Failed to load tasks.';
                     this.loading = false;
                 });
         },
@@ -1496,16 +1507,18 @@ function registerBlogTodoCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.error = data.message || 'Failed to create task.';
+                        this.error = data.message || this.i18n.createError || 'Failed to create task.';
                         return;
                     }
                     this.todos.push(data.todo);
+                    this.threadsOpen[data.todo.id] = false;
+                    this.newAssignee = this.currentUserId;
                     this.newTitle = '';
                     this.success = data.message || this.i18n.created || 'Task created.';
                     setTimeout(() => { this.success = ''; }, 3000);
                 })
                 .catch(() => {
-                    this.error = 'Failed to create task.';
+                    this.error = this.i18n.createError || 'Failed to create task.';
                 })
                 .finally(() => { this.creating = false; });
         },
@@ -1529,7 +1542,7 @@ function registerBlogTodoCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.error = data.message || this.i18n.notOwner || 'Failed to update task.';
+                        this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
                         return;
                     }
                     const idx = this.todos.findIndex(t => t.id === todo.id);
@@ -1539,7 +1552,7 @@ function registerBlogTodoCard() {
                     setTimeout(() => { this.success = ''; }, 3000);
                 })
                 .catch(() => {
-                    this.error = 'Failed to update task.';
+                    this.error = this.i18n.updateError || 'Failed to update task.';
                 })
                 .finally(() => { this.saving = false; });
         },
@@ -1555,7 +1568,7 @@ function registerBlogTodoCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.error = data.message || this.i18n.notOwner || 'Failed to update task.';
+                        this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
                         this.loadTodos();
                         return;
                     }
@@ -1563,13 +1576,46 @@ function registerBlogTodoCard() {
                     if (idx !== -1) this.todos[idx] = data.todo;
                 })
                 .catch(() => {
-                    this.error = 'Failed to update task.';
+                    this.error = this.i18n.updateError || 'Failed to update task.';
                     this.loadTodos();
                 });
         },
 
-        deleteTodo(todo) {
-            if (!confirm(this.i18n.confirmDelete || 'Delete this task?')) return;
+        toggleDone(todo) {
+            const newStatus = todo.status === 'done' ? 'todo' : 'done';
+            const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
+            this.error = '';
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ status: newStatus }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
+                        this.loadTodos();
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) this.todos[idx] = data.todo;
+                })
+                .catch(() => {
+                    this.error = this.i18n.updateError || 'Failed to update task.';
+                    this.loadTodos();
+                });
+        },
+
+        confirmDeleteTodo(todo) {
+            this.pendingDelete = todo.id;
+        },
+
+        cancelDeleteTodo() {
+            this.pendingDelete = null;
+        },
+
+        doDeleteTodo(todo) {
+            this.pendingDelete = null;
             this.error = '';
             const url = this.destroyUrlBase.replace('__TODO_ID__', todo.id);
             fetch(url, {
@@ -1579,7 +1625,7 @@ function registerBlogTodoCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.error = data.message || this.i18n.notOwner || 'Failed to delete task.';
+                        this.error = data.message || this.i18n.notOwner || this.i18n.deleteError || 'Failed to delete task.';
                         return;
                     }
                     this.todos = this.todos.filter(t => t.id !== todo.id);
@@ -1587,7 +1633,7 @@ function registerBlogTodoCard() {
                     setTimeout(() => { this.success = ''; }, 3000);
                 })
                 .catch(() => {
-                    this.error = 'Failed to delete task.';
+                    this.error = this.i18n.deleteError || 'Failed to delete task.';
                 });
         },
 
@@ -1608,7 +1654,7 @@ function registerBlogTodoCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.error = data.message || this.i18n.notOwner || 'Failed to update assignee.';
+                        this.error = data.message || this.i18n.notOwner || this.i18n.assignError || 'Failed to update assignee.';
                         this.loadTodos();
                         return;
                     }
@@ -1616,7 +1662,7 @@ function registerBlogTodoCard() {
                     if (idx !== -1) this.todos[idx] = data.todo;
                 })
                 .catch(() => {
-                    this.error = 'Failed to update assignee.';
+                    this.error = this.i18n.assignError || 'Failed to update assignee.';
                     this.loadTodos();
                 });
         },
@@ -1634,7 +1680,7 @@ function registerBlogTodoCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.error = data.message || 'Failed to add comment.';
+                        this.error = data.message || this.i18n.threadError || 'Failed to add comment.';
                         return;
                     }
                     this.threadDrafts[todo.id] = '';
@@ -1643,11 +1689,12 @@ function registerBlogTodoCard() {
                         if (!this.todos[idx].threads) this.todos[idx].threads = [];
                         this.todos[idx].threads.push(data.thread);
                     }
+                    this.threadsOpen[todo.id] = true;
                     this.success = data.message || this.i18n.threadAdded;
                     setTimeout(() => { this.success = ''; }, 3000);
                 })
                 .catch(() => {
-                    this.error = 'Failed to add comment.';
+                    this.error = this.i18n.threadError || 'Failed to add comment.';
                 })
                 .finally(() => { this.sendingThread = false; });
         },
@@ -1664,7 +1711,7 @@ function registerBlogTodoCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.error = data.message || 'Failed to delete comment.';
+                        this.error = data.message || this.i18n.threadDeleteError || 'Failed to delete comment.';
                         return;
                     }
                     const idx = this.todos.findIndex(t => t.id === todo.id);
@@ -1673,7 +1720,7 @@ function registerBlogTodoCard() {
                     }
                 })
                 .catch(() => {
-                    this.error = 'Failed to delete comment.';
+                    this.error = this.i18n.threadDeleteError || 'Failed to delete comment.';
                 });
         },
     }));

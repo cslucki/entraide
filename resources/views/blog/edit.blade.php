@@ -425,6 +425,16 @@
                             threadAdd: @js(__('blog.todo_thread_add')),
                             threadAdded: @js(__('blog.todo_thread_added')),
                             confirmDelete: @js(__('blog.todo_confirm_delete')),
+                            loadError: @js(__('blog.todo_load_error')),
+                            createError: @js(__('blog.todo_create_error')),
+                            updateError: @js(__('blog.todo_update_error')),
+                            deleteError: @js(__('blog.todo_delete_error')),
+                            assignError: @js(__('blog.todo_assign_error')),
+                            threadError: @js(__('blog.todo_thread_error')),
+                            threadDeleteError: @js(__('blog.todo_thread_delete_error')),
+                            hideComments: @js(__('blog.todo_hide_comments')),
+                            showComments: @js(__('blog.todo_show_comments')),
+                            addComment: @js(__('blog.todo_add_comment')),
                             csrfToken: @js(csrf_token()),
                         },
                     })"
@@ -502,18 +512,29 @@
 
                         {{-- Todo list --}}
                         <template x-for="todo in filteredTodos" :key="todo.id">
-                            <div class="rounded border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-2 space-y-1">
-                                <div class="flex items-start justify-between gap-1">
+                            <div class="rounded border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-2 space-y-1" :class="{ 'opacity-60': todo.status === 'done' }">
+                                <div class="flex items-start gap-1.5">
+                                    {{-- Checkbox done/todo --}}
+                                    <input type="checkbox"
+                                        :checked="todo.status === 'done'"
+                                        @change="toggleDone(todo)"
+                                        class="mt-0.5 shrink-0 w-3 h-3 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                    >
                                     <div class="flex-1 min-w-0">
                                         {{-- Title --}}
                                         <template x-if="editingTodo !== todo.id">
-                                            <span class="text-xs font-medium text-gray-800 dark:text-gray-100 break-words" x-text="todo.title"></span>
+                                            <span class="block text-xs font-medium break-words cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+                                                :class="todo.status === 'done' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-gray-100'"
+                                                @click="startEdit(todo)"
+                                                x-text="todo.title"
+                                            ></span>
                                         </template>
                                         <template x-if="editingTodo === todo.id">
                                             <input type="text"
                                                 x-model="editTitle"
                                                 @keydown.enter="saveEdit(todo)"
                                                 @keydown.escape="editingTodo = null"
+                                                @click.away="saveEdit(todo)"
                                                 class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                                             >
                                         </template>
@@ -549,57 +570,78 @@
                                             <option value="in_progress" x-text="i18n.statusInProgress"></option>
                                             <option value="done" x-text="i18n.statusDone"></option>
                                         </select>
-                                        {{-- Edit button --}}
-                                        <button type="button" @click="startEdit(todo)"
-                                            class="text-[9px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
-                                            title="Edit"
-                                        >
-                                            <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                        </button>
-                                        {{-- Delete button --}}
-                                        <button type="button" @click="deleteTodo(todo)"
-                                            class="text-[9px] text-red-400 hover:text-red-600 transition"
-                                            title="Delete"
-                                        >
-                                            <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                        </button>
+                                        {{-- Delete with inline confirmation --}}
+                                        <template x-if="pendingDelete !== todo.id">
+                                            <button type="button" @click="confirmDeleteTodo(todo)"
+                                                class="text-[9px] text-red-400 hover:text-red-600 transition"
+                                                title="Delete"
+                                            >
+                                                <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </template>
+                                        <template x-if="pendingDelete === todo.id">
+                                            <div class="flex items-center gap-1">
+                                                <button type="button" @click="doDeleteTodo(todo)"
+                                                    class="text-[9px] font-semibold text-white bg-red-500 hover:bg-red-600 px-1.5 py-0.5 rounded transition"
+                                                    x-text="i18n.confirmDelete"
+                                                ></button>
+                                                <button type="button" @click="cancelDeleteTodo()"
+                                                    class="text-[9px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
+                                                >
+                                                    <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                </button>
+                                            </div>
+                                        </template>
                                     </div>
                                 </div>
 
                                 {{-- Thread section --}}
-                                <div class="mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-700">
-                                    <template x-if="todo.threads && todo.threads.length">
-                                        <div class="space-y-1 mb-1.5">
-                                            <template x-for="thr in todo.threads" :key="thr.id">
-                                                <div class="flex items-start justify-between gap-1 rounded bg-white/80 dark:bg-gray-900/60 px-1.5 py-1">
-                                                    <div class="flex-1 min-w-0">
-                                                        <span class="text-[9px] font-semibold text-gray-700 dark:text-gray-300" x-text="thr.sender_name"></span>
-                                                        <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="'· ' + thr.created_at_human"></span>
-                                                        <p class="text-[10px] text-gray-600 dark:text-gray-400 break-words" x-text="thr.body"></p>
+                                <div class="mt-1 pt-1 border-t border-gray-100 dark:border-gray-700">
+                                    {{-- Thread toggle header --}}
+                                    <button type="button" @click="toggleThreads(todo)"
+                                        class="flex items-center gap-1 w-full text-left text-[9px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition py-0.5"
+                                    >
+                                        <svg class="w-2.5 h-2.5 transition-transform duration-150"
+                                            :class="{ 'rotate-90': isThreadsOpen(todo) }"
+                                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                                        ><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                        <span x-text="(todo.threads && todo.threads.length) ? (isThreadsOpen(todo) ? i18n.hideComments : i18n.showComments.replace(':count', todo.threads.length)) : i18n.addComment"></span>
+                                    </button>
+                                    {{-- Thread content (collapsed by default) --}}
+                                    <div x-show="isThreadsOpen(todo)" x-cloak class="space-y-1 mt-1">
+                                        <template x-if="todo.threads && todo.threads.length">
+                                            <div class="space-y-1 mb-1.5">
+                                                <template x-for="thr in todo.threads" :key="thr.id">
+                                                    <div class="flex items-start justify-between gap-1 rounded bg-white/80 dark:bg-gray-900/60 px-1.5 py-1">
+                                                        <div class="flex-1 min-w-0">
+                                                            <span class="text-[9px] font-semibold text-gray-700 dark:text-gray-300" x-text="thr.sender_name"></span>
+                                                            <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="'· ' + thr.created_at_human"></span>
+                                                            <p class="text-[10px] text-gray-600 dark:text-gray-400 break-words" x-text="thr.body"></p>
+                                                        </div>
+                                                        <button type="button" @click="deleteThread(todo, thr)"
+                                                            class="text-[9px] text-red-400 hover:text-red-600 shrink-0"
+                                                            title="Delete comment"
+                                                        >
+                                                            <svg class="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                        </button>
                                                     </div>
-                                                    <button type="button" @click="deleteThread(todo, thr)"
-                                                        class="text-[9px] text-red-400 hover:text-red-600 shrink-0"
-                                                        title="Delete comment"
-                                                    >
-                                                        <svg class="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                                                    </button>
-                                                </div>
-                                            </template>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <div class="flex gap-1">
+                                            <input type="text"
+                                                x-model="threadDrafts[todo.id]"
+                                                :placeholder="i18n.threadPlaceholder"
+                                                @keydown.enter="addThread(todo)"
+                                                class="flex-1 min-w-0 px-1.5 py-0.5 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                            >
+                                            <button type="button"
+                                                @click="addThread(todo)"
+                                                :disabled="sendingThread || !(threadDrafts[todo.id] || '').trim()"
+                                                class="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                                x-text="i18n.threadAdd"
+                                            ></button>
                                         </div>
-                                    </template>
-                                    <div class="flex gap-1">
-                                        <input type="text"
-                                            x-model="threadDrafts[todo.id]"
-                                            :placeholder="i18n.threadPlaceholder"
-                                            @keydown.enter="addThread(todo)"
-                                            class="flex-1 min-w-0 px-1.5 py-0.5 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                                        >
-                                        <button type="button"
-                                            @click="addThread(todo)"
-                                            :disabled="sendingThread || !(threadDrafts[todo.id] || '').trim()"
-                                            class="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
-                                            x-text="i18n.threadAdd"
-                                        ></button>
                                     </div>
                                 </div>
                             </div>
