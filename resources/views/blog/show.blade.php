@@ -107,19 +107,163 @@
 
                 <!-- Contenu -->
                 @if(!empty($headers))
-                <nav class="mb-8 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{{ __('blog.plan_title') }}</h3>
-                    <ul class="space-y-1">
-                        @foreach($headers as $header)
-                        <li class="{{ $header['level'] === 2 ? 'ml-4' : ($header['level'] === 3 ? 'ml-8' : '') }}">
-                            <a href="#{{ $header['id'] }}"
-                               class="text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition block py-0.5">
-                                {{ $header['text'] }}
-                            </a>
-                        </li>
-                        @endforeach
+                <div x-data="planToc({
+                    headings: @js($headers),
+                    i18n: { title: @js(__('blog.plan_title')), expandAll: @js(__('blog.plan_expand_all')), collapseAll: @js(__('blog.plan_collapse_all')) },
+                })" class="mb-8 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.title"></h3>
+                        <div class="flex items-center gap-2" x-show="tree.length > 0">
+                            <button type="button" @click="expandAll" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.expandAll"></button>
+                            <span class="text-xs text-gray-300">|</span>
+                            <button type="button" @click="collapseAll" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.collapseAll"></button>
+                        </div>
+                    </div>
+                    <template x-if="tree.length === 0">
+                        <p class="text-sm text-gray-400 dark:text-gray-500 py-2">{{ __('blog.plan_empty') }}</p>
+                    </template>
+                    <ul class="space-y-0.5" x-show="tree.length > 0">
+                        <template x-for="(h, i) in flatVisible" :key="h.id">
+                            <li>
+                                <a :href="'#' + h.id" :style="{ paddingLeft: ((h.level - 1) * 12) + 'px' }"
+                                   class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition py-0.5 truncate"
+                                   @click.prevent="scrollTo(h.id)"
+                                >
+                                    <template x-if="childCount(h) > 0">
+                                        <span @click.prevent.stop="toggle(h)" class="shrink-0 w-3 h-3 flex items-center justify-center cursor-pointer hover:text-indigo-500">
+                                            <svg class="w-2.5 h-2.5 transition-transform" :class="{ 'rotate-90': !isCollapsed(h) }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                        </span>
+                                    </template>
+                                    <template x-if="childCount(h) === 0">
+                                        <span class="shrink-0 w-3 h-3"></span>
+                                    </template>
+                                    <span class="truncate" x-text="h.text"></span>
+                                </a>
+                            </li>
+                        </template>
                     </ul>
-                </nav>
+                </div>
+
+                <script>
+                function planToc(config) {
+                    return {
+                        headings: config.headings || [],
+                        i18n: config.i18n || {},
+                        _collapsed: {},
+                        tree: [],
+                        flatVisible: [],
+
+                        init() {
+                            this._buildTree();
+                            this._updateFlatVisible();
+                        },
+
+                        _buildTree() {
+                            const flat = this.headings;
+                            const tree = [];
+                            const stack = [];
+                            flat.forEach((h) => {
+                                while (stack.length > 0 && stack[stack.length - 1].level >= h.level) {
+                                    stack.pop();
+                                }
+                                const item = Object.assign({}, h, { _children: 0 });
+                                if (stack.length > 0) {
+                                    stack[stack.length - 1]._children++;
+                                }
+                                if (stack.length === 0) {
+                                    tree.push(item);
+                                }
+                                stack.push(item);
+                            });
+                            this.tree = tree;
+                            const ch = {};
+                            (function walk(items) {
+                                items.forEach((item) => {
+                                    ch[item.id] = item._children;
+                                });
+                            })(tree);
+                            this._childrenMap = ch;
+                        },
+
+                        childCount(h) {
+                            return this._childrenMap?.[h.id] ?? 0;
+                        },
+
+                        isCollapsed(h) {
+                            return this._collapsed[h.id] === true;
+                        },
+
+                        toggle(h) {
+                            if (this.isCollapsed(h)) {
+                                delete this._collapsed[h.id];
+                            } else {
+                                this._collapsed[h.id] = true;
+                            }
+                            this._updateFlatVisible();
+                        },
+
+                        expandAll() {
+                            this._collapsed = {};
+                            this._updateFlatVisible();
+                        },
+
+                        collapseAll() {
+                            const ids = {};
+                            const collect = (items) => {
+                                items.forEach((h) => {
+                                    if (h._children > 0) {
+                                        ids[h.id] = true;
+                                        const children = this._getChildren(h);
+                                        collect(children);
+                                    }
+                                });
+                            };
+                            collect(this.tree);
+                            this._collapsed = ids;
+                            this._updateFlatVisible();
+                        },
+
+                        _getChildren(h) {
+                            const idx = this.headings.findIndex((x) => x.id === h.id);
+                            if (idx === -1) return [];
+                            const level = h.level;
+                            const children = [];
+                            for (let i = idx + 1; i < this.headings.length; i++) {
+                                if (this.headings[i].level <= level) break;
+                                if (this.headings[i].level === level + 1) children.push(this.headings[i]);
+                            }
+                            return children;
+                        },
+
+                        _updateFlatVisible() {
+                            const collapsedAncestors = [];
+                            this.headings.forEach((h) => {
+                                const toRemove = [];
+                                for (const level of collapsedAncestors) {
+                                    if (level >= h.level) toRemove.push(level);
+                                }
+                                toRemove.forEach(l => {
+                                    const idx = collapsedAncestors.indexOf(l);
+                                    if (idx > -1) collapsedAncestors.splice(idx, 1);
+                                });
+                                h._hidden = collapsedAncestors.length > 0;
+                                const childCount = this._childrenMap?.[h.id] ?? 0;
+                                if (childCount > 0 && this.isCollapsed(h)) {
+                                    collapsedAncestors.push(h.level);
+                                }
+                            });
+                            this.flatVisible = this.headings.filter(h => !h._hidden);
+                        },
+
+                        scrollTo(id) {
+                            const el = document.getElementById(id);
+                            if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        },
+                    };
+                }
+                </script>
                 @endif
                 <div class="max-w-none mb-8 text-gray-800 dark:text-gray-200 leading-relaxed text-base prose prose-sm dark:prose-invert max-w-none [&_img[data-resized]]:!max-w-[70%] [&_pre]:bg-gray-100 [&_pre]:dark:bg-gray-900 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:dark:bg-gray-900 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:p-0">
                     {!! $postContent !!}

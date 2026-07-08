@@ -376,4 +376,11 @@ return [
     'plan_toggle' => 'Afficher sur l\'article publié',
     'plan_collapse' => 'Réduire',
     'plan_expand' => 'Développer',
+    'plan_visible' => 'Plan visible sur l\'article publié.',
+    'plan_hidden' => 'Plan masqué sur l\'article publié.',
+    'plan_updated' => 'Préférences du plan enregistrées.',
+    'plan_update_error' => 'Erreur lors de la mise à jour du plan.',
+    'plan_collapse_all' => 'Tout réduire',
+    'plan_expand_all' => 'Tout développer',
+    'plan_loading' => 'Chargement du plan…',
 ];
