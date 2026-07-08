@@ -1205,9 +1205,12 @@ function registerBlogLoopCard() {
         storeUrl: config.storeUrl,
         destroyUrlBase: config.destroyUrlBase,
         messagesUrl: config.messagesUrl,
+        storeMessageUrlBase: config.storeMessageUrlBase || '',
         userLoops: config.userLoops || [],
         linkedLoops: config.linkedLoops || [],
         i18n: config.i18n || {},
+        messageDrafts: {},
+        sendingMessage: '',
 
         get availableLoops() {
             const linkedIds = new Set(this.linkedLoops.map(l => l.id));
@@ -1304,6 +1307,32 @@ function registerBlogLoopCard() {
                     this.error = 'Failed to unlink loop.';
                 })
                 .finally(() => { this.saving = false; });
+        },
+
+        sendMessage(loopId) {
+            const draft = (this.messageDrafts[loopId] || '').trim();
+            if (!draft || this.sendingMessage) return;
+            this.sendingMessage = loopId;
+            this.error = '';
+            const url = this.storeMessageUrlBase.replace('__LOOP_ID__', loopId);
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ body: draft }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to send message.';
+                        return;
+                    }
+                    this.messageDrafts[loopId] = '';
+                    this.loadMessages();
+                })
+                .catch(() => {
+                    this.error = 'Failed to send message.';
+                })
+                .finally(() => { this.sendingMessage = ''; });
         },
     }));
 }

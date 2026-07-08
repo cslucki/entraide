@@ -247,6 +247,11 @@ class T983BlogLoopCardTest extends TestCase
             'blog.loop_no_messages',
             'blog.loop_view_discussion',
             'blog.loop_system',
+            'blog.loop_message_placeholder',
+            'blog.loop_message_send',
+            'blog.loop_message_sending',
+            'blog.loop_message_readonly',
+            'blog.loop_message_sent',
         ];
 
         foreach ($keys as $key) {
@@ -254,6 +259,150 @@ class T983BlogLoopCardTest extends TestCase
             $this->assertNotEmpty($translation, "Translation for {$key} is empty.");
             $this->assertNotEquals($key, $translation, "Translation for {$key} is missing.");
         }
+    }
+
+    public function test_owner_can_send_message_to_linked_loop(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post->loops()->attach($this->loop->id);
+
+        $response = $this->postJson("/blog/{$this->post->slug}/loops/{$this->loop->id}/messages", [
+            'body' => 'Hello from blog card!',
+        ]);
+
+        $response->assertStatus(201);
+        $response->assertJsonStructure(['message' => ['id', 'body', 'sender_name', 'created_at_human']]);
+        $response->assertJsonPath('message.body', 'Hello from blog card!');
+        $response->assertJsonPath('message.sender_name', $this->owner->name);
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Hello from blog card!',
+            'type' => 'user',
+            'organization_id' => $this->org->id,
+        ]);
+
+        $saved = LoopMessage::where('body', 'Hello from blog card!')->first();
+        $this->assertNotNull($saved->metadata);
+        $this->assertEquals('blog_loop_card', $saved->metadata['source']);
+        $this->assertEquals($this->post->id, $saved->metadata['blog_post_id']);
+    }
+
+    public function test_cannot_send_message_if_not_member(): void
+    {
+        $this->actingAs($this->owner);
+
+        $loop2 = $this->loopService->createLoop($this->owner, 'Coauthor Loop', 'Desc');
+        $this->post->loops()->attach($loop2->id);
+
+        $nonMemberCoauthor = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->post->coAuthors()->attach($nonMemberCoauthor->id, ['role' => 'coauthor', 'added_by' => $this->owner->id]);
+        $this->actingAs($nonMemberCoauthor);
+
+        $response = $this->postJson("/blog/{$this->post->slug}/loops/{$loop2->id}/messages", [
+            'body' => 'Sneaky message.',
+        ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_cannot_send_message_to_unlinked_loop(): void
+    {
+        $this->actingAs($this->owner);
+        $loop2 = $this->loopService->createLoop($this->owner, 'Second Loop', 'Desc');
+        $this->post->loops()->attach($loop2->id);
+
+        $unlinkedLoop = $this->loopService->createLoop($this->owner, 'Unlinked Loop', 'Desc');
+
+        $response = $this->postJson("/blog/{$this->post->slug}/loops/{$unlinkedLoop->id}/messages", [
+            'body' => 'Orphan message.',
+        ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_cannot_send_empty_message(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post->loops()->attach($this->loop->id);
+
+        $response = $this->postJson("/blog/{$this->post->slug}/loops/{$this->loop->id}/messages", [
+            'body' => '',
+        ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_cannot_send_long_message(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post->loops()->attach($this->loop->id);
+
+        $response = $this->postJson("/blog/{$this->post->slug}/loops/{$this->loop->id}/messages", [
+            'body' => str_repeat('A', 5001),
+        ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_cross_org_user_cannot_send_message(): void
+    {
+        app()->instance('current_organization', $this->otherOrg);
+        $this->actingAs($this->crossOrgUser);
+        $this->post->loops()->attach($this->loop->id);
+
+        $response = $this->postJson("/blog/{$this->post->slug}/loops/{$this->loop->id}/messages", [
+            'body' => 'Cross org message.',
+        ]);
+
+        $response->assertNotFound();
+    }
+
+    public function test_guest_cannot_send_message(): void
+    {
+        $this->post->loops()->attach($this->loop->id);
+
+        $response = $this->postJson("/blog/{$this->post->slug}/loops/{$this->loop->id}/messages", [
+            'body' => 'Guest message.',
+        ]);
+
+        $response->assertUnauthorized();
+    }
+
+    public function test_org_scoped_owner_can_send_message(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post->loops()->attach($this->loop->id);
+
+        $response = $this->postJson("/org/{$this->org->slug}/blog/{$this->post->slug}/loops/{$this->loop->id}/messages", [
+            'body' => 'Org-scoped message.',
+        ]);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('message.body', 'Org-scoped message.');
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'body' => 'Org-scoped message.',
+        ]);
+    }
+
+    public function test_sent_message_appears_in_messages_endpoint(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post->loops()->attach($this->loop->id);
+
+        $this->postJson("/blog/{$this->post->slug}/loops/{$this->loop->id}/messages", [
+            'body' => 'Check endpoint message.',
+        ]);
+
+        $response = $this->getJson("/blog/{$this->post->slug}/loop-messages");
+        $response->assertOk();
+
+        $messages = $response->json('loops.0.messages');
+        $bodies = array_column($messages, 'body');
+        $this->assertContains('Check endpoint message.', $bodies);
     }
 
     protected function tearDown(): void

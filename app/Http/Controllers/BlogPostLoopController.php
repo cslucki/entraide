@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BlogPost;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Services\LoopMessageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -125,6 +126,53 @@ class BlogPostLoopController extends Controller
     public function orgDestroy(Request $request, string $org, BlogPost $post, Loop $loop): JsonResponse
     {
         return $this->destroy($request, $post, $loop);
+    }
+
+    public function storeMessage(Request $request, BlogPost $post, Loop $loop): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $post);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        if (! $post->loops()->where('loop_id', $loop->id)->exists()) {
+            return response()->json(['message' => 'Loop not linked to this article.'], 422);
+        }
+
+        $validated = $request->validate([
+            'body' => 'required|string|max:5000',
+        ]);
+
+        try {
+            $message = app(LoopMessageService::class)->sendUserMessage(
+                $loop,
+                $request->user(),
+                $validated['body'],
+                ['source' => 'blog_loop_card', 'blog_post_id' => $post->id],
+            );
+
+            return response()->json([
+                'message' => [
+                    'id' => $message->id,
+                    'body' => $message->body,
+                    'sender_name' => $message->sender?->name ?? __('blog.loop_system'),
+                    'created_at_human' => $message->created_at->diffForHumans(),
+                ],
+            ], 201);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        }
+    }
+
+    public function orgStoreMessage(Request $request, string $org, BlogPost $post, Loop $loop): JsonResponse
+    {
+        return $this->storeMessage($request, $post, $loop);
     }
 
     public function orgMessages(Request $request, string $org, BlogPost $post): JsonResponse
