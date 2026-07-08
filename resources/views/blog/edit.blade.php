@@ -390,6 +390,224 @@
                 </div>
                 {{-- /Boucle card --}}
 
+                {{-- Todo card --}}
+                <div
+                    x-data="blogTodoCard({
+                        indexUrl: @js($_blogRoute('todos.index', ['post' => $post])),
+                        storeUrl: @js($_blogRoute('todos.store', ['post' => $post])),
+                        updateUrlBase: @js($_blogRoute('todos.update', ['post' => $post, 'todo' => '__TODO_ID__'])),
+                        destroyUrlBase: @js($_blogRoute('todos.destroy', ['post' => $post, 'todo' => '__TODO_ID__'])),
+                        threadStoreUrlBase: @js($_blogRoute('todos.threads.store', ['post' => $post, 'todo' => '__TODO_ID__'])),
+                        threadDestroyUrlBase: @js($_blogRoute('todos.threads.destroy', ['post' => $post, 'todo' => '__TODO_ID__', 'thread' => '__THREAD_ID__'])),
+                        assignableUsers: @js(
+                            collect([['id' => $post->user_id, 'name' => $post->user->full_name]])
+                                ->merge($post->coAuthors->map(fn($u) => ['id' => $u->id, 'name' => $u->full_name]))
+                                ->unique('id')
+                                ->values()
+                                ->toArray()
+                        ),
+                        currentUserId: @js(auth()->id()),
+                        i18n: {
+                            title: @js(__('blog.todo_title')),
+                            empty: @js(__('blog.todo_empty')),
+                            create: @js(__('blog.todo_create')),
+                            placeholder: @js(__('blog.todo_placeholder')),
+                            statusTodo: @js(__('blog.todo_status_todo')),
+                            statusInProgress: @js(__('blog.todo_status_in_progress')),
+                            statusDone: @js(__('blog.todo_status_done')),
+                            assign: @js(__('blog.todo_assign')),
+                            unassigned: @js(__('blog.todo_unassigned')),
+                            created: @js(__('blog.todo_created')),
+                            updated: @js(__('blog.todo_updated')),
+                            deleted: @js(__('blog.todo_deleted')),
+                            notOwner: @js(__('blog.todo_not_owner')),
+                            threadPlaceholder: @js(__('blog.todo_thread_placeholder')),
+                            threadAdd: @js(__('blog.todo_thread_add')),
+                            threadAdded: @js(__('blog.todo_thread_added')),
+                            confirmDelete: @js(__('blog.todo_confirm_delete')),
+                            csrfToken: @js(csrf_token()),
+                        },
+                    })"
+                    class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-emerald-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                            <span>{{ __('blog.sidebar_todo') }}</span>
+                        </span>
+                        <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="{ 'rotate-180': open }"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                        ><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-3 pb-3 space-y-2 max-h-[min(26rem,calc(100vh-8rem))] overflow-y-auto">
+                        <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                        <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                        {{-- Create form --}}
+                        <div class="flex gap-1.5">
+                            <input type="text"
+                                x-model="newTitle"
+                                :placeholder="i18n.placeholder"
+                                @keydown.enter="createTodo()"
+                                class="flex-1 min-w-0 px-2 py-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                            <button type="button"
+                                @click="createTodo()"
+                                :disabled="creating || !newTitle.trim()"
+                                class="shrink-0 px-2 py-1 text-[10px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                x-text="i18n.create"
+                            ></button>
+                        </div>
+                        {{-- Assignee picker --}}
+                        <div class="flex gap-1.5 items-center">
+                            <span class="text-[9px] text-gray-400 shrink-0">{{ __('blog.todo_assign') }}</span>
+                            <select x-model="newAssignee"
+                                class="flex-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
+                            >
+                                <template x-for="u in assignableUsers" :key="u.id">
+                                    <option :value="u.id" x-text="u.name"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        {{-- Tabs --}}
+                        <div class="flex gap-1 border-b border-gray-200 dark:border-gray-700 pb-1">
+                            <template x-for="tab in ['todo','in_progress','done']" :key="tab">
+                                <button type="button"
+                                    @click="activeTab = tab"
+                                    class="px-2 py-0.5 text-[10px] font-medium rounded transition"
+                                    :class="activeTab === tab
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                                    x-text="tab === 'todo' ? i18n.statusTodo : (tab === 'in_progress' ? i18n.statusInProgress : i18n.statusDone)"
+                                ></button>
+                            </template>
+                        </div>
+
+                        {{-- Loading --}}
+                        <div x-show="loading" class="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+                            <span>Loading…</span>
+                        </div>
+
+                        {{-- Empty state --}}
+                        <template x-if="!loading && filteredTodos.length === 0">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-4" x-text="i18n.empty"></p>
+                        </template>
+
+                        {{-- Todo list --}}
+                        <template x-for="todo in filteredTodos" :key="todo.id">
+                            <div class="rounded border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-2 space-y-1">
+                                <div class="flex items-start justify-between gap-1">
+                                    <div class="flex-1 min-w-0">
+                                        {{-- Title --}}
+                                        <template x-if="editingTodo !== todo.id">
+                                            <span class="text-xs font-medium text-gray-800 dark:text-gray-100 break-words" x-text="todo.title"></span>
+                                        </template>
+                                        <template x-if="editingTodo === todo.id">
+                                            <input type="text"
+                                                x-model="editTitle"
+                                                @keydown.enter="saveEdit(todo)"
+                                                @keydown.escape="editingTodo = null"
+                                                class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                                            >
+                                        </template>
+                                        {{-- Assigned to --}}
+                                        <div class="text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">
+                                            <template x-if="editingAssignee !== todo.id">
+                                                <button type="button" @click="startEditAssignee(todo)" class="hover:text-gray-600 dark:hover:text-gray-300 transition text-left">
+                                                    <span x-text="todo.assigned_to_name ? (i18n.assign + ' ' + todo.assigned_to_name) : i18n.unassigned"></span>
+                                                </button>
+                                            </template>
+                                            <template x-if="editingAssignee === todo.id">
+                                                <select x-model="todo.assigned_to"
+                                                    @change="saveEditAssignee(todo)"
+                                                    @click.away="editingAssignee = null"
+                                                    class="text-[9px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1 max-w-full"
+                                                >
+                                                    <option value="" x-text="i18n.unassigned"></option>
+                                                    <template x-for="u in assignableUsers" :key="u.id">
+                                                        <option :value="u.id" x-text="u.name"></option>
+                                                    </template>
+                                                </select>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    {{-- Actions --}}
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        {{-- Status cycle --}}
+                                        <select x-model="todo.status"
+                                            @change="changeStatus(todo)"
+                                            class="text-[9px] border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
+                                        >
+                                            <option value="todo" x-text="i18n.statusTodo"></option>
+                                            <option value="in_progress" x-text="i18n.statusInProgress"></option>
+                                            <option value="done" x-text="i18n.statusDone"></option>
+                                        </select>
+                                        {{-- Edit button --}}
+                                        <button type="button" @click="startEdit(todo)"
+                                            class="text-[9px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
+                                            title="Edit"
+                                        >
+                                            <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        </button>
+                                        {{-- Delete button --}}
+                                        <button type="button" @click="deleteTodo(todo)"
+                                            class="text-[9px] text-red-400 hover:text-red-600 transition"
+                                            title="Delete"
+                                        >
+                                            <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {{-- Thread section --}}
+                                <div class="mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-700">
+                                    <template x-if="todo.threads && todo.threads.length">
+                                        <div class="space-y-1 mb-1.5">
+                                            <template x-for="thr in todo.threads" :key="thr.id">
+                                                <div class="flex items-start justify-between gap-1 rounded bg-white/80 dark:bg-gray-900/60 px-1.5 py-1">
+                                                    <div class="flex-1 min-w-0">
+                                                        <span class="text-[9px] font-semibold text-gray-700 dark:text-gray-300" x-text="thr.sender_name"></span>
+                                                        <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="'· ' + thr.created_at_human"></span>
+                                                        <p class="text-[10px] text-gray-600 dark:text-gray-400 break-words" x-text="thr.body"></p>
+                                                    </div>
+                                                    <button type="button" @click="deleteThread(todo, thr)"
+                                                        class="text-[9px] text-red-400 hover:text-red-600 shrink-0"
+                                                        title="Delete comment"
+                                                    >
+                                                        <svg class="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <div class="flex gap-1">
+                                        <input type="text"
+                                            x-model="threadDrafts[todo.id]"
+                                            :placeholder="i18n.threadPlaceholder"
+                                            @keydown.enter="addThread(todo)"
+                                            class="flex-1 min-w-0 px-1.5 py-0.5 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                        >
+                                        <button type="button"
+                                            @click="addThread(todo)"
+                                            :disabled="sendingThread || !(threadDrafts[todo.id] || '').trim()"
+                                            class="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                            x-text="i18n.threadAdd"
+                                        ></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {{-- /Todo card --}}
+
                 {{-- Annotations card --}}
                 <div
                     x-data="blogAnnotationCard({

@@ -106,6 +106,11 @@ class BlogPost extends Model
             ->withTimestamps();
     }
 
+    public function todos(): HasMany
+    {
+        return $this->hasMany(BlogTodo::class);
+    }
+
     public function isLikedBy(?User $user): bool
     {
         if (! $user) {
