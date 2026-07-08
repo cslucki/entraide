@@ -39,6 +39,7 @@ use App\Http\Controllers\BlogAnnotationReplyController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogPostLoopController;
 use App\Http\Controllers\BlogSnapshotController;
 use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
@@ -134,6 +135,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'store'])->name('blog.snapshots.store');
     Route::get('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'index'])->name('blog.snapshots.index');
     Route::post('/blog/{post:slug}/snapshots/{snapshot}/restore', [BlogSnapshotController::class, 'restore'])->name('blog.snapshots.restore');
+
+    // Blog loop endpoints
+    Route::post('/blog/{post:slug}/loops', [BlogPostLoopController::class, 'store'])->name('blog.loops.store');
+    Route::delete('/blog/{post:slug}/loops/{loop}', [BlogPostLoopController::class, 'destroy'])->name('blog.loops.destroy');
+    Route::get('/blog/{post:slug}/loop-messages', [BlogPostLoopController::class, 'messages'])->name('blog.loops.messages');
 
     // Blog co-author endpoints
     Route::get('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'index'])->name('blog.co-authors.index');
@@ -630,6 +636,11 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'orgStore'])->name('blog.snapshots.store');
                 Route::get('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'orgIndex'])->name('blog.snapshots.index');
                 Route::post('/blog/{post:slug}/snapshots/{snapshot}/restore', [BlogSnapshotController::class, 'orgRestore'])->name('blog.snapshots.restore');
+
+                // Blog loop endpoints (org-scoped)
+                Route::post('/blog/{post:slug}/loops', [BlogPostLoopController::class, 'orgStore'])->name('blog.loops.store');
+                Route::delete('/blog/{post:slug}/loops/{loop}', [BlogPostLoopController::class, 'orgDestroy'])->name('blog.loops.destroy');
+                Route::get('/blog/{post:slug}/loop-messages', [BlogPostLoopController::class, 'orgMessages'])->name('blog.loops.messages');
 
                 // Blog co-author endpoints (org-scoped)
                 Route::get('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'orgIndex'])->name('blog.co-authors.index');

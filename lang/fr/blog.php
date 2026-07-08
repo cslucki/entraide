@@ -318,4 +318,17 @@ return [
     'snapshot_removed' => 'Supprimé',
     'snapshot_unchanged' => 'Inchangé',
     'snapshot_changed_fields' => 'Champs changés',
+
+    'loop_linked' => 'Boucle liée.',
+    'loop_unlinked' => 'Boucle dissociée.',
+    'loop_not_member' => 'Vous n\'êtes pas membre de cette boucle.',
+    'loop_already_linked' => 'Cette boucle est déjà liée à l\'article.',
+    'loop_no_loops' => 'Aucune boucle disponible. Rejoignez d\'abord une boucle.',
+    'loop_no_linked_loops' => 'Aucune boucle liée.',
+    'loop_select' => 'Sélectionner une boucle…',
+    'loop_link' => 'Lier',
+    'loop_unlink' => 'Dissocier',
+    'loop_no_messages' => 'Aucun message pour le moment.',
+    'loop_view_discussion' => 'Voir toute la discussion',
+    'loop_system' => 'Système',
 ];
