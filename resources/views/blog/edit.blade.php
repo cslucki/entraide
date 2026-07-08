@@ -24,9 +24,7 @@
         {{-- Editor layout: main panel + resize handle + sidebar --}}
         <div class="flex flex-col md:flex-row gap-0"
              x-data="{
-                cards: [
-                    { key: 'boucle', label: @js(__('blog.sidebar_boucle')), open: false, placeholder: @js(__('blog.sidebar_boucle_placeholder')) },
-                ],
+                cards: [],
                 width: 280,
                 resizing: false,
 
@@ -261,27 +259,106 @@
         :style="`width: ${width}px`"
         class="flex w-full shrink-0 flex-col space-y-2 md:w-auto"
     >
-                {{-- Generic cards (boucle) --}}
-                <template x-for="card in cards" :key="card.key">
-                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
-                        <button
-                            @click="toggle(card.key)"
-                            class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                {{-- Boucle card --}}
+                <div
+                    x-data="blogLoopCard({
+                        storeUrl: @js($_blogRoute('loops.store', ['post' => $post])),
+                        destroyUrlBase: @js($_blogRoute('loops.destroy', ['post' => $post, 'loop' => '__LOOP_ID__'])),
+                        messagesUrl: @js($_blogRoute('loops.messages', ['post' => $post])),
+                        userLoops: @js($userLoops->map(fn ($l) => ['id' => $l->id, 'name' => $l->name, 'slug' => $l->slug])->values()->toArray()),
+                        linkedLoops: @js($postLoops->map(fn ($l) => ['id' => $l->id, 'name' => $l->name, 'slug' => $l->slug])->values()->toArray()),
+                        i18n: {
+                            noLoops: @js(__('blog.loop_no_loops')),
+                            noLinked: @js(__('blog.loop_no_linked_loops')),
+                            selectPlaceholder: @js(__('blog.loop_select')),
+                            link: @js(__('blog.loop_link')),
+                            unlink: @js(__('blog.loop_unlink')),
+                            noMessages: @js(__('blog.loop_no_messages')),
+                            viewDiscussion: @js(__('blog.loop_view_discussion')),
+                            linked: @js(__('blog.loop_linked')),
+                            unlinked: @js(__('blog.loop_unlinked')),
+                            csrfToken: @js(csrf_token()),
+                        },
+                    })"
+                    class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                            <span>{{ __('blog.sidebar_boucle') }}</span>
+                        </span>
+                        <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="{ 'rotate-180': open }"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
                         >
-                            <span x-text="card.label"></span>
-                            <svg
-                                class="w-3 h-3 transition-transform"
-                                :class="{ 'rotate-180': card.open }"
-                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
-                            >
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </button>
-                        <div x-show="card.open" x-cloak class="px-3 pb-3 text-xs text-gray-500 dark:text-gray-400 max-h-40 overflow-y-auto">
-                            <span x-text="card.placeholder"></span>
-                        </div>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+                        <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                        <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                        {{-- Linked loops list --}}
+                        <template x-if="!loading && linkedLoops.length === 0 && userLoops.length === 0">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noLoops"></p>
+                        </template>
+
+                        <template x-for="loop in linkedLoops" :key="loop.id">
+                            <div class="rounded-lg border border-indigo-100 bg-indigo-50/60 p-2 dark:border-indigo-900/60 dark:bg-indigo-950/10">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="loop.name"></span>
+                                    <button type="button" @click="unlinkLoop(loop.id)"
+                                        class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition disabled:opacity-50"
+                                        :disabled="saving">
+                                        <span x-text="i18n.unlink"></span>
+                                    </button>
+                                </div>
+                                {{-- Recent messages --}}
+                                <template x-if="loop.messages && loop.messages.length">
+                                    <div class="mt-1.5 space-y-1">
+                                        <template x-for="msg in loop.messages" :key="msg.id">
+                                            <div class="rounded bg-white/80 px-1.5 py-1 text-[10px] dark:bg-gray-900/60">
+                                                <span class="font-semibold text-gray-700 dark:text-gray-300" x-text="msg.sender_name + ':'"></span>
+                                                <span class="text-gray-600 dark:text-gray-400" x-text="msg.body.length > 80 ? msg.body.slice(0, 80) + '…' : msg.body"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="!loop.messages || !loop.messages.length">
+                                    <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-500 italic" x-text="i18n.noMessages"></p>
+                                </template>
+                                <a :href="loop.discussionUrl" target="_blank"
+                                    class="mt-1 inline-block text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                    x-text="i18n.viewDiscussion"></a>
+                            </div>
+                        </template>
+
+                        {{-- Link form --}}
+                        <template x-if="userLoops.length > 0">
+                            <div class="border-t border-gray-100 dark:border-gray-700 pt-3">
+                                <div class="flex gap-2">
+                                    <select x-model="selectedLoopId"
+                                        class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500">
+                                        <option value="" x-text="i18n.selectPlaceholder"></option>
+                                        <template x-for="l in availableLoops" :key="l.id">
+                                            <option :value="l.id" x-text="l.name"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" @click="linkLoop()" :disabled="saving || !selectedLoopId"
+                                        class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                                        <span x-text="i18n.link"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
                     </div>
-                </template>
+                </div>
+                {{-- /Boucle card --}}
 
                 {{-- Annotations card --}}
                 <div

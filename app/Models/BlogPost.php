@@ -100,6 +100,12 @@ class BlogPost extends Model
         return $this->hasMany(BlogPostAnnotation::class);
     }
 
+    public function loops(): BelongsToMany
+    {
+        return $this->belongsToMany(Loop::class, 'blog_post_loop')
+            ->withTimestamps();
+    }
+
     public function isLikedBy(?User $user): bool
     {
         if (! $user) {

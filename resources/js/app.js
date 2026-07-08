@@ -91,12 +91,23 @@ function registerBlogSnapshotCard() {
         toggle() {
             this.open = !this.open;
             localStorage.setItem('editor_sidebar_card_snapshot', this.open ? '1' : '0');
+            if (this.open) {
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
         },
 
         init() {
             const stored = localStorage.getItem('editor_sidebar_card_snapshot');
             if (stored !== null) this.open = stored === '1';
             this.loadHistory();
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_snapshot', '0');
+            });
         },
 
         latestSnapshot() {
@@ -1053,12 +1064,23 @@ function registerBlogCoAuthorCard() {
         toggle() {
             this.open = !this.open;
             localStorage.setItem('editor_sidebar_card_coecriture', this.open ? '1' : '0');
+            if (this.open) {
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
         },
 
         init() {
             const stored = localStorage.getItem('editor_sidebar_card_coecriture');
             if (stored !== null) this.open = stored === '1';
             this.loadCoAuthors();
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_coecriture', '0');
+            });
         },
 
         canManage() {
@@ -1165,6 +1187,127 @@ function registerBlogCoAuthorCard() {
     }));
 }
 
+function registerBlogLoopCard() {
+    if (!window.Alpine || window.__blogLoopCardRegistered) {
+        return;
+    }
+
+    window.__blogLoopCardRegistered = true;
+
+    Alpine.data('blogLoopCard', (config) => ({
+        open: false,
+        saving: false,
+        loading: false,
+        error: '',
+        success: '',
+        selectedLoopId: '',
+
+        storeUrl: config.storeUrl,
+        destroyUrlBase: config.destroyUrlBase,
+        messagesUrl: config.messagesUrl,
+        userLoops: config.userLoops || [],
+        linkedLoops: config.linkedLoops || [],
+        i18n: config.i18n || {},
+
+        get availableLoops() {
+            const linkedIds = new Set(this.linkedLoops.map(l => l.id));
+            return this.userLoops.filter(l => !linkedIds.has(l.id));
+        },
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_boucle', this.open ? '1' : '0');
+            if (this.open) {
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
+        },
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_boucle');
+            if (stored !== null) this.open = stored === '1';
+            this.loadMessages();
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_boucle', '0');
+            });
+        },
+
+        loadMessages() {
+            if (this.linkedLoops.length === 0) return;
+            this.loading = true;
+            fetch(this.messagesUrl)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.loops) {
+                        this.linkedLoops = data.loops;
+                    }
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.loading = false;
+                });
+        },
+
+        linkLoop() {
+            if (!this.selectedLoopId || this.saving) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.storeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ loop_id: this.selectedLoopId }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to link loop.';
+                        return;
+                    }
+                    this.linkedLoops.push({ ...data.loop, messages: [] });
+                    this.selectedLoopId = '';
+                    this.success = data.message || this.i18n.linked || 'Loop linked.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                    this.loadMessages();
+                })
+                .catch(() => {
+                    this.error = 'Failed to link loop.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        unlinkLoop(loopId) {
+            if (this.saving) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            const url = this.destroyUrlBase.replace('__LOOP_ID__', loopId);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to unlink loop.';
+                        return;
+                    }
+                    this.linkedLoops = this.linkedLoops.filter(l => l.id !== loopId);
+                    this.success = data.message || this.i18n.unlinked || 'Loop unlinked.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = 'Failed to unlink loop.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+    }));
+}
+
 window.blogAnnotationCard = function (config) {
     return {
         isOpen: false,
@@ -1218,6 +1361,13 @@ window.blogAnnotationCard = function (config) {
                     this.loadAnnotations();
                 }
             });
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.isOpen = false;
+                localStorage.setItem('editor_sidebar_card_annotations', '0');
+                this._stopPolling();
+            });
         },
 
         _startPolling() {
@@ -1249,6 +1399,9 @@ window.blogAnnotationCard = function (config) {
             if (this.isOpen) {
                 this.loadAnnotations();
                 this._startPolling();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
             } else {
                 this._stopPolling();
             }
@@ -1537,6 +1690,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogEditor();
     registerAnnotationModal();
     registerBlogCoAuthorCard();
+    registerBlogLoopCard();
 });
 
 registerAlpineStores();
@@ -1544,6 +1698,7 @@ registerBlogSnapshotCard();
 registerBlogEditor();
 registerAnnotationModal();
 registerBlogCoAuthorCard();
+registerBlogLoopCard();
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {

@@ -318,4 +318,17 @@ return [
     'snapshot_removed' => 'Removed',
     'snapshot_unchanged' => 'Unchanged',
     'snapshot_changed_fields' => 'Changed fields',
+
+    'loop_linked' => 'Loop linked.',
+    'loop_unlinked' => 'Loop unlinked.',
+    'loop_not_member' => 'You are not a member of this loop.',
+    'loop_already_linked' => 'This loop is already linked to the article.',
+    'loop_no_loops' => 'No loops available. Join a loop first.',
+    'loop_no_linked_loops' => 'No linked loops.',
+    'loop_select' => 'Select a loop...',
+    'loop_link' => 'Link',
+    'loop_unlink' => 'Unlink',
+    'loop_no_messages' => 'No messages yet.',
+    'loop_view_discussion' => 'View full discussion',
+    'loop_system' => 'System',
 ];

@@ -6,6 +6,7 @@ use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\BlogSnapshot;
 use App\Models\Category;
+use App\Models\LoopMember;
 use App\Models\Tag;
 use App\Services\BlogAiService;
 use Illuminate\Http\JsonResponse;
@@ -229,7 +230,17 @@ class BlogController extends Controller implements HasMiddleware
         $categories = Category::where('organization_id', $organization->id)->orderBy('name_b2c')->get();
         $tags = Tag::orderBy('name')->get();
 
-        return view('blog.edit', compact('organization', 'post', 'categories', 'tags'));
+        $userLoops = LoopMember::where('user_id', auth()->id())
+            ->where('status', 'active')
+            ->with('loop')
+            ->get()
+            ->pluck('loop')
+            ->filter(fn ($l) => $l && $l->organization_id === $organization->id)
+            ->values();
+
+        $postLoops = $post->loops()->get();
+
+        return view('blog.edit', compact('organization', 'post', 'categories', 'tags', 'userLoops', 'postLoops'));
     }
 
     public function orgEdit(string $org, BlogPost $post): View
