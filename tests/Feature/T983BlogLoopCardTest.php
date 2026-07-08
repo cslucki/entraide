@@ -405,6 +405,111 @@ class T983BlogLoopCardTest extends TestCase
         $this->assertContains('Check endpoint message.', $bodies);
     }
 
+    public function test_messages_endpoint_returns_chronological_order(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post->loops()->attach($this->loop->id);
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Oldest message',
+            'type' => 'user',
+            'created_at' => now()->subHours(3),
+        ]);
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Middle message',
+            'type' => 'user',
+            'created_at' => now()->subHours(2),
+        ]);
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Newest message',
+            'type' => 'user',
+            'created_at' => now()->subHour(),
+        ]);
+
+        $response = $this->getJson("/blog/{$this->post->slug}/loop-messages");
+        $response->assertOk();
+
+        $messages = $response->json('loops.0.messages');
+        $this->assertCount(3, $messages);
+        $this->assertEquals('Oldest message', $messages[0]['body']);
+        $this->assertEquals('Middle message', $messages[1]['body']);
+        $this->assertEquals('Newest message', $messages[2]['body']);
+    }
+
+    public function test_messages_endpoint_limits_to_latest_three(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post->loops()->attach($this->loop->id);
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Oldest—should be excluded',
+            'type' => 'user',
+            'created_at' => now()->subHours(4),
+        ]);
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Second oldest',
+            'type' => 'user',
+            'created_at' => now()->subHours(3),
+        ]);
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Third oldest',
+            'type' => 'user',
+            'created_at' => now()->subHours(2),
+        ]);
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Newest message',
+            'type' => 'user',
+            'created_at' => now()->subHour(),
+        ]);
+
+        $response = $this->getJson("/blog/{$this->post->slug}/loop-messages");
+        $response->assertOk();
+
+        $messages = $response->json('loops.0.messages');
+        $this->assertCount(3, $messages);
+        $this->assertEquals('Second oldest', $messages[0]['body']);
+        $this->assertEquals('Third oldest', $messages[1]['body']);
+        $this->assertEquals('Newest message', $messages[2]['body']);
+    }
+
+    public function test_messages_endpoint_returns_created_at_human(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post->loops()->attach($this->loop->id);
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->owner->id,
+            'body' => 'Timestamp test',
+            'type' => 'user',
+        ]);
+
+        $response = $this->getJson("/blog/{$this->post->slug}/loop-messages");
+        $response->assertOk();
+
+        $messages = $response->json('loops.0.messages');
+        $this->assertNotEmpty($messages[0]['created_at_human']);
+    }
+
     protected function tearDown(): void
     {
         Organization::where('is_default', true)->update(['is_default' => false]);

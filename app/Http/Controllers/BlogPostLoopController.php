@@ -82,9 +82,7 @@ class BlogPostLoopController extends Controller
 
         $this->authorize('update', $post);
 
-        $loops = $post->loops()->with(['messages' => function ($q) {
-            $q->latest()->take(3);
-        }, 'messages.sender'])->get();
+        $loops = $post->loops()->get();
 
         $orgSlug = $request->route('organization');
 
@@ -104,14 +102,21 @@ class BlogPostLoopController extends Controller
                 'slug' => $loop->slug,
                 'discussionUrl' => $loopUrl,
                 'is_member' => $isMember,
-                'messages' => $loop->messages->map(function ($msg) {
-                    return [
-                        'id' => $msg->id,
-                        'body' => $msg->body,
-                        'created_at_human' => $msg->created_at->diffForHumans(),
-                        'sender_name' => $msg->sender?->name ?? __('blog.loop_system'),
-                    ];
-                }),
+                'messages' => $loop->messages()
+                    ->latest()
+                    ->take(3)
+                    ->get()
+                    ->load('sender')
+                    ->reverse()
+                    ->values()
+                    ->map(function ($msg) {
+                        return [
+                            'id' => $msg->id,
+                            'body' => $msg->body,
+                            'created_at_human' => $msg->created_at->diffForHumans(),
+                            'sender_name' => $msg->sender?->name ?? __('blog.loop_system'),
+                        ];
+                    }),
             ];
         });
 

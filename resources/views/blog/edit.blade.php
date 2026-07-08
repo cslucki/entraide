@@ -328,7 +328,10 @@
                                     <div class="mt-1.5 space-y-1">
                                         <template x-for="msg in loop.messages" :key="msg.id">
                                             <div class="rounded bg-white/80 px-1.5 py-1 text-[10px] dark:bg-gray-900/60">
-                                                <span class="font-semibold text-gray-700 dark:text-gray-300" x-text="msg.sender_name + ':'"></span>
+                                                <div class="flex items-baseline gap-1">
+                                                    <span class="font-semibold text-gray-700 dark:text-gray-300" x-text="msg.sender_name"></span>
+                                                    <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="'· ' + msg.created_at_human"></span>
+                                                </div>
                                                 <span class="text-gray-600 dark:text-gray-400" x-text="msg.body.length > 80 ? msg.body.slice(0, 80) + '…' : msg.body"></span>
                                             </div>
                                         </template>

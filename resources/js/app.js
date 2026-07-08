@@ -1364,6 +1364,10 @@ function registerBlogLoopCard() {
                         return;
                     }
                     this.messageDrafts[loopId] = '';
+                    const loop = this.linkedLoops.find(l => l.id === loopId);
+                    if (loop && data.message) {
+                        loop.messages = [...(loop.messages || []), data.message].slice(-3);
+                    }
                     this.loadMessages({ silent: true });
                 })
                 .catch(() => {
