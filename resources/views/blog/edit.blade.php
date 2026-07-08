@@ -619,10 +619,10 @@
                                                             <p class="text-[10px] text-gray-600 dark:text-gray-400 break-words" x-text="thr.body"></p>
                                                         </div>
                                                         <button type="button" @click="deleteThread(todo, thr)"
-                                                            class="text-[9px] text-red-400 hover:text-red-600 shrink-0"
+                                                            class="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 shrink-0 transition"
                                                             title="Delete comment"
                                                         >
-                                                            <svg class="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                                         </button>
                                                     </div>
                                                 </template>

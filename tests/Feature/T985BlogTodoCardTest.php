@@ -3,8 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BlogPost;
-use App\Models\BlogTodo;
-use App\Models\BlogTodoThread;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -14,16 +13,20 @@ class T985BlogTodoCardTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private User $coAuthor;
+
     private User $otherUser;
+
     private BlogPost $post;
-    private \App\Models\Organization $org;
+
+    private Organization $org;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->org = \App\Models\Organization::factory()->create(['is_default' => true]);
+        $this->org = Organization::factory()->create(['is_default' => true]);
 
         $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
         $this->coAuthor = User::factory()->create(['organization_id' => $this->org->id]);
@@ -117,7 +120,7 @@ class T985BlogTodoCardTest extends TestCase
         $response->assertJsonPath('todo.status', 'in_progress');
     }
 
-    public function test_non_assigned_cannot_update_todo(): void
+    public function test_owner_can_update_any_todo(): void
     {
         $this->actingAs($this->owner);
 
@@ -130,8 +133,60 @@ class T985BlogTodoCardTest extends TestCase
         ]);
 
         $response = $this->putJson("/blog/{$this->post->slug}/todos/{$todo->id}", [
+            'title' => 'Modification par le owner',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('todo.title', 'Modification par le owner');
+    }
+
+    public function test_owner_can_delete_any_todo(): void
+    {
+        $this->actingAs($this->owner);
+
+        $todo = $this->post->todos()->create([
+            'organization_id' => $this->post->organization_id,
+            'user_id' => $this->owner->id,
+            'assigned_to' => $this->otherUser->id,
+            'title' => 'Tâche protégée',
+        ]);
+
+        $response = $this->deleteJson("/blog/{$this->post->slug}/todos/{$todo->id}");
+
+        $response->assertOk();
+        $this->assertDatabaseMissing('blog_todos', ['id' => $todo->id]);
+    }
+
+    public function test_non_editor_cannot_update_todo(): void
+    {
+        $this->actingAs($this->otherUser);
+
+        $todo = $this->post->todos()->create([
+            'organization_id' => $this->post->organization_id,
+            'user_id' => $this->owner->id,
+            'assigned_to' => $this->owner->id,
+            'title' => 'Tâche owner',
+        ]);
+
+        $response = $this->putJson("/blog/{$this->post->slug}/todos/{$todo->id}", [
             'title' => 'Modification interdite',
         ]);
+
+        $response->assertForbidden();
+    }
+
+    public function test_non_editor_cannot_delete_todo(): void
+    {
+        $this->actingAs($this->otherUser);
+
+        $todo = $this->post->todos()->create([
+            'organization_id' => $this->post->organization_id,
+            'user_id' => $this->owner->id,
+            'assigned_to' => $this->owner->id,
+            'title' => 'Tâche protégée',
+        ]);
+
+        $response = $this->deleteJson("/blog/{$this->post->slug}/todos/{$todo->id}");
 
         $response->assertForbidden();
     }
@@ -153,20 +208,23 @@ class T985BlogTodoCardTest extends TestCase
         $this->assertDatabaseMissing('blog_todos', ['id' => $todo->id]);
     }
 
-    public function test_non_assigned_cannot_delete_todo(): void
+    public function test_coauthor_can_update_any_todo(): void
     {
-        $this->actingAs($this->owner);
+        $this->actingAs($this->coAuthor);
 
         $todo = $this->post->todos()->create([
             'organization_id' => $this->post->organization_id,
             'user_id' => $this->owner->id,
-            'assigned_to' => $this->otherUser->id,
-            'title' => 'Tâche protégée',
+            'assigned_to' => $this->owner->id,
+            'title' => 'Tâche du owner',
         ]);
 
-        $response = $this->deleteJson("/blog/{$this->post->slug}/todos/{$todo->id}");
+        $response = $this->putJson("/blog/{$this->post->slug}/todos/{$todo->id}", [
+            'status' => 'done',
+        ]);
 
-        $response->assertForbidden();
+        $response->assertOk();
+        $response->assertJsonPath('todo.status', 'done');
     }
 
     public function test_assigned_user_can_change_status(): void
@@ -295,7 +353,7 @@ class T985BlogTodoCardTest extends TestCase
 
     public function test_cross_org_is_blocked(): void
     {
-        $otherOrg = \App\Models\Organization::factory()->create();
+        $otherOrg = Organization::factory()->create();
         $otherUser = User::factory()->create(['organization_id' => $otherOrg->id]);
         $otherPost = BlogPost::create([
             'user_id' => $otherUser->id,

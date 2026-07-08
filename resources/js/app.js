@@ -1512,6 +1512,7 @@ function registerBlogTodoCard() {
                     }
                     this.todos.push(data.todo);
                     this.threadsOpen[data.todo.id] = false;
+                    this.activeTab = 'todo';
                     this.newAssignee = this.currentUserId;
                     this.newTitle = '';
                     this.success = data.message || this.i18n.created || 'Task created.';

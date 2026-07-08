@@ -79,20 +79,20 @@ class BlogTodoController extends Controller
 
         $this->authorize('update', $post);
 
-        if ($todo->assigned_to !== $request->user()->id) {
-            return response()->json(['message' => __('blog.todo_not_owner')], 403);
-        }
-
         $validated = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
             'status' => ['sometimes', 'string', 'in:todo,in_progress,done'],
             'assigned_to' => ['sometimes', 'nullable', 'string', 'uuid'],
         ]);
 
-        if (isset($validated['assigned_to'])) {
-            $assigned = User::where('id', $validated['assigned_to'])->first();
-            if (! $assigned) {
-                return response()->json(['message' => __('blog.todo_invalid_assignee')], 422);
+        if (array_key_exists('assigned_to', $validated)) {
+            if ($validated['assigned_to'] === '' || $validated['assigned_to'] === null) {
+                $validated['assigned_to'] = null;
+            } else {
+                $assigned = User::where('id', $validated['assigned_to'])->first();
+                if (! $assigned) {
+                    return response()->json(['message' => __('blog.todo_invalid_assignee')], 422);
+                }
             }
         }
 
@@ -113,10 +113,6 @@ class BlogTodoController extends Controller
         }
 
         $this->authorize('update', $post);
-
-        if ($todo->assigned_to !== $request->user()->id) {
-            return response()->json(['message' => __('blog.todo_not_owner')], 403);
-        }
 
         $todo->delete();
 
@@ -212,7 +208,7 @@ class BlogTodoController extends Controller
             'status' => $todo->status,
             'position' => $todo->position,
             'user_id' => $todo->user_id,
-            'assigned_to' => $todo->assigned_to,
+            'assigned_to' => $todo->assigned_to ?? '',
             'assigned_to_name' => $todo->assignedTo?->name,
             'created_at' => $todo->created_at->toISOString(),
             'created_at_human' => $todo->created_at->diffForHumans(),
