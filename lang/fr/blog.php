@@ -396,4 +396,9 @@ return [
     'plan_collapse_all' => 'Tout réduire',
     'plan_expand_all' => 'Tout développer',
     'plan_loading' => 'Chargement du plan…',
+
+    'editor_media_embed' => 'Insérer un média',
+    'editor_media_embed_hint' => 'Collez l\'URL d\'une vidéo YouTube, Vimeo ou Dailymotion.',
+    'editor_media_embed_placeholder' => 'https://www.youtube.com/watch?v=…',
+    'btn_embed' => 'Intégrer',
 ];

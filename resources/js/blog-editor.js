@@ -9,6 +9,7 @@ import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Annotation from './tiptap/annotation-mark.js';
+import { MediaEmbed } from './tiptap/media-embed-node.js';
 
 const editors = new WeakMap();
 
@@ -153,6 +154,7 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
             Annotation.configure({
                 HTMLAttributes: {},
             }),
+            MediaEmbed,
         ],
         content,
         onUpdate: ({ editor: ed }) => {

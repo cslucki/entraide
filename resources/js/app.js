@@ -1,5 +1,6 @@
 import './bootstrap';
 import { createEditor } from './blog-editor';
+import { extractEmbedUrl } from './tiptap/media-embed-node.js';
 window.createBlogEditor = createEditor;
 
 function registerAlpineStores() {
@@ -411,6 +412,8 @@ function registerBlogEditor() {
         linkUrl: '',
         hasLink: false,
         linkType: 'url',
+        mediaDialogOpen: false,
+        mediaUrl: '',
         errorUpload: '',
         errorAi: '',
         linkPrompt: '',
@@ -549,6 +552,7 @@ function registerBlogEditor() {
                 table: editor.isActive('table'),
                 tableHeader: editor.isActive('tableHeader'),
                 tableBorderless: editor.isActive('table') ? (editor.getAttributes('table').borderless || false) : false,
+                mediaEmbed: editor.isActive('mediaEmbed'),
             };
         },
 
@@ -614,6 +618,23 @@ function registerBlogEditor() {
             this.linkUrl = editor.getAttributes('link').href || '';
             this.linkType = 'url';
             this.linkPopupOpen = true;
+        },
+
+        openMediaDialog() {
+            if (!editor) return;
+            this.mediaUrl = '';
+            this.mediaDialogOpen = true;
+        },
+
+        applyMedia() {
+            if (!editor || !this.mediaUrl.trim()) return;
+            const embedUrl = extractEmbedUrl(this.mediaUrl.trim());
+            if (embedUrl) {
+                editor.chain().focus().insertMediaEmbed({ src: embedUrl }).run();
+            }
+            this.mediaDialogOpen = false;
+            this.mediaUrl = '';
+            this.updateActiveStates();
         },
 
         applyLink() {

@@ -396,4 +396,9 @@ return [
     'plan_collapse_all' => 'Collapse all',
     'plan_expand_all' => 'Expand all',
     'plan_loading' => 'Loading plan…',
+
+    'editor_media_embed' => 'Insert media',
+    'editor_media_embed_hint' => 'Paste a YouTube, Vimeo, or Dailymotion video URL.',
+    'editor_media_embed_placeholder' => 'https://www.youtube.com/watch?v=…',
+    'btn_embed' => 'Embed',
 ];
