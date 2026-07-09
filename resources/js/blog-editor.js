@@ -125,6 +125,21 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
             }),
             Table.configure({
                 resizable: true,
+                allowTableNodeSelection: true,
+            }).extend({
+                addAttributes() {
+                    return {
+                        ...this.parent?.() || {},
+                        borderless: {
+                            default: false,
+                            parseHTML: element => element.getAttribute('data-borderless') === 'true',
+                            renderHTML: attributes => {
+                                if (!attributes.borderless) return {};
+                                return { 'data-borderless': 'true' };
+                            },
+                        },
+                    };
+                },
             }),
             TableRow,
             TableCell,

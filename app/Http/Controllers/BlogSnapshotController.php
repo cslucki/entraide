@@ -186,7 +186,7 @@ class BlogSnapshotController extends Controller
         $html = preg_replace('/<(\w+)\s[^>]*data\s*:\s*[^"\'>\s]+/i', '<$1', $html);
         $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html);
         $html = preg_replace('/\{\{.*?\}\}/s', '', $html);
-        $html = preg_replace('/<(\w+)[^>]*style\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+        $html = preg_replace('/<(?!col\b|colgroup\b)(\w+)[^>]*style\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
 
         // Step 3 — restore annotation spans from placeholders
         foreach ($annotationSpans as $key => $safeSpan) {
