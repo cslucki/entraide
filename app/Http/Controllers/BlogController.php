@@ -39,6 +39,13 @@ class BlogController extends Controller implements HasMiddleware
         'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code', 'pre',
         'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
         'caption', 'col', 'colgroup',
+        'div', 'iframe',
+    ];
+
+    private const ALLOWED_IFRAME_DOMAINS = [
+        'youtube.com', 'www.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com',
+        'vimeo.com', 'player.vimeo.com',
+        'dailymotion.com', 'www.dailymotion.com',
     ];
 
     public function index(): View
@@ -760,7 +767,12 @@ class BlogController extends Controller implements HasMiddleware
         $html = preg_replace('/<(\w+)\s[^>]*data\s*:\s*[^"\'>\s]+/i', '<$1', $html);
         $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html);
         $html = preg_replace('/\{\{.*?\}\}/s', '', $html);
-        $html = preg_replace('/<(\w+)[^>]*style\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+        $html = $this->stripStyleAttribute($html);
+
+        // Remove iframes pointing to non-approved domains
+        if (str_contains($html, 'iframe')) {
+            $html = $this->filterIframeDomains($html);
+        }
 
         // Step 3 — restore annotation spans from placeholders
         foreach ($annotationSpans as $key => $safeSpan) {
@@ -768,6 +780,57 @@ class BlogController extends Controller implements HasMiddleware
         }
 
         return $html;
+    }
+
+    private function stripStyleAttribute(string $html): string
+    {
+        return preg_replace_callback(
+            '/<(\w+)\b([^>]*)>/i',
+            function (array $match): string {
+                $tag = strtolower($match[1]);
+                $attrs = $match[2];
+                if (in_array($tag, ['col', 'colgroup', 'div'], true)) {
+                    return $match[0];
+                }
+                $attrs = preg_replace('/\s+style\s*=\s*"[^"]*"/i', '', $attrs);
+                $attrs = preg_replace("/\s+style\s*=\s*'[^']*'/i", '', $attrs);
+
+                return '<'.$match[1].$attrs.'>';
+            },
+            $html
+        );
+    }
+
+    private function filterIframeDomains(string $html): string
+    {
+        return preg_replace_callback(
+            '/(<iframe\b[^>]*>)(.*?)(<\/iframe>)/is',
+            function (array $match): string {
+                $openTag = $match[1];
+                $inner = $match[2];
+                $closeTag = $match[3];
+
+                if (preg_match('/\bsrc\s*=\s*"([^"]*)"/i', $openTag, $srcMatch)) {
+                    if (! $this->isAllowedIframeDomain($srcMatch[1])) {
+                        return '';
+                    }
+                }
+
+                return $openTag.$inner.$closeTag;
+            },
+            $html
+        );
+    }
+
+    private function isAllowedIframeDomain(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+        if (! $host) {
+            return false;
+        }
+        $host = strtolower($host);
+
+        return in_array($host, self::ALLOWED_IFRAME_DOMAINS, true);
     }
 
     private function extractAnnotationSpans(string $html, array &$protected): string

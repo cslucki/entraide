@@ -9,6 +9,7 @@ import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Annotation from './tiptap/annotation-mark.js';
+import { MediaEmbed } from './tiptap/media-embed-node.js';
 
 const editors = new WeakMap();
 
@@ -125,6 +126,21 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
             }),
             Table.configure({
                 resizable: true,
+                allowTableNodeSelection: true,
+            }).extend({
+                addAttributes() {
+                    return {
+                        ...this.parent?.() || {},
+                        borderless: {
+                            default: false,
+                            parseHTML: element => element.getAttribute('data-borderless') === 'true',
+                            renderHTML: attributes => {
+                                if (!attributes.borderless) return {};
+                                return { 'data-borderless': 'true' };
+                            },
+                        },
+                    };
+                },
             }),
             TableRow,
             TableCell,
@@ -138,6 +154,7 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
             Annotation.configure({
                 HTMLAttributes: {},
             }),
+            MediaEmbed,
         ],
         content,
         onUpdate: ({ editor: ed }) => {

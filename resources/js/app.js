@@ -1,5 +1,6 @@
 import './bootstrap';
 import { createEditor } from './blog-editor';
+import { extractEmbedUrl } from './tiptap/media-embed-node.js';
 window.createBlogEditor = createEditor;
 
 function registerAlpineStores() {
@@ -411,6 +412,8 @@ function registerBlogEditor() {
         linkUrl: '',
         hasLink: false,
         linkType: 'url',
+        mediaDialogOpen: false,
+        mediaUrl: '',
         errorUpload: '',
         errorAi: '',
         linkPrompt: '',
@@ -546,6 +549,10 @@ function registerBlogEditor() {
                     : '',
                 textColor: editor.getAttributes('textStyle')?.color || null,
                 annotation: editor.isActive('annotation'),
+                table: editor.isActive('table'),
+                tableHeader: editor.isActive('tableHeader'),
+                tableBorderless: editor.isActive('table') ? (editor.getAttributes('table').borderless || false) : false,
+                mediaEmbed: editor.isActive('mediaEmbed'),
             };
         },
 
@@ -583,7 +590,25 @@ function registerBlogEditor() {
                 case 'toggleOrderedList': chain.toggleOrderedList().run(); break;
                 case 'toggleCodeBlock': chain.toggleCodeBlock().run(); break;
                 case 'insertTable': chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
+                case 'addRowBefore': chain.addRowBefore().run(); break;
+                case 'addRowAfter': chain.addRowAfter().run(); break;
+                case 'deleteRow': chain.deleteRow().run(); break;
+                case 'addColumnBefore': chain.addColumnBefore().run(); break;
+                case 'addColumnAfter': chain.addColumnAfter().run(); break;
+                case 'deleteColumn': chain.deleteColumn().run(); break;
+                case 'toggleHeaderRow': chain.toggleHeaderRow().run(); break;
+                case 'toggleHeaderColumn': chain.toggleHeaderColumn().run(); break;
+                case 'mergeCells': chain.mergeCells().run(); break;
+                case 'splitCell': chain.splitCell().run(); break;
+                case 'deleteTable': chain.deleteTable().run(); break;
             }
+            this.updateActiveStates();
+        },
+
+        toggleTableBorderless() {
+            if (!editor || !editor.isActive('table')) return;
+            const attrs = editor.getAttributes('table');
+            editor.chain().focus().updateAttributes('table', { borderless: !attrs.borderless }).run();
             this.updateActiveStates();
         },
 
@@ -593,6 +618,23 @@ function registerBlogEditor() {
             this.linkUrl = editor.getAttributes('link').href || '';
             this.linkType = 'url';
             this.linkPopupOpen = true;
+        },
+
+        openMediaDialog() {
+            if (!editor) return;
+            this.mediaUrl = '';
+            this.mediaDialogOpen = true;
+        },
+
+        applyMedia() {
+            if (!editor || !this.mediaUrl.trim()) return;
+            const embedUrl = extractEmbedUrl(this.mediaUrl.trim());
+            if (embedUrl) {
+                editor.chain().focus().insertMediaEmbed({ src: embedUrl }).run();
+            }
+            this.mediaDialogOpen = false;
+            this.mediaUrl = '';
+            this.updateActiveStates();
         },
 
         applyLink() {

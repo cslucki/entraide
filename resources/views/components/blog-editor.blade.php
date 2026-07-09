@@ -130,6 +130,49 @@
   overflow: visible !important;
 }
 
+.ProseMirror .tableWrapper {
+  overflow-x: auto;
+}
+.ProseMirror .selectedCell {
+  background: rgba(99, 102, 241, 0.08);
+}
+.bp-editor-dark .ProseMirror .selectedCell {
+  background: rgba(99, 102, 241, 0.18);
+}
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 20;
+  background: #6366f1;
+  pointer-events: none;
+}
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+.ProseMirror table[data-borderless] th,
+.ProseMirror table[data-borderless] td {
+  border: none;
+}
+.ProseMirror table[data-borderless] th {
+  background: transparent;
+}
+.bp-editor-dark .ProseMirror table[data-borderless] th {
+  background: transparent;
+}
+
+.ProseMirror div[data-media-embed] {
+  margin: 0.75rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.ProseMirror div[data-media-embed].ProseMirror-selectednode {
+  outline: 2px solid #6366f1;
+  border-radius: 0.5rem;
+}
 </style>
 
 <div
@@ -222,10 +265,68 @@
             class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="{{ __('blog.editor_code') }}">
             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
         </button>
-        <button type="button" @click="exec('insertTable')"
-            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition" title="{{ __('blog.editor_table') }}">
-            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        {{-- Media embed --}}
+        <button type="button" @click="openMediaDialog()" :class="btnClass('mediaEmbed')"
+            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="{{ __('blog.editor_media_embed') }}">
+            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
         </button>
+        {{-- Table dropdown --}}
+        <div x-data="{ tableOpen: false }" class="relative shrink-0" @click.outside="tableOpen = false; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.remove('bp-toolbar-open-dropdown'))">
+            <button type="button" @click="if (activeStates?.table) { tableOpen = !tableOpen; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.toggle('bp-toolbar-open-dropdown', tableOpen)); } else { exec('insertTable'); }"
+                :class="activeStates?.table ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'"
+                class="rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="{{ __('blog.editor_table') }}">
+                <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <svg class="w-3 h-3 inline ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div x-show="tableOpen" x-cloak class="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-[200px]">
+                <button type="button" @click="exec('insertTable'); tableOpen = false" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <svg class="w-3.5 h-3.5 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    {{ __('blog.editor_table_insert') }}
+                </button>
+                <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                <button type="button" @click="exec('addRowBefore'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    {{ __('blog.editor_table_add_row_before') }}
+                </button>
+                <button type="button" @click="exec('addRowAfter'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    {{ __('blog.editor_table_add_row_after') }}
+                </button>
+                <button type="button" @click="exec('deleteRow'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    {{ __('blog.editor_table_delete_row') }}
+                </button>
+                <div class="border-t border-gray-100 dark:border-gray-700 my-1" x-show="activeStates?.table"></div>
+                <button type="button" @click="exec('addColumnBefore'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    {{ __('blog.editor_table_add_col_before') }}
+                </button>
+                <button type="button" @click="exec('addColumnAfter'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    {{ __('blog.editor_table_add_col_after') }}
+                </button>
+                <button type="button" @click="exec('deleteColumn'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    {{ __('blog.editor_table_delete_col') }}
+                </button>
+                <div class="border-t border-gray-100 dark:border-gray-700 my-1" x-show="activeStates?.table"></div>
+                <button type="button" @click="exec('toggleHeaderRow'); tableOpen = false" x-show="activeStates?.table" :class="activeStates?.tableHeader ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="block w-full text-left px-3 py-1.5 text-xs transition">
+                    {{ __('blog.editor_table_toggle_header_row') }}
+                </button>
+                <button type="button" @click="exec('toggleHeaderColumn'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    {{ __('blog.editor_table_toggle_header_col') }}
+                </button>
+                <div class="border-t border-gray-100 dark:border-gray-700 my-1" x-show="activeStates?.table"></div>
+                <button type="button" @click="exec('mergeCells'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    {{ __('blog.editor_table_merge_cells') }}
+                </button>
+                <button type="button" @click="exec('splitCell'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    {{ __('blog.editor_table_split_cell') }}
+                </button>
+                <div class="border-t border-gray-100 dark:border-gray-700 my-1" x-show="activeStates?.table"></div>
+                <button type="button" @click="toggleTableBorderless(); tableOpen = false" x-show="activeStates?.table" :class="activeStates?.tableBorderless ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="block w-full text-left px-3 py-1.5 text-xs transition">
+                    {{ __('blog.editor_table_toggle_borders') }}
+                </button>
+                <div class="border-t border-gray-100 dark:border-gray-700 my-1" x-show="activeStates?.table"></div>
+                <button type="button" @click="exec('deleteTable'); tableOpen = false" x-show="activeStates?.table" class="block w-full text-left px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                    {{ __('blog.editor_table_delete') }}
+                </button>
+            </div>
+        </div>
         <button type="button" @click="triggerImageUpload" title="{{ __('blog.editor_image') }}"
             class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -402,6 +503,30 @@
                         {{ __('blog.editor_apply_link') }}
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Media embed popup --}}
+    <div x-show="mediaDialogOpen" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+        @click.self="mediaDialogOpen = false">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-600 p-4 w-full max-w-sm mx-4" @keydown.escape.window="mediaDialogOpen = false">
+            <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">{{ __('blog.editor_media_embed') }}</h3>
+            <div class="space-y-3">
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('blog.editor_media_embed_hint') }}</p>
+                <input type="text" x-model="mediaUrl" placeholder="{{ __('blog.editor_media_embed_placeholder') }}"
+                    class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+                <button type="button" @click="mediaDialogOpen = false"
+                    class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
+                    {{ __('blog.btn_cancel') }}
+                </button>
+                <button type="button" @click="applyMedia()"
+                    class="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
+                    {{ __('blog.btn_embed') }}
+                </button>
             </div>
         </div>
     </div>

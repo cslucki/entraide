@@ -265,7 +265,7 @@
                 }
                 </script>
                 @endif
-                <div class="max-w-none mb-8 text-gray-800 dark:text-gray-200 leading-relaxed text-base prose prose-sm dark:prose-invert max-w-none [&_img[data-resized]]:!max-w-[70%] [&_pre]:bg-gray-100 [&_pre]:dark:bg-gray-900 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:dark:bg-gray-900 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:p-0">
+                <div class="max-w-none mb-8 text-gray-800 dark:text-gray-200 leading-relaxed text-base prose prose-sm dark:prose-invert max-w-none [&_img[data-resized]]:!max-w-[70%] [&_pre]:bg-gray-100 [&_pre]:dark:bg-gray-900 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:dark:bg-gray-900 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table[data-borderless]_th]:border-none [&_table[data-borderless]_td]:border-none [&_table[data-borderless]_th]:bg-transparent [&_table[data-borderless]_th]:dark:bg-transparent [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:block md:[&_table]:table [&_div[data-media-embed]]:rounded-lg [&_div[data-media-embed]]:overflow-hidden [&_div[data-media-embed]]:my-4 [&_div[data-media-embed]_iframe]:w-full [&_div[data-media-embed]_iframe]:h-full [&_div[data-media-embed]_iframe]:border-0">
                     {!! $postContent !!}
                 </div>
 
