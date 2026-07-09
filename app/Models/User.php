@@ -113,6 +113,25 @@ class User extends Authenticatable
         return $this->name ?? '';
     }
 
+    public function getInitialsAttribute(): string
+    {
+        if ($this->first_name) {
+            $first = strtoupper(mb_substr($this->first_name, 0, 1));
+            $last = strtoupper(mb_substr($this->name, 0, 1));
+
+            return $first.$last;
+        }
+
+        $parts = preg_split('/\s+/', trim($this->name ?? ''));
+        $initials = '';
+
+        foreach (array_slice($parts, 0, 2) as $part) {
+            $initials .= strtoupper(mb_substr($part, 0, 1));
+        }
+
+        return $initials ?: '?';
+    }
+
     public function services(): HasMany
     {
         return $this->hasMany(Service::class);
@@ -200,6 +219,13 @@ class User extends Authenticatable
     public function loopMemberships(): HasMany
     {
         return $this->hasMany(LoopMember::class);
+    }
+
+    public function coAuthoredBlogPosts(): BelongsToMany
+    {
+        return $this->belongsToMany(BlogPost::class, 'blog_post_user')
+            ->withPivot('role', 'added_by')
+            ->withTimestamps();
     }
 
     public function getAvatarUrlAttribute(): string

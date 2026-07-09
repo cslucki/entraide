@@ -5,3 +5,32 @@
 [x-cloak] {
     display: none !important;
 }
+
+/* Blog content heading sizes — published & editor */
+.bp-editor-content .ProseMirror h2,
+.prose h2 {
+    font-size: 1.375rem !important;
+    font-weight: 700 !important;
+    line-height: 1.4 !important;
+}
+
+.bp-editor-content .ProseMirror h3,
+.prose h3 {
+    font-size: 1.125rem !important;
+    font-weight: 600 !important;
+    line-height: 1.45 !important;
+}
+
+.bp-editor-content .ProseMirror h4,
+.prose h4 {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    line-height: 1.5 !important;
+    letter-spacing: 0.01em !important;
+}
+
+.bp-editor-content .ProseMirror p,
+.prose p {
+    font-size: 0.9375rem !important;
+    line-height: 1.65 !important;
+}

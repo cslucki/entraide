@@ -1,5 +1,6 @@
 import './bootstrap';
 import { createEditor } from './blog-editor';
+import { extractEmbedUrl } from './tiptap/media-embed-node.js';
 window.createBlogEditor = createEditor;
 
 function registerAlpineStores() {
@@ -91,12 +92,23 @@ function registerBlogSnapshotCard() {
         toggle() {
             this.open = !this.open;
             localStorage.setItem('editor_sidebar_card_snapshot', this.open ? '1' : '0');
+            if (this.open) {
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
         },
 
         init() {
             const stored = localStorage.getItem('editor_sidebar_card_snapshot');
             if (stored !== null) this.open = stored === '1';
             this.loadHistory();
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_snapshot', '0');
+            });
         },
 
         latestSnapshot() {
@@ -400,11 +412,17 @@ function registerBlogEditor() {
         linkUrl: '',
         hasLink: false,
         linkType: 'url',
+        mediaDialogOpen: false,
+        mediaUrl: '',
         errorUpload: '',
         errorAi: '',
         linkPrompt: '',
         msgGenerateRequire: '',
         msgCorrectRequire: '',
+        msgAnnotationTooShort: '',
+        annotationStoreUrl: '',
+        annotationContentSaveUrl: '',
+        msgAnnotationTooLong: '',
 
         init() {
             const root = this.$root;
@@ -415,13 +433,17 @@ function registerBlogEditor() {
             this.csrfToken = root.dataset.editorCsrf || '';
             this.errorUpload = root.dataset.editorErrorUpload || '';
             this.errorAi = root.dataset.editorErrorAi || '';
+            this.msgAnnotationTooLong = root.dataset.editorAnnotationTooLong || '';
             this.linkPrompt = root.dataset.editorLinkPrompt || 'Link URL:';
             this.msgGenerateRequire = root.dataset.editorGenerateRequire || '';
             this.msgCorrectRequire = root.dataset.editorCorrectRequire || '';
+            this.msgAnnotationTooShort = root.dataset.editorAnnotationTooShort || '';
             this.uploadRoute = root.dataset.routeUpload || '';
             this.aiRemainingRoute = root.dataset.routeAiRemaining || '';
             this.aiGenerateRoute = root.dataset.routeAiGenerate || '';
             this.aiCorrectRoute = root.dataset.routeAiCorrect || '';
+            this.annotationStoreUrl = root.dataset.annotationStoreUrl || '';
+            this.annotationContentSaveUrl = root.dataset.annotationContentSaveUrl || '';
 
             if (typeof createBlogEditor === 'undefined') {
                 this.editorError = true;
@@ -463,6 +485,15 @@ function registerBlogEditor() {
                 if (e.key === 'Escape' && this.fullscreen) {
                     this.fullscreen = false;
                     document.body.style.overflow = '';
+                }
+            });
+
+            this.$el.addEventListener('click', (e) => {
+                const mark = e.target.closest('.bp-annotation-mark[data-annotation-id]');
+                if (mark) {
+                    document.dispatchEvent(new CustomEvent('annotation-selected', {
+                        detail: { id: mark.dataset.annotationId }
+                    }));
                 }
             });
 
@@ -517,14 +548,20 @@ function registerBlogEditor() {
                     : editor.isActive({ textAlign: 'justify' }) ? 'justify'
                     : '',
                 textColor: editor.getAttributes('textStyle')?.color || null,
+                annotation: editor.isActive('annotation'),
+                table: editor.isActive('table'),
+                tableHeader: editor.isActive('tableHeader'),
+                tableBorderless: editor.isActive('table') ? (editor.getAttributes('table').borderless || false) : false,
+                mediaEmbed: editor.isActive('mediaEmbed'),
             };
         },
 
         btnClass(name) {
             if (!this.activeStates) return 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800';
-            return this.activeStates[name]
-                ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
-                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800';
+            if (this.activeStates[name]) {
+                return 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300';
+            }
+            return 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800';
         },
 
         syncHidden() {
@@ -553,7 +590,25 @@ function registerBlogEditor() {
                 case 'toggleOrderedList': chain.toggleOrderedList().run(); break;
                 case 'toggleCodeBlock': chain.toggleCodeBlock().run(); break;
                 case 'insertTable': chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
+                case 'addRowBefore': chain.addRowBefore().run(); break;
+                case 'addRowAfter': chain.addRowAfter().run(); break;
+                case 'deleteRow': chain.deleteRow().run(); break;
+                case 'addColumnBefore': chain.addColumnBefore().run(); break;
+                case 'addColumnAfter': chain.addColumnAfter().run(); break;
+                case 'deleteColumn': chain.deleteColumn().run(); break;
+                case 'toggleHeaderRow': chain.toggleHeaderRow().run(); break;
+                case 'toggleHeaderColumn': chain.toggleHeaderColumn().run(); break;
+                case 'mergeCells': chain.mergeCells().run(); break;
+                case 'splitCell': chain.splitCell().run(); break;
+                case 'deleteTable': chain.deleteTable().run(); break;
             }
+            this.updateActiveStates();
+        },
+
+        toggleTableBorderless() {
+            if (!editor || !editor.isActive('table')) return;
+            const attrs = editor.getAttributes('table');
+            editor.chain().focus().updateAttributes('table', { borderless: !attrs.borderless }).run();
             this.updateActiveStates();
         },
 
@@ -563,6 +618,23 @@ function registerBlogEditor() {
             this.linkUrl = editor.getAttributes('link').href || '';
             this.linkType = 'url';
             this.linkPopupOpen = true;
+        },
+
+        openMediaDialog() {
+            if (!editor) return;
+            this.mediaUrl = '';
+            this.mediaDialogOpen = true;
+        },
+
+        applyMedia() {
+            if (!editor || !this.mediaUrl.trim()) return;
+            const embedUrl = extractEmbedUrl(this.mediaUrl.trim());
+            if (embedUrl) {
+                editor.chain().focus().insertMediaEmbed({ src: embedUrl }).run();
+            }
+            this.mediaDialogOpen = false;
+            this.mediaUrl = '';
+            this.updateActiveStates();
         },
 
         applyLink() {
@@ -795,6 +867,33 @@ function registerBlogEditor() {
             return text.length > 0;
         },
 
+        startEditorAnnotation() {
+            if (!editor) return;
+            const { from, to } = editor.state.selection;
+            if (from === to) return;
+            const text = editor.state.doc.textBetween(from, to, ' ').trim();
+            if (text.length === 0) return;
+            if (text.trim().length < 2) {
+                this.error = this.msgAnnotationTooShort;
+                return;
+            }
+            const words = text.split(/\s+/).filter(Boolean).length;
+            if (words > 80 || text.length > 600) {
+                this.error = this.msgAnnotationTooLong;
+                return;
+            }
+            document.dispatchEvent(new CustomEvent('open-annotation-modal', {
+                detail: {
+                    from,
+                    to,
+                    selectedText: text.substring(0, 200),
+                    storeUrl: this.annotationStoreUrl || '',
+                    contentSaveUrl: this.annotationContentSaveUrl || '',
+                    csrfToken: this.csrfToken || '',
+                },
+            }));
+        },
+
         usedCount(mode) {
             return Math.max(0, this.limits[mode] - this.remaining[mode]);
         },
@@ -810,17 +909,1454 @@ function registerBlogEditor() {
     }));
 }
 
+function registerAnnotationModal() {
+    if (!window.Alpine || window.__annotationModalRegistered) {
+        return;
+    }
+
+    window.__annotationModalRegistered = true;
+
+    Alpine.data('annotationModal', () => ({
+        open: false,
+        mode: 'create',
+        selectedText: '',
+        from: null,
+        to: null,
+        content: '',
+        saving: false,
+        error: '',
+        storeUrl: '',
+        contentSaveUrl: '',
+        updateUrl: '',
+        annotationId: null,
+        csrfToken: '',
+
+        init() {
+            document.addEventListener('open-annotation-modal', (e) => {
+                this.mode = e.detail.mode || 'create';
+                this.selectedText = e.detail.selectedText || '';
+                this.from = e.detail.from || null;
+                this.to = e.detail.to || null;
+                this.storeUrl = e.detail.storeUrl || '';
+                this.contentSaveUrl = e.detail.contentSaveUrl || '';
+                this.csrfToken = e.detail.csrfToken || '';
+                this.content = e.detail.content || '';
+                this.updateUrl = e.detail.updateUrl || '';
+                this.annotationId = e.detail.annotationId || null;
+                this.error = '';
+                this.saving = false;
+                this.open = true;
+            });
+        },
+
+        save() {
+            if (this.saving || !this.content.trim()) return;
+            this.saving = true;
+            this.error = '';
+
+            if (this.mode === 'edit') {
+                fetch(this.updateUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
+                    body: JSON.stringify({ content: this.content.trim() }),
+                })
+                    .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                    .then(({ ok, data }) => {
+                        if (!ok) {
+                            this.error = data.message || 'Failed to update annotation.';
+                            this.saving = false;
+                            return;
+                        }
+                        this.open = false;
+                        this.content = '';
+                        document.dispatchEvent(new CustomEvent('annotation-updated', {
+                            detail: { annotation: data.annotation },
+                        }));
+                    })
+                    .catch(() => {
+                        this.error = 'Communication error.';
+                        this.saving = false;
+                    });
+                return;
+            }
+
+            fetch(this.storeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
+                body: JSON.stringify({
+                    selected_text: this.selectedText,
+                    content: this.content.trim(),
+                }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to create annotation.';
+                        this.saving = false;
+                        return;
+                    }
+
+                    const annotation = data.annotation;
+
+                    if (typeof editor !== 'undefined' && editor && this.from !== null && this.to !== null) {
+                        editor.chain()
+                            .setTextSelection({ from: this.from, to: this.to })
+                            .setAnnotation(annotation.id)
+                            .run();
+
+                        const html = editor.getHTML();
+                        fetch(this.contentSaveUrl, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
+                            body: JSON.stringify({ content: html }),
+                        })
+                            .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                            .then(({ ok }) => {
+                                if (!ok) {
+                                    this._removeMark(annotation.id);
+                                    this.error = 'Failed to save content.';
+                                    this.saving = false;
+                                    return;
+                                }
+
+                                this.open = false;
+                                this.content = '';
+                                document.dispatchEvent(new CustomEvent('annotation-created', {
+                                    detail: { annotation },
+                                }));
+                            })
+                            .catch(() => {
+                                this._removeMark(annotation.id);
+                                this.error = 'Communication error while saving content.';
+                                this.saving = false;
+                            });
+                    } else {
+                        this.open = false;
+                        this.content = '';
+                        document.dispatchEvent(new CustomEvent('annotation-created', {
+                            detail: { annotation },
+                        }));
+                    }
+                })
+                .catch(() => {
+                    this.error = 'Communication error.';
+                    this.saving = false;
+                });
+        },
+
+        _removeMark(id) {
+            if (typeof editor === 'undefined' || !editor) return;
+            const mark = editor.state.schema.marks.annotation;
+            if (!mark) return;
+            const { state } = editor;
+            const tr = state.tr;
+            state.doc.descendants((node, pos) => {
+                if (node.marks.length) {
+                    const m = node.marks.find(m => m.type === mark && m.attrs.annotationId === id);
+                    if (m) {
+                        tr.removeMark(pos, pos + node.nodeSize, mark);
+                    }
+                }
+            });
+            if (tr.steps.length > 0) {
+                editor.view.dispatch(tr);
+            }
+        },
+
+        cancel() {
+            this.open = false;
+            this.content = '';
+            this.selectedText = '';
+            this.from = null;
+            this.to = null;
+            this.error = '';
+        },
+    }));
+}
+
+function registerBlogCoAuthorCard() {
+    if (!window.Alpine || window.__blogCoAuthorCardRegistered) {
+        return;
+    }
+
+    window.__blogCoAuthorCardRegistered = true;
+
+    Alpine.data('blogCoAuthorCard', (config) => ({
+        open: false,
+        coAuthors: [],
+        searchResults: [],
+        loading: false,
+        adding: false,
+        removing: false,
+        searching: false,
+        error: '',
+        success: '',
+        selectedUserId: null,
+        userQuery: '',
+
+        indexUrl: config.indexUrl,
+        storeUrl: config.storeUrl,
+        destroyUrlBase: config.destroyUrlBase,
+        searchUrl: config.searchUrl,
+        isOwner: config.isOwner,
+        isAdmin: config.isAdmin,
+        postOwnerId: config.postOwnerId,
+        i18n: config.i18n || {},
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_coecriture', this.open ? '1' : '0');
+            if (this.open) {
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
+        },
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_coecriture');
+            if (stored !== null) this.open = stored === '1';
+            this.loadCoAuthors();
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_coecriture', '0');
+            });
+        },
+
+        canManage() {
+            return this.isOwner || this.isAdmin;
+        },
+
+        loadCoAuthors() {
+            this.loading = true;
+            this.error = '';
+            fetch(this.indexUrl)
+                .then(r => r.json())
+                .then(data => {
+                    this.coAuthors = data.co_authors;
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.error = this.i18n.loadError || 'Failed to load co-authors.';
+                    this.loading = false;
+                });
+        },
+
+        searchUsers() {
+            const q = (this.userQuery || '').trim();
+            if (!q || q.length < 2) {
+                this.searchResults = [];
+                return;
+            }
+            this.searching = true;
+            fetch(this.searchUrl + '?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(data => {
+                    this.searchResults = (data.users || []).filter(u => {
+                        if (u.id === this.postOwnerId) return false;
+                        return !this.coAuthors.some(c => c.id === u.id);
+                    });
+                    this.searching = false;
+                })
+                .catch(() => {
+                    this.searchResults = [];
+                    this.searching = false;
+                });
+        },
+
+        selectUser(user) {
+            this.selectedUserId = user.id;
+            this.userQuery = user.name;
+            this.searchResults = [];
+        },
+
+        addCoAuthor() {
+            if (!this.selectedUserId || this.adding) return;
+            this.adding = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.storeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ user_id: this.selectedUserId }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.addError || 'Failed to add co-author.';
+                        return;
+                    }
+                    this.coAuthors.push(data.co_author);
+                    this.selectedUserId = null;
+                    this.userQuery = '';
+                    this.success = data.message || this.i18n.added || 'Co-author added.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.addError || 'Failed to add co-author.';
+                })
+                .finally(() => { this.adding = false; });
+        },
+
+        removeCoAuthor(userId) {
+            if (this.removing) return;
+            if (!confirm(this.i18n.confirmRemove || 'Remove this co-author?')) return;
+            this.removing = true;
+            this.error = '';
+            this.success = '';
+            const url = this.destroyUrlBase.replace('__USER_ID__', userId);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.removeError || 'Failed to remove co-author.';
+                        return;
+                    }
+                    this.coAuthors = this.coAuthors.filter(c => c.id !== userId);
+                    this.success = data.message || this.i18n.removed || 'Co-author removed.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.removeError || 'Failed to remove co-author.';
+                })
+                .finally(() => { this.removing = false; });
+        },
+    }));
+}
+
+function registerBlogLoopCard() {
+    if (!window.Alpine || window.__blogLoopCardRegistered) {
+        return;
+    }
+
+    window.__blogLoopCardRegistered = true;
+
+    Alpine.data('blogLoopCard', (config) => ({
+        open: false,
+        saving: false,
+        loading: false,
+        error: '',
+        success: '',
+        selectedLoopId: '',
+
+        storeUrl: config.storeUrl,
+        destroyUrlBase: config.destroyUrlBase,
+        messagesUrl: config.messagesUrl,
+        storeMessageUrlBase: config.storeMessageUrlBase || '',
+        userLoops: config.userLoops || [],
+        linkedLoops: config.linkedLoops || [],
+        i18n: config.i18n || {},
+        messageDrafts: {},
+        sendingMessage: '',
+        _pollInterval: null,
+        _fingerprint: '',
+
+        get availableLoops() {
+            const linkedIds = new Set(this.linkedLoops.map(l => l.id));
+            return this.userLoops.filter(l => !linkedIds.has(l.id));
+        },
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_boucle', this.open ? '1' : '0');
+            if (this.open) {
+                this.loadMessages();
+                this._startPolling();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            } else {
+                this._stopPolling();
+            }
+        },
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_boucle');
+            if (stored !== null) this.open = stored === '1';
+            this.loadMessages();
+            if (this.open) this._startPolling();
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_boucle', '0');
+                this._stopPolling();
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && this.open) {
+                    this.loadMessages({ silent: true });
+                }
+            });
+        },
+
+        _startPolling() {
+            if (this._pollInterval) return;
+            this._pollInterval = setInterval(() => {
+                if (!this.open) return;
+                if (this.sendingMessage) return;
+                this.loadMessages({ silent: true });
+            }, 8000);
+        },
+
+        _stopPolling() {
+            if (this._pollInterval) {
+                clearInterval(this._pollInterval);
+                this._pollInterval = null;
+            }
+        },
+
+        loadMessages(options) {
+            if (this.linkedLoops.length === 0) return;
+            const silent = options && options.silent;
+            if (!silent) this.loading = true;
+            fetch(this.messagesUrl, { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    const raw = JSON.stringify(data.loops || []);
+                    if (silent && raw === this._fingerprint) {
+                        this.loading = false;
+                        return;
+                    }
+                    this._fingerprint = raw;
+                    if (data.loops) {
+                        this.linkedLoops = data.loops;
+                    }
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.loading = false;
+                });
+        },
+
+        linkLoop() {
+            if (!this.selectedLoopId || this.saving) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.storeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ loop_id: this.selectedLoopId }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to link loop.';
+                        return;
+                    }
+                    this.linkedLoops.push({ ...data.loop, messages: [] });
+                    this.selectedLoopId = '';
+                    this.success = data.message || this.i18n.linked || 'Loop linked.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                    this.loadMessages();
+                })
+                .catch(() => {
+                    this.error = 'Failed to link loop.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        unlinkLoop(loopId) {
+            if (this.saving) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            const url = this.destroyUrlBase.replace('__LOOP_ID__', loopId);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to unlink loop.';
+                        return;
+                    }
+                    this.linkedLoops = this.linkedLoops.filter(l => l.id !== loopId);
+                    this.success = data.message || this.i18n.unlinked || 'Loop unlinked.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = 'Failed to unlink loop.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        sendMessage(loopId) {
+            const draft = (this.messageDrafts[loopId] || '').trim();
+            if (!draft || this.sendingMessage) return;
+
+            const tempId = '__pending__' + Date.now();
+            const optimistic = {
+                id: tempId,
+                body: draft,
+                sender_name: '…',
+                created_at_human: "à l'instant",
+                _optimistic: true,
+            };
+
+            this.messageDrafts[loopId] = '';
+            this.linkedLoops = this.linkedLoops.map(l => {
+                if (l.id !== loopId) return l;
+                return { ...l, messages: [...(l.messages || []), optimistic].slice(-3) };
+            });
+            this.sendingMessage = loopId;
+            this.error = '';
+
+            const url = this.storeMessageUrlBase.replace('__LOOP_ID__', loopId);
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ body: draft }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.linkedLoops = this.linkedLoops.map(l => {
+                            if (l.id !== loopId) return l;
+                            return { ...l, messages: (l.messages || []).filter(m => m.id !== tempId) };
+                        });
+                        this.messageDrafts[loopId] = draft;
+                        this.error = data.message || 'Failed to send message.';
+                        return;
+                    }
+                    this.linkedLoops = this.linkedLoops.map(l => {
+                        if (l.id !== loopId) return l;
+                        return { ...l, messages: [...(l.messages || []).filter(m => m.id !== tempId), data.message].slice(-3) };
+                    });
+                    this.loadMessages({ silent: true });
+                })
+                .catch(() => {
+                    this.linkedLoops = this.linkedLoops.map(l => {
+                        if (l.id !== loopId) return l;
+                        return { ...l, messages: (l.messages || []).filter(m => m.id !== tempId) };
+                    });
+                    this.messageDrafts[loopId] = draft;
+                    this.error = 'Failed to send message.';
+                })
+                .finally(() => { this.sendingMessage = ''; });
+        },
+    }));
+}
+
+function registerBlogTodoCard() {
+    if (!window.Alpine || window.__blogTodoCardRegistered) {
+        return;
+    }
+
+    window.__blogTodoCardRegistered = true;
+
+    Alpine.data('blogTodoCard', (config) => ({
+        open: false,
+        loading: false,
+        creating: false,
+        saving: false,
+        error: '',
+        success: '',
+        todos: [],
+        newTitle: '',
+        editingTodo: null,
+        editTitle: '',
+        activeTab: 'todo',
+        threadDrafts: {},
+        threadsOpen: {},
+        sendingThread: false,
+        assignableUsers: config.assignableUsers || [],
+        currentUserId: config.currentUserId || null,
+        newAssignee: config.currentUserId || null,
+        editingAssignee: null,
+        pendingDelete: null,
+
+        indexUrl: config.indexUrl,
+        storeUrl: config.storeUrl,
+        updateUrlBase: config.updateUrlBase,
+        destroyUrlBase: config.destroyUrlBase,
+        threadStoreUrlBase: config.threadStoreUrlBase,
+        threadDestroyUrlBase: config.threadDestroyUrlBase,
+        i18n: config.i18n,
+
+        get filteredTodos() {
+            return this.todos.filter(t => t.status === this.activeTab);
+        },
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_todo', this.open ? '1' : '0');
+            if (this.open) {
+                this.loadTodos();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
+        },
+
+        init() {
+            if (localStorage.getItem('editor_sidebar_card_todo') === '1') {
+                this.open = true;
+                this.loadTodos();
+            }
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_todo', '0');
+            });
+            window.addEventListener('snapshot-restore', () => {
+                if (this.open) this.loadTodos();
+            });
+        },
+
+        isThreadsOpen(todo) {
+            return this.threadsOpen[todo.id] ?? false;
+        },
+
+        toggleThreads(todo) {
+            this.threadsOpen[todo.id] = !(this.threadsOpen[todo.id] ?? false);
+        },
+
+        loadTodos() {
+            this.loading = true;
+            this.error = '';
+            fetch(this.indexUrl, { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    this.todos = (data.todos || []).map(t => ({ ...t, assigned_to: t.assigned_to || '' }));
+                    this.todos.forEach(t => { if (this.threadsOpen[t.id] === undefined) this.threadsOpen[t.id] = false; });
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.error = this.i18n.loadError || 'Failed to load tasks.';
+                    this.loading = false;
+                });
+        },
+
+        createTodo() {
+            const title = this.newTitle.trim();
+            if (!title || this.creating) return;
+            this.creating = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.storeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ title, assigned_to: this.newAssignee }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.createError || 'Failed to create task.';
+                        return;
+                    }
+                    this.todos.push(data.todo);
+                    this.threadsOpen[data.todo.id] = false;
+                    this.activeTab = 'todo';
+                    this.newAssignee = this.currentUserId;
+                    this.newTitle = '';
+                    this.success = data.message || this.i18n.created || 'Task created.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.createError || 'Failed to create task.';
+                })
+                .finally(() => { this.creating = false; });
+        },
+
+        startEdit(todo) {
+            this.editingTodo = todo.id;
+            this.editTitle = todo.title;
+        },
+
+        saveEdit(todo) {
+            const title = this.editTitle.trim();
+            if (!title || this.saving) return;
+            this.saving = true;
+            this.error = '';
+            const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ title }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) this.todos[idx] = data.todo;
+                    this.editingTodo = null;
+                    this.success = data.message || this.i18n.updated;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.updateError || 'Failed to update task.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        changeStatus(todo) {
+            this.error = '';
+            const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ status: todo.status }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
+                        this.loadTodos();
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) this.todos[idx] = data.todo;
+                })
+                .catch(() => {
+                    this.error = this.i18n.updateError || 'Failed to update task.';
+                    this.loadTodos();
+                });
+        },
+
+        toggleDone(todo) {
+            const newStatus = todo.status === 'done' ? 'todo' : 'done';
+            const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
+            this.error = '';
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ status: newStatus }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
+                        this.loadTodos();
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) this.todos[idx] = data.todo;
+                })
+                .catch(() => {
+                    this.error = this.i18n.updateError || 'Failed to update task.';
+                    this.loadTodos();
+                });
+        },
+
+        confirmDeleteTodo(todo) {
+            this.pendingDelete = todo.id;
+        },
+
+        cancelDeleteTodo() {
+            this.pendingDelete = null;
+        },
+
+        doDeleteTodo(todo) {
+            this.pendingDelete = null;
+            this.error = '';
+            const url = this.destroyUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.deleteError || 'Failed to delete task.';
+                        return;
+                    }
+                    this.todos = this.todos.filter(t => t.id !== todo.id);
+                    this.success = data.message || this.i18n.deleted;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.deleteError || 'Failed to delete task.';
+                });
+        },
+
+        startEditAssignee(todo) {
+            this.editingAssignee = todo.id;
+        },
+
+        saveEditAssignee(todo) {
+            this.editingAssignee = null;
+            this.error = '';
+            const assignedTo = todo.assigned_to || null;
+            const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ assigned_to: assignedTo }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.notOwner || this.i18n.assignError || 'Failed to update assignee.';
+                        this.loadTodos();
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) this.todos[idx] = data.todo;
+                })
+                .catch(() => {
+                    this.error = this.i18n.assignError || 'Failed to update assignee.';
+                    this.loadTodos();
+                });
+        },
+
+        addThread(todo) {
+            const body = (this.threadDrafts[todo.id] || '').trim();
+            if (!body || this.sendingThread) return;
+            this.sendingThread = true;
+            const url = this.threadStoreUrlBase.replace('__TODO_ID__', todo.id);
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ body }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.threadError || 'Failed to add comment.';
+                        return;
+                    }
+                    this.threadDrafts[todo.id] = '';
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1) {
+                        if (!this.todos[idx].threads) this.todos[idx].threads = [];
+                        this.todos[idx].threads.push(data.thread);
+                    }
+                    this.threadsOpen[todo.id] = true;
+                    this.success = data.message || this.i18n.threadAdded;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.threadError || 'Failed to add comment.';
+                })
+                .finally(() => { this.sendingThread = false; });
+        },
+
+        deleteThread(todo, thread) {
+            this.error = '';
+            const url = this.threadDestroyUrlBase
+                .replace('__TODO_ID__', todo.id)
+                .replace('__THREAD_ID__', thread.id);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.threadDeleteError || 'Failed to delete comment.';
+                        return;
+                    }
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx !== -1 && this.todos[idx].threads) {
+                        this.todos[idx].threads = this.todos[idx].threads.filter(t => t.id !== thread.id);
+                    }
+                })
+                .catch(() => {
+                    this.error = this.i18n.threadDeleteError || 'Failed to delete comment.';
+                });
+        },
+    }));
+}
+
+window.blogAnnotationCard = function (config) {
+    return {
+        isOpen: false,
+        annotations: [],
+        loading: false,
+        saving: false,
+        error: '',
+        success: '',
+        filterTab: 'open',
+        selectedAnnotationId: null,
+        deletedFeedbackAnnotationId: null,
+        replyContents: {},
+        replySaving: false,
+        replyEditingId: null,
+        replyEditContent: '',
+        pendingDeleteAnnotationId: null,
+        pendingDeleteReplyId: null,
+        pendingDeleteReplyParentId: null,
+        _pollInterval: null,
+        _fingerprint: '',
+
+        indexUrl: config.indexUrl,
+        updateUrlBase: config.updateUrlBase,
+        destroyUrlBase: config.destroyUrlBase,
+        resolveUrlBase: config.resolveUrlBase,
+        replyStoreUrlBase: config.replyStoreUrlBase || '',
+        replyUpdateUrlBase: config.replyUpdateUrlBase || '',
+        replyDestroyUrlBase: config.replyDestroyUrlBase || '',
+        i18n: config.i18n || {},
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_annotations');
+            if (stored !== null) this.isOpen = stored === '1';
+            this.loadAnnotations();
+            if (this.isOpen) this._startPolling();
+
+            document.addEventListener('annotation-selected', (e) => {
+                this.selectAnnotation(e.detail.id);
+            });
+
+            document.addEventListener('annotation-created', () => {
+                this.loadAnnotations();
+            });
+
+            document.addEventListener('annotation-updated', () => {
+                this.loadAnnotations();
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && this.isOpen) {
+                    this.loadAnnotations();
+                }
+            });
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.isOpen = false;
+                localStorage.setItem('editor_sidebar_card_annotations', '0');
+                this._stopPolling();
+            });
+        },
+
+        _startPolling() {
+            if (this._pollInterval) return;
+            this._pollInterval = setInterval(() => {
+                if (!this.isOpen) return;
+                if (this.replyEditingId) return;
+                this.loadAnnotations({ silent: true });
+            }, 8000);
+        },
+
+        _stopPolling() {
+            if (this._pollInterval) {
+                clearInterval(this._pollInterval);
+                this._pollInterval = null;
+            }
+        },
+
+        get filteredAnnotations() {
+            if (this.filterTab === 'open') {
+                return this.annotations.filter(a => a.status === 'open');
+            }
+            return this.annotations.filter(a => a.status === 'resolved');
+        },
+
+        toggle() {
+            this.isOpen = !this.isOpen;
+            localStorage.setItem('editor_sidebar_card_annotations', this.isOpen ? '1' : '0');
+            if (this.isOpen) {
+                this.loadAnnotations();
+                this._startPolling();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            } else {
+                this._stopPolling();
+            }
+        },
+
+        loadAnnotations(options) {
+            const silent = options && options.silent;
+            if (!silent) this.loading = true;
+            this.error = '';
+            fetch(this.indexUrl, { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    const raw = JSON.stringify(data.annotations || []);
+                    if (silent && raw === this._fingerprint) {
+                        this.loading = false;
+                        return;
+                    }
+                    this._fingerprint = raw;
+                    this.annotations = data.annotations || [];
+                    this._computeOrphaned();
+                    this.annotations.forEach(a => { this.replyContents[a.id] = this.replyContents[a.id] || ''; });
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.error = this.i18n.loadError || 'Failed to load annotations.';
+                    this.loading = false;
+                });
+        },
+
+        editAnnotation(annotation) {
+            document.dispatchEvent(new CustomEvent('open-annotation-modal', {
+                detail: {
+                    mode: 'edit',
+                    annotationId: annotation.id,
+                    selectedText: annotation.selected_text,
+                    content: annotation.content,
+                    updateUrl: this.updateUrlBase.replace('__ANNOTATION_ID__', annotation.id),
+                    csrfToken: this.i18n.csrfToken || '',
+                },
+            }));
+        },
+
+        askDeleteAnnotation(id) {
+            this.pendingDeleteAnnotationId = id;
+        },
+        cancelDeleteAnnotation() {
+            this.pendingDeleteAnnotationId = null;
+        },
+        confirmDeleteAnnotation() {
+            const id = this.pendingDeleteAnnotationId;
+            this.pendingDeleteAnnotationId = null;
+            if (!id) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            const url = this.destroyUrlBase.replace('__ANNOTATION_ID__', id);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.deleteError || 'Failed to delete annotation.';
+                        return;
+                    }
+                    this.annotations = this.annotations.filter(a => a.id !== id);
+                    if (this.selectedAnnotationId === id) {
+                        this.selectedAnnotationId = null;
+                    }
+                    if (typeof editor !== 'undefined' && editor) {
+                        const { state } = editor;
+                        const mark = state.schema.marks.annotation;
+                        if (mark) {
+                            const { tr } = state;
+                            state.doc.descendants((node, pos) => {
+                                if (node.marks.length) {
+                                    const m = node.marks.find(m => m.type === mark && m.attrs.annotationId === id);
+                                    if (m) {
+                                        tr.removeMark(pos, pos + node.nodeSize, mark);
+                                    }
+                                }
+                            });
+                            if (tr.steps.length > 0) {
+                                editor.view.dispatch(tr);
+                            }
+                        }
+                    }
+                    this.success = data.message || this.i18n.deleted || 'Annotation deleted.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.deleteError || 'Failed to delete annotation.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        resolveAnnotation(id) {
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            const url = this.resolveUrlBase.replace('__ANNOTATION_ID__', id);
+            fetch(url, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.resolveError || 'Failed to resolve annotation.';
+                        return;
+                    }
+                    const idx = this.annotations.findIndex(a => a.id === id);
+                    if (idx !== -1) {
+                        this.annotations[idx] = data.annotation;
+                    }
+                    this.success = data.message || this.i18n.resolved || 'Annotation resolved.';
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.resolveError || 'Failed to resolve annotation.';
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        selectAnnotation(id) {
+            this.selectedAnnotationId = id;
+            this.deletedFeedbackAnnotationId = null;
+            const marks = document.querySelectorAll(`[data-annotation-id="${id}"]`);
+            document.querySelectorAll('.bp-annotation-highlight').forEach(el => {
+                el.classList.remove('bp-annotation-highlight');
+            });
+            if (marks.length === 0) {
+                this.deletedFeedbackAnnotationId = id;
+                setTimeout(() => { if (this.deletedFeedbackAnnotationId === id) this.deletedFeedbackAnnotationId = null; }, 3000);
+            } else {
+                marks.forEach(mark => {
+                    mark.classList.add('bp-annotation-highlight');
+                    mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
+            }
+            const card = document.querySelector(`[data-annotation-card-id="${id}"]`);
+            if (card) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        },
+
+        _computeOrphaned() {
+            const editorEl = document.querySelector('.ProseMirror');
+            if (!editorEl) return;
+            const html = editorEl.innerHTML;
+            this.annotations.forEach(a => {
+                a._orphaned = !html.includes(`data-annotation-id="${a.id}"`);
+            });
+        },
+
+        getReplyStoreUrl(annotationId) {
+            return this.replyStoreUrlBase.replace('__ANNOTATION_ID__', annotationId);
+        },
+
+        getReplyUpdateUrl(annotationId, replyId) {
+            return this.replyUpdateUrlBase
+                .replace('__ANNOTATION_ID__', annotationId)
+                .replace('__REPLY_ID__', replyId);
+        },
+
+        getReplyDestroyUrl(annotationId, replyId) {
+            return this.replyDestroyUrlBase
+                .replace('__ANNOTATION_ID__', annotationId)
+                .replace('__REPLY_ID__', replyId);
+        },
+
+        submitReply(annotationId) {
+            const text = (this.replyContents[annotationId] || '').trim();
+            if (!text) return;
+            this.replySaving = true;
+            this.error = '';
+            const url = this.getReplyStoreUrl(annotationId);
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ content: text }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to add reply.';
+                        return;
+                    }
+                    this.replyContents[annotationId] = '';
+                    this.loadAnnotations();
+                })
+                .catch(() => {
+                    this.error = 'Failed to add reply.';
+                })
+                .finally(() => { this.replySaving = false; });
+        },
+
+        askDeleteReply(annotationId, replyId) {
+            this.pendingDeleteReplyId = replyId;
+            this.pendingDeleteReplyParentId = annotationId;
+        },
+        cancelDeleteReply() {
+            this.pendingDeleteReplyId = null;
+            this.pendingDeleteReplyParentId = null;
+        },
+        confirmDeleteReply() {
+            const replyId = this.pendingDeleteReplyId;
+            const annotationId = this.pendingDeleteReplyParentId;
+            this.pendingDeleteReplyId = null;
+            this.pendingDeleteReplyParentId = null;
+            if (!replyId) return;
+            this.replySaving = true;
+            this.error = '';
+            const url = this.getReplyDestroyUrl(annotationId, replyId);
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to delete reply.';
+                        return;
+                    }
+                    this.loadAnnotations();
+                })
+                .catch(() => {
+                    this.error = 'Failed to delete reply.';
+                })
+                .finally(() => { this.replySaving = false; });
+        },
+
+        editReply(reply) {
+            this.replyEditingId = reply.id;
+            this.replyEditContent = reply.content;
+        },
+
+        cancelReplyEdit() {
+            this.replyEditingId = null;
+            this.replyEditContent = '';
+        },
+
+        updateReply(annotationId) {
+            const text = this.replyEditContent.trim();
+            if (!text || this.replySaving) return;
+            this.replySaving = true;
+            this.error = '';
+            const url = this.getReplyUpdateUrl(annotationId, this.replyEditingId);
+            fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ content: text }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || 'Failed to update reply.';
+                        return;
+                    }
+                    this.replyEditingId = null;
+                    this.replyEditContent = '';
+                    this.loadAnnotations();
+                })
+                .catch(() => {
+                    this.error = 'Failed to update reply.';
+                })
+                .finally(() => { this.replySaving = false; });
+        },
+
+        refreshDocument() {
+            location.reload();
+        },
+    };
+};
+
+function registerBlogPlanCard() {
+    if (!window.Alpine || window.__blogPlanCardRegistered) {
+        return;
+    }
+
+    window.__blogPlanCardRegistered = true;
+
+    Alpine.data('blogPlanCard', (config) => ({
+        open: false,
+        loading: false,
+        error: '',
+        success: '',
+        headings: [],
+        showToc: false,
+        i18n: config.i18n,
+        _debounceTimer: null,
+        _editorUpdateHandler: null,
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_plan', this.open ? '1' : '0');
+            if (this.open) {
+                this.extractHeadings();
+                this._startListening();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            } else {
+                this._stopListening();
+            }
+        },
+
+        init() {
+            this.showToc = config.showToc === true;
+            if (localStorage.getItem('editor_sidebar_card_plan') === '1') {
+                this.open = true;
+                this.extractHeadings();
+                this.$nextTick(() => this._startListening());
+            }
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                this._stopListening();
+                localStorage.setItem('editor_sidebar_card_plan', '0');
+            });
+        },
+
+        _startListening() {
+            this._stopListening();
+            if (typeof editor === 'undefined' || !editor) return;
+            const self = this;
+            this._editorUpdateHandler = () => {
+                if (self._debounceTimer) clearTimeout(self._debounceTimer);
+                self._debounceTimer = setTimeout(() => {
+                    self.extractHeadings();
+                }, 300);
+            };
+            editor.on('update', this._editorUpdateHandler);
+        },
+
+        _stopListening() {
+            if (typeof editor !== 'undefined' && editor && this._editorUpdateHandler) {
+                editor.off('update', this._editorUpdateHandler);
+            }
+        },
+        extractHeadings() {
+            if (typeof editor === 'undefined' || !editor) {
+                this.headings = [];
+                return;
+            }
+            this.loading = true;
+            this.error = '';
+            this.success = '';
+
+            const flatHeadings = [];
+            editor.state.doc.descendants((node, pos) => {
+                if (node.type.name === 'heading') {
+                    const level = node.attrs.level || 1;
+                    const text = node.textContent.trim();
+                    if (!text) return;
+                    const baseId = 'heading-' + text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                    flatHeadings.push({ level, text, id: baseId, pos, collapsed: false, parentCollapsed: false, children: [] });
+                }
+            });
+
+            const tree = [];
+            const stack = [];
+            flatHeadings.forEach((h) => {
+                while (stack.length > 0 && stack[stack.length - 1].level >= h.level) {
+                    stack.pop();
+                }
+                if (stack.length > 0) {
+                    stack[stack.length - 1].children.push(h);
+                    h.parentCollapsed = stack[stack.length - 1].collapsed || stack[stack.length - 1].parentCollapsed;
+                }
+                tree.push(h);
+                stack.push(h);
+            });
+
+            this.headings = tree;
+            this.loading = false;
+        },
+        toggleCollapse(h) {
+            h.collapsed = !h.collapsed;
+            this._updateParentCollapsed();
+            this.headings = Array.from(this.headings);
+        },
+
+        expandAll() {
+            const expand = (items) => {
+                items.forEach((h) => {
+                    h.collapsed = false;
+                    h.parentCollapsed = false;
+                    if (h.children && h.children.length > 0) expand(h.children);
+                });
+            };
+            expand(this.headings);
+            this.headings = Array.from(this.headings);
+        },
+
+        collapseAll() {
+            const collapse = (items) => {
+                items.forEach((h) => {
+                    if (h.children && h.children.length > 0) {
+                        h.collapsed = true;
+                        collapse(h.children);
+                    }
+                });
+            };
+            collapse(this.headings);
+            this._updateParentCollapsed();
+            this.headings = Array.from(this.headings);
+        },
+
+        _updateParentCollapsed() {
+            const visited = new Set();
+            const propagate = (items, parentCollapsed) => {
+                items.forEach((h) => {
+                    if (visited.has(h)) return;
+                    visited.add(h);
+                    h.parentCollapsed = parentCollapsed;
+                    if (h.children && h.children.length > 0) {
+                        propagate(h.children, parentCollapsed || h.collapsed);
+                    }
+                });
+            };
+            propagate(this.headings, false);
+        },
+
+        scrollToHeading(id) {
+            if (typeof editor === 'undefined' || !editor) return;
+            const heading = this.headings.find((h) => h.id === id);
+            if (!heading) return;
+            const dom = editor.view.nodeDOM(heading.pos);
+            if (dom) {
+                dom.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (dom.focus) dom.focus({ preventScroll: true });
+            } else {
+                const coords = editor.view.coordsAtPos(heading.pos);
+                if (coords) {
+                    window.scrollTo({ top: coords.top - 100, behavior: 'smooth' });
+                }
+            }
+        },
+
+        toggleShowToc() {
+            this.error = '';
+            this.success = '';
+            const formData = new FormData();
+            formData.append('_token', config.csrfToken);
+            formData.append('_method', 'PATCH');
+            formData.append('show_toc', this.showToc ? '1' : '0');
+
+            fetch(config.planUrl, {
+                method: 'POST',
+                body: formData,
+                headers: { Accept: 'application/json' },
+            })
+                .then((r) => {
+                    if (!r.ok) throw new Error('Request failed');
+                    return r.json();
+                })
+                .then((data) => {
+                    this.success = data.message || (this.showToc ? 'Plan visible' : 'Plan masqué');
+                })
+                .catch(() => {
+                    this.showToc = !this.showToc;
+                    this.error = this.i18n.updateError || 'Update failed.';
+                });
+        },
+    }));
+}
+
+if (window.Alpine) {
+    Alpine.data('blogAnnotationCard', window.blogAnnotationCard);
+}
+
 let editor = null;
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();
     registerBlogSnapshotCard();
     registerBlogEditor();
+    registerAnnotationModal();
+    registerBlogCoAuthorCard();
+    registerBlogLoopCard();
+    registerBlogTodoCard();
+    registerBlogPlanCard();
 });
 
 registerAlpineStores();
 registerBlogSnapshotCard();
 registerBlogEditor();
+registerAnnotationModal();
+registerBlogCoAuthorCard();
+registerBlogLoopCard();
+registerBlogTodoCard();
+registerBlogPlanCard();
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {

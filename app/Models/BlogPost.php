@@ -33,12 +33,14 @@ class BlogPost extends Model
         'read_time',
         'meta_title',
         'meta_description',
+        'show_toc',
     ];
 
     protected $casts = [
         'published_at' => 'datetime',
         'views_count' => 'integer',
         'read_time' => 'integer',
+        'show_toc' => 'boolean',
     ];
 
     protected static function booted(): void
@@ -86,6 +88,29 @@ class BlogPost extends Model
     public function snapshots(): HasMany
     {
         return $this->hasMany(BlogSnapshot::class);
+    }
+
+    public function coAuthors(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'blog_post_user')
+            ->withPivot('role', 'added_by')
+            ->withTimestamps();
+    }
+
+    public function annotations(): HasMany
+    {
+        return $this->hasMany(BlogPostAnnotation::class);
+    }
+
+    public function loops(): BelongsToMany
+    {
+        return $this->belongsToMany(Loop::class, 'blog_post_loop')
+            ->withTimestamps();
+    }
+
+    public function todos(): HasMany
+    {
+        return $this->hasMany(BlogTodo::class);
     }
 
     public function isLikedBy(?User $user): bool

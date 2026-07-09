@@ -6,8 +6,11 @@ use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\BlogSnapshot;
 use App\Models\Category;
+use App\Models\LoopMember;
 use App\Models\Tag;
 use App\Services\BlogAiService;
+use DOMDocument;
+use DOMXPath;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +39,13 @@ class BlogController extends Controller implements HasMiddleware
         'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code', 'pre',
         'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
         'caption', 'col', 'colgroup',
+        'div', 'iframe',
+    ];
+
+    private const ALLOWED_IFRAME_DOMAINS = [
+        'youtube.com', 'www.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com',
+        'vimeo.com', 'player.vimeo.com',
+        'dailymotion.com', 'www.dailymotion.com',
     ];
 
     public function index(): View
@@ -150,7 +160,42 @@ class BlogController extends Controller implements HasMiddleware
 
         $isLiked = auth()->check() && $post->isLikedBy(auth()->user());
 
-        return view('blog.show', compact('post', 'relatedPosts', 'isLiked'));
+        $headers = [];
+        $postContent = $post->content;
+
+        if ($post->show_toc) {
+            $dom = new DOMDocument;
+            $dom->preserveWhiteSpace = false;
+            $dom->formatOutput = false;
+            libxml_use_internal_errors(true);
+            $dom->loadHTML('<?xml encoding="utf-8" ?>'.$postContent, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+            libxml_clear_errors();
+
+            $xpath = new DOMXPath($dom);
+            $headingNodes = $xpath->query('//h2 | //h3 | //h4');
+
+            if ($headingNodes && $headingNodes->length > 0) {
+                $headingCounts = [];
+                foreach ($headingNodes as $node) {
+                    $rawText = $node->textContent;
+                    $baseId = 'heading-'.Str::slug($rawText);
+                    $headingCounts[$baseId] = ($headingCounts[$baseId] ?? 0) + 1;
+                    $id = $headingCounts[$baseId] > 1 ? $baseId.'-'.$headingCounts[$baseId] : $baseId;
+
+                    $node->setAttribute('id', $id);
+
+                    $headers[] = [
+                        'level' => (int) $node->tagName[1],
+                        'text' => $rawText,
+                        'id' => $id,
+                    ];
+                }
+
+                $postContent = $dom->saveHTML();
+            }
+        }
+
+        return view('blog.show', compact('post', 'relatedPosts', 'isLiked', 'headers', 'postContent'));
     }
 
     public function orgShow(string $org, BlogPost $post): View
@@ -229,7 +274,17 @@ class BlogController extends Controller implements HasMiddleware
         $categories = Category::where('organization_id', $organization->id)->orderBy('name_b2c')->get();
         $tags = Tag::orderBy('name')->get();
 
-        return view('blog.edit', compact('organization', 'post', 'categories', 'tags'));
+        $userLoops = LoopMember::where('user_id', auth()->id())
+            ->where('status', 'active')
+            ->with('loop')
+            ->get()
+            ->pluck('loop')
+            ->filter(fn ($l) => $l && $l->organization_id === $organization->id)
+            ->values();
+
+        $postLoops = $post->loops()->get();
+
+        return view('blog.edit', compact('organization', 'post', 'categories', 'tags', 'userLoops', 'postLoops'));
     }
 
     public function orgEdit(string $org, BlogPost $post): View
@@ -267,6 +322,8 @@ class BlogController extends Controller implements HasMiddleware
         }
 
         unset($data['remove_image']);
+
+        $data['show_toc'] = $request->boolean('show_toc');
 
         $post->update($data);
 
@@ -326,6 +383,58 @@ class BlogController extends Controller implements HasMiddleware
         return $this->destroy($post);
     }
 
+    public function saveContent(Request $request, BlogPost $post): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $post);
+
+        $data = $request->validate([
+            'content' => 'required|string',
+        ]);
+
+        $post->update([
+            'content' => $this->sanitizeHtml($data['content']),
+        ]);
+
+        return response()->json(['message' => __('blog.content_saved')]);
+    }
+
+    public function orgSaveContent(Request $request, string $org, BlogPost $post): JsonResponse
+    {
+        return $this->saveContent($request, $post);
+    }
+
+    public function updatePlan(Request $request, BlogPost $post): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $post);
+
+        $data = $request->validate([
+            'show_toc' => 'required|boolean',
+        ]);
+
+        $post->update(['show_toc' => $data['show_toc']]);
+
+        $message = $data['show_toc']
+            ? __('blog.plan_visible')
+            : __('blog.plan_hidden');
+
+        return response()->json(['message' => $message]);
+    }
+
+    public function orgUpdatePlan(string $org, BlogPost $post): JsonResponse
+    {
+        return $this->updatePlan(request(), $post);
+    }
+
     public function myPosts(): View
     {
         $organization = currentOrganization();
@@ -333,27 +442,51 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
-        $drafts = BlogPost::where('user_id', auth()->id())
+        $user = auth()->user();
+
+        $drafts = BlogPost::where('user_id', $user->id)
             ->where('organization_id', $organization->id)
             ->whereIn('status', ['draft', 'pending'])
-            ->withCount(['comments', 'likes'])
+            ->with(['user', 'coAuthors'])
+            ->withCount(['comments', 'likes', 'coAuthors'])
             ->latest()
-            ->paginate(15, ['*'], 'drafts');
+            ->paginate(15, ['*'], 'drafts_page');
 
-        $publishedPosts = BlogPost::where('user_id', auth()->id())
+        $publishedPosts = BlogPost::where('user_id', $user->id)
             ->where('organization_id', $organization->id)
             ->where('status', 'published')
-            ->withCount(['comments', 'likes'])
+            ->with(['user', 'coAuthors'])
+            ->withCount(['comments', 'likes', 'coAuthors'])
             ->latest()
-            ->paginate(15, ['*'], 'published');
+            ->paginate(15, ['*'], 'published_page');
 
-        $comments = BlogComment::where('user_id', auth()->id())
+        $coAuthorIds = $user->coAuthoredBlogPosts()
+            ->where('organization_id', $organization->id)
+            ->pluck('blog_posts.id');
+
+        $ownedWithCoAuthorIds = BlogPost::where('user_id', $user->id)
+            ->where('organization_id', $organization->id)
+            ->whereHas('coAuthors')
+            ->pluck('id');
+
+        $allCollaborativeIds = $coAuthorIds->merge($ownedWithCoAuthorIds)->unique()->values();
+
+        $coAuthoredPosts = BlogPost::whereIn('id', $allCollaborativeIds)
+            ->where('organization_id', $organization->id)
+            ->with(['user', 'coAuthors'])
+            ->withCount(['comments', 'likes', 'coAuthors'])
+            ->latest()
+            ->paginate(15, ['*'], 'coauthored_page');
+
+        $comments = BlogComment::where('user_id', $user->id)
             ->whereHas('post', fn ($q) => $q->where('organization_id', $organization->id))
             ->with('post')
             ->latest()
-            ->paginate(15, ['*'], 'comments');
+            ->paginate(15, ['*'], 'comments_page');
 
-        return view('blog.my-posts', compact('drafts', 'publishedPosts', 'comments'));
+        return view('blog.my-posts', compact(
+            'drafts', 'publishedPosts', 'coAuthoredPosts', 'comments', 'user'
+        ));
     }
 
     public function orgMyPosts(string $org): View
@@ -621,8 +754,12 @@ class BlogController extends Controller implements HasMiddleware
 
     private function sanitizeHtml(string $html): string
     {
-        $allowed = self::ALLOWED_HTML_TAGS;
+        // Step 1 — extract valid annotation spans as safe placeholders
+        $annotationSpans = [];
+        $html = $this->extractAnnotationSpans($html, $annotationSpans);
 
+        // Step 2 — standard sanitization (span is NOT in allowed tags)
+        $allowed = self::ALLOWED_HTML_TAGS;
         $html = strip_tags($html, '<'.implode('><', $allowed).'>');
 
         $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
@@ -630,8 +767,106 @@ class BlogController extends Controller implements HasMiddleware
         $html = preg_replace('/<(\w+)\s[^>]*data\s*:\s*[^"\'>\s]+/i', '<$1', $html);
         $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html);
         $html = preg_replace('/\{\{.*?\}\}/s', '', $html);
+        $html = $this->stripStyleAttribute($html);
 
-        $html = preg_replace('/<(\w+)[^>]*style\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+        // Remove iframes pointing to non-approved domains
+        if (str_contains($html, 'iframe')) {
+            $html = $this->filterIframeDomains($html);
+        }
+
+        // Step 3 — restore annotation spans from placeholders
+        foreach ($annotationSpans as $key => $safeSpan) {
+            $html = str_replace($key, $safeSpan, $html);
+        }
+
+        return $html;
+    }
+
+    private function stripStyleAttribute(string $html): string
+    {
+        return preg_replace_callback(
+            '/<(\w+)\b([^>]*)>/i',
+            function (array $match): string {
+                $tag = strtolower($match[1]);
+                $attrs = $match[2];
+                if (in_array($tag, ['col', 'colgroup', 'div'], true)) {
+                    return $match[0];
+                }
+                $attrs = preg_replace('/\s+style\s*=\s*"[^"]*"/i', '', $attrs);
+                $attrs = preg_replace("/\s+style\s*=\s*'[^']*'/i", '', $attrs);
+
+                return '<'.$match[1].$attrs.'>';
+            },
+            $html
+        );
+    }
+
+    private function filterIframeDomains(string $html): string
+    {
+        return preg_replace_callback(
+            '/(<iframe\b[^>]*>)(.*?)(<\/iframe>)/is',
+            function (array $match): string {
+                $openTag = $match[1];
+                $inner = $match[2];
+                $closeTag = $match[3];
+
+                if (preg_match('/\bsrc\s*=\s*"([^"]*)"/i', $openTag, $srcMatch)) {
+                    if (! $this->isAllowedIframeDomain($srcMatch[1])) {
+                        return '';
+                    }
+                }
+
+                return $openTag.$inner.$closeTag;
+            },
+            $html
+        );
+    }
+
+    private function isAllowedIframeDomain(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+        if (! $host) {
+            return false;
+        }
+        $host = strtolower($host);
+
+        return in_array($host, self::ALLOWED_IFRAME_DOMAINS, true);
+    }
+
+    private function extractAnnotationSpans(string $html, array &$protected): string
+    {
+        $previous = null;
+
+        while ($previous !== $html) {
+            $previous = $html;
+            $html = preg_replace_callback(
+                '/<span\b([^>]*)>((?:(?!<\/?span\b).)*)<\/span>/is',
+                function (array $match) use (&$protected): string {
+                    $attrs = $match[1];
+                    $inner = $match[2];
+
+                    if (preg_match('/data-annotation-id\s*=\s*"([^"]+)"/i', $attrs, $idMatch)) {
+                        $id = $idMatch[1];
+                        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id)) {
+                            $classMatch = [];
+                            $hasClass = preg_match('/class\s*=\s*"([^"]*)"/i', $attrs, $classMatch);
+                            $classes = $hasClass ? preg_split('/\s+/', trim($classMatch[1])) : [];
+                            if (in_array('bp-annotation-mark', $classes, true)) {
+                                $openKey = '@@@BPAO_'.count($protected).'@@@';
+                                $closeKey = '@@@BPAC_'.count($protected).'@@@';
+                                $protected[$openKey] = '<span data-annotation-id="'.$id.'" class="bp-annotation-mark">';
+                                $protected[$closeKey] = '</span>';
+
+                                return $openKey.$inner.$closeKey;
+                            }
+                        }
+                    }
+
+                    return $inner;
+                },
+                $html
+            );
+        }
 
         return $html;
     }
@@ -659,6 +894,7 @@ class BlogController extends Controller implements HasMiddleware
             'tags' => ['nullable', 'string'],
             'meta_title' => ['nullable', 'string', 'max:255'],
             'meta_description' => ['nullable', 'string', 'max:320'],
+            'show_toc' => ['nullable', 'boolean'],
         ], [
             'title.required' => __('blog.validation_title_required'),
             'summary.required' => __('blog.validation_summary_required'),

@@ -24,11 +24,28 @@ class BlogPostPolicy
             return true;
         }
 
+        if (! $this->resourceBelongsToCurrentOrganization($post)) {
+            return false;
+        }
+
+        if ($user->id === $post->user_id) {
+            return true;
+        }
+
+        return $post->coAuthors()->where('user_id', $user->id)->exists();
+    }
+
+    public function delete(User $user, BlogPost $post): bool
+    {
+        if ($user->is_admin) {
+            return true;
+        }
+
         return $this->resourceBelongsToCurrentOrganization($post)
             && $user->id === $post->user_id;
     }
 
-    public function delete(User $user, BlogPost $post): bool
+    public function manageCoAuthors(User $user, BlogPost $post): bool
     {
         if ($user->is_admin) {
             return true;

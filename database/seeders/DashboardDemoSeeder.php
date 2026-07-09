@@ -270,7 +270,7 @@ class DashboardDemoSeeder extends Seeder
             'title' => 'Creative Coding Workshop',
             'description' => 'hands-on workshop exploring the intersection of art and code. Learn generative art, interactive installations, and creative expression through programming.',
             'category_id' => ($this->categories['formation'] ?? $this->fallbackCategory())->id,
-            'delivery_mode' => 'in_person',
+            'delivery_mode' => 'onsite',
             'points_cost' => 120,
         ]);
 

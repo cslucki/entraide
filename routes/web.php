@@ -34,9 +34,14 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\BlogAnnotationController;
+use App\Http\Controllers\BlogAnnotationReplyController;
+use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogPostLoopController;
 use App\Http\Controllers\BlogSnapshotController;
+use App\Http\Controllers\BlogTodoController;
 use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExplorerController;
@@ -112,10 +117,48 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
     Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
 
+    // Blog annotation endpoints (root)
+    Route::get('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'index'])->name('blog.annotations.index');
+    Route::post('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'store'])->name('blog.annotations.store');
+    Route::put('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'update'])->name('blog.annotations.update');
+    Route::delete('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'destroy'])->name('blog.annotations.destroy');
+    Route::patch('/blog/{post:slug}/annotations/{annotation}/resolve', [BlogAnnotationController::class, 'resolve'])->name('blog.annotations.resolve');
+
+    // Blog annotation reply endpoints (root)
+    Route::get('/blog/{post:slug}/annotations/{annotation}/replies', [BlogAnnotationReplyController::class, 'index'])->name('blog.annotations.replies.index');
+    Route::post('/blog/{post:slug}/annotations/{annotation}/replies', [BlogAnnotationReplyController::class, 'store'])->name('blog.annotations.replies.store');
+    Route::put('/blog/{post:slug}/annotations/{annotation}/replies/{reply}', [BlogAnnotationReplyController::class, 'update'])->name('blog.annotations.replies.update');
+    Route::delete('/blog/{post:slug}/annotations/{annotation}/replies/{reply}', [BlogAnnotationReplyController::class, 'destroy'])->name('blog.annotations.replies.destroy');
+
+    Route::put('/blog/{post:slug}/content', [BlogController::class, 'saveContent'])->name('blog.save-content');
+
     // Blog snapshot endpoints
     Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'store'])->name('blog.snapshots.store');
     Route::get('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'index'])->name('blog.snapshots.index');
     Route::post('/blog/{post:slug}/snapshots/{snapshot}/restore', [BlogSnapshotController::class, 'restore'])->name('blog.snapshots.restore');
+
+    // Blog loop endpoints
+    Route::post('/blog/{post:slug}/loops', [BlogPostLoopController::class, 'store'])->name('blog.loops.store');
+    Route::delete('/blog/{post:slug}/loops/{loop}', [BlogPostLoopController::class, 'destroy'])->name('blog.loops.destroy');
+    Route::get('/blog/{post:slug}/loop-messages', [BlogPostLoopController::class, 'messages'])->name('blog.loops.messages');
+    Route::post('/blog/{post:slug}/loops/{loop}/messages', [BlogPostLoopController::class, 'storeMessage'])->name('blog.loops.messages.store');
+
+    // Blog co-author endpoints
+    Route::get('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'index'])->name('blog.co-authors.index');
+    Route::post('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'store'])->name('blog.co-authors.store');
+    Route::delete('/blog/{post:slug}/co-authors/{user}', [BlogCoAuthorController::class, 'destroy'])->name('blog.co-authors.destroy');
+    Route::get('/blog/{post:slug}/co-authors/search', [BlogCoAuthorController::class, 'search'])->name('blog.co-authors.search');
+
+    // Blog todo endpoints
+    Route::get('/blog/{post:slug}/todos', [BlogTodoController::class, 'index'])->name('blog.todos.index');
+    Route::post('/blog/{post:slug}/todos', [BlogTodoController::class, 'store'])->name('blog.todos.store');
+    Route::put('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'update'])->name('blog.todos.update');
+    Route::delete('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'destroy'])->name('blog.todos.destroy');
+    Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'threadStore'])->name('blog.todos.threads.store');
+    Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'threadDestroy'])->name('blog.todos.threads.destroy');
+
+    // Blog plan endpoint
+    Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
 });
 
 // Blog — wildcard slug EN DERNIER
@@ -587,10 +630,48 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/ai-remaining', [BlogController::class, 'orgAiRemaining'])->name('blog.ai-remaining');
                 Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->name('blog.create-draft');
 
+                // Blog annotation endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'orgIndex'])->name('blog.annotations.index');
+                Route::post('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'orgStore'])->name('blog.annotations.store');
+                Route::put('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'orgUpdate'])->name('blog.annotations.update');
+                Route::delete('/blog/{post:slug}/annotations/{annotation}', [BlogAnnotationController::class, 'orgDestroy'])->name('blog.annotations.destroy');
+                Route::patch('/blog/{post:slug}/annotations/{annotation}/resolve', [BlogAnnotationController::class, 'orgResolve'])->name('blog.annotations.resolve');
+
+                // Blog annotation reply endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/annotations/{annotation}/replies', [BlogAnnotationReplyController::class, 'orgIndex'])->name('blog.annotations.replies.index');
+                Route::post('/blog/{post:slug}/annotations/{annotation}/replies', [BlogAnnotationReplyController::class, 'orgStore'])->name('blog.annotations.replies.store');
+                Route::put('/blog/{post:slug}/annotations/{annotation}/replies/{reply}', [BlogAnnotationReplyController::class, 'orgUpdate'])->name('blog.annotations.replies.update');
+                Route::delete('/blog/{post:slug}/annotations/{annotation}/replies/{reply}', [BlogAnnotationReplyController::class, 'orgDestroy'])->name('blog.annotations.replies.destroy');
+
+                Route::put('/blog/{post:slug}/content', [BlogController::class, 'orgSaveContent'])->name('blog.save-content');
+
                 // Blog snapshot endpoints (org-scoped)
                 Route::post('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'orgStore'])->name('blog.snapshots.store');
                 Route::get('/blog/{post:slug}/snapshots', [BlogSnapshotController::class, 'orgIndex'])->name('blog.snapshots.index');
                 Route::post('/blog/{post:slug}/snapshots/{snapshot}/restore', [BlogSnapshotController::class, 'orgRestore'])->name('blog.snapshots.restore');
+
+                // Blog loop endpoints (org-scoped)
+                Route::post('/blog/{post:slug}/loops', [BlogPostLoopController::class, 'orgStore'])->name('blog.loops.store');
+                Route::delete('/blog/{post:slug}/loops/{loop}', [BlogPostLoopController::class, 'orgDestroy'])->name('blog.loops.destroy');
+                Route::get('/blog/{post:slug}/loop-messages', [BlogPostLoopController::class, 'orgMessages'])->name('blog.loops.messages');
+                Route::post('/blog/{post:slug}/loops/{loop}/messages', [BlogPostLoopController::class, 'orgStoreMessage'])->name('blog.loops.messages.store');
+
+                // Blog co-author endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'orgIndex'])->name('blog.co-authors.index');
+                Route::post('/blog/{post:slug}/co-authors', [BlogCoAuthorController::class, 'orgStore'])->name('blog.co-authors.store');
+                Route::delete('/blog/{post:slug}/co-authors/{user}', [BlogCoAuthorController::class, 'orgDestroy'])->name('blog.co-authors.destroy');
+                Route::get('/blog/{post:slug}/co-authors/search', [BlogCoAuthorController::class, 'orgSearch'])->name('blog.co-authors.search');
+
+                // Blog todo endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/todos', [BlogTodoController::class, 'orgIndex'])->name('blog.todos.index');
+                Route::post('/blog/{post:slug}/todos', [BlogTodoController::class, 'orgStore'])->name('blog.todos.store');
+                Route::put('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'orgUpdate'])->name('blog.todos.update');
+                Route::delete('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'orgDestroy'])->name('blog.todos.destroy');
+                Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'orgThreadStore'])->name('blog.todos.threads.store');
+                Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'orgThreadDestroy'])->name('blog.todos.threads.destroy');
+
+                // Blog plan endpoint (org-scoped)
+                Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'orgUpdatePlan'])->name('blog.plan.update');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');

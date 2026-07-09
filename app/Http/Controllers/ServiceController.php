@@ -104,7 +104,7 @@ class ServiceController extends Controller
         }
 
         if (! empty($data['tags'])) {
-            $tagNames = array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 5);
+            $tagNames = array_slice(array_filter(array_map(fn ($t) => ltrim(trim($t), '#'), explode(',', $data['tags']))), 0, 10);
             $tagIds = [];
             foreach ($tagNames as $name) {
                 $slug = Str::slug($name);
@@ -194,7 +194,7 @@ class ServiceController extends Controller
         $service->skills()->syncWithPivotValues($data['skills'] ?? [], ['organization_id' => $service->organization_id]);
 
         if (isset($data['tags'])) {
-            $tagNames = array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 5);
+            $tagNames = array_slice(array_filter(array_map(fn ($t) => ltrim(trim($t), '#'), explode(',', $data['tags']))), 0, 10);
             $tagIds = [];
             foreach ($tagNames as $name) {
                 $slug = Str::slug($name);

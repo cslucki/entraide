@@ -10,20 +10,21 @@
     @endphp
     <x-slot name="title">{{ __('blog.title_edit', ['title' => $post->title]) }}</x-slot>
 
+    @php
+        $backRouteName = $post->status === 'published' ? 'show' : 'my-posts';
+        $backLabel = $post->status === 'published' ? __('blog.back_to_article') : __('blog.back_to_my_articles');
+    @endphp
+
     <div class="max-w-7xl mx-auto px-4 py-8">
 
         <div class="mb-6">
-            <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← {{ __('blog.back_to_article') }}</a>
+            <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← {{ $backLabel }}</a>
         </div>
 
         {{-- Editor layout: main panel + resize handle + sidebar --}}
         <div class="flex flex-col md:flex-row gap-0"
              x-data="{
-                cards: [
-                    { key: 'boucle', label: @js(__('blog.sidebar_boucle')), open: false, placeholder: @js(__('blog.sidebar_boucle_placeholder')) },
-                    { key: 'coecriture', label: @js(__('blog.sidebar_co_ecriture')), open: false, placeholder: @js(__('blog.sidebar_co_ecriture_placeholder')) },
-                    { key: 'annotations', label: @js(__('blog.sidebar_annotations')), open: true, placeholder: @js(__('blog.sidebar_annotations_placeholder')) },
-                ],
+                cards: [],
                 width: 280,
                 resizing: false,
 
@@ -74,7 +75,7 @@
             {{-- Main article panel --}}
             <div class="flex-1 min-w-0">
 
-                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
                     <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('blog.heading_edit') }}</h1>
 
             <form action="{{ $_blogRoute('update', ['post' => $post]) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
@@ -111,6 +112,8 @@
                         :route-ai-correct="$_blogRoute('ai-correct')"
                         :route-ai-remaining="$_blogRoute('ai-remaining')"
                         :route-upload="$_blogRoute('upload-image')"
+                        :route-annotation-store="$_blogRoute('annotations.store', ['post' => $post])"
+                        :route-annotation-content-save="$_blogRoute('save-content', ['post' => $post])"
                     />
                     @error('content')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -224,22 +227,24 @@
                     <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
                         {{ __('blog.btn_save') }}
                     </button>
-                    <a href="{{ $_blogRoute('show', ['post' => $post]) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         {{ __('blog.btn_cancel') }}
                     </a>
                 </div>
             </form>
 
-            {{-- Formulaire de suppression EN DEHORS du formulaire principal --}}
-            <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                <form action="{{ $_blogRoute('destroy', ['post' => $post]) }}" method="POST"
-                      onsubmit="return confirm('{{ __('blog.confirm_delete_post') }}')">
-                    @csrf @method('DELETE')
-                    <button type="submit" class="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
-                        {{ __('blog.btn_delete_post') }}
-                    </button>
-                </form>
-            </div>
+            @can('delete', $post)
+                {{-- Formulaire de suppression EN DEHORS du formulaire principal --}}
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                    <form action="{{ $_blogRoute('destroy', ['post' => $post]) }}" method="POST"
+                          onsubmit="return confirm('{{ __('blog.confirm_delete_post') }}')">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
+                            {{ __('blog.btn_delete_post') }}
+                        </button>
+                    </form>
+                </div>
+            @endcan
         </div>
     </div>
 
@@ -254,27 +259,888 @@
         :style="`width: ${width}px`"
         class="flex w-full shrink-0 flex-col space-y-2 md:w-auto"
     >
-        {{-- Generic cards (boucle, coecriture, annotations) --}}
-        <template x-for="card in cards" :key="card.key">
-            <div class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
-                <button
-                    @click="toggle(card.key)"
-                    class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                {{-- Boucle card --}}
+                <div
+                    x-data="blogLoopCard({
+                        storeUrl: @js($_blogRoute('loops.store', ['post' => $post])),
+                        destroyUrlBase: @js($_blogRoute('loops.destroy', ['post' => $post, 'loop' => '__LOOP_ID__'])),
+                        messagesUrl: @js($_blogRoute('loops.messages', ['post' => $post])),
+                        storeMessageUrlBase: @js($_blogRoute('loops.messages.store', ['post' => $post, 'loop' => '__LOOP_ID__'])),
+                        userLoops: @js($userLoops->map(fn ($l) => ['id' => $l->id, 'name' => $l->name, 'slug' => $l->slug])->values()->toArray()),
+                        linkedLoops: @js($postLoops->map(fn ($l) => ['id' => $l->id, 'name' => $l->name, 'slug' => $l->slug])->values()->toArray()),
+                        i18n: {
+                            noLoops: @js(__('blog.loop_no_loops')),
+                            noLinked: @js(__('blog.loop_no_linked_loops')),
+                            selectPlaceholder: @js(__('blog.loop_select')),
+                            link: @js(__('blog.loop_link')),
+                            unlink: @js(__('blog.loop_unlink')),
+                            noMessages: @js(__('blog.loop_no_messages')),
+                            viewDiscussion: @js(__('blog.loop_view_discussion')),
+                            linked: @js(__('blog.loop_linked')),
+                            unlinked: @js(__('blog.loop_unlinked')),
+                            csrfToken: @js(csrf_token()),
+                            messagePlaceholder: @js(__('blog.loop_message_placeholder')),
+                            messageSend: @js(__('blog.loop_message_send')),
+                            messageSending: @js(__('blog.loop_message_sending')),
+                            messageReadonly: @js(__('blog.loop_message_readonly')),
+                        },
+                    })"
+                    class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 >
-                    <span x-text="card.label"></span>
-                    <svg
-                        class="w-3 h-3 transition-transform"
-                        :class="{ 'rotate-180': card.open }"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                    <button
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
                     >
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                            <span>{{ __('blog.sidebar_boucle') }}</span>
+                        </span>
+                        <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="{ 'rotate-180': open }"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+                        <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                        <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                        {{-- Linked loops list --}}
+                        <template x-if="!loading && linkedLoops.length === 0 && userLoops.length === 0">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noLoops"></p>
+                        </template>
+
+                        <template x-for="loop in linkedLoops" :key="loop.id">
+                            <div class="rounded-lg border border-indigo-100 bg-indigo-50/60 p-2 dark:border-indigo-900/60 dark:bg-indigo-950/10">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="loop.name"></span>
+                                    <button type="button" @click="unlinkLoop(loop.id)"
+                                        class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition disabled:opacity-50"
+                                        :disabled="saving">
+                                        <span x-text="i18n.unlink"></span>
+                                    </button>
+                                </div>
+                                {{-- Recent messages --}}
+                                <template x-if="loop.messages && loop.messages.length">
+                                    <div class="mt-1.5 space-y-1">
+                                        <template x-for="msg in loop.messages" :key="msg.id">
+                                            <div class="rounded bg-white/80 px-1.5 py-1 text-[10px] dark:bg-gray-900/60">
+                                                <div class="flex items-baseline gap-1">
+                                                    <span class="font-semibold text-gray-700 dark:text-gray-300" x-text="msg.sender_name"></span>
+                                                    <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="'· ' + msg.created_at_human"></span>
+                                                </div>
+                                                <span class="text-gray-600 dark:text-gray-400" x-text="msg.body.length > 80 ? msg.body.slice(0, 80) + '…' : msg.body"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="!loop.messages || !loop.messages.length">
+                                    <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-500 italic" x-text="i18n.noMessages"></p>
+                                </template>
+                                <a :href="loop.discussionUrl" target="_blank"
+                                    class="mt-1 inline-block text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                    x-text="i18n.viewDiscussion"></a>
+
+                                {{-- Message composer --}}
+                                <template x-if="loop.is_member">
+                                    <div class="mt-2 flex gap-1.5">
+                                        <input type="text"
+                                            x-model="messageDrafts[loop.id]"
+                                            :placeholder="i18n.messagePlaceholder"
+                                            @keydown.enter="sendMessage(loop.id)"
+                                            class="flex-1 min-w-0 px-2 py-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                        >
+                                        <button type="button"
+                                            @click="sendMessage(loop.id)"
+                                            :disabled="sendingMessage === loop.id || !(messageDrafts[loop.id] || '').trim()"
+                                            class="shrink-0 px-2 py-1 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                        >
+                                            <span x-text="sendingMessage === loop.id ? i18n.messageSending : i18n.messageSend"></span>
+                                        </button>
+                                    </div>
+                                </template>
+                                <template x-if="!loop.is_member">
+                                    <p class="mt-1.5 text-[10px] text-gray-400 dark:text-gray-500 italic" x-text="i18n.messageReadonly"></p>
+                                </template>
+                            </div>
+                        </template>
+
+                        {{-- Link form --}}
+                        <template x-if="userLoops.length > 0">
+                            <div class="border-t border-gray-100 dark:border-gray-700 pt-3">
+                                <div class="flex gap-2">
+                                    <select x-model="selectedLoopId"
+                                        class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500">
+                                        <option value="" x-text="i18n.selectPlaceholder"></option>
+                                        <template x-for="l in availableLoops" :key="l.id">
+                                            <option :value="l.id" x-text="l.name"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" @click="linkLoop()" :disabled="saving || !selectedLoopId"
+                                        class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                                        <span x-text="i18n.link"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {{-- /Boucle card --}}
+
+                {{-- Todo card --}}
+                <div
+                    x-data="blogTodoCard({
+                        indexUrl: @js($_blogRoute('todos.index', ['post' => $post])),
+                        storeUrl: @js($_blogRoute('todos.store', ['post' => $post])),
+                        updateUrlBase: @js($_blogRoute('todos.update', ['post' => $post, 'todo' => '__TODO_ID__'])),
+                        destroyUrlBase: @js($_blogRoute('todos.destroy', ['post' => $post, 'todo' => '__TODO_ID__'])),
+                        threadStoreUrlBase: @js($_blogRoute('todos.threads.store', ['post' => $post, 'todo' => '__TODO_ID__'])),
+                        threadDestroyUrlBase: @js($_blogRoute('todos.threads.destroy', ['post' => $post, 'todo' => '__TODO_ID__', 'thread' => '__THREAD_ID__'])),
+                        assignableUsers: @js(
+                            collect([['id' => $post->user_id, 'name' => $post->user->full_name]])
+                                ->merge($post->coAuthors->map(fn($u) => ['id' => $u->id, 'name' => $u->full_name]))
+                                ->unique('id')
+                                ->values()
+                                ->toArray()
+                        ),
+                        currentUserId: @js(auth()->id()),
+                        i18n: {
+                            title: @js(__('blog.todo_title')),
+                            empty: @js(__('blog.todo_empty')),
+                            create: @js(__('blog.todo_create')),
+                            placeholder: @js(__('blog.todo_placeholder')),
+                            statusTodo: @js(__('blog.todo_status_todo')),
+                            statusInProgress: @js(__('blog.todo_status_in_progress')),
+                            statusDone: @js(__('blog.todo_status_done')),
+                            assign: @js(__('blog.todo_assign')),
+                            unassigned: @js(__('blog.todo_unassigned')),
+                            created: @js(__('blog.todo_created')),
+                            updated: @js(__('blog.todo_updated')),
+                            deleted: @js(__('blog.todo_deleted')),
+                            notOwner: @js(__('blog.todo_not_owner')),
+                            threadPlaceholder: @js(__('blog.todo_thread_placeholder')),
+                            threadAdd: @js(__('blog.todo_thread_add')),
+                            threadAdded: @js(__('blog.todo_thread_added')),
+                            confirmDelete: @js(__('blog.todo_confirm_delete')),
+                            loadError: @js(__('blog.todo_load_error')),
+                            createError: @js(__('blog.todo_create_error')),
+                            updateError: @js(__('blog.todo_update_error')),
+                            deleteError: @js(__('blog.todo_delete_error')),
+                            assignError: @js(__('blog.todo_assign_error')),
+                            threadError: @js(__('blog.todo_thread_error')),
+                            threadDeleteError: @js(__('blog.todo_thread_delete_error')),
+                            hideComments: @js(__('blog.todo_hide_comments')),
+                            showComments: @js(__('blog.todo_show_comments')),
+                            addComment: @js(__('blog.todo_add_comment')),
+                            csrfToken: @js(csrf_token()),
+                        },
+                    })"
+                    class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-orange-500 dark:text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                            <span>{{ __('blog.sidebar_todo') }}</span>
+                        </span>
+                        <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="{ 'rotate-180': open }"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                        ><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-3 pb-3 space-y-2 max-h-[min(26rem,calc(100vh-8rem))] overflow-y-auto">
+                        <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                        <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                        {{-- Create form --}}
+                        <div class="flex gap-1.5">
+                            <input type="text"
+                                x-model="newTitle"
+                                :placeholder="i18n.placeholder"
+                                @keydown.enter="createTodo()"
+                                class="flex-1 min-w-0 px-2 py-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                            <button type="button"
+                                @click="createTodo()"
+                                :disabled="creating || !newTitle.trim()"
+                                class="shrink-0 px-2 py-1 text-[10px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                x-text="i18n.create"
+                            ></button>
+                        </div>
+                        {{-- Assignee picker --}}
+                        <div class="flex gap-1.5 items-center">
+                            <span class="text-[9px] text-gray-400 shrink-0">{{ __('blog.todo_assign') }}</span>
+                            <select x-model="newAssignee"
+                                class="flex-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
+                            >
+                                <template x-for="u in assignableUsers" :key="u.id">
+                                    <option :value="u.id" x-text="u.name"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        {{-- Tabs --}}
+                        <div class="flex gap-1 border-b border-gray-200 dark:border-gray-700 pb-1">
+                            <template x-for="tab in ['todo','in_progress','done']" :key="tab">
+                                <button type="button"
+                                    @click="activeTab = tab"
+                                    class="px-2 py-0.5 text-[10px] font-medium rounded transition"
+                                    :class="activeTab === tab
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                                    x-text="tab === 'todo' ? i18n.statusTodo : (tab === 'in_progress' ? i18n.statusInProgress : i18n.statusDone)"
+                                ></button>
+                            </template>
+                        </div>
+
+                        {{-- Loading --}}
+                        <div x-show="loading" class="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+                            <span>Loading…</span>
+                        </div>
+
+                        {{-- Empty state --}}
+                        <template x-if="!loading && filteredTodos.length === 0">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-4" x-text="i18n.empty"></p>
+                        </template>
+
+                        {{-- Todo list --}}
+                        <template x-for="todo in filteredTodos" :key="todo.id">
+                            <div class="rounded border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-2 space-y-1" :class="{ 'opacity-60': todo.status === 'done' }">
+                                <div class="flex items-start gap-1.5">
+                                    {{-- Checkbox done/todo --}}
+                                    <input type="checkbox"
+                                        :checked="todo.status === 'done'"
+                                        @change="toggleDone(todo)"
+                                        class="mt-0.5 shrink-0 w-3 h-3 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                    >
+                                    <div class="flex-1 min-w-0">
+                                        {{-- Title --}}
+                                        <template x-if="editingTodo !== todo.id">
+                                            <span class="block text-xs font-medium break-words cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+                                                :class="todo.status === 'done' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-gray-100'"
+                                                @click="startEdit(todo)"
+                                                x-text="todo.title"
+                                            ></span>
+                                        </template>
+                                        <template x-if="editingTodo === todo.id">
+                                            <input type="text"
+                                                x-model="editTitle"
+                                                @keydown.enter="saveEdit(todo)"
+                                                @keydown.escape="editingTodo = null"
+                                                @click.away="saveEdit(todo)"
+                                                class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                                            >
+                                        </template>
+                                        {{-- Assigned to --}}
+                                        <div class="text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">
+                                            <template x-if="editingAssignee !== todo.id">
+                                                <button type="button" @click="startEditAssignee(todo)" class="hover:text-gray-600 dark:hover:text-gray-300 transition text-left">
+                                                    <span x-text="todo.assigned_to_name ? (i18n.assign + ' ' + todo.assigned_to_name) : i18n.unassigned"></span>
+                                                </button>
+                                            </template>
+                                            <template x-if="editingAssignee === todo.id">
+                                                <select x-model="todo.assigned_to"
+                                                    @change="saveEditAssignee(todo)"
+                                                    @click.away="editingAssignee = null"
+                                                    class="text-[9px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1 max-w-full"
+                                                >
+                                                    <option value="" x-text="i18n.unassigned"></option>
+                                                    <template x-for="u in assignableUsers" :key="u.id">
+                                                        <option :value="u.id" x-text="u.name"></option>
+                                                    </template>
+                                                </select>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    {{-- Actions --}}
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        {{-- Status cycle --}}
+                                        <select x-model="todo.status"
+                                            @change="changeStatus(todo)"
+                                            class="text-[9px] border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
+                                        >
+                                            <option value="todo" x-text="i18n.statusTodo"></option>
+                                            <option value="in_progress" x-text="i18n.statusInProgress"></option>
+                                            <option value="done" x-text="i18n.statusDone"></option>
+                                        </select>
+                                        {{-- Delete with inline confirmation --}}
+                                        <template x-if="pendingDelete !== todo.id">
+                                            <button type="button" @click="confirmDeleteTodo(todo)"
+                                                class="text-[9px] text-red-400 hover:text-red-600 transition"
+                                                title="Delete"
+                                            >
+                                                <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </template>
+                                        <template x-if="pendingDelete === todo.id">
+                                            <div class="flex items-center gap-1">
+                                                <button type="button" @click="doDeleteTodo(todo)"
+                                                    class="text-[9px] font-semibold text-white bg-red-500 hover:bg-red-600 px-1.5 py-0.5 rounded transition"
+                                                    x-text="i18n.confirmDelete"
+                                                ></button>
+                                                <button type="button" @click="cancelDeleteTodo()"
+                                                    class="text-[9px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
+                                                >
+                                                    <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                </button>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                {{-- Thread section --}}
+                                <div class="mt-1 pt-1 border-t border-gray-100 dark:border-gray-700">
+                                    {{-- Thread toggle header --}}
+                                    <button type="button" @click="toggleThreads(todo)"
+                                        class="flex items-center gap-1 w-full text-left text-[9px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition py-0.5"
+                                    >
+                                        <svg class="w-2.5 h-2.5 transition-transform duration-150"
+                                            :class="{ 'rotate-90': isThreadsOpen(todo) }"
+                                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                                        ><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                        <span x-text="(todo.threads && todo.threads.length) ? (isThreadsOpen(todo) ? i18n.hideComments : i18n.showComments.replace(':count', todo.threads.length)) : i18n.addComment"></span>
+                                    </button>
+                                    {{-- Thread content (collapsed by default) --}}
+                                    <div x-show="isThreadsOpen(todo)" x-cloak class="space-y-1 mt-1">
+                                        <template x-if="todo.threads && todo.threads.length">
+                                            <div class="space-y-1 mb-1.5">
+                                                <template x-for="thr in todo.threads" :key="thr.id">
+                                                    <div class="flex items-start justify-between gap-1 rounded bg-white/80 dark:bg-gray-900/60 px-1.5 py-1">
+                                                        <div class="flex-1 min-w-0">
+                                                            <span class="text-[9px] font-semibold text-gray-700 dark:text-gray-300" x-text="thr.sender_name"></span>
+                                                            <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="'· ' + thr.created_at_human"></span>
+                                                            <p class="text-[10px] text-gray-600 dark:text-gray-400 break-words" x-text="thr.body"></p>
+                                                        </div>
+                                                        <button type="button" @click="deleteThread(todo, thr)"
+                                                            class="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 shrink-0 transition"
+                                                            title="Delete comment"
+                                                        >
+                                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                        </button>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <div class="flex gap-1">
+                                            <input type="text"
+                                                x-model="threadDrafts[todo.id]"
+                                                :placeholder="i18n.threadPlaceholder"
+                                                @keydown.enter="addThread(todo)"
+                                                class="flex-1 min-w-0 px-1.5 py-0.5 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                            >
+                                            <button type="button"
+                                                @click="addThread(todo)"
+                                                :disabled="sendingThread || !(threadDrafts[todo.id] || '').trim()"
+                                                class="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                                x-text="i18n.threadAdd"
+                                            ></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {{-- /Todo card --}}
+
+                {{-- Plan card --}}
+                <div
+                    x-data="blogPlanCard({
+                        csrfToken: @js(csrf_token()),
+                        planUrl: @js($_blogRoute('plan.update', ['post' => $post])),
+                        showToc: @json($post->show_toc),
+                        i18n: {
+                            title: @js(__('blog.plan_title')),
+                            empty: @js(__('blog.plan_empty')),
+                            toggle: @js(__('blog.plan_toggle')),
+                            collapse: @js(__('blog.plan_collapse')),
+                            expand: @js(__('blog.plan_expand')),
+                            collapseAll: @js(__('blog.plan_collapse_all')),
+                            expandAll: @js(__('blog.plan_expand_all')),
+                            loading: @js(__('blog.plan_loading')),
+                            updateError: @js(__('blog.plan_update_error')),
+                        },
+                    }                    )"
+                    class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button type="button"
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                            <span>{{ __('blog.sidebar_plan') }}</span>
+                        </span>
+                        <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="{ 'rotate-180': open }"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+                        <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                        <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                        <template x-if="loading">
+                            <p class="text-xs text-gray-400 text-center py-4" x-text="i18n.loading"></p>
+                        </template>
+
+                        <template x-if="!loading && headings.length === 0">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.empty"></p>
+                        </template>
+
+                        <template x-if="!loading && headings.length > 0">
+                            <div>
+                                <div class="mt-1 mb-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" x-model="showToc" @change="toggleShowToc"
+                                            class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                                        >
+                                        <span class="text-xs text-gray-600 dark:text-gray-400" x-text="i18n.toggle"></span>
+                                    </label>
+                                </div>
+
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-xs text-gray-400" x-text="headings.length + ' heading' + (headings.length !== 1 ? 's' : '')"></span>
+                                    <span class="text-xs text-gray-300">·</span>
+                                    <button type="button" @click="expandAll()" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.expandAll"></button>
+                                    <span class="text-xs text-gray-300">|</span>
+                                    <button type="button" @click="collapseAll()" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.collapseAll"></button>
+                                </div>
+
+                                <ul class="space-y-0.5">
+                                    <template x-for="(h, i) in headings" :key="i">
+                                        <li x-show="!h.parentCollapsed">
+                                            <a :href="'#' + h.id"
+                                               :style="{ paddingLeft: ((h.level - 1) * 12) + 'px' }"
+                                               class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition py-0.5 truncate"
+                                               @click.prevent="scrollToHeading(h.id)"
+                                            >
+                                                <template x-if="h.children && h.children.length > 0">
+                                                    <span @click.prevent.stop="toggleCollapse(h)" class="shrink-0 w-3 h-3 flex items-center justify-center cursor-pointer hover:text-indigo-500">
+                                                        <svg class="w-2.5 h-2.5 transition-transform" :class="{ 'rotate-90': !h.collapsed }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                                    </span>
+                                                </template>
+                                                <template x-if="!h.children || h.children.length === 0">
+                                                    <span class="shrink-0 w-3 h-3"></span>
+                                                </template>
+                                                <span class="truncate" x-text="h.text"></span>
+                                            </a>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {{-- /Plan card --}}
+
+                {{-- Annotations card --}}
+                <div
+                    x-data="blogAnnotationCard({
+                        indexUrl: @js($_blogRoute('annotations.index', ['post' => $post])),
+                        updateUrlBase: @js($_blogRoute('annotations.update', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
+                        destroyUrlBase: @js($_blogRoute('annotations.destroy', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
+                        resolveUrlBase: @js($_blogRoute('annotations.resolve', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
+                        replyStoreUrlBase: @js($_blogRoute('annotations.replies.store', ['post' => $post, 'annotation' => '__ANNOTATION_ID__'])),
+                        replyUpdateUrlBase: @js($_blogRoute('annotations.replies.update', ['post' => $post, 'annotation' => '__ANNOTATION_ID__', 'reply' => '__REPLY_ID__'])),
+                        replyDestroyUrlBase: @js($_blogRoute('annotations.replies.destroy', ['post' => $post, 'annotation' => '__ANNOTATION_ID__', 'reply' => '__REPLY_ID__'])),
+                        i18n: {
+                            openTab: @js(__('blog.open_annotations')),
+                            resolvedTab: @js(__('blog.resolved_annotations')),
+                            save: @js(__('blog.save')),
+                            cancel: @js(__('blog.btn_cancel')),
+                            edit: @js(__('blog.edit_annotation')),
+                            delete: @js(__('blog.delete_annotation')),
+                            resolve: @js(__('blog.resolve_annotation')),
+                            resolved: @js(__('blog.annotation_resolved')),
+                            deleted: @js(__('blog.annotation_deleted')),
+                            updated: @js(__('blog.annotation_updated')),
+                            noOpen: @js(__('blog.no_open_annotations')),
+                            noResolved: @js(__('blog.no_resolved_annotations')),
+                            confirmDelete: @js(__('blog.confirm_delete_annotation')),
+                            badgeDeleted: @js(__('blog.annotation_badge_deleted')),
+                            textDeleted: @js(__('blog.annotation_text_deleted')),
+                            badgeStale: @js(__('blog.annotation_badge_stale')),
+                            textStale: @js(__('blog.annotation_text_stale')),
+                            refreshDoc: @js(__('blog.annotation_refresh_doc')),
+                            csrfToken: @js(csrf_token()),
+                        },
+                    })"
+                    class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button
+                        @click="toggle()"
+                        class="bp-annotation-card-header flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-blue-500 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                            <span>{{ __('blog.sidebar_annotations') }}</span>
+                        </span>
+                        <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="{ 'rotate-180': isOpen }"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="isOpen" x-cloak class="px-3 pb-3 space-y-2 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+                        {{-- Success / Error --}}
+                        <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                        <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                        {{-- Filter tabs --}}
+                        <div class="flex gap-1 border-b border-gray-100 dark:border-gray-700 pb-1">
+                            <button type="button" @click="filterTab = 'open'"
+                                :class="filterTab === 'open' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+                                class="px-2 py-1 text-[10px] font-semibold rounded transition"
+                                x-text="i18n.openTab"></button>
+                            <button type="button" @click="filterTab = 'resolved'"
+                                :class="filterTab === 'resolved' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+                                class="px-2 py-1 text-[10px] font-semibold rounded transition"
+                                x-text="i18n.resolvedTab"></button>
+                        </div>
+
+                        {{-- Loading --}}
+                        <template x-if="loading && annotations.length === 0">
+                            <div class="flex items-center justify-center py-4">
+                                <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            </div>
+                        </template>
+
+                        {{-- Empty states --}}
+                        <template x-if="!loading && filteredAnnotations.length === 0 && filterTab === 'open'">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noOpen"></p>
+                        </template>
+                        <template x-if="!loading && filteredAnnotations.length === 0 && filterTab === 'resolved'">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noResolved"></p>
+                        </template>
+
+                        {{-- Annotation list --}}
+                        <template x-for="a in filteredAnnotations" :key="a.id">
+                            <div :data-annotation-card-id="a.id"
+                                class="rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50 cursor-pointer hover:border-indigo-200 dark:hover:border-indigo-800 transition"
+                                :class="{ 'ring-2 ring-indigo-400 border-indigo-300 dark:ring-indigo-500 dark:border-indigo-600': selectedAnnotationId === a.id }"
+                                @click="selectAnnotation(a.id)">
+                                <div class="space-y-1">
+                                        <span x-show="a._orphaned"
+                                            class="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none">
+                                            <span x-text="i18n.badgeStale"></span>
+                                            <button type="button" @click.stop="refreshDocument()"
+                                                class="underline hover:text-amber-900 dark:hover:text-amber-100"
+                                                x-text="i18n.refreshDoc"></button>
+                                        </span>
+                                        <p class="text-[10px] italic truncate"
+                                            :class="a._orphaned ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-500 dark:text-gray-400'"
+                                            x-text="'&ldquo;' + a.selected_text + '&rdquo;'"></p>
+                                        <p class="text-xs text-gray-800 dark:text-gray-100" x-text="a.content"></p>
+                                        <p class="text-[10px] text-gray-400 dark:text-gray-500">
+                                            <span x-text="a.author_name"></span>
+                                            <span> · </span>
+                                            <span x-text="a.created_at_human"></span>
+                                            <template x-if="a.status === 'resolved' && a.resolved_at">
+                                                <span> · {{ __('blog.resolved') }}</span>
+                                            </template>
+                                        </p>
+                                        <div class="flex gap-2 mt-1" @click.stop>
+                                            <button type="button" x-show="a.can_edit"
+                                                @click="editAnnotation(a)"
+                                                class="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                                x-text="i18n.edit"></button>
+                                            <button type="button" x-show="a.can_delete"
+                                                @click="askDeleteAnnotation(a.id)"
+                                                class="text-[10px] font-semibold text-red-600 dark:text-red-400 hover:underline"
+                                                x-text="i18n.delete"></button>
+                                            <button type="button" x-show="a.can_resolve && a.status === 'open'"
+                                                @click="resolveAnnotation(a.id)"
+                                                class="text-[10px] font-semibold text-green-600 dark:text-green-400 hover:underline"
+                                                x-text="i18n.resolve"></button>
+                                        </div>
+                                        <template x-if="a.resolved_by_name && a.status === 'resolved'">
+                                            <p class="text-[10px] text-gray-400 dark:text-gray-500">
+                                                {{ __('blog.resolved_by') }} <span x-text="a.resolved_by_name"></span>
+                                            </p>
+                                        </template>
+
+                                        <template x-if="pendingDeleteAnnotationId === a.id">
+                                            <div @click.stop class="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
+                                                <p class="text-[10px] text-red-700 dark:text-red-300" x-text="i18n.confirmDelete"></p>
+                                                <div class="flex gap-1.5 mt-1">
+                                                    <button type="button" @click="confirmDeleteAnnotation()"
+                                                        class="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition"
+                                                        x-text="i18n.delete"></button>
+                                                    <button type="button" @click="cancelDeleteAnnotation()"
+                                                        class="px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+                                                        x-text="i18n.cancel"></button>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- Replies section --}}
+                                        <div class="mt-2 border-t border-gray-100 dark:border-gray-700 pt-2 space-y-1.5" @click.stop>
+                                            <template x-for="r in (a.replies || [])" :key="r.id">
+                                                <div class="rounded bg-white dark:bg-gray-800 px-2 py-1.5 text-xs border border-gray-50 dark:border-gray-700">
+                                                    <template x-if="replyEditingId === r.id">
+                                                        <div class="space-y-1">
+                                                            <textarea x-model="replyEditContent" rows="2" maxlength="5000"
+                                                                class="w-full px-2 py-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500"></textarea>
+                                                            <div class="flex gap-1.5">
+                                                                <button type="button" @click="updateReply(a.id, r.id)" :disabled="replySaving || !replyEditContent.trim()"
+                                                                    class="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                                                    x-text="'{{ __('blog.save') }}'"></button>
+                                                                <button type="button" @click="cancelReplyEdit()"
+                                                                    class="px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+                                                                    x-text="i18n.cancel"></button>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="replyEditingId !== r.id">
+                                                        <div>
+                                                            <p class="text-[10px] text-gray-800 dark:text-gray-100" x-text="r.content"></p>
+                                                            <div class="flex items-center gap-1.5 mt-0.5">
+                                                                <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="r.author_name + ' · ' + r.created_at_human"></span>
+                                                                <button type="button" x-show="r.can_edit"
+                                                                    @click="editReply(r)"
+                                                                    class="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                                                    x-text="'{{ __('blog.annotation_reply_edit') }}'"></button>
+                                                                <button type="button" x-show="r.can_delete"
+                                                                    @click="askDeleteReply(a.id, r.id)"
+                                                                    class="text-[9px] font-semibold text-red-600 dark:text-red-400 hover:underline"
+                                                                    x-text="'{{ __('blog.annotation_reply_delete') }}'"></button>
+                                                            </div>
+                                                            <template x-if="pendingDeleteReplyId === r.id">
+                                                                <div class="mt-1 p-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
+                                                                    <p class="text-[9px] text-red-700 dark:text-red-300">{{ __('blog.annotation_reply_confirm_delete') }}</p>
+                                                                    <div class="flex gap-1 mt-1">
+                                                                        <button type="button" @click="confirmDeleteReply()"
+                                                                            class="px-1 py-0.5 text-[9px] font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition"
+                                                                            x-text="'{{ __('blog.annotation_reply_delete') }}'"></button>
+                                                                        <button type="button" @click="cancelDeleteReply()"
+                                                                            class="px-1 py-0.5 text-[9px] font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+                                                                            x-text="i18n.cancel"></button>
+                                                                    </div>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            <template x-if="!(a.replies && a.replies.length)">
+                                                <p class="text-[10px] text-gray-400 dark:text-gray-500 italic" x-text="'{{ __('blog.annotation_reply_empty') }}'"></p>
+                                            </template>
+                                            <div class="flex gap-1.5">
+                                                <input type="text" x-model="replyContents[a.id]"
+                                                    :placeholder="'{{ __('blog.annotation_reply_placeholder') }}'"
+                                                    maxlength="5000"
+                                                    @keydown.enter.prevent="submitReply(a.id)"
+                                                    class="flex-1 px-2 py-1 text-[10px] border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500"
+                                                    :disabled="replySaving">
+                                                <button type="button" @click="submitReply(a.id)" :disabled="replySaving || !(replyContents[a.id] || '').trim()"
+                                                    class="shrink-0 px-2 py-1 text-[10px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition"
+                                                    x-text="replySaving ? '{{ __('blog.annotation_reply_saving') }}' : '{{ __('blog.annotation_reply_btn') }}'"></button>
+                                            </div>
+                                        </div>
+
+                                        <p x-show="deletedFeedbackAnnotationId === a.id"
+                                            x-cloak
+                                            class="text-[10px] text-amber-600 dark:text-amber-400"
+                                            x-text="i18n.textStale"></p>
+                                    </div>
+                            </div>
+                        </template>
+
+                        {{-- Loading more --}}
+                        <div x-show="loading && annotations.length > 0" class="flex justify-center py-2">
+                            <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        </div>
+                    </div>
+                </div>
+                {{-- /Annotations card --}}
+
+                {{-- Blue accent on annotation card header --}}
+    <style>
+    .bp-annotation-card-header {
+        border-left: 3px solid #6366f1;
+    }
+    .dark .bp-annotation-card-header {
+        border-left-color: #818cf8;
+    }
+    </style>
+
+    {{-- Annotation creation modal --}}
+    <div
+        x-data="annotationModal"
+        x-show="open"
+        x-cloak
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 translate-y-4 md:translate-y-0 md:scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 md:scale-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100 translate-y-0 md:scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 md:translate-y-0 md:scale-95"
+        class="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40"
+        @keydown.escape.window="cancel()"
+    >
+        <div class="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full md:max-w-lg md:mx-4 max-h-[85dvh] md:max-h-none overflow-y-auto" @click.stop>
+            <div class="p-5 space-y-4">
+                <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
                     </svg>
-                </button>
-                <div x-show="card.open" x-cloak class="px-3 pb-3 text-xs text-gray-500 dark:text-gray-400 max-h-40 overflow-y-auto">
-                    <span x-text="card.placeholder"></span>
+                    <span x-text="mode === 'edit' ? '{{ __('blog.edit_annotation') }}' : '{{ __('blog.add_annotation') }}'"></span>
+                </h3>
+
+                <div class="rounded-lg bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/60 p-3">
+                    <p class="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 mb-1">{{ __('blog.annotation_selected_text') }}</p>
+                    <p class="text-sm text-gray-700 dark:text-gray-300 italic leading-relaxed" x-text="'&ldquo;' + selectedText + '&rdquo;'"></p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('blog.annotation_your_note') }}</label>
+                    <textarea x-model="content"
+                        placeholder="{{ __('blog.annotation_placeholder') }}"
+                        rows="3" maxlength="5000"
+                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 resize-none"
+                        :disabled="saving"
+                    ></textarea>
+                </div>
+
+                <div x-show="error" x-cloak class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg" x-text="error"></div>
+
+                <div class="flex items-center justify-end gap-3 pt-1">
+                    <button type="button" @click="cancel()" :disabled="saving"
+                        class="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        x-text="'{{ __('blog.btn_cancel') }}'"></button>
+                    <button type="button" @click="save()" :disabled="saving || !content.trim()"
+                        class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition inline-flex items-center gap-2">
+                        <svg x-show="saving" class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        <span x-text="saving ? '{{ __('blog.annotation_saving') }}' : '{{ __('blog.save') }}'"></span>
+                    </button>
                 </div>
             </div>
-        </template>
+        </div>
+    </div>
+
+    {{-- Co-authors card --}}
+        <div
+            x-data="blogCoAuthorCard({
+                indexUrl: @js($_blogRoute('co-authors.index', ['post' => $post])),
+                storeUrl: @js($_blogRoute('co-authors.store', ['post' => $post])),
+                destroyUrlBase: @js($_blogRoute('co-authors.destroy', ['post' => $post, 'user' => '__USER_ID__'])),
+                searchUrl: @js($_blogRoute('co-authors.search', ['post' => $post])),
+                isOwner: {{ Auth::id() === $post->user_id ? 'true' : 'false' }},
+                isAdmin: {{ Auth::user()->is_admin ? 'true' : 'false' }},
+                postOwnerId: @js($post->user_id),
+                i18n: {
+                    empty: @js(__('blog.co_author_empty')),
+                    hint: @js(__('blog.co_author_hint')),
+                    add: @js(__('blog.co_author_add')),
+                    remove: @js(__('blog.co_author_remove')),
+                    confirmRemove: @js(__('blog.co_author_remove_confirm')),
+                    selectPlaceholder: @js(__('blog.co_author_select_placeholder')),
+                    added: @js(__('blog.co_author_added')),
+                    removed: @js(__('blog.co_author_removed')),
+                    loadError: @js(__('blog.co_author_load_error')),
+                    addError: @js(__('blog.co_author_add_error')),
+                    removeError: @js(__('blog.co_author_remove_error')),
+                    you: @js(__('blog.co_author_manage_you')),
+                    csrfToken: @js(csrf_token()),
+                },
+            })"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+        >
+            <button
+                @click="toggle()"
+                class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+            >
+                <span class="flex items-center gap-1.5">
+                    <svg class="w-3 h-3 text-emerald-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span>{{ __('blog.sidebar_co_ecriture') }}</span>
+                </span>
+                <svg
+                    class="w-3 h-3 transition-transform"
+                    :class="{ 'rotate-180': open }"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+                <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                <template x-if="!loading && coAuthors.length === 0">
+                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.empty"></p>
+                </template>
+
+                <template x-if="loading">
+                    <div class="flex items-center justify-center py-4">
+                        <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    </div>
+                </template>
+
+                <template x-for="author in coAuthors" :key="author.id">
+                    <div class="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <img :src="author.avatar_url" :alt="author.name" class="w-6 h-6 rounded-full shrink-0">
+                            <div class="min-w-0">
+                                <p class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="author.name"></p>
+                            </div>
+                        </div>
+                        <button
+                            x-show="canManage() && author.id !== postOwnerId"
+                            type="button"
+                            @click="removeCoAuthor(author.id)"
+                            :disabled="removing"
+                            class="shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition disabled:opacity-50"
+                            x-text="i18n.remove"
+                        ></button>
+                    </div>
+                </template>
+
+                <div x-show="canManage()" class="border-t border-gray-100 dark:border-gray-700 pt-3">
+                    <div class="flex gap-2">
+                        <input type="text" x-model="userQuery" @input.debounce="searchUsers()" :placeholder="i18n.selectPlaceholder"
+                            class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500">
+                        <button type="button" @click="addCoAuthor()" :disabled="adding || !selectedUserId"
+                            class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                            <span x-text="i18n.add"></span>
+                        </button>
+                    </div>
+                    <div x-show="searchResults.length > 0" class="mt-1 rounded-lg border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 max-h-28 overflow-y-auto">
+                        <template x-for="u in searchResults" :key="u.id">
+                            <button type="button" @click="selectUser(u)"
+                                class="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                            >
+                                <img :src="u.avatar_url" :alt="u.name" class="w-5 h-5 rounded-full">
+                                <span x-text="u.name" class="text-gray-800 dark:text-gray-100"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <p class="text-[10px] leading-4 text-gray-400 dark:text-gray-500" x-text="i18n.hint"></p>
+            </div>
+        </div>
+        {{-- /Co-authors card --}}
 
         {{-- Snapshot card --}}
         <div
@@ -297,7 +1163,12 @@
                 @click="toggle()"
                 class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
             >
-                <span>{{ __('blog.sidebar_snapshot') }}</span>
+                <span class="flex items-center gap-1.5">
+                    <svg class="w-3 h-3 text-violet-500 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-1.414-1.414a2 2 0 00-1.414-.586H9.656a2 2 0 00-1.414.586L6.828 7H4a2 2 0 00-2 2v7a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2h-2.828zM12 10a3 3 0 100 6 3 3 0 000-6z"/>
+                    </svg>
+                    <span>{{ __('blog.sidebar_snapshot') }}</span>
+                </span>
                 <svg
                     class="w-3 h-3 transition-transform"
                     :class="{ 'rotate-180': open }"
