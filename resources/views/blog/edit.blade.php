@@ -223,6 +223,41 @@
                     @error('status')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
+                <section x-data="{ showToc: {{ old('show_toc', $post->show_toc) ? 'true' : 'false' }} }" class="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('blog.toc_section_title') }}</h2>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('blog.toc_section_help') }}</p>
+                        </div>
+                        <label class="mt-2 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-gray-700 shadow-sm ring-1 ring-indigo-100 dark:bg-gray-900/60 dark:text-gray-200 dark:ring-indigo-900/70 sm:mt-0">
+                            <input type="checkbox" name="show_toc" value="1" @change="showToc = $event.target.checked" {{ old('show_toc', $post->show_toc) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600">
+                            <span>{{ __('blog.toc_use') }}</span>
+                        </label>
+                    </div>
+
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label for="toc_max_level" class="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('blog.toc_detail_level') }}</label>
+                            <select id="toc_max_level" name="toc_max_level" class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                                @foreach([2 => __('blog.toc_level_h2'), 3 => __('blog.toc_level_h2_h3'), 4 => __('blog.toc_level_h2_h3_h4')] as $level => $label)
+                                    <option value="{{ $level }}" {{ (int) old('toc_max_level', $post->toc_max_level ?? 4) === $level ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('toc_max_level')<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div class="flex items-end">
+                            <label :class="!showToc && 'opacity-40 cursor-not-allowed'" class="flex w-full items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-200">
+                                <input type="checkbox" name="toc_navigation_enabled" value="1" :disabled="!showToc" {{ old('toc_navigation_enabled', $post->toc_navigation_enabled) ? 'checked' : '' }} class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600">
+                                <span>
+                                    <span class="block font-medium">{{ __('blog.toc_navigation_enabled') }}</span>
+                                    <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{{ __('blog.toc_navigation_help') }}</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </section>
+
                 <div class="flex items-center gap-3 pt-2">
                     <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
                         {{ __('blog.btn_save') }}
@@ -655,11 +690,9 @@
                     x-data="blogPlanCard({
                         csrfToken: @js(csrf_token()),
                         planUrl: @js($_blogRoute('plan.update', ['post' => $post])),
-                        showToc: @json($post->show_toc),
                         i18n: {
                             title: @js(__('blog.plan_title')),
                             empty: @js(__('blog.plan_empty')),
-                            toggle: @js(__('blog.plan_toggle')),
                             collapse: @js(__('blog.plan_collapse')),
                             expand: @js(__('blog.plan_expand')),
                             collapseAll: @js(__('blog.plan_collapse_all')),
@@ -701,18 +734,7 @@
 
                         <template x-if="!loading && headings.length > 0">
                             <div>
-                                <div class="mt-1 mb-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                                    <label class="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" x-model="showToc" @change="toggleShowToc"
-                                            class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
-                                        >
-                                        <span class="text-xs text-gray-600 dark:text-gray-400" x-text="i18n.toggle"></span>
-                                    </label>
-                                </div>
-
                                 <div class="flex items-center gap-2 mb-2">
-                                    <span class="text-xs text-gray-400" x-text="headings.length + ' heading' + (headings.length !== 1 ? 's' : '')"></span>
-                                    <span class="text-xs text-gray-300">·</span>
                                     <button type="button" @click="expandAll()" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.expandAll"></button>
                                     <span class="text-xs text-gray-300">|</span>
                                     <button type="button" @click="collapseAll()" class="text-xs text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" x-text="i18n.collapseAll"></button>
