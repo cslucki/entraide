@@ -18,6 +18,7 @@
         .link a { color: #4338ca; }
         hr { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
         .footer { font-size: 12px; color: #9ca3af; text-align: center; }
+        .notice { margin-top: 20px; padding: 16px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; color: #6b7280; line-height: 1.5; }
     </style>
 </head>
 <body>
@@ -35,9 +36,13 @@
                 <a href="{{ $registerUrl }}" class="button-secondary">{{ __('blog-invitation.email_register') }}</a>
                 @endif
             </div>
-            @if(! $isExistingMember && isset($registerUrl) && $registerUrl)
-            <p style="font-size:13px;color:#6b7280;margin-top:8px;">{{ __('blog-invitation.email_register_hint') }}</p>
-            @endif
+            <div class="notice">
+                {!! __('blog-invitation.email_notice', [
+                    'sender_name' => $senderName,
+                    'article_title' => $articleTitle,
+                    'article_url' => $articleUrl,
+                ]) !!}
+            </div>
             <hr>
             <div class="footer">
                 {{ config('mail.from.name') ?: config('app.name') }}

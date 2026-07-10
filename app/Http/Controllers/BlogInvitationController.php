@@ -7,7 +7,7 @@ use App\Models\EmailLog;
 use App\Models\SystemEmailTemplate;
 use App\Models\User;
 use App\Services\EmailerService;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
@@ -16,7 +16,42 @@ use Throwable;
 
 class BlogInvitationController extends Controller
 {
-    public function store(Request $request, BlogPost $post): RedirectResponse
+    public function index(BlogPost $post): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        Gate::authorize('update', $post);
+
+        $logs = EmailLog::where('organization_id', $organization->id)
+            ->where('data->source', 'blog-contribution-invitation')
+            ->where('data->blog_post_id', $post->id)
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get([
+                'id',
+                'to_email',
+                'subject',
+                'status',
+                'data',
+                'created_at',
+            ])
+            ->map(fn (EmailLog $log) => [
+                'id' => $log->id,
+                'to_email' => $log->to_email,
+                'subject' => $log->subject,
+                'status' => $log->status,
+                'invitation_type' => $log->data['invitation_type'] ?? null,
+                'recipient_name' => $log->data['recipient_name'] ?? null,
+                'sent_at' => $log->created_at->toISOString(),
+            ]);
+
+        return response()->json(['invitations' => $logs]);
+    }
+
+    public function store(Request $request, BlogPost $post): JsonResponse
     {
         $organization = currentOrganization();
         if (! $organization || $post->organization_id !== $organization->id) {
@@ -110,6 +145,7 @@ class BlogInvitationController extends Controller
                 'status' => 'sent',
                 'data' => [
                     'source' => 'blog-contribution-invitation',
+                    'template_slug' => 'blog_contribution_invitation',
                     'blog_post_id' => $post->id,
                     'blog_post_slug' => $post->slug,
                     'sender_id' => $sender->id,
@@ -118,10 +154,11 @@ class BlogInvitationController extends Controller
                 ],
             ]);
 
-            $flashKey = 'success';
-            $flashMsg = $isExistingMember
+            $msg = $isExistingMember
                 ? __('blog-invitation.sent_to_member')
                 : __('blog-invitation.sent_to_external');
+
+            return response()->json(['success' => true, 'message' => $msg, 'invitation_type' => $invitationType]);
         } catch (Throwable $e) {
             EmailLog::create([
                 'user_id' => $sender->id,
@@ -132,6 +169,7 @@ class BlogInvitationController extends Controller
                 'error_message' => $e->getMessage(),
                 'data' => [
                     'source' => 'blog-contribution-invitation',
+                    'template_slug' => 'blog_contribution_invitation',
                     'blog_post_id' => $post->id,
                     'blog_post_slug' => $post->slug,
                     'sender_id' => $sender->id,
@@ -140,14 +178,19 @@ class BlogInvitationController extends Controller
                 ],
             ]);
 
-            $flashKey = 'error';
-            $flashMsg = __('blog-invitation.email_error');
+            return response()->json([
+                'success' => false,
+                'message' => __('blog-invitation.email_error'),
+            ], 500);
         }
-
-        return back()->with($flashKey, $flashMsg);
     }
 
-    public function orgStore(Request $request, string $org, BlogPost $post): RedirectResponse
+    public function orgIndex(string $org, BlogPost $post): JsonResponse
+    {
+        return $this->index($post);
+    }
+
+    public function orgStore(Request $request, string $org, BlogPost $post): JsonResponse
     {
         return $this->store($request, $post);
     }

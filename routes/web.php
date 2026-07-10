@@ -161,7 +161,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Blog plan endpoint
     Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
 
-    // Blog invitation endpoint
+    // Blog invitation endpoints
+    Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'index'])->name('blog.invite.index');
     Route::post('/blog/{post:slug}/invite', [BlogInvitationController::class, 'store'])->name('blog.invite.store')->middleware('throttle:10,1');
 });
 
@@ -677,7 +678,8 @@ Route::prefix('/org/{organization}')
                 // Blog plan endpoint (org-scoped)
                 Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'orgUpdatePlan'])->name('blog.plan.update');
 
-                // Blog invitation endpoint (org-scoped)
+                // Blog invitation endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'orgIndex'])->name('blog.invite.index');
                 Route::post('/blog/{post:slug}/invite', [BlogInvitationController::class, 'orgStore'])->name('blog.invite.store')->middleware('throttle:10,1');
             });
 

@@ -1229,6 +1229,127 @@ function registerBlogCoAuthorCard() {
     }));
 }
 
+function registerBlogInviteByEmail() {
+    if (!window.Alpine || window.__blogInviteByEmailRegistered) {
+        return;
+    }
+
+    window.__blogInviteByEmailRegistered = true;
+
+    Alpine.data('blogInviteByEmail', (config) => ({
+        open: false,
+        sending: false,
+        success: '',
+        error: '',
+        recipientEmail: '',
+        recipientName: '',
+        message: '',
+        invitations: [],
+        loadingHistory: false,
+        showHistory: false,
+
+        inviteStoreUrl: config.inviteStoreUrl,
+        inviteIndexUrl: config.inviteIndexUrl,
+        isOwner: config.isOwner,
+        isAdmin: config.isAdmin,
+        isPublished: config.isPublished,
+        historyUrl: config.historyUrl,
+        i18n: config.i18n || {},
+        csrfToken: config.i18n?.csrfToken || '',
+
+        canInvite() {
+            return (this.isOwner || this.isAdmin) && this.isPublished;
+        },
+
+        openModal() {
+            this.open = true;
+            this.success = '';
+            this.error = '';
+        },
+
+        closeModal() {
+            this.open = false;
+            this.recipientEmail = '';
+            this.recipientName = '';
+            this.message = '';
+            this.error = '';
+        },
+
+        sendInvite() {
+            if (this.sending) return;
+            if (!this.recipientEmail || !this.recipientEmail.includes('@')) {
+                this.error = this.i18n.errorInvalidEmail || 'Please enter a valid email address.';
+                return;
+            }
+            this.sending = true;
+            this.error = '';
+
+            fetch(this.inviteStoreUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    recipient_email: this.recipientEmail,
+                    recipient_name: this.recipientName,
+                    message: this.message,
+                }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, status: r.status, data: d })))
+                .then(({ ok, status, data }) => {
+                    if (!ok || status >= 400) {
+                        if (status === 422 && data.errors) {
+                            const errs = Object.values(data.errors).flat();
+                            this.error = errs.join(' ');
+                        } else {
+                            this.error = data.message || this.i18n.errorSendFailed || 'Failed to send invitation.';
+                        }
+                        return;
+                    }
+                    this.success = data.message || this.i18n.sent || 'Invitation sent.';
+                    this.recipientEmail = '';
+                    this.recipientName = '';
+                    this.message = '';
+                    setTimeout(() => { this.success = ''; this.open = false; }, 2500);
+                    this.loadHistory();
+                })
+                .catch(() => {
+                    this.error = this.i18n.errorSendFailed || 'Failed to send invitation.';
+                })
+                .finally(() => { this.sending = false; });
+        },
+
+        loadHistory() {
+            this.loadingHistory = true;
+            fetch(this.inviteIndexUrl)
+                .then(r => r.json())
+                .then(data => {
+                    this.invitations = data.invitations || [];
+                    this.loadingHistory = false;
+                })
+                .catch(() => {
+                    this.invitations = [];
+                    this.loadingHistory = false;
+                });
+        },
+
+        toggleHistory() {
+            this.showHistory = !this.showHistory;
+            if (this.showHistory && this.invitations.length === 0) {
+                this.loadHistory();
+            }
+        },
+
+        formatDate(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        },
+    }));
+}
+
 function registerBlogLoopCard() {
     if (!window.Alpine || window.__blogLoopCardRegistered) {
         return;
@@ -2344,6 +2465,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogEditor();
     registerAnnotationModal();
     registerBlogCoAuthorCard();
+    registerBlogInviteByEmail();
     registerBlogLoopCard();
     registerBlogTodoCard();
     registerBlogPlanCard();
@@ -2354,6 +2476,7 @@ registerBlogSnapshotCard();
 registerBlogEditor();
 registerAnnotationModal();
 registerBlogCoAuthorCard();
+registerBlogInviteByEmail();
 registerBlogLoopCard();
 registerBlogTodoCard();
 registerBlogPlanCard();

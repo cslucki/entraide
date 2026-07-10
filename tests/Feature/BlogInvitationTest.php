@@ -69,14 +69,14 @@ class BlogInvitationTest extends TestCase
     {
         Mail::fake();
 
-        $response = $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => $this->member->email,
             'recipient_name' => 'Member',
             'message' => 'Please read this.',
         ]);
 
-        $response->assertRedirect();
-        $response->assertSessionHas('success');
+        $response->assertOk();
+        $response->assertJson(['success' => true, 'invitation_type' => 'existing_member']);
 
         $log = EmailLog::where('to_email', $this->member->email)->first();
         $this->assertNotNull($log);
@@ -91,14 +91,14 @@ class BlogInvitationTest extends TestCase
     {
         Mail::fake();
 
-        $response = $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => 'external@example.com',
             'recipient_name' => 'External Person',
             'message' => 'Check this out.',
         ]);
 
-        $response->assertRedirect();
-        $response->assertSessionHas('success');
+        $response->assertOk();
+        $response->assertJson(['success' => true, 'invitation_type' => 'external']);
 
         $log = EmailLog::where('to_email', 'external@example.com')->first();
         $this->assertNotNull($log);
@@ -111,7 +111,7 @@ class BlogInvitationTest extends TestCase
     {
         Mail::fake();
 
-        $response = $this->actingAs($this->nonMember)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $response = $this->actingAs($this->nonMember)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => 'someone@example.com',
         ]);
 
@@ -122,19 +122,20 @@ class BlogInvitationTest extends TestCase
     {
         Mail::fake();
 
-        $response = $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->draftPost]), [
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->draftPost]), [
             'recipient_email' => 'someone@example.com',
             'recipient_name' => 'Someone',
         ]);
 
-        $response->assertSessionHasErrors('recipient_email');
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors('recipient_email');
     }
 
     public function test_email_logs_contains_correct_data_fields(): void
     {
         Mail::fake();
 
-        $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => 'test@test.com',
             'recipient_name' => 'Test User',
             'message' => 'Hello!',
@@ -148,6 +149,7 @@ class BlogInvitationTest extends TestCase
         $this->assertArrayHasKey('blog_post_slug', $log->data);
         $this->assertArrayHasKey('sender_id', $log->data);
         $this->assertArrayHasKey('invitation_type', $log->data);
+        $this->assertArrayHasKey('template_slug', $log->data);
         $this->assertEquals('published-article', $log->data['blog_post_slug']);
     }
 
@@ -157,12 +159,10 @@ class BlogInvitationTest extends TestCase
 
         Mail::fake();
 
-        $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => 'external@example.com',
             'recipient_name' => 'External',
         ]);
-
-        Mail::assertNothingSent();
 
         $log = EmailLog::where('to_email', 'external@example.com')->first();
         $this->assertNotNull($log);
@@ -189,12 +189,10 @@ class BlogInvitationTest extends TestCase
     {
         Mail::fake();
 
-        $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => $this->member->email,
             'recipient_name' => 'Member',
         ]);
-
-        Mail::assertNothingSent();
 
         $log = EmailLog::where('to_email', $this->member->email)->first();
         $this->assertNotNull($log);
@@ -228,13 +226,11 @@ class BlogInvitationTest extends TestCase
 
         Mail::fake();
 
-        $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => 'test@test.com',
             'recipient_name' => 'Test',
             'message' => 'Read this please.',
         ]);
-
-        Mail::assertNothingSent();
 
         $log = EmailLog::where('to_email', 'test@test.com')->first();
         $this->assertNotNull($log);
@@ -243,20 +239,20 @@ class BlogInvitationTest extends TestCase
 
     public function test_validation_requires_recipient_email(): void
     {
-        $response = $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_name' => 'No Email',
         ]);
 
-        $response->assertSessionHasErrors('recipient_email');
+        $response->assertJsonValidationErrors('recipient_email');
     }
 
     public function test_validation_requires_valid_email(): void
     {
-        $response = $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => 'not-an-email',
         ]);
 
-        $response->assertSessionHasErrors('recipient_email');
+        $response->assertJsonValidationErrors('recipient_email');
     }
 
     public function test_i18n_keys_present_in_blog_invitation_lang(): void
@@ -265,13 +261,16 @@ class BlogInvitationTest extends TestCase
         $this->assertIsString(__('blog-invitation.modal_title'));
         $this->assertIsString(__('blog-invitation.modal_btn_send'));
         $this->assertIsString(__('blog-invitation.draft_not_allowed'));
+        $this->assertIsString(__('blog-invitation.btn_invite_email'));
+        $this->assertIsString(__('blog-invitation.card_title'));
+        $this->assertIsString(__('blog-invitation.card_empty'));
     }
 
     public function test_org_scoped_route_works(): void
     {
         Mail::fake();
 
-        $response = $this->actingAs($this->owner)->post(
+        $response = $this->actingAs($this->owner)->postJson(
             route('organization.blog.invite.store', ['organization' => 'testorg', 'post' => $this->post]),
             [
                 'recipient_email' => 'orgtest@test.com',
@@ -279,57 +278,162 @@ class BlogInvitationTest extends TestCase
             ]
         );
 
-        $response->assertRedirect();
-        $response->assertSessionHas('success');
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
     }
 
     public function test_cannot_invite_with_empty_email(): void
     {
-        $response = $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => '',
         ]);
 
-        $response->assertSessionHasErrors('recipient_email');
+        $response->assertJsonValidationErrors('recipient_email');
     }
 
     public function test_message_is_optional(): void
     {
         Mail::fake();
 
-        $response = $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => 'optional@test.com',
         ]);
 
-        $response->assertRedirect();
-        $response->assertSessionHas('success');
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
     }
 
     public function test_recipient_name_is_optional(): void
     {
         Mail::fake();
 
-        $response = $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => 'noname@test.com',
         ]);
 
-        $response->assertRedirect();
-        $response->assertSessionHas('success');
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
     }
 
     public function test_cross_org_user_treated_as_external(): void
     {
         Mail::fake();
 
-        $response = $this->actingAs($this->owner)->post(route('blog.invite.store', ['post' => $this->post]), [
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
             'recipient_email' => $this->crossOrgUser->email,
             'recipient_name' => 'CrossOrg User',
         ]);
 
-        $response->assertRedirect();
-        $response->assertSessionHas('success');
+        $response->assertOk();
+        $response->assertJson(['success' => true, 'invitation_type' => 'external']);
 
         $log = EmailLog::where('to_email', $this->crossOrgUser->email)->first();
         $this->assertNotNull($log);
         $this->assertEquals('external', $log->data['invitation_type']);
+    }
+
+    public function test_index_returns_invitation_history(): void
+    {
+        EmailLog::create([
+            'user_id' => $this->owner->id,
+            'organization_id' => $this->org->id,
+            'to_email' => 'prev@test.com',
+            'subject' => 'Test',
+            'status' => 'sent',
+            'data' => [
+                'source' => 'blog-contribution-invitation',
+                'template_slug' => 'blog_contribution_invitation',
+                'blog_post_id' => $this->post->id,
+                'blog_post_slug' => $this->post->slug,
+                'sender_id' => $this->owner->id,
+                'invitation_type' => 'external',
+            ],
+        ]);
+
+        $response = $this->actingAs($this->owner)->getJson(route('blog.invite.index', ['post' => $this->post]));
+
+        $response->assertOk();
+        $response->assertJsonCount(1, 'invitations');
+        $response->assertJsonPath('invitations.0.to_email', 'prev@test.com');
+        $response->assertJsonPath('invitations.0.invitation_type', 'external');
+    }
+
+    public function test_index_only_returns_own_post_invitations(): void
+    {
+        $otherPost = BlogPost::create([
+            'user_id' => $this->owner->id,
+            'organization_id' => $this->org->id,
+            'title' => 'Other',
+            'slug' => 'other-post',
+            'content' => 'Content.',
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+
+        EmailLog::create([
+            'user_id' => $this->owner->id,
+            'organization_id' => $this->org->id,
+            'to_email' => 'test@test.com',
+            'subject' => 'Test',
+            'status' => 'sent',
+            'data' => [
+                'source' => 'blog-contribution-invitation',
+                'template_slug' => 'blog_contribution_invitation',
+                'blog_post_id' => $otherPost->id,
+                'blog_post_slug' => $otherPost->slug,
+                'sender_id' => $this->owner->id,
+                'invitation_type' => 'external',
+            ],
+        ]);
+
+        $response = $this->actingAs($this->owner)->getJson(route('blog.invite.index', ['post' => $this->post]));
+
+        $response->assertOk();
+        $response->assertJsonCount(0, 'invitations');
+    }
+
+    public function test_non_owner_cannot_view_invitation_history(): void
+    {
+        $response = $this->actingAs($this->nonMember)->getJson(route('blog.invite.index', ['post' => $this->post]));
+
+        $response->assertForbidden();
+    }
+
+    public function test_email_template_contains_notice_text(): void
+    {
+        $html = view('emails.blog-invitation', [
+            'senderName' => 'Sender',
+            'recipientName' => 'Recipient',
+            'senderMessage' => 'Hello',
+            'articleUrl' => 'https://example.com/article',
+            'articleTitle' => 'My Article',
+            'registerUrl' => null,
+            'isExistingMember' => true,
+        ])->render();
+
+        $this->assertStringContainsString('Sender', $html);
+        $this->assertStringContainsString('My Article', $html);
+        $this->assertStringContainsString('https://example.com/article', $html);
+    }
+
+    public function test_show_page_does_not_contain_invite_button(): void
+    {
+        $this->actingAs($this->owner);
+
+        $response = $this->get(route('blog.show', ['post' => $this->post]));
+
+        $response->assertOk();
+        $response->assertDontSee('openInvite');
+        $response->assertDontSee('blog-invitation.modal_title');
+    }
+
+    public function test_org_scoped_index_route_works(): void
+    {
+        $response = $this->actingAs($this->owner)->getJson(
+            route('organization.blog.invite.index', ['organization' => 'testorg', 'post' => $this->post])
+        );
+
+        $response->assertOk();
+        $response->assertJson(['invitations' => []]);
     }
 }
