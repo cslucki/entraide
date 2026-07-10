@@ -81,7 +81,11 @@ class BlogInvitationController extends Controller
         $isExistingMember = $existingMember !== null;
         $invitationType = $isExistingMember ? 'existing_member' : 'external';
 
-        $articleUrl = route('blog.show', ['post' => $post]);
+        $articleRouteParams = ['post' => $post];
+        if ($sender->referral_code) {
+            $articleRouteParams['ref'] = $sender->referral_code;
+        }
+        $articleUrl = route('blog.show', $articleRouteParams);
         $senderMessage = filled($data['message'] ?? null)
             ? $data['message']
             : __('blog-invitation.default_message');

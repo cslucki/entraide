@@ -172,7 +172,7 @@ class BlogInvitationTest extends TestCase
             'senderName' => $this->owner->fullName,
             'recipientName' => 'External',
             'senderMessage' => __('blog-invitation.default_message'),
-            'articleUrl' => route('blog.show', ['post' => $this->post]),
+            'articleUrl' => route('blog.show', ['post' => $this->post, 'ref' => 'ownertest']),
             'articleTitle' => $this->post->title,
             'registerUrl' => route('organization.register', [
                 'organization' => $this->org->slug,
@@ -183,6 +183,8 @@ class BlogInvitationTest extends TestCase
 
         $this->assertStringContainsString('register', $html);
         $this->assertStringContainsString('ownertest', $html);
+        $this->assertStringContainsString('Read the article and contribute', $html);
+        $this->assertStringContainsString('color:#ffffff', $html);
     }
 
     public function test_existing_member_invitation_email_contains_article_link(): void
@@ -209,6 +211,30 @@ class BlogInvitationTest extends TestCase
         ])->render();
 
         $this->assertStringContainsString('published-article', $html);
+        $this->assertStringContainsString('Read the article and contribute', $html);
+    }
+
+    public function test_article_url_includes_referral_code(): void
+    {
+        $this->owner->update(['referral_code' => 'myref123']);
+
+        Mail::fake();
+
+        $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
+            'recipient_email' => 'test@test.com',
+        ]);
+
+        $html = view('emails.blog-invitation', [
+            'senderName' => $this->owner->fullName,
+            'recipientName' => 'Test',
+            'senderMessage' => __('blog-invitation.default_message'),
+            'articleUrl' => route('blog.show', ['post' => $this->post, 'ref' => 'myref123']),
+            'articleTitle' => $this->post->title,
+            'registerUrl' => null,
+            'isExistingMember' => true,
+        ])->render();
+
+        $this->assertStringContainsString('ref=myref123', $html);
     }
 
     public function test_invitation_uses_system_email_template_when_available(): void
@@ -435,5 +461,31 @@ class BlogInvitationTest extends TestCase
 
         $response->assertOk();
         $response->assertJson(['invitations' => []]);
+    }
+
+    public function test_guest_prompt_renders_login_link_not_literal_placeholder(): void
+    {
+        $response = $this->get(route('blog.show', ['post' => $this->post]));
+
+        $response->assertOk();
+        $response->assertDontSee(':login');
+        $response->assertSee(route('login'), false);
+        $response->assertSee(__('blog.login'));
+    }
+
+    public function test_guest_prompt_login_link_includes_ref_when_present(): void
+    {
+        $response = $this->get(route('blog.show', ['post' => $this->post, 'ref' => 'testref123']));
+
+        $response->assertOk();
+        $response->assertSee('ref=testref123', false);
+    }
+
+    public function test_login_page_register_link_includes_ref(): void
+    {
+        $response = $this->get(route('login', ['ref' => 'myref456']));
+
+        $response->assertOk();
+        $response->assertSee('ref=myref456', false);
     }
 }

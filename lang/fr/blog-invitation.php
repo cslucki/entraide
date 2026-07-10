@@ -4,7 +4,7 @@ return [
     'email_subject' => ':sender vous invite à lire « :title »',
     'email_badge' => 'Invitation à contribuer',
     'email_heading' => 'vous invite à lire et contribuer à un article',
-    'email_read_article' => 'Lire l\'article',
+    'email_read_article' => 'Lire l\'article et contribuer',
     'email_register' => 'Créer un compte',
     'email_register_hint' => 'Vous n\'avez pas encore de compte ? Créez-le pour pouvoir contribuer.',
     'email_notice' => 'Cet email est envoyé par :sender_name.<br>Il concerne le document <strong>:article_title</strong> sur BouclePro :<br><a href=":article_url">:article_url</a><br><br>Vous êtes le bienvenu pour participer, annoter et contribuer à cet article.<br>Avec ce lien, vous pouvez vous connecter sur BouclePro et/ou créer votre compte.',
