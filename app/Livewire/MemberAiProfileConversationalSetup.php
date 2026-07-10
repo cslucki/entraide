@@ -51,7 +51,7 @@ class MemberAiProfileConversationalSetup extends Component
 
         $resolver = app(SupervisionProviderResolver::class);
         $providers = $resolver->availableProviders();
-        $this->provider = $resolver->defaultProvider() ?? array_key_first($providers);
+        $this->provider = $resolver->defaultProvider() ?? array_key_first($providers) ?? '';
 
         $defaultModel = $resolver->providerConfig($this->provider)['model'] ?? null;
         $firstModel = array_key_first($providers[$this->provider]['models'] ?? []);

@@ -57,7 +57,10 @@ class T347OrganizationScopedAuthTest extends TestCase
     {
         $response = $this->post('/register', [
             'name' => 'New User',
+            'first_name' => 'New',
             'email' => 'newuser@example.com',
+            'phone' => '+33612345678',
+            'country_code' => 'FR',
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);
@@ -82,7 +85,10 @@ class T347OrganizationScopedAuthTest extends TestCase
     {
         $response = $this->post(route('organization.register', $this->cpmeOrg), [
             'name' => 'CPME Member',
+            'first_name' => 'CPME',
             'email' => 'cpme.member@example.com',
+            'phone' => '+33612345678',
+            'country_code' => 'FR',
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);

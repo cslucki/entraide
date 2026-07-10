@@ -16,7 +16,7 @@ class MembersPageTest extends TestCase
         $response = $this->get('/membres');
 
         $response->assertOk();
-        $response->assertSee('Base de données à initialiser');
+        $response->assertSee(__('directory.setup_title'));
     }
 
     public function test_members_displays_directory_when_organization_exists(): void
@@ -41,7 +41,7 @@ class MembersPageTest extends TestCase
         foreach ($routes as $route) {
             $response = $this->get($route);
             $response->assertOk();
-            $response->assertSee('Base de données à initialiser');
+            $response->assertSee(__('directory.setup_title'));
         }
     }
 

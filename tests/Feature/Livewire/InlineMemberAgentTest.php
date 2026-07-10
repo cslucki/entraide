@@ -49,8 +49,8 @@ class InlineMemberAgentTest extends TestCase
         Livewire::actingAs($this->visitor)
             ->test(AiAgentChat::class, ['user' => $this->member])
             ->assertSet('profile.id', fn ($id) => is_string($id))
-            ->assertSee('Agent IA de')
-            ->assertSee('Bonjour');
+            ->assertSee(__('ai.ai_agent_of', ['name' => $this->member->name]))
+            ->assertSee(__('ai.visitor_chat_initial_message', ['member_name' => $this->member->name]));
     }
 
     public function test_send_message(): void
@@ -162,9 +162,9 @@ class InlineMemberAgentTest extends TestCase
             ->get(route('agent-ia.profile.chat', $this->member));
 
         $response->assertStatus(200);
-        $response->assertSee('Agent IA de');
+        $response->assertSee(__('ai.ai_agent_of', ['name' => $this->member->name]));
         $response->assertSee(__('ai.visitor_chat_placeholder'));
-        $response->assertSee('Écrire à');
+        $response->assertSee(__('ai.write_directly_to', ['name' => $this->member->name]));
     }
 
     public function test_profile_page_shows_agent_active_for_own_profile(): void
@@ -188,7 +188,7 @@ class InlineMemberAgentTest extends TestCase
             ->get(route('profile.show', $this->member));
 
         $response->assertStatus(200)
-            ->assertDontSee('Agent IA de');
+            ->assertDontSee(__('ai.ai_agent_of', ['name' => $this->member->name]));
     }
 
     public function test_guest_sees_ai_agent_chat_entrypoint_on_profile(): void

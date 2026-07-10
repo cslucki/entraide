@@ -104,7 +104,7 @@ class TASK358Lot4AdminUserEditTest extends TestCase
             ])
             ->assertSessionHasErrors('country_code');
 
-        $this->assertNull($user->fresh()->country_code);
+        $this->assertEquals('FR', $user->fresh()->country_code);
     }
 
     public function test_admin_user_update_rejects_invalid_preferred_locale(): void

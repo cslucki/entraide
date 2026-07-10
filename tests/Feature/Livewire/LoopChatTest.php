@@ -77,7 +77,7 @@ class LoopChatTest extends TestCase
     {
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee('Aucun message pour le moment');
+            ->assertSee(__('loops.no_messages'));
     }
 
     public function test_member_can_send_message(): void
@@ -146,14 +146,14 @@ class LoopChatTest extends TestCase
     {
         Livewire::actingAs($this->nonMember)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertDontSee('Écrivez un message');
+            ->assertDontSee(__('messages.write_message'));
     }
 
     public function test_member_sees_composer(): void
     {
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee('Écrivez un message');
+            ->assertSee(__('messages.write_message'));
     }
 
     public function test_help_request_messages_are_displayed(): void
@@ -522,7 +522,7 @@ class LoopChatTest extends TestCase
 
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee('Message épinglé')
+            ->assertSee(__('messages.pinned_message'))
             ->assertSee('Message important');
     }
 
