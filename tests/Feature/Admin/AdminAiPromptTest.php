@@ -49,7 +49,7 @@ class AdminAiPromptTest extends TestCase
 
         $this->assertNotNull($prompt);
         $this->assertSame('Agent de profil IA — Chat visiteur v1', $prompt->name);
-        $this->assertTrue($prompt->is_active);
+        $this->assertFalse($prompt->is_active);
         $this->assertStringContainsString('langue de l\'interface ou de l\'interlocuteur', $prompt->prompt_text);
         $this->assertStringContainsString('Qualifie progressivement', $prompt->prompt_text);
         $this->assertStringContainsString('ne refuse pas brutalement', $prompt->prompt_text);

@@ -508,7 +508,7 @@ class MessageThreadTest extends TestCase
 
         Livewire::actingAs($this->buyer)
             ->test(MessageThread::class, ['transaction' => $this->transaction])
-            ->assertSee('Message épinglé')
+            ->assertSee(__('messages.pinned_message'))
             ->assertSee('Message important');
     }
 

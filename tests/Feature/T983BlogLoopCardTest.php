@@ -410,28 +410,31 @@ class T983BlogLoopCardTest extends TestCase
         $this->actingAs($this->owner);
         $this->post->loops()->attach($this->loop->id);
 
-        LoopMessage::create([
+        LoopMessage::forceCreate([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->owner->id,
             'body' => 'Oldest message',
             'type' => 'user',
             'created_at' => now()->subHours(3),
+            'updated_at' => now()->subHours(3),
         ]);
 
-        LoopMessage::create([
+        LoopMessage::forceCreate([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->owner->id,
             'body' => 'Middle message',
             'type' => 'user',
             'created_at' => now()->subHours(2),
+            'updated_at' => now()->subHours(2),
         ]);
 
-        LoopMessage::create([
+        LoopMessage::forceCreate([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->owner->id,
             'body' => 'Newest message',
             'type' => 'user',
             'created_at' => now()->subHour(),
+            'updated_at' => now()->subHour(),
         ]);
 
         $response = $this->getJson("/blog/{$this->post->slug}/loop-messages");
@@ -449,36 +452,40 @@ class T983BlogLoopCardTest extends TestCase
         $this->actingAs($this->owner);
         $this->post->loops()->attach($this->loop->id);
 
-        LoopMessage::create([
+        LoopMessage::forceCreate([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->owner->id,
             'body' => 'Oldest—should be excluded',
             'type' => 'user',
             'created_at' => now()->subHours(4),
+            'updated_at' => now()->subHours(4),
         ]);
 
-        LoopMessage::create([
+        LoopMessage::forceCreate([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->owner->id,
             'body' => 'Second oldest',
             'type' => 'user',
             'created_at' => now()->subHours(3),
+            'updated_at' => now()->subHours(3),
         ]);
 
-        LoopMessage::create([
+        LoopMessage::forceCreate([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->owner->id,
             'body' => 'Third oldest',
             'type' => 'user',
             'created_at' => now()->subHours(2),
+            'updated_at' => now()->subHours(2),
         ]);
 
-        LoopMessage::create([
+        LoopMessage::forceCreate([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->owner->id,
             'body' => 'Newest message',
             'type' => 'user',
             'created_at' => now()->subHour(),
+            'updated_at' => now()->subHour(),
         ]);
 
         $response = $this->getJson("/blog/{$this->post->slug}/loop-messages");
