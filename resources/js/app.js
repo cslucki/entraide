@@ -1252,13 +1252,12 @@ function registerBlogInviteByEmail() {
         inviteIndexUrl: config.inviteIndexUrl,
         isOwner: config.isOwner,
         isAdmin: config.isAdmin,
-        isPublished: config.isPublished,
         historyUrl: config.historyUrl,
         i18n: config.i18n || {},
         csrfToken: config.i18n?.csrfToken || '',
 
         canInvite() {
-            return (this.isOwner || this.isAdmin) && this.isPublished;
+            return this.isOwner || this.isAdmin;
         },
 
         openModal() {

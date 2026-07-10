@@ -1165,8 +1165,6 @@
                     inviteIndexUrl: @js($_blogRoute('invite.index', ['post' => $post])),
                     isOwner: {{ Auth::id() === $post->user_id ? 'true' : 'false' }},
                     isAdmin: {{ Auth::user()->is_admin ? 'true' : 'false' }},
-                    isPublished: {{ $post->status === 'published' ? 'true' : 'false' }},
-                    historyUrl: @js($_blogRoute('invite.index', ['post' => $post])),
                     i18n: {
                         btnInvite: @js(__('blog-invitation.btn_invite_email')),
                         modalTitle: @js(__('blog-invitation.modal_title')),
@@ -1206,10 +1204,6 @@
                             </svg>
                             <span x-text="i18n.btnInvite"></span>
                         </button>
-
-                        <div x-show="!canInvite() && !isPublished" class="text-[10px] leading-4 text-gray-400 dark:text-gray-500 text-center mt-2">
-                            {{ __('blog-invitation.draft_not_allowed') }}
-                        </div>
                     </div>
 
                     {{-- Invitation history --}}
@@ -1245,9 +1239,6 @@
                                         x-text="inv.status === 'sent' ? i18n.cardStatusSent : i18n.cardStatusFailed"></span>
                                 </div>
                             </template>
-                            <a x-show="invitations.length > 0" :href="historyUrl"
-                                class="block text-center text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline mt-1"
-                                x-text="i18n.cardViewAll"></a>
                         </div>
                     </div>
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BlogPost;
+use App\Models\BlogPostInvitation;
 use App\Models\EmailLog;
 use App\Models\SystemEmailTemplate;
 use App\Models\User;
@@ -11,7 +12,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class BlogInvitationController extends Controller
@@ -25,30 +25,20 @@ class BlogInvitationController extends Controller
 
         Gate::authorize('update', $post);
 
-        $logs = EmailLog::where('organization_id', $organization->id)
-            ->where('data->source', 'blog-contribution-invitation')
-            ->where('data->blog_post_id', $post->id)
+        $invitations = BlogPostInvitation::where('blog_post_id', $post->id)
             ->orderByDesc('created_at')
             ->limit(50)
-            ->get([
-                'id',
-                'to_email',
-                'subject',
-                'status',
-                'data',
-                'created_at',
-            ])
-            ->map(fn (EmailLog $log) => [
-                'id' => $log->id,
-                'to_email' => $log->to_email,
-                'subject' => $log->subject,
-                'status' => $log->status,
-                'invitation_type' => $log->data['invitation_type'] ?? null,
-                'recipient_name' => $log->data['recipient_name'] ?? null,
-                'sent_at' => $log->created_at->toISOString(),
+            ->get()
+            ->map(fn (BlogPostInvitation $inv) => [
+                'id' => $inv->id,
+                'to_email' => $inv->recipient_email,
+                'recipient_name' => $inv->recipient_name,
+                'invitation_type' => $inv->invitation_type,
+                'status' => $inv->isExpired() ? 'failed' : 'sent',
+                'sent_at' => $inv->created_at->toISOString(),
             ]);
 
-        return response()->json(['invitations' => $logs]);
+        return response()->json(['invitations' => $invitations]);
     }
 
     public function store(Request $request, BlogPost $post): JsonResponse
@@ -66,12 +56,6 @@ class BlogInvitationController extends Controller
             'message' => 'nullable|string|max:2000',
         ]);
 
-        if ($post->status !== 'published') {
-            throw ValidationException::withMessages([
-                'recipient_email' => __('blog-invitation.draft_not_allowed'),
-            ]);
-        }
-
         $sender = $request->user();
         $organization = currentOrganization();
         $existingMember = User::where('organization_id', $organization->id)
@@ -81,11 +65,17 @@ class BlogInvitationController extends Controller
         $isExistingMember = $existingMember !== null;
         $invitationType = $isExistingMember ? 'existing_member' : 'external';
 
-        $articleRouteParams = ['post' => $post];
-        if ($sender->referral_code) {
-            $articleRouteParams['ref'] = $sender->referral_code;
-        }
-        $articleUrl = route('blog.show', $articleRouteParams);
+        $invitation = BlogPostInvitation::create([
+            'blog_post_id' => $post->id,
+            'sender_id' => $sender->id,
+            'recipient_email' => $data['recipient_email'],
+            'recipient_name' => $data['recipient_name'] ?? null,
+            'message' => $data['message'] ?? null,
+            'invitation_type' => $invitationType,
+            'organization_id' => $organization->id,
+        ]);
+
+        $invitationUrl = route('blog.invite.show', ['token' => $invitation->token]);
         $senderMessage = filled($data['message'] ?? null)
             ? $data['message']
             : __('blog-invitation.default_message');
@@ -94,11 +84,11 @@ class BlogInvitationController extends Controller
             'sender_name' => $sender->fullName,
             'recipient_name' => $data['recipient_name'] ?? $data['recipient_email'],
             'sender_message' => $senderMessage,
-            'article_url' => $articleUrl,
+            'invitation_url' => $invitationUrl,
             'article_title' => $post->title,
         ];
 
-        $extraKeys = ['sender_name', 'recipient_name', 'sender_message', 'article_url', 'article_title'];
+        $extraKeys = ['sender_name', 'recipient_name', 'sender_message', 'invitation_url', 'article_title'];
 
         if (! $isExistingMember && $sender->organization?->slug && $sender->referral_code) {
             $vars['register_url'] = route('organization.register', [
@@ -128,7 +118,7 @@ class BlogInvitationController extends Controller
                 'senderName' => $sender->fullName,
                 'recipientName' => $data['recipient_name'] ?? $data['recipient_email'],
                 'senderMessage' => $senderMessage,
-                'articleUrl' => $articleUrl,
+                'invitationUrl' => $invitationUrl,
                 'articleTitle' => $post->title,
                 'registerUrl' => $vars['register_url'] ?? null,
                 'isExistingMember' => $isExistingMember,
@@ -155,6 +145,8 @@ class BlogInvitationController extends Controller
                     'sender_id' => $sender->id,
                     'recipient_name' => $data['recipient_name'] ?? null,
                     'invitation_type' => $invitationType,
+                    'invitation_id' => $invitation->id,
+                    'invitation_token' => $invitation->token,
                 ],
             ]);
 
@@ -164,6 +156,8 @@ class BlogInvitationController extends Controller
 
             return response()->json(['success' => true, 'message' => $msg, 'invitation_type' => $invitationType]);
         } catch (Throwable $e) {
+            $invitation->update(['status' => 'expired']);
+
             EmailLog::create([
                 'user_id' => $sender->id,
                 'organization_id' => $organization->id,
@@ -179,6 +173,8 @@ class BlogInvitationController extends Controller
                     'sender_id' => $sender->id,
                     'recipient_name' => $data['recipient_name'] ?? null,
                     'invitation_type' => $invitationType,
+                    'invitation_id' => $invitation->id,
+                    'invitation_token' => $invitation->token,
                 ],
             ]);
 
@@ -187,6 +183,50 @@ class BlogInvitationController extends Controller
                 'message' => __('blog-invitation.email_error'),
             ], 500);
         }
+    }
+
+    public function show(string $token)
+    {
+        $invitation = BlogPostInvitation::where('token', $token)->firstOrFail();
+
+        $post = $invitation->blogPost;
+        $sender = $invitation->sender;
+
+        return view('blog.invitation', [
+            'invitation' => $invitation,
+            'post' => $post,
+            'sender' => $sender,
+            'isExpired' => $invitation->isExpired(),
+            'isAccepted' => $invitation->status === 'accepted',
+        ]);
+    }
+
+    public function accept(Request $request, string $token)
+    {
+        $invitation = BlogPostInvitation::valid()->where('token', $token)->firstOrFail();
+
+        $user = $request->user();
+
+        if (! $user) {
+            session(['invitation_token' => $token]);
+
+            return redirect()->route('login', array_filter([
+                'ref' => $invitation->sender?->referral_code,
+            ]));
+        }
+
+        $invitation->accept($user);
+
+        $post = $invitation->blogPost;
+
+        if (! $post->coAuthors()->where('user_id', $user->id)->exists()) {
+            $post->coAuthors()->attach($user->id, [
+                'role' => 'coauthor',
+                'added_by' => $invitation->sender_id,
+            ]);
+        }
+
+        return redirect()->route('blog.edit', ['post' => $post->slug]);
     }
 
     public function orgIndex(string $org, BlogPost $post): JsonResponse

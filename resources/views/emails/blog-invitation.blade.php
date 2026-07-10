@@ -31,7 +31,7 @@
                 {!! nl2br(e($senderMessage)) !!}
             </div>
             <div class="buttons">
-                <a href="{{ $articleUrl }}" class="button" style="display:inline-block;padding:12px 24px;background-color:#4338ca;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">{{ __('blog-invitation.email_read_article') }}</a>
+                <a href="{{ $invitationUrl }}" class="button" style="display:inline-block;padding:12px 24px;background-color:#4338ca;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">{{ __('blog-invitation.email_read_article') }}</a>
                 @if(! $isExistingMember && isset($registerUrl) && $registerUrl)
                 <a href="{{ $registerUrl }}" class="button-secondary" style="display:inline-block;padding:12px 24px;background-color:#059669;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">{{ __('blog-invitation.email_register') }}</a>
                 @endif
@@ -40,7 +40,7 @@
                 {!! __('blog-invitation.email_notice', [
                     'sender_name' => $senderName,
                     'article_title' => $articleTitle,
-                    'article_url' => $articleUrl,
+                    'invitation_url' => $invitationUrl,
                 ]) !!}
             </div>
             <hr>

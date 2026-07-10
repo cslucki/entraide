@@ -169,6 +169,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // Blog — wildcard slug EN DERNIER
 Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
 
+// Blog invitation public routes (no auth required)
+Route::get('/blog-invitations/{token}', [BlogInvitationController::class, 'show'])->name('blog.invite.show');
+Route::post('/blog-invitations/{token}/accept', [BlogInvitationController::class, 'accept'])->name('blog.invite.accept');
+
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
 Route::view('/aide', 'help')->name('help');
