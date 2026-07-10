@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'email_subject' => ':sender invites you to read « :title »',
+    'email_badge' => 'Contribution invitation',
+    'email_heading' => 'invites you to read and contribute to an article',
+    'email_read_article' => 'Read the article',
+    'email_register' => 'Create an account',
+    'email_register_hint' => 'You don\'t have an account yet? Create one to contribute.',
+    'default_message' => 'I invite you to read and contribute to this article.',
+    'sent_to_member' => 'Invitation sent to the organization member.',
+    'sent_to_external' => 'Invitation sent.',
+    'email_error' => 'An error occurred while sending the invitation.',
+    'draft_not_allowed' => 'Invitations are not possible on a draft. Publish the article first.',
+    'modal_title' => 'Invite to contribute',
+    'modal_recipient_email' => 'Recipient email',
+    'modal_recipient_name' => 'Recipient name (optional)',
+    'modal_message' => 'Personal message (optional)',
+    'modal_placeholder_email' => 'email@example.com',
+    'modal_placeholder_name' => 'Jane Doe',
+    'modal_placeholder_message' => 'I invite you to read and comment on this article…',
+    'modal_btn_send' => 'Send invitation',
+    'modal_btn_cancel' => 'Cancel',
+    'modal_sending' => 'Sending…',
+];

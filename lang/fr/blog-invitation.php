@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'email_subject' => ':sender vous invite à lire « :title »',
+    'email_badge' => 'Invitation à contribuer',
+    'email_heading' => 'vous invite à lire et contribuer à un article',
+    'email_read_article' => 'Lire l\'article',
+    'email_register' => 'Créer un compte',
+    'email_register_hint' => 'Vous n\'avez pas encore de compte ? Créez-le pour pouvoir contribuer.',
+    'default_message' => 'Je vous invite à lire et contribuer à cet article.',
+    'sent_to_member' => 'Invitation envoyée au membre de l\'organisation.',
+    'sent_to_external' => 'Invitation envoyée.',
+    'email_error' => 'Une erreur est survenue lors de l\'envoi de l\'invitation.',
+    'draft_not_allowed' => 'Les invitations ne sont pas possibles sur un brouillon. Publiez l\'article d\'abord.',
+    'modal_title' => 'Inviter à contribuer',
+    'modal_recipient_email' => 'Email du destinataire',
+    'modal_recipient_name' => 'Nom du destinataire (facultatif)',
+    'modal_message' => 'Message personnel (facultatif)',
+    'modal_placeholder_email' => 'email@exemple.com',
+    'modal_placeholder_name' => 'Jean Dupont',
+    'modal_placeholder_message' => 'Je vous invite à lire et commenter cet article…',
+    'modal_btn_send' => 'Envoyer l\'invitation',
+    'modal_btn_cancel' => 'Annuler',
+    'modal_sending' => 'Envoi…',
+];

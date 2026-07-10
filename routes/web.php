@@ -39,6 +39,7 @@ use App\Http\Controllers\BlogAnnotationReplyController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogInvitationController;
 use App\Http\Controllers\BlogPostLoopController;
 use App\Http\Controllers\BlogSnapshotController;
 use App\Http\Controllers\BlogTodoController;
@@ -159,6 +160,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Blog plan endpoint
     Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
+
+    // Blog invitation endpoint
+    Route::post('/blog/{post:slug}/invite', [BlogInvitationController::class, 'store'])->name('blog.invite.store')->middleware('throttle:10,1');
 });
 
 // Blog — wildcard slug EN DERNIER
@@ -672,6 +676,9 @@ Route::prefix('/org/{organization}')
 
                 // Blog plan endpoint (org-scoped)
                 Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'orgUpdatePlan'])->name('blog.plan.update');
+
+                // Blog invitation endpoint (org-scoped)
+                Route::post('/blog/{post:slug}/invite', [BlogInvitationController::class, 'orgStore'])->name('blog.invite.store')->middleware('throttle:10,1');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');
