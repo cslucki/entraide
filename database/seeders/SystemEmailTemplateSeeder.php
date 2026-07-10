@@ -94,6 +94,21 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><a href="{{ url }}">See details</a></p>',
             'variables' => ['name', 'scenario_id', 'current_cost', 'budget_limit', 'url'],
         ],
+        'blog_contribution_invitation' => [
+            'name_fr' => 'Invitation contribuer article',
+            'name_en' => 'Blog contribution invitation',
+            'subject_fr' => '{{ sender_name }} vous invite à lire « {{ article_title }} »',
+            'subject_en' => '{{ sender_name }} invites you to read « {{ article_title }} »',
+            'content_html_fr' => '<h1>{{ sender_name }} vous invite à lire et contribuer</h1>
+<p>Bonjour {{ recipient_name }},</p>
+<blockquote>{{ sender_message }}</blockquote>
+<p><a href="{{ article_url }}">Lire l\'article : {{ article_title }}</a></p>',
+            'content_html_en' => '<h1>{{ sender_name }} invites you to read and contribute</h1>
+<p>Hello {{ recipient_name }},</p>
+<blockquote>{{ sender_message }}</blockquote>
+<p><a href="{{ article_url }}">Read the article: {{ article_title }}</a></p>',
+            'variables' => ['sender_name', 'recipient_name', 'sender_message', 'article_url', 'article_title', 'register_url'],
+        ],
     ];
 
     public function run(): void

@@ -106,6 +106,7 @@ return [
     'role_responsible' => 'Responsible',
     'role_coauthor' => 'Co-author',
     'action_manage_coauthors' => 'Co-authors',
+    'action_invite' => 'Invite',
     'admin_title' => 'Blog — Articles',
     'filter_all_statuses' => 'All statuses',
     'filter_all_organizations' => 'All organizations',

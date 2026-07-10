@@ -1,8 +1,11 @@
 <x-guest-layout>
     @php
         $isOrg = !is_null($currentOrganization);
+        $ref = request()->input('ref');
         $loginAction = $isOrg ? route('organization.login', $currentOrganization) : route('login');
-        $registerLink = $isOrg ? route('organization.register', $currentOrganization) : route('register');
+        $registerLink = $isOrg
+            ? route('organization.register', array_filter(['organization' => $currentOrganization->slug, 'ref' => $ref]))
+            : route('register', array_filter(['ref' => $ref]));
         $forgotPasswordLink = $isOrg ? route('organization.password.request', $currentOrganization) : route('password.request');
     @endphp
 

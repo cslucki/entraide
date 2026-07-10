@@ -39,6 +39,7 @@ use App\Http\Controllers\BlogAnnotationReplyController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogInvitationController;
 use App\Http\Controllers\BlogPostLoopController;
 use App\Http\Controllers\BlogSnapshotController;
 use App\Http\Controllers\BlogTodoController;
@@ -159,10 +160,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Blog plan endpoint
     Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
+
+    // Blog invitation endpoints
+    Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'index'])->name('blog.invite.index');
+    Route::post('/blog/{post:slug}/invite', [BlogInvitationController::class, 'store'])->name('blog.invite.store')->middleware('throttle:10,1');
 });
 
 // Blog — wildcard slug EN DERNIER
 Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
+
+// Blog invitation public routes (no auth required)
+Route::get('/blog-invitations/{token}', [BlogInvitationController::class, 'show'])->name('blog.invite.show');
+Route::post('/blog-invitations/{token}/accept', [BlogInvitationController::class, 'accept'])->name('blog.invite.accept');
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
@@ -672,6 +681,10 @@ Route::prefix('/org/{organization}')
 
                 // Blog plan endpoint (org-scoped)
                 Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'orgUpdatePlan'])->name('blog.plan.update');
+
+                // Blog invitation endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'orgIndex'])->name('blog.invite.index');
+                Route::post('/blog/{post:slug}/invite', [BlogInvitationController::class, 'orgStore'])->name('blog.invite.store')->middleware('throttle:10,1');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');
