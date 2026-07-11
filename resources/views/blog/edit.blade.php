@@ -767,6 +767,94 @@
                 </div>
                 {{-- /Plan card --}}
 
+                {{-- Questionner selection card --}}
+                <div
+                    x-data="blogMethodSelectionCard({
+                        selectionUrl: @js($_blogRoute('ai-method-selection')),
+                        annotationStoreUrl: @js($_blogRoute('annotations.store', ['post' => $post])),
+                        annotationContentSaveUrl: @js($_blogRoute('save-content', ['post' => $post])),
+                        postId: @js($post->id),
+                        csrfToken: @js(csrf_token()),
+                        methods: [
+                            { key: 'explorer', label: @js(__('blog.method_explorer')), description: @js(__('blog.method_explorer_desc')) },
+                            { key: 'clarifier', label: @js(__('blog.method_clarifier')), description: @js(__('blog.method_clarifier_desc')) },
+                            { key: 'slow_down', label: @js(__('blog.method_slow_down')), description: @js(__('blog.method_slow_down_desc')) },
+                            { key: 'invent', label: @js(__('blog.method_invent')), description: @js(__('blog.method_invent_desc')) },
+                        ],
+                        i18n: {
+                            title: @js(__('blog.sidebar_methode_ia')),
+                            noSelection: @js(__('blog.method_selection_no_selection')),
+                            selected: @js(__('blog.method_selection_selected')),
+                            analyze: @js(__('blog.method_selection_analyze')),
+                            analyzing: @js(__('blog.method_selection_analyzing')),
+                            createAnnotation: @js(__('blog.method_selection_create_annotation')),
+                            copy: @js(__('blog.method_selection_copy')),
+                            copied: @js(__('blog.method_selection_copied')),
+                            rerun: @js(__('blog.method_selection_rerun')),
+                            resultLabel: @js(__('blog.method_selection_result_label')),
+                            ready: @js(__('blog.method_selection_ready')),
+                            error: @js(__('blog.method_selection_error')),
+                        },
+                    })"
+                    class="border border-indigo-200 dark:border-indigo-800 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button type="button"
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18l-.813-2.096a4.5 4.5 0 00-2.591-2.591L3.5 12.5l2.096-.813a4.5 4.5 0 002.591-2.591L9 7l.813 2.096a4.5 4.5 0 002.591 2.591l2.096.813-2.096.813a4.5 4.5 0 00-2.591 2.591z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 3l.56 1.44A3 3 0 0020 6l-1.44.56A3 3 0 0017 8l-.56-1.44A3 3 0 0015 5l1.44-.56A3 3 0 0018 3z"/></svg>
+                            <span>{{ __('blog.sidebar_methode_ia') }}</span>
+                        </span>
+                        <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="space-y-3 px-3 pb-3">
+                        <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('blog.method_selection_hint') }}</p>
+
+                        <div x-show="!selectedText" x-cloak class="rounded-lg border border-dashed border-violet-200 bg-violet-50/50 p-3 text-xs leading-5 text-violet-800 dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200">
+                            {{ __('blog.method_selection_no_selection') }}
+                        </div>
+
+                        <div x-show="selectedText" x-cloak class="space-y-3">
+                            <div class="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
+                                <p class="mb-1 font-semibold text-gray-500 dark:text-gray-400" x-text="i18n.selected"></p>
+                                <p class="line-clamp-3 italic" x-text="selectedText"></p>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-2">
+                                <template x-for="m in methods" :key="m.key">
+                                    <button type="button" @click="selectMethod(m.key)"
+                                        class="rounded-xl border px-3 py-2 text-left transition"
+                                        :class="method === m.key ? 'border-violet-300 bg-violet-50 text-violet-950 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-100' : 'border-gray-200 bg-white text-gray-700 hover:border-violet-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-violet-800'">
+                                        <span class="block text-sm font-semibold" x-text="m.label"></span>
+                                        <span class="block text-xs leading-5 text-gray-500 dark:text-gray-400" x-text="m.description"></span>
+                                    </button>
+                                </template>
+                            </div>
+
+                            <div x-show="error" x-cloak class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300" x-text="error"></div>
+                            <div x-show="success" x-cloak class="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-300" x-text="success"></div>
+
+                            <div x-show="suggestion" x-cloak class="space-y-2">
+                                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400" x-text="i18n.resultLabel"></label>
+                                <textarea x-model="suggestion" rows="7" class="w-full rounded-xl border border-violet-200 bg-white p-3 text-sm leading-6 text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-violet-900 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                            </div>
+
+                            <div class="flex flex-wrap justify-end gap-2">
+                                <button type="button" @click="analyze()" :disabled="loading" class="rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
+                                    <span x-show="!loading && !suggestion" x-text="i18n.analyze"></span>
+                                    <span x-show="!loading && suggestion" x-text="i18n.rerun"></span>
+                                    <span x-show="loading" x-text="i18n.analyzing"></span>
+                                </button>
+                                <button type="button" @click="copySuggestion()" :disabled="!suggestion" class="rounded-xl border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" x-text="copied ? i18n.copied : i18n.copy"></button>
+                                <button type="button" @click="createAnnotation()" :disabled="!suggestion" class="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50" x-text="i18n.createAnnotation"></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {{-- /Questionner selection card --}}
+
                 {{-- Annotations card --}}
                 <div
                     x-data="blogAnnotationCard({
@@ -796,6 +884,9 @@
                             badgeStale: @js(__('blog.annotation_badge_stale')),
                             textStale: @js(__('blog.annotation_text_stale')),
                             refreshDoc: @js(__('blog.annotation_refresh_doc')),
+                            sourceAll: @js(__('blog.annotation_source_all')),
+                            sourceHuman: @js(__('blog.annotation_source_human')),
+                            sourceAiMethod: @js(__('blog.annotation_source_ai_method')),
                             csrfToken: @js(csrf_token()),
                         },
                     })"
@@ -835,6 +926,22 @@
                                 x-text="i18n.resolvedTab"></button>
                         </div>
 
+                        {{-- Source filters --}}
+                        <div class="flex flex-wrap gap-1">
+                            <button type="button" @click="sourceFilter = 'all'"
+                                :class="sourceFilter === 'all' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'bg-gray-50 text-gray-500 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:text-gray-200'"
+                                class="px-2 py-1 text-[10px] font-semibold rounded transition"
+                                x-text="i18n.sourceAll"></button>
+                            <button type="button" @click="sourceFilter = 'human'"
+                                :class="sourceFilter === 'human' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'bg-gray-50 text-gray-500 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:text-gray-200'"
+                                class="px-2 py-1 text-[10px] font-semibold rounded transition"
+                                x-text="i18n.sourceHuman"></button>
+                            <button type="button" @click="sourceFilter = 'ai_method'"
+                                :class="sourceFilter === 'ai_method' ? 'bg-indigo-600 text-white dark:bg-indigo-500' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-300 dark:hover:bg-indigo-950/50'"
+                                class="px-2 py-1 text-[10px] font-semibold rounded transition"
+                                x-text="i18n.sourceAiMethod"></button>
+                        </div>
+
                         {{-- Loading --}}
                         <template x-if="loading && annotations.length === 0">
                             <div class="flex items-center justify-center py-4">
@@ -868,6 +975,13 @@
                                             :class="a._orphaned ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-500 dark:text-gray-400'"
                                             x-text="'&ldquo;' + a.selected_text + '&rdquo;'"></p>
                                         <p class="text-xs text-gray-800 dark:text-gray-100" x-text="a.content"></p>
+                                        <template x-if="a.origin === 'ai_method'">
+                                            <div class="flex flex-wrap items-center gap-1">
+                                                <span class="inline-flex items-center rounded-full bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300" x-text="a.source_label"></span>
+                                                <span class="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300" x-text="a.method_label"></span>
+                                                <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="a.requested_by_label"></span>
+                                            </div>
+                                        </template>
                                         <p class="text-[10px] text-gray-400 dark:text-gray-500">
                                             <span x-text="a.author_name"></span>
                                             <span> · </span>

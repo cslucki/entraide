@@ -465,6 +465,7 @@ function registerBlogEditor() {
 
             editor.on('selectionUpdate', () => {
                 this.updateActiveStates();
+                document.dispatchEvent(new CustomEvent('blog-editor-selection-updated'));
             });
 
             const form = this.$el.closest('form');
@@ -492,7 +493,7 @@ function registerBlogEditor() {
                 const mark = e.target.closest('.bp-annotation-mark[data-annotation-id]');
                 if (mark) {
                     document.dispatchEvent(new CustomEvent('annotation-selected', {
-                        detail: { id: mark.dataset.annotationId }
+                        detail: { id: mark.dataset.annotationId, origin: mark.dataset.annotationOrigin || 'human' }
                     }));
                 }
             });
@@ -894,6 +895,21 @@ function registerBlogEditor() {
             }));
         },
 
+        startEditorMethodSelection() {
+            if (!editor) return;
+            const { from, to } = editor.state.selection;
+            if (from === to) {
+                this.error = this.msgAnnotationTooShort;
+                return;
+            }
+            const text = editor.state.doc.textBetween(from, to, ' ').trim();
+            if (text.trim().length < 2) {
+                this.error = this.msgAnnotationTooShort;
+                return;
+            }
+            document.dispatchEvent(new CustomEvent('open-method-selection-card'));
+        },
+
         usedCount(mode) {
             return Math.max(0, this.limits[mode] - this.remaining[mode]);
         },
@@ -905,6 +921,176 @@ function registerBlogEditor() {
             const label = mode === 'generate' ? 'génération' : 'correction';
             const limit = this.limits[mode];
             return `${used}${suffix} ${label} sur ${limit} possibles`;
+        },
+    }));
+}
+
+function registerBlogMethodSelectionCard() {
+    if (!window.Alpine || window.__blogMethodSelectionCardRegistered) {
+        return;
+    }
+
+    window.__blogMethodSelectionCardRegistered = true;
+
+    Alpine.data('blogMethodSelectionCard', (config) => ({
+        open: false,
+        loading: false,
+        error: '',
+        success: '',
+        copied: false,
+        selectedText: '',
+        from: null,
+        to: null,
+        method: 'explorer',
+        suggestion: '',
+        aiInteractionId: null,
+        provider: '',
+        model: '',
+        selectionUrl: config.selectionUrl,
+        postId: config.postId,
+        csrfToken: config.csrfToken,
+        i18n: config.i18n || {},
+        methods: config.methods || [],
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_methode_ia_selection');
+            if (stored !== null) this.open = stored === '1';
+            this.refreshSelection();
+
+            document.addEventListener('blog-editor-selection-updated', () => this.refreshSelection());
+            document.addEventListener('open-method-selection-card', () => {
+                this.open = true;
+                localStorage.setItem('editor_sidebar_card_methode_ia_selection', '1');
+                this.refreshSelection();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            });
+            document.addEventListener('annotation-created', () => {
+                this.suggestion = '';
+                this.success = '';
+                this.aiInteractionId = null;
+            });
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_methode_ia_selection', '0');
+            });
+        },
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_methode_ia_selection', this.open ? '1' : '0');
+            this.refreshSelection();
+            if (this.open) {
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
+        },
+
+        refreshSelection() {
+            if (typeof editor === 'undefined' || !editor) return;
+            const { from, to } = editor.state.selection;
+            if (from === to) {
+                this.selectedText = '';
+                this.from = null;
+                this.to = null;
+                return;
+            }
+            this.selectedText = editor.state.doc.textBetween(from, to, ' ').trim();
+            this.from = from;
+            this.to = to;
+        },
+
+        selectMethod(method) {
+            this.method = method;
+            this.error = '';
+        },
+
+        canAnalyze() {
+            return !this.loading && this.selectedText.trim().length >= 2;
+        },
+
+        analyze() {
+            this.refreshSelection();
+            if (!this.canAnalyze()) {
+                this.error = this.i18n.noSelection || 'Select a passage first.';
+                return;
+            }
+            this.loading = true;
+            this.error = '';
+            this.success = '';
+            this.copied = false;
+
+            const context = this.selectionContext();
+
+            fetch(this.selectionUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, Accept: 'application/json' },
+                body: JSON.stringify({
+                    post_id: this.postId,
+                    method: this.method,
+                    selected_text: this.selectedText,
+                    start_offset: this.from,
+                    end_offset: this.to,
+                    context_before: context.before,
+                    context_after: context.after,
+                }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || data.error || this.i18n.error || 'AI analysis failed.';
+                        return;
+                    }
+                    this.suggestion = data.content || '';
+                    this.aiInteractionId = data.ai_interaction_id || null;
+                    this.provider = data.provider || '';
+                    this.model = data.model || '';
+                    this.success = this.i18n.ready || '';
+                })
+                .catch(() => { this.error = this.i18n.error || 'AI analysis failed.'; })
+                .finally(() => { this.loading = false; });
+        },
+
+        selectionContext() {
+            if (typeof editor === 'undefined' || !editor || this.from === null || this.to === null) {
+                return { before: '', after: '' };
+            }
+            const docSize = editor.state.doc.content.size;
+            const beforeFrom = Math.max(0, this.from - 500);
+            const afterTo = Math.min(docSize, this.to + 500);
+            return {
+                before: editor.state.doc.textBetween(beforeFrom, this.from, ' ').trim(),
+                after: editor.state.doc.textBetween(this.to, afterTo, ' ').trim(),
+            };
+        },
+
+        createAnnotation() {
+            if (!this.suggestion.trim()) return;
+            document.dispatchEvent(new CustomEvent('open-annotation-modal', {
+                detail: {
+                    selectedText: this.selectedText.substring(0, 5000),
+                    from: this.from,
+                    to: this.to,
+                    content: this.suggestion,
+                    storeUrl: config.annotationStoreUrl || '',
+                    contentSaveUrl: config.annotationContentSaveUrl || '',
+                    csrfToken: this.csrfToken || '',
+                    origin: 'ai_method',
+                    methodKey: this.method,
+                    aiInteractionId: this.aiInteractionId,
+                },
+            }));
+        },
+
+        copySuggestion() {
+            if (!this.suggestion.trim()) return;
+            navigator.clipboard?.writeText(this.suggestion).then(() => {
+                this.copied = true;
+                setTimeout(() => { this.copied = false; }, 1800);
+            });
         },
     }));
 }
@@ -930,6 +1116,9 @@ function registerAnnotationModal() {
         updateUrl: '',
         annotationId: null,
         csrfToken: '',
+        origin: 'human',
+        methodKey: null,
+        aiInteractionId: null,
 
         init() {
             document.addEventListener('open-annotation-modal', (e) => {
@@ -943,6 +1132,9 @@ function registerAnnotationModal() {
                 this.content = e.detail.content || '';
                 this.updateUrl = e.detail.updateUrl || '';
                 this.annotationId = e.detail.annotationId || null;
+                this.origin = e.detail.origin || 'human';
+                this.methodKey = e.detail.methodKey || null;
+                this.aiInteractionId = e.detail.aiInteractionId || null;
                 this.error = '';
                 this.saving = false;
                 this.open = true;
@@ -986,6 +1178,11 @@ function registerAnnotationModal() {
                 body: JSON.stringify({
                     selected_text: this.selectedText,
                     content: this.content.trim(),
+                    start_offset: this.from,
+                    end_offset: this.to,
+                    origin: this.origin,
+                    method_key: this.methodKey,
+                    ai_interaction_id: this.aiInteractionId,
                 }),
             })
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
@@ -1001,7 +1198,7 @@ function registerAnnotationModal() {
                     if (typeof editor !== 'undefined' && editor && this.from !== null && this.to !== null) {
                         editor.chain()
                             .setTextSelection({ from: this.from, to: this.to })
-                            .setAnnotation(annotation.id)
+                            .setAnnotation(annotation.id, annotation.origin || this.origin)
                             .run();
 
                         const html = editor.getHTML();
@@ -1070,6 +1267,9 @@ function registerAnnotationModal() {
             this.from = null;
             this.to = null;
             this.error = '';
+            this.origin = 'human';
+            this.methodKey = null;
+            this.aiInteractionId = null;
         },
     }));
 }
@@ -1898,6 +2098,7 @@ window.blogAnnotationCard = function (config) {
         error: '',
         success: '',
         filterTab: 'open',
+        sourceFilter: 'all',
         selectedAnnotationId: null,
         deletedFeedbackAnnotationId: null,
         replyContents: {},
@@ -1926,7 +2127,7 @@ window.blogAnnotationCard = function (config) {
             if (this.isOpen) this._startPolling();
 
             document.addEventListener('annotation-selected', (e) => {
-                this.selectAnnotation(e.detail.id);
+                this.openForAnnotation(e.detail.id, e.detail.origin || null);
             });
 
             document.addEventListener('annotation-created', () => {
@@ -1968,10 +2169,14 @@ window.blogAnnotationCard = function (config) {
         },
 
         get filteredAnnotations() {
-            if (this.filterTab === 'open') {
-                return this.annotations.filter(a => a.status === 'open');
+            let items = this.annotations.filter(a => a.status === this.filterTab);
+            if (this.sourceFilter === 'human') {
+                items = items.filter(a => (a.origin || 'human') === 'human');
             }
-            return this.annotations.filter(a => a.status === 'resolved');
+            if (this.sourceFilter === 'ai_method') {
+                items = items.filter(a => a.origin === 'ai_method');
+            }
+            return items;
         },
 
         toggle() {
@@ -1992,7 +2197,7 @@ window.blogAnnotationCard = function (config) {
             const silent = options && options.silent;
             if (!silent) this.loading = true;
             this.error = '';
-            fetch(this.indexUrl, { cache: 'no-store' })
+            return fetch(this.indexUrl, { cache: 'no-store' })
                 .then(r => r.json())
                 .then(data => {
                     const raw = JSON.stringify(data.annotations || []);
@@ -2010,6 +2215,30 @@ window.blogAnnotationCard = function (config) {
                     this.error = this.i18n.loadError || 'Failed to load annotations.';
                     this.loading = false;
                 });
+        },
+
+        openForAnnotation(id, origin) {
+            this.isOpen = true;
+            localStorage.setItem('editor_sidebar_card_annotations', '1');
+            this._startPolling();
+            this._dispatching = true;
+            window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+            this._dispatching = false;
+
+            if (origin === 'ai_method') {
+                this.sourceFilter = 'ai_method';
+            }
+
+            this.loadAnnotations({ silent: true }).then(() => {
+                const annotation = this.annotations.find(a => a.id === id);
+                if (annotation) {
+                    this.filterTab = annotation.status || 'open';
+                    if ((annotation.origin || origin) === 'ai_method') {
+                        this.sourceFilter = 'ai_method';
+                    }
+                }
+                setTimeout(() => this.selectAnnotation(id), 50);
+            });
         },
 
         editAnnotation(annotation) {
@@ -2123,6 +2352,9 @@ window.blogAnnotationCard = function (config) {
                     mark.classList.add('bp-annotation-highlight');
                     mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 });
+                setTimeout(() => {
+                    marks.forEach(mark => mark.classList.remove('bp-annotation-highlight'));
+                }, 2400);
             }
             const card = document.querySelector(`[data-annotation-card-id="${id}"]`);
             if (card) {
@@ -2462,6 +2694,7 @@ document.addEventListener('alpine:init', () => {
     registerAlpineStores();
     registerBlogSnapshotCard();
     registerBlogEditor();
+    registerBlogMethodSelectionCard();
     registerAnnotationModal();
     registerBlogCoAuthorCard();
     registerBlogInviteByEmail();
@@ -2473,6 +2706,7 @@ document.addEventListener('alpine:init', () => {
 registerAlpineStores();
 registerBlogSnapshotCard();
 registerBlogEditor();
+registerBlogMethodSelectionCard();
 registerAnnotationModal();
 registerBlogCoAuthorCard();
 registerBlogInviteByEmail();
