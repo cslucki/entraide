@@ -19,6 +19,14 @@ const Annotation = Mark.create({
                     return { 'data-annotation-id': attributes.annotationId };
                 },
             },
+            annotationOrigin: {
+                default: 'human',
+                parseHTML: element => element.getAttribute('data-annotation-origin') || 'human',
+                renderHTML: attributes => {
+                    if (!attributes.annotationOrigin || attributes.annotationOrigin === 'human') return {};
+                    return { 'data-annotation-origin': attributes.annotationOrigin };
+                },
+            },
         };
     },
 
@@ -29,10 +37,15 @@ const Annotation = Mark.create({
     },
 
     renderHTML({ HTMLAttributes }) {
+        const origin = HTMLAttributes['data-annotation-origin'] || HTMLAttributes.annotationOrigin;
+        const originClass = origin === 'ai_method'
+            ? 'bp-annotation-mark bp-annotation-mark-method'
+            : 'bp-annotation-mark bp-annotation-mark-human';
+
         return [
             'span',
             mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-                class: 'bp-annotation-mark',
+                class: originClass,
             }),
             0,
         ];
@@ -40,8 +53,8 @@ const Annotation = Mark.create({
 
     addCommands() {
         return {
-            setAnnotation: (annotationId) => ({ commands }) => {
-                return commands.setMark(this.name, { annotationId });
+            setAnnotation: (annotationId, annotationOrigin = 'human') => ({ commands }) => {
+                return commands.setMark(this.name, { annotationId, annotationOrigin });
             },
             unsetAnnotation: () => ({ commands }) => {
                 return commands.unsetMark(this.name);

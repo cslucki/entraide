@@ -14,6 +14,7 @@ class BlogPostAnnotation extends Model
 
     protected $attributes = [
         'status' => 'open',
+        'origin' => 'human',
     ];
 
     protected $fillable = [
@@ -23,6 +24,9 @@ class BlogPostAnnotation extends Model
         'selected_text',
         'content',
         'status',
+        'origin',
+        'method_key',
+        'ai_interaction_id',
         'anchor_hash',
         'start_offset',
         'end_offset',
@@ -62,5 +66,10 @@ class BlogPostAnnotation extends Model
     public function resolvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'resolved_by');
+    }
+
+    public function aiInteraction(): BelongsTo
+    {
+        return $this->belongsTo(AiInteraction::class, 'ai_interaction_id');
     }
 }

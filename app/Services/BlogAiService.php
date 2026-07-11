@@ -10,12 +10,15 @@ use App\Models\BlogPost;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class BlogAiService
 {
     private const MAX_OUTPUT_TOKENS = 2048;
 
     private const TIMEOUT = 30;
+
+    private const METHOD_SELECTION_METHODS = ['explorer', 'clarifier', 'slow_down', 'invent'];
 
     public function generate(BlogPost $post, User $user, ?string $title = null, ?string $summary = null): array
     {
@@ -38,6 +41,51 @@ class BlogAiService
         $result = $this->callAi($post, $user, $prompt, 'blog_correct');
 
         return $this->buildResult($result, $user, 'blog_correct');
+    }
+
+    public function methodSelection(
+        BlogPost $post,
+        User $user,
+        string $method,
+        string $selectedText,
+        ?string $contextBefore = null,
+        ?string $contextAfter = null
+    ): array {
+        if (! in_array($method, self::METHOD_SELECTION_METHODS, true)) {
+            throw new \InvalidArgumentException('Invalid method.');
+        }
+
+        $locale = $this->resolveMethodLocale($post, $user);
+        $scenarioId = "blog_method_selection_{$method}_{$locale}";
+        $methodName = trans("blog.method_{$method}", [], $locale);
+        $promptText = $this->resolvePrompt($scenarioId);
+
+        $prompt = sprintf(
+            $promptText,
+            $methodName,
+            $this->plainText($post->title),
+            $this->plainText($selectedText),
+            $this->plainText($contextBefore ?: __('blog.method_selection_no_context', [], $locale)),
+            $this->plainText($contextAfter ?: __('blog.method_selection_no_context', [], $locale)),
+        );
+
+        $prompt .= $locale === 'en'
+            ? "\n\nReturn a single short editable suggestion. Plain text only, no Markdown, no HTML, no bullets."
+            : "\n\nRetourne une seule suggestion courte et éditable. Texte brut uniquement, sans Markdown, sans HTML, sans liste.";
+
+        $result = $this->callAi($post, $user, $prompt, $scenarioId);
+
+        $cleaned = $this->cleanAiText($result['content']);
+
+        return [
+            'content' => $this->truncateToSentenceBoundary($cleaned, 650),
+            'provider' => $result['provider'],
+            'model' => $result['model'],
+            'method' => $method,
+            'method_name' => $methodName,
+            'scope' => 'selection',
+            'ai_interaction_id' => $result['ai_interaction_id'] ?? null,
+        ];
     }
 
     public function remainingCount(BlogPost $post, User $user, string $feature): int
@@ -97,6 +145,7 @@ class BlogAiService
         return match ($feature) {
             'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). Ta réponse doit faire 500 mots maximum. Réponds UNIQUEMENT avec le contenu HTML, sans introduction, sans conclusion, sans mention du titre.\n\nTitre : %s\nRésumé : %s",
             'blog_correct' => "Corrige les fautes d'orthographe, de grammaire et de syntaxe dans le texte suivant. Ne modifie pas le contenu ni le style, corrige uniquement les erreurs.\n\n%s",
+            default => "Tu es un assistant éditorial. Analyse uniquement le passage sélectionné selon la méthode demandée. Retourne une réponse courte, humaine, en texte brut, sans HTML, sans Markdown, sans astérisques, sans titres Markdown, sans chat général. Utilise uniquement ces titres textuels simples : Observation, Question, Piste. Vise 300 à 500 caractères. Une seule piste principale.\n\nMéthode : %s\nTitre de l'article : %s\nPassage sélectionné : %s\nContexte avant : %s\nContexte après : %s",
         };
     }
 
@@ -200,7 +249,7 @@ class BlogAiService
 
         $organizationId = currentOrganization()?->id ?? $user->organization_id;
 
-        AiInteraction::create([
+        $interaction = AiInteraction::create([
             'user_id' => $user->id,
             'organization_id' => $organizationId,
             'feature' => $feature,
@@ -221,7 +270,87 @@ class BlogAiService
             'content' => $text,
             'provider' => $provider,
             'model' => $model,
+            'ai_interaction_id' => $interaction->id,
         ];
+    }
+
+    private function resolveMethodLocale(BlogPost $post, User $user): string
+    {
+        $locale = $user->preferred_locale
+            ?: $post->organization?->locale
+            ?: currentOrganization()?->locale
+            ?: app()->getLocale();
+
+        return str_starts_with(strtolower((string) $locale), 'en') ? 'en' : 'fr';
+    }
+
+    private function cleanAiText(string $text, int $limit = 1400): string
+    {
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/<\?php|<\%|<\?xml/i', '', $text);
+        $text = preg_replace('/\{\{.*?\}\}/s', '', $text);
+        $text = preg_replace('/```[a-z0-9_-]*\s*/i', '', $text);
+        $text = str_replace('```', '', $text);
+        $text = preg_replace('/^\s{0,3}#{1,6}\s+/m', '', $text);
+        $text = preg_replace('/^\s{0,3}(?:-{3,}|_{3,}|\*{3,})\s*$/m', '', $text);
+        $text = preg_replace('/^\s{0,3}>\s?/m', '', $text);
+        $text = preg_replace('/\*\*(.*?)\*\*/s', '$1', $text);
+        $text = preg_replace('/__(.*?)__/s', '$1', $text);
+        $text = preg_replace('/(?<!\*)\*([^*\n]+)\*(?!\*)/u', '$1', $text);
+        $text = preg_replace('/(?<!_)_([^_\n]+)_(?!_)/u', '$1', $text);
+        $text = preg_replace('/^\s*[-*+]\s+/m', '', $text);
+        $text = preg_replace('/^\s*\d+[.)]\s+/m', '', $text);
+        $text = preg_replace('/\[(.*?)\]\((.*?)\)/', '$1', $text);
+        $text = str_replace(['**', '__', '*'], '', $text);
+        $text = preg_replace('/[ \t]+/', ' ', $text);
+        $text = preg_replace('/\h*\n\h*/', "\n", $text);
+        $text = preg_replace("/\n{3,}/", "\n\n", $text);
+
+        return Str::limit(trim((string) $text), $limit, '');
+    }
+
+    private function truncateToSentenceBoundary(string $text, int $limit): string
+    {
+        $text = trim($text);
+
+        if (mb_strlen($text) <= $limit) {
+            return $text;
+        }
+
+        $truncated = mb_substr($text, 0, $limit);
+
+        $punctuations = ['.', '!', '?', '…'];
+        $lastBoundary = -1;
+
+        foreach ($punctuations as $p) {
+            $pos = mb_strrpos($truncated, $p);
+            if ($pos !== false && $pos > $lastBoundary) {
+                $afterPunct = mb_substr($truncated, $pos + 1, 1);
+                if ($afterPunct === '' || ctype_space($afterPunct) || $afterPunct === "\xC2\xA0") {
+                    $lastBoundary = $pos;
+                }
+            }
+        }
+
+        if ($lastBoundary >= 0) {
+            return trim(mb_substr($truncated, 0, $lastBoundary + 1));
+        }
+
+        $lastSpace = mb_strrpos($truncated, ' ');
+        if ($lastSpace !== false && $lastSpace > 0) {
+            return trim(mb_substr($truncated, 0, $lastSpace));
+        }
+
+        return trim($truncated);
+    }
+
+    private function plainText(string $text): string
+    {
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/\{\{.*?\}\}/s', '', $text);
+        $text = preg_replace('/\s+/', ' ', $text);
+
+        return trim((string) $text);
     }
 
     private function buildResult(array $callResult, User $user, string $feature): array
