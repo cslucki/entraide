@@ -117,6 +117,11 @@ class BlogPost extends Model
         return $this->hasMany(BlogTodo::class);
     }
 
+    public function analysisNotes(): HasMany
+    {
+        return $this->hasMany(BlogAnalysisNote::class);
+    }
+
     public function isLikedBy(?User $user): bool
     {
         if (! $user) {

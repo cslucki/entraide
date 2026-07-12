@@ -8,6 +8,9 @@
             return route('organization.blog.'.$name, array_merge(['organization' => $orgSlug], $parameters));
         };
     @endphp
+    @push('scripts')
+        @vite(['resources/js/deep-chat-init.js'])
+    @endpush
     <x-slot name="title">{{ __('blog.title_edit', ['title' => $post->title]) }}</x-slot>
 
     @php
@@ -1058,6 +1061,148 @@
         </div>
     </div>
 
+    {{-- Explorer modal --}}
+    <div
+        x-data="blogExplorerModal({
+            chatUrl: @js($_blogRoute('explorer.chat', ['post' => $post])),
+            noteGenerateUrl: @js($_blogRoute('explorer.note.generate', ['post' => $post])),
+            notesStoreUrl: @js($_blogRoute('explorer.notes.store', ['post' => $post])),
+            csrfToken: @js(csrf_token()),
+            i18n: {
+                title: @js(__('blog.explorer_title')),
+                subtitle: @js(__('blog.explorer_subtitle')),
+                chatPlaceholder: @js(__('blog.explorer_chat_placeholder')),
+                generateNote: @js(__('blog.explorer_generate_note')),
+                generatingNote: @js(__('blog.explorer_generating_note')),
+                noteTitle: @js(__('blog.explorer_note_title')),
+                noteSave: @js(__('blog.explorer_note_save')),
+                noteSaved: @js(__('blog.explorer_note_saved')),
+                noteSaveError: @js(__('blog.explorer_note_save_error')),
+                noteMinMax: @js(__('blog.explorer_note_min_chars')),
+                close: @js(__('blog.explorer_close')),
+                dialogueCount: @js(__('blog.explorer_dialogue_count')),
+                deepChatError: @js(__('blog.explorer_deep_chat_error')),
+                introMessage: @js(__('blog.explorer_subtitle')),
+            },
+        })"
+        x-show="open"
+        x-cloak
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40"
+        @keydown.escape.window="close()"
+    >
+        <div class="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full md:max-w-2xl md:mx-4 max-h-[85dvh] flex flex-col" @click.stop>
+            {{-- Header --}}
+            <div class="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <span x-text="i18n.title || 'Explorer'"></span>
+                    </h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5" x-text="i18n.subtitle || ''"></p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span x-show="phase === 'dialogue' && dialogueCount > 0" x-cloak class="text-[11px] text-gray-400 dark:text-gray-500" x-text="dialogueLabel"></span>
+                    <button type="button" @click="close()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            {{-- Dialogue phase --}}
+            <div x-show="phase === 'dialogue'" class="flex-1 min-h-0 flex flex-col">
+                <div class="flex-1 min-h-0 overflow-hidden p-4">
+                    <deep-chat
+                        x-ref="deepChat"
+                        class="w-full rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden"
+                        style="height: 380px;"
+                        text-input-placeholder="Posez une question sur votre article..."
+                    ></deep-chat>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-700">
+                    <span x-show="dialogueCount > 0" x-cloak class="text-xs text-gray-400 dark:text-gray-500" x-text="dialogueLabel"></span>
+                    <div class="flex items-center gap-2 ml-auto">
+                        <button type="button" @click="close()" class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
+                            {{ __('blog.explorer_close') }}
+                        </button>
+                        <button type="button" @click="generateNote()" :disabled="!canGenerateNote || generatingNote"
+                            class="px-3 py-1.5 text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5"
+                            :class="canGenerateNote ? 'bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50' : 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500'">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <span x-text="i18n.generateNote || 'Générer la note'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Generating phase --}}
+            <div x-show="phase === 'generating'" x-cloak class="flex-1 flex items-center justify-center p-8">
+                <div class="text-center">
+                    <svg class="animate-spin h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-3" viewBox="0 0 24 24" fill="none">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    <p class="text-sm text-gray-600 dark:text-gray-300 font-medium" x-text="i18n.generatingNote || 'Génération en cours...'"></p>
+                </div>
+            </div>
+
+            {{-- Note phase --}}
+            <div x-show="phase === 'note'" x-cloak class="flex-1 flex flex-col min-h-0">
+                <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                    <h4 class="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <span x-text="i18n.noteTitle || 'Note Explorer'"></span>
+                    </h4>
+                    <div class="text-xs text-gray-500 dark:text-gray-400" x-show="noteContent.length > 0">
+                        <span x-text="noteContent.length"></span> / 900
+                    </div>
+                    <textarea x-model="noteContent"
+                        rows="10" maxlength="900"
+                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 resize-none leading-relaxed"
+                        :disabled="saving"
+                        placeholder="Note de 150 à 900 caractères..."
+                    ></textarea>
+                    <div x-show="noteContent.length > 0 && noteContent.length < 150" x-cloak class="text-xs text-amber-600 dark:text-amber-400">
+                        <span x-text="(i18n.noteMinMax || 'Min : :min caractères').replace(':min', '150').replace(':max', '900')"></span>
+                    </div>
+                </div>
+
+                <div x-show="error" x-cloak class="mx-5 mb-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg" x-text="error"></div>
+                <div x-show="success" x-cloak class="mx-5 mb-3 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg" x-text="success"></div>
+
+                <div class="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-700">
+                    <button type="button" @click="phase = 'dialogue'; error = ''; success = ''" :disabled="saving"
+                        class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition disabled:opacity-50">
+                        ← {{ __('blog.explorer_close') }}
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="close()" :disabled="saving"
+                            class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition disabled:opacity-50">
+                            {{ __('blog.btn_cancel') }}
+                        </button>
+                        <button type="button" @click="saveNote()" :disabled="saving || noteContent.length < 150 || noteContent.length > 900"
+                            class="px-4 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition inline-flex items-center gap-1.5">
+                            <svg x-show="saving" class="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                            <span x-text="saving ? '...' : (i18n.noteSave || 'Sauvegarder')"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Co-authors card --}}
         <div
             x-data="blogCoAuthorCard({
@@ -1487,6 +1632,73 @@
             </div>
         </div>
         {{-- /Snapshot card --}}
+
+        {{-- Explorer notes card --}}
+        <div
+            x-data="blogExplorerCard({
+                indexUrl: @js($_blogRoute('explorer.notes.index', ['post' => $post])),
+                destroyUrlBase: @js($_blogRoute('explorer.notes.destroy', ['post' => $post, 'note' => '__NOTE_ID__'])),
+                i18n: {
+                    loadError: @js(__('blog.explorer_note_save_error')),
+                    noteDeleted: @js(__('blog.explorer_note_deleted')),
+                    deleteError: @js(__('blog.explorer_note_delete_error')),
+                    noNotes: @js(__('blog.explorer_no_notes')),
+                    sidebarTitle: @js(__('blog.sidebar_notes')),
+                    noteFrom: @js(__('blog.explorer_note_from')),
+                    btnDelete: @js(__('blog.explorer_note_delete')),
+                    deleteConfirm: @js(__('blog.explorer_note_delete_confirm')),
+                },
+            })"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+        >
+            <button
+                @click="toggle()"
+                class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+            >
+                <span class="flex items-center gap-1.5">
+                    <svg class="w-3 h-3 text-purple-500 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span x-text="i18n.sidebarTitle || 'Notes'"></span>
+                </span>
+                <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto">
+                <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                <template x-if="loading && notes.length === 0">
+                    <div class="flex items-center justify-center py-4">
+                        <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    </div>
+                </template>
+
+                <template x-if="!loading && notes.length === 0">
+                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noNotes || 'Aucune note.'"></p>
+                </template>
+
+                <template x-for="note in notes" :key="note.id">
+                    <div class="rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50 group">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1" x-text="(i18n.noteFrom || 'Le') + ' ' + (note.created_at || '') + (note.user?.name ? ' · ' + note.user.name : '')"></p>
+                                <p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3" x-text="truncate(note.note_content, 150)"></p>
+                            </div>
+                            <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(note.id)" :disabled="deletingId === note.id"
+                                class="shrink-0 text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                                :title="i18n.btnDelete || 'Supprimer'">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        {{-- /Explorer notes card --}}
+
     </aside>
 
     </div>

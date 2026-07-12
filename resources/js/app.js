@@ -2452,6 +2452,301 @@ function registerBlogPlanCard() {
     }));
 }
 
+function registerBlogExplorerModal() {
+    if (!window.Alpine || window.__blogExplorerModalRegistered) {
+        return;
+    }
+
+    window.__blogExplorerModalRegistered = true;
+
+    Alpine.data('blogExplorerModal', (config) => ({
+        open: false,
+        phase: 'dialogue',
+        dialogueCount: 0,
+        maxDialogues: 5,
+        noteContent: '',
+        saving: false,
+        generatingNote: false,
+        error: '',
+        success: '',
+
+        chatUrl: config.chatUrl,
+        noteGenerateUrl: config.noteGenerateUrl,
+        notesStoreUrl: config.notesStoreUrl,
+        csrfToken: config.csrfToken,
+        i18n: config.i18n || {},
+
+        init() {
+            window.addEventListener('open-explorer', () => {
+                this.open = true;
+                this.phase = 'dialogue';
+                this.dialogueCount = 0;
+                this.noteContent = '';
+                this.error = '';
+                this.success = '';
+                this.$nextTick(() => this.setupDeepChat());
+            });
+        },
+
+        setupDeepChat() {
+            const dc = this.$refs.deepChat;
+            if (!dc) return;
+
+            try { dc.clearMessages(); } catch (_) {}
+
+            dc.connect = {
+                url: this.chatUrl,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            };
+
+            dc.requestInterceptor = (details) => {
+                const body = details.body || {};
+                const dcMessages = body.messages || [];
+                const lastMsg = dcMessages[dcMessages.length - 1];
+                const history = dcMessages.slice(0, -1).map((m) => ({
+                    role: m.role === 'ai' ? 'assistant' : m.role,
+                    text: m.text || '',
+                }));
+                return {
+                    body: {
+                        message: lastMsg?.text || '',
+                        messages: history,
+                    },
+                    headers: details.headers,
+                };
+            };
+
+            dc.responseInterceptor = (response) => {
+                if (response && response.error) {
+                    throw new Error(response.error);
+                }
+                return { messages: [{ role: 'ai', text: response?.text || '' }] };
+            };
+
+            dc.introMessage = {
+                text: this.i18n.introMessage || 'Bonjour ! Je suis votre Explorer. Posez-moi des questions sur votre article.',
+            };
+
+            dc.onMessage = () => {
+                this.dialogueCount++;
+                if (this.dialogueCount >= this.maxDialogues) {
+                    try { dc.disableSubmitButton(); } catch (_) {}
+                }
+            };
+        },
+
+        get canGenerateNote() {
+            return this.dialogueCount >= 2;
+        },
+
+        get dialogueLabel() {
+            return (this.i18n.dialogueCount || ':count échange(s)')
+                .replace(':count', this.dialogueCount);
+        },
+
+        async generateNote() {
+            this.phase = 'generating';
+            this.generatingNote = true;
+            this.error = '';
+
+            try {
+                const dc = this.$refs.deepChat;
+                let dcMessages = [];
+                if (dc) {
+                    try { dcMessages = dc.getMessages(); } catch (_) {}
+                }
+
+                const messages = dcMessages
+                    .filter((m) => m.role === 'user' || m.role === 'ai')
+                    .map((m) => ({
+                        role: m.role === 'ai' ? 'assistant' : m.role,
+                        text: m.text || '',
+                    }));
+
+                const response = await fetch(this.noteGenerateUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ messages }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    this.error = data.error || this.i18n.deepChatError || 'Erreur lors de la génération.';
+                    this.phase = 'dialogue';
+                    return;
+                }
+
+                this.noteContent = data.note || '';
+                this.phase = 'note';
+            } catch (_) {
+                this.error = this.i18n.deepChatError || 'Erreur de connexion.';
+                this.phase = 'dialogue';
+            } finally {
+                this.generatingNote = false;
+            }
+        },
+
+        async saveNote() {
+            if (this.noteContent.length < 150 || this.noteContent.length > 900) {
+                this.error = (this.i18n.noteMinMax || 'La note doit faire entre 150 et 900 caractères.')
+                    .replace(':min', '150').replace(':max', '900');
+                return;
+            }
+
+            this.saving = true;
+            this.error = '';
+
+            try {
+                const response = await fetch(this.notesStoreUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        note_content: this.noteContent,
+                        metadata: { source: 'explorer', dialogue_count: this.dialogueCount },
+                    }),
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    this.error = data.message || this.i18n.noteSaveError || 'Erreur de sauvegarde.';
+                    return;
+                }
+
+                this.success = this.i18n.noteSaved || 'Note sauvegardée !';
+                window.dispatchEvent(new CustomEvent('explorer-note-saved'));
+                setTimeout(() => this.close(), 1200);
+            } catch (_) {
+                this.error = this.i18n.noteSaveError || 'Erreur de connexion.';
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        close() {
+            this.open = false;
+            this.phase = 'dialogue';
+            this.dialogueCount = 0;
+            this.noteContent = '';
+            this.error = '';
+            this.success = '';
+            if (this.$refs.deepChat) {
+                try { this.$refs.deepChat.clearMessages(); } catch (_) {}
+            }
+        },
+    }));
+}
+
+function registerBlogExplorerCard() {
+    if (!window.Alpine || window.__blogExplorerCardRegistered) {
+        return;
+    }
+
+    window.__blogExplorerCardRegistered = true;
+
+    Alpine.data('blogExplorerCard', (config) => ({
+        open: false,
+        notes: [],
+        loading: false,
+        error: '',
+        success: '',
+        deletingId: null,
+
+        indexUrl: config.indexUrl,
+        destroyUrlBase: config.destroyUrlBase,
+        i18n: config.i18n || {},
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_explorer', this.open ? '1' : '0');
+            if (this.open) {
+                this.loadNotes();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
+        },
+
+        init() {
+            window.addEventListener('explorer-note-saved', () => {
+                if (this.open) this.loadNotes();
+            });
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (!this._dispatching) this.open = false;
+            });
+        },
+
+        async loadNotes() {
+            this.loading = true;
+            this.error = '';
+            try {
+                const response = await fetch(this.indexUrl, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) throw new Error('Failed');
+                const data = await response.json();
+                this.notes = data.data || data || [];
+            } catch (_) {
+                this.error = this.i18n.loadError || 'Erreur de chargement.';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async deleteNote(noteId) {
+            if (this.deletingId) return;
+            this.deletingId = noteId;
+            this.error = '';
+            try {
+                const url = this.destroyUrlBase.replace('__NOTE_ID__', noteId);
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                if (!response.ok) throw new Error('Failed');
+                this.notes = this.notes.filter((n) => n.id !== noteId);
+                this.success = this.i18n.noteDeleted || 'Note supprimée.';
+                setTimeout(() => { this.success = ''; }, 2000);
+            } catch (_) {
+                this.error = this.i18n.deleteError || 'Erreur de suppression.';
+            } finally {
+                this.deletingId = null;
+            }
+        },
+
+        stripHtml(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html || '';
+            return tmp.textContent || tmp.innerText || '';
+        },
+
+        truncate(text, len) {
+            const s = this.stripHtml(text);
+            return s.length > len ? s.substring(0, len) + '…' : s;
+        },
+    }));
+}
+
 if (window.Alpine) {
     Alpine.data('blogAnnotationCard', window.blogAnnotationCard);
 }
@@ -2468,6 +2763,8 @@ document.addEventListener('alpine:init', () => {
     registerBlogLoopCard();
     registerBlogTodoCard();
     registerBlogPlanCard();
+    registerBlogExplorerModal();
+    registerBlogExplorerCard();
 });
 
 registerAlpineStores();
@@ -2479,6 +2776,8 @@ registerBlogInviteByEmail();
 registerBlogLoopCard();
 registerBlogTodoCard();
 registerBlogPlanCard();
+registerBlogExplorerModal();
+registerBlogExplorerCard();
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {
