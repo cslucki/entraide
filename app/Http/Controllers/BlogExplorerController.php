@@ -83,7 +83,9 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         $conversationMessages = $data['messages'];
 
-        $promptTemplate = $this->resolvePrompt('blog_explorer_note');
+        $locale = app()->getLocale();
+        $scenarioId = 'blog_explorer_note_'.$locale;
+        $promptTemplate = $this->resolvePrompt($scenarioId, 'blog_explorer_note_fr');
         $notePrompt = "ARTICLE :\n\n{$post->content}\n\n---\n\nHISTORIQUE DE LA CONVERSATION :\n\n";
         foreach ($conversationMessages as $msg) {
             $role = $msg['role'] === 'user' ? 'Utilisateur' : 'Assistant';
@@ -127,7 +129,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         $notes = BlogAnalysisNote::where('blog_post_id', $post->id)
             ->where('organization_id', $organization->id)
-            ->with('user:id,first_name,last_name')
+            ->with('user:id,first_name,name')
             ->orderByDesc('created_at')
             ->get();
 
@@ -267,26 +269,32 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
     private function buildExplorerSystemPrompt(BlogPost $post): string
     {
-        $promptTemplate = $this->resolvePrompt('blog_explorer');
+        $locale = app()->getLocale();
+        $scenarioId = 'blog_explorer_dialogue_'.$locale;
+        $promptTemplate = $this->resolvePrompt($scenarioId, 'blog_explorer_dialogue_fr');
 
         return sprintf($promptTemplate, $post->title, $post->content);
     }
 
-    private function resolvePrompt(string $feature): string
+    private function resolvePrompt(string $scenarioId, ?string $fallbackId = null): string
     {
-        $prompt = AdminAiPrompt::where('scenario_id', $feature)
+        $prompt = AdminAiPrompt::where('scenario_id', $scenarioId)
             ->where('is_active', true)
             ->orderBy('version', 'desc')
             ->first();
+
+        if (! $prompt && $fallbackId) {
+            $prompt = AdminAiPrompt::where('scenario_id', $fallbackId)
+                ->where('is_active', true)
+                ->orderBy('version', 'desc')
+                ->first();
+        }
 
         if ($prompt) {
             return $prompt->prompt_text;
         }
 
-        return match ($feature) {
-            'blog_explorer' => "Tu es un assistant d'écriture. Lis l'article ci-dessous et aide l'utilisateur à l'explorer en profondeur.\n\nArticle : %s\n\nContenu :\n%s",
-            'blog_explorer_note' => "Génère une note de relecture à partir de l'article et de la conversation.",
-        };
+        return "Tu es un assistant d'écriture. Lis l'article ci-dessous et aide l'utilisateur à l'explorer en profondeur.\n\nArticle : %s\n\nContenu :\n%s";
     }
 
     private function callAiForDialogue(BlogPost $post, User $user, string $systemPrompt, array $conversationMessages, string $newMessage): array

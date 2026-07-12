@@ -2465,6 +2465,7 @@ function registerBlogExplorerModal() {
         dialogueCount: 0,
         maxDialogues: 5,
         noteContent: '',
+        noteTooLong: false,
         saving: false,
         generatingNote: false,
         error: '',
@@ -2482,6 +2483,7 @@ function registerBlogExplorerModal() {
                 this.phase = 'dialogue';
                 this.dialogueCount = 0;
                 this.noteContent = '';
+                this.noteTooLong = false;
                 this.error = '';
                 this.success = '';
                 this.$nextTick(() => this.setupDeepChat());
@@ -2505,6 +2507,10 @@ function registerBlogExplorerModal() {
                 },
             };
 
+            dc.textInput = {
+                placeholder: { text: this.i18n.chatPlaceholder || 'Posez votre question sur l\'article…' },
+            };
+
             dc.requestInterceptor = (details) => {
                 const body = details.body || {};
                 const dcMessages = body.messages || [];
@@ -2526,7 +2532,7 @@ function registerBlogExplorerModal() {
                 if (response && response.error) {
                     throw new Error(response.error);
                 }
-                return { messages: [{ role: 'ai', text: response?.text || '' }] };
+                return { text: response?.text || '' };
             };
 
             dc.introMessage = {
@@ -2583,12 +2589,19 @@ function registerBlogExplorerModal() {
                 const data = await response.json();
 
                 if (!response.ok) {
+                    if (data.note) {
+                        this.noteContent = data.note;
+                        this.noteTooLong = true;
+                        this.phase = 'note';
+                        return;
+                    }
                     this.error = data.error || this.i18n.deepChatError || 'Erreur lors de la génération.';
                     this.phase = 'dialogue';
                     return;
                 }
 
                 this.noteContent = data.note || '';
+                this.noteTooLong = false;
                 this.phase = 'note';
             } catch (_) {
                 this.error = this.i18n.deepChatError || 'Erreur de connexion.';
@@ -2644,6 +2657,7 @@ function registerBlogExplorerModal() {
             this.phase = 'dialogue';
             this.dialogueCount = 0;
             this.noteContent = '';
+            this.noteTooLong = false;
             this.error = '';
             this.success = '';
             if (this.$refs.deepChat) {
@@ -2701,7 +2715,7 @@ function registerBlogExplorerCard() {
                 });
                 if (!response.ok) throw new Error('Failed');
                 const data = await response.json();
-                this.notes = data.data || data || [];
+                this.notes = data.notes || data.data || data || [];
             } catch (_) {
                 this.error = this.i18n.loadError || 'Erreur de chargement.';
             } finally {

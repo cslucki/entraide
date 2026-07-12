@@ -1096,7 +1096,7 @@
         class="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40"
         @keydown.escape.window="close()"
     >
-        <div class="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full md:max-w-2xl md:mx-4 max-h-[85dvh] flex flex-col" @click.stop>
+        <div class="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full md:max-w-[920px] md:mx-4 max-h-[88dvh] flex flex-col" @click.stop>
             {{-- Header --}}
             <div class="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div>
@@ -1119,16 +1119,15 @@
             {{-- Dialogue phase --}}
             <div x-show="phase === 'dialogue'" class="flex-1 min-h-0 flex flex-col">
                 <div class="flex-1 min-h-0 overflow-hidden p-4">
-                    <deep-chat
-                        x-ref="deepChat"
-                        class="w-full rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden"
-                        style="height: 380px;"
-                        text-input-placeholder="Posez une question sur votre article..."
-                    ></deep-chat>
+                    <template x-if="open">
+                        <deep-chat
+                            x-ref="deepChat"
+                            class="w-full h-full rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden"
+                        ></deep-chat>
+                    </template>
                 </div>
-                <div class="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-700">
-                    <span x-show="dialogueCount > 0" x-cloak class="text-xs text-gray-400 dark:text-gray-500" x-text="dialogueLabel"></span>
-                    <div class="flex items-center gap-2 ml-auto">
+                <div class="flex items-center justify-end px-5 py-3 border-t border-gray-100 dark:border-gray-700">
+                    <div class="flex items-center gap-2">
                         <button type="button" @click="close()" class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
                             {{ __('blog.explorer_close') }}
                         </button>
@@ -1162,11 +1161,14 @@
                         </svg>
                         <span x-text="i18n.noteTitle || 'Note Explorer'"></span>
                     </h4>
+                    <div x-show="noteContent.length > 900" x-cloak class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+                        La note générée dépasse 900 caractères. Veuillez la raccourcir avant de sauvegarder.
+                    </div>
                     <div class="text-xs text-gray-500 dark:text-gray-400" x-show="noteContent.length > 0">
                         <span x-text="noteContent.length"></span> / 900
                     </div>
                     <textarea x-model="noteContent"
-                        rows="10" maxlength="900"
+                        rows="10"
                         class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 resize-none leading-relaxed"
                         :disabled="saving"
                         placeholder="Note de 150 à 900 caractères..."
@@ -1684,7 +1686,7 @@
                     <div class="rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50 group">
                         <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0 flex-1">
-                                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1" x-text="(i18n.noteFrom || 'Le') + ' ' + (note.created_at || '') + (note.user?.name ? ' · ' + note.user.name : '')"></p>
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1" x-text="(i18n.noteFrom || 'Note du :date').replace(':date', note.created_at || '') + (note.user_name ? ' · ' + note.user_name : '')"></p>
                                 <p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3" x-text="truncate(note.note_content, 150)"></p>
                             </div>
                             <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(note.id)" :disabled="deletingId === note.id"
