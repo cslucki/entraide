@@ -947,46 +947,49 @@ function registerBlogMethodSelectionCard() {
         provider: '',
         model: '',
         selectionUrl: config.selectionUrl,
+        dialogueUrl: config.dialogueUrl,
         postId: config.postId,
         csrfToken: config.csrfToken,
         i18n: config.i18n || {},
         methods: config.methods || [],
+        dialogueMode: 'idle',
+        dialogueMessages: [],
+        userMessageCount: 0,
+        lastAiResponse: '',
+        conclusion: '',
+        dialogueLoading: false,
+        dialogueMessageLimit: Math.min(10, Math.max(1, Number(config.dialogueMessageLimit) || 5)),
+        selectionExpanded: false,
 
         init() {
-            const stored = localStorage.getItem('editor_sidebar_card_methode_ia_selection');
-            if (stored !== null) this.open = stored === '1';
             this.refreshSelection();
 
             document.addEventListener('blog-editor-selection-updated', () => this.refreshSelection());
             document.addEventListener('open-method-selection-card', () => {
-                this.open = true;
-                localStorage.setItem('editor_sidebar_card_methode_ia_selection', '1');
-                this.refreshSelection();
-                this._dispatching = true;
-                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
-                this._dispatching = false;
+                this.openModal();
             });
             document.addEventListener('annotation-created', () => {
                 this.suggestion = '';
                 this.success = '';
                 this.aiInteractionId = null;
             });
-            window.addEventListener('close-other-sidebar-cards', () => {
-                if (this._dispatching) return;
-                this.open = false;
-                localStorage.setItem('editor_sidebar_card_methode_ia_selection', '0');
-            });
         },
 
         toggle() {
-            this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_methode_ia_selection', this.open ? '1' : '0');
+            this.openModal();
+        },
+
+        openModal() {
             this.refreshSelection();
-            if (this.open) {
-                this._dispatching = true;
-                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
-                this._dispatching = false;
-            }
+            this.open = true;
+            this._dispatching = true;
+            window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+            this._dispatching = false;
+        },
+
+        dismissModal() {
+            this.open = false;
+            this.resetDialogue();
         },
 
         refreshSelection() {
@@ -1008,6 +1011,12 @@ function registerBlogMethodSelectionCard() {
             this.error = '';
         },
 
+        chooseMethod(method) {
+            if (this.loading || this.dialogueMode !== 'idle') return;
+            this.selectMethod(method);
+            this.analyze();
+        },
+
         canAnalyze() {
             return !this.loading && this.selectedText.trim().length >= 2;
         },
@@ -1022,6 +1031,7 @@ function registerBlogMethodSelectionCard() {
             this.error = '';
             this.success = '';
             this.copied = false;
+            this.dialogueMode = 'analyzing';
 
             const context = this.selectionContext();
 
@@ -1042,6 +1052,7 @@ function registerBlogMethodSelectionCard() {
                 .then(({ ok, data }) => {
                     if (!ok) {
                         this.error = data.message || data.error || this.i18n.error || 'AI analysis failed.';
+                        this.dialogueMode = 'idle';
                         return;
                     }
                     this.suggestion = data.content || '';
@@ -1049,8 +1060,17 @@ function registerBlogMethodSelectionCard() {
                     this.provider = data.provider || '';
                     this.model = data.model || '';
                     this.success = this.i18n.ready || '';
+                    this.lastAiResponse = this.suggestion;
+                    this.dialogueMessages = [];
+                    this.userMessageCount = 0;
+                    this.conclusion = '';
+                    this.dialogueMode = 'chatting';
+                    this.$nextTick(() => this._initDeepChat());
                 })
-                .catch(() => { this.error = this.i18n.error || 'AI analysis failed.'; })
+                .catch(() => {
+                    this.error = this.i18n.error || 'AI analysis failed.';
+                    this.dialogueMode = 'idle';
+                })
                 .finally(() => { this.loading = false; });
         },
 
@@ -1065,6 +1085,230 @@ function registerBlogMethodSelectionCard() {
                 before: editor.state.doc.textBetween(beforeFrom, this.from, ' ').trim(),
                 after: editor.state.doc.textBetween(this.to, afterTo, ' ').trim(),
             };
+        },
+
+        _initDeepChat() {
+            const chatEl = document.getElementById('dc-dialogue');
+            if (!chatEl) return;
+
+            const self = this;
+            customElements.whenDefined('deep-chat').then(() => {
+                chatEl.chatStyle = {
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderRadius: '0',
+                };
+                chatEl.messageStyles = {
+                    default: {
+                        shared: {
+                            bubble: {
+                                maxWidth: '78%',
+                                padding: '11px 14px',
+                                fontSize: '14px',
+                                lineHeight: '1.55',
+                                boxShadow: 'none',
+                            },
+                        },
+                        ai: {
+                            bubble: {
+                                color: 'var(--chat-ai-message-text-color)',
+                                backgroundColor: 'var(--chat-ai-message-bg-color)',
+                                border: '1px solid var(--chat-input-border-color)',
+                                borderRadius: '16px 16px 16px 5px',
+                            },
+                        },
+                        user: {
+                            bubble: {
+                                color: 'var(--chat-user-message-text-color)',
+                                backgroundColor: 'var(--chat-user-message-bg-color)',
+                                borderRadius: '16px 16px 5px 16px',
+                            },
+                        },
+                    },
+                };
+                chatEl.textInput = {
+                    styles: {
+                        container: {
+                            color: 'var(--chat-text-color)',
+                            backgroundColor: 'var(--chat-input-bg-color)',
+                            border: '1px solid var(--chat-input-border-color)',
+                            borderRadius: '14px',
+                            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
+                        },
+                        text: {
+                            color: 'var(--chat-text-color)',
+                            fontSize: '14px',
+                            lineHeight: '1.5',
+                        },
+                        focus: {
+                            border: '1px solid #8b5cf6',
+                            boxShadow: '0 0 0 3px rgba(139, 92, 246, 0.12)',
+                        },
+                    },
+                    placeholder: {
+                        text: self.i18n.dialoguePlaceholder || '',
+                        style: { color: '#9ca3af' },
+                    },
+                };
+                chatEl.inputAreaStyle = {
+                    backgroundColor: 'var(--chat-container-bg-color)',
+                    borderTop: '1px solid var(--chat-input-border-color)',
+                };
+                chatEl.submitButtonStyles = {
+                    submit: {
+                        container: {
+                            default: {
+                                backgroundColor: '#7c3aed',
+                                borderRadius: '10px',
+                            },
+                            hover: { backgroundColor: '#6d28d9' },
+                        },
+                        svg: {
+                            styles: {
+                                default: { filter: 'brightness(0) invert(1)' },
+                            },
+                        },
+                    },
+                };
+                chatEl.auxiliaryStyle = `
+                    #container { border: 0 !important; background: transparent !important; }
+                    #messages { padding: 20px 22px 14px !important; }
+                    #input { padding: 14px 18px 16px !important; background: var(--chat-container-bg-color) !important; }
+                    #text-input-container { margin: 0 !important; }
+                    .inner-message-container { margin-bottom: 10px !important; }
+                    .message-bubble { white-space: pre-wrap; }
+                `;
+                chatEl.connect = { handler: (body, signals) => {
+                    signals.onOpen();
+                    const userText = [...(body.messages || [])]
+                        .reverse()
+                        .find(message => message.role === 'user')?.text?.trim() || '';
+                    if (!userText) {
+                        signals.onResponse({ error: self.i18n.error || 'Dialogue error.' });
+                        return;
+                    }
+                    self._handleDialogueUserMessage({ text: userText });
+                    self._sendDialogue({ signals });
+                } };
+
+                chatEl.history = [{ text: self.suggestion, role: 'ai' }];
+
+                const limit = self.dialogueMessageLimit;
+                if (self.userMessageCount >= limit) {
+                    chatEl.disableSubmitButton(true);
+                    chatEl.setPlaceholderText(self.i18n.maxReached ? self.i18n.maxReached.replace(':count', limit) : limit + ' messages maximum reached');
+                } else {
+                    chatEl.disableSubmitButton(false);
+                    chatEl.setPlaceholderText(self.i18n.dialoguePlaceholder || '');
+                }
+            });
+        },
+
+        _handleDialogueUserMessage(detail) {
+            if (this.dialogueMode !== 'chatting') return;
+            const limit = this.dialogueMessageLimit;
+            if (this.userMessageCount >= limit) return;
+            this.userMessageCount++;
+            this.dialogueMessages.push({ role: 'user', text: detail.text });
+            if (this.userMessageCount >= limit) {
+                const chatEl = document.getElementById('dc-dialogue');
+                if (chatEl) {
+                    chatEl.disableSubmitButton(true);
+                    chatEl.setPlaceholderText(this.i18n.maxReached ? this.i18n.maxReached.replace(':count', limit) : limit + ' messages maximum reached');
+                }
+            }
+        },
+
+        _handleDialogueAiMessage(detail) {
+            this.lastAiResponse = detail.text || '';
+            this.suggestion = detail.text || '';
+        },
+
+        _sendDialogue(opts) {
+            this.dialogueLoading = true;
+            const signals = opts && opts.signals ? opts.signals : null;
+            const context = this.selectionContext();
+            fetch(this.dialogueUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, Accept: 'application/json' },
+                body: JSON.stringify({
+                    post_id: this.postId,
+                    method: this.method,
+                    selected_text: this.selectedText,
+                    messages: this.dialogueMessages,
+                    context_before: context.before,
+                    context_after: context.after,
+                }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        const errMsg = data.error || data.message || this.i18n.error || 'Dialogue error.';
+                        if (signals) {
+                            signals.onResponse({ error: errMsg });
+                        } else {
+                            const chatEl = document.getElementById('dc-dialogue');
+                            if (chatEl) chatEl.addMessage({ text: errMsg, role: 'ai' });
+                        }
+                        return;
+                    }
+                    const responseText = data.content || '';
+                    this.dialogueMessages.push({ role: 'ai', text: responseText });
+                    this.lastAiResponse = responseText;
+                    if (data.ai_interaction_id) this.aiInteractionId = data.ai_interaction_id;
+                    if (signals) {
+                        signals.onResponse({ text: responseText });
+                    } else {
+                        const chatEl = document.getElementById('dc-dialogue');
+                        if (chatEl) chatEl.addMessage({ text: responseText, role: 'ai' });
+                    }
+                })
+                .catch(() => {
+                    const errMsg = this.i18n.error || 'Dialogue error.';
+                    if (signals) {
+                        signals.onResponse({ error: errMsg });
+                    } else {
+                        const chatEl = document.getElementById('dc-dialogue');
+                        if (chatEl) chatEl.addMessage({ text: errMsg, role: 'ai' });
+                    }
+                })
+                .finally(() => { this.dialogueLoading = false; });
+        },
+
+        conclude() {
+            this.dialogueMode = 'conclusion';
+            if (!this.conclusion && this.lastAiResponse) {
+                this.conclusion = this.lastAiResponse;
+            }
+        },
+
+        cancelConclusion() {
+            this.dialogueMode = 'chatting';
+        },
+
+        useLastResponse() {
+            this.conclusion = this.lastAiResponse;
+        },
+
+        createAnnotationFromConclusion() {
+            const content = this.conclusion.trim();
+            if (!content) return;
+            document.dispatchEvent(new CustomEvent('open-annotation-modal', {
+                detail: {
+                    selectedText: this.selectedText.substring(0, 5000),
+                    from: this.from,
+                    to: this.to,
+                    content: content,
+                    storeUrl: config.annotationStoreUrl || '',
+                    contentSaveUrl: config.annotationContentSaveUrl || '',
+                    csrfToken: this.csrfToken || '',
+                    origin: 'ai_method',
+                    methodKey: this.method,
+                    aiInteractionId: this.aiInteractionId,
+                },
+            }));
+            this.open = false;
+            this.resetDialogue();
         },
 
         createAnnotation() {
@@ -1083,6 +1327,23 @@ function registerBlogMethodSelectionCard() {
                     aiInteractionId: this.aiInteractionId,
                 },
             }));
+        },
+
+        closeDialogue() {
+            this.dismissModal();
+        },
+
+        resetDialogue() {
+            this.dialogueMode = 'idle';
+            this.dialogueMessages = [];
+            this.userMessageCount = 0;
+            this.lastAiResponse = '';
+            this.conclusion = '';
+            this.suggestion = '';
+            this.success = '';
+            this.error = '';
+            const chatEl = document.getElementById('dc-dialogue');
+            if (chatEl) chatEl.clearMessages(true);
         },
 
         copySuggestion() {

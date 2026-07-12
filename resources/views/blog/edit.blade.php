@@ -771,8 +771,10 @@
                 <div
                     x-data="blogMethodSelectionCard({
                         selectionUrl: @js($_blogRoute('ai-method-selection')),
+                        dialogueUrl: @js($_blogRoute('ai-method-dialogue')),
                         annotationStoreUrl: @js($_blogRoute('annotations.store', ['post' => $post])),
                         annotationContentSaveUrl: @js($_blogRoute('save-content', ['post' => $post])),
+                        dialogueMessageLimit: @js($dialogueMessageLimit ?? 5),
                         postId: @js($post->id),
                         csrfToken: @js(csrf_token()),
                         methods: [
@@ -794,66 +796,131 @@
                             resultLabel: @js(__('blog.method_selection_result_label')),
                             ready: @js(__('blog.method_selection_ready')),
                             error: @js(__('blog.method_selection_error')),
+                            conclude: @js(__('blog.method_selection_conclude')),
+                            dialogueUseResponse: @js(__('blog.dialogue_use_response')),
+                            dialogueCreateAnnotation: @js(__('blog.dialogue_create_annotation')),
+                            dialogueClose: @js(__('blog.dialogue_close')),
+                            dialogueCancel: @js(__('blog.dialogue_cancel')),
+                            dialogueShowSelection: @js(__('blog.dialogue_show_selection')),
+                            dialogueHideSelection: @js(__('blog.dialogue_hide_selection')),
+                            dialogueConclusionLabel: @js(__('blog.dialogue_conclusion_label')),
+                            dialogueConclusionPlaceholder: @js(__('blog.dialogue_conclusion_placeholder')),
+                            maxReached: @js(__('blog.dialogue_max_reached')),
+                            dialoguePlaceholder: @js(__('blog.dialogue_placeholder')),
                         },
                     })"
                     class="border border-indigo-200 dark:border-indigo-800 rounded-lg bg-white dark:bg-gray-800"
                 >
                     <button type="button"
                         @click="toggle()"
-                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg transition"
+                        class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-indigo-50 dark:text-gray-300 dark:hover:bg-indigo-950/20"
                     >
                         <span class="flex items-center gap-1.5">
                             <svg class="w-3 h-3 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18l-.813-2.096a4.5 4.5 0 00-2.591-2.591L3.5 12.5l2.096-.813a4.5 4.5 0 002.591-2.591L9 7l.813 2.096a4.5 4.5 0 002.591 2.591l2.096.813-2.096.813a4.5 4.5 0 00-2.591 2.591z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 3l.56 1.44A3 3 0 0020 6l-1.44.56A3 3 0 0017 8l-.56-1.44A3 3 0 0015 5l1.44-.56A3 3 0 0018 3z"/></svg>
                             <span>{{ __('blog.sidebar_methode_ia') }}</span>
                         </span>
-                        <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                     </button>
 
-                    <div x-show="open" x-cloak class="space-y-3 px-3 pb-3">
-                        <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('blog.method_selection_hint') }}</p>
+                    <template x-teleport="body">
+                        <div
+                            x-show="open"
+                            x-cloak
+                            class="fixed inset-0 z-[70] flex items-stretch justify-center bg-gray-950/55 sm:items-center sm:p-6"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="method-dialogue-title"
+                            x-effect="document.body.style.overflow = open ? 'hidden' : ''"
+                            @keydown.escape.window="dismissModal()"
+                        >
+                            <div @click.self="dismissModal()" class="absolute inset-0"></div>
+                            <section class="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl dark:bg-gray-900 sm:h-[88vh] sm:max-w-[960px] sm:rounded-3xl sm:border sm:border-gray-200 sm:dark:border-gray-700">
+                                <header class="shrink-0 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700 sm:px-5">
+                                    <div class="flex h-8 items-center justify-between gap-4">
+                                        <div class="flex min-w-0 items-center gap-2.5">
+                                            <h2 id="method-dialogue-title" class="truncate text-base font-semibold text-gray-950 dark:text-white" x-text="i18n.title"></h2>
+                                            <span x-show="dialogueMode !== 'idle'" x-cloak class="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-950/60 dark:text-violet-300" x-text="methods.find(item => item.key === method)?.label"></span>
+                                        </div>
+                                        <button type="button" @click="dismissModal()" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 dark:hover:bg-gray-800 dark:hover:text-gray-200" :aria-label="i18n.dialogueClose">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
 
-                        <div x-show="!selectedText" x-cloak class="rounded-lg border border-dashed border-violet-200 bg-violet-50/50 p-3 text-xs leading-5 text-violet-800 dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200">
-                            {{ __('blog.method_selection_no_selection') }}
+                                    <div x-show="selectedText" x-cloak class="flex items-start gap-3 pt-1.5 text-xs leading-5">
+                                        <p class="min-w-0 flex-1 italic text-gray-500 dark:text-gray-400" :class="selectionExpanded ? 'line-clamp-3' : 'line-clamp-1'">« <span x-text="selectedText"></span> »</p>
+                                        <button type="button" @click="selectionExpanded = !selectionExpanded" class="shrink-0 font-semibold text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300" x-text="selectionExpanded ? i18n.dialogueHideSelection : i18n.dialogueShowSelection"></button>
+                                    </div>
+                                </header>
+
+                                <div class="flex min-h-0 flex-1 flex-col sm:flex-row">
+                                    <aside class="shrink-0 border-b border-gray-200 bg-gray-50/60 p-2.5 dark:border-gray-700 dark:bg-gray-950/25 sm:w-40 sm:border-b-0 sm:border-r sm:p-3">
+                                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-1">
+                                            <template x-for="m in methods" :key="m.key">
+                                                <button
+                                                    type="button"
+                                                    @click="chooseMethod(m.key)"
+                                                    :disabled="loading || dialogueMode !== 'idle'"
+                                                    class="rounded-lg border-l-2 border-y-0 border-r-0 px-2.5 py-2 text-left transition disabled:cursor-default"
+                                                    :class="method === m.key && dialogueMode !== 'idle' ? 'border-violet-500 bg-violet-50/80 text-violet-950 dark:bg-violet-950/30 dark:text-violet-100' : 'border-transparent bg-transparent text-gray-600 hover:bg-white dark:text-gray-400 dark:hover:bg-gray-800'"
+                                                >
+                                                    <span class="block text-xs font-semibold" x-text="m.label"></span>
+                                                    <span class="mt-0.5 hidden line-clamp-2 text-[11px] leading-4 text-gray-500 dark:text-gray-400 sm:block" x-text="m.description"></span>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </aside>
+
+                                    <main class="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-900">
+                                        <div x-show="!selectedText" x-cloak class="m-auto max-w-md rounded-xl border border-dashed border-violet-200 bg-violet-50/50 p-5 text-center text-sm leading-6 text-violet-800 dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200" x-text="i18n.noSelection"></div>
+
+                                        <div x-show="selectedText && dialogueMode === 'idle'" x-cloak class="m-auto max-w-md text-center">
+                                            <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('blog.method_selection_hint') }}</p>
+                                        </div>
+
+                                        <div x-show="dialogueMode === 'analyzing'" x-cloak class="m-auto flex items-center gap-3 text-sm text-violet-700 dark:text-violet-300">
+                                            <svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                            <span x-text="i18n.analyzing"></span>
+                                        </div>
+
+                                        <div x-show="error" x-cloak class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300" x-text="error"></div>
+
+                                        <div x-show="dialogueMode === 'chatting' || dialogueMode === 'conclusion'" x-cloak class="min-h-0 flex-1">
+                                            <deep-chat
+                                                id="dc-dialogue"
+                                                x-ref="dc"
+                                                class="bp-method-dialogue-chat overflow-hidden"
+                                                request-body-limits='{"maxMessages": {{ (($dialogueMessageLimit ?? 5) * 2) }}}'
+                                                browser-storage="false"
+                                            ></deep-chat>
+                                        </div>
+
+                                        <footer x-show="selectedText && dialogueMode !== 'idle' && dialogueMode !== 'analyzing'" x-cloak class="shrink-0 border-t border-gray-200 bg-gray-50/70 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-950/35 sm:px-4">
+                                            <div x-show="dialogueMode === 'chatting'" class="flex items-center justify-between gap-3">
+                                                <span class="text-[11px] tabular-nums text-gray-400" x-text="`${userMessageCount} / ${dialogueMessageLimit}`"></span>
+                                                <button type="button" @click="conclude()" class="rounded-lg border border-violet-200 bg-white px-4 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:bg-gray-900 dark:text-violet-300 dark:hover:bg-violet-950/30" x-text="i18n.conclude"></button>
+                                            </div>
+
+                                            <div x-show="dialogueMode === 'conclusion'" x-cloak class="space-y-2.5">
+                                                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200" x-text="i18n.dialogueConclusionLabel"></label>
+                                                <textarea x-model="conclusion" rows="3" class="w-full resize-none rounded-xl border border-violet-200 bg-white p-3 text-sm leading-5 text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-violet-900 dark:bg-gray-900 dark:text-gray-100" :placeholder="i18n.dialogueConclusionPlaceholder"></textarea>
+                                                <div class="flex flex-wrap justify-end gap-2">
+                                                    <button type="button" @click="cancelConclusion()" class="px-3 py-2 text-xs font-semibold text-gray-500 transition hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200" x-text="i18n.dialogueCancel"></button>
+                                                    <button type="button" @click="useLastResponse()" class="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:bg-gray-900 dark:text-violet-300 dark:hover:bg-violet-950/30" x-text="i18n.dialogueUseResponse"></button>
+                                                    <button type="button" @click="createAnnotationFromConclusion()" :disabled="!conclusion.trim()" class="rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:opacity-50" x-text="i18n.dialogueCreateAnnotation"></button>
+                                                </div>
+                                            </div>
+                                        </footer>
+                                    </main>
+                                </div>
+                            </section>
                         </div>
-
-                        <div x-show="selectedText" x-cloak class="space-y-3">
-                            <div class="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
-                                <p class="mb-1 font-semibold text-gray-500 dark:text-gray-400" x-text="i18n.selected"></p>
-                                <p class="line-clamp-3 italic" x-text="selectedText"></p>
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-2">
-                                <template x-for="m in methods" :key="m.key">
-                                    <button type="button" @click="selectMethod(m.key)"
-                                        class="rounded-xl border px-3 py-2 text-left transition"
-                                        :class="method === m.key ? 'border-violet-300 bg-violet-50 text-violet-950 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-100' : 'border-gray-200 bg-white text-gray-700 hover:border-violet-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-violet-800'">
-                                        <span class="block text-sm font-semibold" x-text="m.label"></span>
-                                        <span class="block text-xs leading-5 text-gray-500 dark:text-gray-400" x-text="m.description"></span>
-                                    </button>
-                                </template>
-                            </div>
-
-                            <div x-show="error" x-cloak class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300" x-text="error"></div>
-                            <div x-show="success" x-cloak class="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-300" x-text="success"></div>
-
-                            <div x-show="suggestion" x-cloak class="space-y-2">
-                                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400" x-text="i18n.resultLabel"></label>
-                                <textarea x-model="suggestion" rows="7" class="w-full rounded-xl border border-violet-200 bg-white p-3 text-sm leading-6 text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-violet-900 dark:bg-gray-900 dark:text-gray-100"></textarea>
-                            </div>
-
-                            <div class="flex flex-wrap justify-end gap-2">
-                                <button type="button" @click="analyze()" :disabled="loading" class="rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
-                                    <span x-show="!loading && !suggestion" x-text="i18n.analyze"></span>
-                                    <span x-show="!loading && suggestion" x-text="i18n.rerun"></span>
-                                    <span x-show="loading" x-text="i18n.analyzing"></span>
-                                </button>
-                                <button type="button" @click="copySuggestion()" :disabled="!suggestion" class="rounded-xl border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" x-text="copied ? i18n.copied : i18n.copy"></button>
-                                <button type="button" @click="createAnnotation()" :disabled="!suggestion" class="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50" x-text="i18n.createAnnotation"></button>
-                            </div>
-                        </div>
-                    </div>
+                    </template>
                 </div>
                 {{-- /Questionner selection card --}}
+
+@push('scripts')
+@vite('resources/js/blog-deep-chat.js')
+@endpush
 
                 {{-- Annotations card --}}
                 <div

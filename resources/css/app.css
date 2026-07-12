@@ -6,6 +6,37 @@
     display: none !important;
 }
 
+deep-chat {
+    --chat-container-bg-color: transparent;
+    --chat-text-color: #1f2937;
+    --chat-input-bg-color: #f9fafb;
+    --chat-input-border-color: #e5e7eb;
+    --chat-send-button-color: #6366f1;
+    --chat-user-message-bg-color: #eef2ff;
+    --chat-user-message-text-color: #1e1b4b;
+    --chat-ai-message-bg-color: #f9fafb;
+    --chat-ai-message-text-color: #1f2937;
+}
+
+html.dark deep-chat {
+    --chat-text-color: #e5e7eb;
+    --chat-input-bg-color: #111827;
+    --chat-input-border-color: #374151;
+    --chat-user-message-bg-color: #312e81;
+    --chat-user-message-text-color: #eef2ff;
+    --chat-ai-message-bg-color: #111827;
+    --chat-ai-message-text-color: #e5e7eb;
+}
+
+.bp-method-dialogue-chat {
+    background-color: var(--chat-container-bg-color) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    display: block;
+    height: 100% !important;
+    width: 100% !important;
+}
+
 /* Blog content heading sizes — published & editor */
 .bp-editor-content .ProseMirror h2,
 .prose h2 {

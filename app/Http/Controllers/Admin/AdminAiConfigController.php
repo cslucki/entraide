@@ -77,6 +77,7 @@ class AdminAiConfigController extends Controller
             'correct_enabled' => 'sometimes|boolean',
             'generate_limit' => 'required|integer|min:1|max:100',
             'correct_limit' => 'required|integer|min:1|max:100',
+            'dialogue_message_limit' => 'required|integer|min:1|max:10',
         ]);
 
         $config = BlogAiConfig::updateOrCreate(
@@ -86,6 +87,7 @@ class AdminAiConfigController extends Controller
                 'correct_enabled' => $validated['correct_enabled'] ?? false,
                 'generate_limit' => $validated['generate_limit'],
                 'correct_limit' => $validated['correct_limit'],
+                'dialogue_message_limit' => $validated['dialogue_message_limit'],
             ],
         );
 

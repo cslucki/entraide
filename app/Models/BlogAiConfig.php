@@ -16,6 +16,7 @@ class BlogAiConfig extends Model
         'correct_enabled',
         'generate_limit',
         'correct_limit',
+        'dialogue_message_limit',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class BlogAiConfig extends Model
             'correct_enabled' => 'boolean',
             'generate_limit' => 'integer',
             'correct_limit' => 'integer',
+            'dialogue_message_limit' => 'integer',
         ];
     }
 
@@ -42,6 +44,7 @@ class BlogAiConfig extends Model
                 'correct_enabled' => true,
                 'generate_limit' => 3,
                 'correct_limit' => 3,
+                'dialogue_message_limit' => 5,
             ],
         );
     }

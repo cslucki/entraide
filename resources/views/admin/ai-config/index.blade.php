@@ -108,7 +108,7 @@
                             <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
                         </div>
 
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
                             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                                 <input type="checkbox" name="generate_enabled" value="1" @checked($cfg?->generate_enabled ?? true) class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
                                 {{ __('admin.ai_blog_generation') }}
@@ -128,6 +128,12 @@
                             <div>
                                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.ai_blog_correct_limit') }}</label>
                                 <input type="number" name="correct_limit" value="{{ old('correct_limit', $cfg?->correct_limit ?? 3) }}" min="1" max="100"
+                                       class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.ai_blog_dialogue_limit') }}</label>
+                                <input type="number" name="dialogue_message_limit" value="{{ old('dialogue_message_limit', $cfg?->dialogue_message_limit ?? 5) }}" min="1" max="10"
                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                             </div>
                         </div>

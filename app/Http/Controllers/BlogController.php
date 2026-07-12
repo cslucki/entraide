@@ -30,7 +30,7 @@ class BlogController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('throttle:10,1', only: ['uploadImage']),
-            new Middleware('throttle:30,1', only: ['aiGenerate', 'aiCorrect', 'aiMethodSelection', 'orgAiMethodSelection']),
+            new Middleware('throttle:30,1', only: ['aiGenerate', 'aiCorrect', 'aiMethodSelection', 'orgAiMethodSelection', 'aiMethodDialogue', 'orgAiMethodDialogue']),
         ];
     }
 
@@ -251,7 +251,9 @@ class BlogController extends Controller implements HasMiddleware
 
         $postLoops = $post->loops()->get();
 
-        return view('blog.edit', compact('organization', 'post', 'categories', 'tags', 'userLoops', 'postLoops'));
+        $dialogueMessageLimit = app(BlogAiService::class)->dialogueMessageLimit(auth()->user());
+
+        return view('blog.edit', compact('organization', 'post', 'categories', 'tags', 'userLoops', 'postLoops', 'dialogueMessageLimit'));
     }
 
     public function orgEdit(string $org, BlogPost $post): View
@@ -614,6 +616,64 @@ class BlogController extends Controller implements HasMiddleware
     public function orgAiMethodSelection(Request $request, BlogAiService $ai, string $org): JsonResponse
     {
         return $this->aiMethodSelection($request, $ai);
+    }
+
+    public function aiMethodDialogue(Request $request, BlogAiService $ai): JsonResponse
+    {
+        $data = $request->validate([
+            'post_id' => ['required', 'string'],
+            'method' => ['required', 'string', Rule::in(['explorer', 'clarifier', 'slow_down', 'invent'])],
+            'selected_text' => ['required', 'string', 'min:2', 'max:1200'],
+            'messages' => ['required', 'array', 'min:1', 'max:20'],
+            'messages.*.role' => ['required', 'string', Rule::in(['user', 'ai'])],
+            'messages.*.text' => ['required', 'string', 'min:1', 'max:2000'],
+            'context_before' => ['nullable', 'string', 'max:1200'],
+            'context_after' => ['nullable', 'string', 'max:1200'],
+        ]);
+
+        $user = $request->user();
+        $featureConfig = $ai->checkEnabled('blog_generate', $user);
+        if (! $featureConfig['enabled']) {
+            return response()->json([
+                'error' => __('blog.ai_disabled', ['label' => __('blog.ai_label_generation')]),
+            ], 403);
+        }
+
+        $userMessageCount = collect($data['messages'])->where('role', 'user')->count();
+        $dialogueLimit = $ai->dialogueMessageLimit($user);
+        if ($userMessageCount > $dialogueLimit) {
+            return response()->json(['error' => __('blog.dialogue_max_reached', ['count' => $dialogueLimit])], 422);
+        }
+
+        $post = BlogPost::findOrFail($data['post_id']);
+        $organization = currentOrganization();
+
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $post);
+
+        try {
+            $result = $ai->methodDialogue(
+                $post,
+                $user,
+                $data['method'],
+                $data['selected_text'],
+                $data['messages'],
+                $data['context_before'] ?? null,
+                $data['context_after'] ?? null,
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
+        return response()->json($result);
+    }
+
+    public function orgAiMethodDialogue(Request $request, BlogAiService $ai, string $org): JsonResponse
+    {
+        return $this->aiMethodDialogue($request, $ai);
     }
 
     private function handleAi(Request $request, BlogAiService $ai, string $mode): JsonResponse

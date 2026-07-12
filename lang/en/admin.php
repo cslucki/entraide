@@ -26,6 +26,7 @@ return [
     'ai_blog_correction' => 'AI Correction',
     'ai_blog_generate_limit' => 'Generation limit',
     'ai_blog_correct_limit' => 'Correction limit',
+    'ai_blog_dialogue_limit' => 'Dialogue limit',
     'ai_save_for' => 'Save for :name',
     'ai_available_providers' => 'Available Providers',
     'ai_no_providers' => 'No providers configured. Check environment variables (AI_SUPERVISION_ENABLED, OLLAMA_ENABLED, OPENROUTER_ENABLED).',

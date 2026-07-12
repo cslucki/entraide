@@ -116,6 +116,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/ai-generate', [BlogController::class, 'aiGenerate'])->name('blog.ai-generate');
     Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
     Route::post('/blog/ai-method-selection', [BlogController::class, 'aiMethodSelection'])->name('blog.ai-method-selection');
+    Route::post('/blog/ai-method-dialogue', [BlogController::class, 'aiMethodDialogue'])->name('blog.ai-method-dialogue');
     Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
     Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
 
@@ -638,6 +639,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/ai-generate', [BlogController::class, 'orgAiGenerate'])->name('blog.ai-generate');
                 Route::post('/blog/ai-correct', [BlogController::class, 'orgAiCorrect'])->name('blog.ai-correct');
                 Route::post('/blog/ai-method-selection', [BlogController::class, 'orgAiMethodSelection'])->name('blog.ai-method-selection');
+                Route::post('/blog/ai-method-dialogue', [BlogController::class, 'orgAiMethodDialogue'])->name('blog.ai-method-dialogue');
                 Route::post('/blog/ai-remaining', [BlogController::class, 'orgAiRemaining'])->name('blog.ai-remaining');
                 Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->name('blog.create-draft');
 
