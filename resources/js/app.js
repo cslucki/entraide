@@ -3075,6 +3075,137 @@ function registerBlogExplorerCard() {
             const s = this.stripHtml(text);
             return s.length > len ? s.substring(0, len) + '…' : s;
         },
+
+        renderQuestioning(content) {
+            const html = content || '';
+            const text = this.stripHtml(html).replace(/\s+/g, ' ').trim();
+
+            if (!text) {
+                return `<p class="bp-questioning-empty">${this.escapeHtml(this.i18n.noNotes || 'Aucun questionnement pour le moment.')}</p>`;
+            }
+
+            const hasStructure = /<\s*(h3|h4|ul|ol|li|blockquote)\b/i.test(html);
+            const looksFlattened = /\s+-\s+/.test(text) || /^Note Explorer\s*:?/i.test(text) || /Analyse et pistes d.amélioration/i.test(text);
+
+            if (hasStructure && !looksFlattened) {
+                return this.cleanQuestioningHtml(html);
+            }
+
+            return this.formatLegacyQuestioning(text);
+        },
+
+        cleanQuestioningHtml(html) {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = html || '';
+            wrapper.querySelectorAll('script, style, iframe, object, embed').forEach((node) => node.remove());
+
+            wrapper.querySelectorAll('*').forEach((node) => {
+                [...node.attributes].forEach((attribute) => {
+                    if (attribute.name.startsWith('on') || attribute.name === 'style') {
+                        node.removeAttribute(attribute.name);
+                    }
+                });
+            });
+
+            const first = wrapper.firstElementChild;
+            if (first && /^h[1-4]$/i.test(first.tagName) && /^(Note Explorer|Explorer Note)\s*:?$/i.test(first.textContent.trim())) {
+                first.remove();
+            }
+
+            return wrapper.innerHTML.trim() || this.formatLegacyQuestioning(this.stripHtml(html));
+        },
+
+        formatLegacyQuestioning(text) {
+            const cleaned = text
+                .replace(/^\s*(Note Explorer|Explorer Note)\s*:?\s*/i, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const sections = this.splitLegacyQuestioning(cleaned);
+
+            if (!sections.length) {
+                return `<p>${this.escapeHtml(cleaned)}</p>`;
+            }
+
+            const intro = sections.find((section) => section.type === 'intro');
+            const body = sections.filter((section) => section.type !== 'intro');
+
+            return [
+                intro ? `<div class="bp-questioning-callout">${this.escapeHtml(intro.content)}</div>` : '',
+                body.map((section) => `
+                    <section class="bp-questioning-section">
+                        <h4>${this.escapeHtml(section.title)}</h4>
+                        <ul>
+                            ${section.items.map((item) => `<li>${this.escapeHtml(item)}</li>`).join('')}
+                        </ul>
+                    </section>
+                `).join(''),
+            ].join('').trim();
+        },
+
+        splitLegacyQuestioning(text) {
+            const labels = [
+                'Analyse et pistes d’amélioration',
+                'Analyse et pistes d\'amélioration',
+                'Points saillants',
+                'Pistes d’amélioration',
+                'Pistes d\'amélioration',
+                'Ouvertures',
+                'Questions à creuser',
+                'Pistes de réécriture',
+                'Points à conserver',
+                'Key insights',
+                'Areas for improvement',
+                'Open questions',
+                'Strengths to keep',
+                'Questions to explore',
+                'Rewrite paths',
+            ];
+            const normalized = text.replace(new RegExp(`\\b(${labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\s*(?::|-|–|—)`, 'gi'), '|||$1:');
+            const chunks = normalized.split('|||').map((chunk) => chunk.trim()).filter(Boolean);
+
+            return chunks.map((chunk, index) => {
+                const match = chunk.match(/^(.{3,100}?)\s*(?::|-|–|—)\s*(.*)$/);
+                if (!match) {
+                    return index === 0 ? { type: 'intro', content: this.compactLegacyItem(chunk) } : null;
+                }
+
+                const title = this.normalizeLegacyTitle(match[1]);
+                const rawItems = match[2]
+                    .split(/\s+-\s+|\s+•\s+/)
+                    .map((item) => this.compactLegacyItem(item))
+                    .filter((item) => item && !this.isSeoNoise(item));
+
+                const items = rawItems.length ? rawItems : [this.compactLegacyItem(match[2])].filter(Boolean);
+                return items.length ? { type: 'section', title, items } : null;
+            }).filter(Boolean);
+        },
+
+        compactLegacyItem(item) {
+            return (item || '')
+                .replace(/^[-•]\s*/, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        },
+
+        normalizeLegacyTitle(title) {
+            const value = (title || '').trim();
+            if (/Analyse et pistes/i.test(value)) return 'Lecture éditoriale';
+            if (/SEO|référencement|keywords|mots-clés|Google/i.test(value)) return 'Pistes éditoriales';
+            return value;
+        },
+
+        isSeoNoise(text) {
+            return /\b(SEO|référencement|mots-clés|keywords|Google|optimisation SEO)\b/i.test(text || '');
+        },
+
+        escapeHtml(text) {
+            return String(text || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        },
     }));
 }
 

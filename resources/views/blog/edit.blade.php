@@ -1737,9 +1737,9 @@
                         </button>
                     </div>
 
-                    <div class="flex-1 overflow-y-auto p-5">
+                    <div class="flex-1 overflow-y-auto bg-slate-50/80 p-5 dark:bg-gray-900/40">
                         <template x-if="selectedNote && !editingNote">
-                            <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100" x-html="selectedNote.note_content"></div>
+                            <article class="bp-questioning-reader mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800/95" x-html="renderQuestioning(selectedNote.note_content)"></article>
                         </template>
                         <template x-if="selectedNote && editingNote">
                             <div class="rounded-lg border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800">
