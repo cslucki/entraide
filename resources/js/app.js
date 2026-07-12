@@ -2494,6 +2494,10 @@ function registerBlogExplorerModal() {
             const dc = this.$refs.deepChat;
             if (!dc) return;
 
+            dc.style.display = 'block';
+            dc.style.width = '100%';
+            dc.style.height = '100%';
+
             try { dc.clearMessages(); } catch (_) {}
 
             dc.connect = {

@@ -1123,6 +1123,7 @@
                         <deep-chat
                             x-ref="deepChat"
                             class="w-full h-full rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden"
+                            style="display: block; width: 100%; height: 100%;"
                         ></deep-chat>
                     </template>
                 </div>
