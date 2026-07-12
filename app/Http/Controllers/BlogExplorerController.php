@@ -32,7 +32,8 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
     private const TIMEOUT = 30;
 
-    private const ALLOWED_NOTE_TAGS = '<h2><h3><h4><p><ul><ol><li><strong><em><b><i><u><br>';
+    private const ALLOWED_NOTE_TAGS = '<h2><h3><h4><p><ul><ol><li><strong><em><b><i><u><br><blockquote>';
+
 
     public function chat(Request $request, BlogPost $post): JsonResponse
     {
@@ -174,11 +175,18 @@ class BlogExplorerController extends Controller implements HasMiddleware
         }
 
         $data = $request->validate([
-            'note_content' => ['required', 'string', 'min:150', 'max:'.self::MAX_NOTE_CHARS],
+            'note_content' => ['required', 'string', 'min:150', 'max:6000'],
             'metadata' => ['nullable', 'array'],
         ]);
 
         $noteContent = $this->cleanGeneratedNoteHtml($data['note_content']);
+
+        $noteLength = mb_strlen(strip_tags($noteContent));
+        if ($noteLength < 150 || $noteLength > self::MAX_NOTE_CHARS) {
+            return response()->json([
+                'message' => __('blog.explorer_note_save_error'),
+            ], 422);
+        }
 
         $note = BlogAnalysisNote::create([
             'blog_post_id' => $post->id,
@@ -215,10 +223,17 @@ class BlogExplorerController extends Controller implements HasMiddleware
         }
 
         $data = $request->validate([
-            'note_content' => ['required', 'string', 'min:150', 'max:'.self::MAX_NOTE_CHARS],
+            'note_content' => ['required', 'string', 'min:150', 'max:6000'],
         ]);
 
         $noteContent = $this->cleanGeneratedNoteHtml($data['note_content']);
+
+        $noteLength = mb_strlen(strip_tags($noteContent));
+        if ($noteLength < 150 || $noteLength > self::MAX_NOTE_CHARS) {
+            return response()->json([
+                'message' => __('blog.explorer_note_save_error'),
+            ], 422);
+        }
 
         $note->update([
             'note_content' => $noteContent,

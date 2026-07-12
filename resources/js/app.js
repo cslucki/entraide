@@ -2485,6 +2485,7 @@ function registerBlogExplorerModal() {
         maxDialogues: 50,
         maxNoteChars: config.maxNoteChars || 3000,
         noteContent: '',
+        noteEditor: null,
         noteTooLong: false,
         saving: false,
         generatingNote: false,
@@ -2732,6 +2733,7 @@ function registerBlogExplorerModal() {
                         this.noteContent = data.note;
                         this.noteTooLong = true;
                         this.phase = 'note';
+                        this.$nextTick(() => this.initNoteEditor());
                         return;
                     }
                     this.error = data.error || this.i18n.deepChatError || 'Erreur lors de la génération.';
@@ -2742,6 +2744,7 @@ function registerBlogExplorerModal() {
                 this.noteContent = data.note || '';
                 this.noteTooLong = false;
                 this.phase = 'note';
+                this.$nextTick(() => this.initNoteEditor());
             } catch (_) {
                 this.error = this.i18n.deepChatError || 'Erreur de connexion.';
                 this.phase = 'dialogue';
@@ -2750,9 +2753,68 @@ function registerBlogExplorerModal() {
             }
         },
 
+        initNoteEditor() {
+            const el = this.$refs.noteEditor;
+            if (!el || typeof createEditor === 'undefined') return;
+
+            if (this.noteEditor) {
+                this.noteEditor.destroy();
+                this.noteEditor = null;
+            }
+
+            this.noteEditor = createEditor(el, {
+                content: this.noteContent || '',
+                placeholder: (this.i18n.notePlaceholder || '').replace(':min', '150').replace(':max', this.maxNoteChars),
+                onUpdate: (html) => {
+                    this.noteContent = html;
+                },
+            });
+        },
+
+        noteCommand(command) {
+            if (!this.noteEditor) return;
+
+            const chain = this.noteEditor.chain().focus();
+            if (command === 'bold') chain.toggleBold().run();
+            if (command === 'italic') chain.toggleItalic().run();
+            if (command === 'bulletList') chain.toggleBulletList().run();
+            if (command === 'orderedList') chain.toggleOrderedList().run();
+            if (command === 'heading3') chain.toggleHeading({ level: 3 }).run();
+            if (command === 'heading4') chain.toggleHeading({ level: 4 }).run();
+        },
+
+        isNoteActive(name, options = {}) {
+            return this.noteEditor ? this.noteEditor.isActive(name, options) : false;
+        },
+
+        stripHtml(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html || '';
+            return tmp.textContent || tmp.innerText || '';
+        },
+
+        get noteTextLength() {
+            return this.stripHtml(this.noteContent).trim().length;
+        },
+
+        backToDialogue() {
+            if (this.noteEditor) {
+                this.noteContent = this.noteEditor.getHTML();
+                this.noteEditor.destroy();
+                this.noteEditor = null;
+            }
+            this.phase = 'dialogue';
+            this.error = '';
+            this.success = '';
+        },
+
         async saveNote() {
-            if (this.noteContent.length < 150 || this.noteContent.length > this.maxNoteChars) {
-                const message = this.noteContent.length < 150
+            if (this.noteEditor) {
+                this.noteContent = this.noteEditor.getHTML();
+            }
+
+            if (this.noteTextLength < 150 || this.noteTextLength > this.maxNoteChars) {
+                const message = this.noteTextLength < 150
                     ? (this.i18n.noteMinMax || 'La note doit faire au moins :min caractères.')
                     : (this.i18n.noteMax || 'La note ne peut pas dépasser :max caractères.');
                 this.error = message.replace(':min', '150').replace(':max', String(this.maxNoteChars));
@@ -2783,8 +2845,9 @@ function registerBlogExplorerModal() {
                     return;
                 }
 
+                const data = await response.json().catch(() => ({}));
                 this.success = this.i18n.noteSaved || 'Note sauvegardée !';
-                window.dispatchEvent(new CustomEvent('explorer-note-saved'));
+                window.dispatchEvent(new CustomEvent('explorer-note-saved', { detail: data }));
                 setTimeout(() => this.close(), 1200);
             } catch (_) {
                 this.error = this.i18n.noteSaveError || 'Erreur de connexion.';
@@ -2798,6 +2861,10 @@ function registerBlogExplorerModal() {
             this.phase = 'dialogue';
             this.dialogueCount = 0;
             this.noteContent = '';
+            if (this.noteEditor) {
+                this.noteEditor.destroy();
+                this.noteEditor = null;
+            }
             this.noteTooLong = false;
             this.error = '';
             this.success = '';
@@ -2822,9 +2889,16 @@ function registerBlogExplorerCard() {
         error: '',
         success: '',
         deletingId: null,
+        selectedNote: null,
+        editingNote: false,
+        noteEditor: null,
+        savingNote: false,
+        highlightedId: null,
 
         indexUrl: config.indexUrl,
+        updateUrlBase: config.updateUrlBase,
         destroyUrlBase: config.destroyUrlBase,
+        csrfToken: config.csrfToken || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
         i18n: config.i18n || {},
 
         toggle() {
@@ -2839,8 +2913,13 @@ function registerBlogExplorerCard() {
         },
 
         init() {
-            window.addEventListener('explorer-note-saved', () => {
-                if (this.open) this.loadNotes();
+            window.addEventListener('explorer-note-saved', (event) => {
+                this.open = true;
+                this.highlightedId = event.detail?.id || null;
+                this.loadNotes();
+                if (this.highlightedId) {
+                    setTimeout(() => { this.highlightedId = null; }, 2200);
+                }
             });
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (!this._dispatching) this.open = false;
@@ -2880,12 +2959,109 @@ function registerBlogExplorerCard() {
                 });
                 if (!response.ok) throw new Error('Failed');
                 this.notes = this.notes.filter((n) => n.id !== noteId);
+                if (this.selectedNote?.id === noteId) this.closeNoteModal();
                 this.success = this.i18n.noteDeleted || 'Note supprimée.';
                 setTimeout(() => { this.success = ''; }, 2000);
             } catch (_) {
                 this.error = this.i18n.deleteError || 'Erreur de suppression.';
             } finally {
                 this.deletingId = null;
+            }
+        },
+
+        openNote(note) {
+            this.selectedNote = { ...note };
+            this.editingNote = false;
+            this.error = '';
+            this.success = '';
+        },
+
+        closeNoteModal() {
+            if (this.noteEditor) {
+                this.noteEditor.destroy();
+                this.noteEditor = null;
+            }
+            this.selectedNote = null;
+            this.editingNote = false;
+            this.savingNote = false;
+        },
+
+        startEditNote() {
+            if (!this.selectedNote) return;
+            this.editingNote = true;
+            this.$nextTick(() => {
+                const el = this.$refs.questionEditor;
+                if (!el || typeof createEditor === 'undefined') return;
+                if (this.noteEditor) this.noteEditor.destroy();
+                this.noteEditor = createEditor(el, {
+                    content: this.selectedNote.note_content || '',
+                    placeholder: this.i18n.notePlaceholder || '',
+                    onUpdate: (html) => {
+                        if (this.selectedNote) this.selectedNote.note_content = html;
+                    },
+                });
+            });
+        },
+
+        cancelEditNote() {
+            if (this.noteEditor) {
+                this.noteEditor.destroy();
+                this.noteEditor = null;
+            }
+            const fresh = this.notes.find((n) => n.id === this.selectedNote?.id);
+            this.selectedNote = fresh ? { ...fresh } : null;
+            this.editingNote = false;
+        },
+
+        noteCommand(command) {
+            if (!this.noteEditor) return;
+
+            const chain = this.noteEditor.chain().focus();
+            if (command === 'bold') chain.toggleBold().run();
+            if (command === 'italic') chain.toggleItalic().run();
+            if (command === 'bulletList') chain.toggleBulletList().run();
+            if (command === 'orderedList') chain.toggleOrderedList().run();
+            if (command === 'heading3') chain.toggleHeading({ level: 3 }).run();
+            if (command === 'heading4') chain.toggleHeading({ level: 4 }).run();
+        },
+
+        isNoteActive(name, options = {}) {
+            return this.noteEditor ? this.noteEditor.isActive(name, options) : false;
+        },
+
+        async saveSelectedNote() {
+            if (!this.selectedNote || this.savingNote) return;
+            if (this.noteEditor) {
+                this.selectedNote.note_content = this.noteEditor.getHTML();
+            }
+
+            this.savingNote = true;
+            this.error = '';
+            try {
+                const url = this.updateUrlBase.replace('__NOTE_ID__', this.selectedNote.id);
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ note_content: this.selectedNote.note_content }),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.message || 'Failed');
+
+                this.selectedNote.note_content = data.note_content || this.selectedNote.note_content;
+                this.notes = this.notes.map((note) => note.id === this.selectedNote.id ? { ...note, note_content: this.selectedNote.note_content } : note);
+                this.highlightedId = this.selectedNote.id;
+                this.cancelEditNote();
+                this.success = this.i18n.noteSaved || 'Questionnement sauvegardé.';
+                setTimeout(() => { this.highlightedId = null; this.success = ''; }, 2200);
+            } catch (error) {
+                this.error = error.message || this.i18n.noteSaveError || 'Erreur de sauvegarde.';
+            } finally {
+                this.savingNote = false;
             }
         },
 

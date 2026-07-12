@@ -34,3 +34,40 @@
     font-size: 0.9375rem !important;
     line-height: 1.65 !important;
 }
+
+.bp-note-editor .ProseMirror {
+    min-height: inherit;
+    outline: none;
+}
+
+.bp-note-editor .ProseMirror p {
+    margin: 0.35rem 0;
+}
+
+.bp-note-editor .ProseMirror h3 {
+    margin: 0.75rem 0 0.35rem;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.bp-note-editor .ProseMirror h4 {
+    margin: 0.65rem 0 0.3rem;
+    font-size: 0.9375rem;
+    font-weight: 650;
+}
+
+.bp-note-editor .ProseMirror ul {
+    margin: 0.45rem 0;
+    padding-left: 1.25rem;
+    list-style: disc;
+}
+
+.bp-note-editor .ProseMirror ol {
+    margin: 0.45rem 0;
+    padding-left: 1.25rem;
+    list-style: decimal;
+}
+
+.bp-note-editor .ProseMirror li {
+    margin: 0.2rem 0;
+}
