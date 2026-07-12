@@ -622,7 +622,7 @@
 
     {{-- Bouton Explorer --}}
     <div class="mt-2">
-        <button type="button" @click="window.dispatchEvent(new CustomEvent('open-explorer'))"
+        <button type="button" @click="openExplorer()"
             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             {{ __('blog.editor_explorer') }}

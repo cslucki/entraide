@@ -24,11 +24,15 @@ class BlogExplorerController extends Controller implements HasMiddleware
         ];
     }
 
-    private const MAX_EXCHANGES = 5;
+    private const MAX_EXCHANGES = 50;
+
+    private const MAX_NOTE_CHARS = 3000;
 
     private const MAX_OUTPUT_TOKENS = 512;
 
     private const TIMEOUT = 30;
+
+    private const ALLOWED_NOTE_TAGS = '<h2><h3><h4><p><ul><ol><li><strong><em><b><i><u><br>';
 
     public function chat(Request $request, BlogPost $post): JsonResponse
     {
@@ -43,9 +47,15 @@ class BlogExplorerController extends Controller implements HasMiddleware
             abort(403);
         }
 
+        if (! $this->hasSavedArticleContent($post)) {
+            return response()->json([
+                'text' => __('blog.explorer_article_not_saved'),
+            ]);
+        }
+
         $data = $request->validate([
             'message' => ['required', 'string', 'max:2000'],
-            'messages' => ['sometimes', 'array', 'max:10'],
+            'messages' => ['sometimes', 'array', 'max:'.self::MAX_EXCHANGES],
             'messages.*.role' => ['required_with:messages', 'string', 'in:user,assistant'],
             'messages.*.text' => ['required_with:messages', 'string'],
         ]);
@@ -75,8 +85,14 @@ class BlogExplorerController extends Controller implements HasMiddleware
             abort(403);
         }
 
+        if (! $this->hasSavedArticleContent($post)) {
+            return response()->json([
+                'error' => __('blog.explorer_article_not_saved'),
+            ], 422);
+        }
+
         $data = $request->validate([
-            'messages' => ['required', 'array', 'min:1', 'max:10'],
+            'messages' => ['required', 'array', 'min:1', 'max:'.self::MAX_EXCHANGES],
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
             'messages.*.text' => ['required', 'string'],
         ]);
@@ -86,7 +102,8 @@ class BlogExplorerController extends Controller implements HasMiddleware
         $locale = app()->getLocale();
         $scenarioId = 'blog_explorer_note_'.$locale;
         $promptTemplate = $this->resolvePrompt($scenarioId, 'blog_explorer_note_fr');
-        $notePrompt = "ARTICLE :\n\n{$post->content}\n\n---\n\nHISTORIQUE DE LA CONVERSATION :\n\n";
+        $articleContext = $this->articleContext($post);
+        $notePrompt = "ARTICLE SAUVEGARDÉ :\n\n{$articleContext}\n\n---\n\nHISTORIQUE DE LA CONVERSATION :\n\n";
         foreach ($conversationMessages as $msg) {
             $role = $msg['role'] === 'user' ? 'Utilisateur' : 'Assistant';
             $notePrompt .= "{$role} : {$msg['text']}\n\n";
@@ -95,12 +112,10 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         $aiResponse = $this->callAiSimple($post, $user, $notePrompt, 'blog_explorer_note');
 
-        $noteContent = strip_tags($aiResponse, '<h2><h3><p><ul><ol><li><strong><em><b><i><u><br>');
-
-        $noteContent = strip_tags($noteContent, '<h2><h3><p><ul><ol><li><strong><em><b><i><u><br>');
+        $noteContent = $this->cleanGeneratedNoteHtml($aiResponse);
 
         $noteLength = mb_strlen(strip_tags($noteContent));
-        if ($noteLength < 150 || $noteLength > 900) {
+        if ($noteLength < 150 || $noteLength > self::MAX_NOTE_CHARS) {
             return response()->json([
                 'error' => __('blog.explorer_deep_chat_error'),
                 'note' => $noteContent,
@@ -159,16 +174,18 @@ class BlogExplorerController extends Controller implements HasMiddleware
         }
 
         $data = $request->validate([
-            'note_content' => ['required', 'string', 'min:150', 'max:900'],
+            'note_content' => ['required', 'string', 'min:150', 'max:'.self::MAX_NOTE_CHARS],
             'metadata' => ['nullable', 'array'],
         ]);
+
+        $noteContent = $this->cleanGeneratedNoteHtml($data['note_content']);
 
         $note = BlogAnalysisNote::create([
             'blog_post_id' => $post->id,
             'user_id' => $user->id,
             'organization_id' => $organization->id,
             'method' => 'explorer',
-            'note_content' => $data['note_content'],
+            'note_content' => $noteContent,
             'metadata' => $data['metadata'] ?? null,
         ]);
 
@@ -198,11 +215,13 @@ class BlogExplorerController extends Controller implements HasMiddleware
         }
 
         $data = $request->validate([
-            'note_content' => ['required', 'string', 'min:150', 'max:900'],
+            'note_content' => ['required', 'string', 'min:150', 'max:'.self::MAX_NOTE_CHARS],
         ]);
 
+        $noteContent = $this->cleanGeneratedNoteHtml($data['note_content']);
+
         $note->update([
-            'note_content' => $data['note_content'],
+            'note_content' => $noteContent,
             'metadata' => array_merge($note->metadata ?? [], ['edited_at' => now()->toIso8601String()]),
         ]);
 
@@ -273,7 +292,21 @@ class BlogExplorerController extends Controller implements HasMiddleware
         $scenarioId = 'blog_explorer_dialogue_'.$locale;
         $promptTemplate = $this->resolvePrompt($scenarioId, 'blog_explorer_dialogue_fr');
 
-        return sprintf($promptTemplate, $post->title, $post->content);
+        return $promptTemplate."\n\n---\n\nARTICLE SAUVEGARDÉ À ANALYSER\n\n".$this->articleContext($post)."\n\nRègle impérative : tu as déjà accès à cet article sauvegardé. Ne demande jamais à l'utilisateur de te le fournir. Tes réponses doivent s'appuyer explicitement sur son titre, son résumé et son contenu.";
+    }
+
+    private function hasSavedArticleContent(BlogPost $post): bool
+    {
+        return trim(strip_tags((string) $post->content)) !== '';
+    }
+
+    private function articleContext(BlogPost $post): string
+    {
+        $title = trim((string) $post->title);
+        $summary = trim((string) $post->summary);
+        $content = trim(strip_tags((string) $post->content));
+
+        return "Titre : {$title}\n\nRésumé : {$summary}\n\nContenu :\n{$content}";
     }
 
     private function resolvePrompt(string $scenarioId, ?string $fallbackId = null): string
@@ -543,6 +576,15 @@ class BlogExplorerController extends Controller implements HasMiddleware
         ]);
 
         return $text;
+    }
+
+    private function cleanGeneratedNoteHtml(string $html): string
+    {
+        $html = preg_replace('/^\s*```[a-zA-Z]*\s*$/m', '', $html) ?? $html;
+        $html = preg_replace('/```[a-zA-Z]*/', '', $html) ?? $html;
+        $html = str_replace('**', '', $html);
+
+        return trim(strip_tags($html, self::ALLOWED_NOTE_TAGS));
     }
 
     private function isCoAuthor(BlogPost $post, User $user): bool

@@ -1068,6 +1068,7 @@
             noteGenerateUrl: @js($_blogRoute('explorer.note.generate', ['post' => $post])),
             notesStoreUrl: @js($_blogRoute('explorer.notes.store', ['post' => $post])),
             csrfToken: @js(csrf_token()),
+            noteMaxChars: 3000,
             i18n: {
                 title: @js(__('blog.explorer_title')),
                 subtitle: @js(__('blog.explorer_subtitle')),
@@ -1079,10 +1080,13 @@
                 noteSaved: @js(__('blog.explorer_note_saved')),
                 noteSaveError: @js(__('blog.explorer_note_save_error')),
                 noteMinMax: @js(__('blog.explorer_note_min_chars')),
+                noteMax: @js(__('blog.explorer_note_max_chars')),
+                notePlaceholder: @js(__('blog.explorer_note_placeholder')),
                 close: @js(__('blog.explorer_close')),
                 dialogueCount: @js(__('blog.explorer_dialogue_count')),
                 deepChatError: @js(__('blog.explorer_deep_chat_error')),
-                introMessage: @js(__('blog.explorer_subtitle')),
+                introMessage: @js(__('blog.explorer_intro_message')),
+                articleNotSaved: @js(__('blog.explorer_article_not_saved')),
             },
         })"
         x-show="open"
@@ -1096,7 +1100,7 @@
         class="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40"
         @keydown.escape.window="close()"
     >
-        <div class="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full md:max-w-[920px] md:mx-4 max-h-[88dvh] flex flex-col" @click.stop>
+        <div class="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full md:max-w-[920px] md:mx-4 h-[88dvh] max-h-[88dvh] flex flex-col" @click.stop>
             {{-- Header --}}
             <div class="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div>
@@ -1118,11 +1122,11 @@
 
             {{-- Dialogue phase --}}
             <div x-show="phase === 'dialogue'" class="flex-1 min-h-0 flex flex-col">
-                <div class="flex-1 min-h-0 overflow-hidden p-4">
+                <div class="flex-1 min-h-0 overflow-hidden p-4 flex">
                     <template x-if="open">
                         <deep-chat
                             x-ref="deepChat"
-                            class="w-full h-full rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden"
+                            class="block w-full h-full flex-1 rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden"
                             style="display: block; width: 100%; height: 100%;"
                         ></deep-chat>
                     </template>
@@ -1139,6 +1143,20 @@
                             <span x-text="i18n.generateNote || 'Générer la note'"></span>
                         </button>
                     </div>
+                </div>
+            </div>
+
+            {{-- Article unavailable phase --}}
+            <div x-show="phase === 'unavailable'" x-cloak class="flex-1 flex items-center justify-center p-8">
+                <div class="max-w-md text-center">
+                    <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12v-.008zM10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                    </div>
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.title || 'Questionner le texte'"></h4>
+                    <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300" x-text="i18n.articleNotSaved || ''"></p>
+                    <button type="button" @click="close()" class="mt-5 px-4 py-2 text-xs font-semibold rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition">
+                        {{ __('blog.explorer_close') }}
+                    </button>
                 </div>
             </div>
 
@@ -1162,20 +1180,20 @@
                         </svg>
                         <span x-text="i18n.noteTitle || 'Note Explorer'"></span>
                     </h4>
-                    <div x-show="noteContent.length > 900" x-cloak class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
-                        La note générée dépasse 900 caractères. Veuillez la raccourcir avant de sauvegarder.
+                    <div x-show="noteContent.length > maxNoteChars" x-cloak class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+                        <span x-text="(i18n.noteMax || '').replace(':max', maxNoteChars)"></span>
                     </div>
                     <div class="text-xs text-gray-500 dark:text-gray-400" x-show="noteContent.length > 0">
-                        <span x-text="noteContent.length"></span> / 900
+                        <span x-text="noteContent.length"></span> / <span x-text="maxNoteChars"></span>
                     </div>
                     <textarea x-model="noteContent"
                         rows="10"
                         class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 resize-none leading-relaxed"
                         :disabled="saving"
-                        placeholder="Note de 150 à 900 caractères..."
+                        :placeholder="(i18n.notePlaceholder || '').replace(':min', '150').replace(':max', maxNoteChars)"
                     ></textarea>
                     <div x-show="noteContent.length > 0 && noteContent.length < 150" x-cloak class="text-xs text-amber-600 dark:text-amber-400">
-                        <span x-text="(i18n.noteMinMax || 'Min : :min caractères').replace(':min', '150').replace(':max', '900')"></span>
+                        <span x-text="(i18n.noteMinMax || 'Min : :min caractères').replace(':min', '150').replace(':max', maxNoteChars)"></span>
                     </div>
                 </div>
 
@@ -1192,7 +1210,7 @@
                             class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition disabled:opacity-50">
                             {{ __('blog.btn_cancel') }}
                         </button>
-                        <button type="button" @click="saveNote()" :disabled="saving || noteContent.length < 150 || noteContent.length > 900"
+                        <button type="button" @click="saveNote()" :disabled="saving || noteContent.length < 150 || noteContent.length > maxNoteChars"
                             class="px-4 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition inline-flex items-center gap-1.5">
                             <svg x-show="saving" class="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>

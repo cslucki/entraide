@@ -390,6 +390,7 @@ function registerBlogEditor() {
     Alpine.data('blogEditor', () => ({
         name: '',
         content: '',
+        savedContent: '',
         loading: false,
         generating: false,
         aiMode: 'generate',
@@ -428,6 +429,7 @@ function registerBlogEditor() {
             const root = this.$root;
             this.name = root.dataset.editorName || 'content';
             this.content = root.dataset.editorValue || '';
+            this.savedContent = this.content;
             this.editorPostId = root.dataset.editorPostId || '';
             this.editing = this.editorPostId !== '';
             this.csrfToken = root.dataset.editorCsrf || '';
@@ -570,6 +572,23 @@ function registerBlogEditor() {
 
             const hidden = form.querySelector('input[type="hidden"][name="' + this.name + '"]');
             if (hidden) hidden.value = editor.getHTML();
+        },
+
+        normalizeContent(html) {
+            return (html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        },
+
+        hasUnsavedEditorChanges() {
+            return this.normalizeContent(this.content) !== this.normalizeContent(this.savedContent);
+        },
+
+        openExplorer() {
+            window.dispatchEvent(new CustomEvent('open-explorer', {
+                detail: {
+                    hasSavedArticle: this.normalizeContent(this.savedContent).length > 0,
+                    hasUnsavedChanges: this.hasUnsavedEditorChanges(),
+                },
+            }));
         },
 
         exec(command) {
@@ -2463,7 +2482,8 @@ function registerBlogExplorerModal() {
         open: false,
         phase: 'dialogue',
         dialogueCount: 0,
-        maxDialogues: 5,
+        maxDialogues: 50,
+        maxNoteChars: config.maxNoteChars || 3000,
         noteContent: '',
         noteTooLong: false,
         saving: false,
@@ -2478,15 +2498,19 @@ function registerBlogExplorerModal() {
         i18n: config.i18n || {},
 
         init() {
-            window.addEventListener('open-explorer', () => {
+            window.addEventListener('open-explorer', (event) => {
                 this.open = true;
-                this.phase = 'dialogue';
+                const detail = event.detail || {};
+                const unavailable = detail.hasSavedArticle === false || detail.hasUnsavedChanges === true;
+                this.phase = unavailable ? 'unavailable' : 'dialogue';
                 this.dialogueCount = 0;
                 this.noteContent = '';
                 this.noteTooLong = false;
                 this.error = '';
                 this.success = '';
-                this.$nextTick(() => this.setupDeepChat());
+                if (!unavailable) {
+                    this.$nextTick(() => this.setupDeepChat());
+                }
             });
         },
 
@@ -2497,6 +2521,9 @@ function registerBlogExplorerModal() {
             dc.style.display = 'block';
             dc.style.width = '100%';
             dc.style.height = '100%';
+            dc.style.minHeight = '0';
+
+            this.applyDeepChatTheme(dc);
 
             try { dc.clearMessages(); } catch (_) {}
 
@@ -2509,10 +2536,6 @@ function registerBlogExplorerModal() {
                     'X-CSRF-TOKEN': this.csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-            };
-
-            dc.textInput = {
-                placeholder: { text: this.i18n.chatPlaceholder || 'Posez votre question sur l\'article…' },
             };
 
             dc.requestInterceptor = (details) => {
@@ -2549,6 +2572,118 @@ function registerBlogExplorerModal() {
                     try { dc.disableSubmitButton(); } catch (_) {}
                 }
             };
+        },
+
+        isDarkMode() {
+            return document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+        },
+
+        applyDeepChatTheme(dc) {
+            const dark = this.isDarkMode();
+            const surface = dark ? '#111827' : '#ffffff';
+            const surfaceSoft = dark ? '#1f2937' : '#f9fafb';
+            const border = dark ? '#374151' : '#e5e7eb';
+            const text = dark ? '#f3f4f6' : '#111827';
+            const muted = dark ? '#9ca3af' : '#6b7280';
+            const userBubble = dark ? '#6d28d9' : '#7c3aed';
+            const aiBubble = dark ? '#273244' : '#eef2f7';
+
+            dc.chatStyle = {
+                backgroundColor: surface,
+                border: 'none',
+                borderRadius: '0.5rem',
+                height: '100%',
+                width: '100%',
+            };
+
+            dc.inputAreaStyle = {
+                backgroundColor: surface,
+                borderTop: `1px solid ${border}`,
+                position: 'sticky',
+                bottom: '0',
+            };
+
+            dc.textInput = {
+                styles: {
+                    container: {
+                        backgroundColor: surfaceSoft,
+                        border: `1px solid ${border}`,
+                        borderRadius: '0.75rem',
+                        boxShadow: dark ? 'none' : '0 1px 8px rgba(15, 23, 42, 0.08)',
+                    },
+                    text: {
+                        color: text,
+                        backgroundColor: surfaceSoft,
+                    },
+                    focus: {
+                        border: '1px solid #8b5cf6',
+                    },
+                },
+                placeholder: {
+                    text: this.i18n.chatPlaceholder || 'Posez votre question sur l\'article…',
+                    style: { color: muted },
+                },
+            };
+
+            dc.submitButtonStyles = {
+                submit: {
+                    container: {
+                        default: { color: dark ? '#c4b5fd' : '#7c3aed' },
+                        hover: { color: dark ? '#ddd6fe' : '#6d28d9' },
+                    },
+                },
+                disabled: {
+                    container: {
+                        default: { color: dark ? '#4b5563' : '#d1d5db' },
+                    },
+                },
+            };
+
+            dc.messageStyles = {
+                default: {
+                    shared: {
+                        bubble: {
+                            borderRadius: '0.85rem',
+                            lineHeight: '1.45',
+                            maxWidth: '78%',
+                        },
+                    },
+                    user: {
+                        bubble: {
+                            backgroundColor: userBubble,
+                            color: '#ffffff',
+                        },
+                    },
+                    ai: {
+                        bubble: {
+                            backgroundColor: aiBubble,
+                            color: text,
+                        },
+                    },
+                },
+                intro: {
+                    bubble: {
+                        backgroundColor: aiBubble,
+                        color: text,
+                        borderRadius: '0.85rem',
+                        lineHeight: '1.45',
+                        maxWidth: '78%',
+                    },
+                },
+                error: {
+                    bubble: {
+                        backgroundColor: dark ? '#7f1d1d' : '#fee2e2',
+                        color: dark ? '#fecaca' : '#991b1b',
+                    },
+                },
+            };
+
+            dc.auxiliaryStyle = `
+                ::-webkit-scrollbar { width: 10px; }
+                ::-webkit-scrollbar-track { background: ${surface}; }
+                ::-webkit-scrollbar-thumb { background: ${dark ? '#4b5563' : '#cbd5e1'}; border-radius: 999px; border: 2px solid ${surface}; }
+                ::-webkit-scrollbar-thumb:hover { background: ${dark ? '#6b7280' : '#94a3b8'}; }
+            `;
         },
 
         get canGenerateNote() {
@@ -2616,9 +2751,11 @@ function registerBlogExplorerModal() {
         },
 
         async saveNote() {
-            if (this.noteContent.length < 150 || this.noteContent.length > 900) {
-                this.error = (this.i18n.noteMinMax || 'La note doit faire entre 150 et 900 caractères.')
-                    .replace(':min', '150').replace(':max', '900');
+            if (this.noteContent.length < 150 || this.noteContent.length > this.maxNoteChars) {
+                const message = this.noteContent.length < 150
+                    ? (this.i18n.noteMinMax || 'La note doit faire au moins :min caractères.')
+                    : (this.i18n.noteMax || 'La note ne peut pas dépasser :max caractères.');
+                this.error = message.replace(':min', '150').replace(':max', String(this.maxNoteChars));
                 return;
             }
 
