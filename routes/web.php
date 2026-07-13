@@ -39,6 +39,7 @@ use App\Http\Controllers\BlogAnnotationReplyController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogExplorerController;
 use App\Http\Controllers\BlogInvitationController;
 use App\Http\Controllers\BlogPostLoopController;
 use App\Http\Controllers\BlogSnapshotController;
@@ -158,6 +159,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'destroy'])->name('blog.todos.destroy');
     Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'threadStore'])->name('blog.todos.threads.store');
     Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'threadDestroy'])->name('blog.todos.threads.destroy');
+
+    // Blog Explorer endpoints
+    Route::post('/blog/{post:slug}/explorer/chat', [BlogExplorerController::class, 'chat'])->name('blog.explorer.chat');
+    Route::post('/blog/{post:slug}/explorer/note', [BlogExplorerController::class, 'generateNote'])->name('blog.explorer.note.generate');
+    Route::get('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'indexNotes'])->name('blog.explorer.notes.index');
+    Route::post('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'storeNote'])->name('blog.explorer.notes.store');
+    Route::put('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'updateNote'])->name('blog.explorer.notes.update');
+    Route::delete('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'destroyNote'])->name('blog.explorer.notes.destroy');
 
     // Blog plan endpoint
     Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
@@ -680,6 +689,14 @@ Route::prefix('/org/{organization}')
                 Route::delete('/blog/{post:slug}/todos/{todo}', [BlogTodoController::class, 'orgDestroy'])->name('blog.todos.destroy');
                 Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'orgThreadStore'])->name('blog.todos.threads.store');
                 Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'orgThreadDestroy'])->name('blog.todos.threads.destroy');
+
+                // Blog Explorer endpoints (org-scoped)
+                Route::post('/blog/{post:slug}/explorer/chat', [BlogExplorerController::class, 'orgChat'])->name('blog.explorer.chat');
+                Route::post('/blog/{post:slug}/explorer/note', [BlogExplorerController::class, 'orgGenerateNote'])->name('blog.explorer.note.generate');
+                Route::get('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'orgIndexNotes'])->name('blog.explorer.notes.index');
+                Route::post('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'orgStoreNote'])->name('blog.explorer.notes.store');
+                Route::put('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'orgUpdateNote'])->name('blog.explorer.notes.update');
+                Route::delete('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'orgDestroyNote'])->name('blog.explorer.notes.destroy');
 
                 // Blog plan endpoint (org-scoped)
                 Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'orgUpdatePlan'])->name('blog.plan.update');
