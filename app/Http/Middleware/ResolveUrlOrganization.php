@@ -19,6 +19,8 @@ class ResolveUrlOrganization
         'reset-password',
         'confirm-password',
         'verify-email',
+        'demo',
+        'launchpals',
         'mentions-legales',
         'sitemap.xml',
         'logout',
