@@ -83,6 +83,18 @@ require __DIR__.'/auth.php';
 
 // Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/launchpals', fn () => redirect()->to(route('organization.home', ['organization' => 'launchpals'], false), 301))
+    ->name('public.launchpals');
+Route::get('/demo', function () {
+    $url = config('services.bouclepro_demo.url', 'https://lastprod.com/bouclepro-prototype/');
+    $locale = request()->query('lang');
+
+    if (in_array($locale, config('services.bouclepro_demo.supported_locales', []), true)) {
+        $url .= (str_contains($url, '?') ? '&' : '?').'lang='.$locale;
+    }
+
+    return redirect()->away($url, 302);
+})->name('public.demo');
 Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('locale.switch');
 Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
 Route::view('/about', 'about')->name('about');
