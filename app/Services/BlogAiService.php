@@ -20,6 +20,10 @@ class BlogAiService
 
     private const METHOD_SELECTION_METHODS = ['explorer', 'clarifier', 'slow_down', 'invent'];
 
+    private const GENERATED_ARTICLE_START_TAGS = ['<article', '<section', '<div', '<h1', '<h2', '<h3', '<h4', '<p', '<ul', '<ol', '<blockquote'];
+
+    private const GENERATED_ARTICLE_CLOSING_TAGS = ['</article>', '</section>', '</div>', '</h1>', '</h2>', '</h3>', '</h4>', '</p>', '</ul>', '</ol>', '</blockquote>'];
+
     public function generate(BlogPost $post, User $user, ?string $title = null, ?string $summary = null): array
     {
         $title ??= $post->title;
@@ -359,12 +363,61 @@ class BlogAiService
         $config = BlogAiConfig::forOrganization($orgId);
 
         $limit = $feature === 'blog_generate' ? $config->generate_limit : $config->correct_limit;
+        $content = $feature === 'blog_generate'
+            ? $this->cleanGeneratedArticleHtml($callResult['content'])
+            : $callResult['content'];
 
         return [
-            'content' => $callResult['content'],
+            'content' => $content,
             'provider' => $callResult['provider'],
             'model' => $callResult['model'],
             'limit' => $limit,
         ];
+    }
+
+    private function cleanGeneratedArticleHtml(string $html): string
+    {
+        $html = trim($html);
+
+        if ($html === '') {
+            return $html;
+        }
+
+        if (preg_match('/```(?:html)?\s*(.*?)```/is', $html, $matches)) {
+            $html = $matches[1];
+        }
+
+        $html = preg_replace('/^\s*```[a-zA-Z0-9_-]*\s*/', '', (string) $html);
+        $html = preg_replace('/\s*```\s*$/', '', (string) $html);
+        $html = str_replace('```', '', (string) $html);
+        $html = trim((string) $html);
+
+        $firstTagPosition = null;
+        foreach (self::GENERATED_ARTICLE_START_TAGS as $tag) {
+            $position = stripos($html, $tag);
+            if ($position !== false && ($firstTagPosition === null || $position < $firstTagPosition)) {
+                $firstTagPosition = $position;
+            }
+        }
+
+        if ($firstTagPosition !== null && $firstTagPosition > 0) {
+            $html = substr($html, $firstTagPosition);
+        }
+
+        $lastClosingTag = null;
+        $lastClosingTagLength = 0;
+        foreach (self::GENERATED_ARTICLE_CLOSING_TAGS as $tag) {
+            $position = strripos($html, $tag);
+            if ($position !== false && ($lastClosingTag === null || $position > $lastClosingTag)) {
+                $lastClosingTag = $position;
+                $lastClosingTagLength = strlen($tag);
+            }
+        }
+
+        if ($lastClosingTag !== null) {
+            $html = substr($html, 0, $lastClosingTag + $lastClosingTagLength);
+        }
+
+        return trim($html);
     }
 }
