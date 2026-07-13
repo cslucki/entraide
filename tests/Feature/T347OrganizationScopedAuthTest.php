@@ -262,18 +262,22 @@ class T347OrganizationScopedAuthTest extends TestCase
 
     public function test_org_admin_can_sort_users_by_name(): void
     {
-        User::factory()->create(['organization_id' => $this->cpmeOrg->id, 'name' => 'AAA Aaron']);
-        User::factory()->create(['organization_id' => $this->cpmeOrg->id, 'name' => 'ZZZ Zach']);
+        User::factory()->create(['organization_id' => $this->cpmeOrg->id, 'name' => 'Sort Marker A']);
+        User::factory()->create(['organization_id' => $this->cpmeOrg->id, 'name' => 'Sort Marker Z']);
 
         $response = $this->actingAs($this->orgAdmin)
-            ->get(route('organization.admin.users', [$this->cpmeOrg, 'sort' => 'name', 'direction' => 'asc']));
+            ->get(route('organization.admin.users', [
+                $this->cpmeOrg,
+                'search' => 'Sort Marker',
+                'sort' => 'name',
+                'direction' => 'asc',
+            ]));
+
+        $response->assertStatus(200);
 
         $users = $response->viewData('users');
-        $names = $users->pluck('name')->toArray();
-        $sorted = $names;
-        sort($sorted);
 
-        $this->assertEquals($sorted, $names);
+        $this->assertSame(['Sort Marker A', 'Sort Marker Z'], $users->pluck('name')->all());
     }
 
     public function test_org_admin_can_sort_users_by_created_at(): void
