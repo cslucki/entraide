@@ -1192,7 +1192,6 @@
             noteMaxChars: 3000,
             i18n: {
                 title: @js(__('blog.explorer_title')),
-                subtitle: @js(__('blog.explorer_subtitle')),
                 chatPlaceholder: @js(__('blog.explorer_chat_placeholder')),
                 generateNote: @js(__('blog.explorer_generate_note')),
                 generatingNote: @js(__('blog.explorer_generating_note')),
@@ -1232,7 +1231,6 @@
                         </svg>
                         <span x-text="i18n.title || 'Explorer'"></span>
                     </h3>
-                    <p x-show="i18n.subtitle" x-cloak class="text-xs text-gray-500 dark:text-gray-400 mt-0.5" x-text="i18n.subtitle"></p>
                 </div>
                 <div class="flex items-center gap-3">
                     <span x-show="phase === 'dialogue' && dialogueCount > 0" x-cloak class="text-[11px] text-gray-400 dark:text-gray-500" x-text="dialogueLabel"></span>

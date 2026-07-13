@@ -449,7 +449,6 @@ return [
     // Explorer atelier
     'editor_explorer' => 'Questionner le texte',
     'explorer_title' => 'Questionner le texte',
-    'explorer_subtitle' => '',
     'explorer_intro_message' => 'Je vais vous aider à questionner ce texte avec recul : clarté, structure, profondeur, impact et pistes d’amélioration. Par où souhaitez-vous commencer ?',
     'explorer_loading' => 'Chargement de l\'atelier…',
     'explorer_chat_placeholder' => 'Posez votre question sur l\'article…',
