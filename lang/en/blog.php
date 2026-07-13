@@ -449,7 +449,6 @@ return [
     // Explorer workshop
     'editor_explorer' => 'Question the text',
     'explorer_title' => 'Question the Text',
-    'explorer_subtitle' => '',
     'explorer_intro_message' => 'I’ll help you question this text with perspective: clarity, structure, depth, impact and improvement paths. Where would you like to begin?',
     'explorer_loading' => 'Loading workshop…',
     'explorer_chat_placeholder' => 'Ask a question about the article…',
