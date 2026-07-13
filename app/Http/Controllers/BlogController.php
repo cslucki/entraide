@@ -142,7 +142,7 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
-        if ($post->status !== 'published' && auth()->id() !== $post->user_id && ! auth()->user()?->is_admin) {
+        if ($post->status !== 'published' && auth()->id() !== $post->user_id && ! auth()->user()?->is_admin && ! $post->coAuthors()->where('user_id', auth()->id())->exists()) {
             abort(404);
         }
 
