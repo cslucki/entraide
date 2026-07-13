@@ -34,7 +34,6 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
     private const ALLOWED_NOTE_TAGS = '<h2><h3><h4><p><ul><ol><li><strong><em><b><i><u><br><blockquote>';
 
-
     public function chat(Request $request, BlogPost $post): JsonResponse
     {
         $organization = currentOrganization();
@@ -44,7 +43,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         $user = $request->user();
 
-        if ($user->id !== $post->user_id && ! $user->is_admin && ! $this->isCoAuthor($post, $user)) {
+        if (! $this->canAccessPostExplorer($post, $user, $organization)) {
             abort(403);
         }
 
@@ -82,7 +81,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         $user = $request->user();
 
-        if ($user->id !== $post->user_id && ! $user->is_admin && ! $this->isCoAuthor($post, $user)) {
+        if (! $this->canAccessPostExplorer($post, $user, $organization)) {
             abort(403);
         }
 
@@ -139,7 +138,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         $user = $request->user();
 
-        if ($user->id !== $post->user_id && ! $user->is_admin && ! $this->isCoAuthor($post, $user)) {
+        if (! $this->canAccessPostExplorer($post, $user, $organization)) {
             abort(403);
         }
 
@@ -170,7 +169,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         $user = $request->user();
 
-        if ($user->id !== $post->user_id && ! $user->is_admin && ! $this->isCoAuthor($post, $user)) {
+        if (! $this->canAccessPostExplorer($post, $user, $organization)) {
             abort(403);
         }
 
@@ -218,7 +217,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
             abort(404);
         }
 
-        if ($user->id !== $note->user_id && ! $user->is_admin) {
+        if (! $this->canManageExplorerNote($note, $user, $organization)) {
             abort(403);
         }
 
@@ -260,7 +259,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
             abort(404);
         }
 
-        if ($user->id !== $note->user_id && ! $user->is_admin) {
+        if (! $this->canManageExplorerNote($note, $user, $organization)) {
             abort(403);
         }
 
@@ -299,6 +298,29 @@ class BlogExplorerController extends Controller implements HasMiddleware
     public function orgDestroyNote(Request $request, string $org, BlogPost $post, BlogAnalysisNote $note): JsonResponse
     {
         return $this->destroyNote($request, $post, $note);
+    }
+
+    private function canAccessPostExplorer(BlogPost $post, User $user, object $organization): bool
+    {
+        if (! $this->userBelongsToOrganization($user, $organization)) {
+            return false;
+        }
+
+        return $user->id === $post->user_id || $user->is_admin || $this->isCoAuthor($post, $user);
+    }
+
+    private function canManageExplorerNote(BlogAnalysisNote $note, User $user, object $organization): bool
+    {
+        if (! $this->userBelongsToOrganization($user, $organization)) {
+            return false;
+        }
+
+        return $user->id === $note->user_id || $user->is_admin;
+    }
+
+    private function userBelongsToOrganization(User $user, object $organization): bool
+    {
+        return (string) $user->organization_id === (string) $organization->id;
     }
 
     private function buildExplorerSystemPrompt(BlogPost $post): string

@@ -27,9 +27,10 @@
         {{-- Editor layout: main panel + resize handle + sidebar --}}
         <div class="flex flex-col md:flex-row gap-0"
              x-data="{
-                cards: [],
-                width: 280,
-                resizing: false,
+                 cards: [],
+                 width: 280,
+                 isDesktop: window.matchMedia('(min-width: 768px)').matches,
+                 resizing: false,
 
                 toggle(key) {
                     const card = this.cards.find(c => c.key === key);
@@ -64,9 +65,14 @@
                     document.body.style.userSelect = 'none';
                 },
 
-                init() {
-                    const stored = localStorage.getItem('editor_sidebar_width');
-                    if (stored) this.width = parseInt(stored, 10);
+                 init() {
+                     const media = window.matchMedia('(min-width: 768px)');
+                     const syncDesktop = () => { this.isDesktop = media.matches; };
+                     syncDesktop();
+                     media.addEventListener('change', syncDesktop);
+
+                     const stored = localStorage.getItem('editor_sidebar_width');
+                     if (stored) this.width = parseInt(stored, 10);
                     this.cards.forEach(c => {
                         const v = localStorage.getItem('editor_sidebar_card_' + c.key);
                         if (v !== null) c.open = v === '1';
@@ -261,11 +267,12 @@
                     </div>
                 </section>
 
-                <div class="flex items-center gap-3 pt-2">
-                    <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
-                        {{ __('blog.btn_save') }}
+                <div class="grid grid-cols-2 gap-2 pt-2 sm:flex sm:items-center sm:gap-3">
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-2 text-center text-xs font-semibold leading-snug text-white transition hover:bg-indigo-700 sm:px-6 sm:text-sm">
+                        <span class="sm:hidden">{{ __('blog.save') }}</span>
+                        <span class="hidden sm:inline">{{ __('blog.btn_save') }}</span>
                     </button>
-                    <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="rounded-lg border border-gray-300 px-3 py-2 text-center text-xs leading-snug text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 sm:px-6 sm:text-sm">
                         {{ __('blog.btn_cancel') }}
                     </a>
                 </div>
@@ -294,7 +301,7 @@
 
     {{-- Right sidebar --}}
     <aside
-        :style="`width: ${width}px`"
+        :style="isDesktop ? `width: ${width}px` : ''"
         class="flex w-full shrink-0 flex-col space-y-2 md:w-auto"
     >
                 {{-- Boucle card --}}
