@@ -50,8 +50,8 @@ class SystemEmailTemplateTest extends TestCase
 
         $this->seed(SystemEmailTemplateSeeder::class);
 
-        $this->assertSame(5 * 2 * 3, SystemEmailTemplate::count());
-        $this->assertSame(10, SystemEmailTemplate::where('organization_id', $this->org->id)->count());
+        $this->assertSame(6 * 2 * 3, SystemEmailTemplate::count());
+        $this->assertSame(12, SystemEmailTemplate::where('organization_id', $this->org->id)->count());
     }
 
     public function test_seeder_does_not_duplicate(): void

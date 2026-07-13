@@ -7,6 +7,7 @@ use App\Models\BlogPostAnnotation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class BlogAnnotationController extends Controller
 {
@@ -43,16 +44,30 @@ class BlogAnnotationController extends Controller
             'content' => 'required|string|max:5000',
             'start_offset' => 'nullable|integer|min:0',
             'end_offset' => 'nullable|integer|min:0',
+            'origin' => ['nullable', 'string', Rule::in(['human', 'ai_method'])],
+            'method_key' => ['nullable', 'string', Rule::in(['explorer', 'clarifier', 'slow_down', 'invent'])],
+            'ai_interaction_id' => ['nullable', 'uuid', Rule::exists('ai_interactions', 'id')],
         ]);
+
+        $origin = $data['origin'] ?? 'human';
+
+        if ($origin === 'ai_method' && empty($data['method_key'])) {
+            return response()->json([
+                'message' => __('validation.required', ['attribute' => 'method_key']),
+            ], 422);
+        }
 
         $annotation = BlogPostAnnotation::create([
             'blog_post_id' => $post->id,
             'organization_id' => $organization->id,
             'user_id' => $request->user()->id,
-            'selected_text' => $data['selected_text'],
-            'content' => $data['content'],
+            'selected_text' => $this->plainText($data['selected_text']),
+            'content' => $this->plainText($data['content']),
             'start_offset' => $data['start_offset'] ?? null,
             'end_offset' => $data['end_offset'] ?? null,
+            'origin' => $origin,
+            'method_key' => $origin === 'ai_method' ? ($data['method_key'] ?? null) : null,
+            'ai_interaction_id' => $origin === 'ai_method' ? ($data['ai_interaction_id'] ?? null) : null,
         ]);
 
         $annotation->load('user');
@@ -191,6 +206,12 @@ class BlogAnnotationController extends Controller
             'selected_text' => $a->selected_text,
             'content' => $a->content,
             'status' => $a->status,
+            'origin' => $a->origin ?? 'human',
+            'method_key' => $a->method_key,
+            'method_label' => $a->method_key ? __('blog.method_'.$a->method_key) : null,
+            'source_label' => ($a->origin ?? 'human') === 'ai_method' ? __('blog.annotation_source_ai_method') : __('blog.annotation_source_human'),
+            'requested_by_label' => ($a->origin ?? 'human') === 'ai_method' ? __('blog.annotation_requested_by', ['name' => $a->user?->fullName ?? __('blog.legend_deleted_user')]) : null,
+            'ai_interaction_id' => $a->ai_interaction_id,
             'start_offset' => $a->start_offset,
             'end_offset' => $a->end_offset,
             'author_name' => $a->user?->fullName ?? __('blog.legend_deleted_user'),
@@ -203,5 +224,30 @@ class BlogAnnotationController extends Controller
             'can_resolve' => $user && ($postOwnerId === $user->id || $user->is_admin),
             'replies' => $replies,
         ];
+    }
+
+    private function plainText(string $text): string
+    {
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/<\?php|<\%|<\?xml/i', '', $text);
+        $text = preg_replace('/\{\{.*?\}\}/s', '', $text);
+        $text = preg_replace('/```[a-z0-9_-]*\s*/i', '', $text);
+        $text = str_replace('```', '', $text);
+        $text = preg_replace('/^\s{0,3}#{1,6}\s+/m', '', $text);
+        $text = preg_replace('/^\s{0,3}(?:-{3,}|_{3,}|\*{3,})\s*$/m', '', $text);
+        $text = preg_replace('/^\s{0,3}>\s?/m', '', $text);
+        $text = preg_replace('/\*\*(.*?)\*\*/s', '$1', $text);
+        $text = preg_replace('/__(.*?)__/s', '$1', $text);
+        $text = preg_replace('/(?<!\*)\*([^*\n]+)\*(?!\*)/u', '$1', $text);
+        $text = preg_replace('/(?<!_)_([^_\n]+)_(?!_)/u', '$1', $text);
+        $text = preg_replace('/^\s*[-*+]\s+/m', '', $text);
+        $text = preg_replace('/^\s*\d+[.)]\s+/m', '', $text);
+        $text = preg_replace('/\[(.*?)\]\((.*?)\)/', '$1', $text);
+        $text = str_replace(['**', '__', '*'], '', $text);
+        $text = preg_replace('/[ \t]+/', ' ', $text);
+        $text = preg_replace('/\h*\n\h*/', "\n", $text);
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim((string) $text);
     }
 }

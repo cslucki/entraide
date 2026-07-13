@@ -39,6 +39,8 @@ use App\Http\Controllers\BlogAnnotationReplyController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogExplorerController;
+use App\Http\Controllers\BlogInvitationController;
 use App\Http\Controllers\BlogPostLoopController;
 use App\Http\Controllers\BlogSnapshotController;
 use App\Http\Controllers\BlogTodoController;
@@ -114,6 +116,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/upload-image', [BlogController::class, 'uploadImage'])->name('blog.upload-image');
     Route::post('/blog/ai-generate', [BlogController::class, 'aiGenerate'])->name('blog.ai-generate');
     Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
+    Route::post('/blog/ai-method-selection', [BlogController::class, 'aiMethodSelection'])->name('blog.ai-method-selection');
     Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
     Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
 
@@ -157,12 +160,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'threadStore'])->name('blog.todos.threads.store');
     Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'threadDestroy'])->name('blog.todos.threads.destroy');
 
+    // Blog Explorer endpoints
+    Route::post('/blog/{post:slug}/explorer/chat', [BlogExplorerController::class, 'chat'])->name('blog.explorer.chat');
+    Route::post('/blog/{post:slug}/explorer/note', [BlogExplorerController::class, 'generateNote'])->name('blog.explorer.note.generate');
+    Route::get('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'indexNotes'])->name('blog.explorer.notes.index');
+    Route::post('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'storeNote'])->name('blog.explorer.notes.store');
+    Route::put('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'updateNote'])->name('blog.explorer.notes.update');
+    Route::delete('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'destroyNote'])->name('blog.explorer.notes.destroy');
+
     // Blog plan endpoint
     Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
+
+    // Blog invitation endpoints
+    Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'index'])->name('blog.invite.index');
+    Route::post('/blog/{post:slug}/invite', [BlogInvitationController::class, 'store'])->name('blog.invite.store')->middleware('throttle:10,1');
 });
 
 // Blog — wildcard slug EN DERNIER
 Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
+
+// Blog invitation public routes (no auth required)
+Route::get('/blog-invitations/{token}', [BlogInvitationController::class, 'show'])->name('blog.invite.show');
+Route::post('/blog-invitations/{token}/accept', [BlogInvitationController::class, 'accept'])->name('blog.invite.accept');
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
@@ -627,6 +646,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/upload-image', [BlogController::class, 'orgUploadImage'])->name('blog.upload-image');
                 Route::post('/blog/ai-generate', [BlogController::class, 'orgAiGenerate'])->name('blog.ai-generate');
                 Route::post('/blog/ai-correct', [BlogController::class, 'orgAiCorrect'])->name('blog.ai-correct');
+                Route::post('/blog/ai-method-selection', [BlogController::class, 'orgAiMethodSelection'])->name('blog.ai-method-selection');
                 Route::post('/blog/ai-remaining', [BlogController::class, 'orgAiRemaining'])->name('blog.ai-remaining');
                 Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->name('blog.create-draft');
 
@@ -670,8 +690,20 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/{post:slug}/todos/{todo}/threads', [BlogTodoController::class, 'orgThreadStore'])->name('blog.todos.threads.store');
                 Route::delete('/blog/{post:slug}/todos/{todo}/threads/{thread}', [BlogTodoController::class, 'orgThreadDestroy'])->name('blog.todos.threads.destroy');
 
+                // Blog Explorer endpoints (org-scoped)
+                Route::post('/blog/{post:slug}/explorer/chat', [BlogExplorerController::class, 'orgChat'])->name('blog.explorer.chat');
+                Route::post('/blog/{post:slug}/explorer/note', [BlogExplorerController::class, 'orgGenerateNote'])->name('blog.explorer.note.generate');
+                Route::get('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'orgIndexNotes'])->name('blog.explorer.notes.index');
+                Route::post('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'orgStoreNote'])->name('blog.explorer.notes.store');
+                Route::put('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'orgUpdateNote'])->name('blog.explorer.notes.update');
+                Route::delete('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'orgDestroyNote'])->name('blog.explorer.notes.destroy');
+
                 // Blog plan endpoint (org-scoped)
                 Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'orgUpdatePlan'])->name('blog.plan.update');
+
+                // Blog invitation endpoints (org-scoped)
+                Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'orgIndex'])->name('blog.invite.index');
+                Route::post('/blog/{post:slug}/invite', [BlogInvitationController::class, 'orgStore'])->name('blog.invite.store')->middleware('throttle:10,1');
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');

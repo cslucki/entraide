@@ -123,7 +123,7 @@ class ReferralEmailInvitationTest extends TestCase
     {
         $template = SystemEmailTemplate::create([
             'organization_id' => $this->org->id,
-            'locale' => app()->getLocale(),
+            'locale' => 'fr',
             'slug' => 'referral_invitation',
             'name' => 'Referral invitation',
             'subject' => '{{ sender_name }} invites you to join {{ organization }}',

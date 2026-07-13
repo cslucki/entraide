@@ -8,6 +8,9 @@
             return route('organization.blog.'.$name, array_merge(['organization' => $orgSlug], $parameters));
         };
     @endphp
+    @push('scripts')
+        @vite(['resources/js/deep-chat-init.js'])
+    @endpush
     <x-slot name="title">{{ __('blog.title_edit', ['title' => $post->title]) }}</x-slot>
 
     @php
@@ -24,9 +27,10 @@
         {{-- Editor layout: main panel + resize handle + sidebar --}}
         <div class="flex flex-col md:flex-row gap-0"
              x-data="{
-                cards: [],
-                width: 280,
-                resizing: false,
+                 cards: [],
+                 width: 280,
+                 isDesktop: window.matchMedia('(min-width: 768px)').matches,
+                 resizing: false,
 
                 toggle(key) {
                     const card = this.cards.find(c => c.key === key);
@@ -61,9 +65,14 @@
                     document.body.style.userSelect = 'none';
                 },
 
-                init() {
-                    const stored = localStorage.getItem('editor_sidebar_width');
-                    if (stored) this.width = parseInt(stored, 10);
+                 init() {
+                     const media = window.matchMedia('(min-width: 768px)');
+                     const syncDesktop = () => { this.isDesktop = media.matches; };
+                     syncDesktop();
+                     media.addEventListener('change', syncDesktop);
+
+                     const stored = localStorage.getItem('editor_sidebar_width');
+                     if (stored) this.width = parseInt(stored, 10);
                     this.cards.forEach(c => {
                         const v = localStorage.getItem('editor_sidebar_card_' + c.key);
                         if (v !== null) c.open = v === '1';
@@ -258,11 +267,12 @@
                     </div>
                 </section>
 
-                <div class="flex items-center gap-3 pt-2">
-                    <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
-                        {{ __('blog.btn_save') }}
+                <div class="grid grid-cols-2 gap-2 pt-2 sm:flex sm:items-center sm:gap-3">
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-2 text-center text-xs font-semibold leading-snug text-white transition hover:bg-indigo-700 sm:px-6 sm:text-sm">
+                        <span class="sm:hidden">{{ __('blog.save') }}</span>
+                        <span class="hidden sm:inline">{{ __('blog.btn_save') }}</span>
                     </button>
-                    <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="rounded-lg border border-gray-300 px-3 py-2 text-center text-xs leading-snug text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 sm:px-6 sm:text-sm">
                         {{ __('blog.btn_cancel') }}
                     </a>
                 </div>
@@ -291,7 +301,7 @@
 
     {{-- Right sidebar --}}
     <aside
-        :style="`width: ${width}px`"
+        :style="isDesktop ? `width: ${width}px` : ''"
         class="flex w-full shrink-0 flex-col space-y-2 md:w-auto"
     >
                 {{-- Boucle card --}}
@@ -767,6 +777,94 @@
                 </div>
                 {{-- /Plan card --}}
 
+                {{-- Questionner selection card --}}
+                <div
+                    x-data="blogMethodSelectionCard({
+                        selectionUrl: @js($_blogRoute('ai-method-selection')),
+                        annotationStoreUrl: @js($_blogRoute('annotations.store', ['post' => $post])),
+                        annotationContentSaveUrl: @js($_blogRoute('save-content', ['post' => $post])),
+                        postId: @js($post->id),
+                        csrfToken: @js(csrf_token()),
+                        methods: [
+                            { key: 'explorer', label: @js(__('blog.method_explorer')), description: @js(__('blog.method_explorer_desc')) },
+                            { key: 'clarifier', label: @js(__('blog.method_clarifier')), description: @js(__('blog.method_clarifier_desc')) },
+                            { key: 'slow_down', label: @js(__('blog.method_slow_down')), description: @js(__('blog.method_slow_down_desc')) },
+                            { key: 'invent', label: @js(__('blog.method_invent')), description: @js(__('blog.method_invent_desc')) },
+                        ],
+                        i18n: {
+                            title: @js(__('blog.sidebar_methode_ia')),
+                            noSelection: @js(__('blog.method_selection_no_selection')),
+                            selected: @js(__('blog.method_selection_selected')),
+                            analyze: @js(__('blog.method_selection_analyze')),
+                            analyzing: @js(__('blog.method_selection_analyzing')),
+                            createAnnotation: @js(__('blog.method_selection_create_annotation')),
+                            copy: @js(__('blog.method_selection_copy')),
+                            copied: @js(__('blog.method_selection_copied')),
+                            rerun: @js(__('blog.method_selection_rerun')),
+                            resultLabel: @js(__('blog.method_selection_result_label')),
+                            ready: @js(__('blog.method_selection_ready')),
+                            error: @js(__('blog.method_selection_error')),
+                        },
+                    })"
+                    class="border border-indigo-200 dark:border-indigo-800 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button type="button"
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18l-.813-2.096a4.5 4.5 0 00-2.591-2.591L3.5 12.5l2.096-.813a4.5 4.5 0 002.591-2.591L9 7l.813 2.096a4.5 4.5 0 002.591 2.591l2.096.813-2.096.813a4.5 4.5 0 00-2.591 2.591z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 3l.56 1.44A3 3 0 0020 6l-1.44.56A3 3 0 0017 8l-.56-1.44A3 3 0 0015 5l1.44-.56A3 3 0 0018 3z"/></svg>
+                            <span>{{ __('blog.sidebar_methode_ia') }}</span>
+                        </span>
+                        <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="space-y-3 px-3 pb-3">
+                        <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('blog.method_selection_hint') }}</p>
+
+                        <div x-show="!selectedText" x-cloak class="rounded-lg border border-dashed border-violet-200 bg-violet-50/50 p-3 text-xs leading-5 text-violet-800 dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200">
+                            {{ __('blog.method_selection_no_selection') }}
+                        </div>
+
+                        <div x-show="selectedText" x-cloak class="space-y-3">
+                            <div class="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
+                                <p class="mb-1 font-semibold text-gray-500 dark:text-gray-400" x-text="i18n.selected"></p>
+                                <p class="line-clamp-3 italic" x-text="selectedText"></p>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-2">
+                                <template x-for="m in methods" :key="m.key">
+                                    <button type="button" @click="selectMethod(m.key)"
+                                        class="rounded-xl border px-3 py-2 text-left transition"
+                                        :class="method === m.key ? 'border-violet-300 bg-violet-50 text-violet-950 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-100' : 'border-gray-200 bg-white text-gray-700 hover:border-violet-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-violet-800'">
+                                        <span class="block text-sm font-semibold" x-text="m.label"></span>
+                                        <span class="block text-xs leading-5 text-gray-500 dark:text-gray-400" x-text="m.description"></span>
+                                    </button>
+                                </template>
+                            </div>
+
+                            <div x-show="error" x-cloak class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300" x-text="error"></div>
+                            <div x-show="success" x-cloak class="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-300" x-text="success"></div>
+
+                            <div x-show="suggestion" x-cloak class="space-y-2">
+                                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400" x-text="i18n.resultLabel"></label>
+                                <textarea x-model="suggestion" rows="7" class="w-full rounded-xl border border-violet-200 bg-white p-3 text-sm leading-6 text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-violet-900 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                            </div>
+
+                            <div class="flex flex-wrap justify-end gap-2">
+                                <button type="button" @click="analyze()" :disabled="loading" class="rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
+                                    <span x-show="!loading && !suggestion" x-text="i18n.analyze"></span>
+                                    <span x-show="!loading && suggestion" x-text="i18n.rerun"></span>
+                                    <span x-show="loading" x-text="i18n.analyzing"></span>
+                                </button>
+                                <button type="button" @click="copySuggestion()" :disabled="!suggestion" class="rounded-xl border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" x-text="copied ? i18n.copied : i18n.copy"></button>
+                                <button type="button" @click="createAnnotation()" :disabled="!suggestion" class="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50" x-text="i18n.createAnnotation"></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {{-- /Questionner selection card --}}
+
                 {{-- Annotations card --}}
                 <div
                     x-data="blogAnnotationCard({
@@ -796,6 +894,9 @@
                             badgeStale: @js(__('blog.annotation_badge_stale')),
                             textStale: @js(__('blog.annotation_text_stale')),
                             refreshDoc: @js(__('blog.annotation_refresh_doc')),
+                            sourceAll: @js(__('blog.annotation_source_all')),
+                            sourceHuman: @js(__('blog.annotation_source_human')),
+                            sourceAiMethod: @js(__('blog.annotation_source_ai_method')),
                             csrfToken: @js(csrf_token()),
                         },
                     })"
@@ -835,6 +936,22 @@
                                 x-text="i18n.resolvedTab"></button>
                         </div>
 
+                        {{-- Source filters --}}
+                        <div class="flex flex-wrap gap-1">
+                            <button type="button" @click="sourceFilter = 'all'"
+                                :class="sourceFilter === 'all' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'bg-gray-50 text-gray-500 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:text-gray-200'"
+                                class="px-2 py-1 text-[10px] font-semibold rounded transition"
+                                x-text="i18n.sourceAll"></button>
+                            <button type="button" @click="sourceFilter = 'human'"
+                                :class="sourceFilter === 'human' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'bg-gray-50 text-gray-500 hover:text-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:text-gray-200'"
+                                class="px-2 py-1 text-[10px] font-semibold rounded transition"
+                                x-text="i18n.sourceHuman"></button>
+                            <button type="button" @click="sourceFilter = 'ai_method'"
+                                :class="sourceFilter === 'ai_method' ? 'bg-indigo-600 text-white dark:bg-indigo-500' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-300 dark:hover:bg-indigo-950/50'"
+                                class="px-2 py-1 text-[10px] font-semibold rounded transition"
+                                x-text="i18n.sourceAiMethod"></button>
+                        </div>
+
                         {{-- Loading --}}
                         <template x-if="loading && annotations.length === 0">
                             <div class="flex items-center justify-center py-4">
@@ -868,6 +985,13 @@
                                             :class="a._orphaned ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-500 dark:text-gray-400'"
                                             x-text="'&ldquo;' + a.selected_text + '&rdquo;'"></p>
                                         <p class="text-xs text-gray-800 dark:text-gray-100" x-text="a.content"></p>
+                                        <template x-if="a.origin === 'ai_method'">
+                                            <div class="flex flex-wrap items-center gap-1">
+                                                <span class="inline-flex items-center rounded-full bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300" x-text="a.source_label"></span>
+                                                <span class="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300" x-text="a.method_label"></span>
+                                                <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="a.requested_by_label"></span>
+                                            </div>
+                                        </template>
                                         <p class="text-[10px] text-gray-400 dark:text-gray-500">
                                             <span x-text="a.author_name"></span>
                                             <span> · </span>
@@ -1058,6 +1182,168 @@
         </div>
     </div>
 
+    {{-- Explorer modal --}}
+    <div
+        x-data="blogExplorerModal({
+            chatUrl: @js($_blogRoute('explorer.chat', ['post' => $post])),
+            noteGenerateUrl: @js($_blogRoute('explorer.note.generate', ['post' => $post])),
+            notesStoreUrl: @js($_blogRoute('explorer.notes.store', ['post' => $post])),
+            csrfToken: @js(csrf_token()),
+            noteMaxChars: 3000,
+            i18n: {
+                title: @js(__('blog.explorer_title')),
+                subtitle: @js(__('blog.explorer_subtitle')),
+                chatPlaceholder: @js(__('blog.explorer_chat_placeholder')),
+                generateNote: @js(__('blog.explorer_generate_note')),
+                generatingNote: @js(__('blog.explorer_generating_note')),
+                noteTitle: @js(__('blog.explorer_note_title')),
+                noteSave: @js(__('blog.explorer_note_save')),
+                noteSaved: @js(__('blog.explorer_note_saved')),
+                noteSaveError: @js(__('blog.explorer_note_save_error')),
+                noteMinMax: @js(__('blog.explorer_note_min_chars')),
+                noteMax: @js(__('blog.explorer_note_max_chars')),
+                notePlaceholder: @js(__('blog.explorer_note_placeholder')),
+                backToChat: @js(__('blog.explorer_back_to_chat')),
+                close: @js(__('blog.explorer_close')),
+                dialogueCount: @js(__('blog.explorer_dialogue_count')),
+                deepChatError: @js(__('blog.explorer_deep_chat_error')),
+                introMessage: @js(__('blog.explorer_intro_message')),
+                articleNotSaved: @js(__('blog.explorer_article_not_saved')),
+            },
+        })"
+        x-show="open"
+        x-cloak
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40"
+        @keydown.escape.window="close()"
+    >
+        <div class="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full md:max-w-[920px] md:mx-4 h-[88dvh] max-h-[88dvh] flex flex-col" @click.stop>
+            {{-- Header --}}
+            <div class="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <span x-text="i18n.title || 'Explorer'"></span>
+                    </h3>
+                    <p x-show="i18n.subtitle" x-cloak class="text-xs text-gray-500 dark:text-gray-400 mt-0.5" x-text="i18n.subtitle"></p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span x-show="phase === 'dialogue' && dialogueCount > 0" x-cloak class="text-[11px] text-gray-400 dark:text-gray-500" x-text="dialogueLabel"></span>
+                    <button type="button" @click="close()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            {{-- Dialogue phase --}}
+            <div x-show="phase === 'dialogue'" class="flex-1 min-h-0 flex flex-col">
+                <div class="flex-1 min-h-0 overflow-hidden p-4 flex">
+                    <template x-if="open">
+                        <deep-chat
+                            x-ref="deepChat"
+                            class="block w-full h-full flex-1 rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden"
+                            style="display: block; width: 100%; height: 100%;"
+                        ></deep-chat>
+                    </template>
+                </div>
+                <div class="flex items-center justify-end px-5 py-3 border-t border-gray-100 dark:border-gray-700">
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="close()" class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
+                            {{ __('blog.explorer_close') }}
+                        </button>
+                        <button type="button" @click="generateNote()" :disabled="!canGenerateNote || generatingNote"
+                            class="px-3 py-1.5 text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5"
+                            :class="canGenerateNote ? 'bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50' : 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500'">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <span x-text="i18n.generateNote || 'Générer la note'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Article unavailable phase --}}
+            <div x-show="phase === 'unavailable'" x-cloak class="flex-1 flex items-center justify-center p-8">
+                <div class="max-w-md text-center">
+                    <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.007v.008H12v-.008zM10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                    </div>
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.title || 'Questionner le texte'"></h4>
+                    <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300" x-text="i18n.articleNotSaved || ''"></p>
+                    <button type="button" @click="close()" class="mt-5 px-4 py-2 text-xs font-semibold rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition">
+                        {{ __('blog.explorer_close') }}
+                    </button>
+                </div>
+            </div>
+
+            {{-- Generating phase --}}
+            <div x-show="phase === 'generating'" x-cloak class="flex-1 flex items-center justify-center p-8">
+                <div class="text-center">
+                    <svg class="animate-spin h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-3" viewBox="0 0 24 24" fill="none">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    <p class="text-sm text-gray-600 dark:text-gray-300 font-medium" x-text="i18n.generatingNote || 'Génération en cours...'"></p>
+                </div>
+            </div>
+
+            {{-- Note phase --}}
+            <div x-show="phase === 'note'" x-cloak class="flex-1 flex flex-col min-h-0">
+                <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                    <div x-show="noteTextLength > maxNoteChars" x-cloak class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+                        <span x-text="(i18n.noteMax || '').replace(':max', maxNoteChars)"></span>
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400" x-show="noteTextLength > 0">
+                        <span x-text="noteTextLength"></span> / <span x-text="maxNoteChars"></span>
+                    </div>
+                    <div class="rounded-lg border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800 overflow-hidden">
+                        <div class="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/60">
+                            <button type="button" @click="noteCommand('bold')" :class="isNoteActive('bold') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">B</button>
+                            <button type="button" @click="noteCommand('italic')" :class="isNoteActive('italic') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs italic hover:bg-gray-100 dark:hover:bg-gray-700">I</button>
+                            <span class="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700"></span>
+                            <button type="button" @click="noteCommand('heading3')" :class="isNoteActive('heading', { level: 3 }) ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">Titre</button>
+                            <button type="button" @click="noteCommand('bulletList')" :class="isNoteActive('bulletList') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Liste</button>
+                        </div>
+                        <div x-ref="noteEditor" class="bp-note-editor min-h-[360px] px-4 py-3 text-sm leading-relaxed text-gray-900 dark:text-gray-100"></div>
+                    </div>
+                    <div x-show="noteTextLength > 0 && noteTextLength < 150" x-cloak class="text-xs text-amber-600 dark:text-amber-400">
+                        <span x-text="(i18n.noteMinMax || 'Min : :min caractères').replace(':min', '150').replace(':max', maxNoteChars)"></span>
+                    </div>
+                </div>
+
+                <div x-show="error" x-cloak class="mx-5 mb-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg" x-text="error"></div>
+                <div x-show="success" x-cloak class="mx-5 mb-3 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg" x-text="success"></div>
+
+                <div class="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-700">
+                    <button type="button" @click="backToDialogue()" :disabled="saving"
+                        class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition disabled:opacity-50">
+                        <span x-text="i18n.backToChat || '← Revenir au chat'"></span>
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="close()" :disabled="saving"
+                            class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition disabled:opacity-50">
+                            {{ __('blog.btn_cancel') }}
+                        </button>
+                        <button type="button" @click="saveNote()" :disabled="saving || noteTextLength < 150 || noteTextLength > maxNoteChars"
+                            class="px-4 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition inline-flex items-center gap-1.5">
+                            <svg x-show="saving" class="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                            <span x-text="saving ? '...' : (i18n.noteSave || 'Sauvegarder')"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Co-authors card --}}
         <div
             x-data="blogCoAuthorCard({
@@ -1156,6 +1442,126 @@
                                 <span x-text="u.name" class="text-gray-800 dark:text-gray-100"></span>
                             </button>
                         </template>
+                    </div>
+                </div>
+
+                {{-- Invitation by email --}}
+                <div x-data="blogInviteByEmail({
+                    inviteStoreUrl: @js($_blogRoute('invite.store', ['post' => $post])),
+                    inviteIndexUrl: @js($_blogRoute('invite.index', ['post' => $post])),
+                    isOwner: {{ Auth::id() === $post->user_id ? 'true' : 'false' }},
+                    isAdmin: {{ Auth::user()->is_admin ? 'true' : 'false' }},
+                    i18n: {
+                        btnInvite: @js(__('blog-invitation.btn_invite_email')),
+                        modalTitle: @js(__('blog-invitation.modal_title')),
+                        modalEmail: @js(__('blog-invitation.modal_recipient_email')),
+                        modalName: @js(__('blog-invitation.modal_recipient_name')),
+                        modalMessage: @js(__('blog-invitation.modal_message')),
+                        modalPlaceholderEmail: @js(__('blog-invitation.modal_placeholder_email')),
+                        modalPlaceholderName: @js(__('blog-invitation.modal_placeholder_name')),
+                        modalPlaceholderMessage: @js(__('blog-invitation.modal_placeholder_message')),
+                        modalBtnSend: @js(__('blog-invitation.modal_btn_send')),
+                        modalBtnCancel: @js(__('blog-invitation.modal_btn_cancel')),
+                        modalSending: @js(__('blog-invitation.modal_sending')),
+                        modalNotice: @js(__('blog-invitation.modal_notice')),
+                        cardTitle: @js(__('blog-invitation.card_title')),
+                        cardEmpty: @js(__('blog-invitation.card_empty')),
+                        cardTypeExisting: @js(__('blog-invitation.card_type_existing')),
+                        cardTypeExternal: @js(__('blog-invitation.card_type_external')),
+                        cardStatusSent: @js(__('blog-invitation.card_status_sent')),
+                        cardStatusFailed: @js(__('blog-invitation.card_status_failed')),
+                        cardNoName: @js(__('blog-invitation.card_no_name')),
+                        cardViewAll: @js(__('blog-invitation.card_view_all')),
+                        sent: @js(__('blog-invitation.sent_to_external')),
+                        errorInvalidEmail: @js('Veuillez saisir une adresse email valide.'),
+                        errorSendFailed: @js(__('blog-invitation.email_error')),
+                        csrfToken: @js(csrf_token()),
+                    },
+                })" x-cloak>
+                    <div class="border-t border-gray-100 dark:border-gray-700 pt-3">
+                        <button
+                            x-show="canInvite()"
+                            type="button"
+                            @click="openModal()"
+                            class="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition"
+                        >
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                            <span x-text="i18n.btnInvite"></span>
+                        </button>
+                    </div>
+
+                    {{-- Invitation history --}}
+                    <div class="border-t border-gray-100 dark:border-gray-700 pt-3 mt-3">
+                        <button type="button" @click="toggleHistory()" class="flex items-center justify-between w-full text-[11px] font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition">
+                            <span x-text="i18n.cardTitle"></span>
+                            <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': showHistory }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div x-show="showHistory" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-1" class="mt-2 space-y-1.5">
+                            <template x-if="loadingHistory">
+                                <div class="flex items-center justify-center py-3">
+                                    <svg class="animate-spin h-3.5 w-3.5 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                </div>
+                            </template>
+                            <template x-if="!loadingHistory && invitations.length === 0">
+                                <p class="text-[10px] text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.cardEmpty"></p>
+                            </template>
+                            <template x-for="inv in invitations" :key="inv.id">
+                                <div class="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50/70 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/50">
+                                    <div class="min-w-0">
+                                        <p class="truncate text-[11px] font-medium text-gray-800 dark:text-gray-100" x-text="inv.to_email"></p>
+                                        <div class="flex items-center gap-1.5 mt-0.5">
+                                            <span class="inline-block px-1.5 py-0.5 text-[9px] font-semibold rounded"
+                                                :class="inv.invitation_type === 'existing_member' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'"
+                                                x-text="inv.invitation_type === 'existing_member' ? i18n.cardTypeExisting : i18n.cardTypeExternal"></span>
+                                            <span class="text-[9px] text-gray-400 dark:text-gray-500" x-text="formatDate(inv.sent_at)"></span>
+                                        </div>
+                                    </div>
+                                    <span class="shrink-0 text-[9px] font-medium"
+                                        :class="inv.status === 'sent' ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'"
+                                        x-text="inv.status === 'sent' ? i18n.cardStatusSent : i18n.cardStatusFailed"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    {{-- Invitation modal --}}
+                    <div x-show="open" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @keydown.escape.window="closeModal()">
+                        <div @click.away="closeModal()" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full mx-4 p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4" x-text="i18n.modalTitle"></h3>
+
+                            <div x-show="success" x-cloak class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-sm text-green-700 dark:text-green-300" x-text="success"></div>
+                            <div x-show="error" x-cloak class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-sm text-red-700 dark:text-red-300" x-text="error"></div>
+
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" x-text="i18n.modalEmail + ' *'"></label>
+                                    <input type="email" x-model="recipientEmail" :placeholder="i18n.modalPlaceholderEmail" required
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" x-text="i18n.modalName"></label>
+                                    <input type="text" x-model="recipientName" :placeholder="i18n.modalPlaceholderName"
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" x-text="i18n.modalMessage"></label>
+                                    <textarea x-model="message" rows="3" :placeholder="i18n.modalPlaceholderMessage"
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm"></textarea>
+                                </div>
+                                <p class="text-[10px] leading-4 text-gray-400 dark:text-gray-500" x-text="i18n.modalNotice"></p>
+                            </div>
+                            <div class="flex justify-end gap-3 mt-5">
+                                <button type="button" @click="closeModal()" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition" x-text="i18n.modalBtnCancel"></button>
+                                <button type="button" @click="sendInvite()" :disabled="sending || !recipientEmail" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition disabled:opacity-50">
+                                    <span x-show="!sending" x-text="i18n.modalBtnSend"></span>
+                                    <span x-show="sending" x-cloak x-text="i18n.modalSending"></span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1367,6 +1773,122 @@
             </div>
         </div>
         {{-- /Snapshot card --}}
+
+        {{-- Explorer notes card --}}
+        <div
+            x-data="blogExplorerCard({
+                indexUrl: @js($_blogRoute('explorer.notes.index', ['post' => $post])),
+                updateUrlBase: @js($_blogRoute('explorer.notes.update', ['post' => $post, 'note' => '__NOTE_ID__'])),
+                destroyUrlBase: @js($_blogRoute('explorer.notes.destroy', ['post' => $post, 'note' => '__NOTE_ID__'])),
+                csrfToken: @js(csrf_token()),
+                i18n: {
+                    loadError: @js(__('blog.explorer_note_save_error')),
+                    noteSaved: @js(__('blog.explorer_note_saved')),
+                    noteSaveError: @js(__('blog.explorer_note_save_error')),
+                    noteDeleted: @js(__('blog.explorer_note_deleted')),
+                    deleteError: @js(__('blog.explorer_note_delete_error')),
+                    noNotes: @js(__('blog.explorer_no_notes')),
+                    sidebarTitle: @js(__('blog.sidebar_notes')),
+                    noteFrom: @js(__('blog.explorer_note_from')),
+                    notePlaceholder: @js(__('blog.explorer_note_placeholder')),
+                    btnEdit: @js(__('blog.explorer_note_edit')),
+                    btnSave: @js(__('blog.explorer_note_save')),
+                    btnCancel: @js(__('blog.explorer_note_cancel')),
+                    btnDelete: @js(__('blog.explorer_note_delete')),
+                    deleteConfirm: @js(__('blog.explorer_note_delete_confirm')),
+                },
+            })"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+        >
+            <button
+                @click="toggle()"
+                class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+            >
+                <span class="flex items-center gap-1.5">
+                    <svg class="w-3 h-3 text-purple-500 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.8 9.8 0 01-3.55-.644L3 21l1.395-3.72A7.95 7.95 0 013 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
+                    </svg>
+                    <span x-text="i18n.sidebarTitle || 'Notes'"></span>
+                </span>
+                <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto">
+                <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                <template x-if="loading && notes.length === 0">
+                    <div class="flex items-center justify-center py-4">
+                        <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    </div>
+                </template>
+
+                <template x-if="!loading && notes.length === 0">
+                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noNotes || 'Aucune note.'"></p>
+                </template>
+
+                <template x-for="note in notes" :key="note.id">
+                    <div class="rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50 group transition" :class="highlightedId === note.id ? 'ring-2 ring-purple-400 bg-purple-50/70 dark:bg-purple-900/20' : ''">
+                        <div class="flex items-start justify-between gap-2">
+                            <button type="button" @click="openNote(note)" class="min-w-0 flex-1 text-left">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1" x-text="(i18n.noteFrom || 'Note du :date').replace(':date', note.created_at || '') + (note.user_name ? ' · ' + note.user_name : '')"></p>
+                                <p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3" x-text="truncate(note.note_content, 150)"></p>
+                            </button>
+                            <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(note.id)" :disabled="deletingId === note.id"
+                                class="shrink-0 text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                                :title="i18n.btnDelete || 'Supprimer'">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <div x-show="selectedNote" x-cloak class="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 md:items-center" @keydown.escape.window="closeNoteModal()">
+                <div class="flex h-[82dvh] max-h-[82dvh] w-full flex-col rounded-t-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:mx-4 md:max-w-[860px] md:rounded-xl" @click.stop>
+                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+                        <div>
+                            <h3 class="text-base font-bold text-gray-900 dark:text-gray-100" x-text="i18n.sidebarTitle || 'Questionnements'"></h3>
+                            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400" x-text="selectedNote ? (i18n.noteFrom || 'Note du :date').replace(':date', selectedNote.created_at || '') : ''"></p>
+                        </div>
+                        <button type="button" @click="closeNoteModal()" class="text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-300">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto bg-slate-50/80 p-5 dark:bg-gray-900/40">
+                        <template x-if="selectedNote && !editingNote">
+                            <article class="bp-questioning-reader mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800/95" x-html="renderQuestioning(selectedNote.note_content)"></article>
+                        </template>
+                        <template x-if="selectedNote && editingNote">
+                            <div class="rounded-lg border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800">
+                                <div class="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/60">
+                                    <button type="button" @click="noteCommand('bold')" :class="isNoteActive('bold') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">B</button>
+                                    <button type="button" @click="noteCommand('italic')" :class="isNoteActive('italic') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs italic hover:bg-gray-100 dark:hover:bg-gray-700">I</button>
+                                    <span class="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700"></span>
+                                    <button type="button" @click="noteCommand('heading3')" :class="isNoteActive('heading', { level: 3 }) ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">Titre</button>
+                                    <button type="button" @click="noteCommand('bulletList')" :class="isNoteActive('bulletList') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Liste</button>
+                                </div>
+                                <div x-ref="questionEditor" class="bp-note-editor min-h-[420px] px-4 py-3 text-sm leading-relaxed text-gray-900 dark:text-gray-100"></div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="flex items-center justify-between border-t border-gray-100 px-5 py-3 dark:border-gray-700">
+                        <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(selectedNote.id)" :disabled="!selectedNote || deletingId === selectedNote?.id || savingNote" class="px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20" x-text="i18n.btnDelete || 'Supprimer'"></button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" x-show="!editingNote" @click="startEditNote()" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700" x-text="i18n.btnEdit || 'Modifier'"></button>
+                            <button type="button" x-show="editingNote" @click="cancelEditNote()" :disabled="savingNote" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-700" x-text="i18n.btnCancel || 'Annuler'"></button>
+                            <button type="button" x-show="editingNote" @click="saveSelectedNote()" :disabled="savingNote" class="rounded-lg bg-purple-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-purple-700 disabled:opacity-50" x-text="savingNote ? '...' : (i18n.btnSave || 'Enregistrer')"></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{-- /Explorer notes card --}}
+
     </aside>
 
     </div>

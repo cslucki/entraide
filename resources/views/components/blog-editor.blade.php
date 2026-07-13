@@ -86,36 +86,67 @@
 }
 
 .bp-annotation-mark {
-  border-bottom: 2px solid #f59e0b;
-  background: linear-gradient(to bottom, transparent 60%, #fef3c7 40%);
   cursor: pointer;
   position: relative;
 }
-.dark .bp-annotation-mark {
-  border-bottom-color: #d97706;
-  background: linear-gradient(to bottom, transparent 60%, rgba(217,119,6,0.15) 40%);
+.bp-annotation-mark-human {
+  border-bottom: 2px solid #2563eb;
+  background: linear-gradient(to bottom, transparent 60%, #dbeafe 40%);
+}
+.dark .bp-annotation-mark-human {
+  border-bottom-color: #60a5fa;
+  background: linear-gradient(to bottom, transparent 60%, rgba(37,99,235,0.22) 40%);
+}
+.bp-annotation-mark-method {
+  border-bottom: 2px solid #7c3aed;
+  background: linear-gradient(to bottom, transparent 60%, #ede9fe 40%);
+}
+.dark .bp-annotation-mark-method {
+  border-bottom-color: #a78bfa;
+  background: linear-gradient(to bottom, transparent 60%, rgba(124,58,237,0.25) 40%);
 }
 .bp-annotation-mark:hover {
-  background: #fef3c7;
+  background: #dbeafe;
 }
-.dark .bp-annotation-mark:hover {
-  background: rgba(217,119,6,0.25);
+.bp-annotation-mark-method:hover {
+  background: #ddd6fe;
+}
+.dark .bp-annotation-mark-human:hover {
+  background: rgba(37,99,235,0.35);
+}
+.dark .bp-annotation-mark-method:hover {
+  background: rgba(124,58,237,0.38);
 }
 .bp-btn-annotation {
-  color: #4f46e5 !important;
+  color: #2563eb !important;
 }
 .dark .bp-btn-annotation {
-  color: #818cf8 !important;
+  color: #60a5fa !important;
+}
+.bp-btn-method {
+  color: #7c3aed !important;
+}
+.dark .bp-btn-method {
+  color: #a78bfa !important;
 }
 .bp-annotation-highlight {
-  background: #fde68a !important;
-  border-bottom-color: #d97706 !important;
-  box-shadow: 0 0 0 2px rgba(217,119,6,0.3);
+  background: #dbeafe !important;
+  border-bottom-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.3);
   border-radius: 2px;
 }
 .dark .bp-annotation-highlight {
-  background: rgba(217,119,6,0.35) !important;
-  box-shadow: 0 0 0 2px rgba(217,119,6,0.5);
+  background: rgba(37,99,235,0.35) !important;
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.5);
+}
+.bp-annotation-mark-method.bp-annotation-highlight {
+  background: #ddd6fe !important;
+  border-bottom-color: #7c3aed !important;
+  box-shadow: 0 0 0 2px rgba(124,58,237,0.35);
+}
+.dark .bp-annotation-mark-method.bp-annotation-highlight {
+  background: rgba(124,58,237,0.4) !important;
+  box-shadow: 0 0 0 2px rgba(124,58,237,0.55);
 }
 
 .bp-toolbar-scroll {
@@ -349,6 +380,17 @@
             :title="'{{ __('blog.editor_annotation') }}'">
             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+            </svg>
+        </button>
+
+        {{-- Method --}}
+        <button type="button" @click="startEditorMethodSelection()"
+            class="bp-btn-method shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition hover:bg-violet-50 dark:hover:bg-violet-950/30"
+            :title="'{{ __('blog.editor_method') }}'"
+            :aria-label="'{{ __('blog.editor_method') }}'">
+            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18l-.813-2.096a4.5 4.5 0 00-2.591-2.591L3.5 12.5l2.096-.813a4.5 4.5 0 002.591-2.591L9 7l.813 2.096a4.5 4.5 0 002.591 2.591l2.096.813-2.096.813a4.5 4.5 0 00-2.591 2.591z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18 3l.56 1.44A3 3 0 0020 6l-1.44.56A3 3 0 0017 8l-.56-1.44A3 3 0 0015 5l1.44-.56A3 3 0 0018 3z"/>
             </svg>
         </button>
 
@@ -618,6 +660,15 @@
                 <span x-text="aiModel"></span> {{ __('blog.via') }} <span x-text="aiProvider === 'ollama' ? 'Ollama' : (aiProvider === 'openrouter' ? 'OpenRouter' : 'OpenAI')"></span>
             </span>
         </template>
+    </div>
+
+    {{-- Bouton Explorer --}}
+    <div class="mt-2">
+        <button type="button" @click="openExplorer()"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            {{ __('blog.editor_explorer') }}
+        </button>
     </div>
     @endauth
 

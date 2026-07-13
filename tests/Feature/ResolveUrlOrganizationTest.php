@@ -152,7 +152,7 @@ class ResolveUrlOrganizationTest extends TestCase
         $response = $middleware->handle($request, fn () => response('ok'));
 
         $this->assertEquals(200, $response->getStatusCode());
-        $this->assertStringContainsString('Base de données', $response->getContent());
+        $this->assertStringContainsString(__('directory.setup_title'), $response->getContent());
     }
 
     // -----------------------------------------------------------------------

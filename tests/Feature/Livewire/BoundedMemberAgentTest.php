@@ -116,7 +116,7 @@ class BoundedMemberAgentTest extends TestCase
             ->test(BoundedMemberAgent::class, ['user' => $this->member])
             ->set('question', 'Quelle aide propose-t-il ?')
             ->call('askQuestion')
-            ->assertSet('response', fn ($value) => str_contains($value, 'avis_rapide') || str_contains($value, 'Avis'))
+            ->assertSet('response', fn ($value) => str_contains($value, __('member_ai_profile.field_help_types')))
             ->assertSet('error', null);
     }
 
@@ -174,7 +174,7 @@ class BoundedMemberAgentTest extends TestCase
             ->test(BoundedMemberAgent::class, ['user' => $this->member])
             ->set('question', 'Quelles sont ses limites ?')
             ->call('askQuestion')
-            ->assertSet('response', fn ($value) => str_contains($value, 'Limites'))
+            ->assertSet('response', fn ($value) => str_contains($value, __('member_ai_profile.field_boundaries')))
             ->assertSet('error', null);
     }
 
@@ -190,7 +190,7 @@ class BoundedMemberAgentTest extends TestCase
             ->test(BoundedMemberAgent::class, ['user' => $this->member])
             ->set('question', 'Comment le contacter ?')
             ->call('askQuestion')
-            ->assertSet('response', fn ($value) => str_contains($value, 'Contact préféré'))
+            ->assertSet('response', fn ($value) => str_contains($value, __('member_ai_profile.field_preferred_contact')))
             ->assertSet('error', null);
     }
 }

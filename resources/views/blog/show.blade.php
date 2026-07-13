@@ -472,8 +472,9 @@
                 </div>
 
                 @guest
+                @php $blogRef = request()->input('ref'); @endphp
                 <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">
-                    <a href="{{ route('login') }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ __('blog.login') }}</a> {{ __('blog.guest_prompt') }}
+                    {!! __('blog.guest_prompt', ['login' => '<a href="' . route('login', array_filter(['ref' => $blogRef])) . '" class="text-indigo-600 dark:text-indigo-400 hover:underline">' . __('blog.login') . '</a>']) !!}
                 </p>
                 @endguest
             </article>

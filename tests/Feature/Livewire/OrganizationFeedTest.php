@@ -1142,7 +1142,7 @@ class OrganizationFeedTest extends TestCase
     {
         Livewire::actingAs($this->admin)
             ->test(OrganizationFeed::class)
-            ->assertSee('Mes annonces');
+            ->assertSee(__('feed.my_posts'));
     }
 
     public function test_unauthorized_user_does_not_see_my_posts_link_on_feed(): void
@@ -1151,14 +1151,14 @@ class OrganizationFeedTest extends TestCase
 
         Livewire::actingAs($this->member)
             ->test(OrganizationFeed::class)
-            ->assertDontSee('Mes annonces');
+            ->assertDontSee(__('feed.my_posts'));
     }
 
     public function test_my_posts_link_visible_on_create_page(): void
     {
         Livewire::actingAs($this->admin)
             ->test(CreateFeedPost::class)
-            ->assertSee('Mes annonces');
+            ->assertSee(__('feed-post.my_posts'));
     }
 
     public function test_scheduled_post_shows_publish_now_button(): void
@@ -1174,7 +1174,7 @@ class OrganizationFeedTest extends TestCase
 
         Livewire::actingAs($this->admin)
             ->test(MyFeedPosts::class)
-            ->assertSee('Publier maintenant');
+            ->assertSee(__('feed-post.publish_now_action'));
     }
 
     public function test_published_post_hides_publish_now_button(): void
@@ -1185,7 +1185,7 @@ class OrganizationFeedTest extends TestCase
 
         Livewire::actingAs($this->admin)
             ->test(MyFeedPosts::class)
-            ->assertDontSee('Publier maintenant');
+            ->assertDontSee(__('feed-post.publish_now_action'));
     }
 
     public function test_draft_post_hides_publish_now_button(): void
