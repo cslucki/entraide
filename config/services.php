@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'bouclepro_demo' => [
+        'url' => 'https://lastprod.com/bouclepro-prototype/',
+        'supported_locales' => ['fr', 'en'],
+    ],
+
 ];
