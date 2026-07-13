@@ -402,6 +402,7 @@ function registerBlogEditor() {
         remaining: { generate: 3, correct: 3 },
         limits: { generate: 3, correct: 3 },
         activeStates: null,
+        methodSelectionActive: false,
         csrfToken: '',
         uploadRoute: '',
         aiRemainingRoute: '',
@@ -509,6 +510,14 @@ function registerBlogEditor() {
                     const ta = this.$refs?.fallbackTextarea;
                     if (ta) ta.value = e.detail.content;
                 }
+            });
+
+            window.addEventListener('method-selection-card-state', (event) => {
+                this.methodSelectionActive = event.detail?.active === true;
+            });
+
+            window.addEventListener('request-open-explorer-from-method-card', () => {
+                this.openExplorer();
             });
         },
 
@@ -915,6 +924,10 @@ function registerBlogEditor() {
         },
 
         startEditorMethodSelection() {
+            if (this.methodSelectionActive) {
+                document.dispatchEvent(new CustomEvent('toggle-method-selection-card'));
+                return;
+            }
             if (!editor) return;
             const { from, to } = editor.state.selection;
             if (from === to) {
@@ -926,7 +939,7 @@ function registerBlogEditor() {
                 this.error = this.msgAnnotationTooShort;
                 return;
             }
-            document.dispatchEvent(new CustomEvent('open-method-selection-card'));
+            document.dispatchEvent(new CustomEvent('toggle-method-selection-card'));
         },
 
         usedCount(mode) {
@@ -953,6 +966,7 @@ function registerBlogMethodSelectionCard() {
 
     Alpine.data('blogMethodSelectionCard', (config) => ({
         open: false,
+        active: false,
         loading: false,
         error: '',
         success: '',
@@ -972,18 +986,18 @@ function registerBlogMethodSelectionCard() {
         methods: config.methods || [],
 
         init() {
-            const stored = localStorage.getItem('editor_sidebar_card_methode_ia_selection');
-            if (stored !== null) this.open = stored === '1';
-            this.refreshSelection();
+            this.notifyState();
 
-            document.addEventListener('blog-editor-selection-updated', () => this.refreshSelection());
-            document.addEventListener('open-method-selection-card', () => {
-                this.open = true;
-                localStorage.setItem('editor_sidebar_card_methode_ia_selection', '1');
-                this.refreshSelection();
-                this._dispatching = true;
-                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
-                this._dispatching = false;
+            document.addEventListener('blog-editor-selection-updated', () => {
+                if (this.active) this.refreshSelection();
+            });
+            document.addEventListener('open-method-selection-card', () => this.activate());
+            document.addEventListener('toggle-method-selection-card', () => {
+                if (this.active) {
+                    this.deactivate();
+                } else {
+                    this.activate();
+                }
             });
             document.addEventListener('annotation-created', () => {
                 this.suggestion = '';
@@ -992,20 +1006,55 @@ function registerBlogMethodSelectionCard() {
             });
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
-                this.open = false;
-                localStorage.setItem('editor_sidebar_card_methode_ia_selection', '0');
+                this.deactivate();
             });
         },
 
         toggle() {
-            this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_methode_ia_selection', this.open ? '1' : '0');
-            this.refreshSelection();
             if (this.open) {
+                this.deactivate();
+                return;
+            }
+
+            this.activate(false);
+            this._dispatching = true;
+            window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+            this._dispatching = false;
+        },
+
+        activate(closeOtherCards = true) {
+            this.active = true;
+            this.open = true;
+            this.refreshSelection();
+            this.notifyState();
+            if (closeOtherCards) {
                 this._dispatching = true;
                 window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
                 this._dispatching = false;
             }
+        },
+
+        deactivate() {
+            this.active = false;
+            this.open = false;
+            this.selectedText = '';
+            this.from = null;
+            this.to = null;
+            this.suggestion = '';
+            this.error = '';
+            this.success = '';
+            this.notifyState();
+        },
+
+        notifyState() {
+            window.dispatchEvent(new CustomEvent('method-selection-card-state', {
+                detail: { active: this.active, open: this.open },
+            }));
+        },
+
+        openWholeArticleExplorer() {
+            this.deactivate();
+            window.dispatchEvent(new CustomEvent('request-open-explorer-from-method-card'));
         },
 
         refreshSelection() {

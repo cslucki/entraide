@@ -801,6 +801,9 @@
                             copy: @js(__('blog.method_selection_copy')),
                             copied: @js(__('blog.method_selection_copied')),
                             rerun: @js(__('blog.method_selection_rerun')),
+                            deactivate: @js(__('blog.method_selection_deactivate')),
+                            wholeArticle: @js(__('blog.method_selection_whole_article')),
+                            wholeArticleHint: @js(__('blog.method_selection_whole_article_hint')),
                             resultLabel: @js(__('blog.method_selection_result_label')),
                             ready: @js(__('blog.method_selection_ready')),
                             error: @js(__('blog.method_selection_error')),
@@ -820,13 +823,26 @@
                     </button>
 
                     <div x-show="open" x-cloak class="space-y-3 px-3 pb-3">
-                        <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('blog.method_selection_hint') }}</p>
+                        <div class="flex items-start justify-between gap-3">
+                            <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('blog.method_selection_hint') }}</p>
+                            <button type="button" x-show="active" x-cloak @click="deactivate()" class="shrink-0 rounded-full border border-violet-200 px-2.5 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/30" x-text="i18n.deactivate"></button>
+                        </div>
 
-                        <div x-show="!selectedText" x-cloak class="rounded-lg border border-dashed border-violet-200 bg-violet-50/50 p-3 text-xs leading-5 text-violet-800 dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200">
+                        <button type="button" @click="openWholeArticleExplorer()" class="group flex w-full items-start gap-3 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-white p-3 text-left transition hover:border-purple-300 hover:shadow-sm dark:border-purple-900 dark:from-purple-950/30 dark:to-gray-900">
+                            <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white shadow-sm shadow-purple-900/20">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            </span>
+                            <span class="min-w-0">
+                                <span class="block text-sm font-bold text-purple-950 dark:text-purple-100" x-text="i18n.wholeArticle"></span>
+                                <span class="mt-0.5 block text-xs leading-5 text-purple-700/80 dark:text-purple-200/80" x-text="i18n.wholeArticleHint"></span>
+                            </span>
+                        </button>
+
+                        <div x-show="!active || !selectedText" x-cloak class="rounded-lg border border-dashed border-violet-200 bg-violet-50/50 p-3 text-xs leading-5 text-violet-800 dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200">
                             {{ __('blog.method_selection_no_selection') }}
                         </div>
 
-                        <div x-show="selectedText" x-cloak class="space-y-3">
+                        <div x-show="active && selectedText" x-cloak class="space-y-3">
                             <div class="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
                                 <p class="mb-1 font-semibold text-gray-500 dark:text-gray-400" x-text="i18n.selected"></p>
                                 <p class="line-clamp-3 italic" x-text="selectedText"></p>

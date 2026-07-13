@@ -386,6 +386,7 @@
         {{-- Method --}}
         <button type="button" @click="startEditorMethodSelection()"
             class="bp-btn-method shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition hover:bg-violet-50 dark:hover:bg-violet-950/30"
+            :class="methodSelectionActive ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:ring-violet-700' : 'text-gray-600 dark:text-gray-300'"
             :title="'{{ __('blog.editor_method') }}'"
             :aria-label="'{{ __('blog.editor_method') }}'">
             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
