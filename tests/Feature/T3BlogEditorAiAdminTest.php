@@ -291,6 +291,33 @@ class T3BlogEditorAiAdminTest extends TestCase
             ->assertJsonPath('content', '<h2>Article généré</h2><p>Contenu de test.</p>');
     }
 
+    public function test_t1010_ai_generate_uses_current_english_locale_for_article_language(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => '<h2>Generated article</h2><p>English content.</p>']]],
+                'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
+            ]),
+        ]);
+
+        $this->actingAs($this->user)
+            ->withSession(['locale' => 'en'])
+            ->post(route('blog.ai-generate'), [
+                'title' => 'T1010 English article',
+                'summary' => 'English summary.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('content', '<h2>Generated article</h2><p>English content.</p>');
+
+        Http::assertSent(function ($request) {
+            $messages = $request->data()['messages'] ?? [];
+            $prompt = collect($messages)->firstWhere('role', 'user')['content'] ?? '';
+
+            return str_contains($prompt, 'Mandatory language: write the generated article in English')
+                && ! str_contains($prompt, 'Langue obligatoire : rédige');
+        });
+    }
+
     public function test_ai_correct_requires_content_when_no_post_id(): void
     {
         $this->actingAs($this->user)

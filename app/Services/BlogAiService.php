@@ -31,6 +31,7 @@ class BlogAiService
 
         $promptText = $this->resolvePrompt('blog_generate');
         $prompt = sprintf($promptText, $title, $summary);
+        $prompt .= $this->articleGenerationLanguageInstruction();
 
         $result = $this->callAi($post, $user, $prompt, 'blog_generate');
 
@@ -286,6 +287,13 @@ class BlogAiService
             ?: app()->getLocale();
 
         return str_starts_with(strtolower((string) $locale), 'en') ? 'en' : 'fr';
+    }
+
+    private function articleGenerationLanguageInstruction(): string
+    {
+        return app()->getLocale() === 'en'
+            ? "\n\nMandatory language: write the generated article in English. Do not switch to French."
+            : "\n\nLangue obligatoire : rédige l'article généré en français. Ne bascule pas en anglais.";
     }
 
     private function cleanAiText(string $text, int $limit = 1400): string
