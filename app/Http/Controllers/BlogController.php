@@ -692,6 +692,8 @@ class BlogController extends Controller implements HasMiddleware
                 : $ai->correct($post, $user);
 
             if ($isCreateFlow) {
+                $post->title = $result['title'] ?? $post->title;
+                $post->summary = $result['summary'] ?? $post->summary;
                 $post->content = $result['content'];
                 $post->save();
             }
@@ -703,6 +705,8 @@ class BlogController extends Controller implements HasMiddleware
                 'provider' => $result['provider'],
                 'model' => $result['model'],
                 'limit' => $result['limit'],
+                'title' => $result['title'] ?? null,
+                'summary' => $result['summary'] ?? null,
                 'remaining' => [
                     'generate' => $feature === 'blog_generate' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_generate'),
                     'correct' => $feature === 'blog_correct' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_correct'),

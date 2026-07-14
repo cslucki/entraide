@@ -35,7 +35,9 @@ class BlogAiService
 
         $result = $this->callAi($post, $user, $prompt, 'blog_generate');
 
-        return $this->buildResult($result, $user, 'blog_generate', $title, $summary);
+        $parsed = $this->parseGenerateResponse($result['content'], $title, $summary);
+
+        return $this->buildResult($result, $user, 'blog_generate', $parsed['title'], $parsed['summary'], $parsed['content']);
     }
 
     public function correct(BlogPost $post, User $user): array
@@ -148,7 +150,7 @@ class BlogAiService
         }
 
         return match ($feature) {
-            'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). Ta réponse doit faire 500 mots maximum. Réponds UNIQUEMENT avec le contenu HTML, sans introduction, sans conclusion. NE reproduis PAS le titre (pas de h1/h2 avec le titre) et NE reproduis PAS le résumé (pas de premier paragraphe avec le résumé). Le titre et le résumé sont déjà gérés séparément.\n\nTitre : %s\nRésumé : %s",
+            'blog_generate' => "Rédige un article de blog en te basant sur le titre et le résumé fournis. Tu dois retourner un objet JSON unique avec exactement ces 3 champs :\n- \"title\" : le titre amélioré de l'article (string)\n- \"summary\" : un résumé percutant de 1 à 2 phrases (string)\n- \"content\" : le corps de l'article en HTML structuré avec des balises h2, h3, p, ul, li (string). Maximum 500 mots. Pas de balise h1 ni de h2 avec le titre.\n\nRetourne UNIQUEMENT le JSON brut, sans markdown, sans introduction, sans texte avant ou après.\n\nTitre fourni : %s\nRésumé fourni : %s",
             'blog_correct' => "Corrige les fautes d'orthographe, de grammaire et de syntaxe dans le texte suivant. Ne modifie pas le contenu ni le style, corrige uniquement les erreurs.\n\n%s",
             default => "Tu es un assistant éditorial. Analyse uniquement le passage sélectionné selon la méthode demandée. Retourne une réponse courte, humaine, en texte brut, sans HTML, sans Markdown, sans astérisques, sans titres Markdown, sans chat général. Utilise uniquement ces titres textuels simples : Observation, Question, Piste. Vise 300 à 500 caractères. Une seule piste principale.\n\nMéthode : %s\nTitre de l'article : %s\nPassage sélectionné : %s\nContexte avant : %s\nContexte après : %s",
         };
@@ -365,21 +367,65 @@ class BlogAiService
         return trim((string) $text);
     }
 
-    private function buildResult(array $callResult, User $user, string $feature, ?string $title = null, ?string $summary = null): array
+    private function buildResult(array $callResult, User $user, string $feature, ?string $title = null, ?string $summary = null, ?string $content = null): array
     {
         $orgId = currentOrganization()?->id ?? $user->organization_id;
         $config = BlogAiConfig::forOrganization($orgId);
 
         $limit = $feature === 'blog_generate' ? $config->generate_limit : $config->correct_limit;
-        $content = $feature === 'blog_generate'
-            ? $this->cleanGeneratedArticleHtml($callResult['content'], $title, $summary)
-            : $callResult['content'];
+        $cleanedContent = $content !== null
+            ? $this->cleanGeneratedArticleHtml($content)
+            : ($feature === 'blog_generate'
+                ? $this->cleanGeneratedArticleHtml($callResult['content'], $title, $summary)
+                : $callResult['content']);
 
-        return [
-            'content' => $content,
+        $result = [
+            'content' => $cleanedContent,
             'provider' => $callResult['provider'],
             'model' => $callResult['model'],
             'limit' => $limit,
+        ];
+
+        if ($title !== null && $feature === 'blog_generate') {
+            $result['title'] = $title;
+        }
+        if ($summary !== null && $feature === 'blog_generate') {
+            $result['summary'] = $summary;
+        }
+
+        return $result;
+    }
+
+    private function parseGenerateResponse(string $raw, ?string $fallbackTitle, ?string $fallbackSummary): array
+    {
+        $text = trim($raw);
+
+        $json = json_decode($text, true);
+
+        if (! is_array($json) || ! isset($json['content'])) {
+            $cleaned = $this->cleanGeneratedArticleHtml($raw);
+            $result = $this->stripTitleSummaryFromHtml($cleaned, $fallbackTitle, $fallbackSummary);
+            $result = $this->normalizeHeadingLevels($result);
+
+            return [
+                'title' => $fallbackTitle,
+                'summary' => $fallbackSummary,
+                'content' => $result,
+            ];
+        }
+
+        $title = isset($json['title']) && is_string($json['title']) && trim($json['title']) !== ''
+            ? trim($json['title'])
+            : $fallbackTitle;
+        $summary = isset($json['summary']) && is_string($json['summary']) && trim($json['summary']) !== ''
+            ? trim($json['summary'])
+            : $fallbackSummary;
+        $content = is_string($json['content']) ? $json['content'] : '';
+
+        return [
+            'title' => $title,
+            'summary' => $summary,
+            'content' => $content,
         ];
     }
 

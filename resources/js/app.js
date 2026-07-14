@@ -871,6 +871,14 @@ function registerBlogEditor() {
                     editor.commands.setContent(data.content);
                     this.content = editor.getHTML();
                     this.syncHidden();
+                    if (data.title) {
+                        const titleInput = form?.querySelector('[name="title"]');
+                        if (titleInput) titleInput.value = data.title;
+                    }
+                    if (data.summary) {
+                        const summaryInput = form?.querySelector('[name="summary"]');
+                        if (summaryInput) summaryInput.value = data.summary;
+                    }
                     if (data.remaining) this.remaining = data.remaining;
                     if (data.provider) this.aiProvider = data.provider;
                     if (data.model) this.aiModel = data.model;
