@@ -462,6 +462,38 @@ class BlogAiService
             );
         }
 
+        $html = $this->normalizeHeadingLevels($html);
+
         return trim($html);
+    }
+
+    private function normalizeHeadingLevels(string $html): string
+    {
+        if (! preg_match_all('/<h(\d)/i', $html, $matches)) {
+            return $html;
+        }
+
+        $levels = array_map('intval', $matches[1]);
+        $minLevel = min($levels);
+
+        if ($minLevel <= 2) {
+            return $html;
+        }
+
+        $offset = 2 - $minLevel;
+
+        $html = preg_replace_callback('/<h(\d)(\s|>)/i', function ($matches) use ($offset) {
+            $newLevel = max(1, min(6, (int) $matches[1] + $offset));
+
+            return '<h'.$newLevel.$matches[2];
+        }, $html);
+
+        $html = preg_replace_callback('/<\/h(\d)>/i', function ($matches) use ($offset) {
+            $newLevel = max(1, min(6, (int) $matches[1] + $offset));
+
+            return '</h'.$newLevel.'>';
+        }, $html);
+
+        return $html;
     }
 }

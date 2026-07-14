@@ -349,6 +349,34 @@ class T3BlogEditorAiAdminTest extends TestCase
         $this->assertStringContainsString('Le vrai contenu', $content);
     }
 
+    public function test_t1010_ai_generate_normalizes_h3_to_h2_after_title_strip(): void
+    {
+        $rawContent = '<h2>Mon titre</h2><p>Mon résumé.</p><h3>Sous-titre 1</h3><p>Paragraphe 1.</p><h3>Sous-titre 2</h3><p>Paragraphe 2.</p>';
+
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => $rawContent]]],
+                'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
+            ]),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('blog.ai-generate'), [
+                'title' => 'Mon titre',
+                'summary' => 'Mon résumé.',
+                'category_id' => $this->category->id,
+            ]);
+
+        $response->assertOk();
+
+        $content = $response->json('content');
+        $this->assertStringNotContainsString('Mon titre', $content);
+        $this->assertStringNotContainsString('Mon résumé.', $content);
+        $this->assertStringContainsString('<h2>Sous-titre 1</h2>', $content);
+        $this->assertStringContainsString('<h2>Sous-titre 2</h2>', $content);
+        $this->assertStringNotContainsString('<h3>', $content);
+    }
+
     public function test_ai_correct_requires_content_when_no_post_id(): void
     {
         $this->actingAs($this->user)
