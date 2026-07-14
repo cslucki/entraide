@@ -232,6 +232,16 @@
                     @error('status')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
+                @if($post->status === 'published' || $post->published_at)
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_published_at') }}</label>
+                    <input type="datetime-local" name="published_at" value="{{ old('published_at', $post->published_at ? $post->published_at->format('Y-m-d\TH:i') : '') }}"
+                        class="w-full px-3 py-2 border @error('published_at') border-red-500 ring-1 ring-red-500 dark:border-red-500 @else border-gray-300 dark:border-gray-600 @enderror rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
+                    @error('published_at')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('blog.published_at_help') }}</p>
+                </div>
+                @endif
+
                 <section x-data="{ showToc: {{ old('show_toc', $post->show_toc) ? 'true' : 'false' }} }" class="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
                     <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <div>

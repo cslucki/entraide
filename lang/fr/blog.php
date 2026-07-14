@@ -42,6 +42,7 @@ return [
     'create_ai_helper' => 'Vous pouvez générer un article automatiquement en remplissant le titre et le résumé ci-dessus, puis en cliquant sur « Générer avec l\'IA ».',
     'label_tags' => 'Tags',
     'label_status' => 'Statut *',
+    'label_published_at' => 'Date de publication',
     'label_cover_image' => 'Image de couverture',
     'label_seo' => 'SEO (optionnel)',
     'label_meta_title' => 'Meta titre',

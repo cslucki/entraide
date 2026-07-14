@@ -42,6 +42,7 @@ return [
     'create_ai_helper' => 'You can automatically generate an article by filling in the title and summary above, then clicking "Generate with AI".',
     'label_tags' => 'Tags',
     'label_status' => 'Status *',
+    'label_published_at' => 'Published at',
     'label_cover_image' => 'Cover image',
     'label_seo' => 'SEO (optional)',
     'label_meta_title' => 'Meta title',
