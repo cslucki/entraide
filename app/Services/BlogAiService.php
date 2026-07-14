@@ -35,7 +35,7 @@ class BlogAiService
 
         $result = $this->callAi($post, $user, $prompt, 'blog_generate');
 
-        return $this->buildResult($result, $user, 'blog_generate');
+        return $this->buildResult($result, $user, 'blog_generate', $title, $summary);
     }
 
     public function correct(BlogPost $post, User $user): array
@@ -148,7 +148,7 @@ class BlogAiService
         }
 
         return match ($feature) {
-            'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). Ta réponse doit faire 500 mots maximum. Réponds UNIQUEMENT avec le contenu HTML, sans introduction, sans conclusion, sans mention du titre.\n\nTitre : %s\nRésumé : %s",
+            'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). Ta réponse doit faire 500 mots maximum. Réponds UNIQUEMENT avec le contenu HTML, sans introduction, sans conclusion. NE reproduis PAS le titre (pas de h1/h2 avec le titre) et NE reproduis PAS le résumé (pas de premier paragraphe avec le résumé). Le titre et le résumé sont déjà gérés séparément.\n\nTitre : %s\nRésumé : %s",
             'blog_correct' => "Corrige les fautes d'orthographe, de grammaire et de syntaxe dans le texte suivant. Ne modifie pas le contenu ni le style, corrige uniquement les erreurs.\n\n%s",
             default => "Tu es un assistant éditorial. Analyse uniquement le passage sélectionné selon la méthode demandée. Retourne une réponse courte, humaine, en texte brut, sans HTML, sans Markdown, sans astérisques, sans titres Markdown, sans chat général. Utilise uniquement ces titres textuels simples : Observation, Question, Piste. Vise 300 à 500 caractères. Une seule piste principale.\n\nMéthode : %s\nTitre de l'article : %s\nPassage sélectionné : %s\nContexte avant : %s\nContexte après : %s",
         };
@@ -365,14 +365,14 @@ class BlogAiService
         return trim((string) $text);
     }
 
-    private function buildResult(array $callResult, User $user, string $feature): array
+    private function buildResult(array $callResult, User $user, string $feature, ?string $title = null, ?string $summary = null): array
     {
         $orgId = currentOrganization()?->id ?? $user->organization_id;
         $config = BlogAiConfig::forOrganization($orgId);
 
         $limit = $feature === 'blog_generate' ? $config->generate_limit : $config->correct_limit;
         $content = $feature === 'blog_generate'
-            ? $this->cleanGeneratedArticleHtml($callResult['content'])
+            ? $this->cleanGeneratedArticleHtml($callResult['content'], $title, $summary)
             : $callResult['content'];
 
         return [
@@ -383,7 +383,7 @@ class BlogAiService
         ];
     }
 
-    private function cleanGeneratedArticleHtml(string $html): string
+    private function cleanGeneratedArticleHtml(string $html, ?string $title = null, ?string $summary = null): string
     {
         $html = trim($html);
 
@@ -424,6 +424,42 @@ class BlogAiService
 
         if ($lastClosingTag !== null) {
             $html = substr($html, 0, $lastClosingTag + $lastClosingTagLength);
+        }
+
+        if ($title !== null || $summary !== null) {
+            $html = $this->stripTitleSummaryFromHtml($html, $title, $summary);
+        }
+
+        return trim($html);
+    }
+
+    private function stripTitleSummaryFromHtml(string $html, ?string $title, ?string $summary): string
+    {
+        if (empty($title) && empty($summary)) {
+            return $html;
+        }
+
+        if ($title !== null) {
+            $trimmedTitle = trim($title);
+            $escaped = preg_quote($trimmedTitle, '/');
+            foreach (['h1', 'h2'] as $tag) {
+                $html = preg_replace(
+                    '/<'.$tag.'[^>]*>\s*'.$escaped.'\s*<\/'.$tag.'>\s*/iu',
+                    '',
+                    $html
+                );
+            }
+        }
+
+        if ($summary !== null) {
+            $trimmedSummary = trim($summary);
+            $escaped = preg_quote($trimmedSummary, '/');
+            $html = preg_replace(
+                '/<p[^>]*>\s*'.$escaped.'\s*<\/p>\s*/iu',
+                '',
+                $html,
+                1
+            );
         }
 
         return trim($html);

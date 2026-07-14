@@ -231,6 +231,7 @@ class T3BlogEditorAiAdminTest extends TestCase
             ->post(route('blog.ai-generate'), [
                 'title' => 'Mon titre',
                 'summary' => 'Mon résumé',
+                'category_id' => $this->category->id,
             ])
             ->assertOk()
             ->assertJsonStructure(['content', 'remaining']);
@@ -252,6 +253,7 @@ class T3BlogEditorAiAdminTest extends TestCase
             ->post(route('blog.ai-generate'), [
                 'title' => 'Article T1010 fences',
                 'summary' => 'Résumé T1010',
+                'category_id' => $this->category->id,
             ]);
 
         $response->assertOk()
@@ -286,6 +288,7 @@ class T3BlogEditorAiAdminTest extends TestCase
             ->post(route('blog.ai-generate'), [
                 'title' => 'Article T1010 sans fences',
                 'summary' => 'Résumé T1010',
+                'category_id' => $this->category->id,
             ])
             ->assertOk()
             ->assertJsonPath('content', '<h2>Article généré</h2><p>Contenu de test.</p>');
@@ -305,6 +308,7 @@ class T3BlogEditorAiAdminTest extends TestCase
             ->post(route('blog.ai-generate'), [
                 'title' => 'T1010 English article',
                 'summary' => 'English summary.',
+                'category_id' => $this->category->id,
             ])
             ->assertOk()
             ->assertJsonPath('content', '<h2>Generated article</h2><p>English content.</p>');
@@ -316,6 +320,33 @@ class T3BlogEditorAiAdminTest extends TestCase
             return str_contains($prompt, 'Mandatory language: write the generated article in English')
                 && ! str_contains($prompt, 'Langue obligatoire : rédige');
         });
+    }
+
+    public function test_t1010_ai_generate_strips_title_and_summary_from_content(): void
+    {
+        $rawContent = '<h1>Mon titre</h1><p>Mon résumé</p><h2>Introduction</h2><p>Le vrai contenu commence ici.</p>';
+
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => $rawContent]]],
+                'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
+            ]),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('blog.ai-generate'), [
+                'title' => 'Mon titre',
+                'summary' => 'Mon résumé',
+                'category_id' => $this->category->id,
+            ]);
+
+        $response->assertOk();
+
+        $content = $response->json('content');
+        $this->assertStringNotContainsString('Mon titre', $content);
+        $this->assertStringNotContainsString('Mon résumé', $content);
+        $this->assertStringContainsString('<h2>Introduction</h2>', $content);
+        $this->assertStringContainsString('Le vrai contenu', $content);
     }
 
     public function test_ai_correct_requires_content_when_no_post_id(): void
