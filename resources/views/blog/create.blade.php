@@ -6,7 +6,7 @@
         $_createDraftRoute = Route::has('organization.blog.create-draft') && request()->route('organization') ? route('organization.blog.create-draft', ['organization' => request()->route('organization')]) : route('blog.create-draft');
     @endphp
     <div class="hidden sm:block mb-6">
-        <a href="{{ $_blogIndexHref }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">← {{ __('blog.back_to_blog') }}</a>
+        <a href="{{ $_blogIndexHref }}" class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">{{ __('blog.back_to_blog') }}</a>
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -42,6 +42,10 @@
                 </div>
 
                 <div x-show="error" x-text="error" class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3" role="alert"></div>
+
+                <div x-show="!loading" class="rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 px-4 py-3 text-sm text-indigo-700 dark:text-indigo-300">
+                    {{ __('blog.create_ai_helper') }}
+                </div>
 
                 <div x-show="!loading" class="flex flex-col sm:flex-row gap-3 pt-2">
                     <button type="button" @click="generateWithAi()"
