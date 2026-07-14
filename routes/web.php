@@ -403,6 +403,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/bugs-reports', [AdminBugReportController::class, 'index'])->name('bug-reports');
     Route::patch('/bugs-reports/{bugReport}/fix', [AdminBugReportController::class, 'fix'])->name('bug-reports.fix');
     Route::patch('/bugs-reports/{bugReport}/dismiss', [AdminBugReportController::class, 'dismiss'])->name('bug-reports.dismiss');
+    Route::delete('/bugs-reports/{bugReport}', [AdminBugReportController::class, 'destroy'])->name('bug-reports.destroy');
 
     // Referral invitations
     Route::get('/referrals', [AdminReferralController::class, 'index'])->name('referrals');
