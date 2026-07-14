@@ -39,6 +39,7 @@ return [
     'create_missing_title' => 'The title is required.',
     'create_missing_summary' => 'The summary is required.',
     'create_missing_category' => 'Please select a category.',
+    'create_ai_helper' => 'You can automatically generate an article by filling in the title and summary above, then clicking "Generate with AI".',
     'label_tags' => 'Tags',
     'label_status' => 'Status *',
     'label_cover_image' => 'Cover image',

@@ -39,6 +39,7 @@ return [
     'create_missing_title' => 'Le titre est obligatoire.',
     'create_missing_summary' => 'Le résumé est obligatoire.',
     'create_missing_category' => 'La catégorie est obligatoire.',
+    'create_ai_helper' => 'Vous pouvez générer un article automatiquement en remplissant le titre et le résumé ci-dessus, puis en cliquant sur « Générer avec l\'IA ».',
     'label_tags' => 'Tags',
     'label_status' => 'Statut *',
     'label_cover_image' => 'Image de couverture',
