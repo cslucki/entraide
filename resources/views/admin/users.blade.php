@@ -93,7 +93,7 @@
                             <img src="{{ $u->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                             <div class="min-w-0">
                                 <p class="font-medium text-gray-900 dark:text-gray-100 truncate">
-                                    {{ $u->name }}
+                                    {{ $u->full_name }}
                                     @if($u->is_admin)<span class="ml-1 text-xs text-purple-600 dark:text-purple-400">[admin]</span>@endif
                                     @if($u->banned_at)<span class="ml-1 text-xs text-red-500">[banni]</span>@endif
                                 </p>

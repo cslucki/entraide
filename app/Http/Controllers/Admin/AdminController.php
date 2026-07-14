@@ -72,7 +72,8 @@ class AdminController extends Controller
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', '%'.$request->search.'%')
+                $q->where('first_name', 'like', '%'.$request->search.'%')
+                    ->orWhere('name', 'like', '%'.$request->search.'%')
                     ->orWhere('email', 'like', '%'.$request->search.'%');
             });
         }
@@ -93,7 +94,7 @@ class AdminController extends Controller
         $direction = $request->direction === 'asc' ? 'asc' : 'desc';
 
         match ($request->sort) {
-            'name' => $query->orderBy('name', $direction),
+            'name' => $query->orderBy('first_name', $direction)->orderBy('name', $direction),
             'email' => $query->orderBy('email', $direction),
             'created_at' => $query->orderBy('created_at', $direction),
             'points_balance' => $query->orderBy('points_balance', $direction),
