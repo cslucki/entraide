@@ -562,6 +562,9 @@ Route::prefix('/org/{organization}')
 
         Route::get('/abonnements', [SubscriptionController::class, 'orgIndex'])->name('subscriptions');
 
+        // Boucles landing (guest-friendly, org-scoped explanation page)
+        Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index');
+
         Route::middleware('auth')->group(function () {
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
             Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');

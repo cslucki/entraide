@@ -71,7 +71,7 @@
         ],
     ] : [
         [
-            'url' => $routeUrl('boucles.index', 'organization.loops.index'),
+            'url' => $routeUrl('boucles.index', 'organization.boucles.index'),
             'active' => ['boucles'],
             'label' => __('navigation.loops'),
             'hint' => __('navigation.groups'),
