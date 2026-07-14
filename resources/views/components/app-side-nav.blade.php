@@ -71,14 +71,14 @@
         ],
     ] : [
         [
-            'url' => route('boucles.index'),
+            'url' => $routeUrl('boucles.index', 'organization.loops.index'),
             'active' => ['boucles'],
             'label' => __('navigation.loops'),
             'hint' => __('navigation.groups'),
             'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
         ],
         [
-            'url' => route('explorer'),
+            'url' => $routeUrl('explorer', 'organization.explorer'),
             'active' => ['explorer'],
             'label' => __('navigation.exchanges'),
             'hint' => __('navigation.services'),
