@@ -475,10 +475,12 @@ class AdminController extends Controller
         $this->authorizeServiceEdit($service);
 
         $service->load(['category', 'skills', 'tags']);
-        $categories = Category::orderBy('name_b2c')->get();
-        $skills = Skill::with('category')->orderBy('name')->get();
+        $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug']);
+        $categories = Category::where('organization_id', $service->organization_id)->orderBy('name_b2c')->get();
+        $skills = Skill::with('category')->where('organization_id', $service->organization_id)->orderBy('name')->get();
+        $users = User::orderBy('first_name')->orderBy('name')->get(['id', 'first_name', 'name', 'email']);
 
-        return view('admin.services.edit', compact('service', 'categories', 'skills'));
+        return view('admin.services.edit', compact('service', 'organizations', 'categories', 'skills', 'users'));
     }
 
     public function updateService(Request $request, string $service): RedirectResponse
@@ -493,6 +495,8 @@ class AdminController extends Controller
             'delivery_mode' => 'required|in:remote,onsite,both',
             'points_cost' => 'required|integer|min:1',
             'status' => 'required|in:active,paused',
+            'user_id' => 'required|uuid|exists:users,id',
+            'organization_id' => 'required|uuid|exists:organizations,id',
             'skills' => 'nullable|array',
             'skills.*' => 'uuid|exists:skills,id',
             'tags' => 'nullable|string',
@@ -505,19 +509,21 @@ class AdminController extends Controller
             'delivery_mode' => $data['delivery_mode'],
             'points_cost' => $data['points_cost'],
             'status' => $data['status'],
+            'user_id' => $data['user_id'],
+            'organization_id' => $data['organization_id'],
         ]);
 
-        $service->skills()->syncWithPivotValues($data['skills'] ?? [], ['organization_id' => $service->organization_id]);
+        $service->skills()->syncWithPivotValues($data['skills'] ?? [], ['organization_id' => $data['organization_id']]);
 
         if (isset($data['tags'])) {
             $tagIds = [];
             foreach (array_slice(array_filter(array_map('trim', explode(',', $data['tags']))), 0, 5) as $name) {
                 $slug = Str::slug($name);
                 if ($slug) {
-                    $tagIds[] = Tag::firstOrCreate(['slug' => $slug, 'organization_id' => $service->organization_id], ['name' => $name, 'slug' => $slug])->id;
+                    $tagIds[] = Tag::firstOrCreate(['slug' => $slug, 'organization_id' => $data['organization_id']], ['name' => $name, 'slug' => $slug])->id;
                 }
             }
-            $service->tags()->syncWithPivotValues($tagIds, ['organization_id' => $service->organization_id]);
+            $service->tags()->syncWithPivotValues($tagIds, ['organization_id' => $data['organization_id']]);
         }
 
         return redirect()->route('admin.services')->with('success', "Service « {$service->title} » modifié.");

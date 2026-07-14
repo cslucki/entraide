@@ -20,7 +20,7 @@ class WebLoginOrganizationTest extends TestCase
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertRedirect('/');
+        ])->assertRedirect('/dashboard');
     }
 
     public function test_non_admin_with_organization_lands_on_chatloop_on_login(): void
@@ -35,7 +35,7 @@ class WebLoginOrganizationTest extends TestCase
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertRedirect(route('organization.home', ['organization' => $organization->slug]));
+        ])->assertRedirect('/org/'.$organization->slug.'/loops');
     }
 
     public function test_non_admin_with_inactive_organization_is_redirected_to_home_on_login(): void
@@ -50,6 +50,6 @@ class WebLoginOrganizationTest extends TestCase
         $this->post(route('login'), [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertRedirect('/');
+        ])->assertRedirect('/dashboard');
     }
 }
