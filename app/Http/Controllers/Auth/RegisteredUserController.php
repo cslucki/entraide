@@ -28,6 +28,7 @@ class RegisteredUserController extends Controller
         $organization = currentOrganization();
         $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
 
+        $defaultCountry = $organization?->defaultCountry;
         $priorityCountries = $organization
             ? $organization->priorityCountries()->where('active', true)->get()
             : collect();
@@ -38,9 +39,16 @@ class RegisteredUserController extends Controller
             ->orderBy($localeColumn)
             ->get();
 
+        $allCountries = $priorityCountries->concat($otherCountries);
+
+        if ($defaultCountry && $allCountries->first()?->code !== $defaultCountry->code) {
+            $allCountries = $allCountries->reject(fn (Country $c) => $c->code === $defaultCountry->code)->prepend($defaultCountry);
+        }
+
         return view('auth.register', [
             'ref' => $request->input('ref'),
-            'countries' => $priorityCountries->concat($otherCountries),
+            'countries' => $allCountries,
+            'defaultCountryCode' => $defaultCountry?->code,
         ]);
     }
 
