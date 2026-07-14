@@ -133,7 +133,7 @@
                     <x-slot name="trigger">
                         <button class="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                             <img src="{{ Auth::user()->avatar_url }}" class="w-7 h-7 rounded-full" alt="">
-                            <span class="text-sm text-gray-700 dark:text-gray-300 font-medium">{{ Auth::user()->name }}</span>
+                            <span class="text-sm text-gray-700 dark:text-gray-300 font-medium">{{ Auth::user()->full_name }}</span>
                             <svg class="fill-current h-4 w-4 text-gray-400" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                         </button>
                     </x-slot>
@@ -241,7 +241,7 @@
             <div class="px-4 flex items-center gap-3 mb-3">
                 <img src="{{ Auth::user()->avatar_url }}" class="w-9 h-9 rounded-full" alt="">
                 <div>
-                    <div class="font-medium text-base text-gray-800 dark:text-gray-200">{{ Auth::user()->name }}</div>
+                    <div class="font-medium text-base text-gray-800 dark:text-gray-200">{{ Auth::user()->full_name }}</div>
                     <div class="font-medium text-sm text-gray-500">{{ Auth::user()->points_balance }} pts</div>
                 </div>
             </div>

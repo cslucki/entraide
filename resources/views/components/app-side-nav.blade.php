@@ -192,15 +192,15 @@
                 <x-dropdown align="left-up" width="w-64" contentClasses="py-2 bg-white dark:bg-gray-800">
                     <x-slot name="trigger">
                         <button class="relative flex h-11 w-11 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
-                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->name }}">
+                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
                             <span class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
                         </button>
                     </x-slot>
                     <x-slot name="content">
                         <div class="flex items-center gap-3 px-4 pb-3 pt-2">
-                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->name }}">
+                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
                             <div class="min-w-0">
-                                <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ Auth::user()->name }}</p>
+                                <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ Auth::user()->full_name }}</p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400">{{ Auth::user()->points_balance }} pts</p>
                             </div>
                         </div>

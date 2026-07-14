@@ -121,7 +121,7 @@
         {{-- Admin impersonation banner --}}
         @if(session('admin_original_id'))
         <div class="bg-amber-500 text-amber-950 px-4 py-2 text-sm font-medium flex items-center justify-center gap-3">
-            <span>Connecté sous <strong>{{ auth()->user()->name }}</strong> (mode admin)</span>
+            <span>Connecté sous <strong>{{ auth()->user()->full_name }}</strong> (mode admin)</span>
             <a href="{{ route('admin.back-to-admin') }}"
                class="inline-flex items-center gap-1 px-3 py-1 bg-amber-700 text-white rounded-lg text-xs font-semibold hover:bg-amber-800 transition">
                 Retour au compte admin

@@ -62,7 +62,7 @@
                             @endif
                             @foreach($orgUsers as $u)
                             <option value="{{ $u->id }}" @selected(old('owner_id') === $u->id)>
-                                {{ $u->name }} — {{ $u->email }}@if($hasMultipleOrgs) · {{ $orgName }}@endif
+                                {{ $u->full_name }} — {{ $u->email }}@if($hasMultipleOrgs) · {{ $orgName }}@endif
                             </option>
                             @endforeach
                             @if($hasMultipleOrgs)

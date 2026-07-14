@@ -41,7 +41,7 @@
                     </td>
                     <td class="px-4 py-3">
                         @if($report->reporter)
-                        <a href="{{ route('profile.show', $report->reporter) }}" class="text-indigo-600 hover:underline text-xs">{{ $report->reporter->name }}</a>
+                        <a href="{{ route('profile.show', $report->reporter) }}" class="text-indigo-600 hover:underline text-xs">{{ $report->reporter->full_name }}</a>
                         @else
                         <span class="text-xs text-gray-400">—</span>
                         @endif

@@ -67,7 +67,7 @@
                     @endif
                     <td class="px-4 py-3">
                         @if($message->sender)
-                        <p class="font-medium text-gray-900 dark:text-gray-100 text-xs">{{ $message->sender->name }}</p>
+                        <p class="font-medium text-gray-900 dark:text-gray-100 text-xs">{{ $message->sender->full_name }}</p>
                         <p class="text-xs text-gray-500 truncate max-w-[120px]">{{ $message->sender->email }}</p>
                         @else
                         <span class="text-xs text-gray-400 italic">Système</span>

@@ -29,7 +29,7 @@
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('ai.visitor_information') }}</p>
                     <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        {{ $conversation->visitor?->name ?? __('ai.visitor_anonymous') }}
+                        {{ $conversation->visitor?->full_name ?? __('ai.visitor_anonymous') }}
                     </p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
                         {{ __('ai.conversation_date') }} : {{ $conversation->created_at->format('d/m/Y H:i') }}

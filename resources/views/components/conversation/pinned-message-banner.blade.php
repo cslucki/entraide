@@ -12,7 +12,7 @@
         <div class="min-w-0">
             <p class="text-xs font-semibold text-amber-700 dark:text-amber-300">{{ __('messages.pinned_message') }}</p>
             <p class="text-xs text-gray-600 dark:text-gray-400 truncate">
-                &laquo;&nbsp;{{ mb_substr($pinnedMessage->body, 0, 120) }}&nbsp;&raquo;&nbsp;&mdash;&nbsp;{{ $pinnedMessage->sender?->name ?? 'BouclePro' }}
+                &laquo;&nbsp;{{ mb_substr($pinnedMessage->body, 0, 120) }}&nbsp;&raquo;&nbsp;&mdash;&nbsp;{{ $pinnedMessage->sender?->full_name ?? 'BouclePro' }}
             </p>
         </div>
     </div>

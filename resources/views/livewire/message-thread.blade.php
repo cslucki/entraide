@@ -116,7 +116,7 @@
                         :show-reactions="$canPin"
                         :reaction-counts="$reactionData[$message->id] ?? []"
                         :my-reaction="$myReactions[$message->id] ?? null"
-                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
+                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->full_name ?? '')] : null"
                         :image-path="$message->imageUrl()"
                         :url-preview="$meta['url_preview'] ?? null"
                     >
@@ -135,7 +135,7 @@
                         :show-reactions="$canPin"
                         :reaction-counts="$reactionData[$message->id] ?? []"
                         :my-reaction="$myReactions[$message->id] ?? null"
-                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->name ?? '')] : null"
+                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->full_name ?? '')] : null"
                         :image-path="$message->imageUrl()"
                         :url-preview="$meta['url_preview'] ?? null"
                     >

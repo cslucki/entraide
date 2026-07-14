@@ -21,7 +21,7 @@
                 </div>
                 <div>
                     <span class="text-xs text-gray-500 dark:text-gray-400 block">Utilisateur</span>
-                    <span class="font-medium text-gray-900 dark:text-gray-100">{{ $interaction->user?->name ?? '—' }}</span>
+                    <span class="font-medium text-gray-900 dark:text-gray-100">{{ $interaction->user?->full_name ?? '—' }}</span>
                 </div>
                 <div>
                     <span class="text-xs text-gray-500 dark:text-gray-400 block">Modèle</span>

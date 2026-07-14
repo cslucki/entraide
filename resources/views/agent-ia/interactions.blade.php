@@ -30,7 +30,7 @@
                         <div class="flex flex-col gap-2 border-b border-gray-100 pb-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                    {{ $interaction->visitor?->name ?? __('ai.visitor_anonymous') }}
+                                    {{ $interaction->visitor?->full_name ?? __('ai.visitor_anonymous') }}
                                 </p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400">
                                     {{ $interaction->created_at->format('d/m/Y H:i') }} · {{ $interaction->provider ?? 'rule_based' }}@if($interaction->model) · {{ $interaction->model }}@endif

@@ -38,7 +38,7 @@
             <div class="px-5 py-3 flex items-center gap-3">
                 <img src="{{ $u->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                 <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $u->name }}</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $u->full_name }}</p>
                     <p class="text-xs text-gray-500">{{ $u->email }} · {{ $u->points_balance }} pts</p>
                 </div>
                 @if($u->banned_at)

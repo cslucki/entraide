@@ -15,7 +15,7 @@
                 @forelse($reports as $report)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
                     <td class="px-4 py-3">
-                        <p class="font-medium text-gray-900 dark:text-gray-100">{{ $report->reporter->name }}</p>
+                        <p class="font-medium text-gray-900 dark:text-gray-100">{{ $report->reporter->full_name }}</p>
                         <p class="text-xs text-gray-500">{{ $report->reporter->email }}</p>
                     </td>
                     <td class="px-4 py-3">

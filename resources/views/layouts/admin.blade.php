@@ -43,7 +43,7 @@
                             </svg>
                         </button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1 truncate">{{ auth()->user()->name }}</p>
+                    <p class="text-xs text-gray-500 mt-1 truncate">{{ auth()->user()->full_name }}</p>
                 </div>
 
                 <nav @click="if ($event.target.closest('a')) { pinned || (sidebarOpen = false) }" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

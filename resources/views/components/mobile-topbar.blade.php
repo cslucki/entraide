@@ -157,7 +157,7 @@
             <x-dropdown align="right" width="w-72" contentClasses="py-2 bg-white dark:bg-gray-800">
                 <x-slot name="trigger">
                     <button class="flex items-center gap-1 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.open_user_menu') }}">
-                        <img src="{{ auth()->user()->avatar_url }}" class="w-9 h-9 rounded-full border-2 border-indigo-300 dark:border-indigo-700 object-cover" alt="{{ auth()->user()->name }}">
+                        <img src="{{ auth()->user()->avatar_url }}" class="w-9 h-9 rounded-full border-2 border-indigo-300 dark:border-indigo-700 object-cover" alt="{{ auth()->user()->full_name }}">
                         <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                             <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
                         </svg>
@@ -166,7 +166,7 @@
 
                 <x-slot name="content">
                     <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ auth()->user()->name }}</div>
+                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ auth()->user()->full_name }}</div>
                         <a href="{{ $routeUrl('points.index', 'organization.points.index') }}" class="mt-1 inline-flex text-xs font-medium text-indigo-600 dark:text-indigo-400">{{ auth()->user()->points_balance }} pts</a>
                     </div>
 

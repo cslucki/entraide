@@ -41,7 +41,7 @@
                 <div class="px-5 py-3 flex items-center gap-3">
                     <img src="{{ $u->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $u->name }}</p>
+                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $u->full_name }}</p>
                         <p class="text-xs text-gray-500">{{ $u->email }} · {{ $u->points_balance }} pts</p>
                     </div>
                     @if($u->banned_at)
@@ -65,7 +65,7 @@
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0">
                             <p class="text-sm text-gray-900 dark:text-gray-100">
-                                <span class="font-medium">{{ $report->reporter->name }}</span>
+                                <span class="font-medium">{{ $report->reporter->full_name }}</span>
                                 · {{ $report->reason }}
                             </p>
                             <p class="text-xs text-gray-500 truncate">{{ $report->reportable_type === 'App\Models\Service' ? 'Service' : 'Utilisateur' }}</p>

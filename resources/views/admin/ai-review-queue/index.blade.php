@@ -54,7 +54,7 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3">{{ $interaction->provider ?? '—' }}</td>
-                                <td class="px-4 py-3">{{ $interaction->user?->name ?? '—' }}</td>
+                                <td class="px-4 py-3">{{ $interaction->user?->full_name ?? '—' }}</td>
                                 <td class="px-4 py-3 max-w-xs truncate" title="{{ $interaction->input_excerpt }}">
                                     {{ Str::limit($interaction->input_excerpt, 60) }}
                                 </td>

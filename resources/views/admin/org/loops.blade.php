@@ -49,7 +49,7 @@
                     <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 capitalize">{{ $boucle->visibility }}</td>
                     <td class="px-4 py-3">
                         @if($boucle->creator)
-                        <a href="{{ route('profile.show', $boucle->creator) }}" class="text-indigo-600 hover:underline text-xs">{{ $boucle->creator->name }}</a>
+                        <a href="{{ route('profile.show', $boucle->creator) }}" class="text-indigo-600 hover:underline text-xs">{{ $boucle->creator->full_name }}</a>
                         @else
                         <span class="text-xs text-gray-400">—</span>
                         @endif
@@ -72,7 +72,7 @@
                         <div class="flex flex-wrap items-center gap-2">
                             @foreach($boucle->activeMembers as $member)
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
-                                {{ $member->user?->name ?? '—' }}
+                                {{ $member->user?->full_name ?? '—' }}
                                 @if($member->role !== 'owner')
                                 <form method="POST" action="{{ route('organization.admin.loops.members.remove', [$organization, $boucle, $member]) }}" class="inline">
                                     @csrf

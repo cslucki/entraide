@@ -179,7 +179,7 @@
                             </form>
                             @else
                             <form method="POST" action="{{ route('admin.users.ban', $u) }}"
-                                  onsubmit="return confirm('Bannir {{ addslashes($u->name) }} ?')">
+                                  onsubmit="return confirm('Bannir {{ addslashes($u->full_name) }} ?')">
                                 @csrf @method('PATCH')
                                 <button class="text-xs text-red-500 hover:underline">Bannir</button>
                             </form>

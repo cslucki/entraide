@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="title">{{ __('ai.ai_agent_of', ['name' => $user->name]) }}</x-slot>
+    <x-slot name="title">{{ __('ai.ai_agent_of', ['name' => $user->full_name]) }}</x-slot>
 
     @php
         $organizationRouteParam = request()->route('organization');
@@ -40,7 +40,7 @@
                         @if(auth()->id() !== $user->id)
                             <a href="{{ route('messages.with', $user) }}" class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 transition">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                                {{ __('ai.write_directly_to', ['name' => $user->name]) }}
+                                {{ __('ai.write_directly_to', ['name' => $user->full_name]) }}
                             </a>
                         @endif
                     @else

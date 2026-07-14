@@ -100,7 +100,7 @@
                             </svg>
                         </button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1 truncate">{{ auth()->user()->name }}</p>
+                    <p class="text-xs text-gray-500 mt-1 truncate">{{ auth()->user()->full_name }}</p>
                     <div class="mt-2 flex items-center gap-0.5 rounded-full bg-gray-800 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wide" aria-label="{{ __('navigation.language_switcher') }}">
                         @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                             <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" class="inline">

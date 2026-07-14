@@ -103,7 +103,7 @@
                             <div class="flex items-center gap-3">
                                 <img src="{{ $tx->buyer->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $tx->buyer->name }}</p>
+                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $tx->buyer->full_name }}</p>
                                     <p class="text-xs text-gray-500">{{ $tx->points_proposed }} pts</p>
                                 </div>
                             </div>

@@ -14,10 +14,10 @@
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-lg font-semibold shrink-0">
-                    {{ strtoupper(substr($targetUser->name, 0, 1)) }}
+                    {{ strtoupper(substr($targetUser->full_name, 0, 1)) }}
                 </div>
                 <div>
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $targetUser->name }}</h2>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $targetUser->full_name }}</h2>
                     <p class="text-sm text-gray-500 dark:text-gray-400">Agent IA de présentation</p>
                 </div>
             </div>

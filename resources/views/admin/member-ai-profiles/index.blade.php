@@ -86,7 +86,7 @@
                             @foreach($profiles as $profile)
                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                     <td class="px-4 py-3">
-                                        <div class="font-medium text-gray-900 dark:text-gray-100">{{ $profile->user?->name ?? 'Utilisateur supprimé' }}</div>
+                                        <div class="font-medium text-gray-900 dark:text-gray-100">{{ $profile->user?->full_name ?? 'Utilisateur supprimé' }}</div>
                                         <div class="text-xs text-gray-500 dark:text-gray-400">{{ $profile->user?->email ?? '—' }}</div>
                                     </td>
                                     <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ $profile->organization?->name ?? '—' }}</td>

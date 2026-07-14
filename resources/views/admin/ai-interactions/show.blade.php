@@ -120,7 +120,7 @@
                 <div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Utilisateur</p>
                     <p class="mt-1 text-gray-800 dark:text-gray-200">
-                        {{ $interaction->user?->name ?? '—' }}
+                        {{ $interaction->user?->full_name ?? '—' }}
                     </p>
                 </div>
             </div>

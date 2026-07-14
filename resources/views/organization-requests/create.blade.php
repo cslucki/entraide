@@ -85,7 +85,7 @@
                         Votre nom <span class="text-red-500">*</span>
                     </label>
                     <input type="text" name="contact_name" required
-                           value="{{ old('contact_name', auth()->user()?->name) }}"
+                           value="{{ old('contact_name', auth()->user()?->full_name) }}"
                            class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500">
                     @error('contact_name')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>

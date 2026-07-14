@@ -9,7 +9,7 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div class="mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
                 <p class="text-xs text-gray-400">Auteur :
-                    <span class="font-medium text-gray-600 dark:text-gray-300">{{ $service->user?->name ?? 'Supprimé' }}</span>
+                    <span class="font-medium text-gray-600 dark:text-gray-300">{{ $service->user?->full_name ?? 'Supprimé' }}</span>
                     &nbsp;·&nbsp; Créé le {{ $service->created_at->format('d/m/Y') }}
                 </p>
             </div>
