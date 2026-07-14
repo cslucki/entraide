@@ -400,7 +400,40 @@ class BlogAiService
     {
         $text = trim($raw);
 
+        // Strip markdown fences before JSON decode (AI models often wrap JSON in ```json ... ```)
+        if (preg_match('/^\s*```(?:json)?\s*\n(.*?)\n\s*```\s*$/is', $text, $fenceMatches)) {
+            $text = trim($fenceMatches[1]);
+        } elseif (preg_match('/^\s*```(?:json)?\s*\n/i', $text)) {
+            $text = preg_replace('/^\s*```(?:json)?\s*\n/i', '', $text);
+            $text = preg_replace('/\n\s*```\s*$/i', '', $text);
+            $text = trim($text);
+        }
+
+        // Try direct decode first (works for well-formed JSON)
         $json = json_decode($text, true);
+
+        // If decode fails, fix malformed JSON from AI models:
+        // 1. Replace backslash+newline with \n escape
+        // 2. Replace raw newlines inside JSON string values with \n escape
+        if (! is_array($json) || ! isset($json['content'])) {
+            $fixed = str_replace("\\\n", '\\n', $text);
+
+            $fixed = preg_replace_callback(
+                '/"(?:[^"\\\\]|\\\\.)*"/s',
+                function ($m) {
+                    return '"'.str_replace(["\n", "\r"], ['\\n', '\\r'], substr($m[0], 1, -1)).'"';
+                },
+                $fixed
+            );
+
+            $json = json_decode($fixed, true);
+        }
+
+        // If still failed, AI may have produced JSON with unescaped quotes in HTML content.
+        // Extract title/summary with simple regex, content by position.
+        if (! is_array($json) || ! isset($json['content'])) {
+            $json = $this->extractFieldsFromMalformedJson($text);
+        }
 
         if (! is_array($json) || ! isset($json['content'])) {
             $cleaned = $this->cleanGeneratedArticleHtml($raw);
@@ -426,6 +459,47 @@ class BlogAiService
             'title' => $title,
             'summary' => $summary,
             'content' => $content,
+        ];
+    }
+
+    /**
+     * Extract title/summary/content from malformed AI JSON where content
+     * contains unescaped quotes that break standard json_decode().
+     */
+    private function extractFieldsFromMalformedJson(string $text): ?array
+    {
+        // title and summary are simple strings without quotes — safe to regex
+        if (! preg_match('/"title"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/i', $text, $tm)) {
+            return null;
+        }
+        if (! preg_match('/"summary"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/i', $text, $sm)) {
+            return null;
+        }
+
+        // content may contain unescaped quotes — extract by position
+        // Find "content": " and grab everything until the closing } of the JSON object
+        if (! preg_match('/"content"\s*:\s*"/i', $text, $cm, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        $start = $cm[0][1] + strlen($cm[0][0]);
+        $end = strrpos($text, '}');
+
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+
+        // Content is between the opening " and the last " before }
+        $rawContent = substr($text, $start, $end - $start);
+        // Strip trailing quote+whitespace before the closing brace
+        $rawContent = preg_replace('/"\s*$/s', '', $rawContent);
+        // Convert escaped newlines to real newlines
+        $rawContent = str_replace(['\\n', '\\r'], ["\n", "\r"], $rawContent);
+
+        return [
+            'title' => $tm[1],
+            'summary' => $sm[1],
+            'content' => $rawContent,
         ];
     }
 
@@ -517,40 +591,51 @@ class BlogAiService
 
     private function stripPositionalTitleSummary(string $html, ?string $title, ?string $summary): string
     {
-        $stripped = preg_replace('/^\s+/', '', $html);
-
-        if ($title !== null && preg_match('/^<h[12][^>]*>(.*?)<\/h[12]>/is', $stripped, $headingMatch)) {
-            $headingText = trim(strip_tags($headingMatch[1]));
-            $titleWords = preg_split('/\s+/u', trim($title), -1, PREG_SPLIT_NO_EMPTY);
-            $matchCount = 0;
-            foreach ($titleWords as $word) {
-                if (mb_stripos($headingText, $word) !== false) {
-                    $matchCount++;
-                }
-            }
-            $ratio = count($titleWords) > 0 ? $matchCount / count($titleWords) : 0;
-            if ($ratio >= 0.6) {
-                $html = preg_replace('/^(\s*)<h[12][^>]*>.*?<\/h[12]>\s*/is', '', $html, 1);
-                $html = preg_replace('/^\s+/', '', $html);
-            }
-        }
-
-        if ($summary !== null && preg_match('/^<p[^>]*>(.*?)<\/p>/is', $html, $paraMatch)) {
-            $paraText = trim(strip_tags($paraMatch[1]));
-            $summaryWords = preg_split('/\s+/u', trim($summary), -1, PREG_SPLIT_NO_EMPTY);
-            $matchCount = 0;
-            foreach ($summaryWords as $word) {
-                if (mb_stripos($paraText, $word) !== false) {
-                    $matchCount++;
-                }
-            }
-            $ratio = count($summaryWords) > 0 ? $matchCount / count($summaryWords) : 0;
-            if ($ratio >= 0.5) {
-                $html = preg_replace('/^(\s*)<p[^>]*>.*?<\/p>\s*/is', '', $html, 1);
-            }
-        }
+        $html = $this->stripFirstTagMatch($html, $title, ['h1', 'h2']);
+        $html = $this->stripFirstTagMatch($html, $summary, ['p']);
 
         return $html;
+    }
+
+    private function stripFirstTagMatch(string $html, ?string $referenceText, array $tags): string
+    {
+        if (empty($referenceText)) {
+            return $html;
+        }
+
+        $normalized = preg_replace('/^\s+/', '', $html);
+        $inner = $normalized;
+        $wrapperLen = 0;
+        if (preg_match('/^<(?:div|article|section)(?:\s[^>]*)?>\s*/is', $inner, $w)) {
+            $wrapperLen = strlen($w[0]);
+            $inner = substr($inner, $wrapperLen);
+        }
+
+        $tagPattern = implode('|', $tags);
+        if (! preg_match('/^<('.$tagPattern.')[^>]*>(.*?)<\/\1>/is', $inner, $m)) {
+            return $html;
+        }
+
+        $tagText = trim(strip_tags($m[2]));
+        $words = array_filter(preg_split('/\s+/u', trim($referenceText), -1, PREG_SPLIT_NO_EMPTY), fn ($w) => mb_strlen($w) > 2);
+        if (empty($words)) {
+            return $html;
+        }
+
+        $matchCount = 0;
+        foreach ($words as $word) {
+            if (mb_stripos($tagText, $word) !== false) {
+                $matchCount++;
+            }
+        }
+
+        if ($matchCount / count($words) < 0.6) {
+            return $html;
+        }
+
+        $fullMatchLen = $wrapperLen + strlen($m[0]);
+
+        return preg_replace('/^.{'.$fullMatchLen.'}/s', '', preg_replace('/^\s+/', '', $html));
     }
 
     private function normalizeHeadingLevels(string $html): string
