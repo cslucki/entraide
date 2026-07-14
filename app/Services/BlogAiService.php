@@ -374,7 +374,7 @@ class BlogAiService
 
         $limit = $feature === 'blog_generate' ? $config->generate_limit : $config->correct_limit;
         $cleanedContent = $content !== null
-            ? $this->cleanGeneratedArticleHtml($content)
+            ? $this->cleanGeneratedArticleHtml($content, $title, $summary)
             : ($feature === 'blog_generate'
                 ? $this->cleanGeneratedArticleHtml($callResult['content'], $title, $summary)
                 : $callResult['content']);
@@ -508,9 +508,49 @@ class BlogAiService
             );
         }
 
+        $html = $this->stripPositionalTitleSummary($html, $title, $summary);
+
         $html = $this->normalizeHeadingLevels($html);
 
         return trim($html);
+    }
+
+    private function stripPositionalTitleSummary(string $html, ?string $title, ?string $summary): string
+    {
+        $stripped = preg_replace('/^\s+/', '', $html);
+
+        if ($title !== null && preg_match('/^<h[12][^>]*>(.*?)<\/h[12]>/is', $stripped, $headingMatch)) {
+            $headingText = trim(strip_tags($headingMatch[1]));
+            $titleWords = preg_split('/\s+/u', trim($title), -1, PREG_SPLIT_NO_EMPTY);
+            $matchCount = 0;
+            foreach ($titleWords as $word) {
+                if (mb_stripos($headingText, $word) !== false) {
+                    $matchCount++;
+                }
+            }
+            $ratio = count($titleWords) > 0 ? $matchCount / count($titleWords) : 0;
+            if ($ratio >= 0.6) {
+                $html = preg_replace('/^(\s*)<h[12][^>]*>.*?<\/h[12]>\s*/is', '', $html, 1);
+                $html = preg_replace('/^\s+/', '', $html);
+            }
+        }
+
+        if ($summary !== null && preg_match('/^<p[^>]*>(.*?)<\/p>/is', $html, $paraMatch)) {
+            $paraText = trim(strip_tags($paraMatch[1]));
+            $summaryWords = preg_split('/\s+/u', trim($summary), -1, PREG_SPLIT_NO_EMPTY);
+            $matchCount = 0;
+            foreach ($summaryWords as $word) {
+                if (mb_stripos($paraText, $word) !== false) {
+                    $matchCount++;
+                }
+            }
+            $ratio = count($summaryWords) > 0 ? $matchCount / count($summaryWords) : 0;
+            if ($ratio >= 0.5) {
+                $html = preg_replace('/^(\s*)<p[^>]*>.*?<\/p>\s*/is', '', $html, 1);
+            }
+        }
+
+        return $html;
     }
 
     private function normalizeHeadingLevels(string $html): string
