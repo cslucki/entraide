@@ -103,13 +103,6 @@ class RegisteredUserController extends Controller
             }
         }
 
-        if ($user->organization_id) {
-            $organization = $user->organization;
-            if ($organization && $organization->is_active) {
-                return redirect()->intended(canonicalHome($organization));
-            }
-        }
-
-        return redirect('/');
+        return redirect()->intended($user->getLoginRedirectTarget());
     }
 }
