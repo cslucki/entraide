@@ -493,9 +493,13 @@ class BlogController extends Controller implements HasMiddleware
 
         $request->validate([
             'title' => 'required|string|max:255',
-            'summary' => 'nullable|string|max:500',
-            'category_id' => 'nullable|uuid|exists:categories,id',
+            'summary' => 'required|string|max:500',
+            'category_id' => 'required|uuid|exists:categories,id',
         ]);
+
+        if (! Category::where('id', $request->input('category_id'))->where('organization_id', $organization->id)->exists()) {
+            return response()->json(['error' => __('blog.validation_category_invalid')], 422);
+        }
 
         $post = BlogPost::create([
             'user_id' => $request->user()->id,
@@ -638,11 +642,16 @@ class BlogController extends Controller implements HasMiddleware
                     $post->user_id = $user->id;
                     $post->content = $request->input('content');
                 } else {
-                    if (empty($title) || empty($summary)) {
+                    if (empty($title) || empty($summary) || empty($request->input('category_id'))) {
                         return response()->json(['error' => __('blog.ai_need_title_summary')], 422);
                     }
 
                     $orgId = currentOrganization()?->id ?? $user->organization_id;
+
+                    if (! Category::where('id', $request->input('category_id'))->where('organization_id', $orgId)->exists()) {
+                        return response()->json(['error' => __('blog.validation_category_invalid')], 422);
+                    }
+
                     $post = BlogPost::create([
                         'user_id' => $user->id,
                         'organization_id' => $orgId,

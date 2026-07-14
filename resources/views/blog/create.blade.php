@@ -12,26 +12,29 @@
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
         <div
             x-data="createWizard"
-            x-init="csrfToken = '{{ csrf_token() }}'; generatingMsg = '{{ __('blog.generating') }}'; creatingMsg = '{{ __('blog.creating_draft') }}'; errorMsg = '{{ __('blog.communication_error') }}'"
+            x-init="csrfToken = '{{ csrf_token() }}'; generatingMsg = '{{ __('blog.generating') }}'; creatingMsg = '{{ __('blog.creating_draft') }}'; errorMsg = '{{ __('blog.communication_error') }}'; missingTitleMsg = '{{ __('blog.create_missing_title') }}'; missingSummaryMsg = '{{ __('blog.create_missing_summary') }}'; missingCategoryMsg = '{{ __('blog.create_missing_category') }}'"
         >
             <form class="space-y-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_title') }}</label>
                     <input type="text" x-model="title"
+                        :class="error && !title.trim() ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : ''"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_summary') }}</label>
                     <textarea x-model="summary" rows="2" maxlength="500" placeholder="{{ __('blog.placeholder_summary') }}"
+                        :class="error && !summary.trim() ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : ''"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm"></textarea>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('blog.label_category_optional') }}</label>
-                    <select x-model="categoryId"
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('blog.label_category') }} <span class="text-red-500">*</span></label>
+                    <select x-model="categoryId" required
+                        :class="error && !categoryId ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : ''"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
-                        <option value="">{{ __('blog.option_none') }}</option>
+                        <option value="" disabled>{{ __('blog.category_select') }}</option>
                         @foreach($categories as $cat)
                         <option value="{{ $cat->id }}">{{ $cat->displayName('blog') }}</option>
                         @endforeach
@@ -41,12 +44,12 @@
                 <div x-show="error" x-text="error" class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3" role="alert"></div>
 
                 <div x-show="!loading" class="flex flex-col sm:flex-row gap-3 pt-2">
-                    <button type="button" @click="generateWithAi()" :disabled="!canGenerate"
-                        class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition">
+                    <button type="button" @click="generateWithAi()"
+                        class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition">
                         {{ __('blog.btn_generate_ai') }}
                     </button>
-                    <button type="button" @click="writeMyself()" :disabled="!title.trim()"
-                        class="px-6 py-3 border border-gray-300 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <button type="button" @click="writeMyself()"
+                        class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         {{ __('blog.btn_write_myself') }}
                     </button>
                     <a href="{{ $_blogIndexHref }}" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
@@ -74,21 +77,36 @@
             loading: false,
             error: '',
             csrfToken: '',
+            missingTitleMsg: '',
+            missingSummaryMsg: '',
+            missingCategoryMsg: '',
             routes: @json([
                 'aiGenerate' => $_aiGenerateRoute,
                 'createDraft' => $_createDraftRoute,
             ]),
 
             get canGenerate() {
-                return this.title.trim() !== '' && this.summary.trim() !== '';
+                return this.title.trim() !== '' && this.summary.trim() !== '' && this.categoryId !== '';
             },
 
             get loadingMessage() {
                 return this.title.trim() ? this.generatingMsg : this.creatingMsg;
             },
 
+            validateFields() {
+                const missing = [];
+                if (!this.title.trim()) missing.push(this.missingTitleMsg);
+                if (!this.summary.trim()) missing.push(this.missingSummaryMsg);
+                if (!this.categoryId) missing.push(this.missingCategoryMsg);
+                if (missing.length > 0) {
+                    this.error = missing.join(' ');
+                    return false;
+                }
+                return true;
+            },
+
             async generateWithAi() {
-                if (!this.canGenerate) return;
+                if (!this.validateFields()) return;
                 this.loading = true;
                 this.error = '';
 
@@ -122,7 +140,7 @@
             },
 
             async writeMyself() {
-                if (!this.title.trim()) return;
+                if (!this.validateFields()) return;
                 this.loading = true;
                 this.error = '';
 
