@@ -66,6 +66,15 @@ Exclus :
 - [x] ajouter tests T1010 sur préface, fences Markdown et texte final parasite ;
 - [x] valider via `safe-test.sh`, Pint, `view:cache`, `git diff --check`.
 
+# Pending Migrations
+
+**ATTENTION** : 2 migrations liées à TASK-1010 sont en attente (pending) dans la branche :
+
+1. `database/migrations/2026_07_11_000000_add_ai_method_origin_to_blog_post_annotations.php` — Pending
+2. `database/migrations/2026_07_11_000001_seed_blog_method_selection_prompts.php` — Pending
+
+Ces migrations doivent être jouées (`php artisan migrate`) lors de la merge dans `develop` ou lors du déploiement.
+
 ---
 
 # Progress Log
@@ -224,3 +233,4 @@ Le post-login redirect utilisait une logique dupliquée et incohérente dans `Au
 - Version bump officiel : `1.002` → `1.003`.
 - Commande utilisée : `ai/scripts/bump-version.sh 1.003`.
 - Ne pas modifier le footer manuellement ; il lit `config('app.version')`.
+- 2 migrations pending à jouer lors de la merge : voir section "Pending Migrations".
