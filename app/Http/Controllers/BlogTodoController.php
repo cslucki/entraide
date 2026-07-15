@@ -114,9 +114,32 @@ class BlogTodoController extends Controller
 
         $this->authorize('update', $post);
 
-        $todo->delete();
-
-        return response()->json(['message' => __('blog.todo_deleted')]);
+        $user = $request->user();
+        
+        $isAuthor = $post->user_id === $user->id;
+        $isCoAuthor = $post->coAuthors()->where('user_id', $user->id)->exists();
+        $isAssignedTo = $todo->assigned_to === $user->id;
+        $todoUserId = $todo->user_id;
+        
+        if ($isAuthor) {
+            $todo->delete();
+            return response()->json(['message' => __('blog.todo_deleted')]);
+        }
+        
+        if ($isCoAuthor) {
+            if ($isAssignedTo) {
+                $todo->delete();
+                return response()->json(['message' => __('blog.todo_deleted')]);
+            }
+            return response()->json(['message' => __('blog.todo_not_allowed')], 403);
+        }
+        
+        if ($isAssignedTo) {
+            $todo->delete();
+            return response()->json(['message' => __('blog.todo_deleted')]);
+        }
+        
+        return response()->json(['message' => __('blog.todo_not_allowed')], 403);
     }
 
     public function threadStore(Request $request, BlogPost $post, BlogTodo $todo): JsonResponse
