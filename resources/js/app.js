@@ -1864,10 +1864,12 @@ function registerBlogTodoCard() {
         threadsOpen: {},
         sendingThread: false,
         assignableUsers: config.assignableUsers || [],
+        authorUserId: config.authorUserId || null,
         currentUserId: config.currentUserId || null,
         newAssignee: config.currentUserId || null,
         editingAssignee: null,
         pendingDelete: null,
+        loadTodosRequestId: 0,
 
         indexUrl: config.indexUrl,
         storeUrl: config.storeUrl,
@@ -1916,19 +1918,32 @@ function registerBlogTodoCard() {
         },
 
         loadTodos() {
+            const requestId = ++this.loadTodosRequestId;
             this.loading = true;
             this.error = '';
             fetch(this.indexUrl, { cache: 'no-store' })
                 .then(r => r.json())
                 .then(data => {
-                    this.todos = (data.todos || []).map(t => ({ ...t, assigned_to: t.assigned_to || '' }));
+                    if (requestId !== this.loadTodosRequestId) return;
+                    this.todos = (data.todos || []).map(t => this.normalizeTodo(t));
                     this.todos.forEach(t => { if (this.threadsOpen[t.id] === undefined) this.threadsOpen[t.id] = false; });
                     this.loading = false;
                 })
                 .catch(() => {
+                    if (requestId !== this.loadTodosRequestId) return;
                     this.error = this.i18n.loadError || 'Failed to load tasks.';
                     this.loading = false;
                 });
+        },
+
+        normalizeTodo(todo) {
+            const assignedTo = todo.assigned_to || '';
+
+            return {
+                ...todo,
+                assigned_to: assignedTo,
+                can_delete: this.currentUserId === this.authorUserId || assignedTo === this.currentUserId,
+            };
         },
 
         createTodo() {
@@ -1948,7 +1963,7 @@ function registerBlogTodoCard() {
                         this.error = data.message || this.i18n.createError || 'Failed to create task.';
                         return;
                     }
-                    this.todos.push(data.todo);
+                    this.todos.push(this.normalizeTodo(data.todo));
                     this.threadsOpen[data.todo.id] = false;
                     this.activeTab = 'todo';
                     this.newAssignee = this.currentUserId;
@@ -1985,7 +2000,7 @@ function registerBlogTodoCard() {
                         return;
                     }
                     const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = data.todo;
+                    if (idx !== -1) this.todos[idx] = this.normalizeTodo(data.todo);
                     this.editingTodo = null;
                     this.success = data.message || this.i18n.updated;
                     setTimeout(() => { this.success = ''; }, 3000);
@@ -2012,7 +2027,7 @@ function registerBlogTodoCard() {
                         return;
                     }
                     const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = data.todo;
+                    if (idx !== -1) this.todos[idx] = this.normalizeTodo(data.todo);
                 })
                 .catch(() => {
                     this.error = this.i18n.updateError || 'Failed to update task.';
@@ -2037,7 +2052,7 @@ function registerBlogTodoCard() {
                         return;
                     }
                     const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = data.todo;
+                    if (idx !== -1) this.todos[idx] = this.normalizeTodo(data.todo);
                 })
                 .catch(() => {
                     this.error = this.i18n.updateError || 'Failed to update task.';
@@ -2098,7 +2113,7 @@ function registerBlogTodoCard() {
                         return;
                     }
                     const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = data.todo;
+                    if (idx !== -1) this.todos[idx] = this.normalizeTodo(data.todo);
                 })
                 .catch(() => {
                     this.error = this.i18n.assignError || 'Failed to update assignee.';

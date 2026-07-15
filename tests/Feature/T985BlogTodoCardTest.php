@@ -285,6 +285,35 @@ class T985BlogTodoCardTest extends TestCase
         $response->assertJsonPath('todos.0.threads.0.body', 'Commentaire de test');
     }
 
+    public function test_index_exposes_delete_permission_per_todo(): void
+    {
+        $todo = $this->post->todos()->create([
+            'organization_id' => $this->post->organization_id,
+            'user_id' => $this->owner->id,
+            'assigned_to' => $this->owner->id,
+            'title' => 'Tâche owner',
+        ]);
+
+        $this->actingAs($this->owner);
+        $this->getJson("/blog/{$this->post->slug}/todos")
+            ->assertOk()
+            ->assertJsonPath('todos.0.id', $todo->id)
+            ->assertJsonPath('todos.0.can_delete', true);
+
+        $this->actingAs($this->coAuthor);
+        $this->getJson("/blog/{$this->post->slug}/todos")
+            ->assertOk()
+            ->assertJsonPath('todos.0.id', $todo->id)
+            ->assertJsonPath('todos.0.can_delete', false);
+
+        $todo->update(['assigned_to' => $this->coAuthor->id]);
+
+        $this->getJson("/blog/{$this->post->slug}/todos")
+            ->assertOk()
+            ->assertJsonPath('todos.0.id', $todo->id)
+            ->assertJsonPath('todos.0.can_delete', true);
+    }
+
     public function test_thread_can_be_added(): void
     {
         $this->actingAs($this->owner);

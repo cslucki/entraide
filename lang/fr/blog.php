@@ -71,7 +71,7 @@ return [
     'btn_add_comment' => 'Commenter',
     'btn_reply' => 'Répondre',
     'btn_view_article' => 'Voir l\'article →',
-    'todo_not_allowed' => "Seul l'auteur, l'auteur co-écrivain, ou l'utilisateur assigné peut supprimer une tâche.",
+    'todo_not_allowed' => "Seul l'auteur de l'article ou l'utilisateur assigné peut supprimer cette tâche.",
     'btn_preview' => 'Aperçu ⬀',
     'btn_filter' => 'Filtrer',
     'btn_clear' => 'Effacer',

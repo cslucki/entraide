@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 
 class BlogTodoController extends Controller
 {
-    public function index(BlogPost $post): JsonResponse
+    public function index(Request $request, BlogPost $post): JsonResponse
     {
         $organization = currentOrganization();
         if (! $organization || $post->organization_id !== $organization->id) {
@@ -25,7 +25,7 @@ class BlogTodoController extends Controller
             ->orderBy('position')
             ->orderBy('created_at')
             ->get()
-            ->map(fn ($todo) => $this->serialize($todo));
+            ->map(fn ($todo) => $this->serialize($todo, $post, $request->user()));
 
         return response()->json(['todos' => $todos]);
     }
@@ -66,7 +66,7 @@ class BlogTodoController extends Controller
 
         return response()->json([
             'message' => __('blog.todo_created'),
-            'todo' => $this->serialize($todo),
+            'todo' => $this->serialize($todo, $post, $request->user()),
         ], 201);
     }
 
@@ -101,7 +101,7 @@ class BlogTodoController extends Controller
 
         return response()->json([
             'message' => __('blog.todo_updated'),
-            'todo' => $this->serialize($todo),
+            'todo' => $this->serialize($todo, $post, $request->user()),
         ]);
     }
 
@@ -116,30 +116,13 @@ class BlogTodoController extends Controller
 
         $user = $request->user();
         
-        $isAuthor = $post->user_id === $user->id;
-        $isCoAuthor = $post->coAuthors()->where('user_id', $user->id)->exists();
-        $isAssignedTo = $todo->assigned_to === $user->id;
-        $todoUserId = $todo->user_id;
-        
-        if ($isAuthor) {
-            $todo->delete();
-            return response()->json(['message' => __('blog.todo_deleted')]);
-        }
-        
-        if ($isCoAuthor) {
-            if ($isAssignedTo) {
-                $todo->delete();
-                return response()->json(['message' => __('blog.todo_deleted')]);
-            }
+        if (! $this->canDeleteTodo($post, $todo, $user)) {
             return response()->json(['message' => __('blog.todo_not_allowed')], 403);
         }
-        
-        if ($isAssignedTo) {
-            $todo->delete();
-            return response()->json(['message' => __('blog.todo_deleted')]);
-        }
-        
-        return response()->json(['message' => __('blog.todo_not_allowed')], 403);
+
+        $todo->delete();
+
+        return response()->json(['message' => __('blog.todo_deleted')]);
     }
 
     public function threadStore(Request $request, BlogPost $post, BlogTodo $todo): JsonResponse
@@ -188,7 +171,7 @@ class BlogTodoController extends Controller
 
     public function orgIndex(Request $request, string $organization, BlogPost $post): JsonResponse
     {
-        return $this->callWithOrg($request, $organization, fn () => $this->index($post));
+        return $this->callWithOrg($request, $organization, fn () => $this->index($request, $post));
     }
 
     public function orgStore(Request $request, string $organization, BlogPost $post): JsonResponse
@@ -223,7 +206,7 @@ class BlogTodoController extends Controller
         return $callback();
     }
 
-    private function serialize(BlogTodo $todo): array
+    private function serialize(BlogTodo $todo, BlogPost $post, User $user): array
     {
         return [
             'id' => $todo->id,
@@ -233,10 +216,24 @@ class BlogTodoController extends Controller
             'user_id' => $todo->user_id,
             'assigned_to' => $todo->assigned_to ?? '',
             'assigned_to_name' => $todo->assignedTo?->name,
+            'can_delete' => $this->canDeleteTodo($post, $todo, $user),
             'created_at' => $todo->created_at->toISOString(),
             'created_at_human' => $todo->created_at->diffForHumans(),
             'threads' => $todo->threads->map(fn ($t) => $this->serializeThread($t)),
         ];
+    }
+
+    private function canDeleteTodo(BlogPost $post, BlogTodo $todo, User $user): bool
+    {
+        if ($post->user_id === $user->id) {
+            return true;
+        }
+
+        if ($todo->assigned_to === $user->id) {
+            return true;
+        }
+
+        return false;
     }
 
     private function serializeThread(BlogTodoThread $thread): array

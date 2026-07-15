@@ -71,7 +71,7 @@ return [
     'btn_add_comment' => 'Comment',
     'btn_reply' => 'Reply',
     'btn_view_article' => 'View article →',
-    'todo_not_allowed' => 'Only the author, co-author, or assigned user can delete a todo.'
+    'todo_not_allowed' => 'Only the article author or assigned user can delete this todo.',
     'btn_preview' => 'Preview ⬀',
     'btn_filter' => 'Filter',
     'btn_clear' => 'Clear',
