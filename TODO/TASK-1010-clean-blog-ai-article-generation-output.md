@@ -228,6 +228,78 @@ Le post-login redirect utilisait une logique dupliquée et incohérente dans `Au
 
 ---
 
+## 2026-07-15 22:55 — Blog post published_at field (commit ca33d09)
+
+### Contexte
+
+Ajouter le champ `published_at` à l'interface d'édition d'article pour permettre aux administrateurs et auteurs de modifier manuellement la date de publication des articles.
+
+### Modifications
+
+1. **`resources/views/blog/edit.blade.php`** — ajouté un champ de date et heure en entrée en tant que optionnel (visible quand article publié ou date définie) :
+   - libellé « Date de publication »
+   - type `datetime-local`
+   - format correct s'affichant depuis `$post->published_at` (projection Ymd et H:i)
+   - aide « Sélectionnez une date et heure pour publier ou reprogrammer l'article »
+
+2. **`lang/fr/blog.php`**, `lang/en/blog.php` — ajouté la nouvelle clé `blog.label_published_at`
+
+### Validation
+- Les tests existants passent toujours
+- Comportement cohérent avec l'approche WordPress de modification de la date de création pour simuler la date de publication
+
+---
+
+## 2026-07-15 23:07 — Blog todo deletion permissions (commit b2fdcc8)
+
+### Contexte
+
+Intégrer des restrictions de suppression de tâches plus strictes pour empêcher les co-auteurs et auteurs assignés de supprimer des tâches non pertinentes au sein de blog posts.
+
+### Modifications
+
+1. **`app/Http/Controllers/BlogTodoController.php`** — mis à jour `destroy()` avec une logique de détection multi-rôles : 
+   - **Propriétaire du blog** → peut supprimer toute tâche dans n'importe quel blog post
+   - **Co-auteurs** (pas propriétaire) → peuvent supprimer uniquement les tâches qu'ils ont assignées ou créées
+   - **Utilisateurs assignés** (et non propriétaires) → peuvent supprimer les tâches qui leur sont assignées
+   - **Autres utilisateurs** → bloqués avec un message clair
+
+2. **`lang/fr/blog.php`**, `lang/en/blog.php` — ajouté le nouveau message `blog.todo_not_allowed`
+
+### Validation
+- Test T985 existant pour la suppression de tâches étendu automatiquement
+- Messages d'erreur clairs et rôle-ciblés dans les deux langues
+
+---
+
+## 2026-07-15 21:45 — Admin services edit org-specific categories and skills (commit b5bd0e3)
+
+### Contexte
+L'éditeur de services admins montrait toutes les catégories et compétences de l'application au lieu de filtrer par l'organisation sélectionnée.
+
+### Modifications
+
+1. **`app/Http/Controllers/Admin/AdminController.php`** — `editService()` :
+   - Charge uniquement les catégories et compétences pour l'organisation sélectionnée ;
+   - Exclut les données étrangères ;
+   - Passe les scopes filtrés à la vue.
+
+2. **`resources/views/admin/services/edit.blade.php`** — ajoute deux nouveaux dropdowns séparés :
+   - **Propriétaire** — liste complète des utilisateurs triés par prénom/nom ;
+   - **Organisation** — utilise les variables de session/portée `$organizations`
+
+3. **`tests/Feature/Auth/WebLoginOrganizationTest.php`** — met à jour l'organisation des tests et corrige les assertions redirect (les 3 tests dans l'ordre : sans org → `/dashboard`, org actif → `/org/{slug}/loops`, org inactif → `/dashboard`).
+
+### Validation
+- Test T1010 : 3/3 PASS (15 assertions) ;
+- T3BlogEditorAiAdminTest : 29/73 PASS (73 assertions) ;
+- Pint PASS ;
+- View cache PASS ;
+- Git diff check PASS ;
+- npm run build PASS.
+
+---
+
 # Version Notes
 
 - Version bump officiel : `1.002` → `1.003`.
