@@ -47,6 +47,7 @@ use App\Http\Controllers\BlogSnapshotController;
 use App\Http\Controllers\BlogTodoController;
 use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DossierController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\HomeController;
@@ -652,6 +653,14 @@ Route::prefix('/org/{organization}')
 
             Route::middleware('verified')->group(function () {
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
+
+                // Dossiers (org-scoped, private foundation)
+                Route::get('/dossiers', [DossierController::class, 'index'])->name('dossiers.index');
+                Route::get('/dossiers/create', [DossierController::class, 'create'])->name('dossiers.create');
+                Route::post('/dossiers', [DossierController::class, 'store'])->name('dossiers.store');
+                Route::get('/dossiers/{dossier}/edit', [DossierController::class, 'edit'])->name('dossiers.edit');
+                Route::patch('/dossiers/{dossier}', [DossierController::class, 'update'])->name('dossiers.update');
+                Route::delete('/dossiers/{dossier}', [DossierController::class, 'destroy'])->name('dossiers.destroy');
 
                 // Blog (org-scoped)
                 Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->name('blog.create');
