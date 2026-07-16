@@ -208,7 +208,7 @@ class T985BlogTodoCardTest extends TestCase
         $this->assertDatabaseMissing('blog_todos', ['id' => $todo->id]);
     }
 
-    public function test_coauthor_can_update_any_todo(): void
+    public function test_coauthor_cannot_update_unassigned_todo(): void
     {
         $this->actingAs($this->coAuthor);
 
@@ -223,8 +223,7 @@ class T985BlogTodoCardTest extends TestCase
             'status' => 'done',
         ]);
 
-        $response->assertOk();
-        $response->assertJsonPath('todo.status', 'done');
+        $response->assertForbidden();
     }
 
     public function test_assigned_user_can_change_status(): void
@@ -298,12 +297,20 @@ class T985BlogTodoCardTest extends TestCase
         $this->getJson("/blog/{$this->post->slug}/todos")
             ->assertOk()
             ->assertJsonPath('todos.0.id', $todo->id)
+            ->assertJsonPath('todos.0.can_edit', true)
+            ->assertJsonPath('todos.0.can_assign', true)
+            ->assertJsonPath('todos.0.can_change_status', true)
+            ->assertJsonPath('todos.0.can_complete', true)
             ->assertJsonPath('todos.0.can_delete', true);
 
         $this->actingAs($this->coAuthor);
         $this->getJson("/blog/{$this->post->slug}/todos")
             ->assertOk()
             ->assertJsonPath('todos.0.id', $todo->id)
+            ->assertJsonPath('todos.0.can_edit', false)
+            ->assertJsonPath('todos.0.can_assign', false)
+            ->assertJsonPath('todos.0.can_change_status', false)
+            ->assertJsonPath('todos.0.can_complete', false)
             ->assertJsonPath('todos.0.can_delete', false);
 
         $todo->update(['assigned_to' => $this->coAuthor->id]);
@@ -311,6 +318,10 @@ class T985BlogTodoCardTest extends TestCase
         $this->getJson("/blog/{$this->post->slug}/todos")
             ->assertOk()
             ->assertJsonPath('todos.0.id', $todo->id)
+            ->assertJsonPath('todos.0.can_edit', true)
+            ->assertJsonPath('todos.0.can_assign', false)
+            ->assertJsonPath('todos.0.can_change_status', true)
+            ->assertJsonPath('todos.0.can_complete', true)
             ->assertJsonPath('todos.0.can_delete', true);
     }
 
@@ -407,6 +418,7 @@ class T985BlogTodoCardTest extends TestCase
             'todo_placeholder', 'todo_status_todo', 'todo_status_in_progress',
             'todo_status_done', 'todo_assign', 'todo_unassigned',
             'todo_created', 'todo_updated', 'todo_deleted', 'todo_not_owner',
+            'todo_action_not_allowed',
             'todo_thread_placeholder', 'todo_thread_add', 'todo_thread_added',
             'todo_thread_deleted', 'todo_thread_not_owner', 'todo_confirm_delete',
         ];

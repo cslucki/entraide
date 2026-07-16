@@ -72,6 +72,7 @@ return [
     'btn_reply' => 'Reply',
     'btn_view_article' => 'View article →',
     'todo_not_allowed' => 'Only the article author or assigned user can delete this todo.',
+    'todo_action_not_allowed' => 'You cannot perform this action on this todo.',
     'btn_preview' => 'Preview ⬀',
     'btn_filter' => 'Filter',
     'btn_clear' => 'Clear',
