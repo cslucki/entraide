@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminAiUsageController;
 use App\Http\Controllers\Admin\AdminBlogController;
+use App\Http\Controllers\Admin\AdminBlogTodoController;
 use App\Http\Controllers\Admin\AdminBugReportController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminController;
@@ -496,6 +497,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
+    Route::get('/todo', [AdminBlogTodoController::class, 'index'])->name('todo');
+    Route::patch('/todo/{todo}', [AdminBlogTodoController::class, 'update'])->name('todo.update');
+    Route::delete('/todo/{todo}', [AdminBlogTodoController::class, 'destroy'])->name('todo.destroy');
     Route::get('/blog/{post}/edit', [AdminBlogController::class, 'edit'])->name('blog.edit');
     Route::put('/blog/{post}', [AdminBlogController::class, 'update'])->name('blog.update');
     Route::patch('/blog/{post}/status', [AdminBlogController::class, 'updateStatus'])->name('blog.status');
