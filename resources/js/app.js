@@ -1870,6 +1870,10 @@ function registerBlogTodoCard() {
         editingAssignee: null,
         pendingDelete: null,
         loadTodosRequestId: 0,
+        loadingTodos: false,
+        recentLocalTodos: {},
+        recentDeletedTodoIds: {},
+        recentTodoMutationTtlMs: 5000,
         pollingTimer: null,
         pollingIntervalMs: 3000,
 
@@ -1937,7 +1941,7 @@ function registerBlogTodoCard() {
         startPolling() {
             if (this.pollingTimer || document.hidden) return;
             this.pollingTimer = window.setInterval(() => {
-                if (!this.open || document.hidden || this.loading) return;
+                if (!this.open || document.hidden || this.loadingTodos) return;
                 this.loadTodos(true);
             }, this.pollingIntervalMs);
         },
@@ -1957,14 +1961,16 @@ function registerBlogTodoCard() {
         },
 
         loadTodos(silent = false) {
-            if (this.loading) return Promise.resolve();
+            if (this.loadingTodos) return Promise.resolve();
             const requestId = ++this.loadTodosRequestId;
+            this.loadingTodos = true;
             this.loading = !silent;
             this.error = '';
             return fetch(this.indexUrl, { cache: 'no-store' })
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (requestId !== this.loadTodosRequestId) return;
+                    this.loadingTodos = false;
                     if (!ok) {
                         this.error = data.message || this.i18n.loadError || 'Failed to load tasks.';
                         this.loading = false;
@@ -1975,14 +1981,49 @@ function registerBlogTodoCard() {
                 })
                 .catch(() => {
                     if (requestId !== this.loadTodosRequestId) return;
+                    this.loadingTodos = false;
                     this.error = this.i18n.loadError || 'Failed to load tasks.';
                     this.loading = false;
                 });
         },
 
+        invalidateTodoLoads() {
+            this.loadTodosRequestId++;
+            this.loadingTodos = false;
+            this.loading = false;
+        },
+
+        purgeRecentTodoMutations() {
+            const now = Date.now();
+            Object.entries(this.recentLocalTodos).forEach(([id, entry]) => {
+                if (entry.expiresAt <= now) delete this.recentLocalTodos[id];
+            });
+            Object.entries(this.recentDeletedTodoIds).forEach(([id, expiresAt]) => {
+                if (expiresAt <= now) delete this.recentDeletedTodoIds[id];
+            });
+        },
+
+        rememberLocalTodo(todo) {
+            const normalized = this.normalizeTodo(todo);
+            this.recentLocalTodos[normalized.id] = {
+                todo: normalized,
+                expiresAt: Date.now() + this.recentTodoMutationTtlMs,
+            };
+            delete this.recentDeletedTodoIds[normalized.id];
+            return normalized;
+        },
+
+        rememberDeletedTodo(todoId) {
+            delete this.recentLocalTodos[todoId];
+            this.recentDeletedTodoIds[todoId] = Date.now() + this.recentTodoMutationTtlMs;
+        },
+
         reconcileTodos(serverTodos) {
+            this.purgeRecentTodoMutations();
             const localById = new Map(this.todos.map(t => [t.id, t]));
-            this.todos = serverTodos.map(t => {
+            const reconciledById = new Map();
+
+            serverTodos.forEach(t => {
                 const normalized = this.normalizeTodo(t);
                 const local = localById.get(normalized.id);
 
@@ -1990,8 +2031,18 @@ function registerBlogTodoCard() {
                     normalized.title = local.title;
                 }
 
-                return normalized;
+                reconciledById.set(normalized.id, normalized);
             });
+
+            Object.values(this.recentLocalTodos).forEach(entry => {
+                reconciledById.set(entry.todo.id, entry.todo);
+            });
+
+            Object.keys(this.recentDeletedTodoIds).forEach(id => {
+                reconciledById.delete(id);
+            });
+
+            this.todos = Array.from(reconciledById.values());
             this.todos.forEach(t => { if (this.threadsOpen[t.id] === undefined) this.threadsOpen[t.id] = false; });
         },
 
@@ -2023,7 +2074,8 @@ function registerBlogTodoCard() {
         },
 
         applyTodo(todo) {
-            const normalized = this.normalizeTodo(todo);
+            this.invalidateTodoLoads();
+            const normalized = this.rememberLocalTodo(todo);
             const idx = this.todos.findIndex(t => t.id === normalized.id);
             if (idx !== -1) this.todos[idx] = normalized;
             return normalized;
@@ -2050,7 +2102,11 @@ function registerBlogTodoCard() {
                         this.reloadAfterError(status);
                         return;
                     }
-                    this.todos.push(this.normalizeTodo(data.todo));
+                    this.invalidateTodoLoads();
+                    const todo = this.rememberLocalTodo(data.todo);
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx === -1) this.todos.push(todo);
+                    else this.todos[idx] = todo;
                     this.threadsOpen[data.todo.id] = false;
                     this.activeTab = 'todo';
                     this.newAssignee = this.currentUserId;
@@ -2171,6 +2227,8 @@ function registerBlogTodoCard() {
                         this.reloadAfterError(status);
                         return;
                     }
+                    this.invalidateTodoLoads();
+                    this.rememberDeletedTodo(todo.id);
                     this.todos = this.todos.filter(t => t.id !== todo.id);
                     this.success = data.message || this.i18n.deleted;
                     setTimeout(() => { this.success = ''; }, 3000);
