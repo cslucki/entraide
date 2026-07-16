@@ -90,10 +90,7 @@ class BlogTodoController extends Controller
         }
 
         if (array_key_exists('status', $validated)) {
-            $isCompleting = $validated['status'] === 'done' && $todo->status !== 'done';
-            $isReopening = $validated['status'] !== 'done' && $todo->status === 'done';
-
-            if (($isCompleting && ! $this->canCompleteTodo($post, $todo, $user)) || ($isReopening && ! $this->canReopenTodo($post, $todo, $user))) {
+            if (! $this->canChangeTodoStatus($post, $todo, $user)) {
                 return response()->json(['message' => __('blog.todo_action_not_allowed')], 403);
             }
         }
@@ -225,6 +222,7 @@ class BlogTodoController extends Controller
             'assigned_to_name' => $todo->assignedTo?->name,
             'can_edit' => $this->canEditTodo($post, $todo, $user),
             'can_assign' => $this->canAssignTodo($post, $todo, $user),
+            'can_change_status' => $this->canChangeTodoStatus($post, $todo, $user),
             'can_complete' => $this->canCompleteTodo($post, $todo, $user),
             'can_reopen' => $this->canReopenTodo($post, $todo, $user),
             'can_delete' => $this->canDeleteTodo($post, $todo, $user),
@@ -272,16 +270,21 @@ class BlogTodoController extends Controller
 
     private function canCompleteTodo(BlogPost $post, BlogTodo $todo, User $user): bool
     {
-        if ($this->isAssigned($todo, $user)) {
-            return true;
-        }
-
-        return $this->isAuthor($post, $user) && $todo->assigned_to === null;
+        return $this->canChangeTodoStatus($post, $todo, $user);
     }
 
     private function canReopenTodo(BlogPost $post, BlogTodo $todo, User $user): bool
     {
-        return $this->canCompleteTodo($post, $todo, $user);
+        return $this->canChangeTodoStatus($post, $todo, $user);
+    }
+
+    private function canChangeTodoStatus(BlogPost $post, BlogTodo $todo, User $user): bool
+    {
+        if ($todo->assigned_to !== null) {
+            return $this->isAssigned($todo, $user);
+        }
+
+        return $this->isAuthor($post, $user);
     }
 
     private function canDeleteTodo(BlogPost $post, BlogTodo $todo, User $user): bool

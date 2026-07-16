@@ -71,6 +71,7 @@ class T1012BlogTodoCollaborationTest extends TestCase
             ->assertJsonPath('todo.assigned_to', $this->author->id)
             ->assertJsonPath('todo.can_edit', true)
             ->assertJsonPath('todo.can_assign', true)
+            ->assertJsonPath('todo.can_change_status', true)
             ->assertJsonPath('todo.can_complete', true)
             ->assertJsonPath('todo.can_delete', true);
 
@@ -86,6 +87,7 @@ class T1012BlogTodoCollaborationTest extends TestCase
             ->assertJsonPath('todos.0.title', 'Immediate todo')
             ->assertJsonPath('todos.0.can_edit', false)
             ->assertJsonPath('todos.0.can_assign', false)
+            ->assertJsonPath('todos.0.can_change_status', false)
             ->assertJsonPath('todos.0.can_complete', false)
             ->assertJsonPath('todos.0.can_reopen', false)
             ->assertJsonPath('todos.0.can_delete', false);
@@ -153,6 +155,82 @@ class T1012BlogTodoCollaborationTest extends TestCase
 
         $this->actingAs($this->coAuthor)->putJson("/blog/{$this->post->slug}/todos/{$unassignedTodo->id}", ['status' => 'todo'])
             ->assertForbidden();
+    }
+
+    public function test_every_status_mutation_requires_status_ownership(): void
+    {
+        $authorTodo = $this->todo('Author todo', $this->author->id);
+        $coAuthorTodo = $this->todo('Coauthor todo', $this->coAuthor->id);
+        $unassignedTodo = $this->todo('Unassigned todo', null);
+
+        $this->actingAs($this->coAuthor)->putJson("/blog/{$this->post->slug}/todos/{$authorTodo->id}", ['status' => 'in_progress'])
+            ->assertForbidden();
+        $this->assertSame('todo', $authorTodo->fresh()->status);
+
+        $this->actingAs($this->author)->putJson("/blog/{$this->post->slug}/todos/{$coAuthorTodo->id}", ['status' => 'in_progress'])
+            ->assertForbidden();
+        $this->assertSame('todo', $coAuthorTodo->fresh()->status);
+
+        $this->actingAs($this->coAuthor)->putJson("/blog/{$this->post->slug}/todos/{$coAuthorTodo->id}", ['status' => 'in_progress'])
+            ->assertOk()->assertJsonPath('todo.status', 'in_progress');
+        $this->assertSame('in_progress', $coAuthorTodo->fresh()->status);
+
+        $this->actingAs($this->coAuthor)->putJson("/blog/{$this->post->slug}/todos/{$coAuthorTodo->id}", ['status' => 'todo'])
+            ->assertOk()->assertJsonPath('todo.status', 'todo');
+        $this->assertSame('todo', $coAuthorTodo->fresh()->status);
+
+        $coAuthorTodo->update(['status' => 'in_progress']);
+        $this->actingAs($this->coAuthor)->putJson("/blog/{$this->post->slug}/todos/{$coAuthorTodo->id}", ['status' => 'done'])
+            ->assertOk()->assertJsonPath('todo.status', 'done');
+        $this->assertSame('done', $coAuthorTodo->fresh()->status);
+
+        $this->actingAs($this->secondCoAuthor)->putJson("/blog/{$this->post->slug}/todos/{$coAuthorTodo->id}", ['status' => 'in_progress'])
+            ->assertForbidden();
+        $this->assertSame('done', $coAuthorTodo->fresh()->status);
+
+        $this->actingAs($this->coAuthor)->putJson("/blog/{$this->post->slug}/todos/{$authorTodo->id}", [
+            'title' => 'Forbidden combined edit',
+            'status' => 'in_progress',
+        ])->assertForbidden();
+        $this->assertSame('Author todo', $authorTodo->fresh()->title);
+        $this->assertSame('todo', $authorTodo->fresh()->status);
+
+        $this->actingAs($this->author)->putJson("/blog/{$this->post->slug}/todos/{$coAuthorTodo->id}", [
+            'assigned_to' => $this->author->id,
+            'status' => 'todo',
+        ])->assertForbidden();
+        $this->assertSame($this->coAuthor->id, $coAuthorTodo->fresh()->assigned_to);
+        $this->assertSame('done', $coAuthorTodo->fresh()->status);
+
+        $this->actingAs($this->secondCoAuthor)->putJson("/blog/{$this->post->slug}/todos/{$unassignedTodo->id}", ['status' => 'in_progress'])
+            ->assertForbidden();
+        $this->assertSame('todo', $unassignedTodo->fresh()->status);
+
+        $this->actingAs($this->author)->putJson("/blog/{$this->post->slug}/todos/{$unassignedTodo->id}", ['status' => 'in_progress'])
+            ->assertOk()->assertJsonPath('todo.status', 'in_progress');
+        $this->assertSame('in_progress', $unassignedTodo->fresh()->status);
+    }
+
+    public function test_status_capabilities_match_backend_status_ownership_rule(): void
+    {
+        $authorTodo = $this->todo('Author todo', $this->author->id);
+        $coAuthorTodo = $this->todo('Coauthor todo', $this->coAuthor->id);
+        $unassignedTodo = $this->todo('Unassigned todo', null);
+
+        $this->actingAs($this->author)->getJson("/blog/{$this->post->slug}/todos")
+            ->assertOk()
+            ->assertJsonPath('todos.0.id', $authorTodo->id)
+            ->assertJsonPath('todos.0.can_change_status', true)
+            ->assertJsonPath('todos.1.id', $coAuthorTodo->id)
+            ->assertJsonPath('todos.1.can_change_status', false)
+            ->assertJsonPath('todos.2.id', $unassignedTodo->id)
+            ->assertJsonPath('todos.2.can_change_status', true);
+
+        $this->actingAs($this->coAuthor)->getJson("/blog/{$this->post->slug}/todos")
+            ->assertOk()
+            ->assertJsonPath('todos.0.can_change_status', false)
+            ->assertJsonPath('todos.1.can_change_status', true)
+            ->assertJsonPath('todos.2.can_change_status', false);
     }
 
     public function test_edit_assignment_and_delete_permissions_are_strict(): void

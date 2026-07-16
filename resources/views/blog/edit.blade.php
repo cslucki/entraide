@@ -629,7 +629,7 @@
                                     {{-- Actions --}}
                                     <div class="flex items-center gap-1 shrink-0">
                                         {{-- Status cycle --}}
-                                        <template x-if="todo.can_edit">
+                                        <template x-if="todo.can_change_status">
                                             <select x-model="todo.status"
                                                 @change="changeStatus(todo)"
                                                 class="text-[9px] border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"

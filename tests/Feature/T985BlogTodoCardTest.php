@@ -299,6 +299,7 @@ class T985BlogTodoCardTest extends TestCase
             ->assertJsonPath('todos.0.id', $todo->id)
             ->assertJsonPath('todos.0.can_edit', true)
             ->assertJsonPath('todos.0.can_assign', true)
+            ->assertJsonPath('todos.0.can_change_status', true)
             ->assertJsonPath('todos.0.can_complete', true)
             ->assertJsonPath('todos.0.can_delete', true);
 
@@ -308,6 +309,7 @@ class T985BlogTodoCardTest extends TestCase
             ->assertJsonPath('todos.0.id', $todo->id)
             ->assertJsonPath('todos.0.can_edit', false)
             ->assertJsonPath('todos.0.can_assign', false)
+            ->assertJsonPath('todos.0.can_change_status', false)
             ->assertJsonPath('todos.0.can_complete', false)
             ->assertJsonPath('todos.0.can_delete', false);
 
@@ -318,6 +320,7 @@ class T985BlogTodoCardTest extends TestCase
             ->assertJsonPath('todos.0.id', $todo->id)
             ->assertJsonPath('todos.0.can_edit', true)
             ->assertJsonPath('todos.0.can_assign', false)
+            ->assertJsonPath('todos.0.can_change_status', true)
             ->assertJsonPath('todos.0.can_complete', true)
             ->assertJsonPath('todos.0.can_delete', true);
     }

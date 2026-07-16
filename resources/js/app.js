@@ -1957,11 +1957,11 @@ function registerBlogTodoCard() {
         },
 
         loadTodos(silent = false) {
-            if (this.loading) return;
+            if (this.loading) return Promise.resolve();
             const requestId = ++this.loadTodosRequestId;
             this.loading = !silent;
             this.error = '';
-            fetch(this.indexUrl, { cache: 'no-store' })
+            return fetch(this.indexUrl, { cache: 'no-store' })
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (requestId !== this.loadTodosRequestId) return;
@@ -2001,6 +2001,7 @@ function registerBlogTodoCard() {
                 assigned_to: todo.assigned_to || '',
                 can_edit: Boolean(todo.can_edit),
                 can_assign: Boolean(todo.can_assign),
+                can_change_status: Boolean(todo.can_change_status),
                 can_complete: Boolean(todo.can_complete),
                 can_reopen: Boolean(todo.can_reopen),
                 can_delete: Boolean(todo.can_delete),
@@ -2013,14 +2014,12 @@ function registerBlogTodoCard() {
         },
 
         canToggleStatus(todo) {
-            return todo.status === 'done' ? todo.can_reopen : todo.can_complete;
+            return todo.can_change_status;
         },
 
         canChooseStatus(todo, status) {
             if (status === todo.status) return true;
-            if (status === 'done') return todo.can_complete;
-            if (todo.status === 'done') return todo.can_reopen;
-            return todo.can_edit;
+            return todo.can_change_status;
         },
 
         applyTodo(todo) {
