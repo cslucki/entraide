@@ -531,7 +531,7 @@
                             ></button>
                         </div>
                         {{-- Assignee picker --}}
-                        <div class="flex gap-1.5 items-center">
+                        <div x-show="currentUserId === authorUserId" class="flex gap-1.5 items-center">
                             <span class="text-[9px] text-gray-400 shrink-0">{{ __('blog.todo_assign') }}</span>
                             <select x-model="newAssignee"
                                 class="flex-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
@@ -571,16 +571,24 @@
                             <div class="rounded border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-2 space-y-1" :class="{ 'opacity-60': todo.status === 'done' }">
                                 <div class="flex items-start gap-1.5">
                                     {{-- Checkbox done/todo --}}
-                                    <input type="checkbox"
-                                        :checked="todo.status === 'done'"
-                                        @change="toggleDone(todo)"
-                                        class="mt-0.5 shrink-0 w-3 h-3 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                    >
+                                    <template x-if="canToggleStatus(todo)">
+                                        <input type="checkbox"
+                                            :checked="todo.status === 'done'"
+                                            @change="toggleDone(todo)"
+                                            class="mt-0.5 shrink-0 w-3 h-3 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                        >
+                                    </template>
+                                    <template x-if="!canToggleStatus(todo)">
+                                        <span class="mt-0.5 shrink-0 w-3 h-3"></span>
+                                    </template>
                                     <div class="flex-1 min-w-0">
                                         {{-- Title --}}
                                         <template x-if="editingTodo !== todo.id">
-                                            <span class="block text-xs font-medium break-words cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition"
-                                                :class="todo.status === 'done' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-gray-100'"
+                                            <span class="block text-xs font-medium break-words transition"
+                                                :class="[
+                                                    todo.status === 'done' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-gray-100',
+                                                    todo.can_edit ? 'cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400' : 'cursor-default'
+                                                ]"
                                                 @click="startEdit(todo)"
                                                 x-text="todo.title"
                                             ></span>
@@ -596,10 +604,13 @@
                                         </template>
                                         {{-- Assigned to --}}
                                         <div class="text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">
-                                            <template x-if="editingAssignee !== todo.id">
+                                            <template x-if="editingAssignee !== todo.id && todo.can_assign">
                                                 <button type="button" @click="startEditAssignee(todo)" class="hover:text-gray-600 dark:hover:text-gray-300 transition text-left">
                                                     <span x-text="todo.assigned_to_name ? (i18n.assign + ' ' + todo.assigned_to_name) : i18n.unassigned"></span>
                                                 </button>
+                                            </template>
+                                            <template x-if="editingAssignee !== todo.id && !todo.can_assign">
+                                                <span x-text="todo.assigned_to_name ? (i18n.assign + ' ' + todo.assigned_to_name) : i18n.unassigned"></span>
                                             </template>
                                             <template x-if="editingAssignee === todo.id">
                                                 <select x-model="todo.assigned_to"
@@ -618,14 +629,16 @@
                                     {{-- Actions --}}
                                     <div class="flex items-center gap-1 shrink-0">
                                         {{-- Status cycle --}}
-                                        <select x-model="todo.status"
-                                            @change="changeStatus(todo)"
-                                            class="text-[9px] border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
-                                        >
-                                            <option value="todo" x-text="i18n.statusTodo"></option>
-                                            <option value="in_progress" x-text="i18n.statusInProgress"></option>
-                                            <option value="done" x-text="i18n.statusDone"></option>
-                                        </select>
+                                        <template x-if="todo.can_edit">
+                                            <select x-model="todo.status"
+                                                @change="changeStatus(todo)"
+                                                class="text-[9px] border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
+                                            >
+                                                <option value="todo" :disabled="!canChooseStatus(todo, 'todo')" x-text="i18n.statusTodo"></option>
+                                                <option value="in_progress" :disabled="!canChooseStatus(todo, 'in_progress')" x-text="i18n.statusInProgress"></option>
+                                                <option value="done" :disabled="!canChooseStatus(todo, 'done')" x-text="i18n.statusDone"></option>
+                                            </select>
+                                        </template>
                                         {{-- Delete with inline confirmation --}}
                                         <template x-if="todo.can_delete && pendingDelete !== todo.id">
                                             <button type="button" @click="confirmDeleteTodo(todo)"

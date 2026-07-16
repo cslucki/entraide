@@ -1870,6 +1870,8 @@ function registerBlogTodoCard() {
         editingAssignee: null,
         pendingDelete: null,
         loadTodosRequestId: 0,
+        pollingTimer: null,
+        pollingIntervalMs: 3000,
 
         indexUrl: config.indexUrl,
         storeUrl: config.storeUrl,
@@ -1888,9 +1890,12 @@ function registerBlogTodoCard() {
             localStorage.setItem('editor_sidebar_card_todo', this.open ? '1' : '0');
             if (this.open) {
                 this.loadTodos();
+                this.startPolling();
                 this._dispatching = true;
                 window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
                 this._dispatching = false;
+            } else {
+                this.stopPolling();
             }
         },
 
@@ -1898,15 +1903,49 @@ function registerBlogTodoCard() {
             if (localStorage.getItem('editor_sidebar_card_todo') === '1') {
                 this.open = true;
                 this.loadTodos();
+                this.startPolling();
             }
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
                 localStorage.setItem('editor_sidebar_card_todo', '0');
+                this.stopPolling();
             });
             window.addEventListener('snapshot-restore', () => {
                 if (this.open) this.loadTodos();
             });
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    this.stopPolling();
+                    return;
+                }
+
+                if (this.open) {
+                    this.loadTodos(true);
+                    this.startPolling();
+                }
+            });
+            window.addEventListener('focus', () => {
+                if (this.open && !document.hidden) this.loadTodos(true);
+            });
+        },
+
+        destroy() {
+            this.stopPolling();
+        },
+
+        startPolling() {
+            if (this.pollingTimer || document.hidden) return;
+            this.pollingTimer = window.setInterval(() => {
+                if (!this.open || document.hidden || this.loading) return;
+                this.loadTodos(true);
+            }, this.pollingIntervalMs);
+        },
+
+        stopPolling() {
+            if (!this.pollingTimer) return;
+            window.clearInterval(this.pollingTimer);
+            this.pollingTimer = null;
         },
 
         isThreadsOpen(todo) {
@@ -1917,16 +1956,21 @@ function registerBlogTodoCard() {
             this.threadsOpen[todo.id] = !(this.threadsOpen[todo.id] ?? false);
         },
 
-        loadTodos() {
+        loadTodos(silent = false) {
+            if (this.loading) return;
             const requestId = ++this.loadTodosRequestId;
-            this.loading = true;
+            this.loading = !silent;
             this.error = '';
             fetch(this.indexUrl, { cache: 'no-store' })
-                .then(r => r.json())
-                .then(data => {
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
                     if (requestId !== this.loadTodosRequestId) return;
-                    this.todos = (data.todos || []).map(t => this.normalizeTodo(t));
-                    this.todos.forEach(t => { if (this.threadsOpen[t.id] === undefined) this.threadsOpen[t.id] = false; });
+                    if (!ok) {
+                        this.error = data.message || this.i18n.loadError || 'Failed to load tasks.';
+                        this.loading = false;
+                        return;
+                    }
+                    this.reconcileTodos(data.todos || []);
                     this.loading = false;
                 })
                 .catch(() => {
@@ -1936,14 +1980,58 @@ function registerBlogTodoCard() {
                 });
         },
 
-        normalizeTodo(todo) {
-            const assignedTo = todo.assigned_to || '';
+        reconcileTodos(serverTodos) {
+            const localById = new Map(this.todos.map(t => [t.id, t]));
+            this.todos = serverTodos.map(t => {
+                const normalized = this.normalizeTodo(t);
+                const local = localById.get(normalized.id);
 
+                if (this.editingTodo === normalized.id && local) {
+                    normalized.title = local.title;
+                }
+
+                return normalized;
+            });
+            this.todos.forEach(t => { if (this.threadsOpen[t.id] === undefined) this.threadsOpen[t.id] = false; });
+        },
+
+        normalizeTodo(todo) {
             return {
                 ...todo,
-                assigned_to: assignedTo,
-                can_delete: this.currentUserId === this.authorUserId || assignedTo === this.currentUserId,
+                assigned_to: todo.assigned_to || '',
+                can_edit: Boolean(todo.can_edit),
+                can_assign: Boolean(todo.can_assign),
+                can_complete: Boolean(todo.can_complete),
+                can_reopen: Boolean(todo.can_reopen),
+                can_delete: Boolean(todo.can_delete),
             };
+        },
+
+        requestJson(url, options) {
+            return fetch(url, options)
+                .then(r => r.json().then(d => ({ ok: r.ok, status: r.status, data: d })));
+        },
+
+        canToggleStatus(todo) {
+            return todo.status === 'done' ? todo.can_reopen : todo.can_complete;
+        },
+
+        canChooseStatus(todo, status) {
+            if (status === todo.status) return true;
+            if (status === 'done') return todo.can_complete;
+            if (todo.status === 'done') return todo.can_reopen;
+            return todo.can_edit;
+        },
+
+        applyTodo(todo) {
+            const normalized = this.normalizeTodo(todo);
+            const idx = this.todos.findIndex(t => t.id === normalized.id);
+            if (idx !== -1) this.todos[idx] = normalized;
+            return normalized;
+        },
+
+        reloadAfterError(status) {
+            if ([403, 404, 409, 422].includes(status)) this.loadTodos(true);
         },
 
         createTodo() {
@@ -1952,15 +2040,15 @@ function registerBlogTodoCard() {
             this.creating = true;
             this.error = '';
             this.success = '';
-            fetch(this.storeUrl, {
+            this.requestJson(this.storeUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ title, assigned_to: this.newAssignee }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.createError || 'Failed to create task.';
+                        this.reloadAfterError(status);
                         return;
                     }
                     this.todos.push(this.normalizeTodo(data.todo));
@@ -1978,29 +2066,29 @@ function registerBlogTodoCard() {
         },
 
         startEdit(todo) {
+            if (!todo.can_edit) return;
             this.editingTodo = todo.id;
             this.editTitle = todo.title;
         },
 
         saveEdit(todo) {
             const title = this.editTitle.trim();
-            if (!title || this.saving) return;
+            if (!title || this.saving || !todo.can_edit) return;
             this.saving = true;
             this.error = '';
             const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ title }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
+                        this.reloadAfterError(status);
                         return;
                     }
-                    const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = this.normalizeTodo(data.todo);
+                    this.applyTodo(data.todo);
                     this.editingTodo = null;
                     this.success = data.message || this.i18n.updated;
                     setTimeout(() => { this.success = ''; }, 3000);
@@ -2012,22 +2100,24 @@ function registerBlogTodoCard() {
         },
 
         changeStatus(todo) {
+            if (!this.canChooseStatus(todo, todo.status)) {
+                this.loadTodos(true);
+                return;
+            }
             this.error = '';
             const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ status: todo.status }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
-                        this.loadTodos();
+                        this.reloadAfterError(status);
                         return;
                     }
-                    const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = this.normalizeTodo(data.todo);
+                    this.applyTodo(data.todo);
                 })
                 .catch(() => {
                     this.error = this.i18n.updateError || 'Failed to update task.';
@@ -2036,23 +2126,22 @@ function registerBlogTodoCard() {
         },
 
         toggleDone(todo) {
+            if (!this.canToggleStatus(todo)) return;
             const newStatus = todo.status === 'done' ? 'todo' : 'done';
             const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
             this.error = '';
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ status: newStatus }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
-                        this.loadTodos();
+                        this.reloadAfterError(status);
                         return;
                     }
-                    const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = this.normalizeTodo(data.todo);
+                    this.applyTodo(data.todo);
                 })
                 .catch(() => {
                     this.error = this.i18n.updateError || 'Failed to update task.';
@@ -2061,6 +2150,7 @@ function registerBlogTodoCard() {
         },
 
         confirmDeleteTodo(todo) {
+            if (!todo.can_delete) return;
             this.pendingDelete = todo.id;
         },
 
@@ -2072,14 +2162,14 @@ function registerBlogTodoCard() {
             this.pendingDelete = null;
             this.error = '';
             const url = this.destroyUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'DELETE',
                 headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.deleteError || 'Failed to delete task.';
+                        this.reloadAfterError(status);
                         return;
                     }
                     this.todos = this.todos.filter(t => t.id !== todo.id);
@@ -2092,28 +2182,28 @@ function registerBlogTodoCard() {
         },
 
         startEditAssignee(todo) {
+            if (!todo.can_assign) return;
             this.editingAssignee = todo.id;
         },
 
         saveEditAssignee(todo) {
+            if (!todo.can_assign) return;
             this.editingAssignee = null;
             this.error = '';
             const assignedTo = todo.assigned_to || null;
             const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ assigned_to: assignedTo }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.assignError || 'Failed to update assignee.';
-                        this.loadTodos();
+                        this.reloadAfterError(status);
                         return;
                     }
-                    const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = this.normalizeTodo(data.todo);
+                    this.applyTodo(data.todo);
                 })
                 .catch(() => {
                     this.error = this.i18n.assignError || 'Failed to update assignee.';
@@ -2123,18 +2213,18 @@ function registerBlogTodoCard() {
 
         addThread(todo) {
             const body = (this.threadDrafts[todo.id] || '').trim();
-            if (!body || this.sendingThread) return;
+            if (!body || this.sendingThread || !todo.can_edit) return;
             this.sendingThread = true;
             const url = this.threadStoreUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ body }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.threadError || 'Failed to add comment.';
+                        this.reloadAfterError(status);
                         return;
                     }
                     this.threadDrafts[todo.id] = '';
