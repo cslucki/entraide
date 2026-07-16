@@ -28,7 +28,7 @@
             'active' => ['flux', 'organization.flux'],
             'label' => __('navigation.feed'),
             'hint' => __('navigation.announcements'),
-            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z',
+            'icon' => 'M4 5h16M4 12h10M4 19h16M18 9l3 3-3 3',
             'visible' => $canSeeFlux,
             'tone' => 'flux',
         ],
@@ -68,6 +68,14 @@
             'label' => __('navigation.blog'),
             'hint' => __('navigation.articles'),
             'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
+        ],
+        [
+            'url' => $organizationRouteParam && Route::has('organization.dossiers.index') ? route('organization.dossiers.index', ['organization' => $organizationRouteParam]) : '#',
+            'active' => ['organization.dossiers'],
+            'label' => __('navigation.my_dossiers'),
+            'hint' => __('navigation.my_dossiers'),
+            'icon' => 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z',
+            'visible' => (bool) $organizationRouteParam && Route::has('organization.dossiers.index'),
         ],
     ] : [
         [
