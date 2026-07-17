@@ -17,16 +17,31 @@ class DossierController extends Controller
         $organization = $this->currentOrganizationOrFail();
         $this->authorize('viewAny', Dossier::class);
 
-        $dossiers = Dossier::query()
+        $userId = $request->user()->id;
+
+        $ownedDossiers = Dossier::query()
             ->where('organization_id', $organization->id)
-            ->where('owner_id', $request->user()->id)
-            ->where('visibility', Dossier::VISIBILITY_PRIVATE)
+            ->where('owner_id', $userId)
+            ->withCount('dossierMembers')
             ->latest('updated_at')
             ->paginate(12)
             ->withQueryString();
 
+        $sharedDossiers = Dossier::query()
+            ->where('organization_id', $organization->id)
+            ->where('owner_id', '!=', $userId)
+            ->whereHas('dossierMembers', function ($q) use ($userId) {
+                $q->where('user_id', $userId);
+            })
+            ->with(['owner:id,first_name,name,email', 'dossierMembers' => function ($q) use ($userId) {
+                $q->where('user_id', $userId);
+            }])
+            ->latest('updated_at')
+            ->get();
+
         return view('dossiers.index', [
-            'dossiers' => $dossiers,
+            'dossiers' => $ownedDossiers,
+            'sharedDossiers' => $sharedDossiers,
         ]);
     }
 
@@ -45,21 +60,33 @@ class DossierController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('view', $dossier);
 
+        $userId = $request->user()->id;
+        $isOwner = $dossier->owner_id === $userId;
+        $userRole = $isOwner ? 'owner' : ($dossier->memberRoleFor($userId) ?? 'none');
+        $canManageArticles = $isOwner || $userRole === 'editor';
+
         $dossier->load([
             'dossierBlogPosts.blogPost.user:id,first_name,name,email,organization_id',
+            'dossierMembers.user:id,first_name,name,email',
         ]);
 
-        $eligibleArticles = BlogPost::query()
-            ->with('user:id,first_name,name,email,organization_id')
-            ->where('organization_id', $organization->id)
-            ->where('user_id', $request->user()->id)
-            ->whereDoesntHave('dossierEntry')
-            ->latest('updated_at')
-            ->get(['id', 'organization_id', 'user_id', 'title', 'slug', 'status', 'updated_at']);
+        $eligibleArticles = collect();
+        if ($canManageArticles) {
+            $eligibleArticles = BlogPost::query()
+                ->with('user:id,first_name,name,email,organization_id')
+                ->where('organization_id', $organization->id)
+                ->where('user_id', $userId)
+                ->whereDoesntHave('dossierEntry')
+                ->latest('updated_at')
+                ->get(['id', 'organization_id', 'user_id', 'title', 'slug', 'status', 'updated_at']);
+        }
 
         return view('dossiers.show', [
             'dossier' => $dossier,
             'eligibleArticles' => $eligibleArticles,
+            'userRole' => $userRole,
+            'canManageArticles' => $canManageArticles,
+            'canManageMembers' => $isOwner,
         ]);
     }
 
@@ -128,6 +155,7 @@ class DossierController extends Controller
         $this->authorize('delete', $dossier);
 
         DB::transaction(function () use ($dossier) {
+            $dossier->dossierMembers()->delete();
             $dossier->dossierBlogPosts()->delete();
             $dossier->delete();
         });

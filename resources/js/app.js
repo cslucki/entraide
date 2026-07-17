@@ -1787,6 +1787,140 @@ function registerBlogDossierCard() {
     }));
 }
 
+function registerDossierMembersCard() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierMembersCard', (config) => ({
+        members: [],
+        showSearch: false,
+        searchQuery: '',
+        searchResults: [],
+        searchLoading: false,
+        message: '',
+        messageType: 'success',
+        csrfToken: config.csrfToken,
+        dossierId: config.dossierId,
+        orgParam: config.orgParam,
+        ownerId: config.ownerId,
+        currentUserId: config.currentUserId,
+        i18n: config.i18n,
+
+        init() {
+            this.loadMembers();
+        },
+
+        loadMembers() {
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members`;
+            fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(data => {
+                    this.members = (data.members || []).map(m => ({
+                        ...m,
+                        initial: (m.name || '?').charAt(0).toUpperCase(),
+                    }));
+                })
+                .catch(() => {});
+        },
+
+        searchUsers() {
+            if (this.searchQuery.length < 2) { this.searchResults = []; return; }
+            this.searchLoading = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/search?q=${encodeURIComponent(this.searchQuery)}`;
+            fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(data => {
+                    const existingIds = this.members.map(m => m.id);
+                    existingIds.push(this.ownerId);
+                    this.searchResults = (data.users || [])
+                        .filter(u => !existingIds.includes(u.id))
+                        .map(u => ({ ...u, _selectedRole: 'reader' }));
+                })
+                .catch(() => {})
+                .finally(() => { this.searchLoading = false; });
+        },
+
+        addMember(user) {
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members`;
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ user_id: user.id, role: user._selectedRole }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.memberAlready, 'error');
+                        return;
+                    }
+                    this.members.push({ ...data.member, initial: (data.member.name || '?').charAt(0).toUpperCase() });
+                    this.showSearch = false;
+                    this.searchQuery = '';
+                    this.searchResults = [];
+                    this.showMessage(data.message || this.i18n.memberAdded, 'success');
+                })
+                .catch(() => { this.showMessage(this.i18n.memberAlready, 'error'); });
+        },
+
+        updateRole(member, newRole) {
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/${member.id}`;
+            fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ role: newRole }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.memberRoleUpdated, 'error');
+                        return;
+                    }
+                    member.role = newRole;
+                    this.showMessage(data.message || this.i18n.memberRoleUpdated, 'success');
+                })
+                .catch(() => {});
+        },
+
+        removeMember(member) {
+            if (!confirm(this.i18n.confirmRemove.replace(':name', member.name))) return;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/${member.id}`;
+            fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.memberRemoved, 'error');
+                        return;
+                    }
+                    this.members = this.members.filter(m => m.id !== member.id);
+                    this.showMessage(data.message || this.i18n.memberRemoved, 'success');
+                })
+                .catch(() => {});
+        },
+
+        showMessage(msg, type) {
+            this.message = msg;
+            this.messageType = type;
+            setTimeout(() => { this.message = ''; }, 3000);
+        },
+    }));
+}
+
 function registerBlogLoopCard() {
     if (!window.Alpine || window.__blogLoopCardRegistered) {
         return;
@@ -3837,6 +3971,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogCoAuthorCard();
     registerBlogInviteByEmail();
     registerBlogDossierCard();
+    registerDossierMembersCard();
     registerBlogLoopCard();
     registerBlogTodoCard();
     registerBlogPlanCard();
@@ -3851,9 +3986,10 @@ registerBlogMethodSelectionCard();
 registerAnnotationModal();
 registerBlogCoAuthorCard();
 registerBlogInviteByEmail();
-registerBlogDossierCard();
-registerBlogLoopCard();
-registerBlogTodoCard();
+    registerBlogDossierCard();
+    registerDossierMembersCard();
+    registerBlogLoopCard();
+    registerBlogTodoCard();
 registerBlogPlanCard();
 registerBlogExplorerModal();
 registerBlogExplorerCard();
