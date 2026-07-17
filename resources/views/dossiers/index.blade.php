@@ -42,12 +42,17 @@
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">{{ __('dossiers.private_label') }}</p>
-                                <h2 class="mt-1 line-clamp-2 text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $dossier->name }}</h2>
+                                <h2 class="mt-1 line-clamp-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                    <a href="{{ route('organization.dossiers.show', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]) }}" class="hover:text-indigo-600 dark:hover:text-indigo-300">{{ $dossier->name }}</a>
+                                </h2>
                             </div>
                             <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('dossiers.private_badge') }}</span>
                         </div>
                         <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.updated_at', ['date' => $dossier->updated_at->diffForHumans()]) }}</p>
                         <div class="mt-auto flex flex-col gap-2 pt-5 sm:flex-row">
+                            <a href="{{ route('organization.dossiers.show', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]) }}" class="inline-flex flex-1 items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                                {{ __('dossiers.open') }}
+                            </a>
                             <a href="{{ route('organization.dossiers.edit', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]) }}" class="inline-flex flex-1 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
                                 {{ __('dossiers.rename') }}
                             </a>
