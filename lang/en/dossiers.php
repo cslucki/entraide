@@ -55,4 +55,6 @@ return [
     'status_published' => 'Published',
     'status_archived' => 'Archived',
     'status_pending' => 'Pending',
+    'only_author_can_classify' => 'Only the article author can classify it.',
+    'article_not_attached' => 'This article is not attached to a folder.',
 ];

@@ -55,4 +55,6 @@ return [
     'status_published' => 'Publié',
     'status_archived' => 'Archivé',
     'status_pending' => 'En attente',
+    'only_author_can_classify' => 'Seul l\'auteur de l\'article peut le classer.',
+    'article_not_attached' => 'Cet article n\'est pas rattaché à un dossier.',
 ];

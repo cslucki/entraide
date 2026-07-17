@@ -40,6 +40,7 @@ use App\Http\Controllers\BlogAnnotationReplyController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogDossierApiController;
 use App\Http\Controllers\BlogExplorerController;
 use App\Http\Controllers\BlogInvitationController;
 use App\Http\Controllers\BlogPostLoopController;
@@ -185,6 +186,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Blog plan endpoint
     Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
+
+    // Blog dossier classification endpoints
+    Route::get('/blog/dossiers', [BlogDossierApiController::class, 'listDossiers'])->name('blog.dossiers.index');
+    Route::post('/blog/dossiers', [BlogDossierApiController::class, 'quickCreate'])->name('blog.dossiers.store');
+    Route::get('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'currentDossier'])->name('blog.dossier.current');
+    Route::post('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'attach'])->name('blog.dossier.attach');
+    Route::delete('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'detach'])->name('blog.dossier.detach');
 
     // Blog invitation endpoints
     Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'index'])->name('blog.invite.index');
@@ -734,6 +742,13 @@ Route::prefix('/org/{organization}')
 
                 // Blog plan endpoint (org-scoped)
                 Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'orgUpdatePlan'])->name('blog.plan.update');
+
+                // Blog dossier classification endpoints (org-scoped)
+                Route::get('/blog/dossiers', [BlogDossierApiController::class, 'orgListDossiers'])->name('blog.dossiers.index');
+                Route::post('/blog/dossiers', [BlogDossierApiController::class, 'orgQuickCreate'])->name('blog.dossiers.store');
+                Route::get('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgCurrentDossier'])->name('blog.dossier.current');
+                Route::post('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgAttach'])->name('blog.dossier.attach');
+                Route::delete('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgDetach'])->name('blog.dossier.detach');
 
                 // Blog invitation endpoints (org-scoped)
                 Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'orgIndex'])->name('blog.invite.index');

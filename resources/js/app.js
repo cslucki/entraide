@@ -1625,6 +1625,168 @@ function registerBlogInviteByEmail() {
     }));
 }
 
+function registerBlogDossierCard() {
+    if (!window.Alpine || window.__blogDossierCardRegistered) {
+        return;
+    }
+
+    window.__blogDossierCardRegistered = true;
+
+    Alpine.data('blogDossierCard', (config) => ({
+        open: false,
+        loading: false,
+        saving: false,
+        creating: false,
+        error: '',
+        success: '',
+        currentDossier: null,
+        dossiers: [],
+        selectedDossierId: '',
+        showQuickCreate: false,
+        newDossierName: '',
+
+        currentDossierUrl: config.currentDossierUrl,
+        dossiersUrl: config.dossiersUrl,
+        attachUrl: config.attachUrl,
+        detachUrl: config.detachUrl,
+        quickCreateUrl: config.quickCreateUrl,
+        i18n: config.i18n || {},
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_dossier', this.open ? '1' : '0');
+            if (this.open) {
+                this.loadCurrent();
+                this.loadDossiers();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
+        },
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_dossier');
+            if (stored !== null) this.open = stored === '1';
+            if (this.open) {
+                this.loadCurrent();
+                this.loadDossiers();
+            }
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_dossier', '0');
+            });
+        },
+
+        loadCurrent() {
+            this.loading = true;
+            this.error = '';
+            fetch(this.currentDossierUrl, { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    this.currentDossier = data.dossier || null;
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.error = this.i18n.loadError || 'Erreur de chargement.';
+                    this.loading = false;
+                });
+        },
+
+        loadDossiers() {
+            fetch(this.dossiersUrl, { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    this.dossiers = data.dossiers || [];
+                })
+                .catch(() => {});
+        },
+
+        classify() {
+            if (!this.selectedDossierId || this.saving) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.attachUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ dossier_id: this.selectedDossierId }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.classifyError;
+                        return;
+                    }
+                    this.currentDossier = data.dossier || null;
+                    this.selectedDossierId = '';
+                    this.success = data.message || this.i18n.classified;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.classifyError;
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        detach() {
+            if (this.saving) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.detachUrl, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.detachError;
+                        return;
+                    }
+                    this.currentDossier = null;
+                    this.success = data.message || this.i18n.detached;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.detachError;
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        quickCreate() {
+            const name = this.newDossierName.trim();
+            if (!name || this.creating) return;
+            this.creating = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.quickCreateUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ name }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.createError;
+                        return;
+                    }
+                    this.dossiers.push(data.dossier);
+                    this.selectedDossierId = data.dossier.id;
+                    this.newDossierName = '';
+                    this.showQuickCreate = false;
+                    this.success = data.message || this.i18n.created;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.createError;
+                })
+                .finally(() => { this.creating = false; });
+        },
+    }));
+}
+
 function registerBlogLoopCard() {
     if (!window.Alpine || window.__blogLoopCardRegistered) {
         return;
@@ -3674,6 +3836,7 @@ document.addEventListener('alpine:init', () => {
     registerAnnotationModal();
     registerBlogCoAuthorCard();
     registerBlogInviteByEmail();
+    registerBlogDossierCard();
     registerBlogLoopCard();
     registerBlogTodoCard();
     registerBlogPlanCard();
@@ -3688,6 +3851,7 @@ registerBlogMethodSelectionCard();
 registerAnnotationModal();
 registerBlogCoAuthorCard();
 registerBlogInviteByEmail();
+registerBlogDossierCard();
 registerBlogLoopCard();
 registerBlogTodoCard();
 registerBlogPlanCard();

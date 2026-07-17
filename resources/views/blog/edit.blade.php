@@ -445,6 +445,139 @@
                 </div>
                 {{-- /Boucle card --}}
 
+                {{-- Dossier card --}}
+                <div
+                    x-data="blogDossierCard({
+                        currentDossierUrl: @js($_blogRoute('dossier.current', ['post' => $post])),
+                        dossiersUrl: @js($_blogRoute('dossiers.index')),
+                        attachUrl: @js($_blogRoute('dossier.attach', ['post' => $post])),
+                        detachUrl: @js($_blogRoute('dossier.detach', ['post' => $post])),
+                        quickCreateUrl: @js($_blogRoute('dossiers.store')),
+                        i18n: {
+                            sidebar: @js(__('blog.sidebar_dossier')),
+                            notClassified: @js(__('blog.dossier_not_classified')),
+                            selectPlaceholder: @js(__('blog.dossier_select_placeholder')),
+                            classify: @js(__('blog.dossier_classify')),
+                            move: @js(__('blog.dossier_move')),
+                            detach: @js(__('blog.dossier_detach')),
+                            classified: @js(__('blog.dossier_classified')),
+                            moved: @js(__('blog.dossier_moved')),
+                            detached: @js(__('blog.dossier_detached')),
+                            quickCreate: @js(__('blog.dossier_quick_create')),
+                            quickCreatePlaceholder: @js(__('blog.dossier_quick_create_placeholder')),
+                            quickCreateBtn: @js(__('blog.dossier_quick_create_btn')),
+                            created: @js(__('blog.dossier_quick_create_created')),
+                            loadError: @js(__('blog.dossier_load_error')),
+                            classifyError: @js(__('blog.dossier_classify_error')),
+                            detachError: @js(__('blog.dossier_detach_error')),
+                            createError: @js(__('blog.dossier_create_error')),
+                            notSaved: @js(__('blog.dossier_article_not_saved')),
+                            moveError: @js(__('blog.dossier_move_error')),
+                            csrfToken: @js(csrf_token()),
+                        },
+                    })"
+                    class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                            <span x-text="i18n.sidebar"></span>
+                        </span>
+                        <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="{ 'rotate-180': open }"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+                        <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                        <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                        <template x-if="loading">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2">…</p>
+                        </template>
+
+                        <template x-if="!loading && !currentDossier">
+                            <div class="space-y-2">
+                                <p class="text-xs text-gray-500 dark:text-gray-400" x-text="i18n.notClassified"></p>
+                                <div class="flex gap-2">
+                                    <select x-model="selectedDossierId"
+                                        class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-amber-500">
+                                        <option value="" x-text="i18n.selectPlaceholder"></option>
+                                        <template x-for="d in dossiers" :key="d.id">
+                                            <option :value="d.id" x-text="d.name"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" @click="classify()" :disabled="saving || !selectedDossierId"
+                                        class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                                        <span x-text="i18n.classify"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="!loading && currentDossier">
+                            <div class="rounded-lg border border-amber-100 bg-amber-50/60 p-2 dark:border-amber-900/60 dark:bg-amber-950/10">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="currentDossier.name"></span>
+                                    <button type="button" @click="detach()"
+                                        class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition disabled:opacity-50"
+                                        :disabled="saving">
+                                        <span x-text="i18n.detach"></span>
+                                    </button>
+                                </div>
+                                <div class="mt-1.5 flex gap-2">
+                                    <select x-model="selectedDossierId"
+                                        class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-amber-500">
+                                        <option value="" x-text="i18n.selectPlaceholder"></option>
+                                        <template x-for="d in dossiers.filter(d => d.id !== currentDossier.id)" :key="d.id">
+                                            <option :value="d.id" x-text="d.name"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" @click="classify()" :disabled="saving || !selectedDossierId"
+                                        class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                                        <span x-text="i18n.move"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="border-t border-gray-100 dark:border-gray-700 pt-3">
+                            <template x-if="!showQuickCreate">
+                                <button type="button" @click="showQuickCreate = true"
+                                    class="text-[10px] font-semibold text-amber-600 dark:text-amber-400 hover:underline">
+                                    <span x-text="i18n.quickCreate"></span>
+                                </button>
+                            </template>
+                            <template x-if="showQuickCreate">
+                                <div class="flex gap-1.5">
+                                    <input type="text" x-model="newDossierName"
+                                        :placeholder="i18n.quickCreatePlaceholder"
+                                        @keydown.enter="quickCreate()"
+                                        class="flex-1 min-w-0 px-2 py-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                                    >
+                                    <button type="button" @click="quickCreate()"
+                                        :disabled="creating || !newDossierName.trim()"
+                                        class="shrink-0 px-2 py-1 text-[10px] font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                                        <span x-text="creating ? '…' : i18n.quickCreateBtn"></span>
+                                    </button>
+                                    <button type="button" @click="showQuickCreate = false; newDossierName = ''"
+                                        class="shrink-0 px-2 py-1 text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+                                        ✕
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                {{-- /Dossier card --}}
+
                 {{-- Todo card --}}
                 <div
                     x-data="blogTodoCard({
