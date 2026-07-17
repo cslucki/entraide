@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BlogPost;
 use App\Models\Dossier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -34,6 +36,31 @@ class DossierController extends Controller
         $this->authorize('create', Dossier::class);
 
         return view('dossiers.create');
+    }
+
+    public function show(Request $request): View
+    {
+        $dossier = $this->resolveDossier($request->route('dossier'));
+        $organization = $this->currentOrganizationOrFail();
+        $this->ensureDossierBelongsToCurrentOrganization($dossier);
+        $this->authorize('view', $dossier);
+
+        $dossier->load([
+            'dossierBlogPosts.blogPost.user:id,first_name,name,email,organization_id',
+        ]);
+
+        $eligibleArticles = BlogPost::query()
+            ->with('user:id,first_name,name,email,organization_id')
+            ->where('organization_id', $organization->id)
+            ->where('user_id', $request->user()->id)
+            ->whereDoesntHave('dossierEntry')
+            ->latest('updated_at')
+            ->get(['id', 'organization_id', 'user_id', 'title', 'slug', 'status', 'updated_at']);
+
+        return view('dossiers.show', [
+            'dossier' => $dossier,
+            'eligibleArticles' => $eligibleArticles,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -100,7 +127,10 @@ class DossierController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('delete', $dossier);
 
-        $dossier->delete();
+        DB::transaction(function () use ($dossier) {
+            $dossier->dossierBlogPosts()->delete();
+            $dossier->delete();
+        });
 
         return redirect()
             ->route('organization.dossiers.index', ['organization' => $organization])
