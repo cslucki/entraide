@@ -228,6 +228,13 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function sharedDossiers(): BelongsToMany
+    {
+        return $this->belongsToMany(Dossier::class, 'dossier_members')
+            ->withPivot('role', 'added_by')
+            ->withTimestamps();
+    }
+
     public function getAvatarUrlAttribute(): string
     {
         if ($this->avatar) {

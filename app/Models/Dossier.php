@@ -20,6 +20,8 @@ class Dossier extends Model
 
     public const VISIBILITY_PRIVATE = 'private';
 
+    public const VISIBILITY_SHARED = 'shared';
+
     protected $fillable = [
         'organization_id',
         'owner_id',
@@ -49,5 +51,38 @@ class Dossier extends Model
             ->withTimestamps()
             ->orderByPivot('position')
             ->orderBy('blog_posts.created_at');
+    }
+
+    public function dossierMembers(): HasMany
+    {
+        return $this->hasMany(DossierMember::class);
+    }
+
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'dossier_members')
+            ->withPivot('role', 'added_by')
+            ->withTimestamps();
+    }
+
+    public function isMember(string $userId): bool
+    {
+        return $this->dossierMembers()->where('user_id', $userId)->exists();
+    }
+
+    public function memberRoleFor(string $userId): ?string
+    {
+        $member = $this->dossierMembers()->where('user_id', $userId)->first();
+
+        return $member?->role;
+    }
+
+    public function syncVisibility(): void
+    {
+        $hasMembers = $this->dossierMembers()->exists();
+
+        $this->update([
+            'visibility' => $hasMembers ? self::VISIBILITY_SHARED : self::VISIBILITY_PRIVATE,
+        ]);
     }
 }
