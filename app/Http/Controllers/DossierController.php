@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ArticleSeries;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use Illuminate\Http\RedirectResponse;
@@ -70,6 +71,11 @@ class DossierController extends Controller
             'dossierMembers.user:id,first_name,name,email',
         ]);
 
+        $series = ArticleSeries::where('dossier_id', $dossier->id)
+            ->where('organization_id', $organization->id)
+            ->with(['rootBlogPost:id,organization_id,user_id,title,slug,status,updated_at', 'items.blogPost:id,organization_id,user_id,title,slug,status,updated_at'])
+            ->first();
+
         $eligibleArticles = collect();
         if ($canManageArticles) {
             $eligibleArticles = BlogPost::query()
@@ -81,9 +87,24 @@ class DossierController extends Controller
                 ->get(['id', 'organization_id', 'user_id', 'title', 'slug', 'status', 'updated_at']);
         }
 
+        $seriesEligibleArticles = collect();
+        if ($canManageArticles && $series) {
+            $seriesEligibleArticles = $dossier->articles()
+                ->whereNotIn('blog_posts.id', array_merge(
+                    [$series->root_blog_post_id],
+                    $series->items->pluck('blog_post_id')->toArray()
+                ))
+                ->get(['id', 'organization_id', 'user_id', 'title', 'slug', 'status', 'updated_at']);
+        } elseif ($canManageArticles && ! $series) {
+            $seriesEligibleArticles = $dossier->articles()
+                ->get(['id', 'organization_id', 'user_id', 'title', 'slug', 'status', 'updated_at']);
+        }
+
         return view('dossiers.show', [
             'dossier' => $dossier,
             'eligibleArticles' => $eligibleArticles,
+            'series' => $series,
+            'seriesEligibleArticles' => $seriesEligibleArticles,
             'userRole' => $userRole,
             'canManageArticles' => $canManageArticles,
             'canManageMembers' => $isOwner,

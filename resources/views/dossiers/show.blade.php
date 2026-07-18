@@ -41,78 +41,227 @@
         @endif
 
         <div class="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-            <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.articles_title') }}</h2>
-                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.articles_help') }}</p>
+            <div class="flex flex-col gap-6">
+                <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.articles_title') }}</h2>
+                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.articles_help') }}</p>
+                        </div>
                     </div>
-                </div>
 
-                @if($entries->isEmpty())
-                    <div class="mt-6 rounded-2xl border border-dashed border-gray-300 px-5 py-10 text-center dark:border-gray-700">
-                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.articles_empty_title') }}</h3>
-                        <p class="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.articles_empty_body') }}</p>
-                    </div>
-                @else
-                    <ol class="mt-6 space-y-3">
-                        @foreach($entries as $index => $entry)
-                            @php $post = $entry->blogPost; @endphp
-                            <li class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-                                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                    <div class="min-w-0">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700">{{ $index + 1 }}</span>
-                                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $post->status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200' }}">
-                                                {{ __('dossiers.status_'.$post->status, [], app()->getLocale()) !== 'dossiers.status_'.$post->status ? __('dossiers.status_'.$post->status) : $post->status }}
-                                            </span>
+                    @if($entries->isEmpty())
+                        <div class="mt-6 rounded-2xl border border-dashed border-gray-300 px-5 py-10 text-center dark:border-gray-700">
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.articles_empty_title') }}</h3>
+                            <p class="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.articles_empty_body') }}</p>
+                        </div>
+                    @else
+                        <ol class="mt-6 space-y-3">
+                            @foreach($entries as $index => $entry)
+                                @php $post = $entry->blogPost; @endphp
+                                <li class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700">{{ $index + 1 }}</span>
+                                                @if($series && $series->root_blog_post_id === $post->id)
+                                                    <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">{{ __('dossiers.series_card_root') }}</span>
+                                                @elseif($series && $series->items->contains('blog_post_id', $post->id))
+                                                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/60 dark:text-amber-200">{{ __('dossiers.series_card_annex') }}</span>
+                                                @endif
+                                                <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $post->status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200' }}">
+                                                    {{ __('dossiers.status_'.$post->status, [], app()->getLocale()) !== 'dossiers.status_'.$post->status ? __('dossiers.status_'.$post->status) : $post->status }}
+                                                </span>
+                                            </div>
+                                            <h3 class="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $post->title }}</h3>
+                                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.article_updated_at', ['date' => $post->updated_at->diffForHumans()]) }}</p>
                                         </div>
-                                        <h3 class="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $post->title }}</h3>
-                                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.article_updated_at', ['date' => $post->updated_at->diffForHumans()]) }}</p>
+
+                                        @if($canManageArticles)
+                                            <div class="flex flex-col gap-2 sm:flex-row lg:flex-col">
+                                                <a href="{{ route('organization.blog.edit', ['organization' => $organizationRouteParam, 'post' => $post->slug]) }}" class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
+                                                    {{ __('dossiers.edit_article') }}
+                                                </a>
+                                                <form method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey(), 'post' => $post->getKey()]) }}" onsubmit="return confirm('{{ __('dossiers.confirm_detach_article', ['title' => $post->title]) }}')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30">
+                                                        {{ __('dossiers.detach_article') }}
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        @endif
                                     </div>
+                                </li>
+                            @endforeach
+                        </ol>
 
-                                    @if($canManageArticles)
-                                        <div class="flex flex-col gap-2 sm:flex-row lg:flex-col">
-                                            <a href="{{ route('organization.blog.edit', ['organization' => $organizationRouteParam, 'post' => $post->slug]) }}" class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
-                                                {{ __('dossiers.edit_article') }}
-                                            </a>
-                                            <form method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey(), 'post' => $post->getKey()]) }}" onsubmit="return confirm('{{ __('dossiers.confirm_detach_article', ['title' => $post->title]) }}')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="inline-flex w-full items-center justify-center rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30">
-                                                    {{ __('dossiers.detach_article') }}
-                                                </button>
-                                            </form>
-                                        </div>
-                                    @endif
+                        @if($canManageArticles && $entries->count() > 1)
+                            <form method="POST" action="{{ route('organization.dossiers.articles.reorder', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]) }}" class="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                                @csrf
+                                @method('PATCH')
+                                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.reorder_title') }}</h3>
+                                <p class="mt-1 text-xs text-gray-600 dark:text-gray-300">{{ __('dossiers.reorder_help') }}</p>
+                                <div class="mt-4 space-y-2">
+                                    @foreach($entries as $entry)
+                                        <label class="grid gap-2 sm:grid-cols-[4rem_minmax(0,1fr)] sm:items-center">
+                                            <span class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{{ __('dossiers.position') }}</span>
+                                            <select name="articles[]" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                                @foreach($entries as $option)
+                                                    <option value="{{ $option->blog_post_id }}" @selected($option->blog_post_id === $entry->blog_post_id)>{{ $option->blogPost->title }}</option>
+                                                @endforeach
+                                            </select>
+                                        </label>
+                                    @endforeach
                                 </div>
-                            </li>
-                        @endforeach
-                    </ol>
-
-                    @if($canManageArticles && $entries->count() > 1)
-                        <form method="POST" action="{{ route('organization.dossiers.articles.reorder', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]) }}" class="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-                            @csrf
-                            @method('PATCH')
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.reorder_title') }}</h3>
-                            <p class="mt-1 text-xs text-gray-600 dark:text-gray-300">{{ __('dossiers.reorder_help') }}</p>
-                            <div class="mt-4 space-y-2">
-                                @foreach($entries as $entry)
-                                    <label class="grid gap-2 sm:grid-cols-[4rem_minmax(0,1fr)] sm:items-center">
-                                        <span class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{{ __('dossiers.position') }}</span>
-                                        <select name="articles[]" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
-                                            @foreach($entries as $option)
-                                                <option value="{{ $option->blog_post_id }}" @selected($option->blog_post_id === $entry->blog_post_id)>{{ $option->blogPost->title }}</option>
-                                            @endforeach
-                                        </select>
-                                    </label>
-                                @endforeach
-                            </div>
-                            <x-primary-button class="mt-4">{{ __('dossiers.save_order') }}</x-primary-button>
-                        </form>
+                                <x-primary-button class="mt-4">{{ __('dossiers.save_order') }}</x-primary-button>
+                            </form>
+                        @endif
                     @endif
-                @endif
-            </section>
+                </section>
+
+                {{-- Series Section --}}
+                <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
+                         x-data="dossierSeriesCard({
+                             csrfToken: '{{ csrf_token() }}',
+                             dossierId: '{{ $dossier->getKey() }}',
+                             orgParam: '{{ $organizationRouteParam }}',
+                             hasSeries: {{ $series ? 'true' : 'false' }},
+                             seriesId: '{{ $series?->getKey() }}',
+                             rootPostId: '{{ $series?->root_blog_post_id }}',
+                             rootPostTitle: '{!! addslashes($series?->rootBlogPost?->title ?? '') !!}',
+                             annexes: @json($series?->items->map(fn($item) => ['id' => $item->getKey(), 'blog_post_id' => $item->blog_post_id, 'title' => $item->blogPost->title ?? '—', 'position' => $item->position]) ?? []),
+                             eligibleArticles: @json($seriesEligibleArticles->map(fn($a) => ['id' => $a->id, 'title' => $a->title, 'status' => $a->status])),
+                             i18n: {
+                                 emptyTitle: '{{ __('dossiers.series_empty_title') }}',
+                                 emptyBody: '{{ __('dossiers.series_empty_body') }}',
+                                 createBtn: '{{ __('dossiers.series_create') }}',
+                                 rootLabel: '{{ __('dossiers.series_root_label') }}',
+                                 annexesLabel: '{{ __('dossiers.series_annexes') }}',
+                                 annexesEmpty: '{{ __('dossiers.series_annexes_empty') }}',
+                                 addAnnex: '{{ __('dossiers.series_annex_add') }}',
+                                 addAnnexHelp: '{{ __('dossiers.series_annex_add_help') }}',
+                                 annexSelect: '{{ __('dossiers.series_annex_select') }}',
+                                 deleteSeries: '{{ __('dossiers.series_delete') }}',
+                                 deleteConfirm: '{{ __('dossiers.series_delete_confirm') }}',
+                                 seriesCreated: '{{ __('dossiers.series_created') }}',
+                                 rootSet: '{{ __('dossiers.series_root_set') }}',
+                                 annexAdded: '{{ __('dossiers.annex_added') }}',
+                                 annexRemoved: '{{ __('dossiers.annex_removed') }}',
+                                 seriesDeleted: '{{ __('dossiers.series_deleted') }}',
+                                 noAnnexesToAdd: '{{ __('dossiers.series_no_annexes_to_add') }}',
+                                 editArticle: '{{ __('dossiers.edit_article') }}',
+                             }
+                         })">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.series_title') }}</h2>
+                    <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.series_empty_body') }}</p>
+
+                    <div x-show="message" x-transition
+                         :class="messageType === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-200' : 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-200'"
+                         class="mt-4 rounded-xl border px-4 py-3 text-sm font-medium">
+                        <span x-text="message"></span>
+                    </div>
+
+                    {{-- No series state --}}
+                    <div x-show="!hasSeries" class="mt-6">
+                        <div class="rounded-2xl border border-dashed border-gray-300 px-5 py-8 text-center dark:border-gray-700">
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.emptyTitle"></h3>
+                            <p class="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-gray-300" x-text="i18n.emptyBody"></p>
+                            @if($canManageArticles && $entries->isNotEmpty())
+                                <div class="mt-4">
+                                    <select x-model="newRootPostId" class="rounded-lg border-gray-300 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                        <option value="">{{ i18n.rootLabel ?? __('dossiers.series_root_label') }}</option>
+                                        @foreach($entries as $entry)
+                                            <option value="{{ $entry->blog_post_id }}">{{ $entry->blogPost->title }}</option>
+                                        @endforeach
+                                    </select>
+                                    <button @click="createSeries()" :disabled="!newRootPostId || saving"
+                                            class="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                                        <span x-show="!saving" x-text="i18n.createBtn"></span>
+                                        <span x-show="saving">...</span>
+                                    </button>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Series exists --}}
+                    <div x-show="hasSeries" class="mt-6 space-y-5">
+                        {{-- Root article --}}
+                        <div class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400" x-text="i18n.rootLabel"></span>
+                                    <h4 class="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="rootPostTitle"></h4>
+                                </div>
+                                @if($canManageArticles)
+                                    <div class="flex items-center gap-2">
+                                        <a :href="'{{ route('organization.blog.edit', ['organization' => $organizationRouteParam, 'post' => '__SLUG__']) }}'.replace('__SLUG__', rootSlug)" class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle" x-show="rootSlug"></a>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        {{-- Annexes --}}
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.annexesLabel"></h3>
+                            <template x-if="annexes.length === 0">
+                                <p class="mt-2 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:bg-gray-900/40 dark:text-gray-300" x-text="i18n.annexesEmpty"></p>
+                            </template>
+                            <div class="mt-3 space-y-2">
+                                <template x-for="(annex, idx) in annexes" :key="annex.id">
+                                    <div class="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40">
+                                        <div class="flex items-center gap-3">
+                                            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700" x-text="idx + 1"></span>
+                                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="annex.title"></span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <a :href="'{{ route('organization.blog.edit', ['organization' => $organizationRouteParam, 'post' => '__SLUG__']) }}'.replace('__SLUG__', annex.slug)" class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle" x-show="annex.slug"></a>
+                                            <button @click="removeAnnex(annex)" class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        {{-- Add annex --}}
+                        @if($canManageArticles)
+                            <div x-show="eligibleArticles.length > 0">
+                                <button @click="showAddAnnex = !showAddAnnex" class="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                                    <span x-text="i18n.addAnnex"></span>
+                                </button>
+                                <div x-show="showAddAnnex" x-transition class="mt-3 space-y-3">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400" x-text="i18n.addAnnexHelp"></p>
+                                    <select x-model="annexToAdding" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                        <option value="">{{ __('dossiers.series_annex_select') }}</option>
+                                        <template x-for="a in eligibleArticles" :key="a.id">
+                                            <option :value="a.id" x-text="a.title"></option>
+                                        </template>
+                                    </select>
+                                    <button @click="addAnnex()" :disabled="!annexToAdding || saving"
+                                            class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                                        <span x-text="i18n.addAnnex"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- Delete series --}}
+                        @if($canManageArticles)
+                            <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <button @click="if(confirm(i18n.deleteConfirm)) deleteSeries()"
+                                        class="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 hover:underline dark:text-red-400">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    <span x-text="i18n.deleteSeries"></span>
+                                </button>
+                            </div>
+                        @endif
+                    </div>
+                </section>
+            </div>
 
             <div class="flex flex-col gap-6">
                 <aside class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
