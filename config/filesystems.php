@@ -77,6 +77,15 @@ return [
             'report' => false,
         ],
 
+        'dossier_files' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/dossier-files'),
+            'serve' => true,
+            'url' => '/dossier-files',
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

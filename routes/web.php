@@ -50,6 +50,7 @@ use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
+use App\Http\Controllers\DossierFileController;
 use App\Http\Controllers\DossierMemberController;
 use App\Http\Controllers\DossierSeriesController;
 use App\Http\Controllers\ExplorerController;
@@ -688,6 +689,10 @@ Route::prefix('/org/{organization}')
                 Route::get('/dossiers/{dossier}/edit', [DossierController::class, 'edit'])->name('dossiers.edit');
                 Route::patch('/dossiers/{dossier}', [DossierController::class, 'update'])->name('dossiers.update');
                 Route::delete('/dossiers/{dossier}', [DossierController::class, 'destroy'])->name('dossiers.destroy');
+                Route::get('/dossiers/{dossier}/files', [DossierFileController::class, 'index'])->name('dossiers.files.index');
+                Route::post('/dossiers/{dossier}/files', [DossierFileController::class, 'store'])->name('dossiers.files.store');
+                Route::get('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'show'])->name('dossiers.files.show');
+                Route::delete('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'destroy'])->name('dossiers.files.destroy');
 
                 // Blog (org-scoped)
                 Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->name('blog.create');

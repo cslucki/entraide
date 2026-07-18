@@ -180,6 +180,7 @@ class DossierController extends Controller
             $seriesIds = $dossier->articleSeries()->pluck('id');
             ArticleSeriesItem::whereIn('article_series_id', $seriesIds)->delete();
             ArticleSeries::whereIn('id', $seriesIds)->delete();
+            $dossier->files()->update(['dossier_id' => null]);
             $dossier->dossierMembers()->delete();
             $dossier->dossierBlogPosts()->delete();
             $dossier->delete();

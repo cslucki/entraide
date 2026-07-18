@@ -63,6 +63,11 @@ class Dossier extends Model
         return $this->hasMany(ArticleSeries::class);
     }
 
+    public function files(): HasMany
+    {
+        return $this->hasMany(DossierFile::class);
+    }
+
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'dossier_members')

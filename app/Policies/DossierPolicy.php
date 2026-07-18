@@ -79,6 +79,21 @@ class DossierPolicy
         return $this->view($user, $dossier);
     }
 
+    public function manageFiles(User $user, Dossier $dossier): bool
+    {
+        return $this->update($user, $dossier);
+    }
+
+    public function viewFiles(User $user, Dossier $dossier): bool
+    {
+        return $this->view($user, $dossier);
+    }
+
+    public function deleteFile(User $user, Dossier $dossier): bool
+    {
+        return $this->isOwner($user, $dossier);
+    }
+
     public function isOwner(User $user, Dossier $dossier): bool
     {
         $organization = currentOrganization();

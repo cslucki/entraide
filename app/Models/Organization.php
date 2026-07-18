@@ -58,6 +58,7 @@ class Organization extends Model
         'membership_label_en',
         'homepage_template',
         'homepage_settings',
+        'dossier_storage_quota_bytes',
     ];
 
     protected function casts(): array
@@ -170,6 +171,35 @@ class Organization extends Model
     public function theme(): BelongsTo
     {
         return $this->belongsTo(Theme::class);
+    }
+
+    public function dossierFiles(): HasMany
+    {
+        return $this->hasMany(DossierFile::class);
+    }
+
+    public function dossierStorageUsedBytes(): int
+    {
+        return (int) $this->dossierFiles()->sum('size_bytes');
+    }
+
+    public function dossierStorageQuotaBytes(): ?int
+    {
+        return $this->dossier_storage_quota_bytes ? (int) $this->dossier_storage_quota_bytes : null;
+    }
+
+    public function hasDossierStorageQuota(): bool
+    {
+        return $this->dossier_storage_quota_bytes !== null && (int) $this->dossier_storage_quota_bytes > 0;
+    }
+
+    public function dossierStorageRemainingBytes(): ?int
+    {
+        if (! $this->hasDossierStorageQuota()) {
+            return null;
+        }
+
+        return max(0, $this->dossierStorageQuotaBytes() - $this->dossierStorageUsedBytes());
     }
 
     public function isMonoLoop(): bool
