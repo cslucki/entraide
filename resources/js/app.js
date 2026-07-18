@@ -1787,6 +1787,152 @@ function registerBlogDossierCard() {
     }));
 }
 
+function registerDossierSeriesCard() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierSeriesCard', (config) => ({
+        hasSeries: config.hasSeries,
+        seriesId: config.seriesId || null,
+        rootPostId: config.rootPostId || null,
+        rootPostTitle: config.rootPostTitle || '',
+        rootSlug: '',
+        annexes: config.annexes || [],
+        eligibleArticles: config.eligibleArticles || [],
+        newRootPostId: '',
+        annexToAdding: '',
+        showAddAnnex: false,
+        saving: false,
+        message: '',
+        messageType: 'success',
+        csrfToken: config.csrfToken,
+        dossierId: config.dossierId,
+        orgParam: config.orgParam,
+        i18n: config.i18n,
+
+        init() {
+            if (this.hasSeries && this.rootPostId) {
+                const rootArticle = this.eligibleArticles.find(a => a.id === this.rootPostId);
+                if (!rootArticle) {
+                    this.eligibleArticles.unshift({ id: this.rootPostId, title: this.rootPostTitle, status: '' });
+                }
+            }
+        },
+
+        showMessage(text, type = 'success') {
+            this.message = text;
+            this.messageType = type;
+            setTimeout(() => { this.message = ''; }, 3000);
+        },
+
+        createSeries() {
+            if (!this.newRootPostId) return;
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series`;
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': this.csrfToken },
+                body: JSON.stringify({ root_blog_post_id: this.newRootPostId }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || data.root_blog_post_id?.[0] || 'Error', 'error');
+                        return;
+                    }
+                    this.hasSeries = true;
+                    this.seriesId = data.series.id;
+                    this.rootPostId = data.series.root_blog_post_id;
+                    this.rootPostTitle = data.series.root_blog_post?.title || '';
+                    this.rootSlug = data.series.root_blog_post?.slug || '';
+                    this.annexes = [];
+                    this.newRootPostId = '';
+                    this.showMessage(this.i18n.seriesCreated);
+                })
+                .catch(() => this.showMessage('Error', 'error'))
+                .finally(() => { this.saving = false; });
+        },
+
+        addAnnex() {
+            if (!this.annexToAdding) return;
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes`;
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': this.csrfToken },
+                body: JSON.stringify({ blog_post_id: this.annexToAdding }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || data.blog_post_id?.[0] || 'Error', 'error');
+                        return;
+                    }
+                    this.annexes.push({
+                        id: data.item.id,
+                        blog_post_id: data.item.blog_post_id,
+                        title: data.item.blogPost?.title || '—',
+                        position: this.annexes.length + 1,
+                    });
+                    this.eligibleArticles = this.eligibleArticles.filter(a => a.id !== this.annexToAdding);
+                    this.annexToAdding = '';
+                    this.showAddAnnex = false;
+                    this.showMessage(this.i18n.annexAdded);
+                })
+                .catch(() => this.showMessage('Error', 'error'))
+                .finally(() => { this.saving = false; });
+        },
+
+        removeAnnex(annex) {
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/${annex.blog_post_id}`;
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': this.csrfToken },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || 'Error', 'error');
+                        return;
+                    }
+                    this.annexes = this.annexes.filter(a => a.id !== annex.id);
+                    this.eligibleArticles.push({ id: annex.blog_post_id, title: annex.title, status: '' });
+                    this.showMessage(this.i18n.annexRemoved);
+                })
+                .catch(() => this.showMessage('Error', 'error'))
+                .finally(() => { this.saving = false; });
+        },
+
+        deleteSeries() {
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series`;
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': this.csrfToken },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || 'Error', 'error');
+                        return;
+                    }
+                    this.annexes.forEach(a => {
+                        this.eligibleArticles.push({ id: a.blog_post_id, title: a.title, status: '' });
+                    });
+                    this.hasSeries = false;
+                    this.seriesId = null;
+                    this.rootPostId = null;
+                    this.rootPostTitle = '';
+                    this.rootSlug = '';
+                    this.annexes = [];
+                    this.showMessage(this.i18n.seriesDeleted);
+                })
+                .catch(() => this.showMessage('Error', 'error'))
+                .finally(() => { this.saving = false; });
+        },
+    }));
+}
+
 function registerDossierMembersCard() {
     if (typeof Alpine === 'undefined') return;
 
@@ -3971,6 +4117,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogCoAuthorCard();
     registerBlogInviteByEmail();
     registerBlogDossierCard();
+    registerDossierSeriesCard();
     registerDossierMembersCard();
     registerBlogLoopCard();
     registerBlogTodoCard();
@@ -3987,6 +4134,7 @@ registerAnnotationModal();
 registerBlogCoAuthorCard();
 registerBlogInviteByEmail();
     registerBlogDossierCard();
+    registerDossierSeriesCard();
     registerDossierMembersCard();
     registerBlogLoopCard();
     registerBlogTodoCard();

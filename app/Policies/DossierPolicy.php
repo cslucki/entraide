@@ -69,6 +69,16 @@ class DossierPolicy
         return $this->update($user, $dossier);
     }
 
+    public function manageSeries(User $user, Dossier $dossier): bool
+    {
+        return $this->update($user, $dossier);
+    }
+
+    public function viewSeries(User $user, Dossier $dossier): bool
+    {
+        return $this->view($user, $dossier);
+    }
+
     public function isOwner(User $user, Dossier $dossier): bool
     {
         $organization = currentOrganization();
