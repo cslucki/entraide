@@ -2,6 +2,8 @@
     @php
         $organizationRouteParam = request()->route('organization');
         $entries = $dossier->dossierBlogPosts->filter(fn ($entry) => $entry->blogPost !== null)->values();
+        $annexesJson = json_encode($series?->items->map(fn($item) => ['id' => $item->getKey(), 'blog_post_id' => $item->blog_post_id, 'title' => $item->blogPost->title ?? '—', 'position' => $item->position]) ?? []);
+        $eligibleArticlesJson = json_encode($seriesEligibleArticles->map(fn($a) => ['id' => $a->id, 'title' => $a->title, 'status' => $a->status]));
     @endphp
 
     <x-slot name="title">{{ $dossier->name }} — {{ __('dossiers.title') }} — {{ $brandOrganizationName ?? 'BouclePro' }}</x-slot>
@@ -130,8 +132,8 @@
                              seriesId: '{{ $series?->getKey() }}',
                              rootPostId: '{{ $series?->root_blog_post_id }}',
                              rootPostTitle: '{!! addslashes($series?->rootBlogPost?->title ?? '') !!}',
-                             annexes: @json($series?->items->map(fn($item) => ['id' => $item->getKey(), 'blog_post_id' => $item->blog_post_id, 'title' => $item->blogPost->title ?? '—', 'position' => $item->position]) ?? []),
-                             eligibleArticles: @json($seriesEligibleArticles->map(fn($a) => ['id' => $a->id, 'title' => $a->title, 'status' => $a->status])),
+                             annexes: {!! $annexesJson !!},
+                             eligibleArticles: {!! $eligibleArticlesJson !!},
                              i18n: {
                                  emptyTitle: '{{ __('dossiers.series_empty_title') }}',
                                  emptyBody: '{{ __('dossiers.series_empty_body') }}',
@@ -170,7 +172,7 @@
                             @if($canManageArticles && $entries->isNotEmpty())
                                 <div class="mt-4">
                                     <select x-model="newRootPostId" class="rounded-lg border-gray-300 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
-                                        <option value="">{{ i18n.rootLabel ?? __('dossiers.series_root_label') }}</option>
+                                        <option value="">{{ __('dossiers.series_root_label') }}</option>
                                         @foreach($entries as $entry)
                                             <option value="{{ $entry->blog_post_id }}">{{ $entry->blogPost->title }}</option>
                                         @endforeach

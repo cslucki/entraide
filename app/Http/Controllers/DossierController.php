@@ -95,10 +95,10 @@ class DossierController extends Controller
                     [$series->root_blog_post_id],
                     $series->items->pluck('blog_post_id')->toArray()
                 ))
-                ->get(['id', 'organization_id', 'user_id', 'title', 'slug', 'status', 'updated_at']);
+                ->get(['blog_posts.id', 'blog_posts.organization_id', 'user_id', 'title', 'slug', 'status', 'blog_posts.updated_at']);
         } elseif ($canManageArticles && ! $series) {
             $seriesEligibleArticles = $dossier->articles()
-                ->get(['id', 'organization_id', 'user_id', 'title', 'slug', 'status', 'updated_at']);
+                ->get(['blog_posts.id', 'blog_posts.organization_id', 'user_id', 'title', 'slug', 'status', 'blog_posts.updated_at']);
         }
 
         return view('dossiers.show', [
