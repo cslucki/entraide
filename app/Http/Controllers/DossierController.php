@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ArticleSeries;
+use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use Illuminate\Http\RedirectResponse;
@@ -176,6 +177,9 @@ class DossierController extends Controller
         $this->authorize('delete', $dossier);
 
         DB::transaction(function () use ($dossier) {
+            $seriesIds = $dossier->articleSeries()->pluck('id');
+            ArticleSeriesItem::whereIn('article_series_id', $seriesIds)->delete();
+            ArticleSeries::whereIn('id', $seriesIds)->delete();
             $dossier->dossierMembers()->delete();
             $dossier->dossierBlogPosts()->delete();
             $dossier->delete();
