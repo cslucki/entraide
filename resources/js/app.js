@@ -2067,6 +2067,144 @@ function registerDossierMembersCard() {
     }));
 }
 
+function registerDossierFilesCard() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierFilesCard', (config) => ({
+        files: [],
+        quota: { used_bytes: 0, limit_bytes: null, remaining_bytes: null },
+        uploading: false,
+        saving: false,
+        message: '',
+        messageType: 'success',
+        csrfToken: config.csrfToken,
+        dossierId: config.dossierId,
+        orgParam: config.orgParam,
+        canManageFiles: config.canManageFiles,
+        canDeleteFiles: config.canDeleteFiles,
+        i18n: config.i18n,
+        currentPage: 1,
+        lastPage: 1,
+        totalFiles: 0,
+
+        init() {
+            this.loadFiles();
+        },
+
+        loadFiles(page) {
+            page = page || 1;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files?page=${page}`;
+            fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(data => {
+                    this.files = (data.files.data || []).map(f => ({
+                        ...f,
+                        sizeFormatted: this.formatBytes(f.size_bytes),
+                        uploadedAtFormatted: f.created_at ? new Date(f.created_at).toLocaleDateString() : '',
+                    }));
+                    this.quota = data.quota || this.quota;
+                    this.currentPage = data.files.current_page || 1;
+                    this.lastPage = data.files.last_page || 1;
+                    this.totalFiles = data.files.total || 0;
+                })
+                .catch(() => {});
+        },
+
+        formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 o';
+            const units = ['o', 'Ko', 'Mo', 'Go'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+        },
+
+        formatQuota(bytes) {
+            return this.formatBytes(bytes);
+        },
+
+        uploadFiles(event) {
+            const input = event.target;
+            const fileInput = input.closest ? input : document.getElementById('dossier-file-input');
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
+
+            const formData = new FormData();
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('files[]', fileInput.files[i]);
+            }
+
+            this.uploading = true;
+            this.message = '';
+
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files`;
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.uploadFailed, 'error');
+                        return;
+                    }
+                    this.showMessage(data.message || this.i18n.uploaded, 'success');
+                    fileInput.value = '';
+                    this.loadFiles();
+                })
+                .catch(() => this.showMessage(this.i18n.uploadFailed, 'error'))
+                .finally(() => { this.uploading = false; });
+        },
+
+        deleteFile(file) {
+            if (!confirm(this.i18n.confirmDelete)) return;
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
+            fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.deleteFailed, 'error');
+                        return;
+                    }
+                    this.showMessage(data.message || this.i18n.deleted, 'success');
+                    this.files = this.files.filter(f => f.id !== file.id);
+                    this.totalFiles--;
+                    this.loadFiles(this.currentPage);
+                })
+                .catch(() => this.showMessage(this.i18n.deleteFailed, 'error'))
+                .finally(() => { this.saving = false; });
+        },
+
+        get quotaPercent() {
+            if (!this.quota.limit_bytes || this.quota.limit_bytes === 0) return 0;
+            return Math.min(100, Math.round((this.quota.used_bytes / this.quota.limit_bytes) * 100));
+        },
+
+        get quotaLabel() {
+            if (this.quota.limit_bytes === null) {
+                return this.i18n.storageUnlimited + ' — ' + this.formatQuota(this.quota.used_bytes) + ' ' + this.i18n.storageUsedLabel;
+            }
+            return this.formatQuota(this.quota.used_bytes) + ' / ' + this.formatQuota(this.quota.limit_bytes);
+        },
+
+        showMessage(text, type) {
+            this.message = text;
+            this.messageType = type;
+            setTimeout(() => { this.message = ''; }, 3000);
+        },
+    }));
+}
+
 function registerBlogLoopCard() {
     if (!window.Alpine || window.__blogLoopCardRegistered) {
         return;
@@ -4119,6 +4257,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogDossierCard();
     registerDossierSeriesCard();
     registerDossierMembersCard();
+    registerDossierFilesCard();
     registerBlogLoopCard();
     registerBlogTodoCard();
     registerBlogPlanCard();
@@ -4136,6 +4275,7 @@ registerBlogInviteByEmail();
     registerBlogDossierCard();
     registerDossierSeriesCard();
     registerDossierMembersCard();
+    registerDossierFilesCard();
     registerBlogLoopCard();
     registerBlogTodoCard();
 registerBlogPlanCard();

@@ -263,6 +263,117 @@
                         @endif
                     </div>
                 </section>
+
+                {{-- Files Section --}}
+                @if($canViewFiles)
+                <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
+                         x-data="dossierFilesCard({
+                             csrfToken: '{{ csrf_token() }}',
+                             dossierId: '{{ $dossier->getKey() }}',
+                             orgParam: '{{ $organizationRouteParam }}',
+                             canManageFiles: {{ $canManageFiles ? 'true' : 'false' }},
+                             canDeleteFiles: {{ $canDeleteFiles ? 'true' : 'false' }},
+                             i18n: {
+                                 title: '{{ __('dossiers.files_title') }}',
+                                 emptyTitle: '{{ __('dossiers.files_empty_title') }}',
+                                 emptyBody: '{{ __('dossiers.files_empty_body') }}',
+                                 uploadHelp: '{{ __('dossiers.file_upload_help') }}',
+                                 uploaded: '{{ __('dossiers.file_uploaded') }}',
+                                 uploadFailed: '{{ __('dossiers.file_upload_failed') }}',
+                                 deleted: '{{ __('dossiers.file_deleted') }}',
+                                 deleteFailed: '{{ __('dossiers.file_upload_failed') }}',
+                                 confirmDelete: '{{ __('dossiers.file_confirm_delete') }}',
+                                 download: '{{ __('dossiers.file_download') }}',
+                                 deleteFile: '{{ __('dossiers.file_delete') }}',
+                                 name: '{{ __('dossiers.file_name') }}',
+                                 size: '{{ __('dossiers.file_size') }}',
+                                 uploadedBy: '{{ __('dossiers.file_uploaded_by') }}',
+                                 storageUnlimited: '{{ __('dossiers.storage_unlimited') }}',
+                                 storageUsedLabel: '{{ __('dossiers.storage_used') }}',
+                             }
+                         })">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.files_title') }}</h2>
+                    <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.files_empty_body') }}</p>
+
+                    <div x-show="message" x-transition
+                         :class="messageType === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-200' : 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-200'"
+                         class="mt-4 rounded-xl border px-4 py-3 text-sm font-medium">
+                        <span x-text="message"></span>
+                    </div>
+
+                    {{-- Upload form --}}
+                    @if($canManageFiles)
+                    <div class="mt-5">
+                        <label class="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700" :class="uploading ? 'opacity-50 pointer-events-none' : ''">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                            <span x-text="uploading ? '...' : '{{ __('dossiers.file_upload') }}'"></span>
+                            <input id="dossier-file-input" type="file" multiple accept=".jpeg,.jpg,.png,.webp,.gif,.pdf,.doc,.docx"
+                                   class="sr-only" @change="uploadFiles($event)">
+                        </label>
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.file_upload_help') }}</p>
+                    </div>
+                    @endif
+
+                    {{-- Quota bar --}}
+                    <div class="mt-5" x-show="totalFiles > 0 || quota.used_bytes > 0">
+                        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <span x-text="quotaLabel"></span>
+                        </div>
+                        <div class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" x-show="quota.limit_bytes !== null">
+                            <div class="h-full rounded-full transition-all duration-300"
+                                 :class="quotaPercent > 90 ? 'bg-red-500' : (quotaPercent > 70 ? 'bg-amber-500' : 'bg-indigo-500')"
+                                 :style="'width:' + quotaPercent + '%'"></div>
+                        </div>
+                    </div>
+
+                    {{-- File list --}}
+                    <div class="mt-5 space-y-3">
+                        <template x-for="file in files" :key="file.id">
+                            <div class="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="file.display_name || file.original_name"></span>
+                                        <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="file.mime_type"></span>
+                                    </div>
+                                    <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                        <span x-text="file.sizeFormatted"></span>
+                                        <span x-show="file.uploader" x-text="'{{ __('dossiers.file_uploaded_by') }}: ' + (file.uploader?.name || file.uploader?.email || '')"></span>
+                                        <span x-show="file.uploadedAtFormatted" x-text="file.uploadedAtFormatted"></span>
+                                    </div>
+                                </div>
+                                <div class="ml-4 flex items-center gap-2 shrink-0">
+                                    <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
+                                       class="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                                       x-text="i18n.download"></a>
+                                    @if($canDeleteFiles)
+                                    <button @click="deleteFile(file)" :disabled="saving"
+                                            class="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30 disabled:opacity-50">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        <span x-text="i18n.deleteFile"></span>
+                                    </button>
+                                    @endif
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="files.length === 0 && totalFiles === 0">
+                            <div class="rounded-2xl border border-dashed border-gray-300 px-5 py-8 text-center dark:border-gray-700">
+                                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.emptyTitle"></h3>
+                                <p class="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-gray-300" x-text="i18n.emptyBody"></p>
+                            </div>
+                        </template>
+                    </div>
+
+                    {{-- Pagination --}}
+                    <div class="mt-4 flex items-center justify-center gap-2" x-show="lastPage > 1">
+                        <button @click="loadFiles(currentPage - 1)" :disabled="currentPage <= 1"
+                                class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">&laquo;</button>
+                        <span class="text-xs text-gray-500 dark:text-gray-400" x-text="currentPage + ' / ' + lastPage"></span>
+                        <button @click="loadFiles(currentPage + 1)" :disabled="currentPage >= lastPage"
+                                class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">&raquo;</button>
+                    </div>
+                </section>
+                @endif
             </div>
 
             <div class="flex flex-col gap-6">

@@ -101,6 +101,10 @@ class DossierController extends Controller
                 ->get(['blog_posts.id', 'blog_posts.organization_id', 'user_id', 'title', 'slug', 'status', 'blog_posts.updated_at']);
         }
 
+        $canViewFiles = $userRole !== 'none';
+        $canManageFiles = $isOwner || $userRole === 'editor';
+        $canDeleteFiles = $isOwner;
+
         return view('dossiers.show', [
             'dossier' => $dossier,
             'eligibleArticles' => $eligibleArticles,
@@ -109,6 +113,9 @@ class DossierController extends Controller
             'userRole' => $userRole,
             'canManageArticles' => $canManageArticles,
             'canManageMembers' => $isOwner,
+            'canViewFiles' => $canViewFiles,
+            'canManageFiles' => $canManageFiles,
+            'canDeleteFiles' => $canDeleteFiles,
         ]);
     }
 

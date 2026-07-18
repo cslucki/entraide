@@ -7,6 +7,7 @@ use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
+use App\Models\DossierMember;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -152,7 +153,7 @@ class DossierSeriesTest extends TestCase
         $post = $this->blogPost($this->orgA, $this->ownerA, 'Root article');
         $this->attach($dossier, $post, $this->ownerA, 1);
 
-        \App\Models\DossierMember::create([
+        DossierMember::create([
             'organization_id' => $this->orgA->id,
             'dossier_id' => $dossier->id,
             'user_id' => $this->readerA->id,
@@ -173,7 +174,7 @@ class DossierSeriesTest extends TestCase
         $post = $this->blogPost($this->orgA, $this->ownerA, 'Root article');
         $this->attach($dossier, $post, $this->ownerA, 1);
 
-        \App\Models\DossierMember::create([
+        DossierMember::create([
             'organization_id' => $this->orgA->id,
             'dossier_id' => $dossier->id,
             'user_id' => $this->editorA->id,
