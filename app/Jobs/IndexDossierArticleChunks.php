@@ -4,12 +4,13 @@ namespace App\Jobs;
 
 use App\Services\Dossiers\DossierArticleIndexer;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 
 class IndexDossierArticleChunks implements ShouldQueue
 {
-    use Queueable;
+    use Dispatchable, Queueable;
 
     public int $tries = 3;
 

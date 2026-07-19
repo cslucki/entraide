@@ -7,7 +7,9 @@ use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Listeners\LoginListener;
 use App\Models\AiConfig;
+use App\Models\BlogPost;
 use App\Models\BugReport;
+use App\Models\Dossier;
 use App\Models\EmailLog;
 use App\Models\FeedPost;
 use App\Models\Loop;
@@ -21,6 +23,8 @@ use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Observers\BlogPostObserver;
+use App\Observers\DossierObserver;
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
 use App\Observers\TranslationOverrideObserver;
@@ -169,6 +173,8 @@ class AppServiceProvider extends ServiceProvider
         Transaction::observe(TransactionObserver::class);
         Service::observe(ServiceObserver::class);
         TranslationOverride::observe(TranslationOverrideObserver::class);
+        BlogPost::observe(BlogPostObserver::class);
+        Dossier::observe(DossierObserver::class);
 
         Event::listen(
             LoopMessageCreated::class,
