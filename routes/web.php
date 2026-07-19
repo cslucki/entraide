@@ -52,6 +52,7 @@ use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
 use App\Http\Controllers\DossierFileController;
 use App\Http\Controllers\DossierMemberController;
+use App\Http\Controllers\DossierSemanticSearchController;
 use App\Http\Controllers\DossierSeriesController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
@@ -671,6 +672,7 @@ Route::prefix('/org/{organization}')
                 Route::get('/dossiers/create', [DossierController::class, 'create'])->name('dossiers.create');
                 Route::post('/dossiers', [DossierController::class, 'store'])->name('dossiers.store');
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
+                Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/articles', [DossierArticleController::class, 'store'])->name('dossiers.articles.store');
                 Route::delete('/dossiers/{dossier}/articles/{post}', [DossierArticleController::class, 'destroy'])->name('dossiers.articles.destroy');
                 Route::patch('/dossiers/{dossier}/articles/reorder', [DossierArticleController::class, 'reorder'])->name('dossiers.articles.reorder');
