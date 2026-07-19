@@ -7,6 +7,7 @@ use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
+use App\Services\Dossiers\DossierSemanticSearchGate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -56,7 +57,7 @@ class DossierController extends Controller
         return view('dossiers.create');
     }
 
-    public function show(Request $request): View
+    public function show(Request $request, DossierSemanticSearchGate $semanticSearchGate): View
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
@@ -117,6 +118,7 @@ class DossierController extends Controller
             'canViewFiles' => $canViewFiles,
             'canManageFiles' => $canManageFiles,
             'canDeleteFiles' => $canDeleteFiles,
+            'canUseSemanticArticleSearch' => $semanticSearchGate->isEnabledFor($organization->id),
         ]);
     }
 
