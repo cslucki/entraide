@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DossierFileController extends Controller
 {
@@ -53,6 +54,7 @@ class DossierFileController extends Controller
         $uploadedFiles = $request->file('files');
         $disk = 'dossier_files';
         $createdFiles = [];
+        $storedPaths = [];
 
         DB::beginTransaction();
 
@@ -82,6 +84,7 @@ class DossierFileController extends Controller
 
             foreach ($uploadedFiles as $file) {
                 $path = $file->store('dossier-files/'.$dossier->id, $disk);
+                $storedPaths[] = $path;
                 $checksum = hash_file('sha256', $file->getRealPath());
 
                 $dossierFile = DossierFile::create([
@@ -98,6 +101,7 @@ class DossierFileController extends Controller
                     'source' => 'upload',
                 ]);
 
+                $dossierFile->load('uploader:id,first_name,name,email');
                 $createdFiles[] = $dossierFile;
             }
 
@@ -105,9 +109,9 @@ class DossierFileController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
-            foreach ($createdFiles as $createdFile) {
+            foreach ($storedPaths as $storedPath) {
                 try {
-                    Storage::disk($createdFile->disk)->delete($createdFile->path);
+                    Storage::disk($disk)->delete($storedPath);
                 } catch (\Exception) {
                     // Storage cleanup failure logged but not rethrown
                 }
@@ -119,12 +123,12 @@ class DossierFileController extends Controller
         }
 
         return response()->json([
-            'message' => __('dossiers.files_uploaded'),
+            'message' => __('dossiers.file_uploaded'),
             'files' => $createdFiles,
         ], 201);
     }
 
-    public function show(Request $request): RedirectResponse|JsonResponse
+    public function show(Request $request): RedirectResponse|StreamedResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $file = $this->resolveFile($request->route('file'));
@@ -139,6 +143,12 @@ class DossierFileController extends Controller
         $this->authorize('viewFiles', $dossier);
 
         try {
+            if (config("filesystems.disks.{$file->disk}.driver") === 'local') {
+                return Storage::disk($file->disk)->download($file->path, $file->original_name, [
+                    'Content-Type' => $file->mime_type,
+                ]);
+            }
+
             $url = Storage::disk($file->disk)->temporaryUrl($file->path, now()->addMinutes(30));
 
             return redirect()->away($url);

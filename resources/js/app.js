@@ -2180,20 +2180,26 @@ function registerDossierFilesCard() {
         loadFiles(page) {
             page = page || 1;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files?page=${page}`;
-            fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(r => r.json())
+            fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.uploadFailed, 'error');
+                        return;
+                    }
+
+                    return data;
+                })
                 .then(data => {
-                    this.files = (data.files.data || []).map(f => ({
-                        ...f,
-                        sizeFormatted: this.formatBytes(f.size_bytes),
-                        uploadedAtFormatted: f.created_at ? new Date(f.created_at).toLocaleDateString() : '',
-                    }));
+                    if (!data) return;
+
+                    this.files = (data.files.data || []).map(file => this.normalizeFile(file));
                     this.quota = data.quota || this.quota;
                     this.currentPage = data.files.current_page || 1;
                     this.lastPage = data.files.last_page || 1;
                     this.totalFiles = data.files.total || 0;
                 })
-                .catch(() => {});
+                .catch(() => this.showMessage(this.i18n.uploadFailed, 'error'));
         },
 
         formatBytes(bytes) {
@@ -2201,6 +2207,14 @@ function registerDossierFilesCard() {
             const units = ['o', 'Ko', 'Mo', 'Go'];
             const i = Math.floor(Math.log(bytes) / Math.log(1024));
             return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+        },
+
+        normalizeFile(file) {
+            return {
+                ...file,
+                sizeFormatted: this.formatBytes(file.size_bytes),
+                uploadedAtFormatted: file.created_at ? new Date(file.created_at).toLocaleDateString() : '',
+            };
         },
 
         formatQuota(bytes) {
@@ -2237,8 +2251,11 @@ function registerDossierFilesCard() {
                         return;
                     }
                     this.showMessage(data.message || this.i18n.uploaded, 'success');
+                    const uploadedFiles = (data.files || []).map(file => this.normalizeFile(file));
+                    this.files = uploadedFiles.concat(this.files).slice(0, 20);
+                    this.totalFiles += uploadedFiles.length;
+                    this.quota.used_bytes += uploadedFiles.reduce((total, file) => total + (Number(file.size_bytes) || 0), 0);
                     fileInput.value = '';
-                    this.loadFiles();
                 })
                 .catch(() => this.showMessage(this.i18n.uploadFailed, 'error'))
                 .finally(() => { this.uploading = false; });
