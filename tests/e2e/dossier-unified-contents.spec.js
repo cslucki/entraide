@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsMember, loginAsAdmin } from '../../ai/playwright/helpers/auth.js';
+import { loginAsMember } from '../../ai/playwright/helpers/auth.js';
 import { captureScreenshot } from '../../ai/playwright/helpers/screenshot.js';
 import { setupConsoleLogging, getConsoleErrors, getPageErrors, assertNoConsoleErrors } from '../../ai/playwright/helpers/console.js';
 import '../setup.js';
@@ -18,7 +18,7 @@ test.describe('Dossier Unified Contents — QA Desktop FR', () => {
     });
 
     test('owner sees all tabs and can navigate between them', async ({ page }) => {
-        await loginAsAdmin(page);
+        await loginAsMember(page);
         await page.goto('/dossiers');
         await expect(page).toHaveURL(/\/dossiers/);
 
@@ -47,7 +47,7 @@ test.describe('Dossier Unified Contents — QA Desktop FR', () => {
     });
 
     test('contents tab shows series root, annexes and ungrouped sections', async ({ page }) => {
-        await loginAsAdmin(page);
+        await loginAsMember(page);
         await page.goto('/dossiers');
         await page.locator('a[href*="/dossiers/"]').first().click();
         await page.waitForLoadState('networkidle');
@@ -60,7 +60,7 @@ test.describe('Dossier Unified Contents — QA Desktop FR', () => {
     });
 
     test('members tab shows member list with role badges', async ({ page }) => {
-        await loginAsAdmin(page);
+        await loginAsMember(page);
         await page.goto('/dossiers');
         await page.locator('a[href*="/dossiers/"]').first().click();
         await page.waitForLoadState('networkidle');
@@ -80,7 +80,7 @@ test.describe('Dossier Unified Contents — QA Desktop FR', () => {
     });
 
     test('search input in contents tab', async ({ page }) => {
-        await loginAsAdmin(page);
+        await loginAsMember(page);
         await page.goto('/dossiers');
         await page.locator('a[href*="/dossiers/"]').first().click();
         await page.waitForLoadState('networkidle');
@@ -95,7 +95,7 @@ test.describe('Dossier Unified Contents — QA Desktop FR', () => {
     });
 
     test('no console errors on tab navigation cycle', async ({ page }) => {
-        await loginAsAdmin(page);
+        await loginAsMember(page);
         await page.goto('/dossiers');
         await page.locator('a[href*="/dossiers/"]').first().click();
         await page.waitForLoadState('networkidle');
@@ -116,7 +116,7 @@ test.describe('Dossier Unified Contents — QA Desktop FR', () => {
     });
 
     test('files tab loads without errors', async ({ page }) => {
-        await loginAsAdmin(page);
+        await loginAsMember(page);
         await page.goto('/dossiers');
         await page.locator('a[href*="/dossiers/"]').first().click();
         await page.waitForLoadState('networkidle');
