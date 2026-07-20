@@ -22,6 +22,8 @@ class DossierChunksSchemaTest extends TestCase
 
         app()->instance('current_organization', $organization);
 
+        $embedding = $this->embeddingVector();
+
         $chunk = DossierChunk::create([
             'dossier_id' => $dossier->id,
             'blog_post_id' => $post->id,
@@ -29,7 +31,7 @@ class DossierChunksSchemaTest extends TestCase
             'content' => 'Article chunk content.',
             'content_hash' => hash('sha256', 'Article chunk content.'),
             'token_count' => 3,
-            'embedding' => [0.1, 0.2, 0.3],
+            'embedding' => $embedding,
             'embedding_provider' => 'openai',
             'embedding_model' => 'text-embedding-3-small',
             'indexed_at' => now(),
@@ -42,7 +44,7 @@ class DossierChunksSchemaTest extends TestCase
         $this->assertSame($dossier->id, $chunk->dossier->id);
         $this->assertSame($post->id, $chunk->blogPost->id);
         $this->assertSame($organization->id, $chunk->organization->id);
-        $this->assertSame([0.1, 0.2, 0.3], $chunk->embedding);
+        $this->assertSame($embedding, $chunk->embedding);
     }
 
     public function test_sqlite_enforces_chunk_uniqueness(): void
@@ -93,10 +95,22 @@ class DossierChunksSchemaTest extends TestCase
             'content' => 'Article chunk content.',
             'content_hash' => hash('sha256', 'Article chunk content.'),
             'token_count' => 3,
-            'embedding' => [0.1, 0.2, 0.3],
+            'embedding' => $this->embeddingVector(),
             'embedding_provider' => 'openai',
             'embedding_model' => 'text-embedding-3-small',
             'indexed_at' => now(),
         ];
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function embeddingVector(): array
+    {
+        $dimensions = config('database.default') === 'pgsql'
+            ? (int) config('ai.providers.openai.models.embeddings.dimensions', 1536)
+            : 3;
+
+        return array_fill(0, $dimensions, 0.1);
     }
 }

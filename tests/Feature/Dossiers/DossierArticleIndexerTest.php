@@ -99,7 +99,7 @@ class DossierArticleIndexerTest extends TestCase
         $chunk = DossierChunk::query()->firstOrFail();
         $this->assertSame('openai', $chunk->embedding_provider);
         $this->assertSame('text-embedding-3-small', $chunk->embedding_model);
-        $this->assertCount(8, $chunk->embedding);
+        $this->assertCount($this->fakeEmbeddingDimensions(), $chunk->embedding);
         $this->assertNotNull($chunk->indexed_at);
     }
 
@@ -313,7 +313,7 @@ class DossierArticleIndexerTest extends TestCase
             'content' => 'old chunk',
             'content_hash' => hash('sha256', 'old chunk'),
             'token_count' => 2,
-            'embedding' => array_fill(0, 8, 0.9),
+            'embedding' => $this->embeddingVector(0.9),
             'embedding_provider' => 'openai',
             'embedding_model' => 'text-embedding-3-small',
             'indexed_at' => now()->subMinute(),
@@ -376,10 +376,12 @@ class DossierArticleIndexerTest extends TestCase
 
     private function fakeEmbeddings(): void
     {
+        $dimensions = $this->fakeEmbeddingDimensions();
+
         config()->set('ai.default_for_embeddings', 'openai');
         config()->set('ai.caching.embeddings.cache', false);
         config()->set('ai.providers.openai.models.embeddings.default', 'text-embedding-3-small');
-        config()->set('ai.providers.openai.models.embeddings.dimensions', 8);
+        config()->set('ai.providers.openai.models.embeddings.dimensions', $dimensions);
 
         Embeddings::fake(function (EmbeddingsPrompt $prompt): array {
             return array_map(
@@ -387,6 +389,21 @@ class DossierArticleIndexerTest extends TestCase
                 array_keys($prompt->inputs),
             );
         })->preventStrayEmbeddings();
+    }
+
+    private function fakeEmbeddingDimensions(): int
+    {
+        return config('database.default') === 'pgsql'
+            ? (int) config('ai.providers.openai.models.embeddings.dimensions', 1536)
+            : 8;
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function embeddingVector(float $value): array
+    {
+        return array_fill(0, $this->fakeEmbeddingDimensions(), $value);
     }
 
     private function indexer(): DossierArticleIndexer

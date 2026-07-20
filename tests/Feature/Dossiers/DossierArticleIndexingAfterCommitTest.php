@@ -6,9 +6,10 @@ use App\Jobs\IndexDossierArticleChunks;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('sqlite-only')]
 class DossierArticleIndexingAfterCommitTest extends TestCase
 {
     public function refreshDatabase()
@@ -17,7 +18,7 @@ class DossierArticleIndexingAfterCommitTest extends TestCase
         $database = config("database.connections.{$connection}.database");
 
         if ($connection !== 'sqlite' || $database !== ':memory:') {
-            throw new RuntimeException('DossierArticleIndexingAfterCommitTest requires safe-test sqlite :memory:.');
+            $this->markTestSkipped('DossierArticleIndexingAfterCommitTest requires safe-test sqlite :memory:.');
         }
 
         $this->artisan('migrate:fresh');

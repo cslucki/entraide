@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use InvalidArgumentException;
 use Laravel\Ai\Embeddings;
+use PHPUnit\Framework\Attributes\Group;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -95,8 +96,13 @@ class DossierSemanticSearchServiceTest extends TestCase
         Embeddings::assertNothingGenerated();
     }
 
+    #[Group('sqlite-only')]
     public function test_non_postgresql_driver_throws_explicit_exception_without_embeddings(): void
     {
+        if (config('database.default') === 'pgsql') {
+            $this->markTestSkipped('Non-PostgreSQL driver branch requires safe-test sqlite :memory:.');
+        }
+
         [$organization, $dossier] = $this->fixture();
         $this->enableGate($organization->id);
         Embeddings::fake()->preventStrayEmbeddings();

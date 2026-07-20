@@ -13,9 +13,10 @@ use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
-use RuntimeException;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('sqlite-only')]
 class DossierArticleIndexingDispatchTest extends TestCase
 {
     public function refreshDatabase()
@@ -24,7 +25,7 @@ class DossierArticleIndexingDispatchTest extends TestCase
         $database = config("database.connections.{$connection}.database");
 
         if ($connection !== 'sqlite' || $database !== ':memory:') {
-            throw new RuntimeException('DossierArticleIndexingDispatchTest requires safe-test sqlite :memory:.');
+            $this->markTestSkipped('DossierArticleIndexingDispatchTest requires safe-test sqlite :memory:.');
         }
 
         $this->artisan('migrate:fresh');
