@@ -2164,6 +2164,173 @@ function registerDossierMembersCard() {
     }));
 }
 
+function registerDossierArticlesCard() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierArticlesCard', (config) => ({
+        entries: [],
+        searchQuery: '',
+        message: '',
+        messageType: 'success',
+        showAddModal: false,
+        addSearchQuery: '',
+        addSearchResults: [],
+        addSearching: false,
+        adding: false,
+        showDetachModal: false,
+        detachEntry: null,
+        detaching: false,
+        openMenuId: null,
+        i18n: config.i18n || {},
+        canManageArticles: config.canManageArticles || false,
+
+        init() {
+            this.entries = (config.entries || []).map(e => ({
+                ...e,
+                blog_post: e.blog_post || null,
+                canDeleteArticle: config.currentUserId === (e.blog_post?.user_id || null),
+            }));
+            document.addEventListener('click', (ev) => {
+                if (this.openMenuId && !ev.target.closest('[data-article-menu]') && !ev.target.closest('[data-article-menu-btn]')) {
+                    this.openMenuId = null;
+                }
+            });
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (this.showDetachModal) { this.showDetachModal = false; this.detachEntry = null; }
+                    else if (this.showAddModal) { this.showAddModal = false; this.addSearchQuery = ''; this.addSearchResults = []; }
+                    else { this.openMenuId = null; }
+                }
+            });
+        },
+
+        get filteredEntries() {
+            if (!this.searchQuery) return this.entries;
+            const q = this.searchQuery.toLowerCase();
+            return this.entries.filter(e => (e.blog_post?.title || '').toLowerCase().includes(q));
+        },
+
+        openAddModal() {
+            this.showAddModal = true;
+            this.addSearchQuery = '';
+            this.addSearchResults = [];
+            this.$nextTick(() => { const el = this.$refs.addSearchInput; if (el) el.focus(); });
+        },
+
+        closeAddModal() {
+            this.showAddModal = false;
+            this.addSearchQuery = '';
+            this.addSearchResults = [];
+        },
+
+        async searchEligible() {
+            if (this.addSearchQuery.length < 2) { this.addSearchResults = []; return; }
+            this.addSearching = true;
+            try {
+                const res = await fetch(config.searchUrl + '?q=' + encodeURIComponent(this.addSearchQuery), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                this.addSearchResults = (data.articles || []).map(a => ({ ...a, statusLabel: a.status === 'published' ? (config.i18n.statusPublished || 'Published') : (config.i18n.statusDraft || 'Draft') }));
+            } catch { this.addSearchResults = []; }
+            finally { this.addSearching = false; }
+        },
+
+        async attachArticle(article) {
+            this.adding = true;
+            try {
+                const res = await fetch(config.storeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': config.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ blog_post_id: article.id }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    const entry = data.entry;
+                    entry.canDeleteArticle = config.currentUserId === (entry.blog_post?.user_id || null);
+                    this.entries.push(entry);
+                    this.closeAddModal();
+                    this.showSuccess(data.message);
+                } else {
+                    this.showError(data.message || config.i18n.uploadFailed);
+                }
+            } catch { this.showError(config.i18n.networkError); }
+            finally { this.adding = false; }
+        },
+
+        confirmDetach(entry) {
+            this.detachEntry = entry;
+            this.showDetachModal = true;
+            this.openMenuId = null;
+        },
+
+        async detachArticle() {
+            if (!this.detachEntry) return;
+            this.detaching = true;
+            try {
+                const res = await fetch(config.destroyUrl.replace('__POST_ID__', this.detachEntry.blog_post_id), {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': config.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.entries = this.entries.filter(e => e.id !== this.detachEntry.id);
+                    this.showDetachModal = false;
+                    this.detachEntry = null;
+                    this.showSuccess(data.message);
+                } else {
+                    this.showError(data.message || config.i18n.networkError);
+                }
+            } catch { this.showError(config.i18n.networkError); }
+            finally { this.detaching = false; }
+        },
+
+        async moveArticle(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= this.entries.length) return;
+            const temp = this.entries[index];
+            this.entries.splice(index, 1, this.entries[newIndex]);
+            this.entries.splice(newIndex, 1, temp);
+            this.entries.forEach((e, i) => { e.position = i + 1; });
+            try {
+                const res = await fetch(config.reorderUrl, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': config.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ articles: this.entries.map(e => e.blog_post_id) }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    if (data.articles) { this.entries = data.articles.map(a => ({ ...a, canDeleteArticle: config.currentUserId === (a.blog_post?.user_id || null) })); }
+                    this.showError(data.message || config.i18n.networkError);
+                }
+            } catch { this.showError(config.i18n.networkError); }
+        },
+
+        formatStatus(status) {
+            if (status === 'published') return config.i18n.statusPublished || 'Published';
+            if (status === 'draft') return config.i18n.statusDraft || 'Draft';
+            return status || '';
+        },
+
+        formatDate(date) {
+            if (!date) return '';
+            try { return new Date(date).toLocaleDateString(); } catch { return ''; }
+        },
+
+        editUrl(entry) {
+            if (!entry.blog_post?.slug) return '#';
+            return config.blogEditUrl.replace('__SLUG__', entry.blog_post.slug);
+        },
+
+        toggleMenu(id) {
+            this.openMenuId = this.openMenuId === id ? null : id;
+        },
+
+        showSuccess(msg) { this.message = msg; this.messageType = 'success'; setTimeout(() => { this.message = ''; }, 4000); },
+        showError(msg) { this.message = msg; this.messageType = 'error'; setTimeout(() => { this.message = ''; }, 5000); },
+    }));
+}
+
 function registerDossierFilesCard() {
     if (typeof Alpine === 'undefined') return;
 
@@ -4396,6 +4563,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogDossierCard();
     registerDossierSeriesCard();
     registerDossierSemanticArticleSearch();
+    registerDossierArticlesCard();
     registerDossierMembersCard();
     registerDossierFilesCard();
     registerBlogLoopCard();
@@ -4415,6 +4583,7 @@ registerBlogInviteByEmail();
     registerBlogDossierCard();
     registerDossierSeriesCard();
     registerDossierSemanticArticleSearch();
+    registerDossierArticlesCard();
     registerDossierMembersCard();
     registerDossierFilesCard();
     registerBlogLoopCard();

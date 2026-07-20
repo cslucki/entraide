@@ -6,6 +6,7 @@ use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ use Illuminate\Validation\ValidationException;
 
 class DossierArticleController extends Controller
 {
-    public function store(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse
+    public function store(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse|JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
@@ -36,7 +37,7 @@ class DossierArticleController extends Controller
 
         $nextPosition = ((int) $dossier->dossierBlogPosts()->max('position')) + 1;
 
-        DossierBlogPost::create([
+        $entry = DossierBlogPost::create([
             'organization_id' => $organization->id,
             'dossier_id' => $dossier->id,
             'blog_post_id' => $post->id,
@@ -46,12 +47,21 @@ class DossierArticleController extends Controller
 
         $indexing->dispatch($organization->id, $dossier->id, $post->id);
 
+        if ($request->expectsJson()) {
+            $entry->load('blogPost:id,organization_id,user_id,title,slug,status,updated_at');
+
+            return response()->json([
+                'message' => __('dossiers.article_attached'),
+                'entry' => $entry,
+            ], 201);
+        }
+
         return redirect()
             ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $dossier->getKey()])
             ->with('success', __('dossiers.article_attached'));
     }
 
-    public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse
+    public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse|JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
@@ -78,12 +88,18 @@ class DossierArticleController extends Controller
             $indexing->dispatch($entry->organization_id, $entry->dossier_id, $entry->blog_post_id);
         }
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => __('dossiers.article_detached'),
+            ]);
+        }
+
         return redirect()
             ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $dossier->getKey()])
             ->with('success', __('dossiers.article_detached'));
     }
 
-    public function reorder(Request $request): RedirectResponse
+    public function reorder(Request $request): RedirectResponse|JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
@@ -115,9 +131,41 @@ class DossierArticleController extends Controller
             }
         });
 
+        if ($request->expectsJson()) {
+            $entries->each(function ($entry) {
+                $entry->load('blogPost:id,organization_id,user_id,title,slug,status,updated_at');
+            });
+
+            return response()->json([
+                'message' => __('dossiers.articles_reordered'),
+                'articles' => $entries->sortBy('position')->values(),
+            ]);
+        }
+
         return redirect()
             ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $dossier->getKey()])
             ->with('success', __('dossiers.articles_reordered'));
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $dossier = $this->resolveDossier($request->route('dossier'));
+        $organization = $this->currentOrganizationOrFail();
+        $this->ensureDossierBelongsToCurrentOrganization($dossier);
+        $this->authorize('update', $dossier);
+
+        $query = $request->string('q', '')->toString();
+
+        $posts = BlogPost::query()
+            ->where('organization_id', $organization->id)
+            ->where('user_id', $request->user()->id)
+            ->whereDoesntHave('dossierEntry')
+            ->when($query, fn ($q) => $q->where('title', 'ilike', '%'.$query.'%'))
+            ->latest('updated_at')
+            ->limit(20)
+            ->get(['id', 'organization_id', 'user_id', 'title', 'slug', 'status', 'updated_at']);
+
+        return response()->json(['articles' => $posts]);
     }
 
     private function currentOrganizationOrFail()

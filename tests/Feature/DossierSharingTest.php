@@ -395,7 +395,7 @@ class DossierSharingTest extends TestCase
             ->get($this->orgRoute('dossiers.show', $dossier))
             ->assertOk()
             ->assertDontSee(__('dossiers.add_member'))
-            ->assertSee(__('dossiers.articles_attach_disabled'));
+            ->assertSee(__('dossiers.articles_title'));
     }
 
     public function test_editor_can_see_attach_form(): void
@@ -406,7 +406,8 @@ class DossierSharingTest extends TestCase
         $this->actingAs($this->editorA)
             ->get($this->orgRoute('dossiers.show', $dossier))
             ->assertOk()
-            ->assertDontSee(__('dossiers.articles_attach_disabled'));
+            ->assertSee(__('dossiers.articles_title'))
+            ->assertSee('dossierArticlesCard');
     }
 
     // --- Shared dossiers index ---

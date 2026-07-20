@@ -676,6 +676,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/dossiers/{dossier}/articles', [DossierArticleController::class, 'store'])->name('dossiers.articles.store');
                 Route::delete('/dossiers/{dossier}/articles/{post}', [DossierArticleController::class, 'destroy'])->name('dossiers.articles.destroy');
                 Route::patch('/dossiers/{dossier}/articles/reorder', [DossierArticleController::class, 'reorder'])->name('dossiers.articles.reorder');
+                Route::get('/dossiers/{dossier}/articles/search', [DossierArticleController::class, 'search'])->name('dossiers.articles.search');
                 Route::get('/dossiers/{dossier}/members', [DossierMemberController::class, 'index'])->name('dossiers.members.index');
                 Route::post('/dossiers/{dossier}/members', [DossierMemberController::class, 'store'])->name('dossiers.members.store');
                 Route::patch('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'update'])->name('dossiers.members.update');
