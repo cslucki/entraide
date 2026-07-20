@@ -1795,7 +1795,7 @@ function registerDossierSeriesCard() {
         seriesId: config.seriesId || null,
         rootPostId: config.rootPostId || null,
         rootPostTitle: config.rootPostTitle || '',
-        rootSlug: '',
+        rootSlug: config.rootSlug || '',
         annexes: config.annexes || [],
         eligibleArticles: config.eligibleArticles || [],
         newRootPostId: '',
