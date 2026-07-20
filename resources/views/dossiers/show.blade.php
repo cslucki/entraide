@@ -2,8 +2,8 @@
     @php
         $organizationRouteParam = request()->route('organization');
         $entries = $dossier->dossierBlogPosts->filter(fn ($entry) => $entry->blogPost !== null)->values();
-        $annexesJson = json_encode($series?->items->map(fn($item) => ['id' => $item->getKey(), 'blog_post_id' => $item->blog_post_id, 'title' => $item->blogPost->title ?? '—', 'position' => $item->position]) ?? []);
-        $eligibleArticlesJson = json_encode($seriesEligibleArticles->map(fn($a) => ['id' => $a->id, 'title' => $a->title, 'status' => $a->status]));
+        $seriesAnnexesForJs = $series?->items->map(fn ($item) => ['id' => $item->getKey(), 'blog_post_id' => $item->blog_post_id, 'title' => $item->blogPost->title ?? '—', 'slug' => $item->blogPost->slug ?? null, 'position' => $item->position])->values() ?? collect();
+        $seriesEligibleArticlesForJs = $seriesEligibleArticles->map(fn ($article) => ['id' => $article->id, 'title' => $article->title, 'slug' => $article->slug, 'status' => $article->status])->values();
     @endphp
 
     <x-slot name="title">{{ $dossier->name }} — {{ __('dossiers.title') }} — {{ $brandOrganizationName ?? 'BouclePro' }}</x-slot>
@@ -201,37 +201,38 @@
 
                 {{-- Series Section --}}
                 <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
-                         x-data="dossierSeriesCard({
-                             csrfToken: '{{ csrf_token() }}',
-                             dossierId: '{{ $dossier->getKey() }}',
-                             orgParam: '{{ $organizationRouteParam }}',
-                             hasSeries: {{ $series ? 'true' : 'false' }},
-                             seriesId: '{{ $series?->getKey() }}',
-                             rootPostId: '{{ $series?->root_blog_post_id }}',
-                             rootPostTitle: '{!! addslashes($series?->rootBlogPost?->title ?? '') !!}',
-                             annexes: {!! $annexesJson !!},
-                             eligibleArticles: {!! $eligibleArticlesJson !!},
-                             i18n: {
-                                 emptyTitle: '{{ __('dossiers.series_empty_title') }}',
-                                 emptyBody: '{{ __('dossiers.series_empty_body') }}',
-                                 createBtn: '{{ __('dossiers.series_create') }}',
-                                 rootLabel: '{{ __('dossiers.series_root_label') }}',
-                                 annexesLabel: '{{ __('dossiers.series_annexes') }}',
-                                 annexesEmpty: '{{ __('dossiers.series_annexes_empty') }}',
-                                 addAnnex: '{{ __('dossiers.series_annex_add') }}',
-                                 addAnnexHelp: '{{ __('dossiers.series_annex_add_help') }}',
-                                 annexSelect: '{{ __('dossiers.series_annex_select') }}',
-                                 deleteSeries: '{{ __('dossiers.series_delete') }}',
-                                 deleteConfirm: '{{ __('dossiers.series_delete_confirm') }}',
-                                 seriesCreated: '{{ __('dossiers.series_created') }}',
-                                 rootSet: '{{ __('dossiers.series_root_set') }}',
-                                 annexAdded: '{{ __('dossiers.annex_added') }}',
-                                 annexRemoved: '{{ __('dossiers.annex_removed') }}',
-                                 seriesDeleted: '{{ __('dossiers.series_deleted') }}',
-                                 noAnnexesToAdd: '{{ __('dossiers.series_no_annexes_to_add') }}',
-                                 editArticle: '{{ __('dossiers.edit_article') }}',
-                             }
-                         })">
+                         x-data="dossierSeriesCard(@js([
+                             'csrfToken' => csrf_token(),
+                             'dossierId' => $dossier->getKey(),
+                             'orgParam' => $organizationRouteParam,
+                             'hasSeries' => (bool) $series,
+                             'seriesId' => $series?->getKey(),
+                             'rootPostId' => $series?->root_blog_post_id,
+                             'rootPostTitle' => $series?->rootBlogPost?->title ?? '',
+                             'rootSlug' => $series?->rootBlogPost?->slug,
+                             'annexes' => $seriesAnnexesForJs,
+                             'eligibleArticles' => $seriesEligibleArticlesForJs,
+                             'i18n' => [
+                                 'emptyTitle' => __('dossiers.series_empty_title'),
+                                 'emptyBody' => __('dossiers.series_empty_body'),
+                                 'createBtn' => __('dossiers.series_create'),
+                                 'rootLabel' => __('dossiers.series_root_label'),
+                                 'annexesLabel' => __('dossiers.series_annexes'),
+                                 'annexesEmpty' => __('dossiers.series_annexes_empty'),
+                                 'addAnnex' => __('dossiers.series_annex_add'),
+                                 'addAnnexHelp' => __('dossiers.series_annex_add_help'),
+                                 'annexSelect' => __('dossiers.series_annex_select'),
+                                 'deleteSeries' => __('dossiers.series_delete'),
+                                 'deleteConfirm' => __('dossiers.series_delete_confirm'),
+                                 'seriesCreated' => __('dossiers.series_created'),
+                                 'rootSet' => __('dossiers.series_root_set'),
+                                 'annexAdded' => __('dossiers.annex_added'),
+                                 'annexRemoved' => __('dossiers.annex_removed'),
+                                 'seriesDeleted' => __('dossiers.series_deleted'),
+                                 'noAnnexesToAdd' => __('dossiers.series_no_annexes_to_add'),
+                                 'editArticle' => __('dossiers.edit_article'),
+                             ],
+                         ]))">
                     <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.series_title') }}</h2>
                     <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.series_empty_body') }}</p>
 
@@ -344,31 +345,31 @@
                 {{-- Files Section --}}
                 @if($canViewFiles)
                 <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
-                         x-data="dossierFilesCard({
-                             csrfToken: '{{ csrf_token() }}',
-                             dossierId: '{{ $dossier->getKey() }}',
-                             orgParam: '{{ $organizationRouteParam }}',
-                             canManageFiles: {{ $canManageFiles ? 'true' : 'false' }},
-                             canDeleteFiles: {{ $canDeleteFiles ? 'true' : 'false' }},
-                             i18n: {
-                                 title: '{{ __('dossiers.files_title') }}',
-                                 emptyTitle: '{{ __('dossiers.files_empty_title') }}',
-                                 emptyBody: '{{ __('dossiers.files_empty_body') }}',
-                                 uploadHelp: '{{ __('dossiers.file_upload_help') }}',
-                                 uploaded: '{{ __('dossiers.file_uploaded') }}',
-                                 uploadFailed: '{{ __('dossiers.file_upload_failed') }}',
-                                 deleted: '{{ __('dossiers.file_deleted') }}',
-                                 deleteFailed: '{{ __('dossiers.file_upload_failed') }}',
-                                 confirmDelete: '{{ __('dossiers.file_confirm_delete') }}',
-                                 download: '{{ __('dossiers.file_download') }}',
-                                 deleteFile: '{{ __('dossiers.file_delete') }}',
-                                 name: '{{ __('dossiers.file_name') }}',
-                                 size: '{{ __('dossiers.file_size') }}',
-                                 uploadedBy: '{{ __('dossiers.file_uploaded_by') }}',
-                                 storageUnlimited: '{{ __('dossiers.storage_unlimited') }}',
-                                 storageUsedLabel: '{{ __('dossiers.storage_used') }}',
-                             }
-                         })">
+                         x-data="dossierFilesCard(@js([
+                             'csrfToken' => csrf_token(),
+                             'dossierId' => $dossier->getKey(),
+                             'orgParam' => $organizationRouteParam,
+                             'canManageFiles' => $canManageFiles,
+                             'canDeleteFiles' => $canDeleteFiles,
+                             'i18n' => [
+                                 'title' => __('dossiers.files_title'),
+                                 'emptyTitle' => __('dossiers.files_empty_title'),
+                                 'emptyBody' => __('dossiers.files_empty_body'),
+                                 'uploadHelp' => __('dossiers.file_upload_help'),
+                                 'uploaded' => __('dossiers.file_uploaded'),
+                                 'uploadFailed' => __('dossiers.file_upload_failed'),
+                                 'deleted' => __('dossiers.file_deleted'),
+                                 'deleteFailed' => __('dossiers.file_upload_failed'),
+                                 'confirmDelete' => __('dossiers.file_confirm_delete'),
+                                 'download' => __('dossiers.file_download'),
+                                 'deleteFile' => __('dossiers.file_delete'),
+                                 'name' => __('dossiers.file_name'),
+                                 'size' => __('dossiers.file_size'),
+                                 'uploadedBy' => __('dossiers.file_uploaded_by'),
+                                 'storageUnlimited' => __('dossiers.storage_unlimited'),
+                                 'storageUsedLabel' => __('dossiers.storage_used'),
+                             ],
+                         ]))">
                     <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.files_title') }}</h2>
                     <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.files_empty_body') }}</p>
 
@@ -483,20 +484,20 @@
 
                 @if($canManageMembers)
                     <aside class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
-                           x-data="dossierMembersCard({
-                               csrfToken: '{{ csrf_token() }}',
-                               dossierId: '{{ $dossier->getKey() }}',
-                               orgParam: '{{ $organizationRouteParam }}',
-                               ownerId: '{{ $dossier->owner_id }}',
-                               currentUserId: '{{ auth()->id() }}',
-                               i18n: {
-                                   confirmRemove: '{{ __('dossiers.confirm_remove_member') }}',
-                                   memberAdded: '{{ __('dossiers.member_added') }}',
-                                   memberRoleUpdated: '{{ __('dossiers.member_role_updated') }}',
-                                   memberRemoved: '{{ __('dossiers.member_removed') }}',
-                                   memberAlready: '{{ __('dossiers.member_already') }}',
-                               }
-                           })">
+                           x-data="dossierMembersCard(@js([
+                               'csrfToken' => csrf_token(),
+                               'dossierId' => $dossier->getKey(),
+                               'orgParam' => $organizationRouteParam,
+                               'ownerId' => $dossier->owner_id,
+                               'currentUserId' => auth()->id(),
+                               'i18n' => [
+                                   'confirmRemove' => __('dossiers.confirm_remove_member'),
+                                   'memberAdded' => __('dossiers.member_added'),
+                                   'memberRoleUpdated' => __('dossiers.member_role_updated'),
+                                   'memberRemoved' => __('dossiers.member_removed'),
+                                   'memberAlready' => __('dossiers.member_already'),
+                               ],
+                           ]))">
                         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.members_title') }}</h2>
                         <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.members_help') }}</p>
 
