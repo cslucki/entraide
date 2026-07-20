@@ -340,6 +340,74 @@ class DossierSeriesTest extends TestCase
         $response->assertUnprocessable()->assertJsonValidationErrors(['blog_post_id']);
     }
 
+    public function test_show_series_json_path_uses_snake_case_for_relations(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Characterization — JSON show path');
+        $root = $this->blogPost($this->orgA, $this->ownerA, 'Root char');
+        $annex = $this->blogPost($this->orgA, $this->ownerA, 'Annex char');
+        $this->attach($dossier, $root, $this->ownerA, 1);
+        $this->attach($dossier, $annex, $this->ownerA, 2);
+
+        $series = ArticleSeries::create([
+            'organization_id' => $this->orgA->id,
+            'dossier_id' => $dossier->id,
+            'root_blog_post_id' => $root->id,
+            'created_by' => $this->ownerA->id,
+        ]);
+
+        ArticleSeriesItem::create([
+            'organization_id' => $this->orgA->id,
+            'article_series_id' => $series->id,
+            'blog_post_id' => $annex->id,
+            'position' => 1,
+        ]);
+
+        $response = $this->actingAs($this->ownerA)->getJson(
+            $this->orgRoute('dossiers.series.show', $dossier)
+        );
+
+        $response->assertOk();
+        $json = $response->json();
+
+        // Characterisation: the GET show endpoint returns snake_case keys
+        $this->assertArrayHasKey('root_blog_post', $json['series'], 'rootBlogPost() → "root_blog_post" in JSON');
+        $this->assertArrayHasKey('items', $json['series']);
+        $this->assertCount(1, $json['series']['items']);
+        $this->assertArrayHasKey('blog_post', $json['series']['items'][0], 'items[].blogPost() → "blog_post" in JSON');
+        $this->assertEquals($annex->title, $json['series']['items'][0]['blog_post']['title']);
+    }
+
+    public function test_add_annex_json_response_uses_snake_case_blog_post(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Characterization — JSON annex path');
+        $root = $this->blogPost($this->orgA, $this->ownerA, 'Root');
+        $annex = $this->blogPost($this->orgA, $this->ownerA, 'Annex characterization');
+        $this->attach($dossier, $root, $this->ownerA, 1);
+        $this->attach($dossier, $annex, $this->ownerA, 2);
+
+        $series = ArticleSeries::create([
+            'organization_id' => $this->orgA->id,
+            'dossier_id' => $dossier->id,
+            'root_blog_post_id' => $root->id,
+            'created_by' => $this->ownerA->id,
+        ]);
+
+        $response = $this->actingAs($this->ownerA)->postJson(
+            $this->orgRoute('dossiers.series.annexes.store', $dossier),
+            ['blog_post_id' => $annex->id]
+        );
+
+        $response->assertOk();
+        $json = $response->json();
+
+        // Characterisation: document the exact JSON path of the annex response
+        // Laravel serialises the blogPost() relationship as snake_case 'blog_post'
+        $this->assertArrayHasKey('item', $json);
+        $this->assertArrayHasKey('blog_post', $json['item'], 'The annex relationship key is snake_case "blog_post", NOT camelCase "blogPost".');
+        $this->assertArrayHasKey('blog_post_id', $json['item'], 'The FK column key is snake_case "blog_post_id".');
+        $this->assertEquals($annex->title, $json['item']['blog_post']['title'], 'The title lives at item.blog_post.title.');
+    }
+
     public function test_remove_annex_does_not_delete_blog_post(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');

@@ -5,6 +5,7 @@ import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
 import FilePondPluginFileValidateSize from 'filepond-plugin-file-validate-size';
+import Sortable from 'sortablejs';
 window.FilePond = FilePond;
 window.createBlogEditor = createEditor;
 
@@ -1792,104 +1793,284 @@ function registerBlogDossierCard() {
     }));
 }
 
-function registerDossierSeriesCard() {
+function normalizeArticle(blogPost) {
+    if (!blogPost) return null;
+    return {
+        id: blogPost.id,
+        blogPostId: blogPost.blog_post_id || blogPost.id,
+        title: blogPost.title || null,
+        slug: blogPost.slug || null,
+        status: blogPost.status || 'draft',
+        updatedAt: blogPost.updated_at || blogPost.updatedAt || null,
+        publishedAt: blogPost.published_at || blogPost.publishedAt || null,
+        author: blogPost.author || null,
+        coAuthors: blogPost.coAuthors || [],
+        canView: blogPost.canView || false,
+        canEdit: blogPost.canEdit || false,
+        viewUrl: blogPost.viewUrl || null,
+        editUrl: blogPost.editUrl || null,
+    };
+}
+
+function registerDossierTabs() {
     if (typeof Alpine === 'undefined') return;
 
-    Alpine.data('dossierSeriesCard', (config) => ({
-        hasSeries: config.hasSeries,
-        seriesId: config.seriesId || null,
-        rootPostId: config.rootPostId || null,
-        rootPostTitle: config.rootPostTitle || '',
-        rootSlug: config.rootSlug || '',
-        annexes: config.annexes || [],
-        eligibleArticles: config.eligibleArticles || [],
-        newRootPostId: '',
-        annexToAdding: '',
-        showAddAnnex: false,
-        saving: false,
-        message: '',
-        messageType: 'success',
-        csrfToken: config.csrfToken,
-        dossierId: config.dossierId,
-        orgParam: config.orgParam,
-        i18n: config.i18n,
+    Alpine.data('dossierTabs', (defaultTab) => ({
+        active: defaultTab || 'contenus',
 
         init() {
-            if (this.hasSeries && this.rootPostId) {
-                const rootArticle = this.eligibleArticles.find(a => a.id === this.rootPostId);
-                if (!rootArticle) {
-                    this.eligibleArticles.unshift({ id: this.rootPostId, title: this.rootPostTitle, status: '' });
-                }
+            const hash = window.location.hash.replace('#', '');
+            if (['contenus', 'fichiers', 'membres'].includes(hash)) {
+                this.active = hash;
             }
         },
 
-        showMessage(text, type = 'success') {
-            this.message = text;
-            this.messageType = type;
-            setTimeout(() => { this.message = ''; }, 3000);
+        activate(tab) {
+            this.active = tab;
+            window.location.hash = tab;
         },
 
-        createSeries() {
-            if (!this.newRootPostId) return;
+        onHashChange() {
+            const hash = window.location.hash.replace('#', '');
+            if (['contenus', 'fichiers', 'membres'].includes(hash)) {
+                this.active = hash;
+            }
+        },
+    }));
+}
+
+function registerDossierContentsCard() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierContentsCard', (config) => ({
+        hasSeries: !!config.series,
+        seriesId: config.series?.id || null,
+        seriesRoot: config.series?.root ? normalizeArticle(config.series.root) : null,
+        seriesItems: (config.series?.items || []).map(item => ({
+            id: item.id,
+            blog_post_id: item.blog_post_id,
+            position: item.position,
+            blog_post: normalizeArticle(item.blog_post),
+        })),
+        ungrouped: config.ungrouped.map(e => ({
+            ...e,
+            blog_post: normalizeArticle(e.blog_post),
+        })),
+        seriesEligibleArticles: config.seriesEligibleArticles || [],
+        searchQuery: '',
+        message: '',
+        messageType: 'success',
+        showAddModal: false,
+        addSearchQuery: '',
+        addSearchResults: [],
+        addSearching: false,
+        adding: false,
+        showDeleteSeriesModal: false,
+        showDetachModal: false,
+        detachEntry: null,
+        detaching: false,
+        openMenuId: null,
+        saving: false,
+        i18n: config.i18n || {},
+        canManageArticles: config.canManageArticles || false,
+        csrfToken: config.csrfToken,
+        dossierId: config.dossierId,
+        orgParam: config.orgParam,
+
+        init() {
+            document.addEventListener('click', (ev) => {
+                if (this.openMenuId && !ev.target.closest('[data-article-menu]') && !ev.target.closest('button')) {
+                    this.openMenuId = null;
+                }
+            });
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (this.showDetachModal) { this.showDetachModal = false; this.detachEntry = null; }
+                    else if (this.showAddModal) { this.closeAddModal(); }
+                    else if (this.showDeleteSeriesModal) { this.showDeleteSeriesModal = false; }
+                    else { this.openMenuId = null; }
+                }
+            });
+
+            this.$nextTick(() => {
+                if (this.$refs.ungroupedContainer && this.canManageArticles) {
+                    Sortable.create(this.$refs.ungroupedContainer, {
+                        handle: '.drag-handle',
+                        animation: 150,
+                        onEnd: (evt) => {
+                            const movedId = evt.item.getAttribute('data-article-id');
+                            if (!movedId) return;
+                            const ids = [];
+                            evt.from.querySelectorAll('[data-article-id]').forEach(el => {
+                                ids.push(el.getAttribute('data-article-id'));
+                            });
+                            if (ids.length === 0) return;
+                            const ordered = ids.map(id => this.ungrouped.find(e => String(e.blog_post_id) === id)).filter(Boolean);
+                            const extra = this.ungrouped.filter(e => !ids.includes(String(e.blog_post_id)));
+                            this.ungrouped.splice(0, this.ungrouped.length, ...ordered, ...extra);
+                            this.ungrouped.forEach((e, i) => { e.position = i + 1; });
+                            this.persistReorder();
+                        },
+                    });
+                }
+            });
+        },
+
+        persistReorder() {
+            const reorderUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/reorder`;
+            fetch(reorderUrl, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ articles: this.ungrouped.map(e => e.blog_post_id) }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) { this.showError(data.message || 'Error'); }
+                })
+                .catch(() => {});
+        },
+
+        get filteredUngrouped() {
+            if (!this.searchQuery) return this.ungrouped;
+            const q = this.searchQuery.toLowerCase();
+            return this.ungrouped.filter(e => (e.blog_post?.title || '').toLowerCase().includes(q));
+        },
+
+        showSuccess(msg) { this.message = msg; this.messageType = 'success'; setTimeout(() => { this.message = ''; }, 4000); },
+        showError(msg) { this.message = msg; this.messageType = 'error'; setTimeout(() => { this.message = ''; }, 5000); },
+
+        formatStatus(status) {
+            if (status === 'published') return this.i18n.statusPublished || 'Published';
+            if (status === 'draft') return this.i18n.statusDraft || 'Draft';
+            return status || '';
+        },
+
+        formatDate(date) {
+            if (!date) return '';
+            try { return new Date(date).toLocaleDateString(); } catch { return ''; }
+        },
+
+        openAddArticleModal() {
+            this.showAddModal = true;
+            this.addSearchQuery = '';
+            this.addSearchResults = [];
+            this.$nextTick(() => { const el = this.$refs.addSearchInput; if (el) el.focus(); });
+        },
+
+        closeAddModal() {
+            this.showAddModal = false;
+            this.addSearchQuery = '';
+            this.addSearchResults = [];
+        },
+
+        async searchEligibleArticles() {
+            if (this.addSearchQuery.length < 2) { this.addSearchResults = []; return; }
+            this.addSearching = true;
+            try {
+                const searchUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/search`;
+                const res = await fetch(searchUrl + '?q=' + encodeURIComponent(this.addSearchQuery), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                this.addSearchResults = (data.articles || []).map(a => ({
+                    ...a,
+                    statusLabel: a.status === 'published' ? (this.i18n.statusPublished || 'Published') : (this.i18n.statusDraft || 'Draft'),
+                }));
+            } catch { this.addSearchResults = []; }
+            finally { this.addSearching = false; }
+        },
+
+        async attachArticle(article) {
+            this.adding = true;
+            try {
+                const storeUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles`;
+                const res = await fetch(storeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ blog_post_id: article.id }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    const entry = data.entry;
+                    const bp = entry.blog_post;
+                    this.ungrouped.push({
+                        id: entry.id,
+                        blog_post_id: entry.blog_post_id,
+                        position: entry.position,
+                        blog_post: normalizeArticle(bp),
+                    });
+                    this.closeAddModal();
+                    this.showSuccess(data.message);
+                } else {
+                    this.showError(data.message || 'Error');
+                }
+            } catch { this.showError('Network error'); }
+            finally { this.adding = false; }
+        },
+
+        setAsRoot(entry) {
+            if (!entry) return;
             this.saving = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series`;
             fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': this.csrfToken },
-                body: JSON.stringify({ root_blog_post_id: this.newRootPostId }),
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ root_blog_post_id: entry.blog_post_id }),
             })
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.showMessage(data.message || data.root_blog_post_id?.[0] || 'Error', 'error');
+                        this.showError(data.message || data.root_blog_post_id?.[0] || 'Error');
                         return;
                     }
                     this.hasSeries = true;
                     this.seriesId = data.series.id;
-                    this.rootPostId = data.series.root_blog_post_id;
-                    this.rootPostTitle = data.series.root_blog_post?.title || '';
-                    this.rootSlug = data.series.root_blog_post?.slug || '';
-                    this.annexes = [];
-                    this.newRootPostId = '';
-                    this.showMessage(this.i18n.seriesCreated);
+                    const root = data.series.root_blog_post;
+                    this.seriesRoot = normalizeArticle(root);
+                    this.seriesRoot.blog_post_id = data.series.root_blog_post_id;
+                    this.seriesItems = [];
+                    this.ungrouped = this.ungrouped.filter(e => e.blog_post_id !== entry.blog_post_id);
+                    this.showSuccess(this.i18n.seriesCreated || 'Series created');
+                    this.openMenuId = null;
                 })
-                .catch(() => this.showMessage('Error', 'error'))
+                .catch(() => this.showError('Error'))
                 .finally(() => { this.saving = false; });
         },
 
-        addAnnex() {
-            if (!this.annexToAdding) return;
+        addToSeries(entry) {
+            if (!entry) return;
             this.saving = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes`;
             fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': this.csrfToken },
-                body: JSON.stringify({ blog_post_id: this.annexToAdding }),
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ blog_post_id: entry.blog_post_id }),
             })
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.showMessage(data.message || data.blog_post_id?.[0] || 'Error', 'error');
+                        this.showError(data.message || data.blog_post_id?.[0] || 'Error');
                         return;
                     }
-                    this.annexes.push({
-                        id: data.item.id,
-                        blog_post_id: data.item.blog_post_id,
-                        title: data.item.blogPost?.title || '—',
-                        position: this.annexes.length + 1,
+                    const item = data.item;
+                    this.seriesItems.push({
+                        id: item.id,
+                        blog_post_id: item.blog_post_id,
+                        position: this.seriesItems.length + 1,
+                        blog_post: normalizeArticle(item.blog_post),
                     });
-                    this.eligibleArticles = this.eligibleArticles.filter(a => a.id !== this.annexToAdding);
-                    this.annexToAdding = '';
-                    this.showAddAnnex = false;
-                    this.showMessage(this.i18n.annexAdded);
+                    this.ungrouped = this.ungrouped.filter(e => e.blog_post_id !== entry.blog_post_id);
+                    this.showSuccess(this.i18n.annexAdded || 'Annex added');
+                    this.openMenuId = null;
                 })
-                .catch(() => this.showMessage('Error', 'error'))
+                .catch(() => this.showError('Error'))
                 .finally(() => { this.saving = false; });
         },
 
-        removeAnnex(annex) {
+        removeAnnex(item) {
+            if (!item) return;
             this.saving = true;
-            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/${annex.blog_post_id}`;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/${item.blog_post_id}`;
             fetch(url, {
                 method: 'DELETE',
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': this.csrfToken },
@@ -1897,15 +2078,24 @@ function registerDossierSeriesCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.showMessage(data.message || 'Error', 'error');
+                        this.showError(data.message || 'Error');
                         return;
                     }
-                    this.annexes = this.annexes.filter(a => a.id !== annex.id);
-                    this.eligibleArticles.push({ id: annex.blog_post_id, title: annex.title, status: '' });
-                    this.showMessage(this.i18n.annexRemoved);
+                    this.seriesItems = this.seriesItems.filter(a => a.id !== item.id);
+                    this.ungrouped.push({
+                        id: item.id,
+                        blog_post_id: item.blog_post_id,
+                        position: this.ungrouped.length + 1,
+                        blog_post: item.blog_post,
+                    });
+                    this.showSuccess(this.i18n.annexRemoved || 'Annex removed');
                 })
-                .catch(() => this.showMessage('Error', 'error'))
+                .catch(() => this.showError('Error'))
                 .finally(() => { this.saving = false; });
+        },
+
+        openDeleteSeriesModal() {
+            this.showDeleteSeriesModal = true;
         },
 
         deleteSeries() {
@@ -1918,22 +2108,89 @@ function registerDossierSeriesCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        this.showMessage(data.message || 'Error', 'error');
+                        this.showError(data.message || 'Error');
                         return;
                     }
-                    this.annexes.forEach(a => {
-                        this.eligibleArticles.push({ id: a.blog_post_id, title: a.title, status: '' });
+                    if (this.seriesRoot) {
+                        this.ungrouped.push({
+                            id: this.seriesRoot.blogPostId,
+                            blog_post_id: this.seriesRoot.blogPostId,
+                            position: this.ungrouped.length + 1,
+                            blog_post: this.seriesRoot,
+                        });
+                    }
+                    this.seriesItems.forEach(item => {
+                        this.ungrouped.push({
+                            id: item.blog_post_id,
+                            blog_post_id: item.blog_post_id,
+                            position: this.ungrouped.length + 1,
+                            blog_post: item.blog_post,
+                        });
                     });
                     this.hasSeries = false;
                     this.seriesId = null;
-                    this.rootPostId = null;
-                    this.rootPostTitle = '';
-                    this.rootSlug = '';
-                    this.annexes = [];
-                    this.showMessage(this.i18n.seriesDeleted);
+                    this.seriesRoot = null;
+                    this.seriesItems = [];
+                    this.showDeleteSeriesModal = false;
+                    this.showSuccess(this.i18n.seriesDeleted || 'Series deleted');
                 })
-                .catch(() => this.showMessage('Error', 'error'))
+                .catch(() => this.showError('Error'))
                 .finally(() => { this.saving = false; });
+        },
+
+        confirmDetach(entry) {
+            this.detachEntry = entry;
+            this.showDetachModal = true;
+            this.openMenuId = null;
+        },
+
+        async detachArticle() {
+            if (!this.detachEntry) return;
+            this.detaching = true;
+            try {
+                const destroyUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/${this.detachEntry.blog_post_id}`;
+                const res = await fetch(destroyUrl, {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.ungrouped = this.ungrouped.filter(e => e.id !== this.detachEntry.id);
+                    this.showDetachModal = false;
+                    this.detachEntry = null;
+                    this.showSuccess(data.message || this.i18n.articleDetached);
+                } else {
+                    this.showError(data.message || 'Error');
+                }
+            } catch { this.showError('Network error'); }
+            finally { this.detaching = false; }
+        },
+
+        moveUngrouped(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= this.ungrouped.length) return;
+            const temp = this.ungrouped[index];
+            this.ungrouped.splice(index, 1, this.ungrouped[newIndex]);
+            this.ungrouped.splice(newIndex, 1, temp);
+            this.ungrouped.forEach((e, i) => { e.position = i + 1; });
+
+            const reorderUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/reorder`;
+            fetch(reorderUrl, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ articles: this.ungrouped.map(e => e.blog_post_id) }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showError(data.message || 'Error');
+                    }
+                })
+                .catch(() => this.showError('Network error'));
+        },
+
+        toggleMenu(id) {
+            this.openMenuId = this.openMenuId === id ? null : id;
         },
     }));
 }
@@ -4581,9 +4838,9 @@ registerAnnotationModal();
 registerBlogCoAuthorCard();
 registerBlogInviteByEmail();
     registerBlogDossierCard();
-    registerDossierSeriesCard();
+    registerDossierTabs();
+    registerDossierContentsCard();
     registerDossierSemanticArticleSearch();
-    registerDossierArticlesCard();
     registerDossierMembersCard();
     registerDossierFilesCard();
     registerBlogLoopCard();
