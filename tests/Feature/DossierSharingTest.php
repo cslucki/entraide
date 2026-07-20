@@ -190,10 +190,54 @@ class DossierSharingTest extends TestCase
 
     public function test_owner_can_search_users(): void
     {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder'), ['q' => $this->readerA->first_name]))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => $this->editorA->email]))
             ->assertOk()
-            ->assertJsonCount(1, 'users');
+            ->assertJsonCount(1, 'users')
+            ->assertJsonPath('users.0.email', $this->editorA->email);
+    }
+
+    public function test_search_excludes_owner_and_existing_members(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
+
+        $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => $this->editorA->email]))
+            ->assertOk()
+            ->assertJsonCount(1, 'users')
+            ->assertJsonPath('users.0.email', $this->editorA->email);
+    }
+
+    public function test_reader_cannot_search_users(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
+
+        $this->actingAs($this->readerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => $this->editorA->email]))
+            ->assertForbidden();
+    }
+
+    public function test_editor_cannot_search_users(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->member($dossier, $this->editorA, DossierMember::ROLE_EDITOR);
+
+        $this->actingAs($this->editorA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => $this->readerA->email]))
+            ->assertForbidden();
+    }
+
+    public function test_stranger_cannot_search_users(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+
+        $this->actingAs($this->strangerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => $this->editorA->email]))
+            ->assertForbidden();
     }
 
     // --- Non-owner cannot manage members ---

@@ -2048,7 +2048,8 @@ function registerDossierMembersCard() {
                 .then(data => {
                     this.members = (data.members || []).map(m => ({
                         ...m,
-                        initial: (m.name || '?').charAt(0).toUpperCase(),
+                        displayName: `${m.first_name || ''} ${(m.name || '').toUpperCase()}`.trim(),
+                        initial: (m.first_name || m.name || '?').charAt(0).toUpperCase(),
                     }));
                 })
                 .catch(() => {});
@@ -2061,11 +2062,12 @@ function registerDossierMembersCard() {
             fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(r => r.json())
                 .then(data => {
-                    const existingIds = this.members.map(m => m.id);
-                    existingIds.push(this.ownerId);
                     this.searchResults = (data.users || [])
-                        .filter(u => !existingIds.includes(u.id))
-                        .map(u => ({ ...u, _selectedRole: 'reader' }));
+                        .map(u => ({
+                            ...u,
+                            displayName: `${u.first_name || ''} ${(u.name || '').toUpperCase()}`.trim(),
+                            _selectedRole: 'reader',
+                        }));
                 })
                 .catch(() => {})
                 .finally(() => { this.searchLoading = false; });
@@ -2089,7 +2091,11 @@ function registerDossierMembersCard() {
                         this.showMessage(data.message || this.i18n.memberAlready, 'error');
                         return;
                     }
-                    this.members.push({ ...data.member, initial: (data.member.name || '?').charAt(0).toUpperCase() });
+                    this.members.push({
+                        ...data.member,
+                        displayName: `${data.member.first_name || ''} ${(data.member.name || '').toUpperCase()}`.trim(),
+                        initial: (data.member.first_name || data.member.name || '?').charAt(0).toUpperCase(),
+                    });
                     this.showSearch = false;
                     this.searchQuery = '';
                     this.searchResults = [];
