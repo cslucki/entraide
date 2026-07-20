@@ -1,6 +1,11 @@
 import './bootstrap';
 import { createEditor } from './blog-editor';
 import { extractEmbedUrl } from './tiptap/media-embed-node.js';
+import * as FilePond from 'filepond';
+import 'filepond/dist/filepond.min.css';
+import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
+import FilePondPluginFileValidateSize from 'filepond-plugin-file-validate-size';
+window.FilePond = FilePond;
 window.createBlogEditor = createEditor;
 
 function registerAlpineStores() {
@@ -2162,6 +2167,8 @@ function registerDossierMembersCard() {
 function registerDossierFilesCard() {
     if (typeof Alpine === 'undefined') return;
 
+    FilePond.registerPlugin(FilePondPluginFileValidateType, FilePondPluginFileValidateSize);
+
     Alpine.data('dossierFilesCard', (config) => ({
         files: [],
         quota: { used_bytes: 0, limit_bytes: null, remaining_bytes: null },
@@ -2178,9 +2185,72 @@ function registerDossierFilesCard() {
         currentPage: 1,
         lastPage: 1,
         totalFiles: 0,
+        _pond: null,
 
         init() {
             this.loadFiles();
+            if (this.canManageFiles && this.$refs.filePondContainer) {
+                const self = this;
+                const csrfToken = this.csrfToken;
+                const orgParam = this.orgParam;
+                const dossierId = this.dossierId;
+                const endpoint = `/org/${orgParam}/dossiers/${dossierId}/files`;
+                const acceptedTypes = [
+                    'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                    'application/pdf',
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                ];
+                const labelIdle = this.i18n.uploadHelp || 'Drag & drop files or <span class="filepond--label-action">browse</span>';
+
+                this._pond = FilePond.create(this.$refs.filePondContainer, Object.assign(Object.create(null), {
+                    multiple: true,
+                    maxFiles: 5,
+                    maxFileSize: '20MB',
+                    acceptedFileTypes: acceptedTypes,
+                    labelIdle: labelIdle,
+                    onaddfile(err, file) {
+                        if (err) { console.warn('[FilePond] addfile error', err); return; }
+                        const formData = new FormData();
+                        formData.append('files[]', file.file, file.file.name);
+
+                        fetch(endpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                                'X-Requested-With': 'XMLHttpRequest',
+                            },
+                            body: formData,
+                        })
+                            .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                            .then(({ ok, data }) => {
+                                if (ok && data.files) {
+                                    const uploaded = (data.files || []).map(f => self.normalizeFile(f));
+                                    self.files = uploaded.concat(self.files).slice(0, 20);
+                                    self.totalFiles += uploaded.length;
+                                    if (data.quota) self.quota = data.quota;
+                                    self.showMessage(data.message || self.i18n.uploaded, 'success');
+                                    self._pond.removeFile(file.id);
+                                } else {
+                                    self.showMessage(data.message || self.i18n.uploadFailed, 'error');
+                                    self._pond.removeFile(file.id);
+                                }
+                            })
+                            .catch(() => {
+                                self.showMessage(self.i18n.uploadFailed, 'error');
+                                self._pond.removeFile(file.id);
+                            });
+                    },
+                }));
+            }
+        },
+
+        destroy() {
+            if (this._pond) {
+                this._pond.destroy();
+                this._pond = null;
+            }
         },
 
         loadFiles(page) {
@@ -2225,46 +2295,6 @@ function registerDossierFilesCard() {
 
         formatQuota(bytes) {
             return this.formatBytes(bytes);
-        },
-
-        uploadFiles(event) {
-            const input = event.target;
-            const fileInput = input.closest ? input : document.getElementById('dossier-file-input');
-            if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
-
-            const formData = new FormData();
-            for (let i = 0; i < fileInput.files.length; i++) {
-                formData.append('files[]', fileInput.files[i]);
-            }
-
-            this.uploading = true;
-            this.message = '';
-
-            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files`;
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': this.csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: formData,
-            })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
-                    if (!ok) {
-                        this.showMessage(data.message || this.i18n.uploadFailed, 'error');
-                        return;
-                    }
-                    this.showMessage(data.message || this.i18n.uploaded, 'success');
-                    const uploadedFiles = (data.files || []).map(file => this.normalizeFile(file));
-                    this.files = uploadedFiles.concat(this.files).slice(0, 20);
-                    this.totalFiles += uploadedFiles.length;
-                    this.quota.used_bytes += uploadedFiles.reduce((total, file) => total + (Number(file.size_bytes) || 0), 0);
-                    fileInput.value = '';
-                })
-                .catch(() => this.showMessage(this.i18n.uploadFailed, 'error'))
-                .finally(() => { this.uploading = false; });
         },
 
         deleteFile(file) {

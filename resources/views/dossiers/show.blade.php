@@ -382,12 +382,7 @@
                     {{-- Upload form --}}
                     @if($canManageFiles)
                     <div class="mt-5">
-                        <label class="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700" :class="uploading ? 'opacity-50 pointer-events-none' : ''">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                            <span x-text="uploading ? '...' : '{{ __('dossiers.file_upload') }}'"></span>
-                            <input id="dossier-file-input" type="file" multiple accept=".jpeg,.jpg,.png,.webp,.gif,.pdf,.doc,.docx"
-                                   class="sr-only" @change="uploadFiles($event)">
-                        </label>
+                        <div id="dossier-file-pond" x-ref="filePondContainer"></div>
                         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.file_upload_help') }}</p>
                     </div>
                     @endif
