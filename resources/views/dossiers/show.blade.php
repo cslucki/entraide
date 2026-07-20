@@ -220,15 +220,16 @@
                                  'withCoauthors' => __('dossiers.content_with_coauthors'),
                              ],
                          ]))">
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.contents_tab') }}</h2>
-                        <div class="flex items-center gap-2">
-                            <input x-model="searchQuery" type="text" placeholder="{{ __('dossiers.article_search_placeholder') }}" class="w-full rounded-lg border-gray-300 text-sm shadow-sm sm:w-64 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                    <div class="flex flex-col gap-4">
+                        {{-- Header --}}
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.contents_tab') }}</h2>
                             <template x-if="canManageArticles">
-                                <button @click="openAddArticleModal()" type="button" class="whitespace-nowrap rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">{{ __('dossiers.add_article') }}</button>
+                                <button @click="openAddArticleModal()" type="button" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:w-auto">{{ __('dossiers.add_article') }}</button>
                             </template>
                         </div>
-                    </div>
+                        {{-- Search row --}}
+                        <input x-model="searchQuery" type="text" placeholder="{{ __('dossiers.article_search_placeholder') }}" class="w-full rounded-lg border-gray-300 text-sm shadow-sm sm:max-w-md dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
 
                     <template x-if="message">
                         <div class="mt-4 rounded-xl border px-4 py-3 text-sm font-medium"
@@ -336,67 +337,109 @@
                                 </div>
 
                                 {{-- Root article --}}
-                                <div class="border-t border-indigo-200 px-4 py-3 dark:border-indigo-900/60">
-                                    <template x-if="seriesRoot">
-                                        <div>
-                                            <div class="flex items-center justify-between gap-3">
-                                                <div class="min-w-0 flex-1">
-                                                    <div class="flex flex-wrap items-center gap-2">
-                                                        <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300" x-text="i18n.rootBadge"></span>
-                                                        <span class="rounded-full px-2 py-0.5 text-xs font-semibold"
-                                                              :class="seriesRoot.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (seriesRoot.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
-                                                              x-text="formatStatus(seriesRoot.status)"></span>
+                                <template x-if="seriesRoot">
+                                    <div class="border-t border-indigo-200 dark:border-indigo-900/60">
+                                        <div class="px-4 py-3">
+                                            <div class="flex items-start justify-between gap-3 rounded-xl bg-white px-3 py-3 dark:bg-gray-800 sm:py-2" data-no-drag :data-article-id="seriesRoot.blogPostId">
+                                                <div class="flex items-start gap-2 min-w-0 flex-1">
+                                                    {{-- No drag handle for root --}}
+                                                    <div class="min-w-0 flex-1">
+                                                        <div class="flex flex-wrap items-center gap-1.5">
+                                                            <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300" x-text="i18n.rootBadge"></span>
+                                                            <span class="rounded-full px-1.5 py-0.5 text-xs font-semibold"
+                                                                  :class="seriesRoot.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (seriesRoot.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
+                                                                  x-text="formatStatus(seriesRoot.status)"></span>
+                                                        </div>
+                                                        <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="seriesRoot.title"></p>
+                                                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                                            <template x-if="seriesRoot.author">
+                                                                <span x-text="i18n.byAuthor.replace(':name', (seriesRoot.author.first_name || '') + ' ' + (seriesRoot.author.name || ''))"></span>
+                                                            </template>
+                                                            <template x-if="seriesRoot.coAuthors && seriesRoot.coAuthors.length > 0">
+                                                                <span> · <span x-text="i18n.withCoauthors.replace(':names', seriesRoot.coAuthors.map(c => (c.first_name || '') + ' ' + (c.name || '')).join(', '))"></span></span>
+                                                            </template>
+                                                            <template x-if="seriesRoot.updatedAt">
+                                                                <span> · <span x-text="formatDate(seriesRoot.updatedAt)"></span></span>
+                                                            </template>
+                                                            <template x-if="seriesRoot.publishedAt">
+                                                                <span> · <span x-text="'📅 ' + formatDate(seriesRoot.publishedAt)"></span></span>
+                                                            </template>
+                                                        </p>
                                                     </div>
-                                                    <h4 class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="seriesRoot.title"></h4>
-                                                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                                        <span x-text="i18n.rootRole"></span>
-                                                        <template x-if="seriesRoot.author">
-                                                            <span> · <span x-text="i18n.byAuthor.replace(':name', seriesRoot.author.first_name + ' ' + seriesRoot.author.name)"></span></span>
-                                                        </template>
-                                                        <template x-if="seriesRoot.coAuthors && seriesRoot.coAuthors.length > 0">
-                                                            <span> · <span x-text="i18n.withCoauthors.replace(':names', seriesRoot.coAuthors.map(c => c.first_name + ' ' + c.name).join(', '))"></span></span>
-                                                        </template>
-                                                        <template x-if="seriesRoot.publishedAt">
-                                                            <span> · <span x-text="formatDate(seriesRoot.publishedAt)"></span></span>
-                                                        </template>
-                                                    </p>
                                                 </div>
                                                 <div class="flex shrink-0 items-center gap-1">
                                                     <template x-if="seriesRoot.canView && seriesRoot.viewUrl">
-                                                        <a :href="seriesRoot.viewUrl" class="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.viewArticle"></a>
+                                                        <a :href="seriesRoot.viewUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.viewArticle"></a>
                                                     </template>
                                                     <template x-if="seriesRoot.canEdit && seriesRoot.editUrl">
-                                                        <a :href="seriesRoot.editUrl" class="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle"></a>
+                                                        <a :href="seriesRoot.editUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle"></a>
                                                     </template>
                                                 </div>
                                             </div>
                                         </div>
-                                    </template>
-                                </div>
+                                    </div>
+                                </template>
 
                                 {{-- Annexes --}}
                                 <div class="border-t border-indigo-200 px-4 py-3 dark:border-indigo-900/60" x-show="seriesItems.length > 0">
                                     <div class="space-y-2" x-ref="annexesContainer">
-                                        <template x-for="(item, idx) in seriesItems" :key="item.id">
-                                            <div class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 dark:bg-gray-800" :data-annex-id="item.blog_post_id">
-                                                <div class="flex items-center gap-2 min-w-0 flex-1">
-                                                    <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="idx + 1"></span>
-                                                    <div class="min-w-0">
+                                        <template x-for="(item, index) in filteredAnnexItems" :key="item.id">
+                                            <div :data-article-id="item.blog_post_id" class="flex items-start justify-between gap-3 rounded-xl bg-white px-3 py-3 dark:bg-gray-800 sm:py-2">
+                                                <div class="flex items-start gap-2 min-w-0 flex-1">
+                                                    <template x-if="canManageArticles">
+                                                        <span class="drag-handle mt-0.5 cursor-grab shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="i18n.dragHandle">
+                                                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+                                                        </span>
+                                                    </template>
+                                                    <div class="min-w-0 flex-1">
                                                         <div class="flex flex-wrap items-center gap-1.5">
                                                             <span class="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="i18n.annexBadge"></span>
                                                             <span class="rounded-full px-1.5 py-0.5 text-xs font-semibold"
                                                                   :class="item.blog_post?.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (item.blog_post?.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
                                                                   x-text="formatStatus(item.blog_post?.status)"></span>
                                                         </div>
-                                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="item.blog_post?.title"></p>
+                                                        <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="item.blog_post?.title || '—'"></p>
+                                                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                                            <template x-if="item.blog_post?.author">
+                                                                <span x-text="i18n.byAuthor.replace(':name', (item.blog_post.author.first_name || '') + ' ' + (item.blog_post.author.name || ''))"></span>
+                                                            </template>
+                                                            <template x-if="item.blog_post?.coAuthors && item.blog_post.coAuthors.length > 0">
+                                                                <span> · <span x-text="i18n.withCoauthors.replace(':names', item.blog_post.coAuthors.map(c => (c.first_name || '') + ' ' + (c.name || '')).join(', '))"></span></span>
+                                                            </template>
+                                                            <template x-if="item.blog_post?.updatedAt">
+                                                                <span> · <span x-text="formatDate(item.blog_post.updatedAt)"></span></span>
+                                                            </template>
+                                                            <template x-if="item.blog_post?.publishedAt">
+                                                                <span> · <span x-text="'📅 ' + formatDate(item.blog_post.publishedAt)"></span></span>
+                                                            </template>
+                                                        </p>
                                                     </div>
                                                 </div>
                                                 <div class="flex shrink-0 items-center gap-1">
                                                     <template x-if="canManageArticles">
-                                                        <button @click="removeAnnex(item)" :title="i18n.removeFromSeries" class="rounded-lg p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400">
-                                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                                                        </button>
+                                                        <div class="flex items-center gap-0.5">
+                                                            <button @click="moveAnnex(index, -1)" :disabled="index === 0" :title="i18n.moveUp" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
+                                                                <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
+                                                            </button>
+                                                            <button @click="moveAnnex(index, 1)" :disabled="index === filteredAnnexItems.length - 1" :title="i18n.moveDown" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
+                                                                <svg class="h-3.5 w-3.5 rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
+                                                            </button>
+                                                        </div>
                                                     </template>
+                                                    <template x-if="item.blog_post?.canView && item.blog_post?.viewUrl">
+                                                        <a :href="item.blog_post.viewUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.viewArticle"></a>
+                                                    </template>
+                                                    <template x-if="item.blog_post?.canEdit && item.blog_post?.editUrl">
+                                                        <a :href="item.blog_post.editUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle"></a>
+                                                    </template>
+                                                    <div class="relative" data-article-menu>
+                                                        <button @click="toggleMenu(item.id)" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
+                                                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                                        </button>
+                                                        <div x-show="openMenuId === item.id" @click.away="openMenuId = null" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                                            <button @click="removeAnnex(item)" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.removeFromSeries"></button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </template>
@@ -412,22 +455,22 @@
                             <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3" x-text="i18n.ungroupedTitle"></h3>
                             <div class="space-y-2" x-ref="ungroupedContainer">
                                 <template x-for="(entry, index) in filteredUngrouped" :key="entry.id">
-                                    <div :data-article-id="entry.blog_post_id" class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-900/40">
-                                        <div class="flex items-center gap-2 min-w-0 flex-1">
+                                    <div :data-article-id="entry.blog_post_id" class="flex items-start justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40 sm:py-2">
+                                        <div class="flex items-start gap-2 min-w-0 flex-1">
                                             <template x-if="canManageArticles">
-                                                <span class="drag-handle cursor-grab text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="i18n.dragHandle">
+                                                <span class="drag-handle mt-0.5 cursor-grab shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="i18n.dragHandle">
                                                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
                                                 </span>
                                             </template>
-                                            <div class="min-w-0">
+                                            <div class="min-w-0 flex-1">
                                                 <div class="flex flex-wrap items-center gap-1.5">
                                                     <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" x-text="i18n.ungroupedBadge"></span>
                                                     <span class="rounded-full px-1.5 py-0.5 text-xs font-semibold"
                                                           :class="entry.blog_post?.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (entry.blog_post?.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
                                                           x-text="formatStatus(entry.blog_post?.status)"></span>
                                                 </div>
-                                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="entry.blog_post?.title || '—'"></p>
-                                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="entry.blog_post?.title || '—'"></p>
+                                                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                                                     <template x-if="entry.blog_post?.author">
                                                         <span x-text="i18n.byAuthor.replace(':name', (entry.blog_post.author.first_name || '') + ' ' + (entry.blog_post.author.name || ''))"></span>
                                                     </template>
@@ -436,6 +479,9 @@
                                                     </template>
                                                     <template x-if="entry.blog_post?.updatedAt">
                                                         <span> · <span x-text="formatDate(entry.blog_post.updatedAt)"></span></span>
+                                                    </template>
+                                                    <template x-if="entry.blog_post?.publishedAt">
+                                                        <span> · <span x-text="'📅 ' + formatDate(entry.blog_post.publishedAt)"></span></span>
                                                     </template>
                                                 </p>
                                             </div>
@@ -453,6 +499,9 @@
                                             </template>
                                             <template x-if="entry.blog_post?.canView && entry.blog_post?.viewUrl">
                                                 <a :href="entry.blog_post.viewUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.viewArticle"></a>
+                                            </template>
+                                            <template x-if="entry.blog_post?.canEdit && entry.blog_post?.editUrl">
+                                                <a :href="entry.blog_post.editUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle"></a>
                                             </template>
                                             <div class="relative" data-article-menu>
                                                 <button @click="toggleMenu(entry.id)" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
@@ -649,7 +698,6 @@
 
             {{-- Tab: Members --}}
             <div x-show="active === 'membres'" x-cloak role="tabpanel" id="tabpanel-membres" aria-labelledby="tab-membres" class="mt-6">
-                @if($canManageMembers)
                 <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
                          x-data="dossierMembersCard(@js([
                              'csrfToken' => csrf_token(),
@@ -657,6 +705,7 @@
                              'orgParam' => $orgParam,
                              'ownerId' => $dossier->owner_id,
                              'currentUserId' => auth()->id(),
+                             'canManage' => $canManageMembers,
                              'activeTab' => 'membres',
                              'i18n' => [
                                  'confirmRemove' => __('dossiers.confirm_remove_member'),
@@ -664,6 +713,8 @@
                                  'memberRoleUpdated' => __('dossiers.member_role_updated'),
                                  'memberRemoved' => __('dossiers.member_removed'),
                                  'memberAlready' => __('dossiers.member_already'),
+                                 'roleReader' => __('dossiers.role_reader'),
+                                 'roleEditor' => __('dossiers.role_editor'),
                              ],
                          ]))">
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.members_title') }}</h2>
@@ -683,20 +734,25 @@
                                     <div>
                                         <div class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="m.displayName"></div>
                                         <div class="text-xs text-gray-500 dark:text-gray-400" x-text="m.email"></div>
+                                        <template x-if="m.isYou">
+                                            <span class="mt-0.5 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300" x-text="m.roleLabel || m.role"></span>
+                                        </template>
                                     </div>
                                 </div>
-                                <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-                                    <select :value="m.role" @change="updateRole(m, $event.target.value)"
-                                            class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
-                                        <option value="reader">{{ __('dossiers.role_reader') }}</option>
-                                        <option value="editor">{{ __('dossiers.role_editor') }}</option>
-                                    </select>
-                                    <button @click="removeMember(m)"
-                                            class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:w-8"
-                                            title="{{ __('dossiers.member_removed') }}">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    </button>
-                                </div>
+                                <template x-if="canManage && !m.isYou">
+                                    <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+                                        <select :value="m.role" @change="updateRole(m, $event.target.value)"
+                                                class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
+                                            <option value="reader">{{ __('dossiers.role_reader') }}</option>
+                                            <option value="editor">{{ __('dossiers.role_editor') }}</option>
+                                        </select>
+                                        <button @click="removeMember(m)"
+                                                class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:w-8"
+                                                title="{{ __('dossiers.member_removed') }}">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                </template>
                             </div>
                         </template>
 
@@ -705,45 +761,46 @@
                         </template>
                     </div>
 
-                    <div class="mt-5">
-                        <button @click="showSearch = !showSearch" class="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                            {{ __('dossiers.add_member') }}
-                        </button>
-                    </div>
+                    @if($canManageMembers)
+                        <div class="mt-5">
+                            <button @click="showSearch = !showSearch" class="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                                {{ __('dossiers.add_member') }}
+                            </button>
+                        </div>
 
-                    <div x-show="showSearch" x-transition class="mt-4 space-y-3">
-                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.add_member_help') }}</p>
-                        <input type="text" x-model="searchQuery" @input.debounce.300ms="searchUsers()" placeholder="{{ __('dossiers.member_search_placeholder') }}"
-                               class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" />
-                        <div x-show="searchLoading" class="text-xs text-gray-400">...</div>
-                        <div class="space-y-2">
-                            <template x-for="u in searchResults" :key="u.id">
-                                <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-3 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <div class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="(u.first_name || u.name || '?').charAt(0)"></div>
-                                        <div>
-                                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="u.displayName"></span>
-                                            <span class="ml-1 text-xs text-gray-500 dark:text-gray-400" x-text="u.email"></span>
+                        <div x-show="showSearch" x-transition class="mt-4 space-y-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.add_member_help') }}</p>
+                            <input type="text" x-model="searchQuery" @input.debounce.300ms="searchUsers()" placeholder="{{ __('dossiers.member_search_placeholder') }}"
+                                   class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" />
+                            <div x-show="searchLoading" class="text-xs text-gray-400">...</div>
+                            <div class="space-y-2">
+                                <template x-for="u in searchResults" :key="u.id">
+                                    <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-3 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <div class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="(u.first_name || u.name || '?').charAt(0)"></div>
+                                            <div>
+                                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="u.displayName"></span>
+                                                <span class="ml-1 text-xs text-gray-500 dark:text-gray-400" x-text="u.email"></span>
+                                            </div>
+                                        </div>
+                                        <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+                                            <select x-model="u._selectedRole" class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
+                                                <option value="reader">{{ __('dossiers.role_reader') }}</option>
+                                                <option value="editor">{{ __('dossiers.role_editor') }}</option>
+                                            </select>
+                                            <button @click="addMember(u)" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 sm:w-auto">
+                                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                                                <span>{{ __('dossiers.add_member') }}</span>
+                                            </button>
                                         </div>
                                     </div>
-                                    <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-                                        <select x-model="u._selectedRole" class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
-                                            <option value="reader">{{ __('dossiers.role_reader') }}</option>
-                                            <option value="editor">{{ __('dossiers.role_editor') }}</option>
-                                        </select>
-                                        <button @click="addMember(u)" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 sm:w-auto">
-                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                                            <span>{{ __('dossiers.add_member') }}</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </template>
+                                </template>
+                            </div>
+                            <button @click="showSearch = false; searchQuery = ''; searchResults = []" class="text-xs text-gray-500 hover:underline dark:text-gray-400">{{ __('dossiers.cancel') }}</button>
                         </div>
-                        <button @click="showSearch = false; searchQuery = ''; searchResults = []" class="text-xs text-gray-500 hover:underline dark:text-gray-400">{{ __('dossiers.cancel') }}</button>
-                    </div>
+                    @endif
                 </section>
-                @endif
             </div>
         </div>
 

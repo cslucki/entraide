@@ -1846,6 +1846,7 @@ function registerDossierContentsCard() {
         hasSeries: !!config.series,
         seriesId: config.series?.id || null,
         seriesRoot: config.series?.root ? normalizeArticle(config.series.root) : null,
+        seriesRootBlogPostId: config.series?.root_blog_post_id || null,
         seriesItems: (config.series?.items || []).map(item => ({
             id: item.id,
             blog_post_id: item.blog_post_id,
@@ -1871,6 +1872,7 @@ function registerDossierContentsCard() {
         detaching: false,
         openMenuId: null,
         saving: false,
+        sortables: [],
         i18n: config.i18n || {},
         canManageArticles: config.canManageArticles || false,
         csrfToken: config.csrfToken,
@@ -1892,28 +1894,103 @@ function registerDossierContentsCard() {
                 }
             });
 
+            const groupOptions = {
+                name: 'dossier-articles',
+                put: true,
+                pull: true,
+            };
+
             this.$nextTick(() => {
-                if (this.$refs.ungroupedContainer && this.canManageArticles) {
-                    Sortable.create(this.$refs.ungroupedContainer, {
-                        handle: '.drag-handle',
-                        animation: 150,
-                        onEnd: (evt) => {
-                            const movedId = evt.item.getAttribute('data-article-id');
-                            if (!movedId) return;
-                            const ids = [];
-                            evt.from.querySelectorAll('[data-article-id]').forEach(el => {
-                                ids.push(el.getAttribute('data-article-id'));
-                            });
-                            if (ids.length === 0) return;
-                            const ordered = ids.map(id => this.ungrouped.find(e => String(e.blog_post_id) === id)).filter(Boolean);
-                            const extra = this.ungrouped.filter(e => !ids.includes(String(e.blog_post_id)));
-                            this.ungrouped.splice(0, this.ungrouped.length, ...ordered, ...extra);
-                            this.ungrouped.forEach((e, i) => { e.position = i + 1; });
-                            this.persistReorder();
-                        },
-                    });
+                if (!this.canManageArticles) return;
+
+                const commonSortable = {
+                    group: groupOptions,
+                    handle: '.drag-handle',
+                    filter: '[data-no-drag]',
+                    animation: 150,
+                    onEnd: (evt) => this.onDragEnd(evt),
+                };
+
+                if (this.$refs.ungroupedContainer) {
+                    this.sortables.push(Sortable.create(this.$refs.ungroupedContainer, commonSortable));
+                }
+                if (this.$refs.annexesContainer) {
+                    this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
                 }
             });
+        },
+
+        destroy() {
+            this.sortables.forEach(s => s.destroy());
+        },
+
+        onDragEnd(evt) {
+            const movedId = evt.item.getAttribute('data-article-id');
+            if (!movedId) return;
+
+            const fromUngrouped = evt.from === this.$refs.ungroupedContainer;
+            const toUngrouped = evt.to === this.$refs.ungroupedContainer;
+
+            if (fromUngrouped && toUngrouped) {
+                this.reorderUngrouped(evt);
+            } else if (!fromUngrouped && !toUngrouped) {
+                this.reorderAnnexes(evt);
+            } else if (fromUngrouped && !toUngrouped) {
+                this.crossListToAnnex(evt, movedId);
+            } else {
+                this.crossListToUngrouped(evt, movedId);
+            }
+        },
+
+        reorderUngrouped(evt) {
+            const ids = [];
+            evt.from.querySelectorAll('[data-article-id]').forEach(el => {
+                ids.push(el.getAttribute('data-article-id'));
+            });
+            if (ids.length === 0) return;
+            const ordered = ids.map(id => this.ungrouped.find(e => String(e.blog_post_id) === id)).filter(Boolean);
+            const extra = this.ungrouped.filter(e => !ids.includes(String(e.blog_post_id)));
+            this.ungrouped.splice(0, this.ungrouped.length, ...ordered, ...extra);
+            this.ungrouped.forEach((e, i) => { e.position = i + 1; });
+            this.persistReorder();
+        },
+
+        reorderAnnexes() {
+            const ids = [];
+            this.$refs.annexesContainer.querySelectorAll('[data-article-id]').forEach(el => {
+                ids.push(el.getAttribute('data-article-id'));
+            });
+            const ordered = ids.map(id => this.seriesItems.find(e => String(e.blog_post_id) === id)).filter(Boolean);
+            const extra = this.seriesItems.filter(e => !ids.includes(String(e.blog_post_id)));
+            this.seriesItems.splice(0, this.seriesItems.length, ...ordered, ...extra);
+            this.seriesItems.forEach((e, i) => { e.position = i + 1; });
+            this.saveAnnexReorder();
+        },
+
+        saveAnnexReorder() {
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/reorder`;
+            fetch(url, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ items: this.seriesItems.map(e => e.blog_post_id) }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) { this.showError(data.message || 'Error'); }
+                })
+                .catch(() => {});
+        },
+
+        crossListToAnnex(evt, movedId) {
+            const entry = this.ungrouped.find(e => String(e.blog_post_id) === movedId);
+            if (!entry) return;
+            this.addToSeries(entry);
+        },
+
+        crossListToUngrouped(evt, movedId) {
+            const item = this.seriesItems.find(e => String(e.blog_post_id) === movedId);
+            if (!item) return;
+            this.removeAnnex(item);
         },
 
         persistReorder() {
@@ -1923,17 +2000,36 @@ function registerDossierContentsCard() {
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
                 body: JSON.stringify({ articles: this.ungrouped.map(e => e.blog_post_id) }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
-                    if (!ok) { this.showError(data.message || 'Error'); }
+                .then(r => {
+                    if (!r.ok) { this.showError('Reorder failed'); }
                 })
-                .catch(() => {});
+                .catch(() => { this.message = this.i18n.dragError || this.i18n.networkError || 'Drag failed'; this.messageType = 'error'; });
         },
 
         get filteredUngrouped() {
             if (!this.searchQuery) return this.ungrouped;
             const q = this.searchQuery.toLowerCase();
             return this.ungrouped.filter(e => (e.blog_post?.title || '').toLowerCase().includes(q));
+        },
+
+        get filteredAnnexItems() {
+            if (!this.searchQuery) return this.seriesItems;
+            const q = this.searchQuery.toLowerCase();
+            return this.seriesItems.filter(e => (e.blog_post?.title || '').toLowerCase().includes(q));
+        },
+
+        isRoot(blogPostId) {
+            return this.hasSeries && String(this.seriesRootBlogPostId) === String(blogPostId);
+        },
+
+        moveAnnex(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= this.seriesItems.length) return;
+            const temp = this.seriesItems[index];
+            this.seriesItems.splice(index, 1, this.seriesItems[newIndex]);
+            this.seriesItems.splice(newIndex, 1, temp);
+            this.seriesItems.forEach((e, i) => { e.position = i + 1; });
+            this.saveAnnexReorder();
         },
 
         showSuccess(msg) { this.message = msg; this.messageType = 'success'; setTimeout(() => { this.message = ''; }, 4000); },
@@ -2297,6 +2393,7 @@ function registerDossierMembersCard() {
         orgParam: config.orgParam,
         ownerId: config.ownerId,
         currentUserId: config.currentUserId,
+        canManage: config.canManage || false,
         i18n: config.i18n,
 
         init() {
@@ -2310,8 +2407,10 @@ function registerDossierMembersCard() {
                 .then(data => {
                     this.members = (data.members || []).map(m => ({
                         ...m,
+                        isYou: String(m.id) === String(this.currentUserId),
                         displayName: `${m.first_name || ''} ${(m.name || '').toUpperCase()}`.trim(),
                         initial: (m.first_name || m.name || '?').charAt(0).toUpperCase(),
+                        roleLabel: m.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (m.role === 'editor' ? (this.i18n.roleEditor || 'Editor') : m.role),
                     }));
                 })
                 .catch(() => {});

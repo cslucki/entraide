@@ -90,7 +90,7 @@ class DossierArticleController extends Controller
                 ->first();
 
             if ($seriesItem) {
-                return DB::transaction(function () use ($dossier, $organization, $series, $seriesItem, $post, $request, $indexing) {
+                return DB::transaction(function () use ($dossier, $organization, $seriesItem, $post, $request, $indexing) {
                     $seriesItem->delete();
 
                     $entry = DossierBlogPost::query()
