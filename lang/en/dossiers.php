@@ -153,7 +153,7 @@ return [
     'file_max_size' => 'Each file must not exceed 20 MB.',
     'file_invalid_type' => 'This file type is not allowed.',
     'storage_quota_exceeded' => 'Insufficient storage space in this organization.',
-    'storage_used' => ':used used',
+    'storage_used' => 'used',
     'storage_quota' => ':used / :limit',
     'storage_unlimited' => 'Unlimited',
 ];

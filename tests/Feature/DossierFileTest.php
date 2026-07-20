@@ -98,17 +98,20 @@ class DossierFileTest extends TestCase
 
     private function createFile(Dossier $dossier, User $uploader, string $name = 'doc.pdf'): DossierFile
     {
+        $path = 'dossier-files/'.$dossier->id.'/'.$name;
+        Storage::disk('dossier_files')->put($path, 'stored test content');
+
         return DossierFile::create([
             'organization_id' => $dossier->organization_id,
             'dossier_id' => $dossier->id,
             'uploaded_by' => $uploader->id,
             'disk' => 'dossier_files',
-            'path' => 'dossier-files/'.$dossier->id.'/'.$name,
+            'path' => $path,
             'original_name' => $name,
             'display_name' => $name,
             'mime_type' => 'application/pdf',
-            'size_bytes' => 1024,
-            'checksum_sha256' => hash('sha256', 'test'),
+            'size_bytes' => strlen('stored test content'),
+            'checksum_sha256' => hash('sha256', 'stored test content'),
             'source' => 'upload',
         ]);
     }
@@ -123,6 +126,53 @@ class DossierFileTest extends TestCase
 
         $response->assertStatus(201);
         $this->assertDatabaseHas('dossiers', ['id' => $this->dossier->id]);
+    }
+
+    public function test_owner_file_workflow_persists_stores_lists_downloads_and_deletes_file(): void
+    {
+        $response = $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+            'files' => [$this->fakeFile('workflow.pdf', 'application/pdf', 2048)],
+        ]);
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath('message', __('dossiers.file_uploaded'))
+            ->assertJsonPath('files.0.original_name', 'workflow.pdf')
+            ->assertJsonPath('files.0.mime_type', 'application/pdf')
+            ->assertJsonPath('files.0.size_bytes', 2048);
+
+        $file = DossierFile::where('dossier_id', $this->dossier->id)->firstOrFail();
+
+        $this->assertDatabaseHas('dossier_files', [
+            'id' => $file->id,
+            'organization_id' => $this->orgA->id,
+            'dossier_id' => $this->dossier->id,
+            'uploaded_by' => $this->ownerA->id,
+            'disk' => 'dossier_files',
+            'original_name' => 'workflow.pdf',
+            'display_name' => 'workflow.pdf',
+            'mime_type' => 'application/pdf',
+            'size_bytes' => 2048,
+        ]);
+        Storage::disk('dossier_files')->assertExists($file->path);
+
+        $this->actingAs($this->ownerA)->getJson($this->indexRoute($this->dossier))
+            ->assertOk()
+            ->assertJsonPath('files.total', 1)
+            ->assertJsonPath('files.data.0.id', $file->id)
+            ->assertJsonPath('files.data.0.display_name', 'workflow.pdf')
+            ->assertJsonPath('files.data.0.mime_type', 'application/pdf')
+            ->assertJsonPath('files.data.0.size_bytes', 2048);
+
+        $this->actingAs($this->ownerA)->get($this->showRoute($this->dossier, $file))
+            ->assertOk()
+            ->assertHeader('content-disposition', 'attachment; filename=workflow.pdf');
+
+        $this->actingAs($this->ownerA)->deleteJson($this->destroyRoute($this->dossier, $file))
+            ->assertOk();
+
+        $this->assertSoftDeleted('dossier_files', ['id' => $file->id]);
+        Storage::disk('dossier_files')->assertMissing($file->path);
     }
 
     public function test_editor_can_upload_files(): void
@@ -168,6 +218,16 @@ class DossierFileTest extends TestCase
         ]);
 
         $response->assertStatus(422);
+    }
+
+    public function test_upload_rejects_too_large_file(): void
+    {
+        $response = $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+            'files' => [UploadedFile::fake()->create('too-large.pdf', 20481, 'application/pdf')],
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseCount('dossier_files', 0);
     }
 
     public function test_upload_rejects_empty_files(): void
@@ -345,7 +405,7 @@ class DossierFileTest extends TestCase
 
         $response = $this->actingAs($this->ownerA)->get($this->showRoute($this->dossier, $file));
 
-        $response->assertRedirect();
+        $response->assertOk();
     }
 
     public function test_stranger_cannot_download_file(): void
@@ -367,6 +427,7 @@ class DossierFileTest extends TestCase
 
         $response->assertOk();
         $this->assertSoftDeleted('dossier_files', ['id' => $file->id]);
+        Storage::disk('dossier_files')->assertMissing($file->path);
     }
 
     public function test_editor_cannot_delete_file(): void
