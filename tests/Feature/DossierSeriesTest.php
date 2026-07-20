@@ -85,6 +85,130 @@ class DossierSeriesTest extends TestCase
         ], $extra));
     }
 
+    // --- Search endpoint exclusion tests ---
+
+    public function test_search_excludes_articles_already_attached_to_dossier(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Search test');
+        $free = $this->blogPost($this->orgA, $this->ownerA, 'Free article');
+        $attached = $this->blogPost($this->orgA, $this->ownerA, 'Attached article');
+        $this->attach($dossier, $attached, $this->ownerA, 1);
+
+        $response = $this->actingAs($this->ownerA)->getJson(
+            $this->orgRoute('dossiers.articles.search', $dossier)
+        );
+
+        $response->assertOk();
+        $titles = collect($response->json('articles'))->pluck('title')->all();
+        $this->assertContains('Free article', $titles);
+        $this->assertNotContains('Attached article', $titles);
+    }
+
+    public function test_search_excludes_articles_attached_as_series_root(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Search root test');
+        $root = $this->blogPost($this->orgA, $this->ownerA, 'Root article');
+        $free = $this->blogPost($this->orgA, $this->ownerA, 'Free article');
+        $this->attach($dossier, $root, $this->ownerA, 1);
+
+        ArticleSeries::create([
+            'organization_id' => $this->orgA->id,
+            'dossier_id' => $dossier->id,
+            'root_blog_post_id' => $root->id,
+            'created_by' => $this->ownerA->id,
+        ]);
+
+        $response = $this->actingAs($this->ownerA)->getJson(
+            $this->orgRoute('dossiers.articles.search', $dossier)
+        );
+
+        $response->assertOk();
+        $titles = collect($response->json('articles'))->pluck('title')->all();
+        $this->assertContains('Free article', $titles);
+        $this->assertNotContains('Root article', $titles);
+    }
+
+    public function test_search_excludes_articles_attached_as_series_annex(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Search annex test');
+        $root = $this->blogPost($this->orgA, $this->ownerA, 'Root');
+        $annex = $this->blogPost($this->orgA, $this->ownerA, 'Annex article');
+        $free = $this->blogPost($this->orgA, $this->ownerA, 'Free article');
+        $this->attach($dossier, $root, $this->ownerA, 1);
+        $this->attach($dossier, $annex, $this->ownerA, 2);
+
+        $series = ArticleSeries::create([
+            'organization_id' => $this->orgA->id,
+            'dossier_id' => $dossier->id,
+            'root_blog_post_id' => $root->id,
+            'created_by' => $this->ownerA->id,
+        ]);
+
+        ArticleSeriesItem::create([
+            'organization_id' => $this->orgA->id,
+            'article_series_id' => $series->id,
+            'blog_post_id' => $annex->id,
+            'position' => 1,
+        ]);
+
+        $response = $this->actingAs($this->ownerA)->getJson(
+            $this->orgRoute('dossiers.articles.search', $dossier)
+        );
+
+        $response->assertOk();
+        $titles = collect($response->json('articles'))->pluck('title')->all();
+        $this->assertContains('Free article', $titles);
+        $this->assertNotContains('Annex article', $titles);
+    }
+
+    public function test_search_excludes_articles_from_other_users(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Search user test');
+        $mine = $this->blogPost($this->orgA, $this->ownerA, 'My article');
+        $theirs = $this->blogPost($this->orgA, $this->editorA, 'Their article');
+
+        $response = $this->actingAs($this->ownerA)->getJson(
+            $this->orgRoute('dossiers.articles.search', $dossier)
+        );
+
+        $response->assertOk();
+        $titles = collect($response->json('articles'))->pluck('title')->all();
+        $this->assertContains('My article', $titles);
+        $this->assertNotContains('Their article', $titles);
+    }
+
+    public function test_search_excludes_articles_from_other_organizations(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Search org test');
+        $mine = $this->blogPost($this->orgA, $this->ownerA, 'Org A article');
+        $otherOrg = $this->blogPost($this->orgB, $this->userB, 'Org B article');
+
+        $response = $this->actingAs($this->ownerA)->getJson(
+            $this->orgRoute('dossiers.articles.search', $dossier)
+        );
+
+        $response->assertOk();
+        $titles = collect($response->json('articles'))->pluck('title')->all();
+        $this->assertContains('Org A article', $titles);
+        $this->assertNotContains('Org B article', $titles);
+    }
+
+    public function test_search_returns_empty_when_all_articles_attached(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Search empty test');
+        $a1 = $this->blogPost($this->orgA, $this->ownerA, 'Attached one');
+        $a2 = $this->blogPost($this->orgA, $this->ownerA, 'Attached two');
+        $this->attach($dossier, $a1, $this->ownerA, 1);
+        $this->attach($dossier, $a2, $this->ownerA, 2);
+
+        $response = $this->actingAs($this->ownerA)->getJson(
+            $this->orgRoute('dossiers.articles.search', $dossier)
+        );
+
+        $response->assertOk();
+        $this->assertEmpty($response->json('articles'));
+    }
+
     // --- Series CRUD ---
 
     public function test_owner_can_create_series(): void

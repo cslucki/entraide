@@ -225,7 +225,7 @@
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.contents_tab') }}</h2>
                             <template x-if="canManageArticles">
-                                <button @click="openAddArticleModal()" type="button" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:w-auto">{{ __('dossiers.add_article') }}</button>
+                                <button @click="openAddArticleModal()" type="button" class="w-full whitespace-nowrap rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:w-auto">{{ __('dossiers.add_article') }}</button>
                             </template>
                         </div>
                         {{-- Search row --}}
@@ -331,7 +331,15 @@
                                             <span class="text-sm font-semibold text-indigo-700 dark:text-indigo-300" x-text="i18n.seriesTitle"></span>
                                         </div>
                                         <template x-if="canManageArticles">
-                                            <button @click="openDeleteSeriesModal()" class="text-xs font-semibold text-red-600 hover:underline dark:text-red-400" x-text="i18n.deleteSeries"></button>
+                                            <div class="relative" data-article-menu>
+                                                <button @click="showSeriesMenu = !showSeriesMenu" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
+                                                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                                </button>
+                                                <div x-show="showSeriesMenu" @click.away="showSeriesMenu = false" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                                    <button @click="showSeriesMenu = false" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.changeRoot"></button>
+                                                    <button @click="showSeriesMenu = false; openDeleteSeriesModal()" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.deleteSeries"></button>
+                                                </div>
+                                            </div>
                                         </template>
                                     </div>
                                 </div>
@@ -432,14 +440,16 @@
                                                     <template x-if="item.blog_post?.canEdit && item.blog_post?.editUrl">
                                                         <a :href="item.blog_post.editUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle"></a>
                                                     </template>
-                                                    <div class="relative" data-article-menu>
-                                                        <button @click="toggleMenu(item.id)" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-                                                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                                                        </button>
-                                                        <div x-show="openMenuId === item.id" @click.away="openMenuId = null" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                                                            <button @click="removeAnnex(item)" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.removeFromSeries"></button>
+                                                    <template x-if="canManageArticles">
+                                                        <div class="relative" data-article-menu>
+                                                            <button @click="toggleMenu(item.id)" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
+                                                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                                            </button>
+                                                            <div x-show="openMenuId === item.id" @click.away="openMenuId = null" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                                                <button @click="removeAnnex(item)" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.removeFromSeries"></button>
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    </template>
                                                 </div>
                                             </div>
                                         </template>
@@ -503,20 +513,22 @@
                                             <template x-if="entry.blog_post?.canEdit && entry.blog_post?.editUrl">
                                                 <a :href="entry.blog_post.editUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle"></a>
                                             </template>
-                                            <div class="relative" data-article-menu>
-                                                <button @click="toggleMenu(entry.id)" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-                                                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                                                </button>
-                                                <div x-show="openMenuId === entry.id" @click.away="openMenuId = null" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                                                    <template x-if="hasSeries">
-                                                        <button @click="addToSeries(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.addToSeries"></button>
-                                                    </template>
-                                                    <template x-if="!hasSeries && canManageArticles">
-                                                        <button @click="setAsRoot(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.setRoot"></button>
-                                                    </template>
-                                                    <button @click="confirmDetach(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.removeFromFolder"></button>
+                                            <template x-if="canManageArticles">
+                                                <div class="relative" data-article-menu>
+                                                    <button @click="toggleMenu(entry.id)" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
+                                                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                                    </button>
+                                                    <div x-show="openMenuId === entry.id" @click.away="openMenuId = null" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                                        <template x-if="hasSeries">
+                                                            <button @click="addToSeries(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.addToSeries"></button>
+                                                        </template>
+                                                        <template x-if="!hasSeries && canManageArticles">
+                                                            <button @click="setAsRoot(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.setRoot"></button>
+                                                        </template>
+                                                        <button @click="confirmDetach(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.removeFromFolder"></button>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            </template>
                                         </div>
                                     </div>
                                 </template>

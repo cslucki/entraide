@@ -1871,6 +1871,7 @@ function registerDossierContentsCard() {
         detachEntry: null,
         detaching: false,
         openMenuId: null,
+        showSeriesMenu: false,
         saving: false,
         sortables: [],
         i18n: config.i18n || {},
@@ -1884,13 +1885,16 @@ function registerDossierContentsCard() {
                 if (this.openMenuId && !ev.target.closest('[data-article-menu]') && !ev.target.closest('button')) {
                     this.openMenuId = null;
                 }
+                if (this.showSeriesMenu && !ev.target.closest('[data-article-menu]') && !ev.target.closest('button')) {
+                    this.showSeriesMenu = false;
+                }
             });
             document.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') {
                     if (this.showDetachModal) { this.showDetachModal = false; this.detachEntry = null; }
                     else if (this.showAddModal) { this.closeAddModal(); }
                     else if (this.showDeleteSeriesModal) { this.showDeleteSeriesModal = false; }
-                    else { this.openMenuId = null; }
+                    else { this.openMenuId = null; this.showSeriesMenu = false; }
                 }
             });
 
@@ -1984,7 +1988,7 @@ function registerDossierContentsCard() {
         crossListToAnnex(evt, movedId) {
             const entry = this.ungrouped.find(e => String(e.blog_post_id) === movedId);
             if (!entry) return;
-            this.addToSeries(entry);
+            this.addToSeries(entry, evt.newIndex);
         },
 
         crossListToUngrouped(evt, movedId) {
@@ -2133,7 +2137,7 @@ function registerDossierContentsCard() {
                 .finally(() => { this.saving = false; });
         },
 
-        addToSeries(entry) {
+        addToSeries(entry, dropIndex) {
             if (!entry) return;
             this.saving = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes`;
@@ -2149,15 +2153,22 @@ function registerDossierContentsCard() {
                         return;
                     }
                     const item = data.item;
-                    this.seriesItems.push({
+                    const normalized = {
                         id: item.id,
                         blog_post_id: item.blog_post_id,
-                        position: this.seriesItems.length + 1,
+                        position: 0,
                         blog_post: normalizeArticle(item.blog_post),
-                    });
+                    };
+                    const insertAt = (typeof dropIndex === 'number' && dropIndex >= 0 && dropIndex <= this.seriesItems.length)
+                        ? dropIndex
+                        : this.seriesItems.length;
+                    this.seriesItems.splice(insertAt, 0, normalized);
+                    this.seriesItems.forEach((a, i) => a.position = i + 1);
                     this.ungrouped = this.ungrouped.filter(e => e.blog_post_id !== entry.blog_post_id);
-                    this.showSuccess(this.i18n.annexAdded || 'Annex added');
+                    this.reorderAnnexes();
                     this.openMenuId = null;
+                    this.$nextTick(() => this.initSortables());
+                    this.showSuccess(this.i18n.annexAdded || 'Annex added');
                 })
                 .catch(() => this.showError('Error'))
                 .finally(() => { this.saving = false; });
@@ -2178,12 +2189,14 @@ function registerDossierContentsCard() {
                         return;
                     }
                     this.seriesItems = this.seriesItems.filter(a => a.id !== item.id);
+                    this.seriesItems.forEach((a, i) => a.position = i + 1);
                     this.ungrouped.push({
                         id: item.id,
                         blog_post_id: item.blog_post_id,
                         position: this.ungrouped.length + 1,
                         blog_post: item.blog_post,
                     });
+                    this.$nextTick(() => this.initSortables());
                     this.showSuccess(this.i18n.annexRemoved || 'Annex removed');
                 })
                 .catch(() => this.showError('Error'))
