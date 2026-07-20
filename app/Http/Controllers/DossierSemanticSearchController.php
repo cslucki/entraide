@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Dossier;
 use App\Models\Organization;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Laravel\Ai\Exceptions\AiException;
 use RuntimeException;
 
 class DossierSemanticSearchController extends Controller
@@ -34,7 +37,7 @@ class DossierSemanticSearchController extends Controller
 
         try {
             $results = $search->search($organization->id, $dossier->id, $validated['query'], 5);
-        } catch (RuntimeException $exception) {
+        } catch (AiException|ConnectionException|RequestException|RuntimeException $exception) {
             Log::warning('Dossier semantic search unavailable.', [
                 'organization_id' => $organization->id,
                 'dossier_id' => $dossier->id,

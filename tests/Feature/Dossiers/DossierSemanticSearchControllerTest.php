@@ -7,10 +7,17 @@ use App\Models\DossierMember;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use GuzzleHttp\Psr7\Response as PsrResponse;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response as HttpClientResponse;
 use Illuminate\Support\Str;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
+use Laravel\Ai\Exceptions\RateLimitedException;
 use Mockery\MockInterface;
 use RuntimeException;
 use Tests\TestCase;
+use Throwable;
 
 class DossierSemanticSearchControllerTest extends TestCase
 {
@@ -162,13 +169,53 @@ class DossierSemanticSearchControllerTest extends TestCase
 
     public function test_engine_exception_returns_stable_503_without_secret_details(): void
     {
+        $this->assertSearchUnavailableForException(
+            new RuntimeException('provider secret sk-live-query needle')
+        );
+    }
+
+    public function test_laravel_ai_rate_limit_exception_returns_stable_503_without_provider_details(): void
+    {
+        $this->assertSearchUnavailableForException(
+            RateLimitedException::forProvider('openai-secret-provider', 429)
+        );
+    }
+
+    public function test_laravel_ai_overload_exception_returns_stable_503_without_provider_details(): void
+    {
+        $this->assertSearchUnavailableForException(
+            ProviderOverloadedException::forProvider('openai-secret-provider', 503)
+        );
+    }
+
+    public function test_provider_transport_exception_returns_stable_503_without_connection_details(): void
+    {
+        $this->assertSearchUnavailableForException(
+            new ConnectionException('connection refused secret sk-live-query needle')
+        );
+    }
+
+    public function test_provider_http_exception_returns_stable_503_without_response_details(): void
+    {
+        $this->assertSearchUnavailableForException(
+            new RequestException(new HttpClientResponse(new PsrResponse(500, [], 'provider secret sk-live-query needle')))
+        );
+    }
+
+    private function mockSearchService(): MockInterface
+    {
+        return $this->mock(DossierSemanticSearchService::class);
+    }
+
+    private function assertSearchUnavailableForException(Throwable $exception): void
+    {
         [$organization, $owner, $dossier] = $this->fixture();
 
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
             ->with($organization->id, $dossier->id, 'needle', 5)
-            ->andThrow(new RuntimeException('provider secret sk-live-query needle'));
+            ->andThrow($exception);
 
         $response = $this->actingAs($owner)
             ->getJson($this->searchUrl($organization, $dossier, ['query' => 'needle']))
@@ -178,11 +225,8 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->assertStringNotContainsString('provider', $response->getContent());
         $this->assertStringNotContainsString('secret', $response->getContent());
         $this->assertStringNotContainsString('needle', $response->getContent());
-    }
-
-    private function mockSearchService(): MockInterface
-    {
-        return $this->mock(DossierSemanticSearchService::class);
+        $this->assertStringNotContainsString('openai', $response->getContent());
+        $this->assertStringNotContainsString('sk-live-query', $response->getContent());
     }
 
     /**
