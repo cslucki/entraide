@@ -515,22 +515,22 @@
 
                         <div class="mt-5 space-y-3">
                             <template x-for="m in members" :key="m.id">
-                                <div class="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40">
+                                <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
                                     <div class="flex items-center gap-3">
                                         <div class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="m.initial"></div>
                                         <div>
-                                            <div class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="m.name"></div>
+                                            <div class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="m.displayName"></div>
                                             <div class="text-xs text-gray-500 dark:text-gray-400" x-text="m.email"></div>
                                         </div>
                                     </div>
-                                    <div class="flex items-center gap-2">
+                                    <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
                                         <select :value="m.role" @change="updateRole(m, $event.target.value)"
-                                                class="rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                                class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
                                             <option value="reader">{{ __('dossiers.role_reader') }}</option>
                                             <option value="editor">{{ __('dossiers.role_editor') }}</option>
                                         </select>
                                         <button @click="removeMember(m)"
-                                                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                                                class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:w-8"
                                                 title="{{ __('dossiers.member_removed') }}">
                                             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                         </button>
@@ -557,18 +557,22 @@
                             <div x-show="searchLoading" class="text-xs text-gray-400">...</div>
                             <div class="space-y-2">
                                 <template x-for="u in searchResults" :key="u.id">
-                                    <div class="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-900/40">
+                                    <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-3 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
                                         <div class="flex items-center gap-2">
-                                            <div class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="(u.name || '?').charAt(0)"></div>
-                                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="u.name"></span>
+                                            <div class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="(u.first_name || u.name || '?').charAt(0)"></div>
+                                            <div>
+                                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="u.displayName"></span>
+                                                <span class="ml-1 text-xs text-gray-500 dark:text-gray-400" x-text="u.email"></span>
+                                            </div>
                                         </div>
-                                        <div class="flex items-center gap-2">
-                                            <select x-model="u._selectedRole" class="rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                        <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+                                            <select x-model="u._selectedRole" class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
                                                 <option value="reader">{{ __('dossiers.role_reader') }}</option>
                                                 <option value="editor">{{ __('dossiers.role_editor') }}</option>
                                             </select>
-                                            <button @click="addMember(u)" class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
+                                            <button @click="addMember(u)" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 sm:w-auto">
                                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                                                <span x-text="i18n.memberAdded ? '{{ __('dossiers.add_member') }}' : ''"></span>
                                             </button>
                                         </div>
                                     </div>

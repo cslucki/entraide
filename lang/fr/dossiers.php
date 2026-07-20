@@ -70,7 +70,7 @@ return [
     'members_help' => 'Gère qui peut accéder à ce dossier et son rôle.',
     'add_member' => 'Ajouter un membre',
     'add_member_help' => 'Cherche un membre de cette organisation pour partager le dossier.',
-    'member_search_placeholder' => 'Chercher par nom ou email…',
+    'member_search_placeholder' => 'Chercher par prénom, nom ou email…',
     'member_role_label' => 'Rôle',
     'member_added' => 'Membre ajouté.',
     'member_role_updated' => 'Rôle du membre mis à jour.',

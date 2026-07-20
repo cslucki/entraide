@@ -70,7 +70,7 @@ return [
     'members_help' => 'Manage who can access this folder and their role.',
     'add_member' => 'Add member',
     'add_member_help' => 'Search for a member of this organization to share the folder with.',
-    'member_search_placeholder' => 'Search by name or email…',
+    'member_search_placeholder' => 'Search by first name, name or email…',
     'member_role_label' => 'Role',
     'member_added' => 'Member added.',
     'member_role_updated' => 'Member role updated.',

@@ -131,11 +131,15 @@ class DossierMemberController extends Controller
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
-        $this->authorize('view', $dossier);
+        $this->authorize('manageMembers', $dossier);
 
         $query = $request->input('q', '');
+        $ownerId = $dossier->owner_id;
+        $memberIds = $dossier->dossierMembers()->pluck('user_id')->all();
 
         $users = User::where('organization_id', $organization->id)
+            ->where('id', '!=', $ownerId)
+            ->whereNotIn('id', $memberIds)
             ->where(function ($q) use ($query) {
                 $q->where('name', 'like', "%{$query}%")
                     ->orWhere('first_name', 'like', "%{$query}%")
@@ -147,6 +151,7 @@ class DossierMemberController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'first_name' => $user->first_name,
+                'email' => $user->email,
             ]);
 
         return response()->json(['users' => $users]);
