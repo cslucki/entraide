@@ -6,6 +6,8 @@ use App\Models\ArticleSeries;
 use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
+use App\Services\Dossiers\DossierArticleIndexingDispatcher;
+use App\Services\Dossiers\DossierSemanticSearchGate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,7 +57,7 @@ class DossierController extends Controller
         return view('dossiers.create');
     }
 
-    public function show(Request $request): View
+    public function show(Request $request, DossierSemanticSearchGate $semanticSearchGate): View
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
@@ -116,6 +118,7 @@ class DossierController extends Controller
             'canViewFiles' => $canViewFiles,
             'canManageFiles' => $canManageFiles,
             'canDeleteFiles' => $canDeleteFiles,
+            'canUseSemanticArticleSearch' => $semanticSearchGate->isEnabledFor($organization->id),
         ]);
     }
 
@@ -176,21 +179,29 @@ class DossierController extends Controller
             ->with('success', __('dossiers.updated'));
     }
 
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('delete', $dossier);
 
-        DB::transaction(function () use ($dossier) {
+        DB::transaction(function () use ($dossier, $indexing) {
+            $indexEntries = $dossier->dossierBlogPosts()
+                ->where('organization_id', $dossier->organization_id)
+                ->get(['organization_id', 'dossier_id', 'blog_post_id']);
+
             $seriesIds = $dossier->articleSeries()->pluck('id');
             ArticleSeriesItem::whereIn('article_series_id', $seriesIds)->delete();
             ArticleSeries::whereIn('id', $seriesIds)->delete();
             $dossier->files()->update(['dossier_id' => null]);
             $dossier->dossierMembers()->delete();
-            $dossier->dossierBlogPosts()->delete();
+            $dossier->dossierBlogPosts()
+                ->where('organization_id', $dossier->organization_id)
+                ->delete();
             $dossier->delete();
+
+            $indexing->dispatchForEntries($indexEntries);
         });
 
         return redirect()

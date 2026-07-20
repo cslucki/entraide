@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
+use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -49,7 +50,7 @@ class BlogDossierApiController extends Controller
         return response()->json(['dossiers' => $dossiers]);
     }
 
-    public function attach(Request $request, BlogPost $post): JsonResponse
+    public function attach(Request $request, BlogPost $post, DossierArticleIndexingDispatcher $indexing): JsonResponse
     {
         $organization = currentOrganization();
         if (! $organization || $post->organization_id !== $organization->id) {
@@ -85,6 +86,8 @@ class BlogDossierApiController extends Controller
             'position' => $nextPosition,
         ]);
 
+        $indexing->dispatch($organization->id, $dossier->id, $post->id);
+
         return response()->json([
             'message' => __('dossiers.article_attached'),
             'dossier' => [
@@ -95,7 +98,7 @@ class BlogDossierApiController extends Controller
         ]);
     }
 
-    public function detach(Request $request, BlogPost $post): JsonResponse
+    public function detach(Request $request, BlogPost $post, DossierArticleIndexingDispatcher $indexing): JsonResponse
     {
         $organization = currentOrganization();
         if (! $organization || $post->organization_id !== $organization->id) {
@@ -108,12 +111,22 @@ class BlogDossierApiController extends Controller
             return response()->json(['message' => __('dossiers.only_author_can_classify')], 403);
         }
 
+        $entry = DossierBlogPost::query()
+            ->where('organization_id', $organization->id)
+            ->where('blog_post_id', $post->id)
+            ->first(['organization_id', 'dossier_id', 'blog_post_id']);
+
         $deleted = DossierBlogPost::query()
+            ->where('organization_id', $organization->id)
             ->where('blog_post_id', $post->id)
             ->delete();
 
         if (! $deleted) {
             return response()->json(['message' => __('dossiers.article_not_attached')], 422);
+        }
+
+        if ($entry) {
+            $indexing->dispatch($entry->organization_id, $entry->dossier_id, $entry->blog_post_id);
         }
 
         return response()->json(['message' => __('dossiers.article_detached')]);
@@ -156,14 +169,14 @@ class BlogDossierApiController extends Controller
         return $this->listDossiers($request);
     }
 
-    public function orgAttach(Request $request, string $org, BlogPost $post): JsonResponse
+    public function orgAttach(Request $request, string $org, BlogPost $post, DossierArticleIndexingDispatcher $indexing): JsonResponse
     {
-        return $this->attach($request, $post);
+        return $this->attach($request, $post, $indexing);
     }
 
-    public function orgDetach(Request $request, string $org, BlogPost $post): JsonResponse
+    public function orgDetach(Request $request, string $org, BlogPost $post, DossierArticleIndexingDispatcher $indexing): JsonResponse
     {
-        return $this->detach($request, $post);
+        return $this->detach($request, $post, $indexing);
     }
 
     public function orgQuickCreate(Request $request, string $org): JsonResponse

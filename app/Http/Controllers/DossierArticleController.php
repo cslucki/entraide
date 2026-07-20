@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
+use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class DossierArticleController extends Controller
 {
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
@@ -43,12 +44,14 @@ class DossierArticleController extends Controller
             'position' => $nextPosition,
         ]);
 
+        $indexing->dispatch($organization->id, $dossier->id, $post->id);
+
         return redirect()
             ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $dossier->getKey()])
             ->with('success', __('dossiers.article_attached'));
     }
 
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
@@ -59,10 +62,21 @@ class DossierArticleController extends Controller
         $this->ensureBlogPostBelongsToCurrentOrganization($post);
         $this->ensureUserOwnsBlogPost($request, $post);
 
-        DossierBlogPost::query()
+        $entry = DossierBlogPost::query()
+            ->where('organization_id', $organization->id)
+            ->where('dossier_id', $dossier->id)
+            ->where('blog_post_id', $post->id)
+            ->first(['organization_id', 'dossier_id', 'blog_post_id']);
+
+        $deleted = DossierBlogPost::query()
+            ->where('organization_id', $organization->id)
             ->where('dossier_id', $dossier->id)
             ->where('blog_post_id', $post->id)
             ->delete();
+
+        if ($entry && $deleted) {
+            $indexing->dispatch($entry->organization_id, $entry->dossier_id, $entry->blog_post_id);
+        }
 
         return redirect()
             ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $dossier->getKey()])

@@ -122,6 +122,83 @@
                     @endif
                 </section>
 
+                @if($canUseSemanticArticleSearch)
+                    <section class="rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm dark:border-indigo-900/50 dark:bg-gray-800 sm:p-6"
+                             x-data="dossierSemanticArticleSearch(@js([
+                                 'endpoint' => route('organization.dossiers.semantic-search', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]),
+                                 'i18n' => [
+                                     'validationTooShort' => __('dossiers.semantic_search_validation_too_short'),
+                                     'unavailable' => __('dossiers.semantic_search_unavailable'),
+                                     'genericError' => __('dossiers.semantic_search_generic_error'),
+                                     'passage' => __('dossiers.semantic_search_passage'),
+                                     'resultsCount' => __('dossiers.semantic_search_results_count'),
+                                 ],
+                             ]))"
+                             :aria-busy="loading ? 'true' : 'false'">
+                        <div class="flex flex-col gap-2">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{{ __('dossiers.semantic_search_label') }}</p>
+                            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.semantic_search_title') }}</h2>
+                            <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.semantic_search_help') }}</p>
+                        </div>
+
+                        <form class="mt-5 flex flex-col gap-3 sm:flex-row" @submit.prevent="search">
+                            <label class="sr-only" for="dossier-semantic-search-query">{{ __('dossiers.semantic_search_label') }}</label>
+                            <input id="dossier-semantic-search-query"
+                                   type="search"
+                                   x-model="query"
+                                   minlength="2"
+                                   maxlength="500"
+                                   autocomplete="off"
+                                   placeholder="{{ __('dossiers.semantic_search_placeholder') }}"
+                                   class="block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 sm:flex-1">
+                            <button type="submit"
+                                    class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-800"
+                                    :disabled="loading">
+                                <span x-show="!loading">{{ __('dossiers.semantic_search_button') }}</span>
+                                <span x-show="loading" x-cloak>{{ __('dossiers.semantic_search_loading') }}</span>
+                            </button>
+                        </form>
+
+                        <div class="mt-4" aria-live="polite">
+                            <p x-show="validationError" x-cloak class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200" x-text="validationError"></p>
+                            <p x-show="error" x-cloak class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200" x-text="error"></p>
+                            <p x-show="loading" x-cloak class="text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.semantic_search_loading') }}</p>
+                        </div>
+
+                        <div class="mt-5" x-show="searched && !loading && !validationError && !error" x-cloak aria-live="polite">
+                            <template x-if="results.length > 0">
+                                <div>
+                                    <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.semantic_search_results_title') }}</h3>
+                                        <p class="text-sm text-gray-600 dark:text-gray-300" x-text="resultCountLabel()"></p>
+                                    </div>
+
+                                    <ol class="mt-3 space-y-3">
+                                        <template x-for="result in results.slice(0, 5)" :key="`${result.slug}-${result.chunk_index}`">
+                                            <li class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                                                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div class="min-w-0">
+                                                        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300" x-text="passageLabel(result.chunk_index)"></p>
+                                                        <h4 class="mt-1 text-base font-semibold text-gray-900 dark:text-gray-100" x-text="result.title"></h4>
+                                                        <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300" x-text="excerpt(result.content)"></p>
+                                                    </div>
+                                                    <a :href="result.citation_url" class="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-800">
+                                                        {{ __('dossiers.semantic_search_read_article') }}
+                                                    </a>
+                                                </div>
+                                            </li>
+                                        </template>
+                                    </ol>
+                                </div>
+                            </template>
+
+                            <p x-show="results.length === 0" class="rounded-2xl border border-dashed border-gray-300 px-5 py-8 text-center text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                {{ __('dossiers.semantic_search_no_results') }}
+                            </p>
+                        </div>
+                    </section>
+                @endif
+
                 {{-- Series Section --}}
                 <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
                          x-data="dossierSeriesCard({

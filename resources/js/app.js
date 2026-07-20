@@ -1933,6 +1933,92 @@ function registerDossierSeriesCard() {
     }));
 }
 
+function registerDossierSemanticArticleSearch() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierSemanticArticleSearch', (config) => ({
+        query: '',
+        loading: false,
+        results: [],
+        searched: false,
+        error: '',
+        validationError: '',
+        endpoint: config.endpoint,
+        i18n: config.i18n || {},
+
+        async search() {
+            if (this.loading) return;
+
+            const trimmedQuery = this.query.trim();
+            this.error = '';
+            this.validationError = '';
+
+            if (trimmedQuery.length < 2) {
+                this.validationError = this.i18n.validationTooShort;
+                return;
+            }
+
+            this.loading = true;
+            this.searched = true;
+            this.results = [];
+
+            try {
+                const url = new URL(this.endpoint, window.location.origin);
+                url.search = new URLSearchParams({ query: trimmedQuery }).toString();
+
+                const response = await fetch(url.toString(), {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.results = Array.isArray(data.data) ? data.data.slice(0, 5) : [];
+                    return;
+                }
+
+                if (response.status === 422) {
+                    this.validationError = this.i18n.validationTooShort;
+                    return;
+                }
+
+                if (response.status === 503) {
+                    this.error = this.i18n.unavailable;
+                    return;
+                }
+
+                this.error = this.i18n.genericError;
+            } catch (e) {
+                this.error = this.i18n.genericError;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        excerpt(content) {
+            const text = String(content || '').replace(/\s+/g, ' ').trim();
+
+            if (text.length <= 320) {
+                return text;
+            }
+
+            return text.slice(0, 317).trimEnd() + '…';
+        },
+
+        passageLabel(index) {
+            return this.i18n.passage.replace(':number', Number(index) + 1);
+        },
+
+        resultCountLabel() {
+            return this.i18n.resultsCount.replace(':count', this.results.length);
+        },
+    }));
+}
+
 function registerDossierMembersCard() {
     if (typeof Alpine === 'undefined') return;
 
@@ -4256,6 +4342,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogInviteByEmail();
     registerBlogDossierCard();
     registerDossierSeriesCard();
+    registerDossierSemanticArticleSearch();
     registerDossierMembersCard();
     registerDossierFilesCard();
     registerBlogLoopCard();
@@ -4274,6 +4361,7 @@ registerBlogCoAuthorCard();
 registerBlogInviteByEmail();
     registerBlogDossierCard();
     registerDossierSeriesCard();
+    registerDossierSemanticArticleSearch();
     registerDossierMembersCard();
     registerDossierFilesCard();
     registerBlogLoopCard();
