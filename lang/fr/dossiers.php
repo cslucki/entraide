@@ -206,4 +206,16 @@ return [
     'cannot_detach_series_root' => 'Cet article est la racine de la série. Choisissez une nouvelle racine ou supprimez la série avant de retirer cet article du dossier.',
     'content_delete_series' => 'Supprimer la série',
     'content_drag_handle' => 'Déplacer',
+    // FAB menu
+    'fab_action' => 'Créer',
+    'fab_section_create' => 'Créer',
+    'fab_new_article' => 'Nouvel article',
+    'fab_markdown_note' => 'Note Markdown',
+    'fab_section_add' => 'Ajouter',
+    'fab_add_photo' => 'Photo',
+    'fab_add_video' => 'Vidéo',
+    'fab_add_audio' => 'Audio',
+    'fab_add_file' => 'Fichier',
+    'fab_folder' => 'Dossier',
+    'fab_soon' => 'bientôt',
 ];
