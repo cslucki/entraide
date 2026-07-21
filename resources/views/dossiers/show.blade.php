@@ -668,8 +668,22 @@
                     </div>
 
                     @if($canManageFiles)
-                    <div class="mt-5">
-                        <div id="dossier-file-pond" x-ref="filePondContainer"></div>
+                    <div class="mt-5 relative" x-data="{ showImportMenu: false }">
+                        <div id="dossier-file-pond" x-ref="filePondContainer" class="hidden"></div>
+                        <button @click="showImportMenu = !showImportMenu" type="button" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                            Importer
+                        </button>
+                        <div x-show="showImportMenu" @click.away="showImportMenu = false" x-cloak x-transition class="absolute left-0 z-20 mt-2 w-56 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                            <button @click="showImportMenu = false; browseFiles()" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                Fichiers
+                            </button>
+                            <button disabled type="button" class="flex w-full cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sm text-gray-400 dark:text-gray-500">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                                Dossier <span class="text-xs italic">(bientôt)</span>
+                            </button>
+                        </div>
                         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.file_upload_help') }}</p>
                     </div>
                     @endif

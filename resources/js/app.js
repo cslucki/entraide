@@ -2760,6 +2760,12 @@ function registerDossierFilesCard() {
         showPreviewModal: false,
         previewFile: null,
 
+        browseFiles() {
+            if (this._pond) {
+                this._pond.browse();
+            }
+        },
+
         init() {
             this.loadFiles();
             document.addEventListener('keydown', (ev) => {
