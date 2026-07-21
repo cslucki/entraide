@@ -2432,18 +2432,45 @@ function registerDossierMembersCard() {
         searchQuery: '',
         searchResults: [],
         searchLoading: false,
+        showManageModal: false,
+        showRemoveModal: false,
+        removeTarget: null,
         message: '',
         messageType: 'success',
         csrfToken: config.csrfToken,
         dossierId: config.dossierId,
         orgParam: config.orgParam,
         ownerId: config.ownerId,
+        ownerName: config.ownerName || '',
+        ownerInitial: config.ownerInitial || '?',
         currentUserId: config.currentUserId,
         canManage: config.canManage || false,
         i18n: config.i18n,
 
         init() {
             this.loadMembers();
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (this.showRemoveModal) { this.showRemoveModal = false; this.removeTarget = null; }
+                    else if (this.showManageModal) { this.showManageModal = false; }
+                }
+            });
+        },
+
+        get displayMembers() {
+            return this.members.slice(0, 5);
+        },
+
+        get overflowCount() {
+            return Math.max(0, this.members.length - 5);
+        },
+
+        get currentRoleLabel() {
+            if (String(this.currentUserId) === String(this.ownerId)) {
+                return this.i18n.ownerBadge || 'Owner';
+            }
+            const m = this.members.find(m => String(m.id) === String(this.currentUserId));
+            return m?.roleLabel || '';
         },
 
         loadMembers() {
@@ -2502,8 +2529,8 @@ function registerDossierMembersCard() {
                         ...data.member,
                         displayName: `${data.member.first_name || ''} ${(data.member.name || '').toUpperCase()}`.trim(),
                         initial: (data.member.first_name || data.member.name || '?').charAt(0).toUpperCase(),
+                        roleLabel: data.member.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (this.i18n.roleEditor || 'Editor'),
                     });
-                    this.showSearch = false;
                     this.searchQuery = '';
                     this.searchResults = [];
                     this.showMessage(data.message || this.i18n.memberAdded, 'success');
@@ -2530,20 +2557,27 @@ function registerDossierMembersCard() {
                         return;
                     }
                     member.role = newRole;
+                    member.roleLabel = newRole === 'reader' ? (this.i18n.roleReader || 'Reader') : (this.i18n.roleEditor || 'Editor');
                     this.showMessage(data.message || this.i18n.memberRoleUpdated, 'success');
                 })
                 .catch(() => {});
         },
 
-        removeMember(member) {
-            if (!confirm(this.i18n.confirmRemove.replace(':name', member.name))) return;
+        openRemoveModal(member) {
+            this.removeTarget = member;
+            this.showRemoveModal = true;
+        },
+
+        confirmRemove() {
+            if (!this.removeTarget) return;
+            const member = this.removeTarget;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/${member.id}`;
             fetch(url, {
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': this.csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': this.csrfToken,
                 },
             })
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
@@ -2553,9 +2587,15 @@ function registerDossierMembersCard() {
                         return;
                     }
                     this.members = this.members.filter(m => m.id !== member.id);
+                    this.showRemoveModal = false;
+                    this.removeTarget = null;
                     this.showMessage(data.message || this.i18n.memberRemoved, 'success');
                 })
                 .catch(() => {});
+        },
+
+        removeMember(member) {
+            this.openRemoveModal(member);
         },
 
         showMessage(msg, type) {
