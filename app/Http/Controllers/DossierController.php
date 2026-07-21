@@ -71,12 +71,20 @@ class DossierController extends Controller
 
         $dossier->load([
             'dossierBlogPosts.blogPost.user:id,first_name,name,email,organization_id',
+            'dossierBlogPosts.blogPost.coAuthors:id,first_name,name,email',
             'dossierMembers.user:id,first_name,name,email',
         ]);
 
         $series = ArticleSeries::where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
-            ->with(['rootBlogPost:id,organization_id,user_id,title,slug,status,updated_at', 'items.blogPost:id,organization_id,user_id,title,slug,status,updated_at'])
+            ->with([
+                'rootBlogPost:id,organization_id,user_id,title,slug,status,updated_at,published_at',
+                'rootBlogPost.user:id,first_name,name,email,organization_id',
+                'rootBlogPost.coAuthors:id,first_name,name,email',
+                'items.blogPost:id,organization_id,user_id,title,slug,status,updated_at,published_at',
+                'items.blogPost.user:id,first_name,name,email,organization_id',
+                'items.blogPost.coAuthors:id,first_name,name,email',
+            ])
             ->first();
 
         $eligibleArticles = collect();
@@ -119,6 +127,7 @@ class DossierController extends Controller
             'canManageFiles' => $canManageFiles,
             'canDeleteFiles' => $canDeleteFiles,
             'canUseSemanticArticleSearch' => $semanticSearchGate->isEnabledFor($organization->id),
+            'organizationRouteParam' => $request->route('organization'),
         ]);
     }
 

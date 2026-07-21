@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ArticleSeries;
+use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
@@ -71,6 +73,54 @@ class DossierArticleController extends Controller
         $post = $this->resolveBlogPost($request->route('post'));
         $this->ensureBlogPostBelongsToCurrentOrganization($post);
         $this->ensureUserOwnsBlogPost($request, $post);
+
+        $series = ArticleSeries::where('dossier_id', $dossier->id)
+            ->where('organization_id', $organization->id)
+            ->first();
+
+        if ($series && $series->root_blog_post_id === $post->id) {
+            throw ValidationException::withMessages([
+                'blog_post_id' => __('dossiers.cannot_detach_series_root'),
+            ]);
+        }
+
+        if ($series) {
+            $seriesItem = ArticleSeriesItem::where('article_series_id', $series->id)
+                ->where('blog_post_id', $post->id)
+                ->first();
+
+            if ($seriesItem) {
+                return DB::transaction(function () use ($dossier, $organization, $seriesItem, $post, $request, $indexing) {
+                    $seriesItem->delete();
+
+                    $entry = DossierBlogPost::query()
+                        ->where('organization_id', $organization->id)
+                        ->where('dossier_id', $dossier->id)
+                        ->where('blog_post_id', $post->id)
+                        ->first(['organization_id', 'dossier_id', 'blog_post_id']);
+
+                    DossierBlogPost::query()
+                        ->where('organization_id', $organization->id)
+                        ->where('dossier_id', $dossier->id)
+                        ->where('blog_post_id', $post->id)
+                        ->delete();
+
+                    if ($entry) {
+                        $indexing->dispatch($entry->organization_id, $entry->dossier_id, $entry->blog_post_id);
+                    }
+
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'message' => __('dossiers.article_detached'),
+                        ]);
+                    }
+
+                    return redirect()
+                        ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $dossier->getKey()])
+                        ->with('success', __('dossiers.article_detached'));
+                });
+            }
+        }
 
         $entry = DossierBlogPost::query()
             ->where('organization_id', $organization->id)
