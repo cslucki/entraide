@@ -94,6 +94,8 @@ return [
     'remove_member_body' => 'Cette personne perdra immédiatement l\'accès au dossier.',
     'remove_member_confirm' => 'Retirer',
     'member_count' => ':count membre|:count membres',
+    'person_singular' => 'personne',
+    'person_plural' => 'personnes',
     'articles_attach_disabled' => 'Seul le propriétaire ou un éditeur peut rattacher des articles.',
     'article_search_placeholder' => 'Chercher un article dans ce dossier…',
     'add_article' => 'Ajouter un article',

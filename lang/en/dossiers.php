@@ -94,6 +94,8 @@ return [
     'remove_member_body' => 'This person will immediately lose access to the folder.',
     'remove_member_confirm' => 'Remove',
     'member_count' => ':count member|:count members',
+    'person_singular' => 'person',
+    'person_plural' => 'people',
     'articles_attach_disabled' => 'Only the folder owner or an editor can attach articles.',
     'article_search_placeholder' => 'Search articles in this folder…',
     'add_article' => 'Add an article',

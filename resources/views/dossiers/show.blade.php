@@ -1039,17 +1039,19 @@
                              'ownerInitial' => strtoupper(substr($dossier->owner->first_name ?? $dossier->owner->name ?? '?', 0, 1)),
                              'currentUserId' => auth()->id(),
                              'canManage' => $canManageMembers,
-                             'i18n' => array_merge([
-                                 'confirmRemove' => __('dossiers.confirm_remove_member'),
-                                 'memberAdded' => __('dossiers.member_added'),
-                                 'memberRoleUpdated' => __('dossiers.member_role_updated'),
-                                 'memberRemoved' => __('dossiers.member_removed'),
-                                 'memberAlready' => __('dossiers.member_already'),
-                                 'roleReader' => __('dossiers.role_reader'),
-                                 'roleEditor' => __('dossiers.role_editor'),
-                                 'ownerBadge' => __('dossiers.owner_badge'),
-                                 'yourRole' => __('dossiers.your_role_label'),
-                             ], $canManageMembers ? [
+                              'i18n' => array_merge([
+                                  'confirmRemove' => __('dossiers.confirm_remove_member'),
+                                  'memberAdded' => __('dossiers.member_added'),
+                                  'memberRoleUpdated' => __('dossiers.member_role_updated'),
+                                  'memberRemoved' => __('dossiers.member_removed'),
+                                  'memberAlready' => __('dossiers.member_already'),
+                                  'roleReader' => __('dossiers.role_reader'),
+                                  'roleEditor' => __('dossiers.role_editor'),
+                                  'ownerBadge' => __('dossiers.owner_badge'),
+                                  'yourRole' => __('dossiers.your_role_label'),
+                                  'personSingular' => __('dossiers.person_singular'),
+                                  'personPlural' => __('dossiers.person_plural'),
+                              ], $canManageMembers ? [
                                  'manageMembers' => __('dossiers.manage_members'),
                                  'removeMemberTitle' => __('dossiers.remove_member_title'),
                                  'removeMemberBody' => __('dossiers.remove_member_body'),
@@ -1091,7 +1093,7 @@
                                     <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" x-text="i18n.ownerBadge"></span>
                                 </div>
                                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                    <span x-text="members.length + ' ' + (members.length === 1 ? 'membre' : 'membres')"></span>
+                                    <span x-text="(members.length + 1) + ' ' + ((members.length + 1) === 1 ? i18n.personSingular : i18n.personPlural)"></span>
                                     <span class="mx-1">·</span>
                                     <span x-text="i18n.yourRole"></span>
                                     <span class="font-medium" x-text="currentRoleLabel"></span>
@@ -1106,13 +1108,14 @@
                         @endif
                     </div>
 
-                    {{-- Management Modal --}}
+                    {{-- Management Modal (owner only) --}}
+                    @if($canManageMembers)
                     <template x-if="showManageModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" @click.self="showManageModal = false">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" @click.self="showManageModal = false" role="dialog" aria-modal="true" aria-labelledby="manage-members-title">
                             <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800 max-h-[90vh] overflow-y-auto">
                                 <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.manageMembers"></h3>
-                                    <button @click="showManageModal = false" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200">
+                                    <h3 id="manage-members-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.manageMembers"></h3>
+                                    <button @click="showManageModal = false" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200" aria-label="{{ __('dossiers.cancel') }}">
                                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                     </button>
                                 </div>
@@ -1197,12 +1200,14 @@
                             </div>
                         </div>
                     </template>
+                    @endif
 
-                    {{-- Remove Confirmation Modal --}}
+                    {{-- Remove Confirmation Modal (owner only) --}}
+                    @if($canManageMembers)
                     <template x-if="showRemoveModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRemoveModal = false">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRemoveModal = false" role="dialog" aria-modal="true" aria-labelledby="remove-member-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.removeMemberTitle"></h3>
+                                <h3 id="remove-member-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.removeMemberTitle"></h3>
                                 <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
                                     <span x-text="removeTarget?.displayName"></span> — <span x-text="i18n.removeMemberBody"></span>
                                 </p>
@@ -1213,6 +1218,7 @@
                             </div>
                         </div>
                     </template>
+                    @endif
                 </section>
             </div>
         </div>
