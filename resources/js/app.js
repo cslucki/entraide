@@ -2763,6 +2763,150 @@ function registerDossierFilesCard() {
         sortBy: 'name',
         sortDirection: 'asc',
         viewMode: 'list',
+        showArticleModal: false,
+        articleTitle: '',
+        articleCategoryId: '',
+        showMdModal: false,
+        mdFileName: '',
+        mdContent: '',
+
+        openArticleModal() {
+            this.showArticleModal = true;
+            this.articleTitle = '';
+            this.articleCategoryId = '';
+        },
+
+        openMdModal() {
+            this.showMdModal = true;
+            this.mdFileName = '';
+            this.mdContent = '';
+        },
+
+        async createArticle() {
+            if (!this.articleTitle.trim() || !this.articleCategoryId) return;
+            
+            this.saving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/blog`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        title: this.articleTitle,
+                        category_id: this.articleCategoryId,
+                        content: '',
+                        status: 'draft',
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.showArticleModal = false;
+                    this.showSuccess(this.i18n.articleCreated || 'Article created');
+                    // Redirect to edit the new article
+                    window.location.href = data.redirect_url || `/org/${this.orgParam}/blog/${data.post.slug}/edit`;
+                } else {
+                    this.showError(data.message || 'Error creating article');
+                }
+            } catch (error) {
+                this.showError('Network error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async createMarkdownNote() {
+            if (!this.mdFileName.trim()) return;
+            
+            this.saving = true;
+            try {
+                const fileName = this.mdFileName.endsWith('.md') ? this.mdFileName : `${this.mdFileName}.md`;
+                const blob = new Blob([this.mdContent], { type: 'text/markdown' });
+                const file = new File([blob], fileName, { type: 'text/markdown' });
+                
+                const formData = new FormData();
+                formData.append('files[]', file);
+                
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData,
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.showMdModal = false;
+                    this.loadFiles();
+                    this.showSuccess(this.i18n.markdownCreated || 'Markdown note created');
+                } else {
+                    this.showError(data.message || 'Error creating markdown note');
+                }
+            } catch (error) {
+                this.showError('Network error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        triggerMediaUpload(type) {
+            const inputMap = {
+                'image': 'imageInput',
+                'video': 'videoInput',
+                'audio': 'audioInput',
+            };
+            const ref = inputMap[type];
+            if (ref && this.$refs[ref]) {
+                this.$refs[ref].click();
+            }
+        },
+
+        async handleMediaFiles(event, type) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            
+            this.saving = true;
+            try {
+                const formData = new FormData();
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('files[]', files[i]);
+                }
+                
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData,
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.loadFiles();
+                    this.showSuccess(this.i18n.filesUploaded || 'Files uploaded');
+                } else {
+                    this.showError(data.message || 'Error uploading files');
+                }
+            } catch (error) {
+                this.showError('Network error');
+            } finally {
+                this.saving = false;
+                // Reset the input
+                event.target.value = '';
+            }
+        },
 
         get sortedFiles() {
             const sorted = [...this.files];
@@ -2816,6 +2960,8 @@ function registerDossierFilesCard() {
                 if (ev.key === 'Escape') {
                     if (this.showPreviewModal) { this.showPreviewModal = false; this.previewFile = null; }
                     else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; }
+                    else if (this.showArticleModal) { this.showArticleModal = false; }
+                    else if (this.showMdModal) { this.showMdModal = false; }
                 }
             });
             if (this.canManageFiles && this.$refs.filePondContainer) {

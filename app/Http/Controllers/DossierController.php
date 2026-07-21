@@ -116,6 +116,10 @@ class DossierController extends Controller
         $canManageFiles = $isOwner || $userRole === 'editor';
         $canDeleteFiles = $isOwner;
 
+        $categories = \App\Models\Category::where('organization_id', $organization->id)
+            ->orderBy('name_b2c')
+            ->get(['id', 'name_b2c', 'name_b2b']);
+
         return view('dossiers.show', [
             'dossier' => $dossier,
             'eligibleArticles' => $eligibleArticles,
@@ -129,6 +133,7 @@ class DossierController extends Controller
             'canDeleteFiles' => $canDeleteFiles,
             'canUseSemanticArticleSearch' => $semanticSearchGate->isEnabledFor($organization->id),
             'organizationRouteParam' => $request->route('organization'),
+            'categories' => $categories,
         ]);
     }
 

@@ -218,4 +218,25 @@ return [
     'fab_add_file' => 'Fichier',
     'fab_folder' => 'Dossier',
     'fab_soon' => 'bientôt',
+
+    // Modals
+    'modal_new_article_title' => 'Nouvel article',
+    'modal_new_article_desc' => 'Créez un nouvel article dans le blog et ajoutez-le à ce dossier.',
+    'modal_article_title_label' => 'Titre de l\'article',
+    'modal_article_title_placeholder' => 'Mon nouvel article',
+    'modal_article_category_label' => 'Catégorie',
+    'modal_article_category_placeholder' => 'Sélectionner une catégorie',
+    'modal_new_markdown_title' => 'Nouvelle note Markdown',
+    'modal_new_markdown_desc' => 'Créez une note au format Markdown et ajoutez-la aux fichiers du dossier.',
+    'modal_markdown_name_label' => 'Nom du fichier',
+    'modal_markdown_name_placeholder' => 'ma-note',
+    'modal_markdown_content_label' => 'Contenu',
+    'modal_markdown_content_placeholder' => '# Titre
+
+Votre contenu Markdown ici...',
+    'modal_cancel' => 'Annuler',
+    'modal_create' => 'Créer',
+    'article_created' => 'Article créé',
+    'markdown_created' => 'Note Markdown créée',
+    'files_uploaded' => 'Fichiers ajoutés',
 ];

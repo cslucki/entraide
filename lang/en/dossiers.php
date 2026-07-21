@@ -206,4 +206,25 @@ return [
     'cannot_detach_series_root' => 'This article is the series root. Choose a new root or delete the series before removing this article from the folder.',
     'content_delete_series' => 'Delete series',
     'content_drag_handle' => 'Drag',
+
+    // Modals
+    'modal_new_article_title' => 'New article',
+    'modal_new_article_desc' => 'Create a new blog article and add it to this folder.',
+    'modal_article_title_label' => 'Article title',
+    'modal_article_title_placeholder' => 'My new article',
+    'modal_article_category_label' => 'Category',
+    'modal_article_category_placeholder' => 'Select a category',
+    'modal_new_markdown_title' => 'New Markdown note',
+    'modal_new_markdown_desc' => 'Create a Markdown note and add it to the folder files.',
+    'modal_markdown_name_label' => 'File name',
+    'modal_markdown_name_placeholder' => 'my-note',
+    'modal_markdown_content_label' => 'Content',
+    'modal_markdown_content_placeholder' => '# Title
+
+Your Markdown content here...',
+    'modal_cancel' => 'Cancel',
+    'modal_create' => 'Create',
+    'article_created' => 'Article created',
+    'markdown_created' => 'Markdown note created',
+    'files_uploaded' => 'Files uploaded',
 ];

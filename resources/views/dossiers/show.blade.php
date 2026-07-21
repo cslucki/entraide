@@ -635,28 +635,31 @@
                              'canManageFiles' => $canManageFiles,
                              'canDeleteFiles' => $canDeleteFiles,
                              'activeTab' => 'fichiers',
-                             'i18n' => [
-                                 'title' => __('dossiers.files_title'),
-                                 'emptyTitle' => __('dossiers.files_empty_title'),
-                                 'emptyBody' => __('dossiers.files_empty_body'),
-                                 'uploadHelp' => __('dossiers.file_upload_help'),
-                                 'uploaded' => __('dossiers.file_uploaded'),
-                                 'uploadFailed' => __('dossiers.file_upload_failed'),
-                                 'deleted' => __('dossiers.file_deleted'),
-                                 'deleteFailed' => __('dossiers.file_upload_failed'),
-                                 'confirmDeleteTitle' => __('dossiers.file_confirm_delete_title'),
-                                 'confirmDeleteBody' => __('dossiers.file_confirm_delete_body'),
-                                 'confirmDeleteCancel' => __('dossiers.file_confirm_delete_cancel'),
-                                 'confirmDeleteConfirm' => __('dossiers.file_confirm_delete_confirm'),
-                                 'download' => __('dossiers.file_download'),
-                                 'preview' => __('dossiers.file_preview'),
-                                 'deleteFile' => __('dossiers.file_delete'),
-                                 'name' => __('dossiers.file_name'),
-                                 'size' => __('dossiers.file_size'),
-                                 'uploadedBy' => __('dossiers.file_uploaded_by'),
-                                 'storageUnlimited' => __('dossiers.storage_unlimited'),
-                                 'storageUsedLabel' => __('dossiers.storage_used'),
-                             ],
+                              'i18n' => [
+                                  'title' => __('dossiers.files_title'),
+                                  'emptyTitle' => __('dossiers.files_empty_title'),
+                                  'emptyBody' => __('dossiers.files_empty_body'),
+                                  'uploadHelp' => __('dossiers.file_upload_help'),
+                                  'uploaded' => __('dossiers.file_uploaded'),
+                                  'uploadFailed' => __('dossiers.file_upload_failed'),
+                                  'deleted' => __('dossiers.file_deleted'),
+                                  'deleteFailed' => __('dossiers.file_upload_failed'),
+                                  'confirmDeleteTitle' => __('dossiers.file_confirm_delete_title'),
+                                  'confirmDeleteBody' => __('dossiers.file_confirm_delete_body'),
+                                  'confirmDeleteCancel' => __('dossiers.file_confirm_delete_cancel'),
+                                  'confirmDeleteConfirm' => __('dossiers.file_confirm_delete_confirm'),
+                                  'download' => __('dossiers.file_download'),
+                                  'preview' => __('dossiers.file_preview'),
+                                  'deleteFile' => __('dossiers.file_delete'),
+                                  'name' => __('dossiers.file_name'),
+                                  'size' => __('dossiers.file_size'),
+                                  'uploadedBy' => __('dossiers.file_uploaded_by'),
+                                  'storageUnlimited' => __('dossiers.storage_unlimited'),
+                                  'storageUsedLabel' => __('dossiers.storage_used'),
+                                  'articleCreated' => __('dossiers.article_created'),
+                                  'markdownCreated' => __('dossiers.markdown_created'),
+                                  'filesUploaded' => __('dossiers.files_uploaded'),
+                              ],
                          ]))">
                     <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.files_title') }}</h2>
 
@@ -669,6 +672,10 @@
                     @if($canManageFiles)
                     <div class="mt-5 relative">
                         <div id="dossier-file-pond" x-ref="filePondContainer" class="hidden"></div>
+                        {{-- Hidden file inputs for media types --}}
+                        <input type="file" x-ref="imageInput" accept="image/*" multiple class="hidden" @change="handleMediaFiles($event, 'image')">
+                        <input type="file" x-ref="videoInput" accept="video/*" multiple class="hidden" @change="handleMediaFiles($event, 'video')">
+                        <input type="file" x-ref="audioInput" accept="audio/*" multiple class="hidden" @change="handleMediaFiles($event, 'audio')">
                         <button @click="showImportMenu = !showImportMenu" type="button" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                             {{ __('dossiers.fab_action') }}
@@ -689,15 +696,15 @@
 
                             {{-- Section: Ajouter --}}
                             <div class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('dossiers.fab_section_add') }}</div>
-                            <button type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
+                            <button @click="showImportMenu = false; triggerMediaUpload('image')" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                 {{ __('dossiers.fab_add_photo') }}
                             </button>
-                            <button type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
+                            <button @click="showImportMenu = false; triggerMediaUpload('video')" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                                 {{ __('dossiers.fab_add_video') }}
                             </button>
-                            <button type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
+                            <button @click="showImportMenu = false; triggerMediaUpload('audio')" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
                                 <svg class="h-5 w-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
                                 {{ __('dossiers.fab_add_audio') }}
                             </button>
@@ -717,6 +724,66 @@
                         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.file_upload_help') }}</p>
                     </div>
                     @endif
+
+                    {{-- Article Creation Modal --}}
+                    <template x-if="showArticleModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showArticleModal = false">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.modal_new_article_title') }}</h3>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.modal_new_article_desc') }}</p>
+                                <div class="mt-4">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('dossiers.modal_article_title_label') }}</label>
+                                    <input type="text" x-model="articleTitle" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" placeholder="{{ __('dossiers.modal_article_title_placeholder') }}">
+                                </div>
+                                <div class="mt-4">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('dossiers.modal_article_category_label') }}</label>
+                                    <select x-model="articleCategoryId" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                        <option value="">{{ __('dossiers.modal_article_category_placeholder') }}</option>
+                                        @foreach($categories as $category)
+                                            <option value="{{ $category->id }}">{{ $category->displayName() }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="mt-6 flex justify-end gap-3">
+                                    <button @click="showArticleModal = false" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                        {{ __('dossiers.modal_cancel') }}
+                                    </button>
+                                    <button @click="createArticle()" :disabled="!articleTitle.trim() || !articleCategoryId" type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">
+                                        {{ __('dossiers.modal_create') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Markdown Note Modal --}}
+                    <template x-if="showMdModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showMdModal = false">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.modal_new_markdown_title') }}</h3>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.modal_new_markdown_desc') }}</p>
+                                <div class="mt-4">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('dossiers.modal_markdown_name_label') }}</label>
+                                    <div class="mt-1 flex items-center gap-2">
+                                        <input type="text" x-model="mdFileName" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" placeholder="{{ __('dossiers.modal_markdown_name_placeholder') }}">
+                                        <span class="text-sm text-gray-500 dark:text-gray-400">.md</span>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('dossiers.modal_markdown_content_label') }}</label>
+                                    <textarea x-model="mdContent" rows="8" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" placeholder="{{ __('dossiers.modal_markdown_content_placeholder') }}"></textarea>
+                                </div>
+                                <div class="mt-6 flex justify-end gap-3">
+                                    <button @click="showMdModal = false" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                        {{ __('dossiers.modal_cancel') }}
+                                    </button>
+                                    <button @click="createMarkdownNote()" :disabled="!mdFileName.trim()" type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">
+                                        {{ __('dossiers.modal_create') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
 
                     <div class="mt-5" x-show="totalFiles > 0 || quota.used_bytes > 0">
                         <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
