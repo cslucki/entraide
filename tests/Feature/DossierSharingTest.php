@@ -280,6 +280,82 @@ class DossierSharingTest extends TestCase
             ->assertOk();
     }
 
+    // --- Email protection ---
+
+    public function test_owner_sees_email_in_members_json(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
+
+        $response = $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.index', $dossier))
+            ->assertOk();
+
+        $this->assertNotNull($response->json('members.0.email'));
+        $this->assertEquals($this->readerA->email, $response->json('members.0.email'));
+    }
+
+    public function test_editor_does_not_see_email_in_members_json(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->member($dossier, $this->editorA, DossierMember::ROLE_EDITOR);
+        $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
+
+        $response = $this->actingAs($this->editorA)
+            ->getJson($this->orgRoute('dossiers.members.index', $dossier))
+            ->assertOk();
+
+        $this->assertNull($response->json('members.0.email'));
+        $this->assertNull($response->json('members.1.email'));
+    }
+
+    public function test_reader_does_not_see_email_in_members_json(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
+
+        $response = $this->actingAs($this->readerA)
+            ->getJson($this->orgRoute('dossiers.members.index', $dossier))
+            ->assertOk();
+
+        $this->assertNull($response->json('members.0.email'));
+    }
+
+    public function test_owner_sees_manage_modal_html(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+
+        $this->actingAs($this->ownerA)
+            ->get($this->orgRoute('dossiers.show', $dossier))
+            ->assertOk()
+            ->assertSee('showManageModal')
+            ->assertSee('manage-members-title');
+    }
+
+    public function test_editor_does_not_see_manage_modal_html(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->member($dossier, $this->editorA, DossierMember::ROLE_EDITOR);
+
+        $this->actingAs($this->editorA)
+            ->get($this->orgRoute('dossiers.show', $dossier))
+            ->assertOk()
+            ->assertDontSee('showManageModal')
+            ->assertDontSee('manage-members-title');
+    }
+
+    public function test_reader_does_not_see_manage_modal_html(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
+
+        $this->actingAs($this->readerA)
+            ->get($this->orgRoute('dossiers.show', $dossier))
+            ->assertOk()
+            ->assertDontSee('showManageModal')
+            ->assertDontSee('manage-members-title');
+    }
+
     // --- Validation ---
 
     public function test_cannot_add_owner_as_member(): void

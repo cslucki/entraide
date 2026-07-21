@@ -71,6 +71,7 @@ class DossierController extends Controller
         $canManageArticles = $isOwner || $userRole === 'editor';
 
         $dossier->load([
+            'owner:id,first_name,name',
             'dossierBlogPosts.blogPost.user:id,first_name,name,email,organization_id',
             'dossierBlogPosts.blogPost.coAuthors:id,first_name,name,email',
             'dossierMembers.user:id,first_name,name,email',

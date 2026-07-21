@@ -16,14 +16,16 @@ class DossierMemberController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('view', $dossier);
 
+        $isOwner = $request->user()->id === $dossier->owner_id;
+
         $members = $dossier->dossierMembers()
-            ->with('user:id,first_name,name,email')
+            ->with('user:id,first_name,name' . ($isOwner ? ',email' : ''))
             ->get()
             ->map(fn (DossierMember $m) => [
                 'id' => $m->user_id,
                 'name' => $m->user->name,
                 'first_name' => $m->user->first_name,
-                'email' => $m->user->email,
+                'email' => $isOwner ? $m->user->email : null,
                 'role' => $m->role,
                 'added_by' => $m->added_by,
             ]);

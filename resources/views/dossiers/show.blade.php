@@ -1035,101 +1035,189 @@
                              'dossierId' => $dossier->getKey(),
                              'orgParam' => $orgParam,
                              'ownerId' => $dossier->owner_id,
+                             'ownerName' => trim(($dossier->owner->first_name ?? '') . ' ' . strtoupper($dossier->owner->name ?? '')),
+                             'ownerInitial' => strtoupper(substr($dossier->owner->first_name ?? $dossier->owner->name ?? '?', 0, 1)),
                              'currentUserId' => auth()->id(),
                              'canManage' => $canManageMembers,
-                             'activeTab' => 'membres',
-                             'i18n' => [
-                                 'confirmRemove' => __('dossiers.confirm_remove_member'),
-                                 'memberAdded' => __('dossiers.member_added'),
-                                 'memberRoleUpdated' => __('dossiers.member_role_updated'),
-                                 'memberRemoved' => __('dossiers.member_removed'),
-                                 'memberAlready' => __('dossiers.member_already'),
-                                 'roleReader' => __('dossiers.role_reader'),
-                                 'roleEditor' => __('dossiers.role_editor'),
-                             ],
+                              'i18n' => array_merge([
+                                  'confirmRemove' => __('dossiers.confirm_remove_member'),
+                                  'memberAdded' => __('dossiers.member_added'),
+                                  'memberRoleUpdated' => __('dossiers.member_role_updated'),
+                                  'memberRemoved' => __('dossiers.member_removed'),
+                                  'memberAlready' => __('dossiers.member_already'),
+                                  'roleReader' => __('dossiers.role_reader'),
+                                  'roleEditor' => __('dossiers.role_editor'),
+                                  'ownerBadge' => __('dossiers.owner_badge'),
+                                  'yourRole' => __('dossiers.your_role_label'),
+                                  'personSingular' => __('dossiers.person_singular'),
+                                  'personPlural' => __('dossiers.person_plural'),
+                              ], $canManageMembers ? [
+                                 'manageMembers' => __('dossiers.manage_members'),
+                                 'removeMemberTitle' => __('dossiers.remove_member_title'),
+                                 'removeMemberBody' => __('dossiers.remove_member_body'),
+                                 'removeMemberConfirm' => __('dossiers.remove_member_confirm'),
+                                 'cancel' => __('dossiers.cancel'),
+                                 'addMember' => __('dossiers.add_member'),
+                                 'addMemberHelp' => __('dossiers.add_member_help'),
+                                 'searchPlaceholder' => __('dossiers.member_search_placeholder'),
+                                 'noMembers' => __('dossiers.no_members'),
+                             ] : []),
                          ]))">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.members_title') }}</h2>
-                    <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.members_help') }}</p>
-
                     <div x-show="message" x-transition
                          :class="messageType === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-200' : 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-200'"
-                         class="mt-3 rounded-xl border px-4 py-3 text-sm font-medium">
+                         class="mb-4 rounded-xl border px-4 py-3 text-sm font-medium">
                         <span x-text="message"></span>
                     </div>
 
-                    <div class="mt-5 space-y-3">
-                        <template x-for="m in members" :key="m.id">
-                            <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
-                                <div class="flex items-center gap-3">
-                                    <div class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="m.initial"></div>
-                                    <div>
-                                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="m.displayName"></div>
-                                        <div class="text-xs text-gray-500 dark:text-gray-400" x-text="m.email"></div>
-                                        <template x-if="m.isYou">
-                                            <span class="mt-0.5 inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300" x-text="m.roleLabel || m.role"></span>
-                                        </template>
-                                    </div>
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="flex -space-x-2">
+                                <div class="relative flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700 ring-2 ring-white dark:bg-amber-950/60 dark:text-amber-300 dark:ring-gray-800" title="{{ __('dossiers.owner_badge') }}">
+                                    <span x-text="ownerInitial"></span>
+                                    <span class="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[8px] text-white ring-2 ring-white dark:ring-gray-800">
+                                        <svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5h14v-5a2 2 0 00-2-2V7a5 5 0 00-5-5z"/></svg>
+                                    </span>
                                 </div>
-                                <template x-if="canManage && !m.isYou">
-                                    <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-                                        <select :value="m.role" @change="updateRole(m, $event.target.value)"
-                                                class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
-                                            <option value="reader">{{ __('dossiers.role_reader') }}</option>
-                                            <option value="editor">{{ __('dossiers.role_editor') }}</option>
-                                        </select>
-                                        <button @click="removeMember(m)"
-                                                class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:w-8"
-                                                title="{{ __('dossiers.member_removed') }}">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                                        </button>
+                                <template x-for="(m, idx) in displayMembers" :key="m.id">
+                                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700 ring-2 ring-white dark:bg-indigo-950/60 dark:text-indigo-300 dark:ring-gray-800" :title="m.displayName" x-text="m.initial"></div>
+                                </template>
+                                <template x-if="overflowCount > 0">
+                                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-semibold text-gray-600 ring-2 ring-white dark:bg-gray-700 dark:text-gray-300 dark:ring-gray-800">
+                                        <span x-text="'+' + overflowCount"></span>
                                     </div>
                                 </template>
                             </div>
-                        </template>
-
-                        <template x-if="members.length === 0">
-                            <p class="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:bg-gray-900/40 dark:text-gray-300">{{ __('dossiers.no_members') }}</p>
-                        </template>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="ownerName"></span>
+                                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" x-text="i18n.ownerBadge"></span>
+                                </div>
+                                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                    <span x-text="(members.length + 1) + ' ' + ((members.length + 1) === 1 ? i18n.personSingular : i18n.personPlural)"></span>
+                                    <span class="mx-1">·</span>
+                                    <span x-text="i18n.yourRole"></span>
+                                    <span class="font-medium" x-text="currentRoleLabel"></span>
+                                </p>
+                            </div>
+                        </div>
+                        @if($canManageMembers)
+                            <button @click="showManageModal = true" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                <span x-text="i18n.manageMembers"></span>
+                            </button>
+                        @endif
                     </div>
 
+                    {{-- Management Modal (owner only) --}}
                     @if($canManageMembers)
-                        <div class="mt-5">
-                            <button @click="showSearch = !showSearch" class="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                                {{ __('dossiers.add_member') }}
-                            </button>
-                        </div>
+                    <template x-if="showManageModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" @click.self="showManageModal = false" role="dialog" aria-modal="true" aria-labelledby="manage-members-title">
+                            <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800 max-h-[90vh] overflow-y-auto">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 id="manage-members-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.manageMembers"></h3>
+                                    <button @click="showManageModal = false" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200" aria-label="{{ __('dossiers.cancel') }}">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
 
-                        <div x-show="showSearch" x-transition class="mt-4 space-y-3">
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.add_member_help') }}</p>
-                            <input type="text" x-model="searchQuery" @input.debounce.300ms="searchUsers()" placeholder="{{ __('dossiers.member_search_placeholder') }}"
-                                   class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" />
-                            <div x-show="searchLoading" class="text-xs text-gray-400">...</div>
-                            <div class="space-y-2">
-                                <template x-for="u in searchResults" :key="u.id">
-                                    <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-3 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
-                                        <div class="flex items-center gap-2">
-                                            <div class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="(u.first_name || u.name || '?').charAt(0)"></div>
-                                            <div>
-                                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="u.displayName"></span>
-                                                <span class="ml-1 text-xs text-gray-500 dark:text-gray-400" x-text="u.email"></span>
+                                <div class="mb-4">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2" x-text="i18n.addMemberHelp"></p>
+                                    <input type="text" x-model="searchQuery" @input.debounce.300ms="searchUsers()" :placeholder="i18n.searchPlaceholder"
+                                           class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" />
+                                </div>
+
+                                <template x-if="searchLoading">
+                                    <div class="text-xs text-gray-400 mb-3">...</div>
+                                </template>
+
+                                <template x-if="searchResults.length > 0">
+                                    <div class="mb-4 space-y-2">
+                                        <template x-for="u in searchResults" :key="u.id">
+                                            <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-3 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="(u.first_name || u.name || '?').charAt(0)"></div>
+                                                    <div>
+                                                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="u.displayName"></span>
+                                                        <span class="ml-1 text-xs text-gray-500 dark:text-gray-400" x-text="u.email"></span>
+                                                    </div>
+                                                </div>
+                                                <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+                                                    <select x-model="u._selectedRole" class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
+                                                        <option value="reader" x-text="i18n.roleReader"></option>
+                                                        <option value="editor" x-text="i18n.roleEditor"></option>
+                                                    </select>
+                                                    <button @click="addMember(u)" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 sm:w-auto">
+                                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                                                        <span x-text="i18n.addMember"></span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-                                            <select x-model="u._selectedRole" class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
-                                                <option value="reader">{{ __('dossiers.role_reader') }}</option>
-                                                <option value="editor">{{ __('dossiers.role_editor') }}</option>
-                                            </select>
-                                            <button @click="addMember(u)" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 sm:w-auto">
-                                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                                                <span>{{ __('dossiers.add_member') }}</span>
-                                            </button>
-                                        </div>
+                                        </template>
                                     </div>
                                 </template>
+
+                                <div class="space-y-2">
+                                    <div class="flex items-center gap-3 rounded-xl bg-amber-50 px-4 py-3 dark:bg-amber-950/20">
+                                        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" x-text="ownerInitial"></div>
+                                        <div class="flex-1">
+                                            <div class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="ownerName"></div>
+                                            <span class="inline-block mt-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" x-text="i18n.ownerBadge"></span>
+                                        </div>
+                                    </div>
+
+                                    <template x-for="m in members" :key="m.id">
+                                        <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="m.initial"></div>
+                                                <div>
+                                                    <div class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="m.displayName"></div>
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400" x-text="m.email"></div>
+                                                </div>
+                                            </div>
+                                            <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+                                                <select :value="m.role" @change="updateRole(m, $event.target.value)"
+                                                        class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
+                                                    <option value="reader" x-text="i18n.roleReader"></option>
+                                                    <option value="editor" x-text="i18n.roleEditor"></option>
+                                                </select>
+                                                <button @click="openRemoveModal(m)"
+                                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:w-8"
+                                                        :title="i18n.removeMemberConfirm">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="members.length === 0">
+                                        <p class="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:bg-gray-900/40 dark:text-gray-300" x-text="i18n.noMembers"></p>
+                                    </template>
+                                </div>
+
+                                <div class="mt-4 flex justify-end">
+                                    <button @click="showManageModal = false" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
+                                </div>
                             </div>
-                            <button @click="showSearch = false; searchQuery = ''; searchResults = []" class="text-xs text-gray-500 hover:underline dark:text-gray-400">{{ __('dossiers.cancel') }}</button>
                         </div>
+                    </template>
+                    @endif
+
+                    {{-- Remove Confirmation Modal (owner only) --}}
+                    @if($canManageMembers)
+                    <template x-if="showRemoveModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRemoveModal = false" role="dialog" aria-modal="true" aria-labelledby="remove-member-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
+                                <h3 id="remove-member-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.removeMemberTitle"></h3>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                    <span x-text="removeTarget?.displayName"></span> — <span x-text="i18n.removeMemberBody"></span>
+                                </p>
+                                <div class="mt-4 flex justify-end gap-2">
+                                    <button @click="showRemoveModal = false; removeTarget = null" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
+                                    <button @click="confirmRemove()" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600" x-text="i18n.removeMemberConfirm"></button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
                     @endif
                 </section>
             </div>
