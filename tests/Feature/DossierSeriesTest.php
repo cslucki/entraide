@@ -645,7 +645,7 @@ class DossierSeriesTest extends TestCase
             route('organization.dossiers.destroy', ['organization' => $this->orgA->slug, 'dossier' => $dossier->id])
         );
 
-        $response->assertRedirect();
+        $response->assertOk();
         $this->assertDatabaseMissing('article_series', ['id' => $series->id]);
         $this->assertDatabaseHas('blog_posts', ['id' => $root->id]);
     }

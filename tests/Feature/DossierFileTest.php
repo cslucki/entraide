@@ -502,7 +502,7 @@ class DossierFileTest extends TestCase
         $this->actingAs($this->ownerA)->deleteJson(route('organization.dossiers.destroy', [
             'organization' => $this->orgA,
             'dossier' => $this->dossier,
-        ]))->assertRedirect();
+        ]))->assertOk();
 
         $this->assertDatabaseHas('dossier_files', [
             'id' => $file->id,
