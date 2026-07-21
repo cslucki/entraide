@@ -711,7 +711,7 @@
                                             <svg x-show="file.mime_type === 'text/markdown'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
                                         </span>
                                         <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="file.display_name || file.original_name"></span>
-                                        <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="file.mime_type"></span>
+                                        <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="fileTypeLabel(file.mime_type)"></span>
                                     </div>
                                     <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                                         <span x-text="file.sizeFormatted"></span>

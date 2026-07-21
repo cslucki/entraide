@@ -2877,6 +2877,15 @@ function registerDossierFilesCard() {
             return this.formatBytes(bytes);
         },
 
+        fileTypeLabel(mime) {
+            if (mime === 'application/pdf') return 'PDF';
+            if (mime?.startsWith('image/')) return 'Image';
+            if (mime === 'application/msword' || mime?.includes('wordprocessingml')) return 'Word';
+            if (mime === 'text/plain') return 'TXT';
+            if (mime === 'text/markdown') return 'Markdown';
+            return mime || '—';
+        },
+
         deleteFile(file) {
             this.saving = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
