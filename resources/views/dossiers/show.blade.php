@@ -659,7 +659,6 @@
                              ],
                          ]))">
                     <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.files_title') }}</h2>
-                    <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.files_empty_body') }}</p>
 
                     <div x-show="message" x-transition
                          :class="messageType === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-200' : 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-200'"
@@ -855,9 +854,12 @@
                     </div>
 
                     <template x-if="files.length === 0 && totalFiles === 0">
-                        <div class="rounded-2xl border border-dashed border-gray-300 px-5 py-8 text-center dark:border-gray-700">
-                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.emptyTitle"></h3>
-                            <p class="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-gray-300" x-text="i18n.emptyBody"></p>
+                        <div class="rounded-3xl border-2 border-dashed border-gray-300 bg-gray-50/50 px-5 py-16 text-center dark:border-gray-700 dark:bg-gray-900/20">
+                            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-200 dark:bg-gray-800">
+                                <svg class="h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                            </div>
+                            <h3 class="mt-6 text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.emptyTitle"></h3>
+                            <p class="mx-auto mt-2 max-w-sm text-sm text-gray-600 dark:text-gray-400" x-text="i18n.emptyBody"></p>
                         </div>
                     </template>
 
