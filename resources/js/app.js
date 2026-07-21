@@ -2846,7 +2846,7 @@ function registerDossierFilesCard() {
                 
                 if (response.ok) {
                     this.showMdModal = false;
-                    this.loadFiles();
+                    await this.loadFiles();
                     this.showSuccess(this.i18n.markdownCreated || 'Markdown note created');
                 } else {
                     this.showError(data.message || 'Error creating markdown note');
@@ -2894,7 +2894,7 @@ function registerDossierFilesCard() {
                 const data = await response.json();
                 
                 if (response.ok) {
-                    this.loadFiles();
+                    await this.loadFiles();
                     this.showSuccess(this.i18n.filesUploaded || 'Files uploaded');
                 } else {
                     this.showError(data.message || 'Error uploading files');
@@ -3004,13 +3004,10 @@ function registerDossierFilesCard() {
                         })
                             .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                             .then(({ ok, data }) => {
-                                if (ok && data.files) {
-                                    const uploaded = (data.files || []).map(f => self.normalizeFile(f));
-                                    self.files = uploaded.concat(self.files).slice(0, 20);
-                                    self.totalFiles += uploaded.length;
-                                    if (data.quota) self.quota = data.quota;
+                                if (ok) {
                                     self.showMessage(data.message || self.i18n.uploaded, 'success');
                                     self._pond.removeFile(file.id);
+                                    self.loadFiles(self.currentPage);
                                 } else {
                                     self.showMessage(data.message || self.i18n.uploadFailed, 'error');
                                     self._pond.removeFile(file.id);
@@ -3035,7 +3032,7 @@ function registerDossierFilesCard() {
         loadFiles(page) {
             page = page || 1;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files?page=${page}`;
-            fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+            return fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {
                     if (!ok) {
@@ -3087,30 +3084,31 @@ function registerDossierFilesCard() {
             return mime || '—';
         },
 
-        deleteFile(file) {
+        async deleteFile(file) {
             this.saving = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
-            fetch(url, {
-                method: 'DELETE',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': this.csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
-                    if (!ok) {
-                        this.showMessage(data.message || this.i18n.deleteFailed, 'error');
-                        return;
-                    }
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
                     this.showMessage(data.message || this.i18n.deleted, 'success');
-                    this.files = this.files.filter(f => f.id !== file.id);
-                    this.totalFiles--;
-                    this.loadFiles(this.currentPage);
-                })
-                .catch(() => this.showMessage(this.i18n.deleteFailed, 'error'))
-                .finally(() => { this.saving = false; });
+                    await this.loadFiles(this.currentPage);
+                } else {
+                    this.showMessage(data.message || this.i18n.deleteFailed, 'error');
+                }
+            } catch (error) {
+                this.showMessage(this.i18n.deleteFailed, 'error');
+            } finally {
+                this.saving = false;
+            }
         },
 
         openDeleteModal(file) {
