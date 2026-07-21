@@ -44,7 +44,7 @@ class StoreDossierFileRequest extends FormRequest
                 'required',
                 'file',
                 'max:20480',
-                'mimetypes:image/jpeg,image/png,image/webp,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'mimetypes:image/jpeg,image/png,image/webp,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown',
             ],
         ];
     }

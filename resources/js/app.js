@@ -2755,9 +2755,19 @@ function registerDossierFilesCard() {
         lastPage: 1,
         totalFiles: 0,
         _pond: null,
+        showDeleteModal: false,
+        deleteTarget: null,
+        showPreviewModal: false,
+        previewFile: null,
 
         init() {
             this.loadFiles();
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (this.showPreviewModal) { this.showPreviewModal = false; this.previewFile = null; }
+                    else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; }
+                }
+            });
             if (this.canManageFiles && this.$refs.filePondContainer) {
                 const self = this;
                 const csrfToken = this.csrfToken;
@@ -2769,6 +2779,7 @@ function registerDossierFilesCard() {
                     'application/pdf',
                     'application/msword',
                     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'text/plain', 'text/markdown',
                 ];
                 const labelIdle = this.i18n.uploadHelp || 'Drag & drop files or <span class="filepond--label-action">browse</span>';
 
@@ -2867,7 +2878,6 @@ function registerDossierFilesCard() {
         },
 
         deleteFile(file) {
-            if (!confirm(this.i18n.confirmDelete)) return;
             this.saving = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
             fetch(url, {
@@ -2891,6 +2901,23 @@ function registerDossierFilesCard() {
                 })
                 .catch(() => this.showMessage(this.i18n.deleteFailed, 'error'))
                 .finally(() => { this.saving = false; });
+        },
+
+        openDeleteModal(file) {
+            this.deleteTarget = file;
+            this.showDeleteModal = true;
+        },
+
+        confirmDeleteFile() {
+            if (!this.deleteTarget) return;
+            this.showDeleteModal = false;
+            this.deleteFile(this.deleteTarget);
+            this.deleteTarget = null;
+        },
+
+        openPreview(file) {
+            this.previewFile = file;
+            this.showPreviewModal = true;
         },
 
         get quotaPercent() {
@@ -4963,7 +4990,6 @@ document.addEventListener('alpine:init', () => {
     registerBlogCoAuthorCard();
     registerBlogInviteByEmail();
     registerBlogDossierCard();
-    registerDossierSeriesCard();
     registerDossierSemanticArticleSearch();
     registerDossierArticlesCard();
     registerDossierMembersCard();

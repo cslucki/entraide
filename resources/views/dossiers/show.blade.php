@@ -644,8 +644,12 @@
                                  'uploadFailed' => __('dossiers.file_upload_failed'),
                                  'deleted' => __('dossiers.file_deleted'),
                                  'deleteFailed' => __('dossiers.file_upload_failed'),
-                                 'confirmDelete' => __('dossiers.file_confirm_delete'),
+                                 'confirmDeleteTitle' => __('dossiers.file_confirm_delete_title'),
+                                 'confirmDeleteBody' => __('dossiers.file_confirm_delete_body'),
+                                 'confirmDeleteCancel' => __('dossiers.file_confirm_delete_cancel'),
+                                 'confirmDeleteConfirm' => __('dossiers.file_confirm_delete_confirm'),
                                  'download' => __('dossiers.file_download'),
+                                 'preview' => __('dossiers.file_preview'),
                                  'deleteFile' => __('dossiers.file_delete'),
                                  'name' => __('dossiers.file_name'),
                                  'size' => __('dossiers.file_size'),
@@ -686,6 +690,26 @@
                             <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-center gap-2">
+                                        {{-- File type icon --}}
+                                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                                              :class="{
+                                                  'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
+                                                  'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400': file.mime_type?.startsWith('image/'),
+                                                  'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400': file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml'),
+                                                  'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400': file.mime_type === 'text/plain',
+                                                  'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400': file.mime_type === 'text/markdown',
+                                              }">
+                                            {{-- PDF --}}
+                                            <svg x-show="file.mime_type === 'application/pdf'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                            {{-- Image --}}
+                                            <svg x-show="file.mime_type?.startsWith('image/')" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                            {{-- Word --}}
+                                            <svg x-show="file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml')" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                            {{-- TXT --}}
+                                            <svg x-show="file.mime_type === 'text/plain'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                            {{-- Markdown --}}
+                                            <svg x-show="file.mime_type === 'text/markdown'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                                        </span>
                                         <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="file.display_name || file.original_name"></span>
                                         <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="file.mime_type"></span>
                                     </div>
@@ -696,11 +720,18 @@
                                     </div>
                                 </div>
                                 <div class="flex w-full flex-col gap-2 shrink-0 sm:ml-4 sm:w-auto sm:flex-row sm:items-center">
+                                    @if($canViewFiles)
+                                    <button @click="openPreview(file)"
+                                            class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                        <span x-text="i18n.preview"></span>
+                                    </button>
+                                    @endif
                                     <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
                                        class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
                                        x-text="i18n.download"></a>
                                     @if($canDeleteFiles)
-                                    <button @click="confirmDeleteFile(file)" :disabled="saving"
+                                    <button @click="openDeleteModal(file)" :disabled="saving"
                                             class="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30 disabled:opacity-50">
                                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                         <span x-text="i18n.deleteFile"></span>
@@ -725,6 +756,61 @@
                         <button @click="loadFiles(currentPage + 1)" :disabled="currentPage >= lastPage"
                                 class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">&raquo;</button>
                     </div>
+
+                    {{-- Delete Confirmation Modal --}}
+                    <template x-if="showDeleteModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showDeleteModal = false; deleteTarget = null">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.confirmDeleteTitle"></h3>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300" x-text="i18n.confirmDeleteBody"></p>
+                                <div class="mt-6 flex justify-end gap-3">
+                                    <button @click="showDeleteModal = false; deleteTarget = null" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.confirmDeleteCancel"></button>
+                                    <button @click="confirmDeleteFile()" :disabled="saving" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50" x-text="i18n.confirmDeleteConfirm"></button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Preview Modal --}}
+                    <template x-if="showPreviewModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" @click.self="showPreviewModal = false; previewFile = null">
+                            <div class="relative max-h-[90vh] max-w-[90vw] overflow-auto rounded-2xl bg-white shadow-xl dark:bg-gray-800" @click.stop>
+                                <button @click="showPreviewModal = false; previewFile = null" type="button" class="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                                {{-- Image preview --}}
+                                <template x-if="previewFile?.mime_type?.startsWith('image/')">
+                                    <img :src="'{{ route('organization.dossiers.files.preview', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', previewFile?.id)"
+                                         :alt="previewFile?.display_name || previewFile?.original_name"
+                                         class="max-h-[85vh] max-w-[85vw] rounded-2xl object-contain" />
+                                </template>
+                                {{-- PDF preview --}}
+                                <template x-if="previewFile?.mime_type === 'application/pdf'">
+                                    <iframe :src="'{{ route('organization.dossiers.files.preview', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', previewFile?.id)"
+                                            class="h-[85vh] w-[85vw] rounded-2xl border-0"></iframe>
+                                </template>
+                                {{-- Text / Markdown preview --}}
+                                <template x-if="previewFile?.mime_type === 'text/plain' || previewFile?.mime_type === 'text/markdown'">
+                                    <div class="p-6">
+                                        <div class="mb-3 flex items-center gap-2">
+                                            <span class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="previewFile?.display_name || previewFile?.original_name"></span>
+                                            <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="previewFile?.mime_type"></span>
+                                        </div>
+                                        <div x-ref="textContent" class="max-h-[75vh] overflow-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-4 font-mono text-sm text-gray-800 dark:bg-gray-900 dark:text-gray-200" x-init="$nextTick(() => { if (previewFile) fetch('{{ route('organization.dossiers.files.preview', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', previewFile.id)).then(r => r.text()).then(t => $refs.textContent.textContent = t); })"></div>
+                                    </div>
+                                </template>
+                                {{-- Other file types: no inline preview --}}
+                                <template x-if="!previewFile?.mime_type?.startsWith('image/') && previewFile?.mime_type !== 'application/pdf' && previewFile?.mime_type !== 'text/plain' && previewFile?.mime_type !== 'text/markdown'">
+                                    <div class="p-8 text-center">
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Aperçu non disponible pour ce type de fichier.</p>
+                                        <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', previewFile?.id)"
+                                           class="mt-4 inline-flex items-center gap-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                                           x-text="i18n.download"></a>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
                 </section>
                 @endif
             </div>
@@ -835,6 +921,8 @@
                     @endif
                 </section>
             </div>
+        </div>
+
         </div>
 
         {{-- No-JS fallback --}}
