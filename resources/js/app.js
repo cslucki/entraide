@@ -2762,6 +2762,7 @@ function registerDossierFilesCard() {
         showImportMenu: false,
         sortBy: 'name',
         sortDirection: 'asc',
+        viewMode: 'list',
 
         get sortedFiles() {
             const sorted = [...this.files];
