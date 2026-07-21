@@ -1926,6 +1926,27 @@ function registerDossierContentsCard() {
 
         destroy() {
             this.sortables.forEach(s => s.destroy());
+            this.sortables = [];
+        },
+
+        initSortables() {
+            this.sortables.forEach(s => s.destroy());
+            this.sortables = [];
+            if (!this.canManageArticles) return;
+            const groupOptions = { name: 'dossier-articles', put: true, pull: true };
+            const commonSortable = {
+                group: groupOptions,
+                handle: '.drag-handle',
+                filter: '[data-no-drag]',
+                animation: 150,
+                onEnd: (evt) => this.onDragEnd(evt),
+            };
+            if (this.$refs.ungroupedContainer) {
+                this.sortables.push(Sortable.create(this.$refs.ungroupedContainer, commonSortable));
+            }
+            if (this.$refs.annexesContainer) {
+                this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
+            }
         },
 
         onDragEnd(evt) {
@@ -2139,6 +2160,8 @@ function registerDossierContentsCard() {
 
         addToSeries(entry, dropIndex) {
             if (!entry) return;
+            const previousUngrouped = [...this.ungrouped];
+            const previousSeriesItems = [...this.seriesItems];
             this.saving = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes`;
             fetch(url, {
@@ -2170,12 +2193,18 @@ function registerDossierContentsCard() {
                     this.$nextTick(() => this.initSortables());
                     this.showSuccess(this.i18n.annexAdded || 'Annex added');
                 })
-                .catch(() => this.showError('Error'))
+                .catch(() => {
+                    this.ungrouped = previousUngrouped;
+                    this.seriesItems = previousSeriesItems;
+                    this.showError('Error');
+                })
                 .finally(() => { this.saving = false; });
         },
 
         removeAnnex(item) {
             if (!item) return;
+            const previousSeriesItems = [...this.seriesItems];
+            const previousUngrouped = [...this.ungrouped];
             this.saving = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/${item.blog_post_id}`;
             fetch(url, {
@@ -2199,7 +2228,11 @@ function registerDossierContentsCard() {
                     this.$nextTick(() => this.initSortables());
                     this.showSuccess(this.i18n.annexRemoved || 'Annex removed');
                 })
-                .catch(() => this.showError('Error'))
+                .catch(() => {
+                    this.seriesItems = previousSeriesItems;
+                    this.ungrouped = previousUngrouped;
+                    this.showError('Error');
+                })
                 .finally(() => { this.saving = false; });
         },
 

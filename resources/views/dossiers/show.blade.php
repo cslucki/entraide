@@ -358,7 +358,14 @@
                                                                   :class="seriesRoot.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (seriesRoot.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
                                                                   x-text="formatStatus(seriesRoot.status)"></span>
                                                         </div>
-                                                        <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="seriesRoot.title"></p>
+                                                        <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                                            <template x-if="seriesRoot.canView && seriesRoot.viewUrl">
+                                                                <a :href="seriesRoot.viewUrl" class="hover:underline" x-text="seriesRoot.title"></a>
+                                                            </template>
+                                                            <template x-if="!seriesRoot.canView || !seriesRoot.viewUrl">
+                                                                <span x-text="seriesRoot.title"></span>
+                                                            </template>
+                                                        </p>
                                                         <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                                                             <template x-if="seriesRoot.author">
                                                                 <span x-text="i18n.byAuthor.replace(':name', (seriesRoot.author.first_name || '') + ' ' + (seriesRoot.author.name || ''))"></span>
@@ -406,7 +413,14 @@
                                                                   :class="item.blog_post?.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (item.blog_post?.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
                                                                   x-text="formatStatus(item.blog_post?.status)"></span>
                                                         </div>
-                                                        <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="item.blog_post?.title || '—'"></p>
+                                                        <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                                            <template x-if="item.blog_post?.canView && item.blog_post?.viewUrl">
+                                                                <a :href="item.blog_post.viewUrl" class="hover:underline" x-text="item.blog_post?.title || '—'"></a>
+                                                            </template>
+                                                            <template x-if="!item.blog_post?.canView || !item.blog_post?.viewUrl">
+                                                                <span x-text="item.blog_post?.title || '—'"></span>
+                                                            </template>
+                                                        </p>
                                                         <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                                                             <template x-if="item.blog_post?.author">
                                                                 <span x-text="i18n.byAuthor.replace(':name', (item.blog_post.author.first_name || '') + ' ' + (item.blog_post.author.name || ''))"></span>
@@ -479,7 +493,14 @@
                                                           :class="entry.blog_post?.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (entry.blog_post?.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
                                                           x-text="formatStatus(entry.blog_post?.status)"></span>
                                                 </div>
-                                                <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="entry.blog_post?.title || '—'"></p>
+                                                <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                                    <template x-if="entry.blog_post?.canView && entry.blog_post?.viewUrl">
+                                                        <a :href="entry.blog_post.viewUrl" class="hover:underline" x-text="entry.blog_post?.title || '—'"></a>
+                                                    </template>
+                                                    <template x-if="!entry.blog_post?.canView || !entry.blog_post?.viewUrl">
+                                                        <span x-text="entry.blog_post?.title || '—'"></span>
+                                                    </template>
+                                                </p>
                                                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                                                     <template x-if="entry.blog_post?.author">
                                                         <span x-text="i18n.byAuthor.replace(':name', (entry.blog_post.author.first_name || '') + ' ' + (entry.blog_post.author.name || ''))"></span>
