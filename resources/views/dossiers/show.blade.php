@@ -668,7 +668,7 @@
                     </div>
 
                     @if($canManageFiles)
-                    <div class="mt-5 relative" x-data="{ showImportMenu: false }">
+                    <div class="mt-5 relative">
                         <div id="dossier-file-pond" x-ref="filePondContainer" class="hidden"></div>
                         <button @click="showImportMenu = !showImportMenu" type="button" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
@@ -699,76 +699,109 @@
                         </div>
                     </div>
 
-                    <div class="mt-5 space-y-3">
-                        <template x-for="file in files" :key="file.id">
-                            <div class="flex flex-col gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
-                                <div class="min-w-0 flex-1">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        {{-- File type icon --}}
-                                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                                              :class="{
-                                                  'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
-                                                  'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400': file.mime_type?.startsWith('image/'),
-                                                  'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400': file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml'),
-                                                  'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400': file.mime_type === 'text/csv' || file.mime_type === 'application/vnd.ms-excel' || file.mime_type?.includes('spreadsheetml'),
-                                                  'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400': file.mime_type === 'text/plain',
-                                                  'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400': file.mime_type === 'text/markdown',
-                                                  'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400': file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed',
-                                              }">
-                                            {{-- PDF --}}
-                                            <svg x-show="file.mime_type === 'application/pdf'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-                                            {{-- Image --}}
-                                            <svg x-show="file.mime_type?.startsWith('image/')" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                            {{-- Word --}}
-                                            <svg x-show="file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml')" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                            {{-- Excel/CSV --}}
-                                            <svg x-show="file.mime_type === 'text/csv' || file.mime_type === 'application/vnd.ms-excel' || file.mime_type?.includes('spreadsheetml')" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                                            {{-- TXT --}}
-                                            <svg x-show="file.mime_type === 'text/plain'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                            {{-- Markdown --}}
-                                            <svg x-show="file.mime_type === 'text/markdown'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
-                                            {{-- ZIP --}}
-                                            <svg x-show="file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
-                                        </span>
-                                        <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="file.display_name || file.original_name"></span>
-                                        <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="fileTypeLabel(file.mime_type)"></span>
-                                    </div>
-                                    <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-                                        <span x-text="file.sizeFormatted"></span>
-                                        <span x-show="file.uploader" x-text="'{{ __('dossiers.file_uploaded_by') }}: ' + (file.uploader?.name || file.uploader?.email || '')"></span>
-                                        <span x-show="file.uploadedAtFormatted" x-text="file.uploadedAtFormatted"></span>
-                                    </div>
-                                </div>
-                                <div class="flex w-full flex-col gap-2 shrink-0 sm:ml-4 sm:w-auto sm:flex-row sm:items-center">
-                                    @if($canViewFiles)
-                                    <button @click="openPreview(file)"
-                                            x-show="file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown'"
-                                            class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
-                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                        <span x-text="i18n.preview"></span>
-                                    </button>
-                                    @endif
-                                    <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
-                                       class="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                                       x-text="i18n.download"></a>
-                                    @if($canDeleteFiles)
-                                    <button @click="openDeleteModal(file)" :disabled="saving"
-                                            class="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30 disabled:opacity-50">
-                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                        <span x-text="i18n.deleteFile"></span>
-                                    </button>
-                                    @endif
-                                </div>
-                            </div>
-                        </template>
-
-                        <template x-if="files.length === 0 && totalFiles === 0">
-                            <div class="rounded-2xl border border-dashed border-gray-300 px-5 py-8 text-center dark:border-gray-700">
-                                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.emptyTitle"></h3>
-                                <p class="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-gray-300" x-text="i18n.emptyBody"></p>
-                            </div>
-                        </template>
+                    <div class="mt-5 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700" x-show="totalFiles > 0">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-900/60">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                        <button @click="toggleSort('name')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                                            {{ __('dossiers.file_name') }}
+                                            <svg x-show="sortBy === 'name'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                    </th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                        <button @click="toggleSort('uploader')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                                            {{ __('dossiers.file_uploaded_by') }}
+                                            <svg x-show="sortBy === 'uploader'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                    </th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                        <button @click="toggleSort('size')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                                            {{ __('dossiers.file_size') }}
+                                            <svg x-show="sortBy === 'size'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                    </th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                        <button @click="toggleSort('date')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                                            Date
+                                            <svg x-show="sortBy === 'date'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                        </button>
+                                    </th>
+                                    <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
+                                <template x-for="file in sortedFiles" :key="file.id">
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-900/40">
+                                        <td class="whitespace-nowrap px-4 py-3">
+                                            <div class="flex items-center gap-3">
+                                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                                                      :class="{
+                                                          'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
+                                                          'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400': file.mime_type?.startsWith('image/'),
+                                                          'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400': file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml'),
+                                                          'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400': file.mime_type === 'text/csv' || file.mime_type === 'application/vnd.ms-excel' || file.mime_type?.includes('spreadsheetml'),
+                                                          'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400': file.mime_type === 'text/plain',
+                                                          'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400': file.mime_type === 'text/markdown',
+                                                          'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400': file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed',
+                                                      }">
+                                                    <svg x-show="file.mime_type === 'application/pdf'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                                    <svg x-show="file.mime_type?.startsWith('image/')" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                                    <svg x-show="file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml')" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                                    <svg x-show="file.mime_type === 'text/csv' || file.mime_type === 'application/vnd.ms-excel' || file.mime_type?.includes('spreadsheetml')" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                                    <svg x-show="file.mime_type === 'text/plain'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                                    <svg x-show="file.mime_type === 'text/markdown'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                                                    <svg x-show="file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></div>
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400" x-text="fileTypeLabel(file.mime_type)"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                                            <span x-text="file.uploader?.name || file.uploader?.email || '—'"></span>
+                                        </td>
+                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300" x-text="file.sizeFormatted"></td>
+                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300" x-text="file.uploadedAtFormatted"></td>
+                                        <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
+                                            <div class="flex items-center justify-end gap-2">
+                                                @if($canViewFiles)
+                                                <button @click="openPreview(file)"
+                                                        x-show="file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown'"
+                                                        class="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                        title="{{ __('dossiers.file_preview') }}">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                                </button>
+                                                @endif
+                                                <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
+                                                   class="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                   title="{{ __('dossiers.file_download') }}">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                </a>
+                                                @if($canDeleteFiles)
+                                                <button @click="openDeleteModal(file)" :disabled="saving"
+                                                        class="rounded-lg p-1.5 text-red-500 hover:bg-red-100 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/40 dark:hover:text-red-300 disabled:opacity-50"
+                                                        title="{{ __('dossiers.file_delete') }}">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
                     </div>
+
+                    <template x-if="files.length === 0 && totalFiles === 0">
+                        <div class="rounded-2xl border border-dashed border-gray-300 px-5 py-8 text-center dark:border-gray-700">
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.emptyTitle"></h3>
+                            <p class="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-gray-300" x-text="i18n.emptyBody"></p>
+                        </div>
+                    </template>
 
                     <div class="mt-4 flex items-center justify-center gap-2" x-show="lastPage > 1">
                         <button @click="loadFiles(currentPage - 1)" :disabled="currentPage <= 1"

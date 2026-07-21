@@ -2759,6 +2759,49 @@ function registerDossierFilesCard() {
         deleteTarget: null,
         showPreviewModal: false,
         previewFile: null,
+        showImportMenu: false,
+        sortBy: 'name',
+        sortDirection: 'asc',
+
+        get sortedFiles() {
+            const sorted = [...this.files];
+            sorted.sort((a, b) => {
+                let aVal, bVal;
+                switch (this.sortBy) {
+                    case 'name':
+                        aVal = (a.display_name || a.original_name || '').toLowerCase();
+                        bVal = (b.display_name || b.original_name || '').toLowerCase();
+                        break;
+                    case 'size':
+                        aVal = a.size_bytes || 0;
+                        bVal = b.size_bytes || 0;
+                        break;
+                    case 'uploader':
+                        aVal = (a.uploader?.name || a.uploader?.email || '').toLowerCase();
+                        bVal = (b.uploader?.name || b.uploader?.email || '').toLowerCase();
+                        break;
+                    case 'date':
+                        aVal = new Date(a.created_at || 0).getTime();
+                        bVal = new Date(b.created_at || 0).getTime();
+                        break;
+                    default:
+                        return 0;
+                }
+                if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            return sorted;
+        },
+
+        toggleSort(column) {
+            if (this.sortBy === column) {
+                this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortBy = column;
+                this.sortDirection = 'asc';
+            }
+        },
 
         browseFiles() {
             if (this._pond) {
