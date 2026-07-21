@@ -146,7 +146,7 @@ return [
     'files_empty_title' => 'Aucun fichier',
     'files_empty_body' => 'Ajoute des fichiers à ce dossier pour les conserver en lieu sûr.',
     'file_upload' => 'Ajouter des fichiers',
-    'file_upload_help' => '5 fichiers max, 20 Mo chacun. Formats : jpeg, png, webp, gif, pdf, doc, docx, txt, md.',
+    'file_upload_help' => '5 fichiers max, 20 Mo chacun. Formats : images, PDF, Word, Excel, TXT, Markdown, CSV, ZIP.',
     'file_uploaded' => 'Fichier(s) ajouté(s).',
     'file_upload_failed' => 'Erreur lors de l\'ajout du fichier.',
     'file_deleted' => 'Fichier supprimé.',

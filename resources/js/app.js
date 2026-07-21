@@ -2779,7 +2779,10 @@ function registerDossierFilesCard() {
                     'application/pdf',
                     'application/msword',
                     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    'text/plain', 'text/markdown',
+                    'text/plain', 'text/markdown', 'text/csv',
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/zip', 'application/x-zip-compressed',
                 ];
                 const labelIdle = this.i18n.uploadHelp || 'Drag & drop files or <span class="filepond--label-action">browse</span>';
 
@@ -2883,6 +2886,8 @@ function registerDossierFilesCard() {
             if (mime === 'application/msword' || mime?.includes('wordprocessingml')) return 'Word';
             if (mime === 'text/plain') return 'TXT';
             if (mime === 'text/markdown') return 'Markdown';
+            if (mime === 'text/csv' || mime === 'application/vnd.ms-excel' || mime?.includes('spreadsheetml')) return 'Excel';
+            if (mime === 'application/zip' || mime === 'application/x-zip-compressed') return 'ZIP';
             return mime || '—';
         },
 

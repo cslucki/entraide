@@ -146,7 +146,7 @@ return [
     'files_empty_title' => 'No files yet',
     'files_empty_body' => 'Add files to this folder to keep them safe.',
     'file_upload' => 'Add files',
-    'file_upload_help' => '5 files max, 20 MB each. Formats: jpeg, png, webp, gif, pdf, doc, docx, txt, md.',
+    'file_upload_help' => '5 files max, 20 MB each. Formats: images, PDF, Word, Excel, TXT, Markdown, CSV, ZIP.',
     'file_uploaded' => 'File(s) uploaded.',
     'file_upload_failed' => 'File upload failed.',
     'file_deleted' => 'File deleted.',
