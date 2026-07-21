@@ -225,9 +225,38 @@ class BlogController extends Controller implements HasMiddleware
         return redirect($this->blogUrl('show', ['post' => $post]))->with('success', $message);
     }
 
-    public function orgStore(Request $request, string $org): RedirectResponse
+    public function orgStore(Request $request, string $org): RedirectResponse|JsonResponse
     {
-        return $this->store($request);
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
+        $this->authorize('create', BlogPost::class);
+
+        $data = $this->validateBlogPostRequest($request, $organization, ['draft', 'published']);
+
+        $data['content'] = $this->sanitizeHtml($data['content']);
+        $data['user_id'] = auth()->id();
+        $data['organization_id'] = $organization->id;
+        $data['slug'] = Str::slug($data['title']);
+        $data['published_at'] = $data['status'] === 'published' ? now() : null;
+
+        $post = BlogPost::create($data);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'post' => [
+                    'id' => $post->id,
+                    'slug' => $post->slug,
+                    'title' => $post->title,
+                ],
+                'redirect_url' => "/org/{$org}/blog/{$post->slug}/edit",
+            ], 201);
+        }
+
+        return redirect($this->blogUrl('show', ['post' => $post]))->with('success', __('blog.created_draft'));
     }
 
     public function edit(BlogPost $post): View

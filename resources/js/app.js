@@ -2755,9 +2755,215 @@ function registerDossierFilesCard() {
         lastPage: 1,
         totalFiles: 0,
         _pond: null,
+        showDeleteModal: false,
+        deleteTarget: null,
+        showPreviewModal: false,
+        previewFile: null,
+        showImportMenu: false,
+        sortBy: 'name',
+        sortDirection: 'asc',
+        viewMode: 'list',
+        showArticleModal: false,
+        articleTitle: '',
+        articleCategoryId: '',
+        showMdModal: false,
+        mdFileName: '',
+        mdContent: '',
+
+        openArticleModal() {
+            this.showArticleModal = true;
+            this.articleTitle = '';
+            this.articleCategoryId = '';
+        },
+
+        openMdModal() {
+            this.showMdModal = true;
+            this.mdFileName = '';
+            this.mdContent = '';
+        },
+
+        async createArticle() {
+            if (!this.articleTitle.trim() || !this.articleCategoryId) return;
+            
+            this.saving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/blog`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        title: this.articleTitle,
+                        category_id: this.articleCategoryId,
+                        content: '',
+                        status: 'draft',
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.showArticleModal = false;
+                    this.showSuccess(this.i18n.articleCreated || 'Article created');
+                    // Redirect to edit the new article
+                    window.location.href = data.redirect_url || `/org/${this.orgParam}/blog/${data.post.slug}/edit`;
+                } else {
+                    this.showError(data.message || 'Error creating article');
+                }
+            } catch (error) {
+                this.showError('Network error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async createMarkdownNote() {
+            if (!this.mdFileName.trim()) return;
+            
+            this.saving = true;
+            try {
+                const fileName = this.mdFileName.endsWith('.md') ? this.mdFileName : `${this.mdFileName}.md`;
+                const blob = new Blob([this.mdContent], { type: 'text/markdown' });
+                const file = new File([blob], fileName, { type: 'text/markdown' });
+                
+                const formData = new FormData();
+                formData.append('files[]', file);
+                
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData,
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.showMdModal = false;
+                    await this.loadFiles();
+                    this.showSuccess(this.i18n.markdownCreated || 'Markdown note created');
+                } else {
+                    this.showError(data.message || 'Error creating markdown note');
+                }
+            } catch (error) {
+                this.showError('Network error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        triggerMediaUpload(type) {
+            const inputMap = {
+                'image': 'imageInput',
+                'video': 'videoInput',
+                'audio': 'audioInput',
+            };
+            const ref = inputMap[type];
+            if (ref && this.$refs[ref]) {
+                this.$refs[ref].click();
+            }
+        },
+
+        async handleMediaFiles(event, type) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            
+            this.saving = true;
+            try {
+                const formData = new FormData();
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('files[]', files[i]);
+                }
+                
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData,
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    await this.loadFiles();
+                    this.showSuccess(this.i18n.filesUploaded || 'Files uploaded');
+                } else {
+                    this.showError(data.message || 'Error uploading files');
+                }
+            } catch (error) {
+                this.showError('Network error');
+            } finally {
+                this.saving = false;
+                // Reset the input
+                event.target.value = '';
+            }
+        },
+
+        get sortedFiles() {
+            const sorted = [...this.files];
+            sorted.sort((a, b) => {
+                let aVal, bVal;
+                switch (this.sortBy) {
+                    case 'name':
+                        aVal = (a.display_name || a.original_name || '').toLowerCase();
+                        bVal = (b.display_name || b.original_name || '').toLowerCase();
+                        break;
+                    case 'size':
+                        aVal = a.size_bytes || 0;
+                        bVal = b.size_bytes || 0;
+                        break;
+                    case 'uploader':
+                        aVal = (a.uploader?.name || a.uploader?.email || '').toLowerCase();
+                        bVal = (b.uploader?.name || b.uploader?.email || '').toLowerCase();
+                        break;
+                    case 'date':
+                        aVal = new Date(a.created_at || 0).getTime();
+                        bVal = new Date(b.created_at || 0).getTime();
+                        break;
+                    default:
+                        return 0;
+                }
+                if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            return sorted;
+        },
+
+        toggleSort(column) {
+            if (this.sortBy === column) {
+                this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortBy = column;
+                this.sortDirection = 'asc';
+            }
+        },
+
+        browseFiles() {
+            if (this._pond) {
+                this._pond.browse();
+            }
+        },
 
         init() {
             this.loadFiles();
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (this.showPreviewModal) { this.showPreviewModal = false; this.previewFile = null; }
+                    else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; }
+                    else if (this.showArticleModal) { this.showArticleModal = false; }
+                    else if (this.showMdModal) { this.showMdModal = false; }
+                }
+            });
             if (this.canManageFiles && this.$refs.filePondContainer) {
                 const self = this;
                 const csrfToken = this.csrfToken;
@@ -2769,6 +2975,10 @@ function registerDossierFilesCard() {
                     'application/pdf',
                     'application/msword',
                     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'text/plain', 'text/markdown', 'text/csv',
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/zip', 'application/x-zip-compressed',
                 ];
                 const labelIdle = this.i18n.uploadHelp || 'Drag & drop files or <span class="filepond--label-action">browse</span>';
 
@@ -2794,13 +3004,10 @@ function registerDossierFilesCard() {
                         })
                             .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                             .then(({ ok, data }) => {
-                                if (ok && data.files) {
-                                    const uploaded = (data.files || []).map(f => self.normalizeFile(f));
-                                    self.files = uploaded.concat(self.files).slice(0, 20);
-                                    self.totalFiles += uploaded.length;
-                                    if (data.quota) self.quota = data.quota;
+                                if (ok) {
                                     self.showMessage(data.message || self.i18n.uploaded, 'success');
                                     self._pond.removeFile(file.id);
+                                    self.loadFiles(self.currentPage);
                                 } else {
                                     self.showMessage(data.message || self.i18n.uploadFailed, 'error');
                                     self._pond.removeFile(file.id);
@@ -2825,7 +3032,7 @@ function registerDossierFilesCard() {
         loadFiles(page) {
             page = page || 1;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files?page=${page}`;
-            fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+            return fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {
                     if (!ok) {
@@ -2866,31 +3073,59 @@ function registerDossierFilesCard() {
             return this.formatBytes(bytes);
         },
 
-        deleteFile(file) {
-            if (!confirm(this.i18n.confirmDelete)) return;
+        fileTypeLabel(mime) {
+            if (mime === 'application/pdf') return 'PDF';
+            if (mime?.startsWith('image/')) return 'Image';
+            if (mime === 'application/msword' || mime?.includes('wordprocessingml')) return 'Word';
+            if (mime === 'text/plain') return 'TXT';
+            if (mime === 'text/markdown') return 'Markdown';
+            if (mime === 'text/csv' || mime === 'application/vnd.ms-excel' || mime?.includes('spreadsheetml')) return 'Excel';
+            if (mime === 'application/zip' || mime === 'application/x-zip-compressed') return 'ZIP';
+            return mime || '—';
+        },
+
+        async deleteFile(file) {
             this.saving = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
-            fetch(url, {
-                method: 'DELETE',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': this.csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
-                    if (!ok) {
-                        this.showMessage(data.message || this.i18n.deleteFailed, 'error');
-                        return;
-                    }
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
                     this.showMessage(data.message || this.i18n.deleted, 'success');
-                    this.files = this.files.filter(f => f.id !== file.id);
-                    this.totalFiles--;
-                    this.loadFiles(this.currentPage);
-                })
-                .catch(() => this.showMessage(this.i18n.deleteFailed, 'error'))
-                .finally(() => { this.saving = false; });
+                    await this.loadFiles(this.currentPage);
+                } else {
+                    this.showMessage(data.message || this.i18n.deleteFailed, 'error');
+                }
+            } catch (error) {
+                this.showMessage(this.i18n.deleteFailed, 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        openDeleteModal(file) {
+            this.deleteTarget = file;
+            this.showDeleteModal = true;
+        },
+
+        confirmDeleteFile() {
+            if (!this.deleteTarget) return;
+            this.showDeleteModal = false;
+            this.deleteFile(this.deleteTarget);
+            this.deleteTarget = null;
+        },
+
+        openPreview(file) {
+            this.previewFile = file;
+            this.showPreviewModal = true;
         },
 
         get quotaPercent() {
@@ -4963,7 +5198,6 @@ document.addEventListener('alpine:init', () => {
     registerBlogCoAuthorCard();
     registerBlogInviteByEmail();
     registerBlogDossierCard();
-    registerDossierSeriesCard();
     registerDossierSemanticArticleSearch();
     registerDossierArticlesCard();
     registerDossierMembersCard();

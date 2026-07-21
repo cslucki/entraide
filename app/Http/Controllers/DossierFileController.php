@@ -157,6 +157,36 @@ class DossierFileController extends Controller
         }
     }
 
+    public function preview(Request $request): RedirectResponse|StreamedResponse
+    {
+        $dossier = $this->resolveDossier($request->route('dossier'));
+        $file = $this->resolveFile($request->route('file'));
+        $organization = $this->currentOrganizationOrFail();
+        $this->ensureCurrentUserBelongsToCurrentOrganization();
+        $this->ensureDossierBelongsToCurrentOrganization($dossier);
+
+        if ($file->dossier_id !== $dossier->id || $file->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('viewFiles', $dossier);
+
+        try {
+            if (config("filesystems.disks.{$file->disk}.driver") === 'local') {
+                return Storage::disk($file->disk)->download($file->path, $file->original_name, [
+                    'Content-Type' => $file->mime_type,
+                    'Content-Disposition' => 'inline; filename="'.$file->original_name.'"',
+                ]);
+            }
+
+            $url = Storage::disk($file->disk)->temporaryUrl($file->path, now()->addMinutes(30));
+
+            return redirect()->away($url);
+        } catch (\Exception $e) {
+            abort(404);
+        }
+    }
+
     public function destroy(Request $request): JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));

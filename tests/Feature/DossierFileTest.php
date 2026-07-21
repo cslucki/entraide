@@ -96,7 +96,12 @@ class DossierFileTest extends TestCase
         return route('organization.dossiers.files.destroy', ['organization' => $this->orgA, 'dossier' => $dossier, 'file' => $file]);
     }
 
-    private function createFile(Dossier $dossier, User $uploader, string $name = 'doc.pdf'): DossierFile
+    private function previewRoute(Dossier $dossier, DossierFile $file): string
+    {
+        return route('organization.dossiers.files.preview', ['organization' => $this->orgA, 'dossier' => $dossier, 'file' => $file]);
+    }
+
+    private function createFile(Dossier $dossier, User $uploader, string $name = 'doc.pdf', string $mimeType = 'application/pdf'): DossierFile
     {
         $path = 'dossier-files/'.$dossier->id.'/'.$name;
         Storage::disk('dossier_files')->put($path, 'stored test content');
@@ -109,7 +114,7 @@ class DossierFileTest extends TestCase
             'path' => $path,
             'original_name' => $name,
             'display_name' => $name,
-            'mime_type' => 'application/pdf',
+            'mime_type' => $mimeType,
             'size_bytes' => strlen('stored test content'),
             'checksum_sha256' => hash('sha256', 'stored test content'),
             'source' => 'upload',
@@ -320,6 +325,37 @@ class DossierFileTest extends TestCase
         $this->assertEquals(3, DossierFile::where('dossier_id', $this->dossier->id)->count());
     }
 
+    public function test_upload_accepts_markdown_and_text_types(): void
+    {
+        $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+            'files' => [
+                $this->fakeFile('notes.txt', 'text/plain', 256),
+                $this->fakeFile('readme.md', 'text/markdown', 512),
+            ],
+        ])->assertStatus(201);
+
+        $this->assertEquals(2, DossierFile::where('dossier_id', $this->dossier->id)->count());
+    }
+
+    public function test_preview_route_returns_inline_for_image(): void
+    {
+        $file = $this->createFile($this->dossier, $this->ownerA, 'photo.jpg', 'image/jpeg');
+
+        $response = $this->actingAs($this->ownerA)->get($this->previewRoute($this->dossier, $file));
+
+        $response->assertOk();
+        $response->assertHeader('content-disposition', 'inline; filename="'.$file->original_name.'"');
+    }
+
+    public function test_preview_route_returns_404_for_cross_tenant(): void
+    {
+        $file = $this->createFile($this->dossier, $this->ownerA);
+
+        $response = $this->actingAs($this->userB)->get($this->previewRoute($this->dossier, $file));
+
+        $response->assertStatus(404);
+    }
+
     // --- List tests ---
 
     public function test_owner_can_list_files(): void
@@ -466,7 +502,7 @@ class DossierFileTest extends TestCase
         $this->actingAs($this->ownerA)->deleteJson(route('organization.dossiers.destroy', [
             'organization' => $this->orgA,
             'dossier' => $this->dossier,
-        ]))->assertRedirect();
+        ]))->assertOk();
 
         $this->assertDatabaseHas('dossier_files', [
             'id' => $file->id,

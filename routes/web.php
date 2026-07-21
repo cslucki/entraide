@@ -695,6 +695,7 @@ Route::prefix('/org/{organization}')
                 Route::get('/dossiers/{dossier}/files', [DossierFileController::class, 'index'])->name('dossiers.files.index');
                 Route::post('/dossiers/{dossier}/files', [DossierFileController::class, 'store'])->name('dossiers.files.store');
                 Route::get('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'show'])->name('dossiers.files.show');
+                Route::get('/dossiers/{dossier}/files/{file}/preview', [DossierFileController::class, 'preview'])->name('dossiers.files.preview');
                 Route::delete('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'destroy'])->name('dossiers.files.destroy');
 
                 // Blog (org-scoped)

@@ -8,6 +8,7 @@ use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierSemanticSearchGate;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -115,6 +116,10 @@ class DossierController extends Controller
         $canManageFiles = $isOwner || $userRole === 'editor';
         $canDeleteFiles = $isOwner;
 
+        $categories = \App\Models\Category::where('organization_id', $organization->id)
+            ->orderBy('name_b2c')
+            ->get(['id', 'name_b2c', 'name_b2b']);
+
         return view('dossiers.show', [
             'dossier' => $dossier,
             'eligibleArticles' => $eligibleArticles,
@@ -128,6 +133,7 @@ class DossierController extends Controller
             'canDeleteFiles' => $canDeleteFiles,
             'canUseSemanticArticleSearch' => $semanticSearchGate->isEnabledFor($organization->id),
             'organizationRouteParam' => $request->route('organization'),
+            'categories' => $categories,
         ]);
     }
 
@@ -165,7 +171,7 @@ class DossierController extends Controller
         ]);
     }
 
-    public function update(Request $request): RedirectResponse
+    public function update(Request $request): RedirectResponse|JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
@@ -183,12 +189,16 @@ class DossierController extends Controller
             'visibility' => Dossier::VISIBILITY_PRIVATE,
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => __('dossiers.updated'), 'dossier' => $dossier->only('id', 'name')]);
+        }
+
         return redirect()
             ->route('organization.dossiers.index', ['organization' => $organization])
             ->with('success', __('dossiers.updated'));
     }
 
-    public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse
+    public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse| JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
@@ -212,6 +222,10 @@ class DossierController extends Controller
 
             $indexing->dispatchForEntries($indexEntries);
         });
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => __('dossiers.deleted')]);
+        }
 
         return redirect()
             ->route('organization.dossiers.index', ['organization' => $organization])
