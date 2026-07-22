@@ -109,11 +109,10 @@
 
             /* Mobile safe areas */
             .mobile-safe-top { padding-top: 0; }
-            .mobile-safe-bottom { padding-bottom: 0; }
             .mobile-safe-bottom-auth { padding-bottom: 0; }
             @media (max-width: 767px) {
-                .mobile-safe-top { padding-top: 3.5rem; }
-                .mobile-safe-bottom-auth { padding-bottom: 4rem; }
+                .mobile-safe-top { padding-top: calc(3.5rem + env(safe-area-inset-top, 0px)); }
+                .mobile-safe-bottom-auth { padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px)); }
             }
         </style>
     </head>

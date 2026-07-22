@@ -19,7 +19,7 @@
         }
         body:has(.loops-show-container) > .min-h-screen {
             padding-top: 0 !important;
-            padding-bottom: 4rem !important;
+            padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px)) !important;
         }
         body:has(.loops-show-container) .min-h-screen > .md\:hidden,
         body:has(.loops-show-container) .min-h-screen > footer {
@@ -29,7 +29,7 @@
             padding: 0 !important;
         }
         body:has(.loops-show-container) .loops-show-container {
-            height: calc(100dvh - 4rem);
+            height: calc(100dvh - 4rem - env(safe-area-inset-bottom, 0px));
         }
     }
     @media (min-width: 768px) {
