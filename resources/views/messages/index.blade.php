@@ -6,7 +6,7 @@
         }
 
         .messages-index-container {
-            height: calc(100dvh - 3.5rem);
+            height: calc(100dvh - 3.5rem - 4rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
         }
     }
 
