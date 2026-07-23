@@ -2865,6 +2865,8 @@ function registerDossierFilesCard() {
         uploading: false,
         uploadProgress: 0,
         uploadFileName: '',
+        uploadBatchCurrent: 0,
+        uploadBatchTotal: 0,
         saving: false,
         message: '',
         messageType: 'success',
@@ -2936,7 +2938,7 @@ function registerDossierFilesCard() {
             this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="markdown-note-title"]'); });
         },
 
-        uploadFormData(formData, files = []) {
+        uploadFormData(formData, files = [], skipReset = false) {
             const names = Array.from(files).map(file => file.name).filter(Boolean);
             this.uploading = true;
             this.uploadProgress = 0;
@@ -2965,6 +2967,7 @@ function registerDossierFilesCard() {
                 xhr.addEventListener('abort', () => reject(new Error('upload aborted')));
                 xhr.send(formData);
             }).finally(() => {
+                if (skipReset) return;
                 setTimeout(() => {
                     this.uploading = false;
                     this.uploadProgress = 0;
@@ -3062,32 +3065,75 @@ function registerDossierFilesCard() {
         },
 
         async handleMediaFiles(event, type) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-            
-            this.saving = true;
-            try {
-                const formData = new FormData();
-                for (let i = 0; i < files.length; i++) {
-                    formData.append('files[]', files[i]);
-                }
-                
-                const { ok, data } = await this.uploadFormData(formData, files);
+            const files = Array.from(event.target.files);
+            event.target.value = '';
+            if (files.length === 0) return;
 
-                if (ok) {
-                    await this.loadFiles(1);
-                    this.mergeMissingUploads(data.files);
-                    this.showMessage(this.i18n.filesUploaded, 'success');
-                } else {
-                    this.showMessage(data.message || this.i18n.uploadFailed, 'error');
+            const validFiles = files.filter(f => {
+                if (f.size > 50 * 1024 * 1024) {
+                    this.showMessage(this.i18n.fileTooLarge.replace(':name', f.name), 'error');
+                    return false;
                 }
-            } catch (error) {
-                this.showMessage(this.i18n.networkError, 'error');
-            } finally {
-                this.saving = false;
-                // Reset the input
-                event.target.value = '';
+                return true;
+            });
+            if (validFiles.length === 0) return;
+
+            this.saving = true;
+            this.uploading = true;
+            this.uploadBatchCurrent = 0;
+            this.uploadBatchTotal = validFiles.length;
+
+            let succeeded = 0;
+            let failed = 0;
+            const failedNames = [];
+
+            for (let i = 0; i < validFiles.length; i++) {
+                const file = validFiles[i];
+                this.uploadBatchCurrent = i + 1;
+                this.uploadFileName = file.name;
+                this.uploadProgress = 0;
+
+                const formData = new FormData();
+                formData.append('files[]', file, file.name);
+
+                try {
+                    const { ok, data } = await this.uploadFormData(formData, [file], true);
+                    if (ok) {
+                        succeeded++;
+                        this.mergeMissingUploads(data.files);
+                    } else {
+                        failed++;
+                        failedNames.push(file.name + ': ' + (data.message || this.i18n.uploadFailed));
+                    }
+                } catch (_e) {
+                    failed++;
+                    failedNames.push(file.name + ': ' + this.i18n.networkError);
+                }
             }
+
+            this.uploading = false;
+            this.uploadProgress = 0;
+            this.uploadFileName = '';
+            this.uploadBatchCurrent = 0;
+
+            if (succeeded > 0 && failed === 0) {
+                this.showMessage(this.i18n.filesBatchResult
+                    .replace(':success', succeeded)
+                    .replace(':total', validFiles.length)
+                    .replace(':errors', ''), 'success');
+            } else if (succeeded > 0 && failed > 0) {
+                const errorSuffix = this.i18n.filesBatchErrors.replace(':count', failed);
+                const msg = this.i18n.filesBatchResult
+                    .replace(':success', succeeded)
+                    .replace(':total', validFiles.length)
+                    .replace(':errors', errorSuffix);
+                this.showMessage(msg + '\n' + failedNames.join('\n'), 'error');
+            } else {
+                this.showMessage(this.i18n.uploadFailed + '\n' + failedNames.join('\n'), 'error');
+            }
+
+            await this.loadFiles(1);
+            this.saving = false;
         },
 
         get sortedFiles() {

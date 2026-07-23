@@ -267,5 +267,8 @@ Your Markdown content here...',
     'markdown_created' => 'Markdown note created',
     'markdown_create_failed' => 'Markdown note creation failed.',
     'files_uploaded' => 'Files uploaded',
+    'files_batch_result' => ':success / :total file(s) uploaded.:errors',
+    'files_batch_errors' => ' :count failed.',
+    'file_too_large' => 'File exceeds maximum size (50 MB).',
     'clear_search_to_reorder' => 'Clear search to reorder contents',
 ];

@@ -266,5 +266,8 @@ Votre contenu Markdown ici...',
     'markdown_created' => 'Note Markdown créée',
     'markdown_create_failed' => 'Erreur lors de la création de la note Markdown.',
     'files_uploaded' => 'Fichiers ajoutés',
+    'files_batch_result' => ':success / :total fichier(s) ajouté(s).:errors',
+    'files_batch_errors' => ' :count échec(s).',
+    'file_too_large' => 'Fichier trop volumineux (max 50 Mo).',
     'clear_search_to_reorder' => 'Effacez la recherche pour réorganiser les contenus',
 ];

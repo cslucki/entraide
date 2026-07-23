@@ -668,6 +668,9 @@
                                    'markdownCreated' => __('dossiers.markdown_created'),
                                    'markdownCreateFailed' => __('dossiers.markdown_create_failed'),
                                    'filesUploaded' => __('dossiers.files_uploaded'),
+                                   'filesBatchResult' => __('dossiers.files_batch_result'),
+                                   'filesBatchErrors' => __('dossiers.files_batch_errors'),
+                                   'fileTooLarge' => __('dossiers.file_too_large'),
                                   'networkError' => __('dossiers.network_error'),
                                   'duplicateName' => __('dossiers.file_duplicate_name'),
                                   'previewNotAvailable' => __('dossiers.file_preview_not_available'),
@@ -744,10 +747,11 @@
                                 <svg class="h-5 w-5 animate-pulse" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01.88-7.903A5 5 0 0117.9 9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                             </div>
                             <div class="min-w-0 flex-1">
-                                <div class="flex items-center justify-between gap-3">
-                                    <p class="truncate text-sm font-semibold text-indigo-950 dark:text-indigo-100" x-text="uploadFileName ? i18n.uploadingFile.replace(':name', uploadFileName) : i18n.uploading"></p>
-                                    <p class="shrink-0 text-xs font-bold tabular-nums text-indigo-700 dark:text-indigo-200" x-text="i18n.uploadProgress.replace(':percent', uploadProgress)"></p>
-                                </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <p class="truncate text-sm font-semibold text-indigo-950 dark:text-indigo-100" x-text="uploadFileName ? i18n.uploadingFile.replace(':name', uploadFileName) : i18n.uploading"></p>
+                                <p class="shrink-0 text-xs font-bold tabular-nums text-indigo-700 dark:text-indigo-200" x-text="i18n.uploadProgress.replace(':percent', uploadProgress)"></p>
+                            </div>
+                            <p class="mt-1 text-xs font-medium text-indigo-600/80 dark:text-indigo-300/80" x-show="uploadBatchTotal > 1" x-text="uploadBatchCurrent + ' / ' + uploadBatchTotal + ' ' + i18n.filesUploaded.toLowerCase()"></p>
                                 <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/80 ring-1 ring-indigo-100 dark:bg-indigo-950 dark:ring-indigo-800">
                                     <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 via-sky-500 to-emerald-400 transition-all duration-200" :style="'width: ' + uploadProgress + '%'" aria-hidden="true"></div>
                                 </div>
