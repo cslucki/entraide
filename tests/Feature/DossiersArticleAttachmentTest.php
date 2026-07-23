@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
+use App\Models\DossierMember;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -272,6 +273,138 @@ class DossiersArticleAttachmentTest extends TestCase
 
         $this->assertDatabaseHas('dossier_blog_posts', ['blog_post_id' => $post->id]);
     }
+
+    // ── createAndAttach gates ──────────────────────────────────────────
+
+    public function test_owner_can_create_and_attach_article(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->authorA, 'Owner dossier');
+
+        $beforePostCount = BlogPost::where('organization_id', $this->orgA->id)->count();
+
+        $this->actingAs($this->authorA)
+            ->postJson(route('organization.dossiers.articles.create-and-attach', ['organization' => $this->orgA, 'dossier' => $dossier->id]), [
+                'title' => 'New article from owner',
+            ])
+            ->assertCreated()
+            ->assertJsonStructure(['message', 'post' => ['id', 'slug', 'title'], 'entry' => ['id', 'dossier_id', 'blog_post_id', 'position'], 'redirect_url']);
+
+        $this->assertEquals($beforePostCount + 1, BlogPost::where('organization_id', $this->orgA->id)->count());
+        $this->assertDatabaseHas('dossier_blog_posts', [
+            'dossier_id' => $dossier->id,
+            'added_by' => $this->authorA->id,
+            'position' => 1,
+        ]);
+    }
+
+    public function test_editor_can_create_and_attach_article(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->authorA, 'Editor dossier');
+        DossierMember::create([
+            'organization_id' => $this->orgA->id,
+            'dossier_id' => $dossier->id,
+            'user_id' => $this->coauthorA->id,
+            'role' => DossierMember::ROLE_EDITOR,
+            'invited_by' => $this->authorA->id,
+        ]);
+
+        $this->actingAs($this->coauthorA)
+            ->postJson(route('organization.dossiers.articles.create-and-attach', ['organization' => $this->orgA, 'dossier' => $dossier->id]), [
+                'title' => 'Article from editor',
+            ])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('dossier_blog_posts', [
+            'dossier_id' => $dossier->id,
+            'added_by' => $this->coauthorA->id,
+        ]);
+    }
+
+    public function test_reader_cannot_create_and_attach_article(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->authorA, 'Reader dossier');
+        DossierMember::create([
+            'organization_id' => $this->orgA->id,
+            'dossier_id' => $dossier->id,
+            'user_id' => $this->memberA->id,
+            'role' => DossierMember::ROLE_READER,
+            'invited_by' => $this->authorA->id,
+        ]);
+
+        $this->actingAs($this->memberA)
+            ->postJson(route('organization.dossiers.articles.create-and-attach', ['organization' => $this->orgA, 'dossier' => $dossier->id]), [
+                'title' => 'Reader should not create',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('blog_posts', ['title' => 'Reader should not create']);
+    }
+
+    public function test_cross_organization_user_cannot_create_and_attach(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->authorA, 'Org A dossier');
+
+        $this->actingAs($this->authorB)
+            ->postJson(route('organization.dossiers.articles.create-and-attach', ['organization' => $this->orgB, 'dossier' => $dossier->id]), [
+                'title' => 'Cross org article',
+            ])
+            ->assertNotFound();
+
+        $this->assertDatabaseMissing('blog_posts', ['title' => 'Cross org article']);
+    }
+
+    public function test_create_and_attach_title_required_no_orphan_post(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->authorA, 'Orphan test');
+
+        $beforePostCount = BlogPost::where('organization_id', $this->orgA->id)->count();
+
+        $this->actingAs($this->authorA)
+            ->postJson(route('organization.dossiers.articles.create-and-attach', ['organization' => $this->orgA, 'dossier' => $dossier->id]), [
+                'title' => '',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('title');
+
+        $this->assertEquals($beforePostCount, BlogPost::where('organization_id', $this->orgA->id)->count());
+        $this->assertDatabaseMissing('dossier_blog_posts', ['dossier_id' => $dossier->id]);
+    }
+
+    public function test_create_and_attach_invalid_category_no_orphan_post(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->authorA, 'Category test');
+
+        $fakeCategoryId = '00000000-0000-0000-0000-000000000000';
+        $beforePostCount = BlogPost::where('organization_id', $this->orgA->id)->count();
+
+        $this->actingAs($this->authorA)
+            ->postJson(route('organization.dossiers.articles.create-and-attach', ['organization' => $this->orgA, 'dossier' => $dossier->id]), [
+                'title' => 'Article with bad category',
+                'category_id' => $fakeCategoryId,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('category_id');
+
+        $this->assertEquals($beforePostCount, BlogPost::where('organization_id', $this->orgA->id)->count());
+        $this->assertDatabaseMissing('dossier_blog_posts', ['dossier_id' => $dossier->id]);
+    }
+
+    public function test_create_and_attach_redirect_url_is_org_scoped(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->authorA, 'Redirect test');
+
+        $response = $this->actingAs($this->authorA)
+            ->postJson(route('organization.dossiers.articles.create-and-attach', ['organization' => $this->orgA, 'dossier' => $dossier->id]), [
+                'title' => 'Redirect URL test',
+            ])
+            ->assertCreated();
+
+        $redirectUrl = $response->json('redirect_url');
+        $this->assertStringStartsWith("/org/{$this->orgA->slug}/blog/", $redirectUrl);
+        $this->assertStringEndsWith('/edit', $redirectUrl);
+    }
+
+    // ── existing tests ──────────────────────────────────────────────
 
     public function test_root_route_and_forbidden_columns_are_absent(): void
     {

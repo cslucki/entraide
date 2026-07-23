@@ -22,12 +22,36 @@ class DossierFileController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('viewFiles', $dossier);
 
-        $files = DossierFile::query()
+        $sortAllowlist = [
+            'name' => 'display_name',
+            'size' => 'size_bytes',
+            'date' => 'created_at',
+        ];
+        $sortParam = $request->input('sort', 'date');
+        $directionParam = $request->input('direction', 'desc');
+        $search = $request->input('search', '');
+
+        $column = $sortAllowlist[$sortParam] ?? 'created_at';
+        $direction = in_array(strtolower($directionParam), ['asc', 'desc']) ? strtolower($directionParam) : 'desc';
+
+        $query = DossierFile::query()
             ->where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
-            ->with('uploader:id,first_name,name,email')
-            ->latest()
-            ->paginate(20);
+            ->with('uploader:id,first_name,name,email');
+
+        if ($search !== '') {
+            $searchTerm = trim($search);
+            $likeOperator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($q) use ($searchTerm, $likeOperator) {
+                $q->where('display_name', $likeOperator, "%{$searchTerm}%")
+                    ->orWhere('original_name', $likeOperator, "%{$searchTerm}%");
+            });
+        }
+
+        $query->orderBy($column, $direction)
+            ->orderBy('created_at', 'desc');
+
+        $files = $query->paginate(20);
 
         $usedBytes = (int) DossierFile::query()
             ->where('organization_id', $organization->id)

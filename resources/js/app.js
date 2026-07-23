@@ -1922,6 +1922,10 @@ function registerDossierContentsCard() {
                     this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
                 }
             });
+
+            this.$watch('searchQuery', (val) => {
+                this.sortables.forEach(s => s.option('disabled', val.trim().length > 0));
+            });
         },
 
         destroy() {
@@ -2041,6 +2045,10 @@ function registerDossierContentsCard() {
             if (!this.searchQuery) return this.seriesItems;
             const q = this.searchQuery.toLowerCase();
             return this.seriesItems.filter(e => (e.blog_post?.title || '').toLowerCase().includes(q));
+        },
+
+        get isSearchActive() {
+            return this.searchQuery.trim().length > 0;
         },
 
         isRoot(blogPostId) {
@@ -2800,8 +2808,9 @@ function registerDossierFilesCard() {
         showPreviewModal: false,
         previewFile: null,
         showImportMenu: false,
-        sortBy: 'name',
-        sortDirection: 'asc',
+        sortBy: 'date',
+        sortDirection: 'desc',
+        searchQuery: '',
         viewMode: 'list',
         showArticleModal: false,
         articleTitle: '',
@@ -2823,11 +2832,11 @@ function registerDossierFilesCard() {
         },
 
         async createArticle() {
-            if (!this.articleTitle.trim() || !this.articleCategoryId) return;
+            if (!this.articleTitle.trim()) return;
             
             this.saving = true;
             try {
-                const response = await fetch(`/org/${this.orgParam}/blog`, {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/articles/create-and-attach`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2837,9 +2846,7 @@ function registerDossierFilesCard() {
                     },
                     body: JSON.stringify({
                         title: this.articleTitle,
-                        category_id: this.articleCategoryId,
-                        content: '',
-                        status: 'draft',
+                        category_id: this.articleCategoryId || null,
                     }),
                 });
                 
@@ -2847,14 +2854,14 @@ function registerDossierFilesCard() {
                 
                 if (response.ok) {
                     this.showArticleModal = false;
-                    this.showSuccess(this.i18n.articleCreated || 'Article created');
+                    this.showMessage(this.i18n.articleCreated || 'Article created', 'success');
                     // Redirect to edit the new article
                     window.location.href = data.redirect_url || `/org/${this.orgParam}/blog/${data.post.slug}/edit`;
                 } else {
-                    this.showError(data.message || 'Error creating article');
+                    this.showMessage(data.message || 'Error creating article', 'error');
                 }
             } catch (error) {
-                this.showError('Network error');
+                this.showMessage('Network error', 'error');
             } finally {
                 this.saving = false;
             }
@@ -2887,12 +2894,12 @@ function registerDossierFilesCard() {
                 if (response.ok) {
                     this.showMdModal = false;
                     await this.loadFiles();
-                    this.showSuccess(this.i18n.markdownCreated || 'Markdown note created');
+                    this.showMessage(this.i18n.markdownCreated || 'Markdown note created', 'success');
                 } else {
-                    this.showError(data.message || 'Error creating markdown note');
+                    this.showMessage(data.message || 'Error creating markdown note', 'error');
                 }
             } catch (error) {
-                this.showError('Network error');
+                this.showMessage('Network error', 'error');
             } finally {
                 this.saving = false;
             }
@@ -2935,12 +2942,12 @@ function registerDossierFilesCard() {
                 
                 if (response.ok) {
                     await this.loadFiles();
-                    this.showSuccess(this.i18n.filesUploaded || 'Files uploaded');
+                    this.showMessage(this.i18n.filesUploaded || 'Files uploaded', 'success');
                 } else {
-                    this.showError(data.message || 'Error uploading files');
+                    this.showMessage(data.message || 'Error uploading files', 'error');
                 }
             } catch (error) {
-                this.showError('Network error');
+                this.showMessage('Network error', 'error');
             } finally {
                 this.saving = false;
                 // Reset the input
@@ -2949,34 +2956,7 @@ function registerDossierFilesCard() {
         },
 
         get sortedFiles() {
-            const sorted = [...this.files];
-            sorted.sort((a, b) => {
-                let aVal, bVal;
-                switch (this.sortBy) {
-                    case 'name':
-                        aVal = (a.display_name || a.original_name || '').toLowerCase();
-                        bVal = (b.display_name || b.original_name || '').toLowerCase();
-                        break;
-                    case 'size':
-                        aVal = a.size_bytes || 0;
-                        bVal = b.size_bytes || 0;
-                        break;
-                    case 'uploader':
-                        aVal = (a.uploader?.name || a.uploader?.email || '').toLowerCase();
-                        bVal = (b.uploader?.name || b.uploader?.email || '').toLowerCase();
-                        break;
-                    case 'date':
-                        aVal = new Date(a.created_at || 0).getTime();
-                        bVal = new Date(b.created_at || 0).getTime();
-                        break;
-                    default:
-                        return 0;
-                }
-                if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
-                if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
-                return 0;
-            });
-            return sorted;
+            return this.files;
         },
 
         toggleSort(column) {
@@ -2986,6 +2966,7 @@ function registerDossierFilesCard() {
                 this.sortBy = column;
                 this.sortDirection = 'asc';
             }
+            this.loadFiles(1);
         },
 
         browseFiles() {
@@ -3069,9 +3050,21 @@ function registerDossierFilesCard() {
             }
         },
 
+        onSearchInput() {
+            this.loadFiles(1);
+        },
+
         loadFiles(page) {
             page = page || 1;
-            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files?page=${page}`;
+            const params = new URLSearchParams({
+                page: String(page),
+                sort: this.sortBy,
+                direction: this.sortDirection,
+            });
+            if (this.searchQuery && this.searchQuery.trim()) {
+                params.set('search', this.searchQuery.trim());
+            }
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files?${params.toString()}`;
             return fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {
@@ -3126,6 +3119,8 @@ function registerDossierFilesCard() {
 
         async deleteFile(file) {
             this.saving = true;
+            this.files = this.files.filter(f => f.id !== file.id);
+            this.totalFiles = Math.max(0, this.totalFiles - 1);
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
             try {
                 const response = await fetch(url, {
@@ -3142,9 +3137,11 @@ function registerDossierFilesCard() {
                     this.showMessage(data.message || this.i18n.deleted, 'success');
                     await this.loadFiles(this.currentPage);
                 } else {
+                    await this.loadFiles(this.currentPage);
                     this.showMessage(data.message || this.i18n.deleteFailed, 'error');
                 }
             } catch (error) {
+                await this.loadFiles(this.currentPage);
                 this.showMessage(this.i18n.deleteFailed, 'error');
             } finally {
                 this.saving = false;
@@ -3156,11 +3153,12 @@ function registerDossierFilesCard() {
             this.showDeleteModal = true;
         },
 
-        confirmDeleteFile() {
+        async confirmDeleteFile() {
             if (!this.deleteTarget) return;
+            const file = this.deleteTarget;
             this.showDeleteModal = false;
-            this.deleteFile(this.deleteTarget);
             this.deleteTarget = null;
+            await this.deleteFile(file);
         },
 
         openPreview(file) {

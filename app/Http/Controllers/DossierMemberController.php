@@ -7,6 +7,7 @@ use App\Models\DossierMember;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DossierMemberController extends Controller
 {
@@ -135,17 +136,21 @@ class DossierMemberController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
 
-        $query = $request->input('q', '');
+        $query = preg_replace('/\s+/', ' ', trim($request->input('q', '')));
         $ownerId = $dossier->owner_id;
         $memberIds = $dossier->dossierMembers()->pluck('user_id')->all();
+
+        $likePattern = '%'.$query.'%';
 
         $users = User::where('organization_id', $organization->id)
             ->where('id', '!=', $ownerId)
             ->whereNotIn('id', $memberIds)
-            ->where(function ($q) use ($query) {
-                $q->where('name', 'like', "%{$query}%")
-                    ->orWhere('first_name', 'like', "%{$query}%")
-                    ->orWhere('email', 'like', "%{$query}%");
+            ->where(function ($q) use ($likePattern) {
+                $q->whereRaw('LOWER(name) LIKE LOWER(?)', [$likePattern])
+                    ->orWhereRaw('LOWER(first_name) LIKE LOWER(?)', [$likePattern])
+                    ->orWhereRaw('LOWER(email) LIKE LOWER(?)', [$likePattern])
+                    ->orWhereRaw("LOWER(first_name || ' ' || name) LIKE LOWER(?)", [$likePattern])
+                    ->orWhereRaw("LOWER(name || ' ' || first_name) LIKE LOWER(?)", [$likePattern]);
             })
             ->limit(10)
             ->get(['id', 'name', 'first_name', 'email'])

@@ -240,6 +240,91 @@ class DossierSharingTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_search_finds_by_first_name(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+
+        $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Jean']))
+            ->assertOk()
+            ->assertJsonCount(1, 'users')
+            ->assertJsonPath('users.0.id', $this->editorA->id);
+    }
+
+    public function test_search_finds_by_last_name(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+
+        $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Dupont']))
+            ->assertOk()
+            ->assertJsonCount(1, 'users')
+            ->assertJsonPath('users.0.id', $this->editorA->id);
+    }
+
+    public function test_search_finds_by_full_name_first_plus_last(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+
+        $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Jean Dupont']))
+            ->assertOk()
+            ->assertJsonCount(1, 'users')
+            ->assertJsonPath('users.0.id', $this->editorA->id);
+    }
+
+    public function test_search_finds_by_full_name_last_plus_first(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+
+        $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Dupont Jean']))
+            ->assertOk()
+            ->assertJsonCount(1, 'users')
+            ->assertJsonPath('users.0.id', $this->editorA->id);
+    }
+
+    public function test_search_is_case_insensitive(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->readerA->update(['first_name' => 'Marie', 'name' => 'Curie']);
+        $this->strangerA->update(['first_name' => 'Pierre', 'name' => 'Martin']);
+
+        $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'jean']))
+            ->assertOk()
+            ->assertJsonCount(1, 'users')
+            ->assertJsonPath('users.0.id', $this->editorA->id);
+    }
+
+    public function test_search_normalizes_spaces(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+
+        $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => '  Jean   Dupont  ']))
+            ->assertOk()
+            ->assertJsonCount(1, 'users')
+            ->assertJsonPath('users.0.id', $this->editorA->id);
+    }
+
+    public function test_search_isolation_does_not_find_other_org_users(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $this->userB->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+
+        $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Jean']))
+            ->assertOk()
+            ->assertJsonCount(0, 'users');
+    }
+
     // --- Non-owner cannot manage members ---
 
     public function test_reader_cannot_manage_members(): void

@@ -218,6 +218,7 @@
                                  'attachArticle' => __('dossiers.attach_article'),
                                  'byAuthor' => __('dossiers.content_by_author'),
                                  'withCoauthors' => __('dossiers.content_with_coauthors'),
+                                 'clearSearchToReorder' => __('dossiers.clear_search_to_reorder'),
                              ],
                          ]))">
                     <div class="flex flex-col gap-4">
@@ -230,6 +231,9 @@
                         </div>
                         {{-- Search row --}}
                         <input x-model="searchQuery" type="text" placeholder="{{ __('dossiers.article_search_placeholder') }}" class="w-full rounded-lg border-gray-300 text-sm shadow-sm sm:max-w-md dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                        <template x-if="isSearchActive">
+                            <p class="text-xs text-amber-600 dark:text-amber-400" x-text="i18n.clearSearchToReorder"></p>
+                        </template>
 
                     <template x-if="message">
                         <div class="mt-4 rounded-xl border px-4 py-3 text-sm font-medium"
@@ -401,11 +405,11 @@
                                         <template x-for="(item, index) in filteredAnnexItems" :key="item.id">
                                             <div :data-article-id="item.blog_post_id" class="flex items-start justify-between gap-3 rounded-xl bg-white px-3 py-3 dark:bg-gray-800 sm:py-2">
                                                 <div class="flex items-start gap-2 min-w-0 flex-1">
-                                                    <template x-if="canManageArticles">
-                                                        <span class="drag-handle mt-0.5 cursor-grab shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="i18n.dragHandle">
-                                                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
-                                                        </span>
-                                                    </template>
+                                                     <template x-if="canManageArticles">
+                                                         <span x-show="!isSearchActive" class="drag-handle mt-0.5 cursor-grab shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="i18n.dragHandle">
+                                                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+                                                         </span>
+                                                     </template>
                                                     <div class="min-w-0 flex-1">
                                                         <div class="flex flex-wrap items-center gap-1.5">
                                                             <span class="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="i18n.annexBadge"></span>
@@ -440,10 +444,10 @@
                                                 <div class="flex shrink-0 items-center gap-1">
                                                     <template x-if="canManageArticles">
                                                         <div class="flex items-center gap-0.5">
-                                                            <button @click="moveAnnex(index, -1)" :disabled="index === 0" :title="i18n.moveUp" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
+                                                            <button @click="moveAnnex(index, -1)" :disabled="index === 0 || isSearchActive" :title="i18n.moveUp" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
                                                                 <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
                                                             </button>
-                                                            <button @click="moveAnnex(index, 1)" :disabled="index === filteredAnnexItems.length - 1" :title="i18n.moveDown" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
+                                                            <button @click="moveAnnex(index, 1)" :disabled="index === filteredAnnexItems.length - 1 || isSearchActive" :title="i18n.moveDown" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
                                                                 <svg class="h-3.5 w-3.5 rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
                                                             </button>
                                                         </div>
@@ -482,7 +486,7 @@
                                     <div :data-article-id="entry.blog_post_id" class="flex items-start justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40 sm:py-2">
                                         <div class="flex items-start gap-2 min-w-0 flex-1">
                                             <template x-if="canManageArticles">
-                                                <span class="drag-handle mt-0.5 cursor-grab shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="i18n.dragHandle">
+                                                <span x-show="!isSearchActive" class="drag-handle mt-0.5 cursor-grab shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="i18n.dragHandle">
                                                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
                                                 </span>
                                             </template>
@@ -520,10 +524,10 @@
                                         <div class="flex shrink-0 items-center gap-1">
                                             <template x-if="canManageArticles">
                                                 <div class="flex items-center gap-0.5">
-                                                    <button @click="moveUngrouped(index, -1)" :disabled="index === 0" :title="i18n.moveUp" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
+                                                    <button @click="moveUngrouped(index, -1)" :disabled="index === 0 || isSearchActive" :title="i18n.moveUp" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
                                                         <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
                                                     </button>
-                                                    <button @click="moveUngrouped(index, 1)" :disabled="index === filteredUngrouped.length - 1" :title="i18n.moveDown" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
+                                                    <button @click="moveUngrouped(index, 1)" :disabled="index === filteredUngrouped.length - 1 || isSearchActive" :title="i18n.moveDown" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
                                                         <svg class="h-3.5 w-3.5 rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
                                                     </button>
                                                 </div>
@@ -659,6 +663,8 @@
                                   'articleCreated' => __('dossiers.article_created'),
                                   'markdownCreated' => __('dossiers.markdown_created'),
                                   'filesUploaded' => __('dossiers.files_uploaded'),
+                                  'previewNotAvailable' => __('dossiers.file_preview_not_available'),
+                                  'searchPlaceholder' => __('dossiers.file_search_placeholder'),
                               ],
                          ]))">
                     <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.files_title') }}</h2>
@@ -796,11 +802,22 @@
                         </div>
                     </div>
 
-                    <div class="mt-5 flex items-center justify-end gap-2" x-show="totalFiles > 0">
-                        <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'" class="rounded-lg p-2 transition" title="Vue liste">
+                    <div class="mt-4" x-show="totalFiles > 0">
+                        <div class="relative">
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                            </div>
+                            <input x-model="searchQuery" @input.debounce.300ms="onSearchInput()" type="search"
+                                   class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
+                                   :placeholder="i18n.searchPlaceholder || 'Search files…'">
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex items-center justify-end gap-2" x-show="totalFiles > 0">
+                        <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'" class="rounded-lg p-2 transition" title="{{ __('dossiers.file_view_list') }}">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
                         </button>
-                        <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'" class="rounded-lg p-2 transition" title="Vue grille">
+                        <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'" class="rounded-lg p-2 transition" title="{{ __('dossiers.file_view_grid') }}">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
                         </button>
                     </div>
@@ -816,10 +833,9 @@
                                         </button>
                                     </th>
                                     <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                        <button @click="toggleSort('uploader')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
+                                        <span class="inline-flex items-center gap-1">
                                             {{ __('dossiers.file_uploaded_by') }}
-                                            <svg x-show="sortBy === 'uploader'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                                        </button>
+                                        </span>
                                     </th>
                                     <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
                                         <button @click="toggleSort('size')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
@@ -829,12 +845,12 @@
                                     </th>
                                     <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
                                         <button @click="toggleSort('date')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                                            Date
+                                            {{ __('dossiers.file_date') }}
                                             <svg x-show="sortBy === 'date'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                                         </button>
                                     </th>
                                     <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                        Actions
+                                        {{ __('dossiers.file_actions') }}
                                     </th>
                                 </tr>
                             </thead>
@@ -1014,7 +1030,7 @@
                                 {{-- Other file types: no inline preview --}}
                                 <template x-if="!previewFile?.mime_type?.startsWith('image/') && previewFile?.mime_type !== 'application/pdf' && previewFile?.mime_type !== 'text/plain' && previewFile?.mime_type !== 'text/markdown'">
                                     <div class="p-8 text-center">
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">Aperçu non disponible pour ce type de fichier.</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400" x-text="i18n.previewNotAvailable || '{{ __('dossiers.file_preview_not_available') }}'"></p>
                                         <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', previewFile?.id)"
                                            class="mt-4 inline-flex items-center gap-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
                                            x-text="i18n.download"></a>
