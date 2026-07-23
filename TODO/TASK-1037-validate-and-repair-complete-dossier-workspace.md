@@ -553,6 +553,64 @@ Show localized message: "Effacez la recherche pour réorganiser les contenus."
 
 ---
 
+## Phase 3: RAG + Indexing Audit (2026-07-24)
+
+### Semantic search gate: DISABLED by default
+
+- `config/ai.php:33`: `DOSSIER_SEMANTIC_SEARCH_ENABLED=false`
+- `config/ai.php:34-37`: `DOSSIER_SEMANTIC_SEARCH_ORGANIZATION_IDS=''`
+- `DossierSemanticSearchGate::isEnabledFor()`: requires BOTH global enabled + org in allowlist
+- The gate protects **both search and indexing**: `DossierArticleIndexer::synchronize()` line 25 checks `$this->gate->isEnabledFor()` before calling OpenAI API
+- When gate disabled → `deleteChunks()` is called instead (no-op if no chunks exist)
+- `DossierChunkEmbeddingService::embed()` calls OpenAI API directly — gated only through `synchronize()`
+
+### Dispatch chain
+
+```
+BlogPostObserver (updated/deleted/restored)
+  → DossierArticleIndexingDispatcher::dispatchForBlogPost()
+    → queries DossierBlogPost WHERE blog_post_id = ?  [only if post is in a dossier]
+    → dispatches IndexDossierArticleChunks job (afterCommit)
+      → DossierArticleIndexer::synchronize()
+        → gate check: isEnabledFor(orgId)
+          → YES: chunk → OpenAI embed → store in dossier_chunks
+          → NO:  deleteChunks() [no OpenAI cost]
+```
+
+### Conclusion
+
+Indexing is safely gated. No OpenAI API costs without explicit ENV configuration. Gate protects both indexing and search. The unconditional dispatch from observers is wasteful but safe — jobs execute `deleteChunks()` (no-op) when gate is off.
+
+### Deployment sequence
+
+1. Code deploy (main) → BlogPostObserver/DossierObserver registered
+2. `php artisan migrate --force` → creates `dossier_chunks` + installs pgvector
+3. Observers dispatch `IndexDossierArticleChunks` jobs unconditionally on BlogPost updates
+4. Jobs execute but gate blocks OpenAI calls (default: `ENABLED=false`)
+5. Production cost: trivial queue overhead per job
+
+## Phase 4: Storage Audit (2026-07-24)
+
+### Local disk bottleneck
+
+- `config/filesystems.php`: `dossier_files` disk hardcoded to `driver => 'local'`
+- Local files not accessible on Laravel Cloud (hibernation enabled, no persistent storage)
+- Must convert to S3/R2 driver for PROD deployment
+- No `AWS_*` or `FILESYSTEM_*` ENV vars visible on Cloud
+
+### PHP upload limits on Cloud
+
+- Default: `upload_max_filesize=2M`, `post_max_size=8M`
+- `.htaccess` `<IfModule mod_php.c>` directives only effective on Apache
+- Laravel Cloud uses Nginx — `.htaccess` ignored
+- PROD upload limits need explicit Cloud configuration
+
+### TASK-1038
+
+TASK-1038 exists for dossier_files R2/S3 conversion. This Phase 4 documents blocking items — no S3 migration performed here.
+
+---
+
 # Version Notes
 
 **IMPORTANT:**

@@ -568,6 +568,68 @@ class DossierFileTest extends TestCase
         ]);
     }
 
+    // =======================================================================
+    // Group B — Drive configurable par ENV (RED avant Phase 3)
+    // =======================================================================
+
+    public function test_dossier_files_disk_driver_uses_env_variable_or_defaults_to_local(): void
+    {
+        $configContent = file_get_contents(config_path('filesystems.php'));
+
+        $this->assertStringContainsString(
+            "env('DOSSIER_FILES_DRIVER'",
+            $configContent,
+            'dossier_files disk driver must use env(DOSSIER_FILES_DRIVER, local)'
+        );
+    }
+
+    public function test_dossier_files_s3_configuration_uses_env_for_all_credentials(): void
+    {
+        $configContent = file_get_contents(config_path('filesystems.php'));
+
+        preg_match("/'dossier_files'\s*=>\s*\[.*?],\s*$/ms", $configContent, $matches);
+        $this->assertNotEmpty($matches, 'dossier_files disk configuration must exist');
+
+        $block = $matches[0];
+
+        $this->assertStringContainsString(
+            "env('AWS_ACCESS_KEY_ID')",
+            $block,
+            'AWS_ACCESS_KEY_ID must come from env, not hardcoded'
+        );
+        $this->assertStringContainsString(
+            "env('AWS_SECRET_ACCESS_KEY')",
+            $block,
+            'AWS_SECRET_ACCESS_KEY must come from env, not hardcoded'
+        );
+        $this->assertStringContainsString(
+            "env('AWS_DEFAULT_REGION')",
+            $block,
+            'AWS_DEFAULT_REGION must come from env, not hardcoded'
+        );
+        $this->assertStringContainsString(
+            "env('AWS_BUCKET')",
+            $block,
+            'AWS_BUCKET must come from env, not hardcoded'
+        );
+        $this->assertStringContainsString(
+            "env('AWS_ENDPOINT')",
+            $block,
+            'AWS_ENDPOINT must come from env, not hardcoded'
+        );
+    }
+
+    public function test_disk_name_in_database_remains_dossier_files_after_s3_configuration(): void
+    {
+        $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+            'files' => [$this->fakeFile('disk-test.pdf')],
+        ])->assertStatus(201);
+
+        $file = DossierFile::where('dossier_id', $this->dossier->id)->first();
+        $this->assertEquals('dossier_files', $file->disk,
+            'disk column must remain dossier_files regardless of underlying driver');
+    }
+
     // --- Cross-dossier isolation ---
 
     public function test_cannot_access_file_from_different_dossier(): void
