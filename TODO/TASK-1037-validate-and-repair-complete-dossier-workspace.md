@@ -25,8 +25,8 @@ lock:
 handoff: false
 
 pr:
-  status: READY
-  url: null
+  status: OPEN
+  url: https://github.com/cslucki/entraide/pull/96
 ---
 
 # Objective
@@ -50,7 +50,7 @@ Aucune nouvelle fonctionnalité. Aucun refactor large. Corrections uniquement.
 - [x] Lot F: QA intégrée complète matrice
 - [x] bump VERSION 1.037
 - [x] check (check-task.sh PASS)
-- [ ] finalize (finalize-task.sh)
+- [x] finalize (finalize-task.sh) — retry 2 with `yes \|`: EXIT=0 (1st `echo "y"` exhausted stdin → `read` fail → `set -e` killed script → EXIT=1)
 - [ ] PR (create/update PR → develop)
 - [ ] merge (merge-task.sh → develop)
 
