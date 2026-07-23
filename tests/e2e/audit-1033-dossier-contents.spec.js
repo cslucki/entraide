@@ -173,10 +173,11 @@ test.describe('AUDIT-1033 Reader View — Desktop FR Light', () => {
         // Members section title
         await expect(page.getByText(/Membres|Members/i).first()).toBeVisible();
 
-        // Should see member names rendered by Alpine x-for
-        const memberCards = page.locator('[x-text="m.displayName"]');
-        const count = await memberCards.count();
-        expect(count).toBeGreaterThanOrEqual(3);
+        // Reader cannot see management card (hidden by @canManageMembers blade guard)
+        await expect(page.locator('button', { hasText: /gérer|manage/i })).toHaveCount(0);
+
+        // But should see at least one member detail (owner badge visible to all roles)
+        await expect(page.locator('span:has-text("propriétaire")').or(page.locator('span:has-text("owner")'))).toBeVisible();
     });
 
     test('no console errors on reader view', async ({ page }) => {

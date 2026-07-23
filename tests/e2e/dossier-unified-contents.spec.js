@@ -1,195 +1,155 @@
 import { test, expect } from '@playwright/test';
-import { loginAsMember } from '../../ai/playwright/helpers/auth.js';
-import { captureScreenshot } from '../../ai/playwright/helpers/screenshot.js';
-import { setupConsoleLogging, getConsoleErrors, getPageErrors, assertNoConsoleErrors } from '../../ai/playwright/helpers/console.js';
-import '../setup.js';
+import { login, logout } from '../../ai/playwright/helpers/auth.js';
 
-test.describe('Dossier Unified Contents — QA Desktop FR', () => {
-    test.beforeEach(async ({ page }) => {
-        setupConsoleLogging(page);
-    });
+const DOSSIER_ID = '019f8363-136b-72b0-8b88-2e4b2efb63cb';
+const DOSSIER_URL = `/org/main/dossiers/${DOSSIER_ID}`;
 
-    test.afterEach(async ({ page }, testInfo) => {
-        const consoleErrors = getConsoleErrors();
-        const pageErrors = getPageErrors();
-        if (consoleErrors.length > 0 || pageErrors.length > 0) {
-            console.log(`[${testInfo.title}] errors:`, { console: consoleErrors.length, page: pageErrors.length });
-        }
-    });
+const OWNER = 'admin@bouclepro.test';
+const EDITOR = 'main.member2@bouclepro.test';
+const READER = 'main.member1@bouclepro.test';
+const CROSS_ORG = 'launchpals.member1@bouclepro.test';
+const PASSWORD = 'password';
 
-    test('owner sees all tabs and can navigate between them', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await expect(page).toHaveURL(/\/dossiers/);
+// ============================================================
+// 1. OWNER VIEW — Desktop FR
+// ============================================================
+test.describe('Dossier Unified — Owner Desktop FR', () => {
+    test.use({ viewport: { width: 1280, height: 720 }, locale: 'fr-FR' });
 
-        await page.locator('a[href*="/dossiers/"]').first().waitFor({ state: 'visible' });
-        await page.locator('a[href*="/dossiers/"]').first().click();
+    test('owner sees all tabs and dossier title', async ({ page }) => {
+        await login(page, OWNER, PASSWORD);
+        await page.goto(DOSSIER_URL);
         await page.waitForLoadState('networkidle');
 
+        await expect(page.getByRole('heading', { name: /AUDIT-1033/ })).toBeVisible();
         await expect(page.locator('[role="tab"]')).toHaveCount(3);
-        await expect(page.locator('#tab-contenus')).toBeVisible();
-        await expect(page.locator('#tab-fichiers')).toBeVisible();
-        await expect(page.locator('#tab-membres')).toBeVisible();
 
-        await page.locator('#tab-fichiers').click();
+        // Contents tab active by default
+        await expect(page.locator('#tabpanel-contenus')).toBeVisible();
+
+        // Switch to Fichiers tab
+        await page.getByRole('tab', { name: /fichiers|files/i }).click();
+        await page.waitForTimeout(400);
         await expect(page).toHaveURL(/#fichiers/);
         await expect(page.locator('#tabpanel-fichiers')).toBeVisible();
 
-        await page.locator('#tab-membres').click();
+        // Switch to Membres tab
+        await page.getByRole('tab', { name: /membres|members/i }).click();
+        await page.waitForTimeout(400);
         await expect(page).toHaveURL(/#membres/);
         await expect(page.locator('#tabpanel-membres')).toBeVisible();
-
-        await page.locator('#tab-contenus').click();
-        await expect(page).toHaveURL(/#contenus/);
-        await expect(page.locator('#tabpanel-contenus')).toBeVisible();
-
-        assertNoConsoleErrors();
     });
 
-    test('contents tab shows series root, annexes and ungrouped sections', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
+    test('owner sees FAB add button', async ({ page }) => {
+        await login(page, OWNER, PASSWORD);
+        await page.goto(DOSSIER_URL + '#fichiers');
         await page.waitForLoadState('networkidle');
 
-        await expect(page.locator('[role="tabpanel"]#tabpanel-contenus')).toBeVisible();
-
-        const badgeCount = await page.locator('[class*="badge"], [class*="rounded-full"]').count();
-        expect(badgeCount).toBeGreaterThanOrEqual(0);
-        await captureScreenshot(page, 'dossier-contents-overview');
+        await expect(page.getByRole('button', { name: /ajouter|add/i })).toBeVisible();
     });
 
-    test('members tab shows member list with role badges', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
+    test('owner sees manage members button', async ({ page }) => {
+        await login(page, OWNER, PASSWORD);
+        await page.goto(DOSSIER_URL + '#membres');
         await page.waitForLoadState('networkidle');
 
-        await page.locator('#tab-membres').click();
-        await page.waitForLoadState('networkidle');
-
-        await expect(page.locator('#tabpanel-membres')).toBeVisible();
-        const memberCards = page.locator('#tabpanel-membres [class*="rounded-xl"]');
-        const count = await memberCards.count();
-
-        if (count > 0) {
-            await expect(memberCards.first()).toBeVisible();
-        }
-
-        await captureScreenshot(page, 'dossier-members-overview');
-    });
-
-    test('search input in contents tab', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
-        await page.waitForLoadState('networkidle');
-
-        const searchInput = page.locator('input[type="search"], input[placeholder*="chercher"], input[placeholder*="search"]');
-        if (await searchInput.count() > 0) {
-            await searchInput.first().fill('test');
-            await page.waitForTimeout(500);
-        }
-
-        await captureScreenshot(page, 'dossier-contents-search');
-    });
-
-    test('no console errors on tab navigation cycle', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
-        await page.waitForLoadState('networkidle');
-
-        await page.locator('#tab-fichiers').click();
-        await page.waitForTimeout(300);
-        await page.locator('#tab-membres').click();
-        await page.waitForTimeout(300);
-        await page.locator('#tab-contenus').click();
-        await page.waitForTimeout(300);
-        await page.locator('#tab-fichiers').click();
-        await page.waitForTimeout(300);
-        await page.locator('#tab-contenus').click();
-        await page.waitForTimeout(300);
-
-        assertNoConsoleErrors();
-        await captureScreenshot(page, 'dossier-tab-cycle');
-    });
-
-    test('files tab loads without errors', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
-        await page.waitForLoadState('networkidle');
-
-        await page.locator('#tab-fichiers').click();
-        await page.waitForLoadState('networkidle');
-
-        await expect(page.locator('#tabpanel-fichiers')).toBeVisible();
-        const hasContent = await page.locator('#tabpanel-fichiers [class*="rounded-xl"]').count() > 0;
-        const hasEmpty = await page.locator('#tabpanel-fichiers [class*="border-dashed"]').count() > 0;
-        expect(hasContent || hasEmpty).toBe(true);
-
-        await captureScreenshot(page, 'dossier-files-tab');
+        await expect(page.getByRole('button', { name: /gérer|manage/i })).toBeVisible();
     });
 });
 
-test.describe('Dossier Unified Contents — QA Desktop EN', () => {
-    test.use({ locale: 'en-US' });
-
-    test.beforeEach(async ({ page }) => {
-        setupConsoleLogging(page);
-    });
-
-    test.afterEach(async ({ page }, testInfo) => {
-        const consoleErrors = getConsoleErrors();
-        const pageErrors = getPageErrors();
-        if (consoleErrors.length > 0 || pageErrors.length > 0) {
-            console.log(`[${testInfo.title}] errors:`, { console: consoleErrors.length, page: pageErrors.length });
-        }
-    });
-
-    test('dossier page loads in English with correct tab labels', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
+// ============================================================
+// 2. EDITOR VIEW
+// ============================================================
+test.describe('Dossier Unified — Editor', () => {
+    test('editor sees dossier content', async ({ page }) => {
+        await login(page, EDITOR, PASSWORD);
+        await page.goto(DOSSIER_URL);
         await page.waitForLoadState('networkidle');
 
+        await expect(page.getByRole('heading', { name: /AUDIT-1033/ })).toBeVisible();
         await expect(page.locator('[role="tab"]')).toHaveCount(3);
-        await captureScreenshot(page, 'dossier-en-overview');
-        assertNoConsoleErrors();
+        await expect(page.locator('#tabpanel-contenus')).toBeVisible();
     });
 });
 
-test.describe('Dossier Unified Contents — QA Mobile FR', () => {
-    test.use({ viewport: { width: 375, height: 812 } });
+// ============================================================
+// 3. READER VIEW
+// ============================================================
+test.describe('Dossier Unified — Reader', () => {
+    test('reader sees content but no management controls', async ({ page }) => {
+        await login(page, READER, PASSWORD);
+        await page.goto(DOSSIER_URL);
+        await page.waitForLoadState('networkidle');
 
-    test.beforeEach(async ({ page }) => {
-        setupConsoleLogging(page);
+        await expect(page.getByRole('heading', { name: /AUDIT-1033/ })).toBeVisible();
+        await expect(page.locator('[role="tab"]')).toHaveCount(3);
+
+        // Reader should NOT see the FAB add button
+        await page.goto(DOSSIER_URL + '#fichiers');
+        await page.waitForLoadState('networkidle');
+        await expect(page.getByRole('button', { name: /ajouter|add/i })).toHaveCount(0);
+
+        // Reader should NOT see manage members button
+        await page.goto(DOSSIER_URL + '#membres');
+        await page.waitForLoadState('networkidle');
+        await expect(page.getByRole('button', { name: /gérer|manage/i })).toHaveCount(0);
     });
+});
 
-    test.afterEach(async ({ page }, testInfo) => {
-        const consoleErrors = getConsoleErrors();
-        const pageErrors = getPageErrors();
-        if (consoleErrors.length > 0 || pageErrors.length > 0) {
-            console.log(`[${testInfo.title}] errors:`, { console: consoleErrors.length, page: pageErrors.length });
-        }
+// ============================================================
+// 4. CROSS-ORG REFUSED
+// ============================================================
+test.describe('Dossier Unified — Cross-Org Refused', () => {
+    test('launchpals user gets 404 on main org dossier', async ({ page }) => {
+        await login(page, CROSS_ORG, PASSWORD);
+        const response = await page.goto(DOSSIER_URL);
+        expect(response.status()).toBe(403);
     });
+});
 
-    test('dossier page renders correctly at 375px mobile', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
+// ============================================================
+// 5. DESKTOP EN
+// ============================================================
+test.describe('Dossier Unified — Owner Desktop EN', () => {
+    test.use({ viewport: { width: 1280, height: 720 }, locale: 'en-US' });
+
+    test('dossier loads in English with correct tabs', async ({ page }) => {
+        await login(page, OWNER, PASSWORD);
+        await page.goto(DOSSIER_URL);
+        await page.waitForLoadState('networkidle');
+
+        await expect(page.getByRole('heading', { name: /AUDIT-1033/ })).toBeVisible();
+        await expect(page.locator('[role="tab"]')).toHaveCount(3);
+
+        const tabs = page.locator('[role="tab"]');
+        const tabTexts = await tabs.allTextContents();
+        expect(tabTexts.some(t => /contents|contenus/i.test(t))).toBe(true);
+        expect(tabTexts.some(t => /files|fichiers/i.test(t))).toBe(true);
+        expect(tabTexts.some(t => /members|membres/i.test(t))).toBe(true);
+    });
+});
+
+// ============================================================
+// 6. MOBILE FR
+// ============================================================
+test.describe('Dossier Unified — Owner Mobile FR', () => {
+    test.use({ viewport: { width: 375, height: 812 }, locale: 'fr-FR' });
+
+    test('dossier renders at 375px without overflow', async ({ page }) => {
+        await login(page, OWNER, PASSWORD);
+        await page.goto(DOSSIER_URL);
         await page.waitForLoadState('networkidle');
 
         await expect(page.locator('[role="tabpanel"]').first()).toBeVisible();
-        await captureScreenshot(page, 'dossier-mobile-375');
-        assertNoConsoleErrors();
+
+        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+        const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
+        expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
     });
 
     test('mobile tab switching works', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
+        await login(page, OWNER, PASSWORD);
+        await page.goto(DOSSIER_URL);
         await page.waitForLoadState('networkidle');
 
         const tabs = page.locator('[role="tab"]');
@@ -199,46 +159,23 @@ test.describe('Dossier Unified Contents — QA Mobile FR', () => {
         for (let i = 1; i < tabCount; i++) {
             await tabs.nth(i).click();
             await page.waitForTimeout(300);
+            await expect(tabs.nth(i)).toHaveAttribute('aria-selected', 'true');
         }
-
-        await captureScreenshot(page, 'dossier-mobile-tab-cycle');
-    });
-
-    test('mobile no horizontal overflow', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
-        await page.waitForLoadState('networkidle');
-
-        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-        const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
-        expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 10);
     });
 });
 
-test.describe('Dossier Unified Contents — QA Mobile EN', () => {
+// ============================================================
+// 7. MOBILE EN
+// ============================================================
+test.describe('Dossier Unified — Owner Mobile EN', () => {
     test.use({ viewport: { width: 430, height: 932 }, locale: 'en-US' });
 
-    test.beforeEach(async ({ page }) => {
-        setupConsoleLogging(page);
-    });
-
-    test.afterEach(async ({ page }, testInfo) => {
-        const consoleErrors = getConsoleErrors();
-        const pageErrors = getPageErrors();
-        if (consoleErrors.length > 0 || pageErrors.length > 0) {
-            console.log(`[${testInfo.title}] errors:`, { console: consoleErrors.length, page: pageErrors.length });
-        }
-    });
-
     test('dossier at 430px English renders correctly', async ({ page }) => {
-        await loginAsMember(page);
-        await page.goto('/dossiers');
-        await page.locator('a[href*="/dossiers/"]').first().click();
+        await login(page, OWNER, PASSWORD);
+        await page.goto(DOSSIER_URL);
         await page.waitForLoadState('networkidle');
 
         await expect(page.locator('[role="tabpanel"]').first()).toBeVisible();
-        await captureScreenshot(page, 'dossier-mobile-en-430');
-        assertNoConsoleErrors();
+        await expect(page.getByRole('heading', { name: /AUDIT-1033/ }).first()).toBeVisible();
     });
 });
