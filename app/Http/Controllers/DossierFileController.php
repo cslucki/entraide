@@ -22,12 +22,36 @@ class DossierFileController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('viewFiles', $dossier);
 
-        $files = DossierFile::query()
+        $sortAllowlist = [
+            'name' => 'display_name',
+            'size' => 'size_bytes',
+            'date' => 'created_at',
+        ];
+        $sortParam = $request->input('sort', 'date');
+        $directionParam = $request->input('direction', 'desc');
+        $search = $request->input('search', '');
+
+        $column = $sortAllowlist[$sortParam] ?? 'created_at';
+        $direction = in_array(strtolower($directionParam), ['asc', 'desc']) ? strtolower($directionParam) : 'desc';
+
+        $query = DossierFile::query()
             ->where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
-            ->with('uploader:id,first_name,name,email')
-            ->latest()
-            ->paginate(20);
+            ->with('uploader:id,first_name,name,email');
+
+        if ($search !== '') {
+            $searchTerm = trim($search);
+            $likeOperator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($q) use ($searchTerm, $likeOperator) {
+                $q->where('display_name', $likeOperator, "%{$searchTerm}%")
+                    ->orWhere('original_name', $likeOperator, "%{$searchTerm}%");
+            });
+        }
+
+        $query->orderBy($column, $direction)
+            ->orderBy('created_at', 'desc');
+
+        $files = $query->paginate(20);
 
         $usedBytes = (int) DossierFile::query()
             ->where('organization_id', $organization->id)
@@ -60,6 +84,57 @@ class DossierFileController extends Controller
 
         try {
             $quota = $organization->dossierStorageQuotaBytes();
+            $incomingFiles = collect($uploadedFiles)->map(fn ($file) => [
+                'file' => $file,
+                'name' => $file->getClientOriginalName(),
+                'checksum' => hash_file('sha256', $file->getRealPath()),
+            ]);
+
+            if ($incomingFiles->pluck('name')->duplicates()->isNotEmpty()) {
+                DB::rollBack();
+
+                return response()->json([
+                    'message' => __('dossiers.file_duplicate_name'),
+                ], 422);
+            }
+
+            if ($incomingFiles->pluck('checksum')->duplicates()->isNotEmpty()) {
+                DB::rollBack();
+
+                return response()->json([
+                    'message' => __('dossiers.file_duplicate_content'),
+                ], 422);
+            }
+
+            $duplicateByName = DossierFile::query()
+                ->where('organization_id', $organization->id)
+                ->where('dossier_id', $dossier->id)
+                ->whereIn('original_name', $incomingFiles->pluck('name')->all())
+                ->lockForUpdate()
+                ->exists();
+
+            if ($duplicateByName) {
+                DB::rollBack();
+
+                return response()->json([
+                    'message' => __('dossiers.file_duplicate_name'),
+                ], 422);
+            }
+
+            $duplicateByChecksum = DossierFile::query()
+                ->where('organization_id', $organization->id)
+                ->where('dossier_id', $dossier->id)
+                ->whereIn('checksum_sha256', $incomingFiles->pluck('checksum')->all())
+                ->lockForUpdate()
+                ->exists();
+
+            if ($duplicateByChecksum) {
+                DB::rollBack();
+
+                return response()->json([
+                    'message' => __('dossiers.file_duplicate_content'),
+                ], 422);
+            }
 
             if ($quota !== null) {
                 $usedBytes = (int) DossierFile::query()
@@ -69,8 +144,8 @@ class DossierFileController extends Controller
                     ->sum('size_bytes');
 
                 $newTotalBytes = $usedBytes;
-                foreach ($uploadedFiles as $file) {
-                    $newTotalBytes += $file->getSize();
+                foreach ($incomingFiles as $incomingFile) {
+                    $newTotalBytes += $incomingFile['file']->getSize();
                 }
 
                 if ($newTotalBytes > $quota) {
@@ -82,10 +157,10 @@ class DossierFileController extends Controller
                 }
             }
 
-            foreach ($uploadedFiles as $file) {
+            foreach ($incomingFiles as $incomingFile) {
+                $file = $incomingFile['file'];
                 $path = $file->store('dossier-files/'.$dossier->id, $disk);
                 $storedPaths[] = $path;
-                $checksum = hash_file('sha256', $file->getRealPath());
 
                 $dossierFile = DossierFile::create([
                     'organization_id' => $organization->id,
@@ -97,7 +172,7 @@ class DossierFileController extends Controller
                     'display_name' => $file->getClientOriginalName(),
                     'mime_type' => $file->getMimeType(),
                     'size_bytes' => $file->getSize(),
-                    'checksum_sha256' => $checksum,
+                    'checksum_sha256' => $incomingFile['checksum'],
                     'source' => 'upload',
                 ]);
 

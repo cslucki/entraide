@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class DossierArticleController extends Controller
@@ -61,6 +62,65 @@ class DossierArticleController extends Controller
         return redirect()
             ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $dossier->getKey()])
             ->with('success', __('dossiers.article_attached'));
+    }
+
+    public function createAndAttach(Request $request, DossierArticleIndexingDispatcher $indexing): JsonResponse
+    {
+        $dossier = $this->resolveDossier($request->route('dossier'));
+        $organization = $this->currentOrganizationOrFail();
+        $this->ensureDossierBelongsToCurrentOrganization($dossier);
+        $this->authorize('update', $dossier);
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'category_id' => ['nullable', 'uuid', 'exists:categories,id'],
+        ]);
+
+        return DB::transaction(function () use ($request, $dossier, $organization, $data, $indexing) {
+            if (filled($data['category_id'] ?? null)) {
+                $categoryId = $data['category_id'];
+                if (! \App\Models\Category::where('id', $categoryId)->where('organization_id', $organization->id)->exists()) {
+                    throw ValidationException::withMessages([
+                        'category_id' => __('dossiers.category_not_found'),
+                    ]);
+                }
+            }
+
+            $post = BlogPost::create([
+                'user_id' => $request->user()->id,
+                'organization_id' => $organization->id,
+                'title' => $data['title'],
+                'slug' => Str::slug($data['title']),
+                'content' => '<p></p>',
+                'status' => 'draft',
+                'category_id' => $data['category_id'] ?? null,
+            ]);
+
+            $nextPosition = ((int) $dossier->dossierBlogPosts()->max('position')) + 1;
+
+            $entry = DossierBlogPost::create([
+                'organization_id' => $organization->id,
+                'dossier_id' => $dossier->id,
+                'blog_post_id' => $post->id,
+                'added_by' => $request->user()->id,
+                'position' => $nextPosition,
+            ]);
+
+            $indexing->dispatch($organization->id, $dossier->id, $post->id);
+
+            $entry->load('blogPost:id,organization_id,user_id,title,slug,status,updated_at');
+
+            return response()->json([
+                'message' => __('dossiers.article_created_attached'),
+                'post' => [
+                    'id' => $post->id,
+                    'slug' => $post->slug,
+                    'title' => $post->title,
+                ],
+                'entry' => $entry,
+                'redirect_url' => "/org/{$organization->slug}/blog/{$post->slug}/edit",
+            ], 201);
+        });
     }
 
     public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse|JsonResponse

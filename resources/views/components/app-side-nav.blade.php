@@ -140,8 +140,9 @@
 
         <div class="mt-2 flex items-center gap-0.5 rounded-full bg-[var(--bp-panel)] px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-[var(--bp-border)]" aria-label="{{ __('navigation.language_switcher') }}">
             @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
-                <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}">
+                <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
                     @csrf
+                    <input type="hidden" name="redirect_to" value="">
                     <button type="submit"
                         class="rounded-full px-1.5 py-0.5 transition {{ $currentLocale === $locale ? 'bg-[var(--bp-primary)] text-white shadow-sm' : 'text-[var(--bp-muted)] hover:text-[var(--bp-text)]' }}"
                         aria-current="{{ $currentLocale === $locale ? 'true' : 'false' }}">

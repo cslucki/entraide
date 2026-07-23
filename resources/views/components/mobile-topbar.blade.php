@@ -139,9 +139,10 @@
              @auth
              <div class="flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
-                     <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}">
-                         @csrf
-                         <button type="submit"
+                      <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
+                          @csrf
+                          <input type="hidden" name="redirect_to" value="">
+                          <button type="submit"
                              class="rounded-full px-1.5 py-0.5 transition {{ app()->getLocale() === $locale ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100' }}"
                              aria-current="{{ app()->getLocale() === $locale ? 'true' : 'false' }}">
                              {{ $label }}
@@ -215,9 +216,10 @@
              @else
              <div class="flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
-                     <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}">
-                         @csrf
-                         <button type="submit"
+                      <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
+                          @csrf
+                          <input type="hidden" name="redirect_to" value="">
+                          <button type="submit"
                              class="rounded-full px-1.5 py-0.5 transition {{ app()->getLocale() === $locale ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100' }}"
                              aria-current="{{ app()->getLocale() === $locale ? 'true' : 'false' }}">
                              {{ $label }}

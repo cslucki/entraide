@@ -9,6 +9,12 @@ import Sortable from 'sortablejs';
 window.FilePond = FilePond;
 window.createBlogEditor = createEditor;
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusableNodes(container) {
+    return Array.from(container.querySelectorAll(FOCUSABLE)).filter(n => n.offsetParent !== null);
+}
+
 function registerAlpineStores() {
     if (!window.Alpine || window.__boucleProAlpineStoresRegistered) {
         return;
@@ -1879,6 +1885,8 @@ function registerDossierContentsCard() {
         csrfToken: config.csrfToken,
         dossierId: config.dossierId,
         orgParam: config.orgParam,
+        _trapTrigger: null,
+        _trapHandler: null,
 
         init() {
             document.addEventListener('click', (ev) => {
@@ -1891,9 +1899,9 @@ function registerDossierContentsCard() {
             });
             document.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') {
-                    if (this.showDetachModal) { this.showDetachModal = false; this.detachEntry = null; }
+                    if (this.showDetachModal) { this.showDetachModal = false; this.detachEntry = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="detach-article-title"]'); }); }
                     else if (this.showAddModal) { this.closeAddModal(); }
-                    else if (this.showDeleteSeriesModal) { this.showDeleteSeriesModal = false; }
+                    else if (this.showDeleteSeriesModal) { this.showDeleteSeriesModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-series-title"]'); }); }
                     else { this.openMenuId = null; this.showSeriesMenu = false; }
                 }
             });
@@ -1922,6 +1930,12 @@ function registerDossierContentsCard() {
                     this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
                 }
             });
+
+            this.$watch('searchQuery', (val) => {
+                this.sortables.forEach(s => s.option('disabled', val.trim().length > 0));
+            });
+            this.$watch('showDeleteSeriesModal', (val) => { if (!val) this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-series-title"]'); }); });
+            this.$watch('showDetachModal', (val) => { if (!val) this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="detach-article-title"]'); }); });
         },
 
         destroy() {
@@ -2043,6 +2057,10 @@ function registerDossierContentsCard() {
             return this.seriesItems.filter(e => (e.blog_post?.title || '').toLowerCase().includes(q));
         },
 
+        get isSearchActive() {
+            return this.searchQuery.trim().length > 0;
+        },
+
         isRoot(blogPostId) {
             return this.hasSeries && String(this.seriesRootBlogPostId) === String(blogPostId);
         },
@@ -2071,17 +2089,43 @@ function registerDossierContentsCard() {
             try { return new Date(date).toLocaleDateString(); } catch { return ''; }
         },
 
+        _activateFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (!el) return;
+            const nodes = focusableNodes(el);
+            if (nodes.length) nodes[0].focus();
+            this._trapHandler = (e) => {
+                if (e.key !== 'Tab') return;
+                const list = focusableNodes(el);
+                if (!list.length) return;
+                const first = list[0], last = list[list.length - 1];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            };
+            el.addEventListener('keydown', this._trapHandler);
+        },
+
+        _destroyFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (el && this._trapHandler) el.removeEventListener('keydown', this._trapHandler);
+            this._trapHandler = null;
+            if (this._trapTrigger && this._trapTrigger.isConnected) this._trapTrigger.focus();
+            this._trapTrigger = null;
+        },
+
         openAddArticleModal() {
+            this._trapTrigger = document.activeElement;
             this.showAddModal = true;
             this.addSearchQuery = '';
             this.addSearchResults = [];
-            this.$nextTick(() => { const el = this.$refs.addSearchInput; if (el) el.focus(); });
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="add-article-title"]'); });
         },
 
         closeAddModal() {
             this.showAddModal = false;
             this.addSearchQuery = '';
             this.addSearchResults = [];
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="add-article-title"]'); });
         },
 
         async searchEligibleArticles() {
@@ -2237,7 +2281,9 @@ function registerDossierContentsCard() {
         },
 
         openDeleteSeriesModal() {
+            this._trapTrigger = document.activeElement;
             this.showDeleteSeriesModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-series-title"]'); });
         },
 
         deleteSeries() {
@@ -2281,9 +2327,11 @@ function registerDossierContentsCard() {
         },
 
         confirmDetach(entry) {
+            this._trapTrigger = document.activeElement;
             this.detachEntry = entry;
             this.showDetachModal = true;
             this.openMenuId = null;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="detach-article-title"]'); });
         },
 
         async detachArticle() {
@@ -2446,15 +2494,46 @@ function registerDossierMembersCard() {
         currentUserId: config.currentUserId,
         canManage: config.canManage || false,
         i18n: config.i18n,
+        _trapTrigger: null,
+        _trapHandler: null,
+
+        _activateFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (!el) return;
+            const nodes = focusableNodes(el);
+            if (nodes.length) nodes[0].focus();
+            this._trapHandler = (e) => {
+                if (e.key !== 'Tab') return;
+                const list = focusableNodes(el);
+                if (!list.length) return;
+                const first = list[0], last = list[list.length - 1];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            };
+            el.addEventListener('keydown', this._trapHandler);
+        },
+
+        _destroyFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (el && this._trapHandler) el.removeEventListener('keydown', this._trapHandler);
+            this._trapHandler = null;
+            if (this._trapTrigger && this._trapTrigger.isConnected) this._trapTrigger.focus();
+            this._trapTrigger = null;
+        },
 
         init() {
             this.loadMembers();
             document.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') {
-                    if (this.showRemoveModal) { this.showRemoveModal = false; this.removeTarget = null; }
-                    else if (this.showManageModal) { this.showManageModal = false; }
+                    if (this.showRemoveModal) { this.showRemoveModal = false; this.removeTarget = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="remove-member-title"]'); }); }
+                    else if (this.showManageModal) { this.showManageModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
                 }
             });
+            this.$watch('showManageModal', (val) => {
+                if (val) { this._trapTrigger = document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
+                else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
+            });
+            this.$watch('showRemoveModal', (val) => { if (!val) this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="remove-member-title"]'); }); });
         },
 
         get displayMembers() {
@@ -2564,8 +2643,10 @@ function registerDossierMembersCard() {
         },
 
         openRemoveModal(member) {
+            this._trapTrigger = document.activeElement;
             this.removeTarget = member;
             this.showRemoveModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="remove-member-title"]'); });
         },
 
         confirmRemove() {
@@ -2782,6 +2863,8 @@ function registerDossierFilesCard() {
         files: [],
         quota: { used_bytes: 0, limit_bytes: null, remaining_bytes: null },
         uploading: false,
+        uploadProgress: 0,
+        uploadFileName: '',
         saving: false,
         message: '',
         messageType: 'success',
@@ -2800,8 +2883,9 @@ function registerDossierFilesCard() {
         showPreviewModal: false,
         previewFile: null,
         showImportMenu: false,
-        sortBy: 'name',
-        sortDirection: 'asc',
+        sortBy: 'date',
+        sortDirection: 'desc',
+        searchQuery: '',
         viewMode: 'list',
         showArticleModal: false,
         articleTitle: '',
@@ -2809,25 +2893,103 @@ function registerDossierFilesCard() {
         showMdModal: false,
         mdFileName: '',
         mdContent: '',
+        _trapTrigger: null,
+        _trapHandler: null,
+
+        _activateFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (!el) return;
+            const nodes = focusableNodes(el);
+            if (nodes.length) nodes[0].focus();
+            this._trapHandler = (e) => {
+                if (e.key !== 'Tab') return;
+                const list = focusableNodes(el);
+                if (!list.length) return;
+                const first = list[0], last = list[list.length - 1];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            };
+            el.addEventListener('keydown', this._trapHandler);
+        },
+
+        _destroyFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (el && this._trapHandler) el.removeEventListener('keydown', this._trapHandler);
+            this._trapHandler = null;
+            if (this._trapTrigger && this._trapTrigger.isConnected) this._trapTrigger.focus();
+            this._trapTrigger = null;
+        },
 
         openArticleModal() {
+            this._trapTrigger = this.$refs.fabButton || document.activeElement;
             this.showArticleModal = true;
             this.articleTitle = '';
             this.articleCategoryId = '';
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="create-article-title"]'); });
         },
 
         openMdModal() {
+            this._trapTrigger = this.$refs.fabButton || document.activeElement;
             this.showMdModal = true;
             this.mdFileName = '';
             this.mdContent = '';
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="markdown-note-title"]'); });
+        },
+
+        uploadFormData(formData, files = []) {
+            const names = Array.from(files).map(file => file.name).filter(Boolean);
+            this.uploading = true;
+            this.uploadProgress = 0;
+            this.uploadFileName = names.length === 1 ? names[0] : names.join(', ');
+
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `/org/${this.orgParam}/dossiers/${this.dossierId}/files`);
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.setRequestHeader('X-CSRF-TOKEN', this.csrfToken);
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+                xhr.upload.addEventListener('progress', (event) => {
+                    if (!event.lengthComputable) return;
+                    this.uploadProgress = Math.min(99, Math.round((event.loaded / event.total) * 100));
+                });
+
+                xhr.addEventListener('load', () => {
+                    this.uploadProgress = 100;
+                    let data = {};
+                    try { data = JSON.parse(xhr.responseText || '{}'); } catch { data = {}; }
+                    resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('upload failed')));
+                xhr.addEventListener('abort', () => reject(new Error('upload aborted')));
+                xhr.send(formData);
+            }).finally(() => {
+                setTimeout(() => {
+                    this.uploading = false;
+                    this.uploadProgress = 0;
+                    this.uploadFileName = '';
+                }, 500);
+            });
+        },
+
+        mergeMissingUploads(uploadedFiles) {
+            if (!uploadedFiles || !uploadedFiles.length) return;
+            const newIds = uploadedFiles.map(f => f.id);
+            const missingIds = newIds.filter(id => !this.files.some(existing => existing.id === id));
+            if (missingIds.length === 0) return;
+            const missingFiles = uploadedFiles
+                .filter(f => missingIds.includes(f.id))
+                .map(f => this.normalizeFile(f));
+            this.files = [...missingFiles, ...this.files];
         },
 
         async createArticle() {
-            if (!this.articleTitle.trim() || !this.articleCategoryId) return;
+            if (!this.articleTitle.trim()) return;
             
             this.saving = true;
             try {
-                const response = await fetch(`/org/${this.orgParam}/blog`, {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/articles/create-and-attach`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2837,9 +2999,7 @@ function registerDossierFilesCard() {
                     },
                     body: JSON.stringify({
                         title: this.articleTitle,
-                        category_id: this.articleCategoryId,
-                        content: '',
-                        status: 'draft',
+                        category_id: this.articleCategoryId || null,
                     }),
                 });
                 
@@ -2847,14 +3007,14 @@ function registerDossierFilesCard() {
                 
                 if (response.ok) {
                     this.showArticleModal = false;
-                    this.showSuccess(this.i18n.articleCreated || 'Article created');
+                    this.showMessage(this.i18n.articleCreated, 'success');
                     // Redirect to edit the new article
                     window.location.href = data.redirect_url || `/org/${this.orgParam}/blog/${data.post.slug}/edit`;
                 } else {
-                    this.showError(data.message || 'Error creating article');
+                    this.showMessage(data.message || this.i18n.articleCreateFailed, 'error');
                 }
             } catch (error) {
-                this.showError('Network error');
+                this.showMessage(this.i18n.networkError, 'error');
             } finally {
                 this.saving = false;
             }
@@ -2872,27 +3032,18 @@ function registerDossierFilesCard() {
                 const formData = new FormData();
                 formData.append('files[]', file);
                 
-                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': this.csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    body: formData,
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
+                const { ok, data } = await this.uploadFormData(formData, [file]);
+
+                if (ok) {
                     this.showMdModal = false;
-                    await this.loadFiles();
-                    this.showSuccess(this.i18n.markdownCreated || 'Markdown note created');
+                    await this.loadFiles(1);
+                    this.mergeMissingUploads(data.files);
+                    this.showMessage(this.i18n.markdownCreated, 'success');
                 } else {
-                    this.showError(data.message || 'Error creating markdown note');
+                    this.showMessage(data.message || this.i18n.markdownCreateFailed, 'error');
                 }
             } catch (error) {
-                this.showError('Network error');
+                this.showMessage(this.i18n.networkError, 'error');
             } finally {
                 this.saving = false;
             }
@@ -2921,26 +3072,17 @@ function registerDossierFilesCard() {
                     formData.append('files[]', files[i]);
                 }
                 
-                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': this.csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    body: formData,
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    await this.loadFiles();
-                    this.showSuccess(this.i18n.filesUploaded || 'Files uploaded');
+                const { ok, data } = await this.uploadFormData(formData, files);
+
+                if (ok) {
+                    await this.loadFiles(1);
+                    this.mergeMissingUploads(data.files);
+                    this.showMessage(this.i18n.filesUploaded, 'success');
                 } else {
-                    this.showError(data.message || 'Error uploading files');
+                    this.showMessage(data.message || this.i18n.uploadFailed, 'error');
                 }
             } catch (error) {
-                this.showError('Network error');
+                this.showMessage(this.i18n.networkError, 'error');
             } finally {
                 this.saving = false;
                 // Reset the input
@@ -2949,34 +3091,7 @@ function registerDossierFilesCard() {
         },
 
         get sortedFiles() {
-            const sorted = [...this.files];
-            sorted.sort((a, b) => {
-                let aVal, bVal;
-                switch (this.sortBy) {
-                    case 'name':
-                        aVal = (a.display_name || a.original_name || '').toLowerCase();
-                        bVal = (b.display_name || b.original_name || '').toLowerCase();
-                        break;
-                    case 'size':
-                        aVal = a.size_bytes || 0;
-                        bVal = b.size_bytes || 0;
-                        break;
-                    case 'uploader':
-                        aVal = (a.uploader?.name || a.uploader?.email || '').toLowerCase();
-                        bVal = (b.uploader?.name || b.uploader?.email || '').toLowerCase();
-                        break;
-                    case 'date':
-                        aVal = new Date(a.created_at || 0).getTime();
-                        bVal = new Date(b.created_at || 0).getTime();
-                        break;
-                    default:
-                        return 0;
-                }
-                if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
-                if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
-                return 0;
-            });
-            return sorted;
+            return this.files;
         },
 
         toggleSort(column) {
@@ -2986,6 +3101,7 @@ function registerDossierFilesCard() {
                 this.sortBy = column;
                 this.sortDirection = 'asc';
             }
+            this.loadFiles(1);
         },
 
         browseFiles() {
@@ -2998,18 +3114,14 @@ function registerDossierFilesCard() {
             this.loadFiles();
             document.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') {
-                    if (this.showPreviewModal) { this.showPreviewModal = false; this.previewFile = null; }
-                    else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; }
-                    else if (this.showArticleModal) { this.showArticleModal = false; }
-                    else if (this.showMdModal) { this.showMdModal = false; }
+                    if (this.showPreviewModal) { this.showPreviewModal = false; this.previewFile = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="preview-title"]'); }); }
+                    else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); }); }
+                    else if (this.showArticleModal) { this.showArticleModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="create-article-title"]'); }); }
+                    else if (this.showMdModal) { this.showMdModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="markdown-note-title"]'); }); }
                 }
             });
             if (this.canManageFiles && this.$refs.filePondContainer) {
                 const self = this;
-                const csrfToken = this.csrfToken;
-                const orgParam = this.orgParam;
-                const dossierId = this.dossierId;
-                const endpoint = `/org/${orgParam}/dossiers/${dossierId}/files`;
                 const acceptedTypes = [
                     'image/jpeg', 'image/png', 'image/webp', 'image/gif',
                     'application/pdf',
@@ -3025,29 +3137,26 @@ function registerDossierFilesCard() {
                 this._pond = FilePond.create(this.$refs.filePondContainer, Object.assign(Object.create(null), {
                     multiple: true,
                     maxFiles: 5,
-                    maxFileSize: '20MB',
+                    maxFileSize: '50MB',
                     acceptedFileTypes: acceptedTypes,
                     labelIdle: labelIdle,
                     onaddfile(err, file) {
                         if (err) { console.warn('[FilePond] addfile error', err); return; }
+                        const duplicate = self.files.some((existingFile) => existingFile.original_name === file.file.name || existingFile.display_name === file.file.name);
+                        if (duplicate) {
+                            self.showMessage(self.i18n.duplicateName, 'error');
+                            self._pond.removeFile(file.id);
+                            return;
+                        }
                         const formData = new FormData();
                         formData.append('files[]', file.file, file.file.name);
 
-                        fetch(endpoint, {
-                            method: 'POST',
-                            headers: {
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': csrfToken,
-                                'X-Requested-With': 'XMLHttpRequest',
-                            },
-                            body: formData,
-                        })
-                            .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                        self.uploadFormData(formData, [file.file])
                             .then(({ ok, data }) => {
                                 if (ok) {
                                     self.showMessage(data.message || self.i18n.uploaded, 'success');
                                     self._pond.removeFile(file.id);
-                                    self.loadFiles(self.currentPage);
+                                    self.loadFiles(1).then(() => self.mergeMissingUploads(data.files));
                                 } else {
                                     self.showMessage(data.message || self.i18n.uploadFailed, 'error');
                                     self._pond.removeFile(file.id);
@@ -3060,6 +3169,11 @@ function registerDossierFilesCard() {
                     },
                 }));
             }
+
+            this.$watch('showDeleteModal', (val) => { if (val) { if (!this._trapTrigger) this._trapTrigger = this.$refs.fabButton || document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-file-title"]'); }); } else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); }); } });
+            this.$watch('showPreviewModal', (val) => { if (val) { if (!this._trapTrigger) this._trapTrigger = this.$refs.fabButton || document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="preview-title"]'); }); } else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="preview-title"]'); }); } });
+            this.$watch('showArticleModal', (val) => { if (val) { if (!this._trapTrigger) this._trapTrigger = this.$refs.fabButton || document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="create-article-title"]'); }); } else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="create-article-title"]'); }); } });
+            this.$watch('showMdModal', (val) => { if (val) { if (!this._trapTrigger) this._trapTrigger = this.$refs.fabButton || document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="markdown-note-title"]'); }); } else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="markdown-note-title"]'); }); } });
         },
 
         destroy() {
@@ -3069,9 +3183,21 @@ function registerDossierFilesCard() {
             }
         },
 
+        onSearchInput() {
+            this.loadFiles(1);
+        },
+
         loadFiles(page) {
             page = page || 1;
-            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files?page=${page}`;
+            const params = new URLSearchParams({
+                page: String(page),
+                sort: this.sortBy,
+                direction: this.sortDirection,
+            });
+            if (this.searchQuery && this.searchQuery.trim()) {
+                params.set('search', this.searchQuery.trim());
+            }
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files?${params.toString()}`;
             return fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {
@@ -3126,6 +3252,8 @@ function registerDossierFilesCard() {
 
         async deleteFile(file) {
             this.saving = true;
+            this.files = this.files.filter(f => f.id !== file.id);
+            this.totalFiles = Math.max(0, this.totalFiles - 1);
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
             try {
                 const response = await fetch(url, {
@@ -3141,10 +3269,16 @@ function registerDossierFilesCard() {
                 if (response.ok) {
                     this.showMessage(data.message || this.i18n.deleted, 'success');
                     await this.loadFiles(this.currentPage);
+                    if (this.files.some(f => f.id === file.id)) {
+                        this.files = this.files.filter(f => f.id !== file.id);
+                        this.totalFiles = Math.max(0, this.totalFiles - 1);
+                    }
                 } else {
+                    await this.loadFiles(this.currentPage);
                     this.showMessage(data.message || this.i18n.deleteFailed, 'error');
                 }
             } catch (error) {
+                await this.loadFiles(this.currentPage);
                 this.showMessage(this.i18n.deleteFailed, 'error');
             } finally {
                 this.saving = false;
@@ -3152,20 +3286,26 @@ function registerDossierFilesCard() {
         },
 
         openDeleteModal(file) {
+            this._trapTrigger = document.activeElement;
             this.deleteTarget = file;
             this.showDeleteModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-file-title"]'); });
         },
 
-        confirmDeleteFile() {
+        async confirmDeleteFile() {
             if (!this.deleteTarget) return;
+            const file = this.deleteTarget;
             this.showDeleteModal = false;
-            this.deleteFile(this.deleteTarget);
             this.deleteTarget = null;
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); });
+            await this.deleteFile(file);
         },
 
         openPreview(file) {
+            this._trapTrigger = document.activeElement;
             this.previewFile = file;
             this.showPreviewModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="preview-title"]'); });
         },
 
         get quotaPercent() {
