@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class LocaleController extends Controller
 {
@@ -13,6 +14,12 @@ class LocaleController extends Controller
 
         $request->session()->put('locale', $locale);
 
-        return back();
+        $redirectTo = $request->string('redirect_to')->toString();
+
+        if ($redirectTo === url('/') || Str::startsWith($redirectTo, url('/').'/')) {
+            return redirect()->to($redirectTo);
+        }
+
+        return redirect('/');
     }
 }

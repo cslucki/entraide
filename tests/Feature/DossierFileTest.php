@@ -228,11 +228,65 @@ class DossierFileTest extends TestCase
     public function test_upload_rejects_too_large_file(): void
     {
         $response = $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
-            'files' => [UploadedFile::fake()->create('too-large.pdf', 20481, 'application/pdf')],
+            'files' => [UploadedFile::fake()->create('too-large.pdf', 51201, 'application/pdf')],
         ]);
 
         $response->assertStatus(422);
         $this->assertDatabaseCount('dossier_files', 0);
+    }
+
+    public function test_upload_rejects_duplicate_file_name_in_dossier(): void
+    {
+        $this->createFile($this->dossier, $this->ownerA, 'duplicate.pdf');
+
+        $response = $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+            'files' => [$this->fakeFile('duplicate.pdf', 'application/pdf', 2048)],
+        ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('message', __('dossiers.file_duplicate_name'));
+    }
+
+    public function test_upload_rejects_duplicate_file_content_in_dossier(): void
+    {
+        $this->createFile($this->dossier, $this->ownerA, 'stored.pdf');
+
+        $response = $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+            'files' => [UploadedFile::fake()->createWithContent('same-content.pdf', 'stored test content', 'application/pdf')],
+        ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('message', __('dossiers.file_duplicate_content'));
+    }
+
+    public function test_upload_rejects_duplicate_file_names_in_same_batch(): void
+    {
+        $response = $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+            'files' => [
+                $this->fakeFile('same-name.pdf', 'application/pdf', 1024),
+                $this->fakeFile('same-name.pdf', 'application/pdf', 2048),
+            ],
+        ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('message', __('dossiers.file_duplicate_name'));
+    }
+
+    public function test_upload_rejects_duplicate_file_content_in_same_batch(): void
+    {
+        $response = $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+            'files' => [
+                UploadedFile::fake()->createWithContent('one.pdf', 'same test content', 'application/pdf'),
+                UploadedFile::fake()->createWithContent('two.pdf', 'same test content', 'application/pdf'),
+            ],
+        ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('message', __('dossiers.file_duplicate_content'));
     }
 
     public function test_upload_rejects_empty_files(): void
@@ -244,7 +298,7 @@ class DossierFileTest extends TestCase
 
     public function test_upload_rejects_more_than_five_files(): void
     {
-        $files = array_map(fn () => $this->fakeFile('doc'.rand(1, 9).'.pdf'), range(1, 6));
+        $files = array_map(fn ($i) => $this->fakeFile('doc'.$i.'.pdf', 'application/pdf', 1024 + $i * 100), range(1, 6));
 
         $response = $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
             'files' => $files,
@@ -302,10 +356,10 @@ class DossierFileTest extends TestCase
     {
         $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
             'files' => [
-                $this->fakeFile('photo.jpg', 'image/jpeg'),
-                $this->fakeFile('logo.png', 'image/png'),
-                $this->fakeFile('banner.webp', 'image/webp'),
-                $this->fakeFile('icon.gif', 'image/gif'),
+                $this->fakeFile('photo.jpg', 'image/jpeg', 1024),
+                $this->fakeFile('logo.png', 'image/png', 2048),
+                $this->fakeFile('banner.webp', 'image/webp', 3072),
+                $this->fakeFile('icon.gif', 'image/gif', 4096),
             ],
         ])->assertStatus(201);
 
@@ -316,9 +370,9 @@ class DossierFileTest extends TestCase
     {
         $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
             'files' => [
-                $this->fakeFile('report.pdf', 'application/pdf'),
-                $this->fakeFile('letter.doc', 'application/msword'),
-                $this->fakeFile('contract.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+                $this->fakeFile('report.pdf', 'application/pdf', 1024),
+                $this->fakeFile('letter.doc', 'application/msword', 2048),
+                $this->fakeFile('contract.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 3072),
             ],
         ])->assertStatus(201);
 

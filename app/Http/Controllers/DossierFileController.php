@@ -84,6 +84,57 @@ class DossierFileController extends Controller
 
         try {
             $quota = $organization->dossierStorageQuotaBytes();
+            $incomingFiles = collect($uploadedFiles)->map(fn ($file) => [
+                'file' => $file,
+                'name' => $file->getClientOriginalName(),
+                'checksum' => hash_file('sha256', $file->getRealPath()),
+            ]);
+
+            if ($incomingFiles->pluck('name')->duplicates()->isNotEmpty()) {
+                DB::rollBack();
+
+                return response()->json([
+                    'message' => __('dossiers.file_duplicate_name'),
+                ], 422);
+            }
+
+            if ($incomingFiles->pluck('checksum')->duplicates()->isNotEmpty()) {
+                DB::rollBack();
+
+                return response()->json([
+                    'message' => __('dossiers.file_duplicate_content'),
+                ], 422);
+            }
+
+            $duplicateByName = DossierFile::query()
+                ->where('organization_id', $organization->id)
+                ->where('dossier_id', $dossier->id)
+                ->whereIn('original_name', $incomingFiles->pluck('name')->all())
+                ->lockForUpdate()
+                ->exists();
+
+            if ($duplicateByName) {
+                DB::rollBack();
+
+                return response()->json([
+                    'message' => __('dossiers.file_duplicate_name'),
+                ], 422);
+            }
+
+            $duplicateByChecksum = DossierFile::query()
+                ->where('organization_id', $organization->id)
+                ->where('dossier_id', $dossier->id)
+                ->whereIn('checksum_sha256', $incomingFiles->pluck('checksum')->all())
+                ->lockForUpdate()
+                ->exists();
+
+            if ($duplicateByChecksum) {
+                DB::rollBack();
+
+                return response()->json([
+                    'message' => __('dossiers.file_duplicate_content'),
+                ], 422);
+            }
 
             if ($quota !== null) {
                 $usedBytes = (int) DossierFile::query()
@@ -93,8 +144,8 @@ class DossierFileController extends Controller
                     ->sum('size_bytes');
 
                 $newTotalBytes = $usedBytes;
-                foreach ($uploadedFiles as $file) {
-                    $newTotalBytes += $file->getSize();
+                foreach ($incomingFiles as $incomingFile) {
+                    $newTotalBytes += $incomingFile['file']->getSize();
                 }
 
                 if ($newTotalBytes > $quota) {
@@ -106,10 +157,10 @@ class DossierFileController extends Controller
                 }
             }
 
-            foreach ($uploadedFiles as $file) {
+            foreach ($incomingFiles as $incomingFile) {
+                $file = $incomingFile['file'];
                 $path = $file->store('dossier-files/'.$dossier->id, $disk);
                 $storedPaths[] = $path;
-                $checksum = hash_file('sha256', $file->getRealPath());
 
                 $dossierFile = DossierFile::create([
                     'organization_id' => $organization->id,
@@ -121,7 +172,7 @@ class DossierFileController extends Controller
                     'display_name' => $file->getClientOriginalName(),
                     'mime_type' => $file->getMimeType(),
                     'size_bytes' => $file->getSize(),
-                    'checksum_sha256' => $checksum,
+                    'checksum_sha256' => $incomingFile['checksum'],
                     'source' => 'upload',
                 ]);
 

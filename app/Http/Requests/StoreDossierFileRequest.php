@@ -43,7 +43,7 @@ class StoreDossierFileRequest extends FormRequest
             'files.*' => [
                 'required',
                 'file',
-                'max:20480',
+                'max:51200',
                 'mimetypes:image/jpeg,image/png,image/webp,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-zip-compressed',
             ],
         ];
