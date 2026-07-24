@@ -97,7 +97,7 @@ class RegisteredUserController extends Controller
 
         event(new Registered($user));
 
-        $user->notify(new WelcomeNotification);
+        rescue(fn () => $user->notify(new WelcomeNotification));
 
         Auth::login($user);
 
