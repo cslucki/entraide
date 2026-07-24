@@ -50,7 +50,7 @@ class TASK938VisitorChatTest extends TestCase
             ->get(route('agent-ia.profile.chat', $this->profileOwner));
 
         $response->assertOk();
-        $response->assertSeeText(__('ai.ai_agent_of', ['name' => $this->profileOwner->name]));
+        $response->assertSeeText(__('ai.ai_agent_of', ['name' => $this->profileOwner->full_name]));
     }
 
     public function test_visitor_can_access_org_scoped_chat_page(): void
@@ -62,7 +62,7 @@ class TASK938VisitorChatTest extends TestCase
             ]));
 
         $response->assertOk();
-        $response->assertSeeText(__('ai.ai_agent_of', ['name' => $this->profileOwner->name]));
+        $response->assertSeeText(__('ai.ai_agent_of', ['name' => $this->profileOwner->full_name]));
     }
 
     public function test_visitor_chat_creates_conversation(): void
@@ -395,6 +395,6 @@ class TASK938VisitorChatTest extends TestCase
         $response = $this->get(route('agent-ia.profile.chat', $this->profileOwner));
 
         $response->assertOk();
-        $response->assertSeeText(__('ai.ai_agent_of', ['name' => $this->profileOwner->name]));
+        $response->assertSeeText(__('ai.ai_agent_of', ['name' => $this->profileOwner->full_name]));
     }
 }

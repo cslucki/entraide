@@ -4,6 +4,40 @@ return [
 
     'default_provider' => env('AI_DEFAULT_PROVIDER', 'openai'),
     'default_model' => env('AI_DEFAULT_MODEL'),
+    'default_for_embeddings' => env('AI_EMBEDDING_PROVIDER', 'openai'),
+
+    'caching' => [
+        'embeddings' => [
+            'cache' => (bool) env('AI_EMBEDDING_CACHE_ENABLED', false),
+            'store' => env('AI_EMBEDDING_CACHE_STORE', env('CACHE_STORE', 'database')),
+            'seconds' => (int) env('AI_EMBEDDING_CACHE_SECONDS', 60 * 60 * 24 * 30),
+        ],
+    ],
+
+    'providers' => [
+        'openai' => [
+            'driver' => 'openai',
+            'key' => env('OPENAI_API_KEY'),
+            'url' => env('OPENAI_URL', env('OPENAI_BASE_URL', 'https://api.openai.com/v1')),
+            'models' => [
+                'embeddings' => [
+                    'default' => env('AI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+                    'dimensions' => (int) env('AI_EMBEDDING_DIMENSIONS', 1536),
+                ],
+            ],
+        ],
+    ],
+
+    'dossiers' => [
+        'semantic_search' => [
+            'enabled' => (bool) env('DOSSIER_SEMANTIC_SEARCH_ENABLED', false),
+            'organization_ids' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('DOSSIER_SEMANTIC_SEARCH_ORGANIZATION_IDS', '')),
+            ))),
+            'limit' => 5,
+        ],
+    ],
 
     /*
 

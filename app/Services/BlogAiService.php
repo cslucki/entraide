@@ -20,6 +20,10 @@ class BlogAiService
 
     private const METHOD_SELECTION_METHODS = ['explorer', 'clarifier', 'slow_down', 'invent'];
 
+    private const GENERATED_ARTICLE_START_TAGS = ['<article', '<section', '<div', '<h1', '<h2', '<h3', '<h4', '<p', '<ul', '<ol', '<blockquote'];
+
+    private const GENERATED_ARTICLE_CLOSING_TAGS = ['</article>', '</section>', '</div>', '</h1>', '</h2>', '</h3>', '</h4>', '</p>', '</ul>', '</ol>', '</blockquote>'];
+
     public function generate(BlogPost $post, User $user, ?string $title = null, ?string $summary = null): array
     {
         $title ??= $post->title;
@@ -27,10 +31,13 @@ class BlogAiService
 
         $promptText = $this->resolvePrompt('blog_generate');
         $prompt = sprintf($promptText, $title, $summary);
+        $prompt .= $this->articleGenerationLanguageInstruction();
 
         $result = $this->callAi($post, $user, $prompt, 'blog_generate');
 
-        return $this->buildResult($result, $user, 'blog_generate');
+        $parsed = $this->parseGenerateResponse($result['content'], $title, $summary);
+
+        return $this->buildResult($result, $user, 'blog_generate', $parsed['title'], $parsed['summary'], $parsed['content']);
     }
 
     public function correct(BlogPost $post, User $user): array
@@ -143,7 +150,7 @@ class BlogAiService
         }
 
         return match ($feature) {
-            'blog_generate' => "Rédige un article de blog structuré en HTML qui correspond au titre et au résumé suivants. Utilise des balises HTML valides (h2, h3, p, ul, li, etc.). Ta réponse doit faire 500 mots maximum. Réponds UNIQUEMENT avec le contenu HTML, sans introduction, sans conclusion, sans mention du titre.\n\nTitre : %s\nRésumé : %s",
+            'blog_generate' => "Rédige un article de blog en te basant sur le titre et le résumé fournis. Tu dois retourner un objet JSON unique avec exactement ces 3 champs :\n- \"title\" : le titre amélioré de l'article (string)\n- \"summary\" : un résumé percutant de 1 à 2 phrases (string)\n- \"content\" : le corps de l'article en HTML structuré avec des balises h2, h3, p, ul, li (string). Maximum 500 mots. Pas de balise h1 ni de h2 avec le titre.\n\nRetourne UNIQUEMENT le JSON brut, sans markdown, sans introduction, sans texte avant ou après.\n\nTitre fourni : %s\nRésumé fourni : %s",
             'blog_correct' => "Corrige les fautes d'orthographe, de grammaire et de syntaxe dans le texte suivant. Ne modifie pas le contenu ni le style, corrige uniquement les erreurs.\n\n%s",
             default => "Tu es un assistant éditorial. Analyse uniquement le passage sélectionné selon la méthode demandée. Retourne une réponse courte, humaine, en texte brut, sans HTML, sans Markdown, sans astérisques, sans titres Markdown, sans chat général. Utilise uniquement ces titres textuels simples : Observation, Question, Piste. Vise 300 à 500 caractères. Une seule piste principale.\n\nMéthode : %s\nTitre de l'article : %s\nPassage sélectionné : %s\nContexte avant : %s\nContexte après : %s",
         };
@@ -284,6 +291,13 @@ class BlogAiService
         return str_starts_with(strtolower((string) $locale), 'en') ? 'en' : 'fr';
     }
 
+    private function articleGenerationLanguageInstruction(): string
+    {
+        return app()->getLocale() === 'en'
+            ? "\n\nMandatory language: write the generated article in English. Do not switch to French."
+            : "\n\nLangue obligatoire : rédige l'article généré en français. Ne bascule pas en anglais.";
+    }
+
     private function cleanAiText(string $text, int $limit = 1400): string
     {
         $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -353,18 +367,304 @@ class BlogAiService
         return trim((string) $text);
     }
 
-    private function buildResult(array $callResult, User $user, string $feature): array
+    private function buildResult(array $callResult, User $user, string $feature, ?string $title = null, ?string $summary = null, ?string $content = null): array
     {
         $orgId = currentOrganization()?->id ?? $user->organization_id;
         $config = BlogAiConfig::forOrganization($orgId);
 
         $limit = $feature === 'blog_generate' ? $config->generate_limit : $config->correct_limit;
+        $cleanedContent = $content !== null
+            ? $this->cleanGeneratedArticleHtml($content, $title, $summary)
+            : ($feature === 'blog_generate'
+                ? $this->cleanGeneratedArticleHtml($callResult['content'], $title, $summary)
+                : $callResult['content']);
 
-        return [
-            'content' => $callResult['content'],
+        $result = [
+            'content' => $cleanedContent,
             'provider' => $callResult['provider'],
             'model' => $callResult['model'],
             'limit' => $limit,
         ];
+
+        if ($title !== null && $feature === 'blog_generate') {
+            $result['title'] = $title;
+        }
+        if ($summary !== null && $feature === 'blog_generate') {
+            $result['summary'] = $summary;
+        }
+
+        return $result;
+    }
+
+    private function parseGenerateResponse(string $raw, ?string $fallbackTitle, ?string $fallbackSummary): array
+    {
+        $text = trim($raw);
+
+        // Strip markdown fences before JSON decode (AI models often wrap JSON in ```json ... ```)
+        if (preg_match('/^\s*```(?:json)?\s*\n(.*?)\n\s*```\s*$/is', $text, $fenceMatches)) {
+            $text = trim($fenceMatches[1]);
+        } elseif (preg_match('/^\s*```(?:json)?\s*\n/i', $text)) {
+            $text = preg_replace('/^\s*```(?:json)?\s*\n/i', '', $text);
+            $text = preg_replace('/\n\s*```\s*$/i', '', $text);
+            $text = trim($text);
+        }
+
+        // Try direct decode first (works for well-formed JSON)
+        $json = json_decode($text, true);
+
+        // If decode fails, fix malformed JSON from AI models:
+        // 1. Replace backslash+newline with \n escape
+        // 2. Replace raw newlines inside JSON string values with \n escape
+        if (! is_array($json) || ! isset($json['content'])) {
+            $fixed = str_replace("\\\n", '\\n', $text);
+
+            $fixed = preg_replace_callback(
+                '/"(?:[^"\\\\]|\\\\.)*"/s',
+                function ($m) {
+                    return '"'.str_replace(["\n", "\r"], ['\\n', '\\r'], substr($m[0], 1, -1)).'"';
+                },
+                $fixed
+            );
+
+            $json = json_decode($fixed, true);
+        }
+
+        // If still failed, AI may have produced JSON with unescaped quotes in HTML content.
+        // Extract title/summary with simple regex, content by position.
+        if (! is_array($json) || ! isset($json['content'])) {
+            $json = $this->extractFieldsFromMalformedJson($text);
+        }
+
+        if (! is_array($json) || ! isset($json['content'])) {
+            $cleaned = $this->cleanGeneratedArticleHtml($raw);
+            $result = $this->stripTitleSummaryFromHtml($cleaned, $fallbackTitle, $fallbackSummary);
+            $result = $this->normalizeHeadingLevels($result);
+
+            return [
+                'title' => $fallbackTitle,
+                'summary' => $fallbackSummary,
+                'content' => $result,
+            ];
+        }
+
+        $title = isset($json['title']) && is_string($json['title']) && trim($json['title']) !== ''
+            ? trim($json['title'])
+            : $fallbackTitle;
+        $summary = isset($json['summary']) && is_string($json['summary']) && trim($json['summary']) !== ''
+            ? trim($json['summary'])
+            : $fallbackSummary;
+        $content = is_string($json['content']) ? $json['content'] : '';
+
+        return [
+            'title' => $title,
+            'summary' => $summary,
+            'content' => $content,
+        ];
+    }
+
+    /**
+     * Extract title/summary/content from malformed AI JSON where content
+     * contains unescaped quotes that break standard json_decode().
+     */
+    private function extractFieldsFromMalformedJson(string $text): ?array
+    {
+        // title and summary are simple strings without quotes — safe to regex
+        if (! preg_match('/"title"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/i', $text, $tm)) {
+            return null;
+        }
+        if (! preg_match('/"summary"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/i', $text, $sm)) {
+            return null;
+        }
+
+        // content may contain unescaped quotes — extract by position
+        // Find "content": " and grab everything until the closing } of the JSON object
+        if (! preg_match('/"content"\s*:\s*"/i', $text, $cm, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        $start = $cm[0][1] + strlen($cm[0][0]);
+        $end = strrpos($text, '}');
+
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+
+        // Content is between the opening " and the last " before }
+        $rawContent = substr($text, $start, $end - $start);
+        // Strip trailing quote+whitespace before the closing brace
+        $rawContent = preg_replace('/"\s*$/s', '', $rawContent);
+        // Convert escaped newlines to real newlines
+        $rawContent = str_replace(['\\n', '\\r'], ["\n", "\r"], $rawContent);
+
+        return [
+            'title' => $tm[1],
+            'summary' => $sm[1],
+            'content' => $rawContent,
+        ];
+    }
+
+    private function cleanGeneratedArticleHtml(string $html, ?string $title = null, ?string $summary = null): string
+    {
+        $html = trim($html);
+
+        if ($html === '') {
+            return $html;
+        }
+
+        if (preg_match('/```(?:html)?\s*(.*?)```/is', $html, $matches)) {
+            $html = $matches[1];
+        }
+
+        $html = preg_replace('/^\s*```[a-zA-Z0-9_-]*\s*/', '', (string) $html);
+        $html = preg_replace('/\s*```\s*$/', '', (string) $html);
+        $html = str_replace('```', '', (string) $html);
+        $html = trim((string) $html);
+
+        $firstTagPosition = null;
+        foreach (self::GENERATED_ARTICLE_START_TAGS as $tag) {
+            $position = stripos($html, $tag);
+            if ($position !== false && ($firstTagPosition === null || $position < $firstTagPosition)) {
+                $firstTagPosition = $position;
+            }
+        }
+
+        if ($firstTagPosition !== null && $firstTagPosition > 0) {
+            $html = substr($html, $firstTagPosition);
+        }
+
+        $lastClosingTag = null;
+        $lastClosingTagLength = 0;
+        foreach (self::GENERATED_ARTICLE_CLOSING_TAGS as $tag) {
+            $position = strripos($html, $tag);
+            if ($position !== false && ($lastClosingTag === null || $position > $lastClosingTag)) {
+                $lastClosingTag = $position;
+                $lastClosingTagLength = strlen($tag);
+            }
+        }
+
+        if ($lastClosingTag !== null) {
+            $html = substr($html, 0, $lastClosingTag + $lastClosingTagLength);
+        }
+
+        if ($title !== null || $summary !== null) {
+            $html = $this->stripTitleSummaryFromHtml($html, $title, $summary);
+        }
+
+        return trim($html);
+    }
+
+    private function stripTitleSummaryFromHtml(string $html, ?string $title, ?string $summary): string
+    {
+        if (empty($title) && empty($summary)) {
+            return $html;
+        }
+
+        if ($title !== null) {
+            $trimmedTitle = trim($title);
+            $escaped = preg_quote($trimmedTitle, '/');
+            foreach (['h1', 'h2'] as $tag) {
+                $html = preg_replace(
+                    '/<'.$tag.'[^>]*>\s*'.$escaped.'\s*<\/'.$tag.'>\s*/iu',
+                    '',
+                    $html
+                );
+            }
+        }
+
+        if ($summary !== null) {
+            $trimmedSummary = trim($summary);
+            $escaped = preg_quote($trimmedSummary, '/');
+            $html = preg_replace(
+                '/<p[^>]*>\s*'.$escaped.'\s*<\/p>\s*/iu',
+                '',
+                $html,
+                1
+            );
+        }
+
+        $html = $this->stripPositionalTitleSummary($html, $title, $summary);
+
+        $html = $this->normalizeHeadingLevels($html);
+
+        return trim($html);
+    }
+
+    private function stripPositionalTitleSummary(string $html, ?string $title, ?string $summary): string
+    {
+        $html = $this->stripFirstTagMatch($html, $title, ['h1', 'h2']);
+        $html = $this->stripFirstTagMatch($html, $summary, ['p']);
+
+        return $html;
+    }
+
+    private function stripFirstTagMatch(string $html, ?string $referenceText, array $tags): string
+    {
+        if (empty($referenceText)) {
+            return $html;
+        }
+
+        $normalized = preg_replace('/^\s+/', '', $html);
+        $inner = $normalized;
+        $wrapperLen = 0;
+        if (preg_match('/^<(?:div|article|section)(?:\s[^>]*)?>\s*/is', $inner, $w)) {
+            $wrapperLen = strlen($w[0]);
+            $inner = substr($inner, $wrapperLen);
+        }
+
+        $tagPattern = implode('|', $tags);
+        if (! preg_match('/^<('.$tagPattern.')[^>]*>(.*?)<\/\1>/is', $inner, $m)) {
+            return $html;
+        }
+
+        $tagText = trim(strip_tags($m[2]));
+        $words = array_filter(preg_split('/\s+/u', trim($referenceText), -1, PREG_SPLIT_NO_EMPTY), fn ($w) => mb_strlen($w) > 2);
+        if (empty($words)) {
+            return $html;
+        }
+
+        $matchCount = 0;
+        foreach ($words as $word) {
+            if (mb_stripos($tagText, $word) !== false) {
+                $matchCount++;
+            }
+        }
+
+        if ($matchCount / count($words) < 0.6) {
+            return $html;
+        }
+
+        $fullMatchLen = $wrapperLen + strlen($m[0]);
+
+        return preg_replace('/^.{'.$fullMatchLen.'}/s', '', preg_replace('/^\s+/', '', $html));
+    }
+
+    private function normalizeHeadingLevels(string $html): string
+    {
+        if (! preg_match_all('/<h(\d)/i', $html, $matches)) {
+            return $html;
+        }
+
+        $levels = array_map('intval', $matches[1]);
+        $minLevel = min($levels);
+
+        if ($minLevel <= 2) {
+            return $html;
+        }
+
+        $offset = 2 - $minLevel;
+
+        $html = preg_replace_callback('/<h(\d)(\s|>)/i', function ($matches) use ($offset) {
+            $newLevel = max(1, min(6, (int) $matches[1] + $offset));
+
+            return '<h'.$newLevel.$matches[2];
+        }, $html);
+
+        $html = preg_replace_callback('/<\/h(\d)>/i', function ($matches) use ($offset) {
+            $newLevel = max(1, min(6, (int) $matches[1] + $offset));
+
+            return '</h'.$newLevel.'>';
+        }, $html);
+
+        return $html;
     }
 }

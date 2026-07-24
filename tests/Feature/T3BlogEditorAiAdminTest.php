@@ -220,9 +220,15 @@ class T3BlogEditorAiAdminTest extends TestCase
 
     public function test_ai_generate_without_post_id_uses_title_and_summary(): void
     {
+        $aiResponse = json_encode([
+            'title' => 'Mon titre amélioré',
+            'summary' => 'Mon résumé amélioré.',
+            'content' => '<h2>Introduction</h2><p>Contenu de test.</p>',
+        ]);
+
         Http::fake([
             'api.openai.com/*' => Http::response([
-                'choices' => [['message' => ['content' => '<h2>Article généré</h2><p>Contenu de test.</p>']]],
+                'choices' => [['message' => ['content' => $aiResponse]]],
                 'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
             ]),
         ]);
@@ -231,9 +237,202 @@ class T3BlogEditorAiAdminTest extends TestCase
             ->post(route('blog.ai-generate'), [
                 'title' => 'Mon titre',
                 'summary' => 'Mon résumé',
+                'category_id' => $this->category->id,
             ])
             ->assertOk()
-            ->assertJsonStructure(['content', 'remaining']);
+            ->assertJsonStructure(['content', 'remaining', 'title', 'summary']);
+    }
+
+    public function test_t1010_ai_generate_removes_explanatory_preface_and_markdown_fences(): void
+    {
+        $rawContent = "Voici un article structuré en HTML avec un contenu clair et concis sur les défis écologiques futurs, respectant vos consignes :\n\n```html\n<h2>Article généré</h2><p>Contenu de test.</p>\n```\n\nJ'espère que cet article vous convient.";
+        $expectedContent = '<h2>Article généré</h2><p>Contenu de test.</p>';
+
+        $aiResponse = json_encode([
+            'title' => 'Article T1010 fences',
+            'summary' => 'Résumé T1010',
+            'content' => $rawContent,
+        ]);
+
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => $aiResponse]]],
+                'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
+            ]),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('blog.ai-generate'), [
+                'title' => 'Article T1010 fences',
+                'summary' => 'Résumé T1010',
+                'category_id' => $this->category->id,
+            ]);
+
+        $response->assertOk();
+
+        $this->assertStringContainsString('<h2>Article généré</h2>', $response->json('content'));
+        $this->assertStringContainsString('Contenu de test.', $response->json('content'));
+
+        $this->assertStringNotContainsString('Voici un article', $response->json('content'));
+        $this->assertStringNotContainsString('```', $response->json('content'));
+        $this->assertStringNotContainsString("J'espère", $response->json('content'));
+
+        $post = BlogPost::where('title', 'Article T1010 fences')->first();
+        $this->assertNotNull($post);
+        $this->assertSame($expectedContent, $post->content);
+
+        $interaction = AiInteraction::where('feature', 'blog_generate')
+            ->where('metadata->blog_post_id', $post->id)
+            ->first();
+        $this->assertNotNull($interaction);
+        $this->assertStringContainsString('Voici un article', $interaction->response);
+        $this->assertStringContainsString('```html', $interaction->response);
+    }
+
+    public function test_t1010_ai_generate_removes_preface_and_trailing_text_without_fences(): void
+    {
+        $aiResponse = json_encode([
+            'title' => 'Article T1010 sans fences',
+            'summary' => 'Résumé T1010',
+            'content' => "Voici une proposition.\n<h2>Article généré</h2><p>Contenu de test.</p>\nTexte parasite final.",
+        ]);
+
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => $aiResponse]]],
+                'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
+            ]),
+        ]);
+
+        $this->actingAs($this->user)
+            ->post(route('blog.ai-generate'), [
+                'title' => 'Article T1010 sans fences',
+                'summary' => 'Résumé T1010',
+                'category_id' => $this->category->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('content', '<h2>Article généré</h2><p>Contenu de test.</p>');
+    }
+
+    public function test_t1010_ai_generate_uses_current_english_locale_for_article_language(): void
+    {
+        $aiResponse = json_encode([
+            'title' => 'T1010 English article',
+            'summary' => 'English summary.',
+            'content' => '<h2>Generated article</h2><p>English content.</p>',
+        ]);
+
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => $aiResponse]]],
+                'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
+            ]),
+        ]);
+
+        $this->actingAs($this->user)
+            ->withSession(['locale' => 'en'])
+            ->post(route('blog.ai-generate'), [
+                'title' => 'T1010 English article',
+                'summary' => 'English summary.',
+                'category_id' => $this->category->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('content', '<h2>Generated article</h2><p>English content.</p>');
+
+        Http::assertSent(function ($request) {
+            $messages = $request->data()['messages'] ?? [];
+            $prompt = collect($messages)->firstWhere('role', 'user')['content'] ?? '';
+
+            return str_contains($prompt, 'Mandatory language: write the generated article in English')
+                && ! str_contains($prompt, 'Langue obligatoire : rédige');
+        });
+    }
+
+    public function test_t1010_ai_generate_strips_title_and_summary_from_content(): void
+    {
+        $rawContent = '<h1>Mon titre</h1><p>Mon résumé</p><h2>Introduction</h2><p>Le vrai contenu commence ici.</p>';
+
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => $rawContent]]],
+                'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
+            ]),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('blog.ai-generate'), [
+                'title' => 'Mon titre',
+                'summary' => 'Mon résumé',
+                'category_id' => $this->category->id,
+            ]);
+
+        $response->assertOk();
+
+        $content = $response->json('content');
+        $this->assertStringNotContainsString('Mon titre', $content);
+        $this->assertStringNotContainsString('Mon résumé', $content);
+        $this->assertStringContainsString('<h2>Introduction</h2>', $content);
+        $this->assertStringContainsString('Le vrai contenu', $content);
+    }
+
+    public function test_t1010_ai_generate_returns_title_and_summary_in_response(): void
+    {
+        $aiResponse = json_encode([
+            'title' => 'Titre amélioré par l\'IA',
+            'summary' => 'Résumé amélioré par l\'IA.',
+            'content' => '<h2>Introduction</h2><p>Contenu IA.</p>',
+        ]);
+
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => $aiResponse]]],
+                'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
+            ]),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('blog.ai-generate'), [
+                'title' => 'Titre original',
+                'summary' => 'Résumé original.',
+                'category_id' => $this->category->id,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('title', "Titre amélioré par l'IA")
+            ->assertJsonPath('summary', "Résumé amélioré par l'IA.")
+            ->assertJsonPath('content', '<h2>Introduction</h2><p>Contenu IA.</p>');
+
+        $post = BlogPost::where('title', "Titre amélioré par l'IA")->first();
+        $this->assertNotNull($post);
+        $this->assertSame("Résumé amélioré par l'IA.", $post->summary);
+    }
+
+    public function test_t1010_ai_generate_normalizes_h3_to_h2_after_title_strip(): void
+    {
+        $rawContent = '<h2>Mon titre</h2><p>Mon résumé.</p><h3>Sous-titre 1</h3><p>Paragraphe 1.</p><h3>Sous-titre 2</h3><p>Paragraphe 2.</p>';
+
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => $rawContent]]],
+                'usage' => ['input_tokens' => 50, 'output_tokens' => 20],
+            ]),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('blog.ai-generate'), [
+                'title' => 'Mon titre',
+                'summary' => 'Mon résumé.',
+                'category_id' => $this->category->id,
+            ]);
+
+        $response->assertOk();
+
+        $content = $response->json('content');
+        $this->assertStringNotContainsString('Mon titre', $content);
+        $this->assertStringNotContainsString('Mon résumé.', $content);
+        $this->assertStringContainsString('<h2>Sous-titre 1</h2>', $content);
+        $this->assertStringContainsString('<h2>Sous-titre 2</h2>', $content);
+        $this->assertStringNotContainsString('<h3>', $content);
     }
 
     public function test_ai_correct_requires_content_when_no_post_id(): void

@@ -40,6 +40,12 @@ if (! function_exists('canonicalHome')) {
             return '/';
         }
 
+        if ($organization->loops_enabled) {
+            return route('organization.loops.index', [
+                'organization' => $organization->slug,
+            ], absolute: false);
+        }
+
         return route('organization.home', [
             'organization' => $organization->slug,
         ], absolute: false);

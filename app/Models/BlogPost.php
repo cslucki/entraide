@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
@@ -115,6 +116,11 @@ class BlogPost extends Model
     public function todos(): HasMany
     {
         return $this->hasMany(BlogTodo::class);
+    }
+
+    public function dossierEntry(): HasOne
+    {
+        return $this->hasOne(DossierBlogPost::class);
     }
 
     public function analysisNotes(): HasMany

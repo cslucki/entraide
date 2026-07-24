@@ -16,7 +16,7 @@
             <div>
                 <a href="{{ route('admin.member-ai-profiles') }}" class="text-sm text-indigo-600 hover:underline dark:text-indigo-400">← Retour aux agents profil IA</a>
                 <h2 class="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    {{ $profile->user?->name ?? 'Utilisateur supprimé' }}
+                    {{ $profile->user?->full_name ?? 'Utilisateur supprimé' }}
                 </h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                     {{ $profile->organization?->name ?? 'Organisation inconnue' }} · {{ $profile->user?->email ?? '—' }}

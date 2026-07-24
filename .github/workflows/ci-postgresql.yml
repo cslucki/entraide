@@ -27,7 +27,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18
+        image: pgvector/pgvector:pg18-trixie
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -110,7 +110,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18
+        image: pgvector/pgvector:pg18-trixie
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

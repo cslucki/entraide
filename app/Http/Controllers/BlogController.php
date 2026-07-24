@@ -142,7 +142,7 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
-        if ($post->status !== 'published' && auth()->id() !== $post->user_id && ! auth()->user()?->is_admin) {
+        if ($post->status !== 'published' && auth()->id() !== $post->user_id && ! auth()->user()?->is_admin && ! $post->coAuthors()->where('user_id', auth()->id())->exists()) {
             abort(404);
         }
 
@@ -225,9 +225,38 @@ class BlogController extends Controller implements HasMiddleware
         return redirect($this->blogUrl('show', ['post' => $post]))->with('success', $message);
     }
 
-    public function orgStore(Request $request, string $org): RedirectResponse
+    public function orgStore(Request $request, string $org): RedirectResponse|JsonResponse
     {
-        return $this->store($request);
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
+        $this->authorize('create', BlogPost::class);
+
+        $data = $this->validateBlogPostRequest($request, $organization, ['draft', 'published']);
+
+        $data['content'] = $this->sanitizeHtml($data['content']);
+        $data['user_id'] = auth()->id();
+        $data['organization_id'] = $organization->id;
+        $data['slug'] = Str::slug($data['title']);
+        $data['published_at'] = $data['status'] === 'published' ? now() : null;
+
+        $post = BlogPost::create($data);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'post' => [
+                    'id' => $post->id,
+                    'slug' => $post->slug,
+                    'title' => $post->title,
+                ],
+                'redirect_url' => "/org/{$org}/blog/{$post->slug}/edit",
+            ], 201);
+        }
+
+        return redirect($this->blogUrl('show', ['post' => $post]))->with('success', __('blog.created_draft'));
     }
 
     public function edit(BlogPost $post): View
@@ -493,9 +522,13 @@ class BlogController extends Controller implements HasMiddleware
 
         $request->validate([
             'title' => 'required|string|max:255',
-            'summary' => 'nullable|string|max:500',
-            'category_id' => 'nullable|uuid|exists:categories,id',
+            'summary' => 'required|string|max:500',
+            'category_id' => 'required|uuid|exists:categories,id',
         ]);
+
+        if (! Category::where('id', $request->input('category_id'))->where('organization_id', $organization->id)->exists()) {
+            return response()->json(['error' => __('blog.validation_category_invalid')], 422);
+        }
 
         $post = BlogPost::create([
             'user_id' => $request->user()->id,
@@ -638,11 +671,16 @@ class BlogController extends Controller implements HasMiddleware
                     $post->user_id = $user->id;
                     $post->content = $request->input('content');
                 } else {
-                    if (empty($title) || empty($summary)) {
+                    if (empty($title) || empty($summary) || empty($request->input('category_id'))) {
                         return response()->json(['error' => __('blog.ai_need_title_summary')], 422);
                     }
 
                     $orgId = currentOrganization()?->id ?? $user->organization_id;
+
+                    if (! Category::where('id', $request->input('category_id'))->where('organization_id', $orgId)->exists()) {
+                        return response()->json(['error' => __('blog.validation_category_invalid')], 422);
+                    }
+
                     $post = BlogPost::create([
                         'user_id' => $user->id,
                         'organization_id' => $orgId,
@@ -683,6 +721,8 @@ class BlogController extends Controller implements HasMiddleware
                 : $ai->correct($post, $user);
 
             if ($isCreateFlow) {
+                $post->title = $result['title'] ?? $post->title;
+                $post->summary = $result['summary'] ?? $post->summary;
                 $post->content = $result['content'];
                 $post->save();
             }
@@ -694,6 +734,8 @@ class BlogController extends Controller implements HasMiddleware
                 'provider' => $result['provider'],
                 'model' => $result['model'],
                 'limit' => $result['limit'],
+                'title' => $result['title'] ?? null,
+                'summary' => $result['summary'] ?? null,
                 'remaining' => [
                     'generate' => $feature === 'blog_generate' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_generate'),
                     'correct' => $feature === 'blog_correct' ? $newRemaining : $ai->remainingCount($post, $user, 'blog_correct'),

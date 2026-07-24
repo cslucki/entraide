@@ -43,13 +43,13 @@
                     </td>
                     <td class="px-4 py-3">
                         @if($tx->buyer)
-                        <a href="{{ route('profile.show', $tx->buyer) }}" class="text-indigo-600 hover:underline text-xs">{{ $tx->buyer->name }}</a>
+                        <a href="{{ route('profile.show', $tx->buyer) }}" class="text-indigo-600 hover:underline text-xs">{{ $tx->buyer->full_name }}</a>
                         @else <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>
                     <td class="px-4 py-3">
                         @if($tx->seller)
-                        <a href="{{ route('profile.show', $tx->seller) }}" class="text-indigo-600 hover:underline text-xs">{{ $tx->seller->name }}</a>
+                        <a href="{{ route('profile.show', $tx->seller) }}" class="text-indigo-600 hover:underline text-xs">{{ $tx->seller->full_name }}</a>
                         @else <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>

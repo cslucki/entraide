@@ -232,7 +232,7 @@
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                         </span>
                         <span class="min-w-0 flex-1">
-                            <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('profile.write_to', ['name' => $user->name]) }}</span>
+                            <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('profile.write_to', ['name' => $user->full_name]) }}</span>
                             <span class="mt-0.5 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ __('profile.start_conversation') }}</span>
                         </span>
                         <svg class="w-4 h-4 flex-shrink-0 self-center text-gray-400 transition group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -350,7 +350,7 @@
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-2">
                                     <img src="{{ $review->reviewer->avatar_url }}" class="w-6 h-6 rounded-full" alt="">
-                                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $review->reviewer->name }}</span>
+                                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $review->reviewer->full_name }}</span>
                                 </div>
                                 <div class="flex items-center gap-0.5">
                                     @for($i = 1; $i <= 5; $i++)
@@ -399,7 +399,7 @@
                         <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 transition group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                         </span>
-                        <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('profile.write_to', ['name' => $user->name]) }}</span>
+                        <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('profile.write_to', ['name' => $user->full_name]) }}</span>
                     </div>
                     <p class="text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ __('profile.start_conversation') }}</p>
                 </a>

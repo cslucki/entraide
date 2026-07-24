@@ -4,7 +4,7 @@
         {{-- Header --}}
         <x-slot:header>
             <x-conversation.header
-                :title="__('ai.ai_agent_of', ['name' => $targetUser->name])"
+                :title="__('ai.ai_agent_of', ['name' => $targetUser->full_name])"
                 :subtitle="count($messages) > 0 ? __('ai.available') : null"
                 :status="count($messages) > 0 ? 'online' : null"
                 class="bg-gray-50 dark:bg-gray-800/50"
@@ -24,7 +24,7 @@
                         @if(auth()->id() !== $targetUser->id)
                         <a href="{{ route('messages.with', $targetUser) }}"
                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition shrink-0">
-                            {{ __('ai.write_directly_to', ['name' => $targetUser->name]) }}
+                            {{ __('ai.write_directly_to', ['name' => $targetUser->full_name]) }}
                         </a>
                         @endif
                     @else

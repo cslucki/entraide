@@ -16,6 +16,7 @@ return [
     'invitations' => 'Invitations',
     'favorites' => 'My favorites',
     'my_articles' => 'My articles',
+    'my_dossiers' => 'My folders',
     'settings' => 'Profile and settings',
     'administration' => 'Administration',
     'logout' => 'Log out',

@@ -30,7 +30,7 @@
                     <h2 class="mt-3 text-lg font-bold text-gray-950 dark:text-gray-50">{{ $post->title }}</h2>
                 @endif
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {{ $post->user?->name ?? __('feed.member_fallback') }} · {{ $post->published_at?->isoFormat('lll') ?? $post->created_at->isoFormat('lll') }}
+                    {{ $post->user?->full_name ?? __('feed.member_fallback') }} · {{ $post->published_at?->isoFormat('lll') ?? $post->created_at->isoFormat('lll') }}
                 </p>
             </div>
         </header>
@@ -74,7 +74,7 @@
 
         @if($lastComment)
             <div class="flex items-start gap-2 text-sm">
-                <span class="font-semibold text-gray-800 dark:text-gray-100 shrink-0">{{ $lastComment->user?->name ?? __('feed.member_fallback') }}</span>
+                <span class="font-semibold text-gray-800 dark:text-gray-100 shrink-0">{{ $lastComment->user?->full_name ?? __('feed.member_fallback') }}</span>
                 <p class="text-gray-600 dark:text-gray-300 line-clamp-2">{{ $lastComment->content }}</p>
             </div>
             @if($commentCount > 1)
@@ -95,7 +95,7 @@
                 <div class="space-y-2">
                     @foreach($post->comments as $comment)
                         <div class="rounded-2xl bg-gray-50 p-3 text-sm dark:bg-gray-800/60">
-                            <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $comment->user?->name ?? __('feed.member_fallback') }}</p>
+                            <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $comment->user?->full_name ?? __('feed.member_fallback') }}</p>
                             <p class="mt-0.5 whitespace-pre-line text-gray-600 dark:text-gray-300">{{ $comment->content }}</p>
                         </div>
                     @endforeach
@@ -120,7 +120,7 @@
                     <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ __('feed.comments_title', ['count' => $commentCount]) }}</h3>
                     @foreach($post->comments->sortBy('created_at') as $comment)
                         <div class="border-b border-gray-100 pb-3 last:border-0 dark:border-gray-700">
-                            <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $comment->user?->name ?? __('feed.member_fallback') }}</p>
+                            <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $comment->user?->full_name ?? __('feed.member_fallback') }}</p>
                             <p class="mt-1 whitespace-pre-line text-sm text-gray-600 dark:text-gray-300">{{ $comment->content }}</p>
                             <p class="mt-0.5 text-xs text-gray-400">{{ $comment->created_at->isoFormat('lll') }}</p>
                         </div>

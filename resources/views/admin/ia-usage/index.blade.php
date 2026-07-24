@@ -100,7 +100,7 @@
                                         {{ $interaction->created_at->format('d/m/Y H:i') }}
                                     </a>
                                 </td>
-                                <td class="px-4 py-3">{{ $interaction->user?->name ?? '—' }}</td>
+                                <td class="px-4 py-3">{{ $interaction->user?->full_name ?? '—' }}</td>
                                 <td class="px-4 py-3">{{ $interaction->organization?->name ?? '—' }}</td>
                                 <td class="px-4 py-3">
                                     <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
@@ -162,7 +162,7 @@
                                         {{ $interaction->created_at->format('d/m/Y H:i') }}
                                     </a>
                                 </td>
-                                <td class="px-4 py-3">{{ $interaction->user?->name ?? '—' }}</td>
+                                <td class="px-4 py-3">{{ $interaction->user?->full_name ?? '—' }}</td>
                                 <td class="px-4 py-3">
                                     <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                                         {{ $interaction->scenario_id }}

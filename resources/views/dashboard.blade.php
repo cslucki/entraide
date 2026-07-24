@@ -237,7 +237,7 @@
                         <img src="{{ $tx->seller->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0 self-start sm:self-center" alt="">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $tx->subject }}</p>
-                            <p class="text-xs text-gray-500">{{ __('dashboard.to_member', ['name' => $tx->seller->name]) }} · {{ $tx->points_proposed }} pts</p>
+                            <p class="text-xs text-gray-500">{{ __('dashboard.to_member', ['name' => $tx->seller->full_name]) }} · {{ $tx->points_proposed }} pts</p>
                         </div>
                         <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 self-start sm:self-center
                             {{ match($tx->status) {

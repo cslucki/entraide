@@ -42,10 +42,10 @@
                     @forelse($recentInvitations as $inv)
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
                         <td class="px-4 py-3">
-                            <span class="text-gray-900 dark:text-gray-100 text-xs">{{ $inv->referrer?->name ?? '—' }}</span>
+                            <span class="text-gray-900 dark:text-gray-100 text-xs">{{ $inv->referrer?->full_name ?? '—' }}</span>
                         </td>
                         <td class="px-4 py-3">
-                            <span class="text-gray-900 dark:text-gray-100 text-xs">{{ $inv->referred?->name ?? '—' }}</span>
+                            <span class="text-gray-900 dark:text-gray-100 text-xs">{{ $inv->referred?->full_name ?? '—' }}</span>
                         </td>
                         <td class="px-4 py-3">
                             @php
@@ -90,10 +90,10 @@
                     @forelse($recentActivations as $act)
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
                         <td class="px-4 py-3">
-                            <span class="text-gray-900 dark:text-gray-100 text-xs">{{ $act->referred?->name ?? '—' }}</span>
+                            <span class="text-gray-900 dark:text-gray-100 text-xs">{{ $act->referred?->full_name ?? '—' }}</span>
                         </td>
                         <td class="px-4 py-3">
-                            <span class="text-gray-900 dark:text-gray-100 text-xs">{{ $act->referrer?->name ?? '—' }}</span>
+                            <span class="text-gray-900 dark:text-gray-100 text-xs">{{ $act->referrer?->full_name ?? '—' }}</span>
                         </td>
                         <td class="px-4 py-3 text-xs text-gray-500">{{ $act->activated_at?->format('d/m/Y') ?? '—' }}</td>
                     </tr>
@@ -125,7 +125,7 @@
                 @forelse($contributors as $c)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
                     <td class="px-4 py-3">
-                        <span class="text-gray-900 dark:text-gray-100 text-xs font-medium">{{ $c->name }}</span>
+                        <span class="text-gray-900 dark:text-gray-100 text-xs font-medium">{{ $c->full_name }}</span>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">{{ $c->invitations_count }}</td>
                     <td class="px-4 py-3 text-xs text-gray-500">{{ $c->activations_count }}</td>

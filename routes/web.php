@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminAiUsageController;
 use App\Http\Controllers\Admin\AdminBlogController;
+use App\Http\Controllers\Admin\AdminBlogTodoController;
 use App\Http\Controllers\Admin\AdminBugReportController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\BlogAnnotationReplyController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogDossierApiController;
 use App\Http\Controllers\BlogExplorerController;
 use App\Http\Controllers\BlogInvitationController;
 use App\Http\Controllers\BlogPostLoopController;
@@ -46,6 +48,12 @@ use App\Http\Controllers\BlogSnapshotController;
 use App\Http\Controllers\BlogTodoController;
 use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DossierArticleController;
+use App\Http\Controllers\DossierController;
+use App\Http\Controllers\DossierFileController;
+use App\Http\Controllers\DossierMemberController;
+use App\Http\Controllers\DossierSemanticSearchController;
+use App\Http\Controllers\DossierSeriesController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\HomeController;
@@ -182,6 +190,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Blog plan endpoint
     Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
+
+    // Blog dossier classification endpoints
+    Route::get('/blog/dossiers', [BlogDossierApiController::class, 'listDossiers'])->name('blog.dossiers.index');
+    Route::post('/blog/dossiers', [BlogDossierApiController::class, 'quickCreate'])->name('blog.dossiers.store');
+    Route::get('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'currentDossier'])->name('blog.dossier.current');
+    Route::post('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'attach'])->name('blog.dossier.attach');
+    Route::delete('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'detach'])->name('blog.dossier.detach');
 
     // Blog invitation endpoints
     Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'index'])->name('blog.invite.index');
@@ -403,6 +418,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/bugs-reports', [AdminBugReportController::class, 'index'])->name('bug-reports');
     Route::patch('/bugs-reports/{bugReport}/fix', [AdminBugReportController::class, 'fix'])->name('bug-reports.fix');
     Route::patch('/bugs-reports/{bugReport}/dismiss', [AdminBugReportController::class, 'dismiss'])->name('bug-reports.dismiss');
+    Route::delete('/bugs-reports/{bugReport}', [AdminBugReportController::class, 'destroy'])->name('bug-reports.destroy');
 
     // Referral invitations
     Route::get('/referrals', [AdminReferralController::class, 'index'])->name('referrals');
@@ -495,6 +511,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
+    Route::get('/todo', [AdminBlogTodoController::class, 'index'])->name('todo');
+    Route::patch('/todo/{todo}', [AdminBlogTodoController::class, 'update'])->name('todo.update');
+    Route::delete('/todo/{todo}', [AdminBlogTodoController::class, 'destroy'])->name('todo.destroy');
     Route::get('/blog/{post}/edit', [AdminBlogController::class, 'edit'])->name('blog.edit');
     Route::put('/blog/{post}', [AdminBlogController::class, 'update'])->name('blog.update');
     Route::patch('/blog/{post}/status', [AdminBlogController::class, 'updateStatus'])->name('blog.status');
@@ -561,6 +580,9 @@ Route::prefix('/org/{organization}')
         });
 
         Route::get('/abonnements', [SubscriptionController::class, 'orgIndex'])->name('subscriptions');
+
+        // Boucles landing (guest-friendly, org-scoped explanation page)
+        Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index');
 
         Route::middleware('auth')->group(function () {
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -645,6 +667,38 @@ Route::prefix('/org/{organization}')
             Route::middleware('verified')->group(function () {
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
 
+                // Dossiers (org-scoped, private foundation)
+                Route::get('/dossiers', [DossierController::class, 'index'])->name('dossiers.index');
+                Route::get('/dossiers/create', [DossierController::class, 'create'])->name('dossiers.create');
+                Route::post('/dossiers', [DossierController::class, 'store'])->name('dossiers.store');
+                Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
+                Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
+                Route::post('/dossiers/{dossier}/articles', [DossierArticleController::class, 'store'])->name('dossiers.articles.store');
+                Route::post('/dossiers/{dossier}/articles/create-and-attach', [DossierArticleController::class, 'createAndAttach'])->name('dossiers.articles.create-and-attach');
+                Route::delete('/dossiers/{dossier}/articles/{post}', [DossierArticleController::class, 'destroy'])->name('dossiers.articles.destroy');
+                Route::patch('/dossiers/{dossier}/articles/reorder', [DossierArticleController::class, 'reorder'])->name('dossiers.articles.reorder');
+                Route::get('/dossiers/{dossier}/articles/search', [DossierArticleController::class, 'search'])->name('dossiers.articles.search');
+                Route::get('/dossiers/{dossier}/members', [DossierMemberController::class, 'index'])->name('dossiers.members.index');
+                Route::post('/dossiers/{dossier}/members', [DossierMemberController::class, 'store'])->name('dossiers.members.store');
+                Route::patch('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'update'])->name('dossiers.members.update');
+                Route::delete('/dossiers/{dossier}/members/{member}', [DossierMemberController::class, 'destroy'])->name('dossiers.members.destroy');
+                Route::get('/dossiers/{dossier}/members/search', [DossierMemberController::class, 'search'])->name('dossiers.members.search');
+                Route::get('/dossiers/{dossier}/series', [DossierSeriesController::class, 'show'])->name('dossiers.series.show');
+                Route::post('/dossiers/{dossier}/series', [DossierSeriesController::class, 'store'])->name('dossiers.series.store');
+                Route::patch('/dossiers/{dossier}/series', [DossierSeriesController::class, 'update'])->name('dossiers.series.update');
+                Route::delete('/dossiers/{dossier}/series', [DossierSeriesController::class, 'destroy'])->name('dossiers.series.destroy');
+                Route::post('/dossiers/{dossier}/series/annexes', [DossierSeriesController::class, 'addAnnex'])->name('dossiers.series.annexes.store');
+                Route::delete('/dossiers/{dossier}/series/annexes/{item}', [DossierSeriesController::class, 'removeAnnex'])->name('dossiers.series.annexes.destroy');
+                Route::patch('/dossiers/{dossier}/series/annexes/reorder', [DossierSeriesController::class, 'reorderAnnexes'])->name('dossiers.series.annexes.reorder');
+                Route::get('/dossiers/{dossier}/edit', [DossierController::class, 'edit'])->name('dossiers.edit');
+                Route::patch('/dossiers/{dossier}', [DossierController::class, 'update'])->name('dossiers.update');
+                Route::delete('/dossiers/{dossier}', [DossierController::class, 'destroy'])->name('dossiers.destroy');
+                Route::get('/dossiers/{dossier}/files', [DossierFileController::class, 'index'])->name('dossiers.files.index');
+                Route::post('/dossiers/{dossier}/files', [DossierFileController::class, 'store'])->name('dossiers.files.store');
+                Route::get('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'show'])->name('dossiers.files.show');
+                Route::get('/dossiers/{dossier}/files/{file}/preview', [DossierFileController::class, 'preview'])->name('dossiers.files.preview');
+                Route::delete('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'destroy'])->name('dossiers.files.destroy');
+
                 // Blog (org-scoped)
                 Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->name('blog.create');
                 Route::get('/blog/mes-articles', [BlogController::class, 'orgMyPosts'])->name('blog.my-posts');
@@ -712,6 +766,13 @@ Route::prefix('/org/{organization}')
 
                 // Blog plan endpoint (org-scoped)
                 Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'orgUpdatePlan'])->name('blog.plan.update');
+
+                // Blog dossier classification endpoints (org-scoped)
+                Route::get('/blog/dossiers', [BlogDossierApiController::class, 'orgListDossiers'])->name('blog.dossiers.index');
+                Route::post('/blog/dossiers', [BlogDossierApiController::class, 'orgQuickCreate'])->name('blog.dossiers.store');
+                Route::get('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgCurrentDossier'])->name('blog.dossier.current');
+                Route::post('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgAttach'])->name('blog.dossier.attach');
+                Route::delete('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgDetach'])->name('blog.dossier.detach');
 
                 // Blog invitation endpoints (org-scoped)
                 Route::get('/blog/{post:slug}/invitations', [BlogInvitationController::class, 'orgIndex'])->name('blog.invite.index');

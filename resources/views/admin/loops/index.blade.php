@@ -75,7 +75,7 @@
                     </td>
                     <td class="px-4 py-3 hidden lg:table-cell text-xs text-gray-600 dark:text-gray-400">
                         @if($orgLoop->creator)
-                        <p class="font-medium text-gray-900 dark:text-gray-100">{{ $orgLoop->creator->name }}</p>
+                        <p class="font-medium text-gray-900 dark:text-gray-100">{{ $orgLoop->creator->full_name }}</p>
                         <p class="text-xs text-gray-500 truncate max-w-[140px]">{{ $orgLoop->creator->email }}</p>
                         @else
                         <span class="text-gray-400">—</span>

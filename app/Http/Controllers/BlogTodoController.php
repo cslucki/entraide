@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 
 class BlogTodoController extends Controller
 {
-    public function index(BlogPost $post): JsonResponse
+    public function index(Request $request, BlogPost $post): JsonResponse
     {
         $organization = currentOrganization();
         if (! $organization || $post->organization_id !== $organization->id) {
@@ -25,38 +25,41 @@ class BlogTodoController extends Controller
             ->orderBy('position')
             ->orderBy('created_at')
             ->get()
-            ->map(fn ($todo) => $this->serialize($todo));
+            ->map(fn ($todo) => $this->serialize($todo, $post, $request->user()));
 
         return response()->json(['todos' => $todos]);
     }
 
     public function store(Request $request, BlogPost $post): JsonResponse
     {
-        $organization = currentOrganization();
-        if (! $organization || $post->organization_id !== $organization->id) {
-            abort(404);
-        }
-
-        $this->authorize('update', $post);
+        $organization = $this->authorizeTodoAccess($post);
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'assigned_to' => ['nullable', 'string', 'uuid'],
         ]);
 
-        if ($validated['assigned_to'] ?? null) {
-            $assigned = User::where('id', $validated['assigned_to'])->first();
-            if (! $assigned) {
-                return response()->json(['message' => __('blog.todo_invalid_assignee')], 422);
+        $user = $request->user();
+        $assignedTo = array_key_exists('assigned_to', $validated) ? $validated['assigned_to'] : $user->id;
+
+        if (! $this->isAuthor($post, $user)) {
+            if (array_key_exists('assigned_to', $validated) && $assignedTo !== $user->id) {
+                return response()->json(['message' => __('blog.todo_action_not_allowed')], 403);
             }
+
+            $assignedTo = $user->id;
+        }
+
+        if ($assignedTo !== null && $assignedTo !== '' && ! $this->canAssignToUser($post, $assignedTo)) {
+            return response()->json(['message' => __('blog.todo_invalid_assignee')], 422);
         }
 
         $maxPosition = $post->todos()->max('position') ?? 0;
 
         $todo = $post->todos()->create([
             'organization_id' => $organization->id,
-            'user_id' => $request->user()->id,
-            'assigned_to' => $validated['assigned_to'] ?? $request->user()->id,
+            'user_id' => $user->id,
+            'assigned_to' => $assignedTo ?: null,
             'title' => $validated['title'],
             'status' => 'todo',
             'position' => $maxPosition + 1,
@@ -66,18 +69,13 @@ class BlogTodoController extends Controller
 
         return response()->json([
             'message' => __('blog.todo_created'),
-            'todo' => $this->serialize($todo),
+            'todo' => $this->serialize($todo, $post, $request->user()),
         ], 201);
     }
 
     public function update(Request $request, BlogPost $post, BlogTodo $todo): JsonResponse
     {
-        $organization = currentOrganization();
-        if (! $organization || $post->organization_id !== $organization->id) {
-            abort(404);
-        }
-
-        $this->authorize('update', $post);
+        $this->authorizeTodoAccess($post, $todo);
 
         $validated = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
@@ -85,14 +83,27 @@ class BlogTodoController extends Controller
             'assigned_to' => ['sometimes', 'nullable', 'string', 'uuid'],
         ]);
 
+        $user = $request->user();
+
+        if (array_key_exists('title', $validated) && ! $this->canEditTodo($post, $todo, $user)) {
+            return response()->json(['message' => __('blog.todo_action_not_allowed')], 403);
+        }
+
+        if (array_key_exists('status', $validated)) {
+            if (! $this->canChangeTodoStatus($post, $todo, $user)) {
+                return response()->json(['message' => __('blog.todo_action_not_allowed')], 403);
+            }
+        }
+
         if (array_key_exists('assigned_to', $validated)) {
+            if (! $this->canAssignTodo($post, $todo, $user)) {
+                return response()->json(['message' => __('blog.todo_action_not_allowed')], 403);
+            }
+
             if ($validated['assigned_to'] === '' || $validated['assigned_to'] === null) {
                 $validated['assigned_to'] = null;
-            } else {
-                $assigned = User::where('id', $validated['assigned_to'])->first();
-                if (! $assigned) {
-                    return response()->json(['message' => __('blog.todo_invalid_assignee')], 422);
-                }
+            } elseif (! $this->canAssignToUser($post, $validated['assigned_to'])) {
+                return response()->json(['message' => __('blog.todo_invalid_assignee')], 422);
             }
         }
 
@@ -101,18 +112,19 @@ class BlogTodoController extends Controller
 
         return response()->json([
             'message' => __('blog.todo_updated'),
-            'todo' => $this->serialize($todo),
+            'todo' => $this->serialize($todo, $post, $request->user()),
         ]);
     }
 
     public function destroy(Request $request, BlogPost $post, BlogTodo $todo): JsonResponse
     {
-        $organization = currentOrganization();
-        if (! $organization || $post->organization_id !== $organization->id) {
-            abort(404);
-        }
+        $this->authorizeTodoAccess($post, $todo);
 
-        $this->authorize('update', $post);
+        $user = $request->user();
+
+        if (! $this->canDeleteTodo($post, $todo, $user)) {
+            return response()->json(['message' => __('blog.todo_not_allowed')], 403);
+        }
 
         $todo->delete();
 
@@ -121,12 +133,11 @@ class BlogTodoController extends Controller
 
     public function threadStore(Request $request, BlogPost $post, BlogTodo $todo): JsonResponse
     {
-        $organization = currentOrganization();
-        if (! $organization || $post->organization_id !== $organization->id) {
-            abort(404);
-        }
+        $this->authorizeTodoAccess($post, $todo);
 
-        $this->authorize('update', $post);
+        if (! $this->canEditTodo($post, $todo, $request->user())) {
+            return response()->json(['message' => __('blog.todo_action_not_allowed')], 403);
+        }
 
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:5000'],
@@ -147,12 +158,11 @@ class BlogTodoController extends Controller
 
     public function threadDestroy(Request $request, BlogPost $post, BlogTodo $todo, BlogTodoThread $thread): JsonResponse
     {
-        $organization = currentOrganization();
-        if (! $organization || $post->organization_id !== $organization->id) {
+        $this->authorizeTodoAccess($post, $todo);
+
+        if ($thread->todo_id !== $todo->id) {
             abort(404);
         }
-
-        $this->authorize('update', $post);
 
         if ($thread->user_id !== $request->user()->id) {
             return response()->json(['message' => __('blog.todo_thread_not_owner')], 403);
@@ -165,7 +175,7 @@ class BlogTodoController extends Controller
 
     public function orgIndex(Request $request, string $organization, BlogPost $post): JsonResponse
     {
-        return $this->callWithOrg($request, $organization, fn () => $this->index($post));
+        return $this->callWithOrg($request, $organization, fn () => $this->index($request, $post));
     }
 
     public function orgStore(Request $request, string $organization, BlogPost $post): JsonResponse
@@ -200,7 +210,7 @@ class BlogTodoController extends Controller
         return $callback();
     }
 
-    private function serialize(BlogTodo $todo): array
+    private function serialize(BlogTodo $todo, BlogPost $post, User $user): array
     {
         return [
             'id' => $todo->id,
@@ -210,10 +220,98 @@ class BlogTodoController extends Controller
             'user_id' => $todo->user_id,
             'assigned_to' => $todo->assigned_to ?? '',
             'assigned_to_name' => $todo->assignedTo?->name,
+            'can_edit' => $this->canEditTodo($post, $todo, $user),
+            'can_assign' => $this->canAssignTodo($post, $todo, $user),
+            'can_change_status' => $this->canChangeTodoStatus($post, $todo, $user),
+            'can_complete' => $this->canCompleteTodo($post, $todo, $user),
+            'can_reopen' => $this->canReopenTodo($post, $todo, $user),
+            'can_delete' => $this->canDeleteTodo($post, $todo, $user),
             'created_at' => $todo->created_at->toISOString(),
             'created_at_human' => $todo->created_at->diffForHumans(),
             'threads' => $todo->threads->map(fn ($t) => $this->serializeThread($t)),
         ];
+    }
+
+    private function authorizeTodoAccess(BlogPost $post, ?BlogTodo $todo = null): mixed
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        if ($todo && ($todo->blog_post_id !== $post->id || $todo->organization_id !== $post->organization_id)) {
+            abort(404);
+        }
+
+        $this->authorize('update', $post);
+
+        return $organization;
+    }
+
+    private function isAuthor(BlogPost $post, User $user): bool
+    {
+        return $post->user_id === $user->id;
+    }
+
+    private function isAssigned(BlogTodo $todo, User $user): bool
+    {
+        return $todo->assigned_to === $user->id;
+    }
+
+    private function canEditTodo(BlogPost $post, BlogTodo $todo, User $user): bool
+    {
+        return $this->isAuthor($post, $user) || $this->isAssigned($todo, $user);
+    }
+
+    private function canAssignTodo(BlogPost $post, BlogTodo $todo, User $user): bool
+    {
+        return $this->isAuthor($post, $user);
+    }
+
+    private function canCompleteTodo(BlogPost $post, BlogTodo $todo, User $user): bool
+    {
+        return $this->canChangeTodoStatus($post, $todo, $user);
+    }
+
+    private function canReopenTodo(BlogPost $post, BlogTodo $todo, User $user): bool
+    {
+        return $this->canChangeTodoStatus($post, $todo, $user);
+    }
+
+    private function canChangeTodoStatus(BlogPost $post, BlogTodo $todo, User $user): bool
+    {
+        if ($todo->assigned_to !== null) {
+            return $this->isAssigned($todo, $user);
+        }
+
+        return $this->isAuthor($post, $user);
+    }
+
+    private function canDeleteTodo(BlogPost $post, BlogTodo $todo, User $user): bool
+    {
+        if ($this->isAuthor($post, $user)) {
+            return true;
+        }
+
+        if ($this->isAssigned($todo, $user)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function canAssignToUser(BlogPost $post, string $userId): bool
+    {
+        if ($post->user_id === $userId) {
+            return User::where('id', $userId)
+                ->where('organization_id', $post->organization_id)
+                ->exists();
+        }
+
+        return $post->coAuthors()
+            ->where('users.id', $userId)
+            ->where('users.organization_id', $post->organization_id)
+            ->exists();
     }
 
     private function serializeThread(BlogTodoThread $thread): array

@@ -383,7 +383,7 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                                {{ $override->createdBy?->name ?? '—' }}
+                                {{ $override->createdBy?->full_name ?? '—' }}
                             </td>
                             <td class="px-4 py-3 text-right">
                                 <a href="{{ route('admin.translations.overrides.edit', $override) }}"

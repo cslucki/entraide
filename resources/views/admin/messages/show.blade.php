@@ -9,7 +9,7 @@
             <div>
                 <p class="text-xs text-gray-500 mb-1">{{ $message->created_at->format('d/m/Y à H:i') }}</p>
                 <p class="font-semibold text-gray-900 dark:text-gray-100">
-                    {{ $message->sender->name ?? 'Système' }}
+                    {{ $message->sender->full_name ?? 'Système' }}
                     @if($message->sender)
                     <span class="text-xs text-gray-500 font-normal ml-1">{{ $message->sender->email }}</span>
                     @endif
@@ -18,7 +18,7 @@
                 <p class="text-xs text-gray-500 mt-0.5">
                     Transaction :
                     <a href="{{ route('admin.transactions') }}" class="text-indigo-600 hover:underline">
-                        {{ $message->transaction->buyer->name ?? '?' }} ↔ {{ $message->transaction->seller->name ?? '?' }}
+                        {{ $message->transaction->buyer->full_name ?? '?' }} ↔ {{ $message->transaction->seller->full_name ?? '?' }}
                     </a>
                 </p>
                 @endif
@@ -41,7 +41,7 @@
         @foreach($before as $ctx)
         <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 opacity-75">
             <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ $ctx->sender->name ?? 'Système' }}</span>
+                <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ $ctx->sender->full_name ?? 'Système' }}</span>
                 <span class="text-xs text-gray-400">{{ $ctx->created_at->format('d/m/Y H:i') }}</span>
             </div>
             <p class="text-sm text-gray-700 dark:text-gray-300">{{ Str::limit($ctx->body, 200) }}</p>
@@ -51,7 +51,7 @@
         <!-- Le message ciblé dans le fil -->
         <div class="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border-2 border-indigo-400 px-4 py-3">
             <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-semibold text-indigo-700 dark:text-indigo-300">{{ $message->sender->name ?? 'Système' }} ← message ciblé</span>
+                <span class="text-xs font-semibold text-indigo-700 dark:text-indigo-300">{{ $message->sender->full_name ?? 'Système' }} ← message ciblé</span>
                 <span class="text-xs text-gray-400">{{ $message->created_at->format('d/m/Y H:i') }}</span>
             </div>
             <p class="text-sm text-gray-700 dark:text-gray-300">{{ Str::limit($message->body, 200) }}</p>
@@ -60,7 +60,7 @@
         @foreach($after as $ctx)
         <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 opacity-75">
             <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ $ctx->sender->name ?? 'Système' }}</span>
+                <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ $ctx->sender->full_name ?? 'Système' }}</span>
                 <span class="text-xs text-gray-400">{{ $ctx->created_at->format('d/m/Y H:i') }}</span>
             </div>
             <p class="text-sm text-gray-700 dark:text-gray-300">{{ Str::limit($ctx->body, 200) }}</p>

@@ -109,11 +109,10 @@
 
             /* Mobile safe areas */
             .mobile-safe-top { padding-top: 0; }
-            .mobile-safe-bottom { padding-bottom: 0; }
             .mobile-safe-bottom-auth { padding-bottom: 0; }
             @media (max-width: 767px) {
-                .mobile-safe-top { padding-top: 3.5rem; }
-                .mobile-safe-bottom-auth { padding-bottom: 4rem; }
+                .mobile-safe-top { padding-top: calc(3.5rem + env(safe-area-inset-top, 0px)); }
+                .mobile-safe-bottom-auth { padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px)); }
             }
         </style>
     </head>
@@ -121,7 +120,7 @@
         {{-- Admin impersonation banner --}}
         @if(session('admin_original_id'))
         <div class="bg-amber-500 text-amber-950 px-4 py-2 text-sm font-medium flex items-center justify-center gap-3">
-            <span>Connecté sous <strong>{{ auth()->user()->name }}</strong> (mode admin)</span>
+            <span>Connecté sous <strong>{{ auth()->user()->full_name }}</strong> (mode admin)</span>
             <a href="{{ route('admin.back-to-admin') }}"
                class="inline-flex items-center gap-1 px-3 py-1 bg-amber-700 text-white rounded-lg text-xs font-semibold hover:bg-amber-800 transition">
                 Retour au compte admin

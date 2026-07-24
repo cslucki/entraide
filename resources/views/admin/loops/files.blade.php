@@ -29,7 +29,7 @@
                             </td>
                             <td class="px-4 py-3 hidden md:table-cell">
                                 @if($message->sender)
-                                <p class="text-xs text-gray-600 dark:text-gray-400">{{ $message->sender->name }}</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">{{ $message->sender->full_name }}</p>
                                 @endif
                             </td>
                             <td class="px-4 py-3 hidden md:table-cell text-xs text-gray-500 whitespace-nowrap">

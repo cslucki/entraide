@@ -86,7 +86,7 @@
                                 @endif
                                 @foreach($orgUsers as $u)
                                 <option value="{{ $u->id }}" @disabled($boucle->members->pluck('user_id')->contains($u->id))>
-                                    {{ $u->name }} — {{ $u->email }}@if($hasMultipleOrgs) · {{ $orgName }}@endif
+                                    {{ $u->full_name }} — {{ $u->email }}@if($hasMultipleOrgs) · {{ $orgName }}@endif
                                 </option>
                                 @endforeach
                                 @if($hasMultipleOrgs)

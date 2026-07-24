@@ -30,25 +30,7 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->user();
 
-        if ($user->is_admin) {
-            if ($user->organization_id) {
-                $organization = $user->organization;
-                if ($organization && $organization->is_active) {
-                    return redirect()->intended(canonicalHome($organization));
-                }
-            }
-
-            return redirect()->intended(route('admin.dashboard', absolute: false));
-        }
-
-        if ($user->organization_id) {
-            $organization = $user->organization;
-            if ($organization && $organization->is_active) {
-                return redirect()->intended(canonicalHome($organization));
-            }
-        }
-
-        return redirect('/');
+        return redirect()->intended($user->getLoginRedirectTarget());
     }
 
     /**

@@ -228,6 +228,13 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function sharedDossiers(): BelongsToMany
+    {
+        return $this->belongsToMany(Dossier::class, 'dossier_members')
+            ->withPivot('role', 'added_by')
+            ->withTimestamps();
+    }
+
     public function getAvatarUrlAttribute(): string
     {
         if ($this->avatar) {
@@ -235,5 +242,33 @@ class User extends Authenticatable
         }
 
         return 'https://ui-avatars.com/api/?name='.urlencode($this->full_name).'&background=6366f1&color=fff';
+    }
+
+    /**
+     * Determine the post-login redirect target based on user role.
+     */
+    public function getLoginRedirectTarget(): string
+    {
+        // Global admin → admin dashboard
+        if ($this->is_admin) {
+            return route('admin.dashboard', absolute: false);
+        }
+
+        // Org admin (not global) → org-scoped admin dashboard
+        if ($this->organization_id
+            && $this->organization?->admin_id === $this->id
+            && $this->organization?->is_active
+        ) {
+            return route('organization.admin.dashboard', [
+                'organization' => $this->organization->slug,
+            ], absolute: false);
+        }
+
+        // Regular user → canonical home (loops for default org, org home for scoped org)
+        if ($this->organization_id && $this->organization?->is_active) {
+            return canonicalHome($this->organization);
+        }
+
+        return '/dashboard';
     }
 }

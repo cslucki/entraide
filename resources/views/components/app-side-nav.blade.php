@@ -28,7 +28,7 @@
             'active' => ['flux', 'organization.flux'],
             'label' => __('navigation.feed'),
             'hint' => __('navigation.announcements'),
-            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z',
+            'icon' => 'M4 5h16M4 12h10M4 19h16M18 9l3 3-3 3',
             'visible' => $canSeeFlux,
             'tone' => 'flux',
         ],
@@ -69,16 +69,24 @@
             'hint' => __('navigation.articles'),
             'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
         ],
+        [
+            'url' => $organizationRouteParam && Route::has('organization.dossiers.index') ? route('organization.dossiers.index', ['organization' => $organizationRouteParam]) : '#',
+            'active' => ['organization.dossiers'],
+            'label' => __('navigation.my_dossiers'),
+            'hint' => __('navigation.my_dossiers'),
+            'icon' => 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z',
+            'visible' => (bool) $organizationRouteParam && Route::has('organization.dossiers.index'),
+        ],
     ] : [
         [
-            'url' => route('boucles.index'),
+            'url' => $routeUrl('boucles.index', 'organization.boucles.index'),
             'active' => ['boucles'],
             'label' => __('navigation.loops'),
             'hint' => __('navigation.groups'),
             'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
         ],
         [
-            'url' => route('explorer'),
+            'url' => $routeUrl('explorer', 'organization.explorer'),
             'active' => ['explorer'],
             'label' => __('navigation.exchanges'),
             'hint' => __('navigation.services'),
@@ -132,8 +140,9 @@
 
         <div class="mt-2 flex items-center gap-0.5 rounded-full bg-[var(--bp-panel)] px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-[var(--bp-border)]" aria-label="{{ __('navigation.language_switcher') }}">
             @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
-                <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}">
+                <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
                     @csrf
+                    <input type="hidden" name="redirect_to" value="">
                     <button type="submit"
                         class="rounded-full px-1.5 py-0.5 transition {{ $currentLocale === $locale ? 'bg-[var(--bp-primary)] text-white shadow-sm' : 'text-[var(--bp-muted)] hover:text-[var(--bp-text)]' }}"
                         aria-current="{{ $currentLocale === $locale ? 'true' : 'false' }}">
@@ -192,15 +201,15 @@
                 <x-dropdown align="left-up" width="w-64" contentClasses="py-2 bg-white dark:bg-gray-800">
                     <x-slot name="trigger">
                         <button class="relative flex h-11 w-11 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
-                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->name }}">
+                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
                             <span class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
                         </button>
                     </x-slot>
                     <x-slot name="content">
                         <div class="flex items-center gap-3 px-4 pb-3 pt-2">
-                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->name }}">
+                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
                             <div class="min-w-0">
-                                <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ Auth::user()->name }}</p>
+                                <p class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ Auth::user()->full_name }}</p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400">{{ Auth::user()->points_balance }} pts</p>
                             </div>
                         </div>

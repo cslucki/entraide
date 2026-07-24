@@ -232,6 +232,16 @@
                     @error('status')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
                 </div>
 
+                @if($post->status === 'published' || $post->published_at)
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_published_at') }}</label>
+                    <input type="datetime-local" name="published_at" value="{{ old('published_at', $post->published_at ? $post->published_at->format('Y-m-d') : '') }}T{{ old('published_at', $post->published_at ? $post->published_at->format('H:i') : '') }}"
+                        class="w-full px-3 py-2 border @error('published_at') border-red-500 ring-1 ring-red-500 dark:border-red-500 @else border-gray-300 dark:border-gray-600 @enderror rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 text-sm">
+                    @error('published_at')<p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ $message }}</p>@enderror
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('blog.published_at_help') }}</p>
+                </div>
+                @endif
+
                 <section x-data="{ showToc: {{ old('show_toc', $post->show_toc) ? 'true' : 'false' }} }" class="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
                     <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -435,6 +445,139 @@
                 </div>
                 {{-- /Boucle card --}}
 
+                {{-- Dossier card --}}
+                <div
+                    x-data="blogDossierCard({
+                        currentDossierUrl: @js($_blogRoute('dossier.current', ['post' => $post])),
+                        dossiersUrl: @js($_blogRoute('dossiers.index')),
+                        attachUrl: @js($_blogRoute('dossier.attach', ['post' => $post])),
+                        detachUrl: @js($_blogRoute('dossier.detach', ['post' => $post])),
+                        quickCreateUrl: @js($_blogRoute('dossiers.store')),
+                        i18n: {
+                            sidebar: @js(__('blog.sidebar_dossier')),
+                            notClassified: @js(__('blog.dossier_not_classified')),
+                            selectPlaceholder: @js(__('blog.dossier_select_placeholder')),
+                            classify: @js(__('blog.dossier_classify')),
+                            move: @js(__('blog.dossier_move')),
+                            detach: @js(__('blog.dossier_detach')),
+                            classified: @js(__('blog.dossier_classified')),
+                            moved: @js(__('blog.dossier_moved')),
+                            detached: @js(__('blog.dossier_detached')),
+                            quickCreate: @js(__('blog.dossier_quick_create')),
+                            quickCreatePlaceholder: @js(__('blog.dossier_quick_create_placeholder')),
+                            quickCreateBtn: @js(__('blog.dossier_quick_create_btn')),
+                            created: @js(__('blog.dossier_quick_create_created')),
+                            loadError: @js(__('blog.dossier_load_error')),
+                            classifyError: @js(__('blog.dossier_classify_error')),
+                            detachError: @js(__('blog.dossier_detach_error')),
+                            createError: @js(__('blog.dossier_create_error')),
+                            notSaved: @js(__('blog.dossier_article_not_saved')),
+                            moveError: @js(__('blog.dossier_move_error')),
+                            csrfToken: @js(csrf_token()),
+                        },
+                    })"
+                    class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                >
+                    <button
+                        @click="toggle()"
+                        class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+                    >
+                        <span class="flex items-center gap-1.5">
+                            <svg class="w-3 h-3 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                            <span x-text="i18n.sidebar"></span>
+                        </span>
+                        <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="{ 'rotate-180': open }"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+                        <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                        <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                        <template x-if="loading">
+                            <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2">…</p>
+                        </template>
+
+                        <template x-if="!loading && !currentDossier">
+                            <div class="space-y-2">
+                                <p class="text-xs text-gray-500 dark:text-gray-400" x-text="i18n.notClassified"></p>
+                                <div class="flex gap-2">
+                                    <select x-model="selectedDossierId"
+                                        class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-amber-500">
+                                        <option value="" x-text="i18n.selectPlaceholder"></option>
+                                        <template x-for="d in dossiers" :key="d.id">
+                                            <option :value="d.id" x-text="d.name"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" @click="classify()" :disabled="saving || !selectedDossierId"
+                                        class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                                        <span x-text="i18n.classify"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="!loading && currentDossier">
+                            <div class="rounded-lg border border-amber-100 bg-amber-50/60 p-2 dark:border-amber-900/60 dark:bg-amber-950/10">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="currentDossier.name"></span>
+                                    <button type="button" @click="detach()"
+                                        class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition disabled:opacity-50"
+                                        :disabled="saving">
+                                        <span x-text="i18n.detach"></span>
+                                    </button>
+                                </div>
+                                <div class="mt-1.5 flex gap-2">
+                                    <select x-model="selectedDossierId"
+                                        class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-amber-500">
+                                        <option value="" x-text="i18n.selectPlaceholder"></option>
+                                        <template x-for="d in dossiers.filter(d => d.id !== currentDossier.id)" :key="d.id">
+                                            <option :value="d.id" x-text="d.name"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" @click="classify()" :disabled="saving || !selectedDossierId"
+                                        class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                                        <span x-text="i18n.move"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="border-t border-gray-100 dark:border-gray-700 pt-3">
+                            <template x-if="!showQuickCreate">
+                                <button type="button" @click="showQuickCreate = true"
+                                    class="text-[10px] font-semibold text-amber-600 dark:text-amber-400 hover:underline">
+                                    <span x-text="i18n.quickCreate"></span>
+                                </button>
+                            </template>
+                            <template x-if="showQuickCreate">
+                                <div class="flex gap-1.5">
+                                    <input type="text" x-model="newDossierName"
+                                        :placeholder="i18n.quickCreatePlaceholder"
+                                        @keydown.enter="quickCreate()"
+                                        class="flex-1 min-w-0 px-2 py-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                                    >
+                                    <button type="button" @click="quickCreate()"
+                                        :disabled="creating || !newDossierName.trim()"
+                                        class="shrink-0 px-2 py-1 text-[10px] font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
+                                        <span x-text="creating ? '…' : i18n.quickCreateBtn"></span>
+                                    </button>
+                                    <button type="button" @click="showQuickCreate = false; newDossierName = ''"
+                                        class="shrink-0 px-2 py-1 text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+                                        ✕
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                {{-- /Dossier card --}}
+
                 {{-- Todo card --}}
                 <div
                     x-data="blogTodoCard({
@@ -451,6 +594,7 @@
                                 ->values()
                                 ->toArray()
                         ),
+                        authorUserId: @js($post->user_id),
                         currentUserId: @js(auth()->id()),
                         i18n: {
                             title: @js(__('blog.todo_title')),
@@ -520,7 +664,7 @@
                             ></button>
                         </div>
                         {{-- Assignee picker --}}
-                        <div class="flex gap-1.5 items-center">
+                        <div x-show="currentUserId === authorUserId" class="flex gap-1.5 items-center">
                             <span class="text-[9px] text-gray-400 shrink-0">{{ __('blog.todo_assign') }}</span>
                             <select x-model="newAssignee"
                                 class="flex-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
@@ -560,16 +704,24 @@
                             <div class="rounded border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-2 space-y-1" :class="{ 'opacity-60': todo.status === 'done' }">
                                 <div class="flex items-start gap-1.5">
                                     {{-- Checkbox done/todo --}}
-                                    <input type="checkbox"
-                                        :checked="todo.status === 'done'"
-                                        @change="toggleDone(todo)"
-                                        class="mt-0.5 shrink-0 w-3 h-3 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                    >
+                                    <template x-if="canToggleStatus(todo)">
+                                        <input type="checkbox"
+                                            :checked="todo.status === 'done'"
+                                            @change="toggleDone(todo)"
+                                            class="mt-0.5 shrink-0 w-3 h-3 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                        >
+                                    </template>
+                                    <template x-if="!canToggleStatus(todo)">
+                                        <span class="mt-0.5 shrink-0 w-3 h-3"></span>
+                                    </template>
                                     <div class="flex-1 min-w-0">
                                         {{-- Title --}}
                                         <template x-if="editingTodo !== todo.id">
-                                            <span class="block text-xs font-medium break-words cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition"
-                                                :class="todo.status === 'done' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-gray-100'"
+                                            <span class="block text-xs font-medium break-words transition"
+                                                :class="[
+                                                    todo.status === 'done' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-gray-100',
+                                                    todo.can_edit ? 'cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400' : 'cursor-default'
+                                                ]"
                                                 @click="startEdit(todo)"
                                                 x-text="todo.title"
                                             ></span>
@@ -585,10 +737,13 @@
                                         </template>
                                         {{-- Assigned to --}}
                                         <div class="text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">
-                                            <template x-if="editingAssignee !== todo.id">
+                                            <template x-if="editingAssignee !== todo.id && todo.can_assign">
                                                 <button type="button" @click="startEditAssignee(todo)" class="hover:text-gray-600 dark:hover:text-gray-300 transition text-left">
                                                     <span x-text="todo.assigned_to_name ? (i18n.assign + ' ' + todo.assigned_to_name) : i18n.unassigned"></span>
                                                 </button>
+                                            </template>
+                                            <template x-if="editingAssignee !== todo.id && !todo.can_assign">
+                                                <span x-text="todo.assigned_to_name ? (i18n.assign + ' ' + todo.assigned_to_name) : i18n.unassigned"></span>
                                             </template>
                                             <template x-if="editingAssignee === todo.id">
                                                 <select x-model="todo.assigned_to"
@@ -607,16 +762,18 @@
                                     {{-- Actions --}}
                                     <div class="flex items-center gap-1 shrink-0">
                                         {{-- Status cycle --}}
-                                        <select x-model="todo.status"
-                                            @change="changeStatus(todo)"
-                                            class="text-[9px] border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
-                                        >
-                                            <option value="todo" x-text="i18n.statusTodo"></option>
-                                            <option value="in_progress" x-text="i18n.statusInProgress"></option>
-                                            <option value="done" x-text="i18n.statusDone"></option>
-                                        </select>
+                                        <template x-if="todo.can_change_status">
+                                            <select x-model="todo.status"
+                                                @change="changeStatus(todo)"
+                                                class="text-[9px] border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"
+                                            >
+                                                <option value="todo" :disabled="!canChooseStatus(todo, 'todo')" x-text="i18n.statusTodo"></option>
+                                                <option value="in_progress" :disabled="!canChooseStatus(todo, 'in_progress')" x-text="i18n.statusInProgress"></option>
+                                                <option value="done" :disabled="!canChooseStatus(todo, 'done')" x-text="i18n.statusDone"></option>
+                                            </select>
+                                        </template>
                                         {{-- Delete with inline confirmation --}}
-                                        <template x-if="pendingDelete !== todo.id">
+                                        <template x-if="todo.can_delete && pendingDelete !== todo.id">
                                             <button type="button" @click="confirmDeleteTodo(todo)"
                                                 class="text-[9px] text-red-400 hover:text-red-600 transition"
                                                 title="Delete"
@@ -624,7 +781,7 @@
                                                 <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                             </button>
                                         </template>
-                                        <template x-if="pendingDelete === todo.id">
+                                        <template x-if="todo.can_delete && pendingDelete === todo.id">
                                             <div class="flex items-center gap-1">
                                                 <button type="button" @click="doDeleteTodo(todo)"
                                                     class="text-[9px] font-semibold text-white bg-red-500 hover:bg-red-600 px-1.5 py-0.5 rounded transition"
@@ -801,6 +958,9 @@
                             copy: @js(__('blog.method_selection_copy')),
                             copied: @js(__('blog.method_selection_copied')),
                             rerun: @js(__('blog.method_selection_rerun')),
+                            deactivate: @js(__('blog.method_selection_deactivate')),
+                            wholeArticle: @js(__('blog.method_selection_whole_article')),
+                            wholeArticleHint: @js(__('blog.method_selection_whole_article_hint')),
                             resultLabel: @js(__('blog.method_selection_result_label')),
                             ready: @js(__('blog.method_selection_ready')),
                             error: @js(__('blog.method_selection_error')),
@@ -820,13 +980,26 @@
                     </button>
 
                     <div x-show="open" x-cloak class="space-y-3 px-3 pb-3">
-                        <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('blog.method_selection_hint') }}</p>
+                        <div class="flex items-start justify-between gap-3">
+                            <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('blog.method_selection_hint') }}</p>
+                            <button type="button" x-show="active" x-cloak @click="deactivate()" class="shrink-0 rounded-full border border-violet-200 px-2.5 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/30" x-text="i18n.deactivate"></button>
+                        </div>
 
-                        <div x-show="!selectedText" x-cloak class="rounded-lg border border-dashed border-violet-200 bg-violet-50/50 p-3 text-xs leading-5 text-violet-800 dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200">
+                        <button type="button" @click="openWholeArticleExplorer()" class="group flex w-full items-start gap-3 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-white p-3 text-left transition hover:border-purple-300 hover:shadow-sm dark:border-purple-900 dark:from-purple-950/30 dark:to-gray-900">
+                            <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white shadow-sm shadow-purple-900/20">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            </span>
+                            <span class="min-w-0">
+                                <span class="block text-sm font-bold text-purple-950 dark:text-purple-100" x-text="i18n.wholeArticle"></span>
+                                <span class="mt-0.5 block text-xs leading-5 text-purple-700/80 dark:text-purple-200/80" x-text="i18n.wholeArticleHint"></span>
+                            </span>
+                        </button>
+
+                        <div x-show="!active || !selectedText" x-cloak class="rounded-lg border border-dashed border-violet-200 bg-violet-50/50 p-3 text-xs leading-5 text-violet-800 dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200">
                             {{ __('blog.method_selection_no_selection') }}
                         </div>
 
-                        <div x-show="selectedText" x-cloak class="space-y-3">
+                        <div x-show="active && selectedText" x-cloak class="space-y-3">
                             <div class="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
                                 <p class="mb-1 font-semibold text-gray-500 dark:text-gray-400" x-text="i18n.selected"></p>
                                 <p class="line-clamp-3 italic" x-text="selectedText"></p>

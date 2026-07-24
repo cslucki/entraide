@@ -29,7 +29,7 @@
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
                     <td class="px-4 py-3">
                         @if($message->sender)
-                        <a href="{{ route('profile.show', $message->sender) }}" class="text-indigo-600 hover:underline text-xs">{{ $message->sender->name }}</a>
+                        <a href="{{ route('profile.show', $message->sender) }}" class="text-indigo-600 hover:underline text-xs">{{ $message->sender->full_name }}</a>
                         @else
                         <span class="text-xs text-gray-400">—</span>
                         @endif

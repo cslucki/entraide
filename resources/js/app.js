@@ -1,7 +1,19 @@
 import './bootstrap';
 import { createEditor } from './blog-editor';
 import { extractEmbedUrl } from './tiptap/media-embed-node.js';
+import * as FilePond from 'filepond';
+import 'filepond/dist/filepond.min.css';
+import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
+import FilePondPluginFileValidateSize from 'filepond-plugin-file-validate-size';
+import Sortable from 'sortablejs';
+window.FilePond = FilePond;
 window.createBlogEditor = createEditor;
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusableNodes(container) {
+    return Array.from(container.querySelectorAll(FOCUSABLE)).filter(n => n.offsetParent !== null);
+}
 
 function registerAlpineStores() {
     if (!window.Alpine || window.__boucleProAlpineStoresRegistered) {
@@ -402,6 +414,7 @@ function registerBlogEditor() {
         remaining: { generate: 3, correct: 3 },
         limits: { generate: 3, correct: 3 },
         activeStates: null,
+        methodSelectionActive: false,
         csrfToken: '',
         uploadRoute: '',
         aiRemainingRoute: '',
@@ -509,6 +522,14 @@ function registerBlogEditor() {
                     const ta = this.$refs?.fallbackTextarea;
                     if (ta) ta.value = e.detail.content;
                 }
+            });
+
+            window.addEventListener('method-selection-card-state', (event) => {
+                this.methodSelectionActive = event.detail?.active === true;
+            });
+
+            window.addEventListener('request-open-explorer-from-method-card', () => {
+                this.openExplorer();
             });
         },
 
@@ -862,6 +883,14 @@ function registerBlogEditor() {
                     editor.commands.setContent(data.content);
                     this.content = editor.getHTML();
                     this.syncHidden();
+                    if (data.title) {
+                        const titleInput = form?.querySelector('[name="title"]');
+                        if (titleInput) titleInput.value = data.title;
+                    }
+                    if (data.summary) {
+                        const summaryInput = form?.querySelector('[name="summary"]');
+                        if (summaryInput) summaryInput.value = data.summary;
+                    }
                     if (data.remaining) this.remaining = data.remaining;
                     if (data.provider) this.aiProvider = data.provider;
                     if (data.model) this.aiModel = data.model;
@@ -915,6 +944,10 @@ function registerBlogEditor() {
         },
 
         startEditorMethodSelection() {
+            if (this.methodSelectionActive) {
+                document.dispatchEvent(new CustomEvent('toggle-method-selection-card'));
+                return;
+            }
             if (!editor) return;
             const { from, to } = editor.state.selection;
             if (from === to) {
@@ -926,7 +959,7 @@ function registerBlogEditor() {
                 this.error = this.msgAnnotationTooShort;
                 return;
             }
-            document.dispatchEvent(new CustomEvent('open-method-selection-card'));
+            document.dispatchEvent(new CustomEvent('toggle-method-selection-card'));
         },
 
         usedCount(mode) {
@@ -953,6 +986,7 @@ function registerBlogMethodSelectionCard() {
 
     Alpine.data('blogMethodSelectionCard', (config) => ({
         open: false,
+        active: false,
         loading: false,
         error: '',
         success: '',
@@ -972,18 +1006,18 @@ function registerBlogMethodSelectionCard() {
         methods: config.methods || [],
 
         init() {
-            const stored = localStorage.getItem('editor_sidebar_card_methode_ia_selection');
-            if (stored !== null) this.open = stored === '1';
-            this.refreshSelection();
+            this.notifyState();
 
-            document.addEventListener('blog-editor-selection-updated', () => this.refreshSelection());
-            document.addEventListener('open-method-selection-card', () => {
-                this.open = true;
-                localStorage.setItem('editor_sidebar_card_methode_ia_selection', '1');
-                this.refreshSelection();
-                this._dispatching = true;
-                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
-                this._dispatching = false;
+            document.addEventListener('blog-editor-selection-updated', () => {
+                if (this.active) this.refreshSelection();
+            });
+            document.addEventListener('open-method-selection-card', () => this.activate());
+            document.addEventListener('toggle-method-selection-card', () => {
+                if (this.active) {
+                    this.deactivate();
+                } else {
+                    this.activate();
+                }
             });
             document.addEventListener('annotation-created', () => {
                 this.suggestion = '';
@@ -992,20 +1026,55 @@ function registerBlogMethodSelectionCard() {
             });
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
-                this.open = false;
-                localStorage.setItem('editor_sidebar_card_methode_ia_selection', '0');
+                this.deactivate();
             });
         },
 
         toggle() {
-            this.open = !this.open;
-            localStorage.setItem('editor_sidebar_card_methode_ia_selection', this.open ? '1' : '0');
-            this.refreshSelection();
             if (this.open) {
+                this.deactivate();
+                return;
+            }
+
+            this.activate(false);
+            this._dispatching = true;
+            window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+            this._dispatching = false;
+        },
+
+        activate(closeOtherCards = true) {
+            this.active = true;
+            this.open = true;
+            this.refreshSelection();
+            this.notifyState();
+            if (closeOtherCards) {
                 this._dispatching = true;
                 window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
                 this._dispatching = false;
             }
+        },
+
+        deactivate() {
+            this.active = false;
+            this.open = false;
+            this.selectedText = '';
+            this.from = null;
+            this.to = null;
+            this.suggestion = '';
+            this.error = '';
+            this.success = '';
+            this.notifyState();
+        },
+
+        notifyState() {
+            window.dispatchEvent(new CustomEvent('method-selection-card-state', {
+                detail: { active: this.active, open: this.open },
+            }));
+        },
+
+        openWholeArticleExplorer() {
+            this.deactivate();
+            window.dispatchEvent(new CustomEvent('request-open-explorer-from-method-card'));
         },
 
         refreshSelection() {
@@ -1568,6 +1637,1743 @@ function registerBlogInviteByEmail() {
     }));
 }
 
+function registerBlogDossierCard() {
+    if (!window.Alpine || window.__blogDossierCardRegistered) {
+        return;
+    }
+
+    window.__blogDossierCardRegistered = true;
+
+    Alpine.data('blogDossierCard', (config) => ({
+        open: false,
+        loading: false,
+        saving: false,
+        creating: false,
+        error: '',
+        success: '',
+        currentDossier: null,
+        dossiers: [],
+        selectedDossierId: '',
+        showQuickCreate: false,
+        newDossierName: '',
+
+        currentDossierUrl: config.currentDossierUrl,
+        dossiersUrl: config.dossiersUrl,
+        attachUrl: config.attachUrl,
+        detachUrl: config.detachUrl,
+        quickCreateUrl: config.quickCreateUrl,
+        i18n: config.i18n || {},
+
+        toggle() {
+            this.open = !this.open;
+            localStorage.setItem('editor_sidebar_card_dossier', this.open ? '1' : '0');
+            if (this.open) {
+                this.loadCurrent();
+                this.loadDossiers();
+                this._dispatching = true;
+                window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
+                this._dispatching = false;
+            }
+        },
+
+        init() {
+            const stored = localStorage.getItem('editor_sidebar_card_dossier');
+            if (stored !== null) this.open = stored === '1';
+            if (this.open) {
+                this.loadCurrent();
+                this.loadDossiers();
+            }
+
+            window.addEventListener('close-other-sidebar-cards', () => {
+                if (this._dispatching) return;
+                this.open = false;
+                localStorage.setItem('editor_sidebar_card_dossier', '0');
+            });
+        },
+
+        loadCurrent() {
+            this.loading = true;
+            this.error = '';
+            fetch(this.currentDossierUrl, { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    this.currentDossier = data.dossier || null;
+                    this.loading = false;
+                })
+                .catch(() => {
+                    this.error = this.i18n.loadError || 'Erreur de chargement.';
+                    this.loading = false;
+                });
+        },
+
+        loadDossiers() {
+            fetch(this.dossiersUrl, { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    this.dossiers = data.dossiers || [];
+                })
+                .catch(() => {});
+        },
+
+        classify() {
+            if (!this.selectedDossierId || this.saving) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.attachUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ dossier_id: this.selectedDossierId }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.classifyError;
+                        return;
+                    }
+                    this.currentDossier = data.dossier || null;
+                    this.selectedDossierId = '';
+                    this.success = data.message || this.i18n.classified;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.classifyError;
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        detach() {
+            if (this.saving) return;
+            this.saving = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.detachUrl, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.detachError;
+                        return;
+                    }
+                    this.currentDossier = null;
+                    this.success = data.message || this.i18n.detached;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.detachError;
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        quickCreate() {
+            const name = this.newDossierName.trim();
+            if (!name || this.creating) return;
+            this.creating = true;
+            this.error = '';
+            this.success = '';
+            fetch(this.quickCreateUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
+                body: JSON.stringify({ name }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.error = data.message || this.i18n.createError;
+                        return;
+                    }
+                    this.dossiers.push(data.dossier);
+                    this.selectedDossierId = data.dossier.id;
+                    this.newDossierName = '';
+                    this.showQuickCreate = false;
+                    this.success = data.message || this.i18n.created;
+                    setTimeout(() => { this.success = ''; }, 3000);
+                })
+                .catch(() => {
+                    this.error = this.i18n.createError;
+                })
+                .finally(() => { this.creating = false; });
+        },
+    }));
+}
+
+function normalizeArticle(blogPost) {
+    if (!blogPost) return null;
+    return {
+        id: blogPost.id,
+        blogPostId: blogPost.blog_post_id || blogPost.id,
+        title: blogPost.title || null,
+        slug: blogPost.slug || null,
+        status: blogPost.status || 'draft',
+        updatedAt: blogPost.updated_at || blogPost.updatedAt || null,
+        publishedAt: blogPost.published_at || blogPost.publishedAt || null,
+        author: blogPost.author || null,
+        coAuthors: blogPost.coAuthors || [],
+        canView: blogPost.canView || false,
+        canEdit: blogPost.canEdit || false,
+        viewUrl: blogPost.viewUrl || null,
+        editUrl: blogPost.editUrl || null,
+    };
+}
+
+function registerDossierTabs() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierTabs', (defaultTab) => ({
+        active: defaultTab || 'contenus',
+
+        init() {
+            const hash = window.location.hash.replace('#', '');
+            if (['contenus', 'fichiers', 'membres'].includes(hash)) {
+                this.active = hash;
+            }
+        },
+
+        activate(tab) {
+            this.active = tab;
+            window.location.hash = tab;
+        },
+
+        onHashChange() {
+            const hash = window.location.hash.replace('#', '');
+            if (['contenus', 'fichiers', 'membres'].includes(hash)) {
+                this.active = hash;
+            }
+        },
+    }));
+}
+
+function registerDossierContentsCard() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierContentsCard', (config) => ({
+        hasSeries: !!config.series,
+        seriesId: config.series?.id || null,
+        seriesRoot: config.series?.root ? normalizeArticle(config.series.root) : null,
+        seriesRootBlogPostId: config.series?.root_blog_post_id || null,
+        seriesItems: (config.series?.items || []).map(item => ({
+            id: item.id,
+            blog_post_id: item.blog_post_id,
+            position: item.position,
+            blog_post: normalizeArticle(item.blog_post),
+        })),
+        ungrouped: config.ungrouped.map(e => ({
+            ...e,
+            blog_post: normalizeArticle(e.blog_post),
+        })),
+        seriesEligibleArticles: config.seriesEligibleArticles || [],
+        searchQuery: '',
+        message: '',
+        messageType: 'success',
+        showAddModal: false,
+        addSearchQuery: '',
+        addSearchResults: [],
+        addSearching: false,
+        adding: false,
+        showDeleteSeriesModal: false,
+        showDetachModal: false,
+        detachEntry: null,
+        detaching: false,
+        openMenuId: null,
+        showSeriesMenu: false,
+        saving: false,
+        sortables: [],
+        i18n: config.i18n || {},
+        canManageArticles: config.canManageArticles || false,
+        csrfToken: config.csrfToken,
+        dossierId: config.dossierId,
+        orgParam: config.orgParam,
+        _trapTrigger: null,
+        _trapHandler: null,
+
+        init() {
+            document.addEventListener('click', (ev) => {
+                if (this.openMenuId && !ev.target.closest('[data-article-menu]') && !ev.target.closest('button')) {
+                    this.openMenuId = null;
+                }
+                if (this.showSeriesMenu && !ev.target.closest('[data-article-menu]') && !ev.target.closest('button')) {
+                    this.showSeriesMenu = false;
+                }
+            });
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (this.showDetachModal) { this.showDetachModal = false; this.detachEntry = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="detach-article-title"]'); }); }
+                    else if (this.showAddModal) { this.closeAddModal(); }
+                    else if (this.showDeleteSeriesModal) { this.showDeleteSeriesModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-series-title"]'); }); }
+                    else { this.openMenuId = null; this.showSeriesMenu = false; }
+                }
+            });
+
+            const groupOptions = {
+                name: 'dossier-articles',
+                put: true,
+                pull: true,
+            };
+
+            this.$nextTick(() => {
+                if (!this.canManageArticles) return;
+
+                const commonSortable = {
+                    group: groupOptions,
+                    handle: '.drag-handle',
+                    filter: '[data-no-drag]',
+                    animation: 150,
+                    onEnd: (evt) => this.onDragEnd(evt),
+                };
+
+                if (this.$refs.ungroupedContainer) {
+                    this.sortables.push(Sortable.create(this.$refs.ungroupedContainer, commonSortable));
+                }
+                if (this.$refs.annexesContainer) {
+                    this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
+                }
+            });
+
+            this.$watch('searchQuery', (val) => {
+                this.sortables.forEach(s => s.option('disabled', val.trim().length > 0));
+            });
+            this.$watch('showDeleteSeriesModal', (val) => { if (!val) this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-series-title"]'); }); });
+            this.$watch('showDetachModal', (val) => { if (!val) this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="detach-article-title"]'); }); });
+        },
+
+        destroy() {
+            this.sortables.forEach(s => s.destroy());
+            this.sortables = [];
+        },
+
+        initSortables() {
+            this.sortables.forEach(s => s.destroy());
+            this.sortables = [];
+            if (!this.canManageArticles) return;
+            const groupOptions = { name: 'dossier-articles', put: true, pull: true };
+            const commonSortable = {
+                group: groupOptions,
+                handle: '.drag-handle',
+                filter: '[data-no-drag]',
+                animation: 150,
+                onEnd: (evt) => this.onDragEnd(evt),
+            };
+            if (this.$refs.ungroupedContainer) {
+                this.sortables.push(Sortable.create(this.$refs.ungroupedContainer, commonSortable));
+            }
+            if (this.$refs.annexesContainer) {
+                this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
+            }
+        },
+
+        onDragEnd(evt) {
+            const movedId = evt.item.getAttribute('data-article-id');
+            if (!movedId) return;
+
+            const fromUngrouped = evt.from === this.$refs.ungroupedContainer;
+            const toUngrouped = evt.to === this.$refs.ungroupedContainer;
+
+            if (fromUngrouped && toUngrouped) {
+                this.reorderUngrouped(evt);
+            } else if (!fromUngrouped && !toUngrouped) {
+                this.reorderAnnexes(evt);
+            } else if (fromUngrouped && !toUngrouped) {
+                this.crossListToAnnex(evt, movedId);
+            } else {
+                this.crossListToUngrouped(evt, movedId);
+            }
+        },
+
+        reorderUngrouped(evt) {
+            const ids = [];
+            evt.from.querySelectorAll('[data-article-id]').forEach(el => {
+                ids.push(el.getAttribute('data-article-id'));
+            });
+            if (ids.length === 0) return;
+            const ordered = ids.map(id => this.ungrouped.find(e => String(e.blog_post_id) === id)).filter(Boolean);
+            const extra = this.ungrouped.filter(e => !ids.includes(String(e.blog_post_id)));
+            this.ungrouped.splice(0, this.ungrouped.length, ...ordered, ...extra);
+            this.ungrouped.forEach((e, i) => { e.position = i + 1; });
+            this.persistReorder();
+        },
+
+        reorderAnnexes() {
+            const ids = [];
+            this.$refs.annexesContainer.querySelectorAll('[data-article-id]').forEach(el => {
+                ids.push(el.getAttribute('data-article-id'));
+            });
+            const ordered = ids.map(id => this.seriesItems.find(e => String(e.blog_post_id) === id)).filter(Boolean);
+            const extra = this.seriesItems.filter(e => !ids.includes(String(e.blog_post_id)));
+            this.seriesItems.splice(0, this.seriesItems.length, ...ordered, ...extra);
+            this.seriesItems.forEach((e, i) => { e.position = i + 1; });
+            this.saveAnnexReorder();
+        },
+
+        saveAnnexReorder() {
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/reorder`;
+            fetch(url, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ items: this.seriesItems.map(e => e.blog_post_id) }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) { this.showError(data.message || 'Error'); }
+                })
+                .catch(() => {});
+        },
+
+        crossListToAnnex(evt, movedId) {
+            const entry = this.ungrouped.find(e => String(e.blog_post_id) === movedId);
+            if (!entry) return;
+            this.addToSeries(entry, evt.newIndex);
+        },
+
+        crossListToUngrouped(evt, movedId) {
+            const item = this.seriesItems.find(e => String(e.blog_post_id) === movedId);
+            if (!item) return;
+            this.removeAnnex(item);
+        },
+
+        persistReorder() {
+            const reorderUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/reorder`;
+            fetch(reorderUrl, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ articles: this.ungrouped.map(e => e.blog_post_id) }),
+            })
+                .then(r => {
+                    if (!r.ok) { this.showError('Reorder failed'); }
+                })
+                .catch(() => { this.message = this.i18n.dragError || this.i18n.networkError || 'Drag failed'; this.messageType = 'error'; });
+        },
+
+        get filteredUngrouped() {
+            if (!this.searchQuery) return this.ungrouped;
+            const q = this.searchQuery.toLowerCase();
+            return this.ungrouped.filter(e => (e.blog_post?.title || '').toLowerCase().includes(q));
+        },
+
+        get filteredAnnexItems() {
+            if (!this.searchQuery) return this.seriesItems;
+            const q = this.searchQuery.toLowerCase();
+            return this.seriesItems.filter(e => (e.blog_post?.title || '').toLowerCase().includes(q));
+        },
+
+        get isSearchActive() {
+            return this.searchQuery.trim().length > 0;
+        },
+
+        isRoot(blogPostId) {
+            return this.hasSeries && String(this.seriesRootBlogPostId) === String(blogPostId);
+        },
+
+        moveAnnex(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= this.seriesItems.length) return;
+            const temp = this.seriesItems[index];
+            this.seriesItems.splice(index, 1, this.seriesItems[newIndex]);
+            this.seriesItems.splice(newIndex, 1, temp);
+            this.seriesItems.forEach((e, i) => { e.position = i + 1; });
+            this.saveAnnexReorder();
+        },
+
+        showSuccess(msg) { this.message = msg; this.messageType = 'success'; setTimeout(() => { this.message = ''; }, 4000); },
+        showError(msg) { this.message = msg; this.messageType = 'error'; setTimeout(() => { this.message = ''; }, 5000); },
+
+        formatStatus(status) {
+            if (status === 'published') return this.i18n.statusPublished || 'Published';
+            if (status === 'draft') return this.i18n.statusDraft || 'Draft';
+            return status || '';
+        },
+
+        formatDate(date) {
+            if (!date) return '';
+            try { return new Date(date).toLocaleDateString(); } catch { return ''; }
+        },
+
+        _activateFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (!el) return;
+            const nodes = focusableNodes(el);
+            if (nodes.length) nodes[0].focus();
+            this._trapHandler = (e) => {
+                if (e.key !== 'Tab') return;
+                const list = focusableNodes(el);
+                if (!list.length) return;
+                const first = list[0], last = list[list.length - 1];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            };
+            el.addEventListener('keydown', this._trapHandler);
+        },
+
+        _destroyFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (el && this._trapHandler) el.removeEventListener('keydown', this._trapHandler);
+            this._trapHandler = null;
+            if (this._trapTrigger && this._trapTrigger.isConnected) this._trapTrigger.focus();
+            this._trapTrigger = null;
+        },
+
+        openAddArticleModal() {
+            this._trapTrigger = document.activeElement;
+            this.showAddModal = true;
+            this.addSearchQuery = '';
+            this.addSearchResults = [];
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="add-article-title"]'); });
+        },
+
+        closeAddModal() {
+            this.showAddModal = false;
+            this.addSearchQuery = '';
+            this.addSearchResults = [];
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="add-article-title"]'); });
+        },
+
+        async searchEligibleArticles() {
+            if (this.addSearchQuery.length < 2) { this.addSearchResults = []; return; }
+            this.addSearching = true;
+            try {
+                const searchUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/search`;
+                const res = await fetch(searchUrl + '?q=' + encodeURIComponent(this.addSearchQuery), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                this.addSearchResults = (data.articles || []).map(a => ({
+                    ...a,
+                    statusLabel: a.status === 'published' ? (this.i18n.statusPublished || 'Published') : (this.i18n.statusDraft || 'Draft'),
+                }));
+            } catch { this.addSearchResults = []; }
+            finally { this.addSearching = false; }
+        },
+
+        async attachArticle(article) {
+            this.adding = true;
+            try {
+                const storeUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles`;
+                const res = await fetch(storeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ blog_post_id: article.id }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    const entry = data.entry;
+                    const bp = entry.blog_post;
+                    this.ungrouped.push({
+                        id: entry.id,
+                        blog_post_id: entry.blog_post_id,
+                        position: entry.position,
+                        blog_post: normalizeArticle(bp),
+                    });
+                    this.closeAddModal();
+                    this.showSuccess(data.message);
+                } else {
+                    this.showError(data.message || 'Error');
+                }
+            } catch { this.showError('Network error'); }
+            finally { this.adding = false; }
+        },
+
+        setAsRoot(entry) {
+            if (!entry) return;
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series`;
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ root_blog_post_id: entry.blog_post_id }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showError(data.message || data.root_blog_post_id?.[0] || 'Error');
+                        return;
+                    }
+                    this.hasSeries = true;
+                    this.seriesId = data.series.id;
+                    const root = data.series.root_blog_post;
+                    this.seriesRoot = normalizeArticle(root);
+                    this.seriesRoot.blog_post_id = data.series.root_blog_post_id;
+                    this.seriesItems = [];
+                    this.ungrouped = this.ungrouped.filter(e => e.blog_post_id !== entry.blog_post_id);
+                    this.showSuccess(this.i18n.seriesCreated || 'Series created');
+                    this.openMenuId = null;
+                })
+                .catch(() => this.showError('Error'))
+                .finally(() => { this.saving = false; });
+        },
+
+        addToSeries(entry, dropIndex) {
+            if (!entry) return;
+            const previousUngrouped = [...this.ungrouped];
+            const previousSeriesItems = [...this.seriesItems];
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes`;
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ blog_post_id: entry.blog_post_id }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showError(data.message || data.blog_post_id?.[0] || 'Error');
+                        return;
+                    }
+                    const item = data.item;
+                    const normalized = {
+                        id: item.id,
+                        blog_post_id: item.blog_post_id,
+                        position: 0,
+                        blog_post: normalizeArticle(item.blog_post),
+                    };
+                    const insertAt = (typeof dropIndex === 'number' && dropIndex >= 0 && dropIndex <= this.seriesItems.length)
+                        ? dropIndex
+                        : this.seriesItems.length;
+                    this.seriesItems.splice(insertAt, 0, normalized);
+                    this.seriesItems.forEach((a, i) => a.position = i + 1);
+                    this.ungrouped = this.ungrouped.filter(e => e.blog_post_id !== entry.blog_post_id);
+                    this.reorderAnnexes();
+                    this.openMenuId = null;
+                    this.$nextTick(() => this.initSortables());
+                    this.showSuccess(this.i18n.annexAdded || 'Annex added');
+                })
+                .catch(() => {
+                    this.ungrouped = previousUngrouped;
+                    this.seriesItems = previousSeriesItems;
+                    this.showError('Error');
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        removeAnnex(item) {
+            if (!item) return;
+            const previousSeriesItems = [...this.seriesItems];
+            const previousUngrouped = [...this.ungrouped];
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/${item.blog_post_id}`;
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': this.csrfToken },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showError(data.message || 'Error');
+                        return;
+                    }
+                    this.seriesItems = this.seriesItems.filter(a => a.id !== item.id);
+                    this.seriesItems.forEach((a, i) => a.position = i + 1);
+                    this.ungrouped.push({
+                        id: item.id,
+                        blog_post_id: item.blog_post_id,
+                        position: this.ungrouped.length + 1,
+                        blog_post: item.blog_post,
+                    });
+                    this.$nextTick(() => this.initSortables());
+                    this.showSuccess(this.i18n.annexRemoved || 'Annex removed');
+                })
+                .catch(() => {
+                    this.seriesItems = previousSeriesItems;
+                    this.ungrouped = previousUngrouped;
+                    this.showError('Error');
+                })
+                .finally(() => { this.saving = false; });
+        },
+
+        openDeleteSeriesModal() {
+            this._trapTrigger = document.activeElement;
+            this.showDeleteSeriesModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-series-title"]'); });
+        },
+
+        deleteSeries() {
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series`;
+            fetch(url, {
+                method: 'DELETE',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': this.csrfToken },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showError(data.message || 'Error');
+                        return;
+                    }
+                    if (this.seriesRoot) {
+                        this.ungrouped.push({
+                            id: this.seriesRoot.blogPostId,
+                            blog_post_id: this.seriesRoot.blogPostId,
+                            position: this.ungrouped.length + 1,
+                            blog_post: this.seriesRoot,
+                        });
+                    }
+                    this.seriesItems.forEach(item => {
+                        this.ungrouped.push({
+                            id: item.blog_post_id,
+                            blog_post_id: item.blog_post_id,
+                            position: this.ungrouped.length + 1,
+                            blog_post: item.blog_post,
+                        });
+                    });
+                    this.hasSeries = false;
+                    this.seriesId = null;
+                    this.seriesRoot = null;
+                    this.seriesItems = [];
+                    this.showDeleteSeriesModal = false;
+                    this.showSuccess(this.i18n.seriesDeleted || 'Series deleted');
+                })
+                .catch(() => this.showError('Error'))
+                .finally(() => { this.saving = false; });
+        },
+
+        confirmDetach(entry) {
+            this._trapTrigger = document.activeElement;
+            this.detachEntry = entry;
+            this.showDetachModal = true;
+            this.openMenuId = null;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="detach-article-title"]'); });
+        },
+
+        async detachArticle() {
+            if (!this.detachEntry) return;
+            this.detaching = true;
+            try {
+                const destroyUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/${this.detachEntry.blog_post_id}`;
+                const res = await fetch(destroyUrl, {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.ungrouped = this.ungrouped.filter(e => e.id !== this.detachEntry.id);
+                    this.showDetachModal = false;
+                    this.detachEntry = null;
+                    this.showSuccess(data.message || this.i18n.articleDetached);
+                } else {
+                    this.showError(data.message || 'Error');
+                }
+            } catch { this.showError('Network error'); }
+            finally { this.detaching = false; }
+        },
+
+        moveUngrouped(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= this.ungrouped.length) return;
+            const temp = this.ungrouped[index];
+            this.ungrouped.splice(index, 1, this.ungrouped[newIndex]);
+            this.ungrouped.splice(newIndex, 1, temp);
+            this.ungrouped.forEach((e, i) => { e.position = i + 1; });
+
+            const reorderUrl = `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/reorder`;
+            fetch(reorderUrl, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ articles: this.ungrouped.map(e => e.blog_post_id) }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showError(data.message || 'Error');
+                    }
+                })
+                .catch(() => this.showError('Network error'));
+        },
+
+        toggleMenu(id) {
+            this.openMenuId = this.openMenuId === id ? null : id;
+        },
+    }));
+}
+
+function registerDossierSemanticArticleSearch() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierSemanticArticleSearch', (config) => ({
+        query: '',
+        loading: false,
+        results: [],
+        searched: false,
+        error: '',
+        validationError: '',
+        endpoint: config.endpoint,
+        i18n: config.i18n || {},
+
+        async search() {
+            if (this.loading) return;
+
+            const trimmedQuery = this.query.trim();
+            this.error = '';
+            this.validationError = '';
+
+            if (trimmedQuery.length < 2) {
+                this.validationError = this.i18n.validationTooShort;
+                return;
+            }
+
+            this.loading = true;
+            this.searched = true;
+            this.results = [];
+
+            try {
+                const url = new URL(this.endpoint, window.location.origin);
+                url.search = new URLSearchParams({ query: trimmedQuery }).toString();
+
+                const response = await fetch(url.toString(), {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.results = Array.isArray(data.data) ? data.data.slice(0, 5) : [];
+                    return;
+                }
+
+                if (response.status === 422) {
+                    this.validationError = this.i18n.validationTooShort;
+                    return;
+                }
+
+                if (response.status === 503) {
+                    this.error = this.i18n.unavailable;
+                    return;
+                }
+
+                this.error = this.i18n.genericError;
+            } catch (e) {
+                this.error = this.i18n.genericError;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        excerpt(content) {
+            const text = String(content || '').replace(/\s+/g, ' ').trim();
+
+            if (text.length <= 320) {
+                return text;
+            }
+
+            return text.slice(0, 317).trimEnd() + '…';
+        },
+
+        passageLabel(index) {
+            return this.i18n.passage.replace(':number', Number(index) + 1);
+        },
+
+        resultCountLabel() {
+            return this.i18n.resultsCount.replace(':count', this.results.length);
+        },
+    }));
+}
+
+function registerDossierMembersCard() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierMembersCard', (config) => ({
+        members: [],
+        showSearch: false,
+        searchQuery: '',
+        searchResults: [],
+        searchLoading: false,
+        showManageModal: false,
+        showRemoveModal: false,
+        removeTarget: null,
+        message: '',
+        messageType: 'success',
+        csrfToken: config.csrfToken,
+        dossierId: config.dossierId,
+        orgParam: config.orgParam,
+        ownerId: config.ownerId,
+        ownerName: config.ownerName || '',
+        ownerInitial: config.ownerInitial || '?',
+        currentUserId: config.currentUserId,
+        canManage: config.canManage || false,
+        i18n: config.i18n,
+        _trapTrigger: null,
+        _trapHandler: null,
+
+        _activateFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (!el) return;
+            const nodes = focusableNodes(el);
+            if (nodes.length) nodes[0].focus();
+            this._trapHandler = (e) => {
+                if (e.key !== 'Tab') return;
+                const list = focusableNodes(el);
+                if (!list.length) return;
+                const first = list[0], last = list[list.length - 1];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            };
+            el.addEventListener('keydown', this._trapHandler);
+        },
+
+        _destroyFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (el && this._trapHandler) el.removeEventListener('keydown', this._trapHandler);
+            this._trapHandler = null;
+            if (this._trapTrigger && this._trapTrigger.isConnected) this._trapTrigger.focus();
+            this._trapTrigger = null;
+        },
+
+        init() {
+            this.loadMembers();
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (this.showRemoveModal) { this.showRemoveModal = false; this.removeTarget = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="remove-member-title"]'); }); }
+                    else if (this.showManageModal) { this.showManageModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
+                }
+            });
+            this.$watch('showManageModal', (val) => {
+                if (val) { this._trapTrigger = document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
+                else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
+            });
+            this.$watch('showRemoveModal', (val) => { if (!val) this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="remove-member-title"]'); }); });
+        },
+
+        get displayMembers() {
+            return this.members.slice(0, 5);
+        },
+
+        get overflowCount() {
+            return Math.max(0, this.members.length - 5);
+        },
+
+        get currentRoleLabel() {
+            if (String(this.currentUserId) === String(this.ownerId)) {
+                return this.i18n.ownerBadge || 'Owner';
+            }
+            const m = this.members.find(m => String(m.id) === String(this.currentUserId));
+            return m?.roleLabel || '';
+        },
+
+        loadMembers() {
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members`;
+            fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(data => {
+                    this.members = (data.members || []).map(m => ({
+                        ...m,
+                        isYou: String(m.id) === String(this.currentUserId),
+                        displayName: `${m.first_name || ''} ${(m.name || '').toUpperCase()}`.trim(),
+                        initial: (m.first_name || m.name || '?').charAt(0).toUpperCase(),
+                        roleLabel: m.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (m.role === 'editor' ? (this.i18n.roleEditor || 'Editor') : m.role),
+                    }));
+                })
+                .catch(() => {});
+        },
+
+        searchUsers() {
+            if (this.searchQuery.length < 2) { this.searchResults = []; return; }
+            this.searchLoading = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/search?q=${encodeURIComponent(this.searchQuery)}`;
+            fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(data => {
+                    this.searchResults = (data.users || [])
+                        .map(u => ({
+                            ...u,
+                            displayName: `${u.first_name || ''} ${(u.name || '').toUpperCase()}`.trim(),
+                            _selectedRole: 'reader',
+                        }));
+                })
+                .catch(() => {})
+                .finally(() => { this.searchLoading = false; });
+        },
+
+        addMember(user) {
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members`;
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ user_id: user.id, role: user._selectedRole }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.memberAlready, 'error');
+                        return;
+                    }
+                    this.members.push({
+                        ...data.member,
+                        displayName: `${data.member.first_name || ''} ${(data.member.name || '').toUpperCase()}`.trim(),
+                        initial: (data.member.first_name || data.member.name || '?').charAt(0).toUpperCase(),
+                        roleLabel: data.member.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (this.i18n.roleEditor || 'Editor'),
+                    });
+                    this.searchQuery = '';
+                    this.searchResults = [];
+                    this.showMessage(data.message || this.i18n.memberAdded, 'success');
+                })
+                .catch(() => { this.showMessage(this.i18n.memberAlready, 'error'); });
+        },
+
+        updateRole(member, newRole) {
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/${member.id}`;
+            fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ role: newRole }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.memberRoleUpdated, 'error');
+                        return;
+                    }
+                    member.role = newRole;
+                    member.roleLabel = newRole === 'reader' ? (this.i18n.roleReader || 'Reader') : (this.i18n.roleEditor || 'Editor');
+                    this.showMessage(data.message || this.i18n.memberRoleUpdated, 'success');
+                })
+                .catch(() => {});
+        },
+
+        openRemoveModal(member) {
+            this._trapTrigger = document.activeElement;
+            this.removeTarget = member;
+            this.showRemoveModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="remove-member-title"]'); });
+        },
+
+        confirmRemove() {
+            if (!this.removeTarget) return;
+            const member = this.removeTarget;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/${member.id}`;
+            fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                },
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.memberRemoved, 'error');
+                        return;
+                    }
+                    this.members = this.members.filter(m => m.id !== member.id);
+                    this.showRemoveModal = false;
+                    this.removeTarget = null;
+                    this.showMessage(data.message || this.i18n.memberRemoved, 'success');
+                })
+                .catch(() => {});
+        },
+
+        removeMember(member) {
+            this.openRemoveModal(member);
+        },
+
+        showMessage(msg, type) {
+            this.message = msg;
+            this.messageType = type;
+            setTimeout(() => { this.message = ''; }, 3000);
+        },
+    }));
+}
+
+function registerDossierArticlesCard() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierArticlesCard', (config) => ({
+        entries: [],
+        searchQuery: '',
+        message: '',
+        messageType: 'success',
+        showAddModal: false,
+        addSearchQuery: '',
+        addSearchResults: [],
+        addSearching: false,
+        adding: false,
+        showDetachModal: false,
+        detachEntry: null,
+        detaching: false,
+        openMenuId: null,
+        i18n: config.i18n || {},
+        canManageArticles: config.canManageArticles || false,
+
+        init() {
+            this.entries = (config.entries || []).map(e => ({
+                ...e,
+                blog_post: e.blog_post || null,
+                canDeleteArticle: config.currentUserId === (e.blog_post?.user_id || null),
+            }));
+            document.addEventListener('click', (ev) => {
+                if (this.openMenuId && !ev.target.closest('[data-article-menu]') && !ev.target.closest('[data-article-menu-btn]')) {
+                    this.openMenuId = null;
+                }
+            });
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (this.showDetachModal) { this.showDetachModal = false; this.detachEntry = null; }
+                    else if (this.showAddModal) { this.showAddModal = false; this.addSearchQuery = ''; this.addSearchResults = []; }
+                    else { this.openMenuId = null; }
+                }
+            });
+        },
+
+        get filteredEntries() {
+            if (!this.searchQuery) return this.entries;
+            const q = this.searchQuery.toLowerCase();
+            return this.entries.filter(e => (e.blog_post?.title || '').toLowerCase().includes(q));
+        },
+
+        openAddModal() {
+            this.showAddModal = true;
+            this.addSearchQuery = '';
+            this.addSearchResults = [];
+            this.$nextTick(() => { const el = this.$refs.addSearchInput; if (el) el.focus(); });
+        },
+
+        closeAddModal() {
+            this.showAddModal = false;
+            this.addSearchQuery = '';
+            this.addSearchResults = [];
+        },
+
+        async searchEligible() {
+            if (this.addSearchQuery.length < 2) { this.addSearchResults = []; return; }
+            this.addSearching = true;
+            try {
+                const res = await fetch(config.searchUrl + '?q=' + encodeURIComponent(this.addSearchQuery), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                this.addSearchResults = (data.articles || []).map(a => ({ ...a, statusLabel: a.status === 'published' ? (config.i18n.statusPublished || 'Published') : (config.i18n.statusDraft || 'Draft') }));
+            } catch { this.addSearchResults = []; }
+            finally { this.addSearching = false; }
+        },
+
+        async attachArticle(article) {
+            this.adding = true;
+            try {
+                const res = await fetch(config.storeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': config.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ blog_post_id: article.id }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    const entry = data.entry;
+                    entry.canDeleteArticle = config.currentUserId === (entry.blog_post?.user_id || null);
+                    this.entries.push(entry);
+                    this.closeAddModal();
+                    this.showSuccess(data.message);
+                } else {
+                    this.showError(data.message || config.i18n.uploadFailed);
+                }
+            } catch { this.showError(config.i18n.networkError); }
+            finally { this.adding = false; }
+        },
+
+        confirmDetach(entry) {
+            this.detachEntry = entry;
+            this.showDetachModal = true;
+            this.openMenuId = null;
+        },
+
+        async detachArticle() {
+            if (!this.detachEntry) return;
+            this.detaching = true;
+            try {
+                const res = await fetch(config.destroyUrl.replace('__POST_ID__', this.detachEntry.blog_post_id), {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': config.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.entries = this.entries.filter(e => e.id !== this.detachEntry.id);
+                    this.showDetachModal = false;
+                    this.detachEntry = null;
+                    this.showSuccess(data.message);
+                } else {
+                    this.showError(data.message || config.i18n.networkError);
+                }
+            } catch { this.showError(config.i18n.networkError); }
+            finally { this.detaching = false; }
+        },
+
+        async moveArticle(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= this.entries.length) return;
+            const temp = this.entries[index];
+            this.entries.splice(index, 1, this.entries[newIndex]);
+            this.entries.splice(newIndex, 1, temp);
+            this.entries.forEach((e, i) => { e.position = i + 1; });
+            try {
+                const res = await fetch(config.reorderUrl, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': config.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ articles: this.entries.map(e => e.blog_post_id) }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    if (data.articles) { this.entries = data.articles.map(a => ({ ...a, canDeleteArticle: config.currentUserId === (a.blog_post?.user_id || null) })); }
+                    this.showError(data.message || config.i18n.networkError);
+                }
+            } catch { this.showError(config.i18n.networkError); }
+        },
+
+        formatStatus(status) {
+            if (status === 'published') return config.i18n.statusPublished || 'Published';
+            if (status === 'draft') return config.i18n.statusDraft || 'Draft';
+            return status || '';
+        },
+
+        formatDate(date) {
+            if (!date) return '';
+            try { return new Date(date).toLocaleDateString(); } catch { return ''; }
+        },
+
+        editUrl(entry) {
+            if (!entry.blog_post?.slug) return '#';
+            return config.blogEditUrl.replace('__SLUG__', entry.blog_post.slug);
+        },
+
+        toggleMenu(id) {
+            this.openMenuId = this.openMenuId === id ? null : id;
+        },
+
+        showSuccess(msg) { this.message = msg; this.messageType = 'success'; setTimeout(() => { this.message = ''; }, 4000); },
+        showError(msg) { this.message = msg; this.messageType = 'error'; setTimeout(() => { this.message = ''; }, 5000); },
+    }));
+}
+
+function registerDossierFilesCard() {
+    if (typeof Alpine === 'undefined') return;
+
+    FilePond.registerPlugin(FilePondPluginFileValidateType, FilePondPluginFileValidateSize);
+
+    Alpine.data('dossierFilesCard', (config) => ({
+        files: [],
+        quota: { used_bytes: 0, limit_bytes: null, remaining_bytes: null },
+        uploading: false,
+        uploadProgress: 0,
+        uploadFileName: '',
+        uploadBatchCurrent: 0,
+        uploadBatchTotal: 0,
+        saving: false,
+        message: '',
+        messageType: 'success',
+        csrfToken: config.csrfToken,
+        dossierId: config.dossierId,
+        orgParam: config.orgParam,
+        canManageFiles: config.canManageFiles,
+        canDeleteFiles: config.canDeleteFiles,
+        i18n: config.i18n,
+        currentPage: 1,
+        lastPage: 1,
+        totalFiles: 0,
+        _pond: null,
+        showDeleteModal: false,
+        deleteTarget: null,
+        showPreviewModal: false,
+        previewFile: null,
+        showImportMenu: false,
+        sortBy: 'date',
+        sortDirection: 'desc',
+        searchQuery: '',
+        viewMode: 'list',
+        showArticleModal: false,
+        articleTitle: '',
+        articleCategoryId: '',
+        showMdModal: false,
+        mdFileName: '',
+        mdContent: '',
+        _trapTrigger: null,
+        _trapHandler: null,
+
+        _activateFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (!el) return;
+            const nodes = focusableNodes(el);
+            if (nodes.length) nodes[0].focus();
+            this._trapHandler = (e) => {
+                if (e.key !== 'Tab') return;
+                const list = focusableNodes(el);
+                if (!list.length) return;
+                const first = list[0], last = list[list.length - 1];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            };
+            el.addEventListener('keydown', this._trapHandler);
+        },
+
+        _destroyFocusTrap(containerSelector) {
+            const el = document.querySelector(containerSelector);
+            if (el && this._trapHandler) el.removeEventListener('keydown', this._trapHandler);
+            this._trapHandler = null;
+            if (this._trapTrigger && this._trapTrigger.isConnected) this._trapTrigger.focus();
+            this._trapTrigger = null;
+        },
+
+        openArticleModal() {
+            this._trapTrigger = this.$refs.fabButton || document.activeElement;
+            this.showArticleModal = true;
+            this.articleTitle = '';
+            this.articleCategoryId = '';
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="create-article-title"]'); });
+        },
+
+        openMdModal() {
+            this._trapTrigger = this.$refs.fabButton || document.activeElement;
+            this.showMdModal = true;
+            this.mdFileName = '';
+            this.mdContent = '';
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="markdown-note-title"]'); });
+        },
+
+        uploadFormData(formData, files = [], skipReset = false) {
+            const names = Array.from(files).map(file => file.name).filter(Boolean);
+            this.uploading = true;
+            this.uploadProgress = 0;
+            this.uploadFileName = names.length === 1 ? names[0] : names.join(', ');
+
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `/org/${this.orgParam}/dossiers/${this.dossierId}/files`);
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.setRequestHeader('X-CSRF-TOKEN', this.csrfToken);
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+                xhr.upload.addEventListener('progress', (event) => {
+                    if (!event.lengthComputable) return;
+                    this.uploadProgress = Math.min(99, Math.round((event.loaded / event.total) * 100));
+                });
+
+                xhr.addEventListener('load', () => {
+                    this.uploadProgress = 100;
+                    let data = {};
+                    try { data = JSON.parse(xhr.responseText || '{}'); } catch { data = {}; }
+                    resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('upload failed')));
+                xhr.addEventListener('abort', () => reject(new Error('upload aborted')));
+                xhr.send(formData);
+            }).finally(() => {
+                if (skipReset) return;
+                setTimeout(() => {
+                    this.uploading = false;
+                    this.uploadProgress = 0;
+                    this.uploadFileName = '';
+                }, 500);
+            });
+        },
+
+        mergeMissingUploads(uploadedFiles) {
+            if (!uploadedFiles || !uploadedFiles.length) return;
+            const newIds = uploadedFiles.map(f => f.id);
+            const missingIds = newIds.filter(id => !this.files.some(existing => existing.id === id));
+            if (missingIds.length === 0) return;
+            const missingFiles = uploadedFiles
+                .filter(f => missingIds.includes(f.id))
+                .map(f => this.normalizeFile(f));
+            this.files = [...missingFiles, ...this.files];
+        },
+
+        async createArticle() {
+            if (!this.articleTitle.trim()) return;
+            
+            this.saving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/articles/create-and-attach`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        title: this.articleTitle,
+                        category_id: this.articleCategoryId || null,
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.showArticleModal = false;
+                    this.showMessage(this.i18n.articleCreated, 'success');
+                    // Redirect to edit the new article
+                    window.location.href = data.redirect_url || `/org/${this.orgParam}/blog/${data.post.slug}/edit`;
+                } else {
+                    this.showMessage(data.message || this.i18n.articleCreateFailed, 'error');
+                }
+            } catch (error) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async createMarkdownNote() {
+            if (!this.mdFileName.trim()) return;
+            
+            this.saving = true;
+            try {
+                const fileName = this.mdFileName.endsWith('.md') ? this.mdFileName : `${this.mdFileName}.md`;
+                const blob = new Blob([this.mdContent], { type: 'text/markdown' });
+                const file = new File([blob], fileName, { type: 'text/markdown' });
+                
+                const formData = new FormData();
+                formData.append('files[]', file);
+                
+                const { ok, data } = await this.uploadFormData(formData, [file]);
+
+                if (ok) {
+                    this.showMdModal = false;
+                    await this.loadFiles(1);
+                    this.mergeMissingUploads(data.files);
+                    this.showMessage(this.i18n.markdownCreated, 'success');
+                } else {
+                    this.showMessage(data.message || this.i18n.markdownCreateFailed, 'error');
+                }
+            } catch (error) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        triggerMediaUpload(type) {
+            const inputMap = {
+                'image': 'imageInput',
+                'video': 'videoInput',
+                'audio': 'audioInput',
+            };
+            const ref = inputMap[type];
+            if (ref && this.$refs[ref]) {
+                this.$refs[ref].click();
+            }
+        },
+
+        async handleMediaFiles(event, type) {
+            const files = Array.from(event.target.files);
+            event.target.value = '';
+            if (files.length === 0) return;
+
+            const validFiles = files.filter(f => {
+                if (f.size > 50 * 1024 * 1024) {
+                    this.showMessage(this.i18n.fileTooLarge.replace(':name', f.name), 'error');
+                    return false;
+                }
+                return true;
+            });
+            if (validFiles.length === 0) return;
+
+            this.saving = true;
+            this.uploading = true;
+            this.uploadBatchCurrent = 0;
+            this.uploadBatchTotal = validFiles.length;
+
+            let succeeded = 0;
+            let failed = 0;
+            const failedNames = [];
+
+            for (let i = 0; i < validFiles.length; i++) {
+                const file = validFiles[i];
+                this.uploadBatchCurrent = i + 1;
+                this.uploadFileName = file.name;
+                this.uploadProgress = 0;
+
+                const formData = new FormData();
+                formData.append('files[]', file, file.name);
+
+                try {
+                    const { ok, data } = await this.uploadFormData(formData, [file], true);
+                    if (ok) {
+                        succeeded++;
+                        this.mergeMissingUploads(data.files);
+                    } else {
+                        failed++;
+                        failedNames.push(file.name + ': ' + (data.message || this.i18n.uploadFailed));
+                    }
+                } catch (_e) {
+                    failed++;
+                    failedNames.push(file.name + ': ' + this.i18n.networkError);
+                }
+            }
+
+            this.uploading = false;
+            this.uploadProgress = 0;
+            this.uploadFileName = '';
+            this.uploadBatchCurrent = 0;
+
+            if (succeeded > 0 && failed === 0) {
+                this.showMessage(this.i18n.filesBatchResult
+                    .replace(':success', succeeded)
+                    .replace(':total', validFiles.length)
+                    .replace(':errors', ''), 'success');
+            } else if (succeeded > 0 && failed > 0) {
+                const errorSuffix = this.i18n.filesBatchErrors.replace(':count', failed);
+                const msg = this.i18n.filesBatchResult
+                    .replace(':success', succeeded)
+                    .replace(':total', validFiles.length)
+                    .replace(':errors', errorSuffix);
+                this.showMessage(msg + '\n' + failedNames.join('\n'), 'error');
+            } else {
+                this.showMessage(this.i18n.uploadFailed + '\n' + failedNames.join('\n'), 'error');
+            }
+
+            await this.loadFiles(1);
+            this.saving = false;
+        },
+
+        get sortedFiles() {
+            return this.files;
+        },
+
+        toggleSort(column) {
+            if (this.sortBy === column) {
+                this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortBy = column;
+                this.sortDirection = 'asc';
+            }
+            this.loadFiles(1);
+        },
+
+        browseFiles() {
+            if (this._pond) {
+                this._pond.browse();
+            }
+        },
+
+        init() {
+            this.loadFiles();
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (this.showPreviewModal) { this.showPreviewModal = false; this.previewFile = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="preview-title"]'); }); }
+                    else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); }); }
+                    else if (this.showArticleModal) { this.showArticleModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="create-article-title"]'); }); }
+                    else if (this.showMdModal) { this.showMdModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="markdown-note-title"]'); }); }
+                }
+            });
+            if (this.canManageFiles && this.$refs.filePondContainer) {
+                const self = this;
+                const acceptedTypes = [
+                    'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                    'application/pdf',
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'text/plain', 'text/markdown', 'text/csv',
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/zip', 'application/x-zip-compressed',
+                ];
+                const labelIdle = this.i18n.uploadHelp || 'Drag & drop files or <span class="filepond--label-action">browse</span>';
+
+                this._pond = FilePond.create(this.$refs.filePondContainer, Object.assign(Object.create(null), {
+                    multiple: true,
+                    maxFiles: 5,
+                    maxFileSize: '50MB',
+                    acceptedFileTypes: acceptedTypes,
+                    labelIdle: labelIdle,
+                    onaddfile(err, file) {
+                        if (err) { console.warn('[FilePond] addfile error', err); return; }
+                        const duplicate = self.files.some((existingFile) => existingFile.original_name === file.file.name || existingFile.display_name === file.file.name);
+                        if (duplicate) {
+                            self.showMessage(self.i18n.duplicateName, 'error');
+                            self._pond.removeFile(file.id);
+                            return;
+                        }
+                        const formData = new FormData();
+                        formData.append('files[]', file.file, file.file.name);
+
+                        self.uploadFormData(formData, [file.file])
+                            .then(({ ok, data }) => {
+                                if (ok) {
+                                    self.showMessage(data.message || self.i18n.uploaded, 'success');
+                                    self._pond.removeFile(file.id);
+                                    self.loadFiles(1).then(() => self.mergeMissingUploads(data.files));
+                                } else {
+                                    self.showMessage(data.message || self.i18n.uploadFailed, 'error');
+                                    self._pond.removeFile(file.id);
+                                }
+                            })
+                            .catch(() => {
+                                self.showMessage(self.i18n.uploadFailed, 'error');
+                                self._pond.removeFile(file.id);
+                            });
+                    },
+                }));
+            }
+
+            this.$watch('showDeleteModal', (val) => { if (val) { if (!this._trapTrigger) this._trapTrigger = this.$refs.fabButton || document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-file-title"]'); }); } else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); }); } });
+            this.$watch('showPreviewModal', (val) => { if (val) { if (!this._trapTrigger) this._trapTrigger = this.$refs.fabButton || document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="preview-title"]'); }); } else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="preview-title"]'); }); } });
+            this.$watch('showArticleModal', (val) => { if (val) { if (!this._trapTrigger) this._trapTrigger = this.$refs.fabButton || document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="create-article-title"]'); }); } else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="create-article-title"]'); }); } });
+            this.$watch('showMdModal', (val) => { if (val) { if (!this._trapTrigger) this._trapTrigger = this.$refs.fabButton || document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="markdown-note-title"]'); }); } else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="markdown-note-title"]'); }); } });
+        },
+
+        destroy() {
+            if (this._pond) {
+                this._pond.destroy();
+                this._pond = null;
+            }
+        },
+
+        onSearchInput() {
+            this.loadFiles(1);
+        },
+
+        loadFiles(page) {
+            page = page || 1;
+            const params = new URLSearchParams({
+                page: String(page),
+                sort: this.sortBy,
+                direction: this.sortDirection,
+            });
+            if (this.searchQuery && this.searchQuery.trim()) {
+                params.set('search', this.searchQuery.trim());
+            }
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files?${params.toString()}`;
+            return fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showMessage(data.message || this.i18n.uploadFailed, 'error');
+                        return;
+                    }
+
+                    return data;
+                })
+                .then(data => {
+                    if (!data) return;
+
+                    this.files = (data.files.data || []).map(file => this.normalizeFile(file));
+                    this.quota = data.quota || this.quota;
+                    this.currentPage = data.files.current_page || 1;
+                    this.lastPage = data.files.last_page || 1;
+                    this.totalFiles = data.files.total || 0;
+                })
+                .catch(() => this.showMessage(this.i18n.uploadFailed, 'error'));
+        },
+
+        formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 o';
+            const units = ['o', 'Ko', 'Mo', 'Go'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+        },
+
+        normalizeFile(file) {
+            return {
+                ...file,
+                sizeFormatted: this.formatBytes(file.size_bytes),
+                uploadedAtFormatted: file.created_at ? new Date(file.created_at).toLocaleDateString() : '',
+            };
+        },
+
+        formatQuota(bytes) {
+            return this.formatBytes(bytes);
+        },
+
+        fileTypeLabel(mime) {
+            if (mime === 'application/pdf') return 'PDF';
+            if (mime?.startsWith('image/')) return 'Image';
+            if (mime === 'application/msword' || mime?.includes('wordprocessingml')) return 'Word';
+            if (mime === 'text/plain') return 'TXT';
+            if (mime === 'text/markdown') return 'Markdown';
+            if (mime === 'text/csv' || mime === 'application/vnd.ms-excel' || mime?.includes('spreadsheetml')) return 'Excel';
+            if (mime === 'application/zip' || mime === 'application/x-zip-compressed') return 'ZIP';
+            return mime || '—';
+        },
+
+        async deleteFile(file) {
+            this.saving = true;
+            this.files = this.files.filter(f => f.id !== file.id);
+            this.totalFiles = Math.max(0, this.totalFiles - 1);
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
+            try {
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.showMessage(data.message || this.i18n.deleted, 'success');
+                    await this.loadFiles(this.currentPage);
+                    if (this.files.some(f => f.id === file.id)) {
+                        this.files = this.files.filter(f => f.id !== file.id);
+                        this.totalFiles = Math.max(0, this.totalFiles - 1);
+                    }
+                } else {
+                    await this.loadFiles(this.currentPage);
+                    this.showMessage(data.message || this.i18n.deleteFailed, 'error');
+                }
+            } catch (error) {
+                await this.loadFiles(this.currentPage);
+                this.showMessage(this.i18n.deleteFailed, 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        openDeleteModal(file) {
+            this._trapTrigger = document.activeElement;
+            this.deleteTarget = file;
+            this.showDeleteModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-file-title"]'); });
+        },
+
+        async confirmDeleteFile() {
+            if (!this.deleteTarget) return;
+            const file = this.deleteTarget;
+            this.showDeleteModal = false;
+            this.deleteTarget = null;
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); });
+            await this.deleteFile(file);
+        },
+
+        openPreview(file) {
+            this._trapTrigger = document.activeElement;
+            this.previewFile = file;
+            this.showPreviewModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="preview-title"]'); });
+        },
+
+        get quotaPercent() {
+            if (!this.quota.limit_bytes || this.quota.limit_bytes === 0) return 0;
+            return Math.min(100, Math.round((this.quota.used_bytes / this.quota.limit_bytes) * 100));
+        },
+
+        get quotaLabel() {
+            if (this.quota.limit_bytes === null) {
+                return this.i18n.storageUnlimited + ' — ' + this.formatQuota(this.quota.used_bytes) + ' ' + this.i18n.storageUsedLabel;
+            }
+            return this.formatQuota(this.quota.used_bytes) + ' / ' + this.formatQuota(this.quota.limit_bytes);
+        },
+
+        showMessage(text, type) {
+            this.message = text;
+            this.messageType = type;
+            setTimeout(() => { this.message = ''; }, 3000);
+        },
+    }));
+}
+
 function registerBlogLoopCard() {
     if (!window.Alpine || window.__blogLoopCardRegistered) {
         return;
@@ -1807,10 +3613,18 @@ function registerBlogTodoCard() {
         threadsOpen: {},
         sendingThread: false,
         assignableUsers: config.assignableUsers || [],
+        authorUserId: config.authorUserId || null,
         currentUserId: config.currentUserId || null,
         newAssignee: config.currentUserId || null,
         editingAssignee: null,
         pendingDelete: null,
+        loadTodosRequestId: 0,
+        loadingTodos: false,
+        recentLocalTodos: {},
+        recentDeletedTodoIds: {},
+        recentTodoMutationTtlMs: 5000,
+        pollingTimer: null,
+        pollingIntervalMs: 3000,
 
         indexUrl: config.indexUrl,
         storeUrl: config.storeUrl,
@@ -1829,9 +3643,12 @@ function registerBlogTodoCard() {
             localStorage.setItem('editor_sidebar_card_todo', this.open ? '1' : '0');
             if (this.open) {
                 this.loadTodos();
+                this.startPolling();
                 this._dispatching = true;
                 window.dispatchEvent(new CustomEvent('close-other-sidebar-cards'));
                 this._dispatching = false;
+            } else {
+                this.stopPolling();
             }
         },
 
@@ -1839,15 +3656,49 @@ function registerBlogTodoCard() {
             if (localStorage.getItem('editor_sidebar_card_todo') === '1') {
                 this.open = true;
                 this.loadTodos();
+                this.startPolling();
             }
             window.addEventListener('close-other-sidebar-cards', () => {
                 if (this._dispatching) return;
                 this.open = false;
                 localStorage.setItem('editor_sidebar_card_todo', '0');
+                this.stopPolling();
             });
             window.addEventListener('snapshot-restore', () => {
                 if (this.open) this.loadTodos();
             });
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    this.stopPolling();
+                    return;
+                }
+
+                if (this.open) {
+                    this.loadTodos(true);
+                    this.startPolling();
+                }
+            });
+            window.addEventListener('focus', () => {
+                if (this.open && !document.hidden) this.loadTodos(true);
+            });
+        },
+
+        destroy() {
+            this.stopPolling();
+        },
+
+        startPolling() {
+            if (this.pollingTimer || document.hidden) return;
+            this.pollingTimer = window.setInterval(() => {
+                if (!this.open || document.hidden || this.loadingTodos) return;
+                this.loadTodos(true);
+            }, this.pollingIntervalMs);
+        },
+
+        stopPolling() {
+            if (!this.pollingTimer) return;
+            window.clearInterval(this.pollingTimer);
+            this.pollingTimer = null;
         },
 
         isThreadsOpen(todo) {
@@ -1858,20 +3709,129 @@ function registerBlogTodoCard() {
             this.threadsOpen[todo.id] = !(this.threadsOpen[todo.id] ?? false);
         },
 
-        loadTodos() {
-            this.loading = true;
+        loadTodos(silent = false) {
+            if (this.loadingTodos) return Promise.resolve();
+            const requestId = ++this.loadTodosRequestId;
+            this.loadingTodos = true;
+            this.loading = !silent;
             this.error = '';
-            fetch(this.indexUrl, { cache: 'no-store' })
-                .then(r => r.json())
-                .then(data => {
-                    this.todos = (data.todos || []).map(t => ({ ...t, assigned_to: t.assigned_to || '' }));
-                    this.todos.forEach(t => { if (this.threadsOpen[t.id] === undefined) this.threadsOpen[t.id] = false; });
+            return fetch(this.indexUrl, { cache: 'no-store' })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (requestId !== this.loadTodosRequestId) return;
+                    this.loadingTodos = false;
+                    if (!ok) {
+                        this.error = data.message || this.i18n.loadError || 'Failed to load tasks.';
+                        this.loading = false;
+                        return;
+                    }
+                    this.reconcileTodos(data.todos || []);
                     this.loading = false;
                 })
                 .catch(() => {
+                    if (requestId !== this.loadTodosRequestId) return;
+                    this.loadingTodos = false;
                     this.error = this.i18n.loadError || 'Failed to load tasks.';
                     this.loading = false;
                 });
+        },
+
+        invalidateTodoLoads() {
+            this.loadTodosRequestId++;
+            this.loadingTodos = false;
+            this.loading = false;
+        },
+
+        purgeRecentTodoMutations() {
+            const now = Date.now();
+            Object.entries(this.recentLocalTodos).forEach(([id, entry]) => {
+                if (entry.expiresAt <= now) delete this.recentLocalTodos[id];
+            });
+            Object.entries(this.recentDeletedTodoIds).forEach(([id, expiresAt]) => {
+                if (expiresAt <= now) delete this.recentDeletedTodoIds[id];
+            });
+        },
+
+        rememberLocalTodo(todo) {
+            const normalized = this.normalizeTodo(todo);
+            this.recentLocalTodos[normalized.id] = {
+                todo: normalized,
+                expiresAt: Date.now() + this.recentTodoMutationTtlMs,
+            };
+            delete this.recentDeletedTodoIds[normalized.id];
+            return normalized;
+        },
+
+        rememberDeletedTodo(todoId) {
+            delete this.recentLocalTodos[todoId];
+            this.recentDeletedTodoIds[todoId] = Date.now() + this.recentTodoMutationTtlMs;
+        },
+
+        reconcileTodos(serverTodos) {
+            this.purgeRecentTodoMutations();
+            const localById = new Map(this.todos.map(t => [t.id, t]));
+            const reconciledById = new Map();
+
+            serverTodos.forEach(t => {
+                const normalized = this.normalizeTodo(t);
+                const local = localById.get(normalized.id);
+
+                if (this.editingTodo === normalized.id && local) {
+                    normalized.title = local.title;
+                }
+
+                reconciledById.set(normalized.id, normalized);
+            });
+
+            Object.values(this.recentLocalTodos).forEach(entry => {
+                reconciledById.set(entry.todo.id, entry.todo);
+            });
+
+            Object.keys(this.recentDeletedTodoIds).forEach(id => {
+                reconciledById.delete(id);
+            });
+
+            this.todos = Array.from(reconciledById.values());
+            this.todos.forEach(t => { if (this.threadsOpen[t.id] === undefined) this.threadsOpen[t.id] = false; });
+        },
+
+        normalizeTodo(todo) {
+            return {
+                ...todo,
+                assigned_to: todo.assigned_to || '',
+                can_edit: Boolean(todo.can_edit),
+                can_assign: Boolean(todo.can_assign),
+                can_change_status: Boolean(todo.can_change_status),
+                can_complete: Boolean(todo.can_complete),
+                can_reopen: Boolean(todo.can_reopen),
+                can_delete: Boolean(todo.can_delete),
+            };
+        },
+
+        requestJson(url, options) {
+            return fetch(url, options)
+                .then(r => r.json().then(d => ({ ok: r.ok, status: r.status, data: d })));
+        },
+
+        canToggleStatus(todo) {
+            return todo.can_change_status;
+        },
+
+        canChooseStatus(todo, status) {
+            if (status === todo.status) return true;
+            return todo.can_change_status;
+        },
+
+        applyTodo(todo) {
+            this.invalidateTodoLoads();
+            const normalized = this.rememberLocalTodo(todo);
+            const idx = this.todos.findIndex(t => t.id === normalized.id);
+            if (idx !== -1) this.todos[idx] = normalized;
+            return normalized;
+        },
+
+        reloadAfterError(status) {
+            if ([403, 404, 409, 422].includes(status)) this.loadTodos(true);
         },
 
         createTodo() {
@@ -1880,18 +3840,22 @@ function registerBlogTodoCard() {
             this.creating = true;
             this.error = '';
             this.success = '';
-            fetch(this.storeUrl, {
+            this.requestJson(this.storeUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ title, assigned_to: this.newAssignee }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.createError || 'Failed to create task.';
+                        this.reloadAfterError(status);
                         return;
                     }
-                    this.todos.push(data.todo);
+                    this.invalidateTodoLoads();
+                    const todo = this.rememberLocalTodo(data.todo);
+                    const idx = this.todos.findIndex(t => t.id === todo.id);
+                    if (idx === -1) this.todos.push(todo);
+                    else this.todos[idx] = todo;
                     this.threadsOpen[data.todo.id] = false;
                     this.activeTab = 'todo';
                     this.newAssignee = this.currentUserId;
@@ -1906,29 +3870,29 @@ function registerBlogTodoCard() {
         },
 
         startEdit(todo) {
+            if (!todo.can_edit) return;
             this.editingTodo = todo.id;
             this.editTitle = todo.title;
         },
 
         saveEdit(todo) {
             const title = this.editTitle.trim();
-            if (!title || this.saving) return;
+            if (!title || this.saving || !todo.can_edit) return;
             this.saving = true;
             this.error = '';
             const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ title }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
+                        this.reloadAfterError(status);
                         return;
                     }
-                    const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = data.todo;
+                    this.applyTodo(data.todo);
                     this.editingTodo = null;
                     this.success = data.message || this.i18n.updated;
                     setTimeout(() => { this.success = ''; }, 3000);
@@ -1940,22 +3904,24 @@ function registerBlogTodoCard() {
         },
 
         changeStatus(todo) {
+            if (!this.canChooseStatus(todo, todo.status)) {
+                this.loadTodos(true);
+                return;
+            }
             this.error = '';
             const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ status: todo.status }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
-                        this.loadTodos();
+                        this.reloadAfterError(status);
                         return;
                     }
-                    const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = data.todo;
+                    this.applyTodo(data.todo);
                 })
                 .catch(() => {
                     this.error = this.i18n.updateError || 'Failed to update task.';
@@ -1964,23 +3930,22 @@ function registerBlogTodoCard() {
         },
 
         toggleDone(todo) {
+            if (!this.canToggleStatus(todo)) return;
             const newStatus = todo.status === 'done' ? 'todo' : 'done';
             const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
             this.error = '';
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ status: newStatus }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.updateError || 'Failed to update task.';
-                        this.loadTodos();
+                        this.reloadAfterError(status);
                         return;
                     }
-                    const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = data.todo;
+                    this.applyTodo(data.todo);
                 })
                 .catch(() => {
                     this.error = this.i18n.updateError || 'Failed to update task.';
@@ -1989,6 +3954,7 @@ function registerBlogTodoCard() {
         },
 
         confirmDeleteTodo(todo) {
+            if (!todo.can_delete) return;
             this.pendingDelete = todo.id;
         },
 
@@ -2000,16 +3966,18 @@ function registerBlogTodoCard() {
             this.pendingDelete = null;
             this.error = '';
             const url = this.destroyUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'DELETE',
                 headers: { 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.deleteError || 'Failed to delete task.';
+                        this.reloadAfterError(status);
                         return;
                     }
+                    this.invalidateTodoLoads();
+                    this.rememberDeletedTodo(todo.id);
                     this.todos = this.todos.filter(t => t.id !== todo.id);
                     this.success = data.message || this.i18n.deleted;
                     setTimeout(() => { this.success = ''; }, 3000);
@@ -2020,28 +3988,28 @@ function registerBlogTodoCard() {
         },
 
         startEditAssignee(todo) {
+            if (!todo.can_assign) return;
             this.editingAssignee = todo.id;
         },
 
         saveEditAssignee(todo) {
+            if (!todo.can_assign) return;
             this.editingAssignee = null;
             this.error = '';
             const assignedTo = todo.assigned_to || null;
             const url = this.updateUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ assigned_to: assignedTo }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.notOwner || this.i18n.assignError || 'Failed to update assignee.';
-                        this.loadTodos();
+                        this.reloadAfterError(status);
                         return;
                     }
-                    const idx = this.todos.findIndex(t => t.id === todo.id);
-                    if (idx !== -1) this.todos[idx] = data.todo;
+                    this.applyTodo(data.todo);
                 })
                 .catch(() => {
                     this.error = this.i18n.assignError || 'Failed to update assignee.';
@@ -2051,18 +4019,18 @@ function registerBlogTodoCard() {
 
         addThread(todo) {
             const body = (this.threadDrafts[todo.id] || '').trim();
-            if (!body || this.sendingThread) return;
+            if (!body || this.sendingThread || !todo.can_edit) return;
             this.sendingThread = true;
             const url = this.threadStoreUrlBase.replace('__TODO_ID__', todo.id);
-            fetch(url, {
+            this.requestJson(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
                 body: JSON.stringify({ body }),
             })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
+                .then(({ ok, status, data }) => {
                     if (!ok) {
                         this.error = data.message || this.i18n.threadError || 'Failed to add comment.';
+                        this.reloadAfterError(status);
                         return;
                     }
                     this.threadDrafts[todo.id] = '';
@@ -3455,6 +5423,11 @@ document.addEventListener('alpine:init', () => {
     registerAnnotationModal();
     registerBlogCoAuthorCard();
     registerBlogInviteByEmail();
+    registerBlogDossierCard();
+    registerDossierSemanticArticleSearch();
+    registerDossierArticlesCard();
+    registerDossierMembersCard();
+    registerDossierFilesCard();
     registerBlogLoopCard();
     registerBlogTodoCard();
     registerBlogPlanCard();
@@ -3469,8 +5442,14 @@ registerBlogMethodSelectionCard();
 registerAnnotationModal();
 registerBlogCoAuthorCard();
 registerBlogInviteByEmail();
-registerBlogLoopCard();
-registerBlogTodoCard();
+    registerBlogDossierCard();
+    registerDossierTabs();
+    registerDossierContentsCard();
+    registerDossierSemanticArticleSearch();
+    registerDossierMembersCard();
+    registerDossierFilesCard();
+    registerBlogLoopCard();
+    registerBlogTodoCard();
 registerBlogPlanCard();
 registerBlogExplorerModal();
 registerBlogExplorerCard();

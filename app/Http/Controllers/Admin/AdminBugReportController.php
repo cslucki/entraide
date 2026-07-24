@@ -40,4 +40,11 @@ class AdminBugReportController extends Controller
 
         return back()->with('success', 'Bug classé.');
     }
+
+    public function destroy(BugReport $bugReport): RedirectResponse
+    {
+        $bugReport->delete();
+
+        return back()->with('success', 'Bug supprimé.');
+    }
 }

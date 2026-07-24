@@ -19,6 +19,10 @@
                             ? route('organization.blog.index', ['organization' => $organizationRouteParam])
                             : route('blog.index');
                         $blogIsActive = request()->routeIs('blog*', 'organization.blog*');
+                        $dossiersOrganization = $organizationRouteParam ?: $tenant;
+                        $dossiersHref = Auth::check() && $dossiersOrganization && Route::has('organization.dossiers.index')
+                            ? route('organization.dossiers.index', ['organization' => $dossiersOrganization])
+                            : null;
                     @endphp
                     <a href="{{ $desktopBrandHref }}" class="hidden sm:flex items-center gap-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800" aria-label="Accueil {{ $desktopBrandName }}">
                         <img src="{{ $brandLogoUrl }}" alt="" class="h-10 w-10 shrink-0" aria-hidden="true">
@@ -133,7 +137,7 @@
                     <x-slot name="trigger">
                         <button class="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                             <img src="{{ Auth::user()->avatar_url }}" class="w-7 h-7 rounded-full" alt="">
-                            <span class="text-sm text-gray-700 dark:text-gray-300 font-medium">{{ Auth::user()->name }}</span>
+                            <span class="text-sm text-gray-700 dark:text-gray-300 font-medium">{{ Auth::user()->full_name }}</span>
                             <svg class="fill-current h-4 w-4 text-gray-400" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                         </button>
                     </x-slot>
@@ -152,6 +156,9 @@
                         <x-dropdown-link :href="$organizationRouteParam ? route('organization.invitations.index', ['organization' => $organizationRouteParam]) : route('invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
+                        @if($dossiersHref)
+                        <x-dropdown-link :href="$dossiersHref" :active="request()->routeIs('organization.dossiers.*')">{{ __('navigation.my_dossiers') }}</x-dropdown-link>
+                        @endif
                         <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
                         @if(Auth::user()->is_admin)
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
@@ -241,7 +248,7 @@
             <div class="px-4 flex items-center gap-3 mb-3">
                 <img src="{{ Auth::user()->avatar_url }}" class="w-9 h-9 rounded-full" alt="">
                 <div>
-                    <div class="font-medium text-base text-gray-800 dark:text-gray-200">{{ Auth::user()->name }}</div>
+                    <div class="font-medium text-base text-gray-800 dark:text-gray-200">{{ Auth::user()->full_name }}</div>
                     <div class="font-medium text-sm text-gray-500">{{ Auth::user()->points_balance }} pts</div>
                 </div>
             </div>
@@ -258,6 +265,9 @@
                 <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.invitations.index', ['organization' => $organizationRouteParam]) : route('invitations.index')">{{ __('navigation.invitations') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-responsive-nav-link>
+                @if($dossiersHref)
+                <x-responsive-nav-link :href="$dossiersHref" :active="request()->routeIs('organization.dossiers.*')">{{ __('navigation.my_dossiers') }}</x-responsive-nav-link>
+                @endif
                 <x-responsive-nav-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-responsive-nav-link>
                 @if(Auth::user()->is_admin)
                 <x-responsive-nav-link :href="route('admin.dashboard')">{{ __('navigation.administration') }}</x-responsive-nav-link>

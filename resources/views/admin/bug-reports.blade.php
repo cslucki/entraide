@@ -90,6 +90,12 @@
                             @else
                                 <span class="text-xs text-gray-400">—</span>
                             @endif
+                            <form method="POST" action="{{ route('admin.bug-reports.destroy', $bugReport) }}" class="mt-2"
+                                  onsubmit="return confirm('Supprimer ce bug définitivement ?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-xs text-red-400 hover:text-red-600 hover:underline">Supprimer</button>
+                            </form>
                         </td>
                     </tr>
                 @empty
