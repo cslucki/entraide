@@ -30,7 +30,7 @@
         @if($mailer === 'log')
         <div class="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-sm text-amber-700 dark:text-amber-300">
             <p class="font-semibold mb-1">Mode log actif — aucun email ne sera envoyé</p>
-            <p>Pour envoyer de vrais emails, configurez <code class="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">MAIL_MAILER=resend</code> et <code class="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">RESEND_KEY=re_xxx</code> dans votre <code>.env</code>.</p>
+            <p>Pour envoyer de vrais emails, configurez <code class="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">MAIL_MAILER=smtp</code> avec un transport SMTP dans votre <code>.env</code>.</p>
         </div>
         @endif
 
@@ -76,23 +76,20 @@
             </div>
         </form>
 
-        <!-- Instructions Resend -->
+        <!-- Instructions configuration email -->
         <div class="mt-8 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6">
-            <h2 class="text-base font-semibold text-gray-800 dark:text-gray-200 mb-3">Configuration Resend (prod)</h2>
-            <ol class="space-y-3 text-sm text-gray-600 dark:text-gray-400 list-decimal ml-4">
-                <li>Créez un compte sur <strong class="text-gray-900 dark:text-white">resend.com</strong> (free tier : 3 000 emails/mois)</li>
-                <li>Allez dans <strong>API Keys</strong> → créez une clé → copiez-la (<code class="bg-gray-200 dark:bg-gray-700 px-1 rounded text-xs">re_xxxxxxxxxxxx</code>)</li>
-                <li>Allez dans <strong>Domains</strong> → ajoutez <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded text-xs">bouclepro.com</code> → ajoutez les enregistrements DNS indiqués</li>
-                <li>
-                    Ajoutez dans votre <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded text-xs">.env</code> :
-                    <pre class="mt-2 bg-gray-900 text-green-400 text-xs rounded-lg p-3 overflow-x-auto">MAIL_MAILER=resend
-RESEND_KEY=re_xxxxxxxxxxxx
+            <h2 class="text-base font-semibold text-gray-800 dark:text-gray-200 mb-3">Configuration email (production)</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Le transport plateforme par défaut est <strong class="text-gray-900 dark:text-white">Relai-SMTP</strong> via <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded text-xs">MAIL_MAILER=smtp</code>. Les credentials sont configurés dans les variables d'environnement du serveur et ne sont jamais exposés.</p>
+            <div class="mt-3 bg-gray-900 text-green-400 text-xs rounded-lg p-3 overflow-x-auto">
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.relai-smtp.net
+MAIL_PORT=465
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_ENCRYPTION=ssl
 MAIL_FROM_ADDRESS=noreply@bouclepro.com
-MAIL_FROM_NAME="BouclePro"</pre>
-                </li>
-                <li>Sur <strong>Laravel Cloud</strong> : ajoutez ces 4 variables dans l'interface "Environment Variables" de votre projet</li>
-            </ol>
-            <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">En local, gardez <code>MAIL_MAILER=log</code> pour ne pas consommer votre quota.</p>
+MAIL_FROM_NAME="BouclePro"</div>
+            <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">Resend (<code>MAIL_MAILER=resend</code> + <code>RESEND_KEY</code>) reste supporté comme alternative. En local, gardez <code>MAIL_MAILER=log</code> pour ne pas consommer votre quota.</p>
         </div>
     </div>
 </x-admin-layout>
