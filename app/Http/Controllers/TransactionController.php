@@ -12,6 +12,7 @@ use App\Notifications\TransactionStatusChanged;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TransactionController extends Controller
@@ -117,7 +118,17 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'Échange acceptée. L\'échange est en cours.');
 
-        $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh()));
+        rescue(
+            fn () => $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh())),
+            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'transaction_approved',
+                'transaction_id' => $transaction->id,
+                'organization_id' => $transaction->organization_id,
+                'notifiable_id' => $transaction->buyer->id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
 
         return $this->redirectToMessage($transaction)->with('success', 'Échange acceptée.');
     }
@@ -135,7 +146,17 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'Échange refusée.');
 
-        $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh()));
+        rescue(
+            fn () => $transaction->buyer->notify(new TransactionStatusChanged($transaction->fresh())),
+            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'transaction_refused',
+                'transaction_id' => $transaction->id,
+                'organization_id' => $transaction->organization_id,
+                'notifiable_id' => $transaction->buyer->id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
 
         if ($transaction->request_id) {
             ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
@@ -204,7 +225,17 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'L\'acheteur a déclaré la prestation terminée. En attente de confirmation du vendeur.');
 
-        $transaction->seller->notify(new TransactionStatusChanged($transaction->fresh()));
+        rescue(
+            fn () => $transaction->seller->notify(new TransactionStatusChanged($transaction->fresh())),
+            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'transaction_completed_by_buyer',
+                'transaction_id' => $transaction->id,
+                'organization_id' => $transaction->organization_id,
+                'notifiable_id' => $transaction->seller->id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
 
         return $this->redirectToMessage($transaction)->with('success', 'Prestation déclarée terminée.');
     }
@@ -266,8 +297,28 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'Échange complété ! Les points ont été transférés.');
 
-        $fresh->buyer->notify(new TransactionStatusChanged($fresh));
-        $fresh->seller->notify(new TransactionStatusChanged($fresh));
+        rescue(
+            fn () => $fresh->buyer->notify(new TransactionStatusChanged($fresh)),
+            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'transaction_confirmed_buyer_notification',
+                'transaction_id' => $fresh->id,
+                'organization_id' => $fresh->organization_id,
+                'notifiable_id' => $fresh->buyer->id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
+        rescue(
+            fn () => $fresh->seller->notify(new TransactionStatusChanged($fresh)),
+            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'transaction_confirmed_seller_notification',
+                'transaction_id' => $fresh->id,
+                'organization_id' => $fresh->organization_id,
+                'notifiable_id' => $fresh->seller->id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
 
         return $this->redirectToMessage($transaction)->with('success', 'Échange complété avec succès !');
     }
