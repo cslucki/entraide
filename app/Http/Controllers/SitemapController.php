@@ -15,7 +15,7 @@ class SitemapController extends Controller
             ->latest('updated_at')
             ->get();
 
-        $users = User::whereNull('banned_at')
+        $users = User::discoverable()
             ->select('id', 'updated_at')
             ->latest('updated_at')
             ->get();

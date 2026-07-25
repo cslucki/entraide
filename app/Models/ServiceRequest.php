@@ -70,6 +70,7 @@ class ServiceRequest extends Model
 
     public function scopeOpen($query)
     {
-        return $query->where('status', 'open');
+        return $query->where('status', 'open')
+            ->whereHas('user', fn ($userQuery) => $userQuery->activeAccount());
     }
 }

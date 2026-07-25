@@ -188,6 +188,47 @@ class T976BlogCoAuthorTest extends TestCase
         $response->assertJsonPath('message', __('blog.co_author_cross_org'));
     }
 
+    public function test_cannot_add_deactivated_user_as_co_author(): void
+    {
+        $owner = User::factory()->create(['organization_id' => $this->org->id]);
+        $deactivatedUser = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'banned_at' => now(),
+        ]);
+        $post = $this->createPost($owner);
+
+        $response = $this->actingAs($owner)->postJson("/blog/{$post->slug}/co-authors", [
+            'user_id' => $deactivatedUser->id,
+        ]);
+
+        $response->assertJsonValidationErrors('user_id');
+        $this->assertDatabaseMissing('blog_post_user', [
+            'blog_post_id' => $post->id,
+            'user_id' => $deactivatedUser->id,
+        ]);
+    }
+
+    public function test_co_author_search_excludes_deactivated_users(): void
+    {
+        $owner = User::factory()->create(['organization_id' => $this->org->id]);
+        $activeUser = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'email' => 'active-coauthor@example.com',
+        ]);
+        $deactivatedUser = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'email' => 'inactive-coauthor@example.com',
+            'banned_at' => now(),
+        ]);
+        $post = $this->createPost($owner);
+
+        $response = $this->actingAs($owner)->getJson("/blog/{$post->slug}/co-authors/search?q=coauthor@example.com");
+
+        $response->assertOk();
+        $this->assertStringContainsString($activeUser->id, $response->getContent());
+        $this->assertStringNotContainsString($deactivatedUser->id, $response->getContent());
+    }
+
     public function test_cannot_add_owner_as_co_author(): void
     {
         $owner = User::factory()->create();

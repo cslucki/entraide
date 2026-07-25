@@ -30,7 +30,7 @@ class SearchController extends Controller
         $likeOperator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
         $services = Service::with(['user', 'category'])
-            ->where('status', 'active')
+            ->active()
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('description', $likeOperator, $like)
             )
@@ -39,7 +39,7 @@ class SearchController extends Controller
             ->get();
 
         $requests = ServiceRequest::with(['user', 'category'])
-            ->where('status', 'open')
+            ->open()
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('description', $likeOperator, $like)
             )
@@ -48,7 +48,7 @@ class SearchController extends Controller
             ->get();
 
         $users = User::with(['country', 'organization'])
-            ->whereNull('banned_at')
+            ->discoverable()
             ->where(fn ($query) => $query->where('name', $likeOperator, $like)
                 ->orWhere('bio', $likeOperator, $like)
                 ->orWhere('city', $likeOperator, $like)
