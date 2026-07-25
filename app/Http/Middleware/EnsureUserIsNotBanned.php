@@ -17,7 +17,7 @@ class EnsureUserIsNotBanned
 
         if ($user && $user->banned_at !== null) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Votre compte a été suspendu. Contactez l\'administrateur.'], 403);
+                return response()->json(['message' => trans('auth.deactivated')], 403);
             }
 
             Auth::logout();

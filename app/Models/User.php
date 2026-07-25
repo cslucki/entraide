@@ -143,7 +143,7 @@ class User extends Authenticatable
         return $this->banned_at !== null;
     }
 
-    public function scopeActive($query): void
+    public function scopeActiveAccount($query): void
     {
         $query->whereNull('banned_at');
     }

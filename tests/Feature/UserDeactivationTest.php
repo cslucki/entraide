@@ -213,6 +213,22 @@ class UserDeactivationTest extends TestCase
         $membersResponse->assertSee($user->name);
     }
 
+    public function test_api_middleware_blocks_deactivated_user_with_existing_token(): void
+    {
+        $user = $this->createUser(['banned_at' => now()]);
+
+        $user->createToken('post-ban-token');
+        $this->assertSame(1, $user->tokens()->count());
+
+        $token = $user->createToken('test')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/profile');
+
+        $response->assertForbidden();
+        $response->assertJson(['message' => trans('auth.deactivated')]);
+    }
+
     public function test_organization_isolation_preserved_for_members_page(): void
     {
         $otherOrg = Organization::factory()->create(['slug' => 'other', 'is_active' => true]);
