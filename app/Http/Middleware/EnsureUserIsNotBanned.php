@@ -11,7 +11,15 @@ class EnsureUserIsNotBanned
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::check() && Auth::user()->banned_at !== null) {
+        $user = Auth::guard('sanctum')->check()
+            ? Auth::guard('sanctum')->user()
+            : (Auth::check() ? Auth::user() : null);
+
+        if ($user && $user->banned_at !== null) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => trans('auth.deactivated')], 403);
+            }
+
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();

@@ -31,6 +31,10 @@ class ProfileController extends Controller
             abort(404);
         }
 
+        if ($user->banned_at !== null) {
+            abort(404);
+        }
+
         $memberAiProfile = $organization->ai_profiles_enabled
             ? MemberAiProfile::where('user_id', $user->id)
                 ->where('status', MemberAiProfile::STATUS_PUBLISHED)

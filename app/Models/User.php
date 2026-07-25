@@ -30,6 +30,12 @@ class User extends Authenticatable
                 $user->referral_code = app(ReferralCodeGenerator::class)->generate($user);
             }
         });
+
+        static::saved(function (User $user) {
+            if ($user->wasChanged('banned_at') && $user->banned_at !== null) {
+                $user->tokens()->delete();
+            }
+        });
     }
 
     protected $fillable = [
@@ -130,6 +136,26 @@ class User extends Authenticatable
         }
 
         return $initials ?: '?';
+    }
+
+    public function getIsDeactivatedAttribute(): bool
+    {
+        return $this->banned_at !== null;
+    }
+
+    public function scopeActiveAccount($query): void
+    {
+        $query->whereNull('banned_at');
+    }
+
+    public function scopeDiscoverable($query): void
+    {
+        $query->whereNull('banned_at');
+    }
+
+    public function scopeAssignable($query): void
+    {
+        $query->whereNull('banned_at');
     }
 
     public function services(): HasMany
