@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Notifications\AiBudgetExceeded;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class CheckAiBudgets extends Command
 {
@@ -37,11 +38,23 @@ class CheckAiBudgets extends Command
 
             $admins = User::where('is_admin', true)->get();
             foreach ($admins as $admin) {
-                $admin->notify(new AiBudgetExceeded(
-                    scenarioId: $scenarioId,
-                    currentCost: (float) $currentCost,
-                    budgetLimit: (float) $limit,
-                ));
+                rescue(
+                    fn () => $admin->notify(new AiBudgetExceeded(
+                        scenarioId: $scenarioId,
+                        currentCost: (float) $currentCost,
+                        budgetLimit: (float) $limit,
+                    )),
+                    function (\Throwable $e) use ($scenarioId, $admin) {
+                        Log::error('ai_budget_alert_notification_failed', [
+                            'event' => 'ai_budget_alert_notification_failed',
+                            'scenario_id' => $scenarioId,
+                            'admin_id' => $admin->id,
+                            'organization_id' => $admin->organization_id,
+                            'exception_class' => get_class($e),
+                        ]);
+                    },
+                    false,
+                );
             }
 
             Cache::put($cacheKey, true, now()->endOfMonth());
