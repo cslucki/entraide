@@ -8,6 +8,7 @@ use App\Models\Reaction;
 use App\Models\Transaction;
 use App\Notifications\NewMessageReceived;
 use App\Services\UrlPreviewService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
@@ -144,7 +145,17 @@ class MessageThread extends Component
             ? $transaction->seller
             : $transaction->buyer;
 
-        $recipient->notify(new NewMessageReceived($transaction, $msg));
+        rescue(
+            fn () => $recipient->notify(new NewMessageReceived($transaction, $msg)),
+            fn (\Throwable $e) => Log::error('Email notification failed after successful business action', [
+                'event' => 'message_created_notification',
+                'message_id' => $msg->id,
+                'organization_id' => $transaction->organization_id,
+                'notifiable_id' => $recipient->id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
     }
 
     public function removePhoto(): void
