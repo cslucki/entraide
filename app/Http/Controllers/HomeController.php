@@ -52,6 +52,7 @@ class HomeController extends Controller
         $organizationId = $organization->id;
 
         $members = User::where('organization_id', $organizationId)
+            ->whereNull('banned_at')
             ->withCount([
                 'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->where('organization_id', $organizationId),
                 'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'open')->where('organization_id', $organizationId),

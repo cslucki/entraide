@@ -37,6 +37,12 @@ class NewPasswordController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
+        $user = User::where('email', $request->email)->first();
+        if ($user && $user->banned_at !== null) {
+            return back()->withInput($request->only('email'))
+                ->withErrors(['email' => trans('auth.deactivated')]);
+        }
+
         // Here we will attempt to reset the user's password. If it is successful we
         // will update the password on an actual user model and persist it to the
         // database. Otherwise we will parse the error and return the response.
