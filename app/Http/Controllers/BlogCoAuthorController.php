@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class BlogCoAuthorController extends Controller
 {
@@ -42,10 +43,15 @@ class BlogCoAuthorController extends Controller
         Gate::authorize('manageCoAuthors', $post);
 
         $data = $request->validate([
-            'user_id' => 'required|uuid|exists:users,id',
+            'user_id' => [
+                'required',
+                'uuid',
+                Rule::exists('users', 'id')
+                    ->whereNull('banned_at'),
+            ],
         ]);
 
-        $user = User::findOrFail($data['user_id']);
+        $user = User::assignable()->findOrFail($data['user_id']);
 
         if ($user->organization_id !== $post->organization_id) {
             return response()->json(['message' => __('blog.co_author_cross_org')], 422);
@@ -102,7 +108,8 @@ class BlogCoAuthorController extends Controller
 
         $query = $request->input('q', '');
 
-        $users = User::where('organization_id', $post->organization_id)
+        $users = User::assignable()
+            ->where('organization_id', $post->organization_id)
             ->where(function ($q) use ($query) {
                 $q->where('name', 'like', "%{$query}%")
                     ->orWhere('first_name', 'like', "%{$query}%")

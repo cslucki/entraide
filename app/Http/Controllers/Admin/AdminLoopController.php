@@ -12,6 +12,7 @@ use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminLoopController extends Controller
@@ -108,7 +109,8 @@ class AdminLoopController extends Controller
         if ($this->isSuperAdmin()) {
             $organizations = Organization::orderBy('name')->get(['id', 'name']);
 
-            $users = User::with('organization:id,name')
+            $users = User::assignable()
+                ->with('organization:id,name')
                 ->orderBy('name')
                 ->get(['id', 'name', 'email', 'organization_id']);
 
@@ -121,7 +123,8 @@ class AdminLoopController extends Controller
             abort(404);
         }
 
-        $users = User::where('organization_id', $orgId)
+        $users = User::assignable()
+            ->where('organization_id', $orgId)
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
@@ -137,11 +140,14 @@ class AdminLoopController extends Controller
                 'name' => 'required|string|max:255',
                 'description' => 'nullable|string|max:5000',
                 'visibility' => 'required|in:public,private',
-                'owner_id' => 'required|exists:users,id',
+                'owner_id' => [
+                    'required',
+                    Rule::exists('users', 'id')->whereNull('banned_at'),
+                ],
                 'organization_id' => 'required|exists:organizations,id',
             ]);
 
-            $owner = User::findOrFail($data['owner_id']);
+            $owner = User::assignable()->findOrFail($data['owner_id']);
 
             if ($owner->organization_id !== $data['organization_id']) {
                 abort(403, __('admin.owner_must_belong_to_org'));
@@ -169,10 +175,15 @@ class AdminLoopController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:5000',
             'visibility' => 'required|in:public,private',
-            'owner_id' => 'required|exists:users,id',
+            'owner_id' => [
+                'required',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $orgId)
+                    ->whereNull('banned_at'),
+            ],
         ]);
 
-        $owner = User::findOrFail($data['owner_id']);
+        $owner = User::assignable()->findOrFail($data['owner_id']);
 
         if ($owner->organization_id !== $orgId) {
             abort(403, __('admin.owner_must_belong_to_org'));
@@ -194,13 +205,15 @@ class AdminLoopController extends Controller
         $this->assertOrgAccess($loop);
 
         if ($this->isSuperAdmin()) {
-            $users = User::with('organization:id,name')
+            $users = User::assignable()
+                ->with('organization:id,name')
                 ->orderBy('name')
                 ->get(['id', 'name', 'email', 'organization_id']);
         } else {
             $orgId = auth()->user()->organization_id;
 
-            $users = User::where('organization_id', $orgId)
+            $users = User::assignable()
+                ->where('organization_id', $orgId)
                 ->orderBy('name')
                 ->get(['id', 'name', 'email']);
         }
@@ -233,7 +246,12 @@ class AdminLoopController extends Controller
         $this->assertOrgAccess($loop);
 
         $request->validate([
-            'user_id' => 'required|exists:users,id',
+            'user_id' => [
+                'required',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $loop->organization_id)
+                    ->whereNull('banned_at'),
+            ],
         ]);
 
         $userId = $request->input('user_id');

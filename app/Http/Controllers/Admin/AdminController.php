@@ -478,7 +478,7 @@ class AdminController extends Controller
         $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug']);
         $categories = Category::where('organization_id', $service->organization_id)->orderBy('name_b2c')->get();
         $skills = Skill::with('category')->where('organization_id', $service->organization_id)->orderBy('name')->get();
-        $users = User::orderBy('first_name')->orderBy('name')->get(['id', 'first_name', 'name', 'email']);
+        $users = User::assignable()->orderBy('first_name')->orderBy('name')->get(['id', 'first_name', 'name', 'email']);
 
         return view('admin.services.edit', compact('service', 'organizations', 'categories', 'skills', 'users'));
     }
@@ -495,12 +495,19 @@ class AdminController extends Controller
             'delivery_mode' => 'required|in:remote,onsite,both',
             'points_cost' => 'required|integer|min:1',
             'status' => 'required|in:active,paused',
-            'user_id' => 'required|uuid|exists:users,id',
+            'user_id' => ['required', 'uuid', Rule::exists('users', 'id')->whereNull('banned_at')],
             'organization_id' => 'required|uuid|exists:organizations,id',
             'skills' => 'nullable|array',
             'skills.*' => 'uuid|exists:skills,id',
             'tags' => 'nullable|string',
         ]);
+
+        $serviceOwner = User::assignable()->find($data['user_id']);
+        if (! $serviceOwner || $serviceOwner->organization_id !== $data['organization_id']) {
+            throw ValidationException::withMessages([
+                'user_id' => __('validation.exists', ['attribute' => 'user']),
+            ]);
+        }
 
         $service->update([
             'title' => $data['title'],
@@ -861,6 +868,7 @@ class AdminController extends Controller
         $counts = $this->countUserRelations($user);
 
         $sameOrgUsers = User::where('organization_id', $user->organization_id)
+            ->assignable()
             ->where('id', '!=', $user->id)
             ->orderBy('name')
             ->get();
@@ -872,7 +880,13 @@ class AdminController extends Controller
     {
         $data = $request->validate([
             'confirmation' => 'required|string',
-            'transfer_to' => 'nullable|uuid|exists:users,id',
+            'transfer_to' => [
+                'nullable',
+                'uuid',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $user->organization_id)
+                    ->whereNull('banned_at'),
+            ],
         ]);
 
         if ($data['confirmation'] !== $user->name) {
@@ -888,6 +902,7 @@ class AdminController extends Controller
         $counts['preview_only'] = true;
 
         $sameOrgUsers = User::where('organization_id', $user->organization_id)
+            ->assignable()
             ->where('id', '!=', $user->id)
             ->orderBy('name')
             ->get();
@@ -939,7 +954,7 @@ class AdminController extends Controller
 
     private function estimateTransferCounts(User $user, string $transferToId): array
     {
-        $transferTo = User::find($transferToId);
+        $transferTo = User::assignable()->find($transferToId);
         if (! $transferTo || $transferTo->organization_id !== $user->organization_id) {
             return [];
         }

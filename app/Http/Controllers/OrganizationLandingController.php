@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Organization;
 use App\Models\Service;
+use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -21,14 +22,14 @@ class OrganizationLandingController extends Controller
         }
 
         $stats = [
-            'users' => $organization->users()->count(),
-            'services' => Service::where('organization_id', $organization->id)->where('status', 'active')->count(),
-            'requests' => $organization->serviceRequests()->where('status', 'open')->count(),
+            'users' => $organization->users()->activeAccount()->count(),
+            'services' => Service::where('organization_id', $organization->id)->active()->count(),
+            'requests' => ServiceRequest::where('organization_id', $organization->id)->open()->count(),
             'exchanges' => Transaction::where('organization_id', $organization->id)->where('status', 'completed')->count(),
         ];
 
         $featuredServices = Service::where('organization_id', $organization->id)
-            ->where('status', 'active')
+            ->active()
             ->with('category', 'user')
             ->inRandomOrder()
             ->limit(6)
@@ -38,6 +39,7 @@ class OrganizationLandingController extends Controller
 
         if ($organization->homepage_template === 'bouclepro_hero_v2') {
             $heroAvatars = $organization->users()
+                ->activeAccount()
                 ->whereNotNull('avatar')
                 ->latest()
                 ->limit(12)
@@ -50,6 +52,7 @@ class OrganizationLandingController extends Controller
 
         if ($organization->homepage_template === 'artscilab_hero') {
             $heroAvatars = $organization->users()
+                ->activeAccount()
                 ->whereNotNull('avatar')
                 ->latest()
                 ->limit(16)

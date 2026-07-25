@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\EmailerService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminEmailTemplatesController extends Controller
@@ -96,7 +97,8 @@ class AdminEmailTemplatesController extends Controller
 
     public function sendForm(EmailTemplate $emailTemplate): View
     {
-        $users = User::with('organization')
+        $users = User::activeAccount()
+            ->with('organization')
             ->orderBy('name')
             ->paginate(50);
 
@@ -113,7 +115,7 @@ class AdminEmailTemplatesController extends Controller
     {
         $validated = $request->validate([
             'user_ids' => 'required|array',
-            'user_ids.*' => 'exists:users,id',
+            'user_ids.*' => Rule::exists('users', 'id')->whereNull('banned_at'),
             'confirmed' => 'nullable|string',
         ]);
 
@@ -123,7 +125,7 @@ class AdminEmailTemplatesController extends Controller
             return back()->withErrors(['user_ids' => __('admin.emailer_max_50')])->withInput();
         }
 
-        $users = User::whereIn('id', $userIds)->get();
+        $users = User::activeAccount()->whereIn('id', $userIds)->get();
 
         if ($users->isEmpty()) {
             return back()->withErrors(['user_ids' => __('admin.emailer_no_recipients')])->withInput();
@@ -165,7 +167,7 @@ class AdminEmailTemplatesController extends Controller
             return redirect()->route('admin.email-templates.send', $emailTemplate);
         }
 
-        $users = User::whereIn('id', $userIds)->get();
+        $users = User::activeAccount()->whereIn('id', $userIds)->get();
         $service = app(EmailerService::class);
         $previewUser = $users->first();
 

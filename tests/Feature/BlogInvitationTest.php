@@ -94,6 +94,25 @@ class BlogInvitationTest extends TestCase
         $this->assertEquals('existing_member', $log->data['invitation_type']);
     }
 
+    public function test_deactivated_existing_member_is_treated_as_external_invitation_recipient(): void
+    {
+        Mail::fake();
+        $this->member->update(['banned_at' => now()]);
+
+        $response = $this->actingAs($this->owner)->postJson(route('blog.invite.store', ['post' => $this->post]), [
+            'recipient_email' => $this->member->email,
+            'recipient_name' => 'Member',
+            'message' => 'Please read this.',
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['success' => true, 'invitation_type' => 'external']);
+
+        $invitation = BlogPostInvitation::where('recipient_email', $this->member->email)->first();
+        $this->assertNotNull($invitation);
+        $this->assertEquals('external', $invitation->invitation_type);
+    }
+
     public function test_owner_can_send_invitation_to_external_email(): void
     {
         Mail::fake();
@@ -547,6 +566,29 @@ class BlogInvitationTest extends TestCase
         $invitation->refresh();
         $this->assertEquals('accepted', $invitation->status);
         $this->assertEquals($this->member->id, $invitation->accepted_by_user_id);
+    }
+
+    public function test_deactivated_user_cannot_accept_invitation(): void
+    {
+        $this->member->update(['banned_at' => now()]);
+        $this->actingAs($this->member);
+
+        BlogPostInvitation::create([
+            'blog_post_id' => $this->post->id,
+            'sender_id' => $this->owner->id,
+            'recipient_email' => $this->member->email,
+            'token' => 'deactivated-accept-token',
+            'invitation_type' => 'existing_member',
+            'organization_id' => $this->org->id,
+        ]);
+
+        $this->post(route('blog.invite.accept', ['token' => 'deactivated-accept-token']))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('blog_post_user', [
+            'blog_post_id' => $this->post->id,
+            'user_id' => $this->member->id,
+        ]);
     }
 
     public function test_accept_expired_token_fails(): void

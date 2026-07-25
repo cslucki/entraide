@@ -216,9 +216,16 @@ class OrgAdminController extends Controller
     {
         abort_if($loop->organization_id !== $organization->id, 404);
 
-        $data = $request->validate(['user_id' => 'required|exists:users,id']);
+        $data = $request->validate([
+            'user_id' => [
+                'required',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $organization->id)
+                    ->whereNull('banned_at'),
+            ],
+        ]);
 
-        $user = User::findOrFail($data['user_id']);
+        $user = User::assignable()->findOrFail($data['user_id']);
         abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
 
         try {
@@ -314,6 +321,7 @@ class OrgAdminController extends Controller
         $counts = $this->countUserRelations($organization, $user);
 
         $sameOrgUsers = User::where('organization_id', $organization->id)
+            ->assignable()
             ->where('id', '!=', $user->id)
             ->orderBy('name')
             ->get();
@@ -327,7 +335,13 @@ class OrgAdminController extends Controller
 
         $data = $request->validate([
             'confirmation' => 'required|string',
-            'transfer_to' => 'nullable|uuid|exists:users,id',
+            'transfer_to' => [
+                'nullable',
+                'uuid',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $organization->id)
+                    ->whereNull('banned_at'),
+            ],
         ]);
 
         if ($data['confirmation'] !== $user->name) {
@@ -337,7 +351,7 @@ class OrgAdminController extends Controller
         $counts = $this->countUserRelations($organization, $user);
 
         if (! empty($data['transfer_to'])) {
-            $transferTo = User::find($data['transfer_to']);
+            $transferTo = User::assignable()->find($data['transfer_to']);
             if ($transferTo && $transferTo->organization_id === $organization->id) {
                 $counts['transfer'] = $this->estimateTransferCounts($user, $data['transfer_to']);
             }
@@ -346,6 +360,7 @@ class OrgAdminController extends Controller
         $counts['preview_only'] = true;
 
         $sameOrgUsers = User::where('organization_id', $organization->id)
+            ->assignable()
             ->where('id', '!=', $user->id)
             ->orderBy('name')
             ->get();
@@ -382,7 +397,7 @@ class OrgAdminController extends Controller
 
     private function estimateTransferCounts(User $user, string $transferToId): array
     {
-        $transferTo = User::find($transferToId);
+        $transferTo = User::assignable()->find($transferToId);
         if (! $transferTo || $transferTo->organization_id !== $user->organization_id) {
             return [];
         }

@@ -26,7 +26,7 @@ class AdminOrganizationController extends Controller
 
     public function create(): View
     {
-        $admins = User::orderBy('name')->get();
+        $admins = User::assignable()->orderBy('name')->get();
 
         return view('admin.organizations.create', compact('admins'));
     }
@@ -37,7 +37,7 @@ class AdminOrganizationController extends Controller
             'name' => 'required|string|max:100|unique:organizations,name',
             'slug' => 'nullable|string|max:100|unique:organizations,slug|regex:/^[a-z0-9\-]+$/',
             'description' => 'nullable|string|max:500',
-            'admin_id' => 'nullable|uuid|exists:users,id',
+            'admin_id' => ['nullable', 'uuid', Rule::exists('users', 'id')->whereNull('banned_at')],
             'hero_title' => 'nullable|string|max:100',
             'hero_description' => 'nullable|string|max:500',
             'accent_color' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
@@ -71,7 +71,7 @@ class AdminOrganizationController extends Controller
 
     public function edit(Organization $organization): View
     {
-        $admins = User::orderBy('name')->get();
+        $admins = User::assignable()->orderBy('name')->get();
         $loops = $organization->loops()->orderBy('name')->get();
 
         $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
@@ -93,7 +93,7 @@ class AdminOrganizationController extends Controller
             'name' => 'required|string|max:100|unique:organizations,name,'.$organization->id,
             'slug' => 'nullable|string|max:100|unique:organizations,slug,'.$organization->id.'|regex:/^[a-z0-9\-]+$/',
             'description' => 'nullable|string|max:500',
-            'admin_id' => 'nullable|uuid|exists:users,id',
+            'admin_id' => ['nullable', 'uuid', Rule::exists('users', 'id')->whereNull('banned_at')],
             'hero_title' => 'nullable|string|max:100',
             'hero_description' => 'nullable|string|max:500',
             'hero_gradient_start' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
