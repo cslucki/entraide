@@ -3,25 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AiInteraction;
-use App\Models\BlogComment;
-use App\Models\BlogPost;
-use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\Country;
 use App\Models\EmailLog;
-use App\Models\Favorite;
-use App\Models\FeedPost;
-use App\Models\FeedPostComment;
 use App\Models\LoginLog;
-use App\Models\Loop;
-use App\Models\LoopMember;
-use App\Models\LoopMessage;
-use App\Models\MemberAiProfile;
-use App\Models\Message;
 use App\Models\Organization;
 use App\Models\PointLedger;
-use App\Models\Referral;
 use App\Models\Report;
 use App\Models\RequestAttachment;
 use App\Models\Scopes\BelongsToOrganizationScope;
@@ -31,6 +18,7 @@ use App\Models\Skill;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\UserDataLifecycleRegistry;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -912,67 +900,11 @@ class AdminController extends Controller
 
     private function countUserRelations(User $user): array
     {
-        $own = [
-            'services' => Service::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'service_requests' => ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'transactions_as_buyer' => Transaction::where('buyer_id', $user->id)->count(),
-            'transactions_as_seller' => Transaction::where('seller_id', $user->id)->count(),
-            'blog_posts' => BlogPost::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'blog_comments' => BlogComment::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'favorites' => Favorite::where('user_id', $user->id)->count(),
-            'feed_posts' => FeedPost::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'feed_post_comments' => FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'point_ledger' => PointLedger::where('user_id', $user->id)->count(),
-            'member_ai_profile' => MemberAiProfile::where('user_id', $user->id)->count(),
-        ];
-
-        $part = [
-            'loop_memberships' => LoopMember::where('user_id', $user->id)->count(),
-            'orgs_as_admin' => Organization::where('admin_id', $user->id)->count(),
-            'loops_created' => Loop::where('created_by', $user->id)->count(),
-        ];
-
-        $audit = [
-            'messages_sent' => Message::where('sender_id', $user->id)->count(),
-            'loop_messages_sent' => LoopMessage::where('sender_id', $user->id)->count(),
-            'reports_filed' => Report::where('reporter_id', $user->id)->count(),
-            'email_logs' => EmailLog::where('user_id', $user->id)->count(),
-            'bug_reports' => BugReport::where('reporter_id', $user->id)->count(),
-            'login_logs' => LoginLog::where('user_id', $user->id)->count(),
-            'ai_interactions' => AiInteraction::where('user_id', $user->id)->count(),
-            'referrals_made' => Referral::where('referrer_user_id', $user->id)->count(),
-        ];
-
-        return compact('own', 'part', 'audit');
+        return app(UserDataLifecycleRegistry::class)->preview($user);
     }
 
     private function estimateTransferCounts(User $user, string $transferToId): array
     {
-        $transferTo = User::assignable()->find($transferToId);
-        if (! $transferTo || $transferTo->organization_id !== $user->organization_id) {
-            return [];
-        }
-
-        return [
-            'services' => Service::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'service_requests' => ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'blog_posts' => BlogPost::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'blog_comments' => BlogComment::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'favorites' => Favorite::where('user_id', $user->id)->count(),
-            'feed_posts' => FeedPost::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'feed_post_comments' => FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-        ];
+        return app(UserDataLifecycleRegistry::class)->transferEstimate($user, $transferToId);
     }
 }

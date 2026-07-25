@@ -23,6 +23,7 @@ use App\Models\User;
 use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
+use App\Services\UserDataLifecycleRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -353,7 +354,7 @@ class OrgAdminController extends Controller
         if (! empty($data['transfer_to'])) {
             $transferTo = User::assignable()->find($data['transfer_to']);
             if ($transferTo && $transferTo->organization_id === $organization->id) {
-                $counts['transfer'] = $this->estimateTransferCounts($user, $data['transfer_to']);
+                $counts['transfer'] = $this->estimateTransferCounts($organization, $user, $data['transfer_to']);
             }
         }
 
@@ -370,42 +371,12 @@ class OrgAdminController extends Controller
 
     private function countUserRelations(Organization $organization, User $user): array
     {
-        $own = [
-            'services' => Service::where('organization_id', $organization->id)
-                ->where('user_id', $user->id)->count(),
-            'service_requests' => ServiceRequest::where('organization_id', $organization->id)
-                ->where('user_id', $user->id)->count(),
-            'transactions_as_buyer' => Transaction::where('organization_id', $organization->id)
-                ->where('buyer_id', $user->id)->count(),
-            'transactions_as_seller' => Transaction::where('organization_id', $organization->id)
-                ->where('seller_id', $user->id)->count(),
-        ];
-
-        $part = [
-            'loop_memberships' => $user->loopMemberships()->whereHas('loop', fn ($q) => $q->where('organization_id', $organization->id))->count(),
-            'loops_created' => Loop::where('organization_id', $organization->id)
-                ->where('created_by', $user->id)->count(),
-        ];
-
-        $audit = [
-            'login_logs' => LoginLog::where('organization_id', $organization->id)
-                ->where('user_id', $user->id)->count(),
-        ];
-
-        return compact('own', 'part', 'audit');
+        return app(UserDataLifecycleRegistry::class)->preview($user, $organization);
     }
 
-    private function estimateTransferCounts(User $user, string $transferToId): array
+    private function estimateTransferCounts(Organization $organization, User $user, string $transferToId): array
     {
-        $transferTo = User::assignable()->find($transferToId);
-        if (! $transferTo || $transferTo->organization_id !== $user->organization_id) {
-            return [];
-        }
-
-        return [
-            'services' => Service::where('user_id', $user->id)->count(),
-            'service_requests' => ServiceRequest::where('user_id', $user->id)->count(),
-        ];
+        return app(UserDataLifecycleRegistry::class)->transferEstimate($user, $transferToId, $organization);
     }
 
     public function categories(Request $request, Organization $organization): View

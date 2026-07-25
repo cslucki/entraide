@@ -1,4 +1,16 @@
 <x-admin-layout title="Suppression utilisateur">
+    @php
+        $lifecycleGroups = [
+            'own' => ['label' => __('admin.user_lifecycle_transferable'), 'color' => 'text-red-600 dark:text-red-400 font-semibold'],
+            'part' => ['label' => __('admin.user_lifecycle_detachable'), 'color' => 'text-yellow-600 dark:text-yellow-400'],
+            'delete' => ['label' => __('admin.user_lifecycle_deletable'), 'color' => 'text-red-600 dark:text-red-400'],
+            'audit' => ['label' => __('admin.user_lifecycle_anonymizable'), 'color' => 'text-yellow-600 dark:text-yellow-400'],
+            'retain' => ['label' => __('admin.user_lifecycle_retained'), 'color' => 'text-gray-600 dark:text-gray-300'],
+            'block' => ['label' => __('admin.user_lifecycle_blocking'), 'color' => 'text-red-700 dark:text-red-300 font-semibold'],
+            'unclassified' => ['label' => __('admin.user_lifecycle_unclassified'), 'color' => 'text-purple-600 dark:text-purple-400 font-semibold'],
+        ];
+        $impactTotal = collect(array_keys($lifecycleGroups))->sum(fn ($group) => collect($counts[$group] ?? [])->sum());
+    @endphp
     <div class="max-w-3xl mx-auto">
         <div class="flex items-center gap-3 mb-6">
             <a href="{{ route('admin.users.edit', $user) }}" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
@@ -31,51 +43,23 @@
             <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Aperçu des données impactées</h2>
 
             <div class="space-y-4">
-                <div>
-                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Données liées (transférables)</h3>
-                    <table class="w-full text-sm">
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                            @foreach($counts['own'] as $key => $count)
-                            <tr>
-                                <td class="py-1.5 text-gray-600 dark:text-gray-400">{{ __("admin.user_data_{$key}") }}</td>
-                                <td class="py-1.5 text-right font-mono {{ $count > 0 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-400' }}">{{ $count }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-
-                @if(count($counts['part']) > 0)
-                <div>
-                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Participations</h3>
-                    <table class="w-full text-sm">
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                            @foreach($counts['part'] as $key => $count)
-                            <tr>
-                                <td class="py-1.5 text-gray-600 dark:text-gray-400">{{ __("admin.user_data_{$key}") }}</td>
-                                <td class="py-1.5 text-right font-mono {{ $count > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-400' }}">{{ $count }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                @endif
-
-                @if(count($counts['audit']) > 0)
-                <div>
-                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Traces (anonymisables)</h3>
-                    <table class="w-full text-sm">
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                            @foreach($counts['audit'] as $key => $count)
-                            <tr>
-                                <td class="py-1.5 text-gray-600 dark:text-gray-400">{{ __("admin.user_data_{$key}") }}</td>
-                                <td class="py-1.5 text-right font-mono {{ $count > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-400' }}">{{ $count }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                @endif
+                @foreach($lifecycleGroups as $group => $meta)
+                    @if(count($counts[$group] ?? []) > 0)
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $meta['label'] }}</h3>
+                        <table class="w-full text-sm">
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                                @foreach($counts[$group] as $key => $count)
+                                <tr>
+                                    <td class="py-1.5 text-gray-600 dark:text-gray-400">{{ __("admin.user_data_{$key}") }}</td>
+                                    <td class="py-1.5 text-right font-mono {{ $count > 0 ? $meta['color'] : 'text-gray-400' }}">{{ $count }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @endif
+                @endforeach
 
                 @if(isset($counts['transfer']))
                 <div class="pt-2">
@@ -96,7 +80,7 @@
 
             <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    Total : {{ collect($counts['own'])->sum() + collect($counts['part'])->sum() + collect($counts['audit'])->sum() }} lignes impactées
+                    Total : {{ $impactTotal }} lignes impactées
                 </p>
             </div>
         </div>
@@ -129,8 +113,8 @@
                 </div>
 
                 <button type="submit" class="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-sm transition disabled:opacity-50">
-                    @if(collect($counts['own'])->sum() + collect($counts['part'])->sum() + collect($counts['audit'])->sum() > 0)
-                    Supprimer {{ $user->fullName }} ({{ collect($counts['own'])->sum() + collect($counts['part'])->sum() + collect($counts['audit'])->sum() }} lignes)
+                    @if($impactTotal > 0)
+                    Supprimer {{ $user->fullName }} ({{ $impactTotal }} lignes)
                     @else
                     Supprimer {{ $user->fullName }}
                     @endif
