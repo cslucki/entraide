@@ -8,11 +8,16 @@ use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Contracts\Mail\Factory as MailFactory;
+use Illuminate\Contracts\Mail\Mailer as MailerContract;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use Mockery;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
 
 class MessageThreadTest extends TestCase
@@ -42,6 +47,12 @@ class MessageThreadTest extends TestCase
         ]);
 
         app()->instance('current_organization', $this->organization);
+    }
+
+    protected function tearDown(): void
+    {
+        Mockery::close();
+        parent::tearDown();
     }
 
     public function test_component_renders_for_buyer(): void
@@ -821,5 +832,93 @@ class MessageThreadTest extends TestCase
         $fresh = $msg->fresh();
         $this->assertNull($fresh->pinned_at);
         $this->assertNull($fresh->pinned_by_id);
+    }
+
+    // --- Email failure resilience tests (TASK-1045) ---
+
+    private function mockMailTransportFailure(): void
+    {
+        $mailerMock = Mockery::mock(MailerContract::class);
+        $mailerMock->shouldReceive('send')
+            ->once()
+            ->andThrow(new TransportException('Simulated transport failure'));
+
+        $factoryMock = Mockery::mock(MailFactory::class);
+        $factoryMock->shouldReceive('mailer')
+            ->andReturn($mailerMock);
+
+        $this->app->instance('mail.manager', $factoryMock);
+    }
+
+    public function test_message_persisted_even_when_notification_fails(): void
+    {
+        Log::spy();
+
+        $this->mockMailTransportFailure();
+
+        Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->set('newMessage', 'Bonjour, message malgre panne email')
+            ->call('sendMessage')
+            ->assertSet('newMessage', '')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('messages', [
+            'transaction_id' => $this->transaction->id,
+            'sender_id' => $this->buyer->id,
+            'body' => 'Bonjour, message malgre panne email',
+            'type' => 'user',
+        ]);
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->withArgs(function (string $message, array $context) {
+                return $message === 'Email notification failed after successful business action'
+                    && $context['event'] === 'message_created_notification'
+                    && isset($context['message_id'])
+                    && $context['organization_id'] === $this->organization->id
+                    && $context['notifiable_id'] === $this->seller->id
+                    && $context['exception_class'] === TransportException::class;
+            });
+    }
+
+    public function test_message_with_image_persisted_even_when_notification_fails(): void
+    {
+        Storage::fake('public');
+        Log::spy();
+
+        $this->mockMailTransportFailure();
+
+        $image = UploadedFile::fake()->image('photo.jpg', 200, 200);
+
+        Livewire::actingAs($this->buyer)
+            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->set('newMessage', 'Message avec image panne email')
+            ->set('photo', $image)
+            ->call('sendMessage')
+            ->assertSet('newMessage', '')
+            ->assertSet('photo', null)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('messages', [
+            'transaction_id' => $this->transaction->id,
+            'sender_id' => $this->buyer->id,
+            'body' => 'Message avec image panne email',
+            'type' => 'user',
+        ]);
+
+        $msg = Message::where('body', 'Message avec image panne email')->first();
+        $this->assertNotNull($msg->image_path);
+        $this->assertStringStartsWith('message-images/', $msg->image_path);
+        Storage::disk('public')->assertExists($msg->image_path);
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->withArgs(function (string $message, array $context) {
+                return $message === 'Email notification failed after successful business action'
+                    && $context['event'] === 'message_created_notification'
+                    && isset($context['message_id'])
+                    && $context['exception_class'] === TransportException::class;
+            });
     }
 }
