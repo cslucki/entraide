@@ -7,7 +7,12 @@
             />
 
             @forelse($messages as $msg)
-                @php $isOwn = $msg->sender_id === auth()->id(); @endphp
+                @php
+                    $isOwn = $msg->sender_id === auth()->id();
+                    $senderDisplayable = $msg->sender?->isDisplayableIn(currentOrganization()) ?? false;
+                    $senderName = $msg->sender?->publicDisplayName() ?? 'BouclePro';
+                    $replySenderName = $msg->replyTo?->sender?->publicDisplayName() ?? 'BouclePro';
+                @endphp
                 <div wire:key="msg-{{ $msg->id }}">
                     @if($msg->type === 'help_request')
                         @php $meta = $msg->metadata ?? []; @endphp
@@ -28,7 +33,7 @@
                             @endif
                             <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 pt-1 border-t border-amber-200/50 dark:border-amber-700/30">
                                 @if($msg->sender)
-                                    <span>{{ $isOwn ? __('messages.me') : $msg->sender->full_name }}</span>
+                                    <span>{{ $isOwn ? __('messages.me') : $senderName }}</span>
                                 @else
                                     <span>{{ __('messages.member') }}</span>
                                 @endif
@@ -38,8 +43,8 @@
                         <x-conversation.message-bubble
                             :type="$isOwn ? 'sent' : 'received'"
                             :time="$msg->created_at->diffForHumans()"
-                            :name="$isOwn ? __('messages.me') : ($msg->sender?->full_name ?? 'BouclePro')"
-                            :avatar="$msg->sender?->avatar_url"
+                            :name="$isOwn ? __('messages.me') : $senderName"
+                            :avatar="$senderDisplayable ? $msg->sender?->avatar_url : null"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
@@ -47,7 +52,7 @@
                             :show-reactions="$isMember"
                             :reaction-counts="$reactionData[$msg->id] ?? []"
                             :my-reaction="$myReactions[$msg->id] ?? null"
-                            :reply-to="$msg->replyTo ? ['body' => mb_substr($msg->replyTo->body, 0, 120), 'sender_name' => ($msg->replyTo->sender?->full_name ?? 'BouclePro')] : null"
+                            :reply-to="$msg->replyTo ? ['body' => mb_substr($msg->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
                             :image-path="$msg->imageUrl()"
                             :url-preview="$msg->metadata['url_preview'] ?? null"
                         >

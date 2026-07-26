@@ -20,13 +20,13 @@ class DossierMemberController extends Controller
         $isOwner = $request->user()->id === $dossier->owner_id;
 
         $members = $dossier->dossierMembers()
-            ->with('user:id,first_name,name'.($isOwner ? ',email' : ''))
+            ->with('user:id,first_name,name,organization_id,banned_at'.($isOwner ? ',email' : ''))
             ->get()
             ->map(fn (DossierMember $m) => [
-                'id' => $m->user_id,
-                'name' => $m->user->name,
-                'first_name' => $m->user->first_name,
-                'email' => $isOwner ? $m->user->email : null,
+                'id' => $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user_id : null,
+                'name' => $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user->name : __('profile.deactivated_user'),
+                'first_name' => $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user->first_name : null,
+                'email' => $isOwner && $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user->email : null,
                 'role' => $m->role,
                 'added_by' => $m->added_by,
             ]);

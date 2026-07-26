@@ -36,6 +36,10 @@ class InlineMemberAgent extends Component
             return;
         }
 
+        if (! $user->isDisplayableIn($organization)) {
+            return;
+        }
+
         $this->profile = MemberAiProfile::where('user_id', $user->id)
             ->where('status', MemberAiProfile::STATUS_PUBLISHED)
             ->first();

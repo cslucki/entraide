@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ArticleSeries;
 use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
+use App\Models\Category;
 use App\Models\Dossier;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierSemanticSearchGate;
@@ -38,7 +39,7 @@ class DossierController extends Controller
             ->whereHas('dossierMembers', function ($q) use ($userId) {
                 $q->where('user_id', $userId);
             })
-            ->with(['owner:id,first_name,name,email', 'dossierMembers' => function ($q) use ($userId) {
+            ->with(['owner:id,first_name,name,email,banned_at,organization_id', 'dossierMembers' => function ($q) use ($userId) {
                 $q->where('user_id', $userId);
             }])
             ->latest('updated_at')
@@ -71,21 +72,21 @@ class DossierController extends Controller
         $canManageArticles = $isOwner || $userRole === 'editor';
 
         $dossier->load([
-            'owner:id,first_name,name',
-            'dossierBlogPosts.blogPost.user:id,first_name,name,email,organization_id',
-            'dossierBlogPosts.blogPost.coAuthors:id,first_name,name,email',
-            'dossierMembers.user:id,first_name,name,email',
+            'owner:id,first_name,name,banned_at,organization_id',
+            'dossierBlogPosts.blogPost.user:id,first_name,name,email,organization_id,banned_at',
+            'dossierBlogPosts.blogPost.coAuthors:id,first_name,name,email,organization_id,banned_at',
+            'dossierMembers.user:id,first_name,name,email,organization_id,banned_at',
         ]);
 
         $series = ArticleSeries::where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
             ->with([
                 'rootBlogPost:id,organization_id,user_id,title,slug,status,updated_at,published_at',
-                'rootBlogPost.user:id,first_name,name,email,organization_id',
-                'rootBlogPost.coAuthors:id,first_name,name,email',
+                'rootBlogPost.user:id,first_name,name,email,organization_id,banned_at',
+                'rootBlogPost.coAuthors:id,first_name,name,email,organization_id,banned_at',
                 'items.blogPost:id,organization_id,user_id,title,slug,status,updated_at,published_at',
-                'items.blogPost.user:id,first_name,name,email,organization_id',
-                'items.blogPost.coAuthors:id,first_name,name,email',
+                'items.blogPost.user:id,first_name,name,email,organization_id,banned_at',
+                'items.blogPost.coAuthors:id,first_name,name,email,organization_id,banned_at',
             ])
             ->first();
 
@@ -117,7 +118,7 @@ class DossierController extends Controller
         $canManageFiles = $isOwner || $userRole === 'editor';
         $canDeleteFiles = $isOwner;
 
-        $categories = \App\Models\Category::where('organization_id', $organization->id)
+        $categories = Category::where('organization_id', $organization->id)
             ->orderBy('name_b2c')
             ->get(['id', 'name_b2c', 'name_b2b']);
 
@@ -199,7 +200,7 @@ class DossierController extends Controller
             ->with('success', __('dossiers.updated'));
     }
 
-    public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse| JsonResponse
+    public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse|JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();

@@ -21,13 +21,13 @@ class BlogCoAuthorController extends Controller
         Gate::authorize('update', $post);
 
         $coAuthors = $post->coAuthors()
-            ->get(['users.id', 'users.name', 'users.first_name', 'users.email', 'users.avatar'])
+            ->get(['users.id', 'users.name', 'users.first_name', 'users.email', 'users.avatar', 'users.organization_id', 'users.banned_at'])
             ->map(fn (User $user) => [
-                'id' => $user->id,
-                'name' => $user->fullName,
-                'first_name' => $user->first_name,
-                'email' => $user->email,
-                'avatar_url' => $user->avatar_url,
+                'id' => $user->isDisplayableIn($organization) ? $user->id : null,
+                'name' => $user->publicDisplayName(),
+                'first_name' => $user->isDisplayableIn($organization) ? $user->first_name : null,
+                'email' => $user->isDisplayableIn($organization) ? $user->email : null,
+                'avatar_url' => $user->publicAvatarUrl(),
             ]);
 
         return response()->json(['co_authors' => $coAuthors]);

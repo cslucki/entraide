@@ -14,6 +14,8 @@
             }
             return route('profile.show', $user);
         };
+        $_displayableUser = fn ($user) => $user?->isDisplayableIn(currentOrganization());
+        $_publicName = fn ($user) => $user?->publicDisplayName() ?? __('profile.deactivated_user');
     @endphp
     <x-slot name="title">{{ $post->meta_title ?: $post->title }} {{ __('blog.blog_brand_suffix') }}</x-slot>
 
@@ -63,13 +65,22 @@
 
                 <!-- Auteur + méta -->
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    @if($_displayableUser($post->user))
                     <a href="{{ $_profileRoute($post->user) }}" class="flex items-center gap-3 group min-w-0">
                         <img src="{{ $post->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full flex-shrink-0">
                         <div class="min-w-0">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">{{ $post->user->fullName }}</p>
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">{{ $_publicName($post->user) }}</p>
                             <p class="text-xs text-gray-400">{{ $post->published_at?->translatedFormat('d F Y') }}</p>
                         </div>
                     </a>
+                    @else
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $_publicName($post->user) }}</p>
+                            <p class="text-xs text-gray-400">{{ $post->published_at?->translatedFormat('d F Y') }}</p>
+                        </div>
+                    </div>
+                    @endif
                     <div class="flex items-center gap-4 text-sm text-gray-400 dark:text-gray-500 flex-shrink-0">
                         @if($post->read_time)
                         <span class="flex items-center gap-1">
@@ -391,9 +402,11 @@
                     @auth
                     @if($lastComment)
                     <div class="flex items-start gap-2 mt-4">
-                        <img src="{{ $lastComment->user->avatar_url }}" alt="" class="w-5 h-5 rounded-full flex-shrink-0 mt-0.5">
+                        @if($_displayableUser($lastComment->user))
+                            <img src="{{ $lastComment->user->avatar_url }}" alt="" class="w-5 h-5 rounded-full flex-shrink-0 mt-0.5">
+                        @endif
                         <div class="flex-1 min-w-0">
-                            <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $lastComment->user->fullName }}</span>
+                            <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $_publicName($lastComment->user) }}</span>
                             <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{{ $lastComment->content }}</p>
                         </div>
                     </div>
@@ -418,11 +431,13 @@
                         <div class="space-y-6">
                             @foreach($post->comments as $comment)
                             <div class="flex gap-3">
-                                <img src="{{ $comment->user->avatar_url }}" alt="" class="w-8 h-8 rounded-full flex-shrink-0 mt-0.5">
+                                @if($_displayableUser($comment->user))
+                                    <img src="{{ $comment->user->avatar_url }}" alt="" class="w-8 h-8 rounded-full flex-shrink-0 mt-0.5">
+                                @endif
                                 <div class="flex-1">
                                     <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl px-4 py-3">
                                         <div class="flex items-center justify-between mb-1">
-                                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $comment->user->fullName }}</span>
+                                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $_publicName($comment->user) }}</span>
                                             <span class="text-xs text-gray-400">{{ $comment->created_at->diffForHumans() }}</span>
                                         </div>
                                         <p class="text-sm text-gray-700 dark:text-gray-300">{{ $comment->content }}</p>
@@ -452,10 +467,12 @@
 
                                     @foreach($comment->replies as $reply)
                                     <div class="flex gap-3 mt-3 ml-4">
-                                        <img src="{{ $reply->user->avatar_url }}" alt="" class="w-6 h-6 rounded-full flex-shrink-0 mt-0.5">
+                                        @if($_displayableUser($reply->user))
+                                            <img src="{{ $reply->user->avatar_url }}" alt="" class="w-6 h-6 rounded-full flex-shrink-0 mt-0.5">
+                                        @endif
                                         <div class="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-xl px-3 py-2">
                                             <div class="flex items-center justify-between mb-1">
-                                                <span class="text-xs font-medium text-gray-900 dark:text-gray-100">{{ $reply->user->fullName }}</span>
+                                                <span class="text-xs font-medium text-gray-900 dark:text-gray-100">{{ $_publicName($reply->user) }}</span>
                                                 <span class="text-xs text-gray-400">{{ $reply->created_at->diffForHumans() }}</span>
                                             </div>
                                             <p class="text-xs text-gray-700 dark:text-gray-300">{{ $reply->content }}</p>
@@ -518,7 +535,7 @@
                         @foreach($relatedPosts as $related)
                         <a href="{{ $_blogRoute('show', ['post' => $related]) }}" class="block group">
                             <p class="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition leading-snug">{{ $related->title }}</p>
-                            <p class="text-xs text-gray-400 mt-0.5">{{ $related->user->fullName }} · {{ __('blog.read_time', ['count' => $related->read_time]) }}</p>
+                            <p class="text-xs text-gray-400 mt-0.5">{{ $_publicName($related->user) }} · {{ __('blog.read_time', ['count' => $related->read_time]) }}</p>
                         </a>
                         @endforeach
                     </div>

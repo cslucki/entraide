@@ -28,9 +28,12 @@ class SearchController extends Controller
 
         $like = '%'.$q.'%';
         $likeOperator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+        $organization = currentOrganization();
+        $organizationId = $organization?->id;
 
         $services = Service::with(['user', 'category'])
             ->active()
+            ->when($organizationId, fn ($query) => $query->where('organization_id', $organizationId))
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('description', $likeOperator, $like)
             )
@@ -40,6 +43,7 @@ class SearchController extends Controller
 
         $requests = ServiceRequest::with(['user', 'category'])
             ->open()
+            ->when($organizationId, fn ($query) => $query->where('organization_id', $organizationId))
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('description', $likeOperator, $like)
             )
@@ -49,6 +53,7 @@ class SearchController extends Controller
 
         $users = User::with(['country', 'organization'])
             ->discoverable()
+            ->when($organizationId, fn ($query) => $query->where('organization_id', $organizationId))
             ->where(fn ($query) => $query->where('name', $likeOperator, $like)
                 ->orWhere('bio', $likeOperator, $like)
                 ->orWhere('city', $likeOperator, $like)
@@ -58,6 +63,7 @@ class SearchController extends Controller
 
         $posts = BlogPost::published()
             ->with(['user', 'category', 'tags'])
+            ->when($organizationId, fn ($query) => $query->where('organization_id', $organizationId))
             ->whereHas('user', fn ($query) => $query->activeAccount())
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('content', $likeOperator, $like)

@@ -85,6 +85,10 @@ class ProfileController extends Controller
             abort(404);
         }
 
+        if (! $user->isDisplayableIn($organization)) {
+            abort(404);
+        }
+
         $memberAiProfile = MemberAiProfile::where('user_id', $user->id)
             ->where('status', MemberAiProfile::STATUS_PUBLISHED)
             ->firstOrFail();

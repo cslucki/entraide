@@ -148,6 +148,38 @@ class User extends Authenticatable
         return $this->banned_at !== null;
     }
 
+    public function isDeactivated(): bool
+    {
+        return $this->banned_at !== null;
+    }
+
+    public function isDisplayableIn(Organization|string|null $organization = null): bool
+    {
+        if ($this->isDeactivated()) {
+            return false;
+        }
+
+        if ($organization instanceof Organization) {
+            return $this->organization_id === $organization->id;
+        }
+
+        if (is_string($organization)) {
+            return $this->organization_id === $organization;
+        }
+
+        return true;
+    }
+
+    public function publicDisplayName(): string
+    {
+        return $this->isDeactivated() ? __('profile.deactivated_user') : $this->fullName;
+    }
+
+    public function publicAvatarUrl(): ?string
+    {
+        return $this->isDeactivated() ? null : $this->avatar_url;
+    }
+
     public function scopeActiveAccount($query): void
     {
         $query->whereNull('banned_at');

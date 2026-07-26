@@ -36,6 +36,10 @@ class BoundedMemberAgent extends Component
             abort(404);
         }
 
+        if (! $user->isDisplayableIn($organization)) {
+            abort(404);
+        }
+
         $this->profile = MemberAiProfile::where('user_id', $user->id)
             ->where('status', MemberAiProfile::STATUS_PUBLISHED)
             ->first();
