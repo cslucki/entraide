@@ -167,6 +167,19 @@ class AdminUsersTest extends TestCase
         $this->assertFalse($user->fresh()->is_available);
     }
 
+    public function test_admin_users_list_labels_availability_without_deactivation_wording(): void
+    {
+        $admin = $this->makeAdmin();
+        User::factory()->create(['is_available' => true, 'banned_at' => null]);
+        User::factory()->create(['is_available' => false, 'banned_at' => null]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.users'))
+            ->assertOk()
+            ->assertSee(__('admin.mark_unavailable'))
+            ->assertSee(__('admin.mark_available'));
+    }
+
     // ── Assign community ──────────────────────────────────────────────────────
 
     public function test_admin_can_assign_user_to_community(): void

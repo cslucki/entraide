@@ -58,6 +58,7 @@ class SearchController extends Controller
 
         $posts = BlogPost::published()
             ->with(['user', 'category', 'tags'])
+            ->whereHas('user', fn ($query) => $query->activeAccount())
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('content', $likeOperator, $like)
                 ->orWhereHas('tags', fn ($q) => $q->where('name', $likeOperator, $like))

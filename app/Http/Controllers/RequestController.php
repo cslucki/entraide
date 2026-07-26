@@ -23,6 +23,10 @@ class RequestController extends Controller
 
         $request->load(['user', 'category', 'attachments']);
 
+        if ($request->user?->banned_at !== null) {
+            abort(404);
+        }
+
         $ogTitle = $request->title;
         $ogDescription = Str::limit(strip_tags($request->description), 160);
         $ogImage = null;

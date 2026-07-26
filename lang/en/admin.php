@@ -4,6 +4,8 @@ return [
     'dashboard' => 'Administration',
     'organizations' => 'Organizations',
     'users' => 'Users',
+    'mark_available' => 'Mark available',
+    'mark_unavailable' => 'Mark unavailable',
     'settings' => 'Settings',
     'save' => 'Save',
     'cancel' => 'Cancel',

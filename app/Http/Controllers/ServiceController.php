@@ -31,6 +31,11 @@ class ServiceController extends Controller
         }
 
         $service->load(['user', 'category', 'skills.category', 'tags', 'images']);
+
+        if ($service->user?->banned_at !== null) {
+            abort(404);
+        }
+
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($service->id);
         $isPaused = $service->status === 'paused';
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BlogPost;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -113,6 +114,37 @@ class SearchControllerTest extends TestCase
 
         $response->assertOk()
             ->assertViewHas('users', fn ($v) => $v->count() === 1 && $v->first()->name === 'Alice Actif');
+    }
+
+    public function test_search_excludes_published_posts_from_banned_authors(): void
+    {
+        $activeAuthor = User::factory()->create(['organization_id' => $this->testOrganization->id, 'banned_at' => null]);
+        $bannedAuthor = User::factory()->create(['organization_id' => $this->testOrganization->id, 'banned_at' => now()]);
+
+        BlogPost::create([
+            'user_id' => $activeAuthor->id,
+            'organization_id' => $this->testOrganization->id,
+            'title' => 'Visible Orchard Story',
+            'slug' => 'visible-orchard-story',
+            'content' => 'Orchard content visible in search.',
+            'status' => 'published',
+            'published_at' => now()->subDay(),
+        ]);
+
+        BlogPost::create([
+            'user_id' => $bannedAuthor->id,
+            'organization_id' => $this->testOrganization->id,
+            'title' => 'Hidden Orchard Story',
+            'slug' => 'hidden-orchard-story',
+            'content' => 'Orchard content hidden in search.',
+            'status' => 'published',
+            'published_at' => now()->subDay(),
+        ]);
+
+        $response = $this->get(route('search', ['q' => 'Orchard']));
+
+        $response->assertOk()
+            ->assertViewHas('posts', fn ($posts) => $posts->pluck('title')->all() === ['Visible Orchard Story']);
     }
 
     public function test_search_finds_users_by_city_not_legacy_location(): void

@@ -4,6 +4,8 @@ return [
     'dashboard' => 'Administration',
     'organizations' => 'Organisations',
     'users' => 'Utilisateurs',
+    'mark_available' => 'Rendre disponible',
+    'mark_unavailable' => 'Rendre indisponible',
     'settings' => 'Paramètres',
     'save' => 'Enregistrer',
     'cancel' => 'Annuler',

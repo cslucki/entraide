@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Category;
 use App\Models\Organization;
+use App\Models\Service;
+use App\Models\ServiceRequest;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -143,6 +146,38 @@ class UserDeactivationTest extends TestCase
         $response = $this->getJson('/api/users/'.$user->id);
 
         $response->assertNotFound();
+    }
+
+    public function test_public_service_detail_returns_404_when_owner_is_deactivated(): void
+    {
+        $owner = $this->createUser(['banned_at' => now()]);
+        $category = Category::factory()->create(['organization_id' => $this->organization->id]);
+        $service = Service::factory()
+            ->forUser($owner)
+            ->forCategory($category)
+            ->create([
+                'organization_id' => $this->organization->id,
+                'status' => 'active',
+            ]);
+
+        $this->get(route('organization.services.show', [$this->organization, $service]))
+            ->assertNotFound();
+    }
+
+    public function test_public_request_detail_returns_404_when_owner_is_deactivated(): void
+    {
+        $owner = $this->createUser(['banned_at' => now()]);
+        $category = Category::factory()->create(['organization_id' => $this->organization->id]);
+        $serviceRequest = ServiceRequest::factory()
+            ->forUser($owner)
+            ->create([
+                'organization_id' => $this->organization->id,
+                'category_id' => $category->id,
+                'status' => 'open',
+            ]);
+
+        $this->get(route('organization.requests.show', [$this->organization, $serviceRequest]))
+            ->assertNotFound();
     }
 
     public function test_search_excludes_deactivated_users(): void
