@@ -41,7 +41,7 @@ class ServiceController extends Controller
         $isPaused = $service->status === 'paused';
 
         $ogTitle = $service->title;
-        $ogDescription = Str::limit(strip_tags($service->description), 160);
+        $ogDescription = Str::limit(strip_tags(Str::markdown($service->description)), 160);
         $ogImage = $service->images->first()
             ? $service->images->first()->url
             : null;
@@ -49,7 +49,7 @@ class ServiceController extends Controller
             '@context' => 'https://schema.org',
             '@type' => 'Service',
             'name' => $service->title,
-            'description' => Str::limit(strip_tags($service->description), 160),
+            'description' => Str::limit(strip_tags(Str::markdown($service->description)), 160),
             'provider' => [
                 '@type' => 'Person',
                 'name' => $service->user->name,

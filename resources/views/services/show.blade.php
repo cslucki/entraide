@@ -71,8 +71,8 @@
                 </div>
 
                 <!-- Description -->
-                <div class="prose dark:prose-invert max-w-none mb-6">
-                    <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ $service->description }}</p>
+                <div class="prose prose-sm dark:prose-invert max-w-none mb-6 text-gray-700 dark:text-gray-300">
+                    {!! markdown($service->description) !!}
                 </div>
 
                 @if($service->images->isNotEmpty())
