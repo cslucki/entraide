@@ -68,6 +68,8 @@ class Organization extends Model
             'is_public' => 'boolean',
             'is_default' => 'boolean',
             'welcome_points' => 'integer',
+            'service_points_min' => 'integer',
+            'service_points_max' => 'integer',
             'loops_enabled' => 'boolean',
             'ai_profiles_enabled' => 'boolean',
             'subscriptions_enabled' => 'boolean',
@@ -85,6 +87,16 @@ class Organization extends Model
         $start = $this->hero_gradient_start ?? $this->accent_color ?? '#4f46e5';
 
         return ColorHelper::darken($start, 25);
+    }
+
+    public function servicePointsMin(): ?int
+    {
+        return $this->service_points_min === null ? null : (int) $this->service_points_min;
+    }
+
+    public function servicePointsMax(): ?int
+    {
+        return $this->service_points_max === null ? null : (int) $this->service_points_max;
     }
 
     public function getRouteKeyName(): string

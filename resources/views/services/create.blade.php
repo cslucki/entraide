@@ -2,6 +2,9 @@
     $serviceTerm = app()->getLocale() === 'en' ? __('marketplace.service_term') : ($T['service'] ?? __('marketplace.service_term'));
     $_svcOrgSlug = request()->route('organization');
     $_svcStoreAction = $_svcOrgSlug && Route::has('organization.services.store') ? route('organization.services.store', ['organization' => $_svcOrgSlug]) : route('services.store');
+    $pointMin = $organization->servicePointsMin();
+    $pointMax = $organization->servicePointsMax();
+    $pointHelpContext = ['organization' => $organization->name, 'min' => $pointMin, 'max' => $pointMax];
 @endphp
 
 <x-page :heading="__('marketplace.service_create_heading', ['service' => $serviceTerm])" width="3xl">
@@ -146,14 +149,16 @@
                 <!-- Explication du système de points -->
                 <div class="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-sm text-amber-800 dark:text-amber-200">
                     <p class="font-semibold mb-1">{{ __('marketplace.points_help_title') }}</p>
-                    <p class="mb-2 opacity-90">{!! __('marketplace.points_service_body') !!}</p>
-                    <p class="mb-2 opacity-90">{{ __('marketplace.indicative_ranges') }}</p>
-                    <ul class="space-y-0.5 mb-2 ml-2 opacity-90">
-                        <li><span class="font-medium">{{ __('marketplace.level_essential') }}</span> — 40 à 60 pts <span class="opacity-70">{{ __('marketplace.duration_20_30') }}</span></li>
-                        <li><span class="font-medium">{{ __('marketplace.level_standard') }}</span> — 60 à 80 pts <span class="opacity-70">{{ __('marketplace.duration_30_45') }}</span></li>
-                        <li><span class="font-medium">{{ __('marketplace.level_complete') }}</span> — 80 à 100 pts <span class="opacity-70">{{ __('marketplace.duration_45_60') }}</span></li>
+                    <p class="mb-2 opacity-90">{!! __('marketplace.points_service_body', ['organization' => $organization->name]) !!}</p>
+                    <ul class="space-y-0.5 mb-3 ml-2 opacity-90">
+                        <li>{{ __('marketplace.points_one_minute') }}</li>
+                        @if($pointMin !== null)
+                            <li>{{ __('marketplace.points_minimum_allowed', $pointHelpContext) }}</li>
+                        @endif
+                        @if($pointMax !== null)
+                            <li>{{ __('marketplace.points_maximum_allowed', $pointHelpContext) }}</li>
+                        @endif
                     </ul>
-                    <p class="opacity-90 mb-3">{!! __('marketplace.service_points_limits') !!}</p>
                     
                     <hr class="border-amber-200 dark:border-amber-700/50 my-3">
                     
@@ -165,7 +170,7 @@
                 </div>
 
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.points_requested') }} {{ __('marketplace.required') }}</label>
-                <input type="number" name="points_cost" value="{{ old('points_cost') }}" min="40" max="100" required
+                <input type="number" name="points_cost" value="{{ old('points_cost') }}" @if($pointMin !== null) min="{{ $pointMin }}" @endif @if($pointMax !== null) max="{{ $pointMax }}" @endif required
                     class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
 
                 <!-- Guidelines par catégorie -->

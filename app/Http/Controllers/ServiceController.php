@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\GenerateServiceThumbnail;
 use App\Models\Category;
+use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceImage;
 use App\Models\Skill;
@@ -67,10 +68,14 @@ class ServiceController extends Controller
     public function create(): View
     {
         $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $categories = Category::where('organization_id', $organization?->id)->with('skills', 'pointGuidelines')->get();
         $skills = Skill::where('organization_id', $organization?->id)->with('category')->get()->groupBy('category_id');
 
-        return view('services.create', compact('categories', 'skills'));
+        return view('services.create', compact('categories', 'skills', 'organization'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -80,18 +85,7 @@ class ServiceController extends Controller
             abort(404);
         }
 
-        $data = $request->validate([
-            'title' => 'required|string|min:10|max:255',
-            'description' => 'required|string|min:100',
-            'category_id' => 'required|uuid|exists:categories,id',
-            'delivery_mode' => 'required|in:remote,onsite,both',
-            'points_cost' => 'required|integer|min:40|max:100',
-            'skills' => 'nullable|array',
-            'skills.*' => 'uuid|exists:skills,id',
-            'tags' => 'nullable|string',
-            'images' => 'nullable|array|max:5',
-            'images.*' => 'image|max:2048',
-        ], [], __('marketplace.validation_attributes'));
+        $data = $request->validate($this->validationRules($organization), [], __('marketplace.validation_attributes'));
 
         $service = Service::create([
             'user_id' => auth()->id(),
@@ -171,21 +165,11 @@ class ServiceController extends Controller
 
         $this->authorize('update', $service);
 
-        $data = $request->validate([
-            'title' => 'required|string|min:10|max:255',
-            'description' => 'required|string|min:100',
-            'category_id' => 'required|uuid|exists:categories,id',
-            'delivery_mode' => 'required|in:remote,onsite,both',
-            'points_cost' => 'required|integer|min:40|max:100',
+        $data = $request->validate(array_merge($this->validationRules($organization), [
             'status' => 'required|in:active,paused',
-            'skills' => 'nullable|array',
-            'skills.*' => 'uuid|exists:skills,id',
-            'tags' => 'nullable|string',
-            'images' => 'nullable|array|max:5',
-            'images.*' => 'image|max:2048',
             'delete_images' => 'nullable|array',
             'delete_images.*' => 'uuid|exists:service_images,id',
-        ], [], __('marketplace.validation_attributes'));
+        ]), [], __('marketplace.validation_attributes'));
 
         $service->update([
             'title' => $data['title'],
@@ -263,5 +247,29 @@ class ServiceController extends Controller
         $service->delete();
 
         return redirect()->route('dashboard')->with('success', __('services.notification.deleted'));
+    }
+
+    private function validationRules(Organization $organization): array
+    {
+        return [
+            'title' => 'required|string|min:10|max:255',
+            'description' => 'required|string|min:100',
+            'category_id' => 'required|uuid|exists:categories,id',
+            'delivery_mode' => 'required|in:remote,onsite,both',
+            'points_cost' => array_merge(['required', 'integer'], $this->pointLimitRules($organization)),
+            'skills' => 'nullable|array',
+            'skills.*' => 'uuid|exists:skills,id',
+            'tags' => 'nullable|string',
+            'images' => 'nullable|array|max:5',
+            'images.*' => 'image|max:2048',
+        ];
+    }
+
+    private function pointLimitRules(Organization $organization): array
+    {
+        return array_values(array_filter([
+            $organization->servicePointsMin() !== null ? 'min:'.$organization->servicePointsMin() : null,
+            $organization->servicePointsMax() !== null ? 'max:'.$organization->servicePointsMax() : null,
+        ]));
     }
 }
