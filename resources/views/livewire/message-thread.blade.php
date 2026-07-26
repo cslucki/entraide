@@ -97,7 +97,12 @@
             />
 
             @foreach($messages as $message)
-                @php $isPinned = $pinnedMessage?->id === $message->id; @endphp
+                @php
+                    $isPinned = $pinnedMessage?->id === $message->id;
+                    $senderDisplayable = $message->sender?->isDisplayableIn(currentOrganization()) ?? false;
+                    $senderName = $message->sender?->publicDisplayName() ?? __('messages.member');
+                    $replySenderName = $message->replyTo?->sender?->publicDisplayName() ?? '';
+                @endphp
                 @if($message->isSystem())
                     <div class="flex justify-center">
                         <span class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded-full">
@@ -116,7 +121,7 @@
                         :show-reactions="$canPin"
                         :reaction-counts="$reactionData[$message->id] ?? []"
                         :my-reaction="$myReactions[$message->id] ?? null"
-                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->full_name ?? '')] : null"
+                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
                         :image-path="$message->imageUrl()"
                         :url-preview="$meta['url_preview'] ?? null"
                     >
@@ -127,7 +132,8 @@
                     <x-conversation.message-bubble
                         type="received"
                         :time="$message->created_at->format('H:i')"
-                        :avatar="$message->sender?->avatar_url"
+                        :name="$senderName"
+                        :avatar="$senderDisplayable ? $message->sender?->avatar_url : null"
                         :message-id="$message->id"
                         :show-reply-button="true"
                         :show-pin-button="$canPin"
@@ -135,7 +141,7 @@
                         :show-reactions="$canPin"
                         :reaction-counts="$reactionData[$message->id] ?? []"
                         :my-reaction="$myReactions[$message->id] ?? null"
-                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => ($message->replyTo->sender?->full_name ?? '')] : null"
+                        :reply-to="$message->replyTo ? ['body' => mb_substr($message->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
                         :image-path="$message->imageUrl()"
                         :url-preview="$meta['url_preview'] ?? null"
                     >

@@ -130,7 +130,7 @@
                                         {{ __('dossiers.role_'.$role) }}
                                     </span>
                                 </div>
-                                <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.owned_by', ['name' => $dossier->owner->name]) }}</p>
+                                <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.owned_by', ['name' => $dossier->owner?->publicDisplayName() ?? __('profile.deactivated_user')]) }}</p>
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.updated_at', ['date' => $dossier->updated_at->diffForHumans()]) }}</p>
                                 <div class="mt-auto pt-5">
                                     <a href="{{ route('organization.dossiers.show', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]) }}" class="inline-flex w-full items-center justify-center rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-amber-700">

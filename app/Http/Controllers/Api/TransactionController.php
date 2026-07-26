@@ -8,6 +8,7 @@ use App\Models\PointLedger;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,10 +19,16 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        $transactions = Transaction::with(['service:id,title', 'serviceRequest:id,title', 'buyer:id,name', 'seller:id,name'])
+        $transactions = Transaction::with([
+            'service:id,title',
+            'serviceRequest:id,title',
+            'buyer:id,organization_id,first_name,name,banned_at',
+            'seller:id,organization_id,first_name,name,banned_at',
+        ])
             ->where(fn ($q) => $q->where('buyer_id', $user->id)->orWhere('seller_id', $user->id))
             ->latest()
-            ->paginate(15);
+            ->paginate(15)
+            ->through(fn (Transaction $transaction) => $this->transactionPayload($transaction));
 
         return response()->json($transactions);
     }
@@ -84,7 +91,10 @@ class TransactionController extends Controller
             ServiceRequest::where('id', $data['request_id'])->update(['status' => 'in_progress']);
         }
 
-        return response()->json($transaction->load(['buyer:id,name', 'seller:id,name']), 201);
+        return response()->json($this->transactionPayload($transaction->load([
+            'buyer:id,organization_id,first_name,name,banned_at',
+            'seller:id,organization_id,first_name,name,banned_at',
+        ])), 201);
     }
 
     public function show(Request $request, Transaction $transaction): JsonResponse
@@ -95,7 +105,12 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Accès refusé.'], 403);
         }
 
-        return response()->json($transaction->load(['service:id,title', 'serviceRequest:id,title', 'buyer:id,name', 'seller:id,name']));
+        return response()->json($this->transactionPayload($transaction->load([
+            'service:id,title',
+            'serviceRequest:id,title',
+            'buyer:id,organization_id,first_name,name,banned_at',
+            'seller:id,organization_id,first_name,name,banned_at',
+        ])));
     }
 
     public function approve(Request $request, Transaction $transaction): JsonResponse
@@ -113,7 +128,7 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, "Échange acceptée. L'échange est en cours.");
 
-        return response()->json($transaction->fresh());
+        return response()->json($this->freshTransactionPayload($transaction));
     }
 
     public function refuse(Request $request, Transaction $transaction): JsonResponse
@@ -131,7 +146,7 @@ class TransactionController extends Controller
             ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
         }
 
-        return response()->json($transaction->fresh());
+        return response()->json($this->freshTransactionPayload($transaction));
     }
 
     public function cancel(Request $request, Transaction $transaction): JsonResponse
@@ -153,7 +168,7 @@ class TransactionController extends Controller
             ServiceRequest::where('id', $transaction->request_id)->update(['status' => 'open']);
         }
 
-        return response()->json($transaction->fresh());
+        return response()->json($this->freshTransactionPayload($transaction));
     }
 
     public function complete(Request $request, Transaction $transaction): JsonResponse
@@ -171,7 +186,7 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, "L'acheteur a déclaré la prestation terminée. En attente de confirmation du vendeur.");
 
-        return response()->json($transaction->fresh());
+        return response()->json($this->freshTransactionPayload($transaction));
     }
 
     public function confirm(Request $request, Transaction $transaction): JsonResponse
@@ -217,7 +232,7 @@ class TransactionController extends Controller
 
         $this->addSystemMessage($transaction, 'Échange complété ! Les points ont été transférés.');
 
-        return response()->json($transaction->fresh());
+        return response()->json($this->freshTransactionPayload($transaction));
     }
 
     private function addSystemMessage(Transaction $transaction, string $body): void
@@ -229,5 +244,52 @@ class TransactionController extends Controller
             'type' => 'system',
             'organization_id' => $transaction->organization_id,
         ]);
+    }
+
+    private function transactionPayload(Transaction $transaction): array
+    {
+        return [
+            'id' => $transaction->id,
+            'service_id' => $transaction->service_id,
+            'request_id' => $transaction->request_id,
+            'status' => $transaction->status,
+            'points_proposed' => $transaction->points_proposed,
+            'points_agreed' => $transaction->points_agreed,
+            'created_at' => $transaction->created_at,
+            'updated_at' => $transaction->updated_at,
+            'service' => $transaction->service,
+            'service_request' => $transaction->serviceRequest,
+            'buyer' => $this->publicUserPayload($transaction->buyer, $transaction->organization_id),
+            'seller' => $this->publicUserPayload($transaction->seller, $transaction->organization_id),
+        ];
+    }
+
+    private function freshTransactionPayload(Transaction $transaction): array
+    {
+        return $this->transactionPayload($transaction->fresh()->load([
+            'service:id,title',
+            'serviceRequest:id,title',
+            'buyer:id,organization_id,first_name,name,banned_at',
+            'seller:id,organization_id,first_name,name,banned_at',
+        ]));
+    }
+
+    private function publicUserPayload(?User $user, ?string $organizationId): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        if (! $user->isDisplayableIn($organizationId)) {
+            return [
+                'id' => null,
+                'name' => __('profile.deactivated_user'),
+            ];
+        }
+
+        return [
+            'id' => $user->id,
+            'name' => $user->fullName,
+        ];
     }
 }

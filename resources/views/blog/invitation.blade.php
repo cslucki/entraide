@@ -26,7 +26,7 @@
                 {{-- Pending --}}
                 @else
                     <h1 class="text-xl font-bold text-gray-900 mb-2">
-                        {{ __('blog-invitation.invite_title', ['sender' => $sender->fullName ?? '']) }}
+                        {{ __('blog-invitation.invite_title', ['sender' => $sender?->publicDisplayName() ?? __('profile.deactivated_user')]) }}
                     </h1>
                     <p class="text-gray-600 mb-4">
                         {{ __('blog-invitation.invite_subtitle') }}

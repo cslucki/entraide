@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreDossierFileRequest;
 use App\Models\Dossier;
 use App\Models\DossierFile;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ class DossierFileController extends Controller
         $query = DossierFile::query()
             ->where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
-            ->with('uploader:id,first_name,name,email');
+            ->with('uploader:id,organization_id,first_name,name,email,banned_at');
 
         if ($search !== '') {
             $searchTerm = trim($search);
@@ -52,6 +53,10 @@ class DossierFileController extends Controller
             ->orderBy('created_at', 'desc');
 
         $files = $query->paginate(20);
+        $files->getCollection()->transform(fn (DossierFile $file) => array_merge(
+            $file->toArray(),
+            ['uploader' => $this->publicUserPayload($file->uploader, $organization->id)]
+        ));
 
         $usedBytes = (int) DossierFile::query()
             ->where('organization_id', $organization->id)
@@ -176,8 +181,11 @@ class DossierFileController extends Controller
                     'source' => 'upload',
                 ]);
 
-                $dossierFile->load('uploader:id,first_name,name,email');
-                $createdFiles[] = $dossierFile;
+                $dossierFile->load('uploader:id,organization_id,first_name,name,email,banned_at');
+                $createdFiles[] = array_merge(
+                    $dossierFile->toArray(),
+                    ['uploader' => $this->publicUserPayload($dossierFile->uploader, $organization->id)]
+                );
             }
 
             DB::commit();
@@ -327,5 +335,26 @@ class DossierFileController extends Controller
         if (! $organization || ! $user || $user->organization_id !== $organization->id) {
             abort(404);
         }
+    }
+
+    private function publicUserPayload(?User $user, ?string $organizationId): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        if (! $user->isDisplayableIn($organizationId)) {
+            return [
+                'id' => null,
+                'name' => __('profile.deactivated_user'),
+                'email' => null,
+            ];
+        }
+
+        return [
+            'id' => $user->id,
+            'name' => $user->fullName,
+            'email' => $user->email,
+        ];
     }
 }

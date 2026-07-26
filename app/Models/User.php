@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -33,7 +34,11 @@ class User extends Authenticatable
 
         static::saved(function (User $user) {
             if ($user->wasChanged('banned_at') && $user->banned_at !== null) {
-                $user->tokens()->delete();
+                try {
+                    $user->tokens()->delete();
+                } catch (QueryException $e) {
+                    report($e);
+                }
             }
         });
     }
@@ -141,6 +146,38 @@ class User extends Authenticatable
     public function getIsDeactivatedAttribute(): bool
     {
         return $this->banned_at !== null;
+    }
+
+    public function isDeactivated(): bool
+    {
+        return $this->banned_at !== null;
+    }
+
+    public function isDisplayableIn(Organization|string|null $organization = null): bool
+    {
+        if ($this->isDeactivated()) {
+            return false;
+        }
+
+        if ($organization instanceof Organization) {
+            return $this->organization_id === $organization->id;
+        }
+
+        if (is_string($organization)) {
+            return $this->organization_id === $organization;
+        }
+
+        return true;
+    }
+
+    public function publicDisplayName(): string
+    {
+        return $this->isDeactivated() ? __('profile.deactivated_user') : $this->fullName;
+    }
+
+    public function publicAvatarUrl(): ?string
+    {
+        return $this->isDeactivated() ? null : $this->avatar_url;
     }
 
     public function scopeActiveAccount($query): void

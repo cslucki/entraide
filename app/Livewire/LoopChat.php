@@ -36,7 +36,7 @@ class LoopChat extends Component
         $this->loop = $loop;
 
         $user = auth()->user();
-        if ($user) {
+        if ($user && ! $user->isDeactivated()) {
             $this->isMember = LoopMember::where('loop_id', $loop->id)
                 ->where('user_id', $user->id)
                 ->where('status', 'active')
@@ -58,7 +58,7 @@ class LoopChat extends Component
         $this->replyToMessageId = $message->id;
         $this->replyingTo = [
             'body' => mb_substr($message->body, 0, 120),
-            'sender_name' => $message->sender?->name ?? 'BouclePro',
+            'sender_name' => $message->sender?->publicDisplayName() ?? 'BouclePro',
         ];
     }
 
@@ -90,7 +90,7 @@ class LoopChat extends Component
         ]);
 
         $user = auth()->user();
-        if (! $user || ! $this->isMember) {
+        if (! $user || $user->isDeactivated() || ! $this->isMember) {
             return;
         }
 
@@ -132,7 +132,7 @@ class LoopChat extends Component
     public function pinMessage(string $messageId): void
     {
         $user = auth()->user();
-        if (! $user || ! $this->isMember) {
+        if (! $user || $user->isDeactivated() || ! $this->isMember) {
             return;
         }
 
@@ -154,7 +154,7 @@ class LoopChat extends Component
     public function unpinMessage(): void
     {
         $user = auth()->user();
-        if (! $user || ! $this->isMember) {
+        if (! $user || $user->isDeactivated() || ! $this->isMember) {
             return;
         }
 
@@ -166,7 +166,7 @@ class LoopChat extends Component
     public function toggleReaction(string $messageId, string $reactionType): void
     {
         $user = auth()->user();
-        if (! $user || ! $this->isMember) {
+        if (! $user || $user->isDeactivated() || ! $this->isMember) {
             return;
         }
 
