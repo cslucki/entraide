@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Organization;
 use App\Models\RequestAttachment;
 use App\Models\ServiceRequest;
 use Illuminate\Http\RedirectResponse;
@@ -42,9 +43,13 @@ class RequestController extends Controller
     public function create(): View
     {
         $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $categories = Category::where('organization_id', $organization?->id)->with('pointGuidelines')->get();
 
-        return view('requests.create', compact('categories'));
+        return view('requests.create', compact('categories', 'organization'));
     }
 
     public function store(Request $httpRequest): RedirectResponse
@@ -54,17 +59,7 @@ class RequestController extends Controller
             abort(404);
         }
 
-        $data = $httpRequest->validate([
-            'title' => 'required|string|min:10|max:255',
-            'description' => 'required|string|min:100',
-            'category_id' => 'required|uuid|exists:categories,id',
-            'delivery_mode' => 'required|in:remote,onsite,both',
-            'budget_min' => 'required|integer|min:1',
-            'budget_max' => 'nullable|integer|gte:budget_min',
-            'deadline' => 'nullable|date|after:today',
-            'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
-        ], [], __('marketplace.validation_attributes'));
+        $data = $httpRequest->validate($this->validationRules($organization, ['deadline' => 'nullable|date|after:today']), [], __('marketplace.validation_attributes'));
 
         $serviceRequest = ServiceRequest::create([
             'user_id' => auth()->id(),
@@ -129,19 +124,10 @@ class RequestController extends Controller
 
         $this->authorize('update', $request);
 
-        $rules = [
-            'title' => 'required|string|min:10|max:255',
-            'description' => 'required|string|min:100',
-            'category_id' => 'required|uuid|exists:categories,id',
-            'delivery_mode' => 'required|in:remote,onsite,both',
-            'budget_min' => 'required|integer|min:1',
-            'budget_max' => 'nullable|integer|gte:budget_min',
-            'deadline' => 'nullable|date',
-            'attachments' => 'nullable|array|max:5',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
+        $rules = array_merge($this->validationRules($organization, ['deadline' => 'nullable|date']), [
             'delete_attachments' => 'nullable|array',
             'delete_attachments.*' => 'uuid|exists:request_attachments,id',
-        ];
+        ]);
 
         $data = $httpRequest->validate($rules, [], __('marketplace.validation_attributes'));
 
@@ -185,5 +171,28 @@ class RequestController extends Controller
         $request->update(['status' => 'closed']);
 
         return redirect()->route('dashboard')->with('success', __('requests.notification.closed'));
+    }
+
+    private function validationRules(Organization $organization, array $deadlineRule): array
+    {
+        return [
+            'title' => 'required|string|min:10|max:255',
+            'description' => 'required|string|min:100',
+            'category_id' => 'required|uuid|exists:categories,id',
+            'delivery_mode' => 'required|in:remote,onsite,both',
+            'budget_min' => array_merge(['required', 'integer'], $this->pointLimitRules($organization)),
+            'budget_max' => array_merge(['nullable', 'integer', 'gte:budget_min'], $this->pointLimitRules($organization)),
+            'deadline' => $deadlineRule['deadline'],
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
+        ];
+    }
+
+    private function pointLimitRules(Organization $organization): array
+    {
+        return array_values(array_filter([
+            $organization->servicePointsMin() !== null ? 'min:'.$organization->servicePointsMin() : null,
+            $organization->servicePointsMax() !== null ? 'max:'.$organization->servicePointsMax() : null,
+        ]));
     }
 }
