@@ -69,7 +69,7 @@
 
             <div class="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-sm text-amber-800 dark:text-amber-200">
                 <p class="font-semibold mb-1">{{ __('marketplace.points_help_title') }}</p>
-                <p class="mb-2 opacity-90">{!! __('marketplace.points_request_body', ['organization' => $organization->name]) !!}</p>
+                <p class="mb-2 opacity-90">{{ __('marketplace.points_request_body', ['organization' => $organization->name]) }}</p>
                 <ul class="space-y-0.5 mb-2 ml-2 opacity-90">
                     <li>{{ __('marketplace.points_one_minute') }}</li>
                     @if($pointMin !== null)

@@ -164,6 +164,39 @@ class OrganizationPointScaleTest extends TestCase
             ->assertSee('Maximum allowed in English Org: 65 points');
     }
 
+    public function test_organization_name_html_is_escaped_in_point_scale_help(): void
+    {
+        $payload = '<img src=x onerror=alert(1) data-xss-marker=organization-name>';
+
+        $organization = $this->organizationWithScale(10, 50, [
+            'name' => $payload,
+            'is_default' => true,
+        ]);
+        $user = $this->userFor($organization);
+        $category = Category::factory()->create(['organization_id' => $organization->id]);
+        $service = Service::factory()->forUser($user)->forCategory($category)->create(['organization_id' => $organization->id]);
+        $serviceRequest = ServiceRequest::factory()->forUser($user)->create([
+            'organization_id' => $organization->id,
+            'category_id' => $category->id,
+        ]);
+        app()->instance('current_organization', $organization);
+
+        $pages = [
+            fn () => $this->actingAs($user)->get(route('services.create')),
+            fn () => $this->actingAs($user)->get(route('services.edit', $service)),
+            fn () => $this->actingAs($user)->get(route('requests.create')),
+            fn () => $this->actingAs($user)->get(route('requests.edit', $serviceRequest)),
+        ];
+
+        foreach ($pages as $fetch) {
+            $response = $fetch();
+            $response
+                ->assertOk()
+                ->assertSee(e($payload), false)
+                ->assertDontSee($payload, false);
+        }
+    }
+
     private function organizationWithScale(int $min, int $max, array $overrides = []): Organization
     {
         return Organization::factory()->create(array_merge([
