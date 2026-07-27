@@ -72,7 +72,7 @@
 
                 <!-- Description -->
                 <div class="prose prose-sm dark:prose-invert max-w-none mb-6 text-gray-700 dark:text-gray-300">
-                    {!! markdown($service->description) !!}
+                    {!! markdown($service->description, ['renderer' => ['soft_break' => "<br />\n"]]) !!}
                 </div>
 
                 @if($service->images->isNotEmpty())

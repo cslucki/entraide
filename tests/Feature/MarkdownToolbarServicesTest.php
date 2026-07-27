@@ -96,6 +96,21 @@ class MarkdownToolbarServicesTest extends TestCase
 
     // ── B. Rendering ────────────────────────────────────────────
 
+    public function test_legacy_description_single_newlines_render_as_br(): void
+    {
+        $md = "Première ligne\nDeuxième ligne\nTroisième ligne\n\n".$this->longText();
+        $service = $this->makeService($md);
+        $response = $this->actingAs($service->user)->get(route('services.show', $service));
+
+        $response->assertStatus(200);
+        $html = $response->content();
+        // soft_break option renders single \n as <br>
+        $this->assertStringContainsString('<br', $html);
+        $this->assertStringContainsString('Première ligne', $html);
+        $this->assertStringContainsString('Deuxième ligne', $html);
+        $this->assertStringContainsString('Troisième ligne', $html);
+    }
+
     public function test_render_h2_heading(): void
     {
         $service = $this->makeService("## Mon Sous-titre\n\n".$this->longText());
@@ -230,10 +245,16 @@ class MarkdownToolbarServicesTest extends TestCase
 
         $response->assertStatus(200);
         $html = $response->content();
-        // JSON-LD description is cleaned by strip_tags(Str::markdown(...))
-        if (preg_match('/application\/ld\+json/', $html)) {
-            $this->assertStringNotContainsString('<script data-task1053-ld>', $html);
-        }
+        // JSON-LD block must be present
+        $this->assertStringContainsString('application/ld+json', $html);
+        // Extract JSON-LD and verify description is clean
+        $this->assertMatchesRegularExpression('/application\/ld\+json[^>]*>(.*?)<\/script>/s', $html, 'JSON-LD block not found');
+        preg_match('/application\/ld\+json[^>]*>(.*?)<\/script>/s', $html, $m);
+        $json = json_decode($m[1], true);
+        $this->assertNotNull($json, 'JSON-LD is not valid JSON');
+        $this->assertArrayHasKey('description', $json);
+        $this->assertStringNotContainsString('<script', $json['description']);
+        $this->assertStringNotContainsString('<', $json['description']);
     }
 
     // ── D. Metadata ─────────────────────────────────────────────
@@ -246,11 +267,13 @@ class MarkdownToolbarServicesTest extends TestCase
 
         $response->assertStatus(200);
         $html = $response->content();
-        if (preg_match('/property="og:description"\s+content="([^"]*)"/', $html, $m)) {
-            $this->assertStringNotContainsString('<strong>', $m[1]);
-            $this->assertStringNotContainsString('<a ', $m[1]);
-            $this->assertStringNotContainsString('<h2>', $m[1]);
-        }
+        // og:description tag must be present
+        $this->assertMatchesRegularExpression('/property="og:description"\s+content="([^"]*)"/', $html, 'og:description not found');
+        preg_match('/property="og:description"\s+content="([^"]*)"/', $html, $m);
+        $this->assertStringNotContainsString('<strong>', $m[1]);
+        $this->assertStringNotContainsString('<a ', $m[1]);
+        $this->assertStringNotContainsString('<h2>', $m[1]);
+        $this->assertStringNotContainsString('<', $m[1]);
     }
 
     // ── E. Toolbar ──────────────────────────────────────────────

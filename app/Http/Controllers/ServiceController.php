@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View as ViewFacade;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Intervention\Image\Laravel\Facades\Image;
@@ -56,6 +57,11 @@ class ServiceController extends Controller
                 'url' => route('profile.show', $service->user),
             ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        ViewFacade::share('ogTitle', $ogTitle);
+        ViewFacade::share('ogDescription', $ogDescription);
+        ViewFacade::share('ogImage', $ogImage);
+        ViewFacade::share('jsonLd', $jsonLd);
 
         return view('services.show', compact('service', 'isFavorited', 'isPaused', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
     }
