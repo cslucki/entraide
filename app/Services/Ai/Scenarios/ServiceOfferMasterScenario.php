@@ -28,7 +28,7 @@ Champs obligatoires à produire dans ta réponse JSON :
 5. points_cost : un nombre entier de points correspondant au temps estimé, dans les bornes indiquées.
 
 Analyse les informations fournies par l'utilisateur et complète les champs manquants avec des suggestions pertinentes.
-Si l'intention est vraiment trop vague pour produire une proposition, mets tous les champs à des valeurs vides et indique-le dans tes notes.
+Si l'intention est très vague, produis la proposition la plus prudente, générique et utile possible, tout en respectant strictement le schéma JSON. N'ajoute aucune propriété supplémentaire.
 
 Tu vas recevoir :
 - Une intention de l'utilisateur (titre et description partielles)
@@ -58,7 +58,7 @@ Mandatory fields to produce in your JSON response:
 5. points_cost: an integer number of points corresponding to the estimated time, within the indicated bounds.
 
 Analyze the information provided by the user and fill in the missing fields with relevant suggestions.
-If the intention is really too vague to produce a proposal, set all fields to empty values and indicate this in your notes.
+If the intention is very vague, produce the most cautious, generic and useful proposal possible while strictly respecting the JSON schema. Do not add any extra property.
 
 You will receive:
 - A user intention (partial title and description)

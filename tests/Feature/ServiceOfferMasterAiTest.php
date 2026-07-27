@@ -131,7 +131,9 @@ class ServiceOfferMasterAiTest extends TestCase
 
     public function test_guest_cannot_call_formulate(): void
     {
-        $response = $this->postJson('/services/ai-formulate', []);
+        $response = $this->postJson('/services/ai-formulate', [
+            'title' => 'Some intention',
+        ]);
 
         $response->assertUnauthorized();
     }
@@ -578,5 +580,114 @@ class ServiceOfferMasterAiTest extends TestCase
             ]);
 
         $response->assertStatus(503);
+    }
+
+    public function test_empty_title_and_description_returns_422(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => '',
+                'description' => '',
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error', __('ai.service_formulation_intention_required'));
+    }
+
+    public function test_whitespace_only_title_and_description_returns_422(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => '   ',
+                'description' => "\t\n  ",
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('error', __('ai.service_formulation_intention_required'));
+    }
+
+    public function test_title_only_allows_formulation(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Développement de sites web professionnels',
+                'description_markdown' => 'Je vous propose un service complet de création de sites web sur mesure, adapté à vos besoins spécifiques et à votre budget.',
+                'category_id' => $this->cat1->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 50,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => 'Développement web',
+                'description' => '',
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertArrayHasKey('title', $response->json('suggestion'));
+    }
+
+    public function test_description_only_allows_formulation(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Développement de sites web professionnels sur mesure',
+                'description_markdown' => 'Je vous propose un service complet de création de sites web sur mesure, adapté à vos besoins spécifiques et à votre budget.',
+                'category_id' => $this->cat1->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 50,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => '',
+                'description' => 'Je veux créer un site web pour mon entreprise.',
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertArrayHasKey('title', $response->json('suggestion'));
+    }
+
+    public function test_provider_not_called_when_both_fields_empty(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => '',
+                'description' => '',
+            ]);
+
+        $response->assertStatus(422);
+        Http::assertNothingSent();
+    }
+
+    public function test_intention_required_message_in_french(): void
+    {
+        app()->setLocale('fr');
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => '',
+                'description' => '',
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertStringContainsString('Décrivez au moins', $response->json('error'));
+    }
+
+    public function test_intention_required_message_in_english(): void
+    {
+        $this->org->update(['locale' => 'en']);
+        app()->setLocale('en');
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => '',
+                'description' => '',
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertStringContainsString('Enter at least', $response->json('error'));
     }
 }

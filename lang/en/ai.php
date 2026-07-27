@@ -103,4 +103,6 @@ return [
     'service_formulation_error' => 'AI could not formulate a proposal right now. Please try again.',
     'service_formulation_unavailable' => 'AI formulation service is not available.',
     'service_formulation_no_categories' => 'No categories available in your organization.',
+    'service_formulation_intention_required' => 'Enter at least a title or a short description before asking the AI for help.',
+    'service_formulation_intention_hint' => 'Enter at least a title or a short description.',
 ];

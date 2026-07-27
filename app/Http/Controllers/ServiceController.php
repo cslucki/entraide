@@ -107,11 +107,15 @@ class ServiceController extends Controller
         $pointMin = $organization->servicePointsMin();
         $pointMax = $organization->servicePointsMax();
 
-        $currentTitle = $request->input('title', '');
-        $currentDescription = $request->input('description', '');
-        $currentCategoryId = $request->input('category_id', '');
-        $currentDeliveryMode = $request->input('delivery_mode', '');
-        $currentPointsCost = $request->input('points_cost', '');
+        $currentTitle = trim($request->input('title', ''));
+        $currentDescription = trim($request->input('description', ''));
+        $currentCategoryId = $request->input('category_id', '') ?? '';
+        $currentDeliveryMode = $request->input('delivery_mode', '') ?? '';
+        $currentPointsCost = $request->input('points_cost', '') ?? '';
+
+        if ($currentTitle === '' && $currentDescription === '') {
+            return response()->json(['error' => __('ai.service_formulation_intention_required')], 422);
+        }
 
         $categoryList = $categories->map(fn ($c) => "  - {$c->name_b2c} (UUID: {$c->id})")->join("\n");
 

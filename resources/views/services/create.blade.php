@@ -27,6 +27,21 @@
             suggestion: null,
             error: null,
             categoryLabel: '',
+            canFormulate: false,
+            init() {
+                const self = this;
+                this.refreshCanFormulate();
+                document.addEventListener('input', function(e) {
+                    if ((e.target.name === 'title' || e.target.name === 'description') && e.target.closest('form[data-marketplace-validation]')) {
+                        self.refreshCanFormulate();
+                    }
+                });
+            },
+            refreshCanFormulate() {
+                const t = document.querySelector('[name=\'title\']')?.value?.trim() || '';
+                const d = document.querySelector('[name=\'description\']')?.value?.trim() || '';
+                this.canFormulate = t !== '' || d !== '';
+            },
             async formulate() {
                 this.loading = true;
                 this.error = null;
@@ -100,7 +115,7 @@
                 <div>
                     <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">{{ __('ai.service_formulate_cta_title') }}</p>
                 </div>
-                <button type="button" @click="formulate()" :disabled="loading"
+                <button type="button" @click="formulate()" :disabled="loading || !canFormulate"
                     class="px-4 py-2 text-sm font-medium rounded-lg transition
                         bg-indigo-50 hover:bg-indigo-100 text-indigo-700
                         dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300
@@ -114,15 +129,17 @@
                 </button>
             </div>
 
+            <p x-show="!canFormulate" class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('ai.service_formulation_intention_hint') }}</p>
+
             <!-- Suggestion Panel -->
             <div x-show="suggestion" x-transition class="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-700">
                 <h4 class="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2">{{ __('ai.service_suggestion_title') }}</h4>
                 <div class="text-sm text-indigo-700 dark:text-indigo-300 space-y-1">
-                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.title') }} :</strong> <span x-text="suggestion.title"></span></p>
-                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.description') }} :</strong> <span x-text="suggestion.description_markdown?.substring(0, 200) + (suggestion.description_markdown?.length > 200 ? '...' : '')"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.title') }} :</strong> <span x-text="suggestion?.title"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.description') }} :</strong> <span x-text="suggestion?.description_markdown?.substring(0, 200) + (suggestion?.description_markdown?.length > 200 ? '...' : '')"></span></p>
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.category') }} :</strong> <span x-text="categoryLabel"></span></p>
-                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.delivery_mode') }} :</strong> <span x-text="suggestion.delivery_mode"></span></p>
-                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.points_requested') }} :</strong> <span x-text="suggestion.points_cost"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.delivery_mode') }} :</strong> <span x-text="suggestion?.delivery_mode"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.points_requested') }} :</strong> <span x-text="suggestion?.points_cost"></span></p>
                 </div>
                 <div class="flex gap-2 mt-3">
                     <button type="button" @click="applySuggestion()"

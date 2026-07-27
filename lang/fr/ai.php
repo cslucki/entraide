@@ -102,5 +102,7 @@ return [
     'service_dismiss_suggestion' => 'Annuler',
     'service_formulation_error' => 'L\'IA n\'a pas pu formuler de proposition pour le moment. Veuillez réessayer.',
     'service_formulation_unavailable' => 'Le service de formulation IA n\'est pas disponible.',
-    'service_formulation_no_categories' => 'Aucune catégorie disponible dans votre organisation.',
+    'service_formulation_no_categories' => 'Aucune catégorie disponible dans votre organization.',
+    'service_formulation_intention_required' => 'Décrivez au moins brièvement ce que vous proposez avant de demander l\'aide de l\'IA.',
+    'service_formulation_intention_hint' => 'Renseignez au moins un titre ou une courte description.',
 ];
