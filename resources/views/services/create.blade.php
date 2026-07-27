@@ -2,6 +2,7 @@
     $serviceTerm = app()->getLocale() === 'en' ? __('marketplace.service_term') : ($T['service'] ?? __('marketplace.service_term'));
     $_svcOrgSlug = request()->route('organization');
     $_svcStoreAction = $_svcOrgSlug && Route::has('organization.services.store') ? route('organization.services.store', ['organization' => $_svcOrgSlug]) : route('services.store');
+    $_svcAiFormulateAction = $_svcOrgSlug && Route::has('organization.services.ai-formulate') ? route('organization.services.ai-formulate', ['organization' => $_svcOrgSlug]) : route('services.ai-formulate');
     $pointMin = $organization->servicePointsMin();
     $pointMax = $organization->servicePointsMax();
     $pointHelpContext = ['organization' => $organization->name, 'min' => $pointMin, 'max' => $pointMax];
@@ -18,6 +19,125 @@
                  <p class="font-semibold mb-1">{{ __('marketplace.service_intro_title', ['service' => $serviceTerm]) }}</p>
                  <p class="opacity-80">{{ __('marketplace.service_intro_body') }}</p>
             </div>
+        </div>
+
+        <!-- AI Formulation Panel -->
+        <div x-data="{
+            loading: false,
+            suggestion: null,
+            error: null,
+            categoryLabel: '',
+            async formulate() {
+                this.loading = true;
+                this.error = null;
+                this.suggestion = null;
+                try {
+                    const form = document.querySelector('form[data-marketplace-validation]');
+                    const fd = new FormData();
+                    fd.append('title', form.querySelector('[name=\'title\']')?.value || '');
+                    fd.append('description', form.querySelector('[name=\'description\']')?.value || '');
+                    fd.append('category_id', form.querySelector('[name=\'category_id\']')?.value || '');
+                    fd.append('delivery_mode', form.querySelector('[name=\'delivery_mode\']:checked')?.value || '');
+                    fd.append('points_cost', form.querySelector('[name=\'points_cost\']')?.value || '');
+
+                    const token = document.querySelector('meta[name=\'csrf-token\']')?.getAttribute('content') || '';
+                    const resp = await fetch('{{ $_svcAiFormulateAction }}', {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+                        body: fd
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) {
+                        this.error = data.error || {!! e(json_encode(__('ai.service_formulation_error'))) !!};
+                        return;
+                    }
+                    this.suggestion = data.suggestion;
+                    this.categoryLabel = this.getCategoryLabel(this.suggestion.category_id);
+                } catch (e) {
+                    this.error = {!! e(json_encode(__('ai.service_formulation_error'))) !!};
+                } finally {
+                    this.loading = false;
+                }
+            },
+            getCategoryLabel(catId) {
+                const sel = document.querySelector('[name=\'category_id\']');
+                if (!sel) return catId;
+                const opt = sel.querySelector('option[value=\'' + catId + '\']');
+                return opt ? opt.textContent : catId;
+            },
+            applySuggestion() {
+                if (!this.suggestion) return;
+                const form = document.querySelector('form[data-marketplace-validation]');
+                if (this.suggestion.title) {
+                    const titleEl = form.querySelector('[name=\'title\']');
+                    if (titleEl) { titleEl.value = this.suggestion.title; titleEl.dispatchEvent(new Event('input', { bubbles: true })); }
+                }
+                if (this.suggestion.description_markdown) {
+                    const descEl = form.querySelector('[name=\'description\']');
+                    if (descEl) { descEl.value = this.suggestion.description_markdown; descEl.dispatchEvent(new Event('input', { bubbles: true })); }
+                }
+                if (this.suggestion.category_id) {
+                    const catEl = form.querySelector('[name=\'category_id\']');
+                    if (catEl) { catEl.value = this.suggestion.category_id; catEl.dispatchEvent(new Event('change', { bubbles: true })); }
+                }
+                if (this.suggestion.delivery_mode) {
+                    const dmEl = form.querySelector('[name=\'delivery_mode\'][value=\'' + this.suggestion.delivery_mode + '\']');
+                    if (dmEl) dmEl.checked = true;
+                }
+                if (this.suggestion.points_cost != null && this.suggestion.points_cost !== '') {
+                    const ptsEl = form.querySelector('[name=\'points_cost\']');
+                    if (ptsEl) { ptsEl.value = this.suggestion.points_cost; ptsEl.dispatchEvent(new Event('input', { bubbles: true })); }
+                }
+                this.suggestion = null;
+                this.error = null;
+            },
+            dismissSuggestion() {
+                this.suggestion = null;
+                this.error = null;
+            }
+        }" class="mb-6 p-4 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-600 rounded-xl">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">{{ __('ai.service_formulate_cta_title') }}</p>
+                </div>
+                <button type="button" @click="formulate()" :disabled="loading"
+                    class="px-4 py-2 text-sm font-medium rounded-lg transition
+                        bg-indigo-50 hover:bg-indigo-100 text-indigo-700
+                        dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300
+                        disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg x-show="loading" class="inline w-4 h-4 animate-spin -ml-1 mr-1" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span x-show="!loading">✨ {{ __('ai.service_formulate_cta') }}</span>
+                    <span x-show="loading">{{ __('ai.service_formulating') }}...</span>
+                </button>
+            </div>
+
+            <!-- Suggestion Panel -->
+            <div x-show="suggestion" x-transition class="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-700">
+                <h4 class="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2">{{ __('ai.service_suggestion_title') }}</h4>
+                <div class="text-sm text-indigo-700 dark:text-indigo-300 space-y-1">
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.title') }} :</strong> <span x-text="suggestion.title"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.description') }} :</strong> <span x-text="suggestion.description_markdown?.substring(0, 200) + (suggestion.description_markdown?.length > 200 ? '...' : '')"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.category') }} :</strong> <span x-text="categoryLabel"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.delivery_mode') }} :</strong> <span x-text="suggestion.delivery_mode"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.points_requested') }} :</strong> <span x-text="suggestion.points_cost"></span></p>
+                </div>
+                <div class="flex gap-2 mt-3">
+                    <button type="button" @click="applySuggestion()"
+                        class="px-4 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
+                        {{ __('ai.service_apply_suggestion') }}
+                    </button>
+                    <button type="button" @click="dismissSuggestion()"
+                        class="px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        {{ __('ai.service_dismiss_suggestion') }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Error -->
+            <div x-show="error" x-transition class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-300" x-text="error"></div>
         </div>
 
         @if($errors->any())

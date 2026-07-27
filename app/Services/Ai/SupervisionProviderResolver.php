@@ -110,7 +110,7 @@ class SupervisionProviderResolver
 
     public function supportedScenarios(string $provider): array
     {
-        return ['supervision_content', 'clarify_help_request'];
+        return ['supervision_content', 'clarify_help_request', 'service_offer_master'];
     }
 
     public function scenarioSupportsProvider(string $scenario, string $provider): bool

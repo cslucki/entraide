@@ -92,4 +92,15 @@ return [
     'write_directly_to' => 'Write directly to :name',
     'login_to_write' => 'Log in to write to the member',
     'ai_agent_of' => ':name\'s AI Agent',
+
+    // AI Service Formulation (TASK-1054)
+    'service_formulate_cta' => 'Help me formulate',
+    'service_formulate_cta_title' => 'AI helps you turn your intention into a clear help offer',
+    'service_formulating' => 'AI is formulating a proposal',
+    'service_suggestion_title' => 'AI proposal',
+    'service_apply_suggestion' => 'Apply suggestion',
+    'service_dismiss_suggestion' => 'Dismiss',
+    'service_formulation_error' => 'AI could not formulate a proposal right now. Please try again.',
+    'service_formulation_unavailable' => 'AI formulation service is not available.',
+    'service_formulation_no_categories' => 'No categories available in your organization.',
 ];
