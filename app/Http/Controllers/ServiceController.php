@@ -9,8 +9,13 @@ use App\Models\Service;
 use App\Models\ServiceImage;
 use App\Models\Skill;
 use App\Models\Tag;
+use App\Services\Ai\AiScenarioFactory;
+use App\Services\Ai\Exceptions\SupervisionException;
+use App\Services\Ai\SupervisionProviderResolver;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View as ViewFacade;
@@ -82,6 +87,183 @@ class ServiceController extends Controller
         $skills = Skill::where('organization_id', $organization?->id)->with('category')->get()->groupBy('category_id');
 
         return view('services.create', compact('categories', 'skills', 'organization'));
+    }
+
+    public function formulate(Request $request): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
+        $categories = Category::where('organization_id', $organization->id)
+            ->select('id', 'name_b2c')
+            ->get();
+
+        if ($categories->isEmpty()) {
+            return response()->json(['error' => __('ai.service_formulation_no_categories')], 422);
+        }
+
+        $pointMin = $organization->servicePointsMin();
+        $pointMax = $organization->servicePointsMax();
+
+        $currentTitle = trim($request->input('title', ''));
+        $currentDescription = trim($request->input('description', ''));
+        $currentCategoryId = $request->input('category_id', '') ?? '';
+        $currentDeliveryMode = $request->input('delivery_mode', '') ?? '';
+        $currentPointsCost = $request->input('points_cost', '') ?? '';
+
+        if ($currentTitle === '' && $currentDescription === '') {
+            return response()->json(['error' => __('ai.service_formulation_intention_required')], 422);
+        }
+
+        $categoryList = $categories->map(fn ($c) => "  - {$c->name_b2c} (UUID: {$c->id})")->join("\n");
+
+        $locale = app()->getLocale();
+        $langLabel = $locale === 'en' ? 'English' : 'français';
+
+        $promptLines = [
+            "Langue de réponse : {$langLabel}.",
+            '',
+            "--- INTENTION DE L'UTILISATEUR ---",
+        ];
+
+        if ($currentTitle !== '' && $currentTitle !== null) {
+            $promptLines[] = "Titre saisi : {$currentTitle}";
+        }
+        if ($currentDescription !== '' && $currentDescription !== null) {
+            $promptLines[] = "Description saisie : {$currentDescription}";
+        }
+
+        if ($currentTitle === '' && $currentDescription === '') {
+            $promptLines[] = '(Aucune intention saisie — propose une suggestion générique basée sur le contexte de la plateforme)';
+        }
+
+        $promptLines[] = '';
+        $promptLines[] = '--- CATÉGORIES DISPONIBLES (utilise l\'UUID exact) ---';
+        $promptLines[] = $categoryList;
+        $promptLines[] = '';
+
+        if ($currentCategoryId !== '' && $currentCategoryId !== null) {
+            $currentCat = $categories->firstWhere('id', $currentCategoryId);
+            $promptLines[] = 'Catégorie actuelle : '.($currentCat ? $currentCat->name_b2c.' (UUID: '.$currentCat->id.')' : $currentCategoryId);
+        }
+
+        $promptLines[] = 'Mode de réalisation actuel : '.($currentDeliveryMode !== '' && $currentDeliveryMode !== null ? $currentDeliveryMode : '(non renseigné)');
+        $promptLines[] = '';
+
+        $promptLines[] = '--- BORNES DE POINTS ---';
+        $promptLines[] = '1 point = 1 minute.';
+
+        if ($pointMin !== null) {
+            $promptLines[] = "Minimum : {$pointMin} points.";
+        }
+        if ($pointMax !== null) {
+            $promptLines[] = "Maximum : {$pointMax} points.";
+        }
+        if ($pointMin === null && $pointMax === null) {
+            $promptLines[] = 'Aucune borne spécifique — propose un nombre raisonnable.';
+        }
+
+        $promptLines[] = 'Points actuels : '.($currentPointsCost !== '' && $currentPointsCost !== null ? $currentPointsCost : '(non renseigné)');
+
+        $promptContent = implode("\n", $promptLines);
+
+        $providerName = app(SupervisionProviderResolver::class)->defaultProvider();
+        if (! $providerName) {
+            return response()->json(['error' => __('ai.service_formulation_unavailable')], 503);
+        }
+
+        $scenario = app(AiScenarioFactory::class)->resolve('service_offer_master');
+        if (! $scenario) {
+            return response()->json(['error' => __('ai.service_formulation_unavailable')], 503);
+        }
+
+        try {
+            $provider = app(SupervisionProviderResolver::class)->resolve($providerName);
+            $result = $provider->runScenario($scenario, $promptContent);
+        } catch (SupervisionException $e) {
+            Log::error('AI formulation failed', [
+                'scenario' => 'service_offer_master',
+                'error' => $e->getMessage(),
+                'organization_id' => $organization->id,
+            ]);
+
+            return response()->json(['error' => __('ai.service_formulation_error')], 422);
+        } catch (\Throwable $e) {
+            Log::error('AI formulation unexpected error', [
+                'scenario' => 'service_offer_master',
+                'error' => $e->getMessage(),
+                'organization_id' => $organization->id,
+            ]);
+
+            return response()->json(['error' => __('ai.service_formulation_error')], 500);
+        }
+
+        $suggestion = $this->validateAiSuggestion($result, $organization, $categories, $currentTitle, $currentDescription, $currentCategoryId, $currentDeliveryMode, $currentPointsCost, $pointMin, $pointMax);
+
+        return response()->json(['suggestion' => $suggestion]);
+    }
+
+    private function validateAiSuggestion(
+        array $parsed,
+        Organization $organization,
+        $categories,
+        string $currentTitle,
+        string $currentDescription,
+        string $currentCategoryId,
+        string $currentDeliveryMode,
+        string $currentPointsCost,
+        ?int $pointMin,
+        ?int $pointMax,
+    ): array {
+        $validCategoryIds = $categories->pluck('id')->toArray();
+
+        $title = $parsed['title'] ?? null;
+        if (! is_string($title) || mb_strlen($title) < 10 || mb_strlen($title) > 255) {
+            $title = $currentTitle;
+        }
+
+        $descriptionMarkdown = $parsed['description_markdown'] ?? null;
+        if (! is_string($descriptionMarkdown) || mb_strlen(strip_tags($descriptionMarkdown)) < 100) {
+            $descriptionMarkdown = $currentDescription;
+        } else {
+            $descriptionMarkdown = strip_tags($descriptionMarkdown);
+        }
+
+        $categoryId = $parsed['category_id'] ?? null;
+        if (! is_string($categoryId) || ! in_array($categoryId, $validCategoryIds, true)) {
+            $categoryId = $currentCategoryId;
+        }
+
+        $deliveryMode = $parsed['delivery_mode'] ?? null;
+        if (! is_string($deliveryMode) || ! in_array($deliveryMode, ['remote', 'onsite', 'both'], true)) {
+            $deliveryMode = $currentDeliveryMode;
+        }
+
+        $pointsCost = $parsed['points_cost'] ?? null;
+        if (! is_int($pointsCost) && ! ctype_digit((string) $pointsCost)) {
+            $pointsCost = $currentPointsCost !== '' ? (int) $currentPointsCost : null;
+        } else {
+            $pointsCost = (int) $pointsCost;
+            if (($pointMin !== null && $pointsCost < $pointMin) || ($pointMax !== null && $pointsCost > $pointMax)) {
+                $pointsCost = $currentPointsCost !== '' ? (int) $currentPointsCost : null;
+            }
+            if ($pointsCost <= 0) {
+                $pointsCost = $currentPointsCost !== '' ? (int) $currentPointsCost : null;
+            }
+        }
+
+        $previewHtml = markdown($descriptionMarkdown);
+
+        return [
+            'title' => $title,
+            'description_markdown' => $descriptionMarkdown,
+            'description_preview_html' => $previewHtml,
+            'category_id' => $categoryId,
+            'delivery_mode' => $deliveryMode,
+            'points_cost' => $pointsCost,
+        ];
     }
 
     public function store(Request $request): RedirectResponse

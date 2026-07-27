@@ -48,6 +48,7 @@ use App\Services\Ai\Providers\OllamaSupervisionProvider;
 use App\Services\Ai\Providers\OpenAiSupervisionProvider;
 use App\Services\Ai\Providers\OpenRouterSupervisionProvider;
 use App\Services\Ai\Scenarios\ClarifyHelpRequestScenario;
+use App\Services\Ai\Scenarios\ServiceOfferMasterScenario;
 use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\ReferralCodeGenerator;
@@ -131,6 +132,7 @@ class AppServiceProvider extends ServiceProvider
             $factory = new AiScenarioFactory;
             $factory->register(new SupervisionContentScenario);
             $factory->register(new ClarifyHelpRequestScenario);
+            $factory->register(new ServiceOfferMasterScenario);
             $factory->register(new BoundedMemberScenario);
 
             return $factory;
