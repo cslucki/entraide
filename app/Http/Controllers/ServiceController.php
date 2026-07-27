@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View as ViewFacade;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Intervention\Image\Laravel\Facades\Image;
@@ -41,7 +42,7 @@ class ServiceController extends Controller
         $isPaused = $service->status === 'paused';
 
         $ogTitle = $service->title;
-        $ogDescription = Str::limit(strip_tags($service->description), 160);
+        $ogDescription = Str::limit(strip_tags(Str::markdown($service->description, ['html_input' => 'strip', 'allow_unsafe_links' => false])), 160);
         $ogImage = $service->images->first()
             ? $service->images->first()->url
             : null;
@@ -49,13 +50,18 @@ class ServiceController extends Controller
             '@context' => 'https://schema.org',
             '@type' => 'Service',
             'name' => $service->title,
-            'description' => Str::limit(strip_tags($service->description), 160),
+            'description' => Str::limit(strip_tags(Str::markdown($service->description, ['html_input' => 'strip', 'allow_unsafe_links' => false])), 160),
             'provider' => [
                 '@type' => 'Person',
                 'name' => $service->user->name,
                 'url' => route('profile.show', $service->user),
             ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        ViewFacade::share('ogTitle', $ogTitle);
+        ViewFacade::share('ogDescription', $ogDescription);
+        ViewFacade::share('ogImage', $ogImage);
+        ViewFacade::share('jsonLd', $jsonLd);
 
         return view('services.show', compact('service', 'isFavorited', 'isPaused', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
     }
