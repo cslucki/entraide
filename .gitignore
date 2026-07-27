@@ -26,7 +26,6 @@ ROADMAP.md
 docs/
 boost.json
 install.bat
-.npmrc
 phpunit.xml
 phpunit.pgsql.xml
 playwright.config.js
