@@ -136,7 +136,8 @@
                 <h4 class="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2">{{ __('ai.service_suggestion_title') }}</h4>
                 <div class="text-sm text-indigo-700 dark:text-indigo-300 space-y-1">
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.title') }} :</strong> <span x-text="suggestion?.title"></span></p>
-                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.description') }} :</strong> <span x-text="suggestion?.description_markdown?.substring(0, 200) + (suggestion?.description_markdown?.length > 200 ? '...' : '')"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.description') }} :</strong></p>
+                    <div x-show="suggestion?.description_preview_html" class="prose prose-sm dark:prose-invert max-w-none max-h-64 overflow-y-auto mt-1 border border-indigo-100 dark:border-indigo-800 rounded p-3" x-html="suggestion.description_preview_html"></div>
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.category') }} :</strong> <span x-text="categoryLabel"></span></p>
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.delivery_mode') }} :</strong> <span x-text="suggestion?.delivery_mode"></span></p>
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.points_requested') }} :</strong> <span x-text="suggestion?.points_cost"></span></p>

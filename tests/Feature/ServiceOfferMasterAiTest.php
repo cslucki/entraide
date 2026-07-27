@@ -690,4 +690,175 @@ class ServiceOfferMasterAiTest extends TestCase
         $response->assertStatus(422);
         $this->assertStringContainsString('Enter at least', $response->json('error'));
     }
+
+    // ── description_preview_html ──
+
+    public function test_description_preview_html_renders_markdown(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Développement Web React',
+                'description_markdown' => "Je vous propose **du développement web** React et Next.js avec une expertise solide en TypeScript.\n\n## Pourquoi moi\n\n- Expert React depuis 8 ans\n- 5 ans d'expérience en production\n- Approche pédagogique et rigoureuse",
+                'category_id' => $this->cat1->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 150,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', ['title' => 'Dev Web']);
+
+        $response->assertOk();
+        $suggestion = $response->json('suggestion');
+        $this->assertIsString($suggestion['description_preview_html']);
+        $this->assertNotEmpty($suggestion['description_preview_html']);
+        $this->assertStringContainsString('<strong>', $suggestion['description_preview_html']);
+        $this->assertStringNotContainsString('**', $suggestion['description_preview_html']);
+        $this->assertStringContainsString('<h2>', $suggestion['description_preview_html']);
+        $this->assertStringContainsString('<ul>', $suggestion['description_preview_html']);
+        $this->assertStringContainsString('<li>', $suggestion['description_preview_html']);
+    }
+
+    public function test_description_markdown_unchanged_after_preview_generation(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Développement Web React',
+                'description_markdown' => 'Je vous propose **du développement web** React avec une expertise approfondie en TypeScript, Next.js et Tailwind CSS pour des projets professionnels de qualité.',
+                'category_id' => $this->cat1->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 150,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', ['title' => 'Dev Web']);
+
+        $response->assertOk();
+        $suggestion = $response->json('suggestion');
+        $this->assertStringContainsString('**', $suggestion['description_markdown']);
+        $this->assertStringContainsString('du développement web', $suggestion['description_markdown']);
+    }
+
+    public function test_raw_html_in_ai_response_is_stripped_before_preview(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Design Graphique Pro',
+                'description_markdown' => '<script>alert(1)</script> Je propose du design graphique professionnel avec une longue description détaillée pour atteindre la limite de caractères exigée par la plateforme.',
+                'category_id' => $this->cat2->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 100,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', ['title' => 'Design']);
+
+        $response->assertOk();
+        $suggestion = $response->json('suggestion');
+
+        $this->assertStringNotContainsString('<script>', $suggestion['description_preview_html']);
+        $this->assertStringNotContainsString('</script>', $suggestion['description_preview_html']);
+        $this->assertStringNotContainsString('<script>', $suggestion['description_markdown']);
+        $this->assertStringNotContainsString('</script>', $suggestion['description_markdown']);
+        $this->assertStringNotContainsString('<', $suggestion['description_markdown']);
+        $this->assertStringNotContainsString('>', $suggestion['description_markdown']);
+    }
+
+    public function test_img_onerror_in_ai_response_is_stripped_before_preview(): void
+    {
+        $descriptionWithOnError = '<img src=x onerror=alert(1)> Je propose du design graphique professionnel avec une longue description détaillée pour atteindre la limite de caractères de la plateforme.';
+
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Design Graphique Pro',
+                'description_markdown' => $descriptionWithOnError,
+                'category_id' => $this->cat2->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 100,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', ['title' => 'Design']);
+
+        $response->assertOk();
+        $suggestion = $response->json('suggestion');
+
+        $this->assertStringNotContainsString('<img', $suggestion['description_preview_html']);
+        $this->assertStringNotContainsString('onerror', $suggestion['description_preview_html']);
+        $this->assertStringNotContainsString('alert(1)', $suggestion['description_preview_html']);
+    }
+
+    public function test_dangerous_markdown_link_is_escaped_in_preview(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Développement Web React',
+                'description_markdown' => "Cliquez [ici](javascript:alert('xss')) pour plus d'infos sur mon service de développement web professionnel avec une longue description.",
+                'category_id' => $this->cat1->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 150,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', ['title' => 'Dev Web']);
+
+        $response->assertOk();
+        $suggestion = $response->json('suggestion');
+
+        $this->assertStringNotContainsString('javascript:', $suggestion['description_preview_html']);
+    }
+
+    public function test_preview_html_fallback_current_description_is_safe(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'T',
+                'description_markdown' => 'Court',
+                'category_id' => $this->cat1->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 150,
+            ]), 200),
+        ]);
+
+        $currentDescription = 'Je propose **du coaching** en développement personnel.';
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => 'Coaching personnel pour améliorer vos compétences professionnelles',
+                'description' => $currentDescription,
+            ]);
+
+        $response->assertOk();
+        $suggestion = $response->json('suggestion');
+
+        $this->assertStringContainsString('du coaching', $suggestion['description_markdown']);
+        $this->assertStringContainsString('<strong>', $suggestion['description_preview_html']);
+        $this->assertStringNotContainsString('<script', $suggestion['description_preview_html']);
+    }
+
+    public function test_preview_html_not_accepted_from_request(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Développement Web React',
+                'description_markdown' => 'Je vous propose **du développement web**.',
+                'category_id' => $this->cat1->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 150,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => 'Dev Web',
+                'description_preview_html' => '<script>alert(1)</script>',
+            ]);
+
+        $response->assertOk();
+        $suggestion = $response->json('suggestion');
+        $this->assertStringNotContainsString('<script>', $suggestion['description_preview_html']);
+    }
 }

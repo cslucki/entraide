@@ -254,9 +254,12 @@ class ServiceController extends Controller
             }
         }
 
+        $previewHtml = markdown($descriptionMarkdown);
+
         return [
             'title' => $title,
             'description_markdown' => $descriptionMarkdown,
+            'description_preview_html' => $previewHtml,
             'category_id' => $categoryId,
             'delivery_mode' => $deliveryMode,
             'points_cost' => $pointsCost,
