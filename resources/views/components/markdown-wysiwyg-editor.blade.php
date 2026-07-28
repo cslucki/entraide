@@ -1,4 +1,4 @@
-@props(['name' => 'description', 'value' => '', 'required' => false, 'minLength' => null, 'maxLength' => null, 'placeholder' => '', 'invalid' => false, 'rows' => 5])
+@props(['name' => 'description', 'value' => '', 'required' => false, 'minLength' => null, 'placeholder' => '', 'invalid' => false, 'rows' => 5])
 
 <style>
     .ProseMirror-wrapper .ProseMirror {
@@ -56,34 +56,18 @@
     .ProseMirror-wrapper .ProseMirror strong {
         font-weight: 700;
     }
-    .ProseMirror-wrapper .ProseMirror-placeholder {
-        color: #9ca3af;
-        pointer-events: none;
-    }
-    .dark .ProseMirror-wrapper .ProseMirror-placeholder {
-        color: #6b7280;
-    }
 </style>
 <div data-tiptap-container
      class="markdown-wysiwyg-editor"
-     x-data="{
-         init() {
-             // Listen for bp:markdown-editor:set-content event for AI suggestions
-             const self = this;
-             document.addEventListener('bp:markdown-editor:set-content', function(e) {
-                 if (e.detail && e.detail.name === '{{ $name }}') {
-                     const ta = $el.querySelector('textarea[data-tiptap-target]');
-                     const ed = $el._tiptapEditor;
-                     if (ed) {
-                         ed.commands.setContent(e.detail.markdown, { contentType: 'markdown' });
-                     } else if (ta) {
-                         ta.value = e.detail.markdown;
-                         ta.dispatchEvent(new Event('input', { bubbles: true }));
-                     }
-                 }
-             });
-         }
-     }">
+     data-i18n-undo="{{ __('ai.markdown_undo') }}"
+     data-i18n-redo="{{ __('ai.markdown_redo') }}"
+     data-i18n-bold="{{ __('ai.markdown_bold') }}"
+     data-i18n-link="{{ __('ai.markdown_link') }}"
+     data-i18n-h2="{{ __('ai.markdown_h2') }}"
+     data-i18n-h3="{{ __('ai.markdown_h3') }}"
+     data-i18n-bullet-list="{{ __('ai.markdown_bullet_list') }}"
+     data-i18n-toolbar="{{ __('ai.markdown_toolbar') }}"
+     data-i18n-url-prompt="{{ __('ai.markdown_url_prompt') }}">
     <textarea
         id="{{ $name }}"
         name="{{ $name }}"

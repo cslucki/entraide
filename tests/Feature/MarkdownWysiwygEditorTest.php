@@ -109,6 +109,15 @@ class MarkdownWysiwygEditorTest extends TestCase
 
         $response->assertOk();
         $response->assertDontSee('data-tiptap-container', false);
+        // Rendered HTML contains proper tags
+        $response->assertSee('Test heading', false);
+        $response->assertSee('bold', false);
+        $response->assertSee('bullet one', false);
+        $response->assertSee('bullet two', false);
+        // Raw markdown markers are not visible in the page
+        $response->assertDontSee('<h1>', false);
+        // HTML is safe
+        $response->assertDontSee('javascript:', false);
     }
 
     public function test_show_page_escapes_dangerous_html(): void
@@ -117,14 +126,14 @@ class MarkdownWysiwygEditorTest extends TestCase
             'user_id' => $this->user->id,
             'organization_id' => $this->organization->id,
             'category_id' => $this->category->id,
-            'description' => '<script>alert("xss")</script>',
+            'description' => '<img src=x onerror=alert(1)>',
         ]);
 
         $response = $this->actingAs($this->user)
             ->get(route('services.show', $service));
 
         $response->assertOk();
-        $response->assertDontSee('onerror=', false);
+        $response->assertDontSee('<img src=x', false);
     }
 
     public function test_show_page_escapes_javascript_link(): void

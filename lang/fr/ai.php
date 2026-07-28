@@ -105,4 +105,15 @@ return [
     'service_formulation_no_categories' => 'Aucune catégorie disponible dans votre organization.',
     'service_formulation_intention_required' => 'Décrivez au moins brièvement ce que vous proposez avant de demander l\'aide de l\'IA.',
     'service_formulation_intention_hint' => 'Renseignez au moins un titre ou une courte description.',
+
+    // Tiptap Markdown WYSIWYG toolbar (TASK-1056)
+    'markdown_undo' => 'Annuler',
+    'markdown_redo' => 'Rétablir',
+    'markdown_bold' => 'Gras',
+    'markdown_link' => 'Lien',
+    'markdown_h2' => 'Titre 2',
+    'markdown_h3' => 'Titre 3',
+    'markdown_bullet_list' => 'Liste à puces',
+    'markdown_toolbar' => 'Barre d\'outils de formatage',
+    'markdown_url_prompt' => 'URL',
 ];
