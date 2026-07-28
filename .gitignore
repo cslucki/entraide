@@ -26,6 +26,7 @@ ROADMAP.md
 docs/
 boost.json
 install.bat
+.npmrc
 phpunit.xml
 phpunit.pgsql.xml
 playwright.config.js
@@ -113,4 +114,3 @@ test-results/
 /bouclepro
 public/modele_homepage.html
 after-upload-attempt.yml
-.npmrc

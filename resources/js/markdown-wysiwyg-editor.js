@@ -143,10 +143,9 @@ function setupEditor(container) {
             }),
             LinkExtension.configure({
                 openOnClick: false,
+                protocols: ['mailto'],
+                isAllowedUri: (url, ctx) => ctx.defaultValidate(url) && isValidUri(url),
                 HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
-                validate(url) {
-                    return isValidUri(url);
-                },
             }),
             Markdown.configure({
                 indentation: { style: 'space', size: 2 },
