@@ -5,7 +5,7 @@ export default defineConfig({
     timeout: 30000,
     retries: 0,
     use: {
-        baseURL: 'http://test.laravel',
+        baseURL: 'https://test.laravel',
         headless: true,
         viewport: { width: 1280, height: 720 },
         ignoreHTTPSErrors: true,

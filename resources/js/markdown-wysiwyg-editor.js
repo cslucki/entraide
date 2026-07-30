@@ -1,6 +1,5 @@
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
-import LinkExtension from '@tiptap/extension-link';
 import { Markdown } from '@tiptap/markdown';
 
 const ACTIVE_EDITORS = new WeakMap();
@@ -140,12 +139,12 @@ function setupEditor(container) {
                 strike: false,
                 italic: false,
                 code: false,
-            }),
-            LinkExtension.configure({
-                openOnClick: false,
-                protocols: ['mailto'],
-                isAllowedUri: (url, ctx) => ctx.defaultValidate(url) && isValidUri(url),
-                HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+                link: {
+                    openOnClick: false,
+                    protocols: ['mailto'],
+                    isAllowedUri: (url, ctx) => ctx.defaultValidate(url) && isValidUri(url),
+                    HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+                },
             }),
             Markdown.configure({
                 indentation: { style: 'space', size: 2 },
