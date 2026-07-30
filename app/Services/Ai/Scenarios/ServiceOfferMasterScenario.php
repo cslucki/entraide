@@ -139,7 +139,20 @@ PROMPT;
     public function systemPrompt(): string
     {
         if (Schema::hasTable('admin_ai_prompts')) {
-            $prompt = AdminAiPrompt::active()->byScenario($this->id())->orderByDesc('version')->first();
+            $locale = app()->getLocale();
+
+            $prompt = AdminAiPrompt::active()
+                ->byScenario($this->id().'_'.$locale)
+                ->orderByDesc('version')
+                ->first();
+
+            if (! $prompt) {
+                $prompt = AdminAiPrompt::active()
+                    ->byScenario($this->id())
+                    ->orderByDesc('version')
+                    ->first();
+            }
+
             if ($prompt) {
                 return $prompt->prompt_text;
             }
