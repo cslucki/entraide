@@ -36,39 +36,40 @@ class SeedOfferMasterPrompts extends Command
             return self::FAILURE;
         }
 
-        $frMaxVersion = AdminAiPrompt::where('scenario_id', 'service_offer_master_fr')->max('version') ?? 0;
-        $frVersion = $frMaxVersion + 1;
+        $this->upsertPrompt('service_offer_master_fr', 'Service Offer Master — FR', $promptFr);
+        $this->upsertPrompt('service_offer_master_en', 'Service Offer Master — EN', $promptEn);
 
-        AdminAiPrompt::where('scenario_id', 'service_offer_master_fr')->update(['is_active' => false]);
-
-        AdminAiPrompt::create([
-            'scenario_id' => 'service_offer_master_fr',
-            'name' => 'Service Offer Master — FR',
-            'description' => 'Prompt français pour la formulation de propositions d\'aide.',
-            'prompt_text' => $promptFr,
-            'version' => $frVersion,
-            'is_active' => true,
-        ]);
-
-        $this->info("FR prompt version {$frVersion} created.");
-
-        $enMaxVersion = AdminAiPrompt::where('scenario_id', 'service_offer_master_en')->max('version') ?? 0;
-        $enVersion = $enMaxVersion + 1;
-
-        AdminAiPrompt::where('scenario_id', 'service_offer_master_en')->update(['is_active' => false]);
-
-        AdminAiPrompt::create([
-            'scenario_id' => 'service_offer_master_en',
-            'name' => 'Service Offer Master — EN',
-            'description' => 'English prompt for formulating help offers.',
-            'prompt_text' => $promptEn,
-            'version' => $enVersion,
-            'is_active' => true,
-        ]);
-
-        $this->info("EN prompt version {$enVersion} created.");
         $this->info('Both prompts are now editable at /admin/ai-prompts.');
 
         return self::SUCCESS;
+    }
+
+    private function upsertPrompt(string $scenarioId, string $name, string $promptText): void
+    {
+        $active = AdminAiPrompt::active()->where('scenario_id', $scenarioId)->orderByDesc('version')->first();
+
+        if ($active && $active->prompt_text === $promptText) {
+            $this->info("{$name} v{$active->version} — already up to date (unchanged).");
+
+            return;
+        }
+
+        if ($active) {
+            $active->update(['is_active' => false]);
+        }
+
+        $maxVersion = AdminAiPrompt::where('scenario_id', $scenarioId)->max('version') ?? 0;
+        $version = $maxVersion + 1;
+
+        AdminAiPrompt::create([
+            'scenario_id' => $scenarioId,
+            'name' => $name,
+            'description' => 'Prompt for Service Offer Master scenario.',
+            'prompt_text' => $promptText,
+            'version' => $version,
+            'is_active' => true,
+        ]);
+
+        $this->info("{$name} v{$version} created.");
     }
 }
