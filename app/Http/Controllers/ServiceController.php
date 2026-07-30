@@ -229,6 +229,7 @@ class ServiceController extends Controller
             $descriptionMarkdown = $currentDescription;
         } else {
             $descriptionMarkdown = strip_tags($descriptionMarkdown);
+            $descriptionMarkdown = $this->normalizeDescriptionMarkdown($descriptionMarkdown);
         }
 
         $categoryId = $parsed['category_id'] ?? null;
@@ -459,5 +460,35 @@ class ServiceController extends Controller
             $organization->servicePointsMin() !== null ? 'min:'.$organization->servicePointsMin() : null,
             $organization->servicePointsMax() !== null ? 'max:'.$organization->servicePointsMax() : null,
         ]));
+    }
+
+    private function normalizeDescriptionMarkdown(string $md): string
+    {
+        $md = str_replace(["\r\n", "\r"], "\n", $md);
+
+        // Guard: if text already has reasonable line breaks, leave it alone
+        if (substr_count($md, "\n") >= 3) {
+            return $md;
+        }
+
+        // Fix fused period+dash: "etc.).- text" or "work.- text"
+        $md = preg_replace('/([.!?)])(\s*)-(\s)/u', "$1\n\n- $3", $md);
+
+        // Fix colon followed by dash without line break: "inclut :- text"
+        $md = preg_replace('/:\s*-(\s)/u', ":\n\n- $1", $md);
+
+        // Fix fused capital letter after period (French "etc.À" → "etc.\n\nÀ")
+        $md = preg_replace('/\.(?!\s)([A-ZÀ-ÿ])/u', ".\n\n$1", $md);
+
+        // Fix inline ## headings without preceding double newline
+        $md = preg_replace('/([^\n])\s*##\s+/', "$1\n\n## ", $md);
+
+        // Normalize: ensure single newlines within list items only
+        // Ensure each top-level "- " starts on its own line
+        $md = preg_replace('/([^\n])\s*-\s/', "$1\n- ", $md);
+
+        $md = preg_replace('/\n{3,}/', "\n\n", $md);
+
+        return trim($md);
     }
 }

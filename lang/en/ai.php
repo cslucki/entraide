@@ -105,4 +105,15 @@ return [
     'service_formulation_no_categories' => 'No categories available in your organization.',
     'service_formulation_intention_required' => 'Enter at least a title or a short description before asking the AI for help.',
     'service_formulation_intention_hint' => 'Enter at least a title or a short description.',
+
+    // Tiptap Markdown WYSIWYG toolbar (TASK-1056)
+    'markdown_undo' => 'Undo',
+    'markdown_redo' => 'Redo',
+    'markdown_bold' => 'Bold',
+    'markdown_link' => 'Link',
+    'markdown_h2' => 'Heading 2',
+    'markdown_h3' => 'Heading 3',
+    'markdown_bullet_list' => 'Bullet list',
+    'markdown_toolbar' => 'Formatting toolbar',
+    'markdown_url_prompt' => 'URL',
 ];

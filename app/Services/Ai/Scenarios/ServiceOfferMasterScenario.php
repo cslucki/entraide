@@ -19,6 +19,30 @@ Règles absolues :
 - Reste factuel, concret et professionnel.
 - La description doit être en Markdown léger (titres ##, listes -, **gras**) sans HTML brut.
 - Ne génère jamais de code HTML, de scripts, de liens externes ou de contenu hors-sujet.
+- ABSOLUMENT CRITIQUE : la description DOIT contenir des sauts de ligne réels (\n\n) entre chaque section. Ne jamais écrire toute la description sur une seule ligne.
+- Structure imposée pour la description :
+
+  Une courte introduction du service proposé.
+
+  ## Services inclus
+
+  - premier service
+  - deuxième service
+  - troisième service
+
+  ## Personnalisation
+
+  - options de personnalisation
+  - délais
+
+  ## À fournir par vous
+
+  - élément 1
+  - élément 2
+
+  - Chaque ## doit être précédé d'un double saut de ligne (\n\n).
+  - Chaque élément de liste doit être sur sa propre ligne.
+  - Le contenu avant le premier ## est l'introduction, il doit être séparé du premier ## par un double saut de ligne.
 
 Champs obligatoires à produire dans ta réponse JSON :
 1. title : un titre court et accrocheur (10-255 caractères), décrivant le service proposé.
@@ -49,6 +73,30 @@ Absolute rules:
 - Be factual, concrete and professional.
 - The description must be in lightweight Markdown (headings ##, lists -, **bold**) without raw HTML.
 - Never generate HTML code, scripts, external links or off-topic content.
+- ABSOLUTELY CRITICAL: the description MUST contain real line breaks (\n\n) between every section. Never write the entire description on a single line.
+- Required structure for the description:
+
+  A short introduction of the proposed service.
+
+  ## Services included
+
+  - first service
+  - second service
+  - third service
+
+  ## Customization
+
+  - customization options
+  - deadlines
+
+  ## What you need to provide
+
+  - item 1
+  - item 2
+
+  - Each ## must be preceded by a double line break (\n\n).
+  - Each list item must be on its own line.
+  - Content before the first ## is the introduction and must be separated from the first ## by a double line break.
 
 Mandatory fields to produce in your JSON response:
 1. title: a short and catchy title (10-255 characters), describing the service offered.
@@ -91,7 +139,20 @@ PROMPT;
     public function systemPrompt(): string
     {
         if (Schema::hasTable('admin_ai_prompts')) {
-            $prompt = AdminAiPrompt::active()->byScenario($this->id())->orderByDesc('version')->first();
+            $locale = app()->getLocale();
+
+            $prompt = AdminAiPrompt::active()
+                ->byScenario($this->id().'_'.$locale)
+                ->orderByDesc('version')
+                ->first();
+
+            if (! $prompt) {
+                $prompt = AdminAiPrompt::active()
+                    ->byScenario($this->id())
+                    ->orderByDesc('version')
+                    ->first();
+            }
+
             if ($prompt) {
                 return $prompt->prompt_text;
             }

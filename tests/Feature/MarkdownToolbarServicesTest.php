@@ -284,16 +284,10 @@ class MarkdownToolbarServicesTest extends TestCase
 
         $response = $this->actingAs($user)->get(route('services.create'));
         $response->assertStatus(200);
-        // Alpine insertMarkdown function is rendered
-        $response->assertSee('insertMarkdown', false);
-        // Textarea has matching id
+        // Tiptap editor container is present
+        $response->assertSee('data-tiptap-container', false);
+        $response->assertSee('data-tiptap-target', false);
         $response->assertSee('id="description"', false);
-        // Toolbar buttons target description
-        $response->assertSee("insertMarkdown('bold')", false);
-        $response->assertSee("insertMarkdown('link')", false);
-        $response->assertSee("insertMarkdown('h2')", false);
-        $response->assertSee("insertMarkdown('h3')", false);
-        $response->assertSee("insertMarkdown('list')", false);
     }
 
     public function test_edit_page_has_toolbar_buttons(): void
@@ -302,10 +296,8 @@ class MarkdownToolbarServicesTest extends TestCase
 
         $response = $this->actingAs($service->user)->get(route('services.edit', $service));
         $response->assertStatus(200);
-        $response->assertSee('insertMarkdown', false);
+        $response->assertSee('data-tiptap-container', false);
         $response->assertSee('id="description"', false);
-        $response->assertSee("insertMarkdown('bold')", false);
-        $response->assertSee("insertMarkdown('h2')", false);
     }
 
     // ── F. Flux ─────────────────────────────────────────────────

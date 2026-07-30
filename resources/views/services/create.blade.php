@@ -28,7 +28,9 @@
             error: null,
             categoryLabel: '',
             canFormulate: false,
+            errorMessageFallback: '',
             init() {
+                this.errorMessageFallback = this.$el.dataset.errorMessage || '';
                 const self = this;
                 this.refreshCanFormulate();
                 document.addEventListener('input', function(e) {
@@ -63,13 +65,13 @@
                     });
                     const data = await resp.json();
                     if (!resp.ok) {
-                        this.error = data.error || {!! e(json_encode(__('ai.service_formulation_error'))) !!};
+                        this.error = data.error || this.errorMessageFallback;
                         return;
                     }
                     this.suggestion = data.suggestion;
                     this.categoryLabel = this.getCategoryLabel(this.suggestion.category_id);
                 } catch (e) {
-                    this.error = {!! e(json_encode(__('ai.service_formulation_error'))) !!};
+                    this.error = this.errorMessageFallback;
                 } finally {
                     this.loading = false;
                 }
@@ -88,8 +90,15 @@
                     if (titleEl) { titleEl.value = this.suggestion.title; titleEl.dispatchEvent(new Event('input', { bubbles: true })); }
                 }
                 if (this.suggestion.description_markdown) {
-                    const descEl = form.querySelector('[name=\'description\']');
-                    if (descEl) { descEl.value = this.suggestion.description_markdown; descEl.dispatchEvent(new Event('input', { bubbles: true })); }
+                    const ta = document.querySelector('textarea[name=\'description\'][data-tiptap-target]');
+                    if (ta && ta.hasAttribute('data-tiptap-initialized')) {
+                        document.dispatchEvent(new CustomEvent('bp:markdown-editor:set-content', {
+                            detail: { name: 'description', markdown: this.suggestion.description_markdown }
+                        }));
+                    } else {
+                        const descEl = form.querySelector('[name=\'description\']');
+                        if (descEl) { descEl.value = this.suggestion.description_markdown; descEl.dispatchEvent(new Event('input', { bubbles: true })); }
+                    }
                 }
                 if (this.suggestion.category_id) {
                     const catEl = form.querySelector('[name=\'category_id\']');
@@ -110,7 +119,7 @@
                 this.suggestion = null;
                 this.error = null;
             }
-        }" class="mb-6 p-4 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-600 rounded-xl">
+        }" data-error-message="{{ __('ai.service_formulation_error') }}" class="mb-6 p-4 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-600 rounded-xl">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">{{ __('ai.service_formulate_cta_title') }}</p>
@@ -137,7 +146,7 @@
                 <div class="text-sm text-indigo-700 dark:text-indigo-300 space-y-1">
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.title') }} :</strong> <span x-text="suggestion?.title"></span></p>
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.description') }} :</strong></p>
-                    <div x-show="suggestion?.description_preview_html" class="prose prose-sm dark:prose-invert max-w-none max-h-64 overflow-y-auto mt-1 border border-indigo-100 dark:border-indigo-800 rounded p-3" x-html="suggestion.description_preview_html"></div>
+                    <div x-show="suggestion?.description_preview_html" class="prose prose-sm dark:prose-invert max-w-none max-h-64 overflow-y-auto mt-1 border border-indigo-100 dark:border-indigo-800 rounded p-3" x-html="suggestion?.description_preview_html"></div>
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.category') }} :</strong> <span x-text="categoryLabel"></span></p>
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.delivery_mode') }} :</strong> <span x-text="suggestion?.delivery_mode"></span></p>
                     <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.points_requested') }} :</strong> <span x-text="suggestion?.points_cost"></span></p>
@@ -198,10 +207,7 @@
                     {{ __('marketplace.description') }} <span class="text-red-500">{{ __('marketplace.required') }}</span>
                     <span class="text-gray-400 font-normal">{{ __('marketplace.min_chars', ['count' => 100]) }}</span>
                 </label>
-                <x-markdown-toolbar target="description" namespace="marketplace" />
-                <textarea id="description" name="description" rows="6" required minlength="100"
-                    placeholder="{{ __('marketplace.service_description_placeholder') }}"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">{{ old('description') }}</textarea>
+                <x-markdown-wysiwyg-editor name="description" :value="old('description')" :placeholder="__('marketplace.service_description_placeholder')" required minLength="100" rows="6" :invalid="$errors->has('description')" />
             </div>
 
             <!-- Catégorie -->

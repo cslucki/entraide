@@ -38,9 +38,7 @@
 
             <div class="mb-5">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.description') }} {{ __('marketplace.required') }}</label>
-                <x-markdown-toolbar target="description" namespace="marketplace" />
-                <textarea id="description" name="description" rows="5" required
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">{{ old('description', $service->description) }}</textarea>
+                <x-markdown-wysiwyg-editor name="description" :value="old('description', $service->description)" :placeholder="' '" required rows="5" :invalid="$errors->has('description')" />
             </div>
 
             <div class="mb-5">

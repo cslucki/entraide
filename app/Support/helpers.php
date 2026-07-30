@@ -58,6 +58,7 @@ if (! function_exists('markdown')) {
         $config = array_merge([
             'html_input' => 'escape',
             'allow_unsafe_links' => false,
+            'renderer' => ['soft_break' => "<br />\n"],
         ], $options);
 
         $converter = new CommonMarkConverter($config);

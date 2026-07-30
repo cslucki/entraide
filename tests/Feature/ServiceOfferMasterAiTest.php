@@ -861,4 +861,73 @@ class ServiceOfferMasterAiTest extends TestCase
         $suggestion = $response->json('suggestion');
         $this->assertStringNotContainsString('<script>', $suggestion['description_preview_html']);
     }
+
+    public function test_compacted_single_line_description_is_normalized_into_markdown(): void
+    {
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Création de logo professionnel',
+                'description_markdown' => "Concept visuel : Design d'un logo moderne et reconnaissable pour votre pizzeria, incluant les éléments clés (forme, couleurs, typographie) en cohérence avec votre identité de marque (ex : pizza, ambiance chaleureuse, etc.).- Services inclus :  - Modèles adaptés aux réseaux sociaux et affiches.  - Version vectorielle (éditable) et haute résolution.  - Conseils sur les couleurs et polices pour une identité harmonieuse.- Personnalisation :  - Adaptation aux besoins spécifiques (ex : mention de votre nom, slogan, ou éléments locaux).  - Livraison sous 48h (si commande prioritaire).- Expertise : Utilisation d'outils professionnels (Adobe Illustrator, Canva Pro) pour un rendu pro et scalable.À fournir par vous :  - Palette de couleurs préférées.  - Style général souhaité (traditionnel, moderne, etc.).  - Éléments graphiques existants (si disponibles).",
+                'category_id' => $this->cat1->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 60,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => 'Logo',
+            ]);
+
+        $response->assertOk();
+        $suggestion = $response->json('suggestion');
+
+        $descMarkdown = $suggestion['description_markdown'];
+        $descPreview = $suggestion['description_preview_html'];
+
+        // The markdown should no longer be a single compacted line
+        $this->assertStringContainsString("\n\n", $descMarkdown);
+        $this->assertStringContainsString('-', $descMarkdown);
+
+        // The preview HTML should contain proper list structure, not a single <li>
+        $this->assertStringContainsString('<ul>', $descPreview);
+        $this->assertStringContainsString('<li>', $descPreview);
+        $this->assertStringContainsString('</li>', $descPreview);
+        // Intro should be in its own paragraph
+        $this->assertStringContainsString('<p>Concept visuel', $descPreview);
+        // Should NOT be a single flat line — should contain at least one paragraph break
+        $this->assertStringContainsString('</p>', $descPreview);
+        $this->assertGreaterThan(2, substr_count($descPreview, '<p>') + substr_count($descPreview, '<li>'));
+    }
+
+    public function test_well_formed_markdown_from_llm_is_preserved(): void
+    {
+        $wellFormed = "## Ce que je propose\n\nCréation d'un logo professionnel pour votre pizzeria.\n\n## Services inclus\n\n- Design vectoriel\n- Haute résolution\n- Conseils couleurs et polices\n\n## À fournir par vous\n\n- Palette de couleurs\n- Style souhaité";
+
+        Http::fake([
+            'openrouter.ai/*' => Http::response($this->fakeAiResponse([
+                'title' => 'Création de logo professionnel',
+                'description_markdown' => $wellFormed,
+                'category_id' => $this->cat1->id,
+                'delivery_mode' => 'remote',
+                'points_cost' => 60,
+            ]), 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson('/services/ai-formulate', [
+                'title' => 'Logo',
+            ]);
+
+        $response->assertOk();
+        $suggestion = $response->json('suggestion');
+
+        $descMarkdown = $suggestion['description_markdown'];
+
+        // Well-formed markdown should pass through the normalizer unchanged
+        $this->assertStringContainsString('## Ce que je propose', $descMarkdown);
+        $this->assertStringContainsString('## Services inclus', $descMarkdown);
+        $this->assertStringContainsString('## À fournir par vous', $descMarkdown);
+        $this->assertStringContainsString('- Design vectoriel', $descMarkdown);
+    }
 }

@@ -1,5 +1,6 @@
 import './bootstrap';
 import { createEditor } from './blog-editor';
+import './markdown-wysiwyg-editor';
 import { extractEmbedUrl } from './tiptap/media-embed-node.js';
 import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
