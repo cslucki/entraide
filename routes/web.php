@@ -319,6 +319,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
         Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
         Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
+        Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
         Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
         Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
     });
@@ -662,6 +663,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
                 Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
                 Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
+                Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
                 Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
                 Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
             });

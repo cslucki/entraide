@@ -8,6 +8,7 @@ use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\Referral;
 use App\Services\Ai\Contracts\AiProvider;
+use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
 use App\Support\Tenancy\CurrentOrganization;
@@ -21,6 +22,7 @@ class LoopController extends Controller
     public function __construct(
         private readonly LoopService $loopService,
         private readonly LoopMessageService $loopMessageService,
+        private readonly ChatLoopAiService $chatLoopAiService,
         private readonly AiProvider $aiProvider,
     ) {}
 
@@ -435,5 +437,34 @@ class LoopController extends Controller
 
         return redirect($this->loopRoute('loops.show', $loop))
             ->with('success', 'Message envoyé.');
+    }
+
+    public function askAi(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $request->validate([
+            'action' => 'required|string|in:answer',
+        ]);
+
+        if (! config('ai.chatloop.enabled', true)) {
+            abort(404);
+        }
+
+        try {
+            $this->chatLoopAiService->answer($loop, $request->user());
+        } catch (\RuntimeException $e) {
+            return redirect($this->loopRoute('loops.show', $loop))
+                ->with('error', $e->getMessage());
+        }
+
+        return redirect($this->loopRoute('loops.show', $loop))
+            ->with('success', __('loops.ai_answer_requested'));
     }
 }

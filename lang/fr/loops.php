@@ -89,4 +89,13 @@ return [
     'left' => 'Vous avez quitté la boucle.',
     'member_added' => 'Membre ajouté à la boucle.',
     'member_removed' => 'Membre retiré de la boucle.',
+
+    // AI intervention
+    'ask_ai' => 'Demander à l\'IA',
+    'ai_answer_requested' => 'L\'IA rédige sa réponse...',
+    'ai_generation_in_progress' => 'Une réponse de l\'IA est déjà en cours de génération pour cette boucle. Veuillez patienter.',
+    'ai_error' => 'L\'IA n\'a pas pu répondre pour le moment. Veuillez réessayer.',
+    'ai_empty_response' => 'L\'IA n\'a pas produit de réponse exploitable.',
+    'not_an_active_member' => 'Vous n\'êtes pas un membre actif de cette boucle.',
+    'cross_organization' => 'Vous n\'appartenez pas à la même organisation que cette boucle.',
 ];
