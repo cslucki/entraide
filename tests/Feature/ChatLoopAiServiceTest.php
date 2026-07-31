@@ -563,7 +563,8 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->assertNotNull($this->capturedSystemPrompt);
         $this->assertStringContainsString('Tu es un assistant utile', $this->capturedSystemPrompt);
-        $this->assertStringContainsString('Évalue d\'abord si la question a un lien', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('Réponds d\'abord à la question', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('pas comme une restriction', $this->capturedSystemPrompt);
         $this->assertStringContainsString('Tu DOIS répondre en français', $this->capturedSystemPrompt);
     }
 
@@ -577,7 +578,8 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->assertNotNull($this->capturedSystemPrompt);
         $this->assertStringContainsString('You are a helpful assistant', $this->capturedSystemPrompt);
-        $this->assertStringContainsString('whether the question is related', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('Answer the question first', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('not as a restriction', $this->capturedSystemPrompt);
         $this->assertStringContainsString('You MUST answer in English', $this->capturedSystemPrompt);
     }
 
