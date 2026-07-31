@@ -158,7 +158,6 @@
                             x-model="question"
                             required
                             maxlength="500"
-                            x-bind:disabled="asking"
                             placeholder="{{ __('loops.ask_question_placeholder') }}"
                             class="mt-2 w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:border-violet-500 focus:ring-violet-500"
                         >

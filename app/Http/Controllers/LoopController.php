@@ -451,7 +451,7 @@ class LoopController extends Controller
 
         $data = $request->validate([
             'action' => 'required|string|in:answer,ask',
-            'question' => 'required_if:action,ask|nullable|string|max:500',
+            'question' => 'required_if:action,ask|string|max:500',
         ]);
 
         if (! config('ai.chatloop.enabled', true)) {
