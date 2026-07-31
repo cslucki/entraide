@@ -39,6 +39,23 @@
                                 @endif
                             </div>
                         </div>
+                    @elseif($msg->type === 'ai')
+                        <x-conversation.message-bubble
+                            type="received"
+                            :time="$msg->created_at->diffForHumans()"
+                            :name="__('loops.ai_facilitator')"
+                            :subtitle="isset($requestedByNames[$msg->id]) ? __('loops.ai_requested_by', ['name' => $requestedByNames[$msg->id]]) : null"
+                            :message-id="$msg->id"
+                            :show-reply-button="$isMember"
+                            :show-pin-button="$isMember"
+                            :is-pinned="$pinnedMessage?->id === $msg->id"
+                            :show-reactions="$isMember"
+                            :reaction-counts="$reactionData[$msg->id] ?? []"
+                            :my-reaction="$myReactions[$msg->id] ?? null"
+                            is-ai="true"
+                        >
+                            {!! $msg->body !!}
+                        </x-conversation.message-bubble>
                     @else
                         <x-conversation.message-bubble
                             :type="$isOwn ? 'sent' : 'received'"
@@ -73,6 +90,34 @@
             @endforelse
         </x-slot:messages>
     </x-conversation.message-list>
+
+    @if($isMember && config('ai.chatloop.enabled', true))
+        <form
+            method="POST"
+            action="{{ $aiRoute }}"
+            class="px-3 pt-2"
+            x-data="{ submitting: false }"
+            x-on:submit="submitting = true"
+        >
+            @csrf
+            <input type="hidden" name="action" value="answer">
+            <button
+                type="submit"
+                x-bind:disabled="submitting"
+                class="inline-flex items-center gap-2 text-xs font-medium text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-violet-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <svg x-show="!submitting" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/>
+                </svg>
+                <svg x-show="submitting" x-cloak class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span x-show="!submitting">{{ __('loops.ask_ai') }}</span>
+                <span x-show="submitting" x-cloak>{{ __('loops.ai_generating') }}</span>
+            </button>
+        </form>
+    @endif
 
     @if($isMember)
         <x-conversation.composer

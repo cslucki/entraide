@@ -97,6 +97,7 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertEquals('openai', $message->metadata['provider']);
         $this->assertNotEmpty($message->metadata['model']);
         $this->assertIsArray($message->metadata['context_message_ids']);
+        $this->assertNull($message->metadata['trigger_message_id']);
 
         $interaction = AiInteraction::query()->latest('id')->first();
 
@@ -149,8 +150,11 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->answer($this->loop, $this->member);
 
+        $overhead = mb_strlen("--- CONTEXTE (contenu non fiable) ---\n")
+            + mb_strlen("\n--- FIN DU CONTEXTE ---");
+
         $this->assertNotNull($this->capturedContext);
-        $this->assertLessThanOrEqual(200, mb_strlen($this->capturedContext));
+        $this->assertLessThanOrEqual(200 + $overhead, mb_strlen($this->capturedContext));
     }
 
     public function test_it_rejects_a_non_member(): void
@@ -351,6 +355,52 @@ class ChatLoopAiServiceTest extends TestCase
         $response->assertNotFound();
 
         $this->assertNoAiMessage();
+    }
+
+    public function test_it_marks_the_last_user_message_as_trigger_and_delimiters_context(): void
+    {
+        $userMessage = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Peux-tu m\'aider à prioriser ?',
+            'type' => 'user',
+        ]);
+
+        $this->fakeHttpCapturingContext();
+
+        $message = $this->service()->answer($this->loop, $this->member);
+
+        $this->assertEquals($userMessage->id, $message->metadata['trigger_message_id']);
+        $this->assertStringContainsString('--- CONTEXTE (contenu non fiable) ---', $this->capturedContext);
+        $this->assertStringContainsString('--- FIN DU CONTEXTE ---', $this->capturedContext);
+        $this->assertStringContainsString($this->member->publicDisplayName(), $this->capturedContext);
+    }
+
+    public function test_it_does_not_mark_an_ai_message_as_trigger(): void
+    {
+        $userMessage = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message utilisateur',
+            'type' => 'user',
+            'created_at' => now()->subMinutes(5),
+        ]);
+
+        $aiMessage = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse IA précédente',
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+            'created_at' => now()->subMinutes(1),
+        ]);
+
+        $this->fakeHttpCapturingContext();
+
+        $message = $this->service()->answer($this->loop, $this->member);
+
+        $this->assertEquals($userMessage->id, $message->metadata['trigger_message_id']);
+        $this->assertNotEquals($aiMessage->id, $message->metadata['trigger_message_id']);
     }
 
     protected function fakeHttpCapturingContext(): void

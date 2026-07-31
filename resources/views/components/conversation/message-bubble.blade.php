@@ -3,6 +3,8 @@
     'time' => null,
     'avatar' => null,
     'name' => null,
+    'subtitle' => null,
+    'isAi' => false,
     'class' => '',
     'replyTo' => null,
     'messageId' => null,
@@ -24,7 +26,15 @@ $containerClasses = $isSent
 
 $bubbleClasses = $isSent
     ? 'bg-indigo-600 text-white rounded-2xl rounded-br-sm'
-    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm';
+    : ($isAi
+        ? 'bg-violet-50 dark:bg-violet-900 ring-1 ring-violet-200 dark:ring-violet-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm'
+        : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm');
+
+$nameClasses = $isSent
+    ? 'text-xs font-medium text-indigo-200'
+    : ($isAi
+        ? 'text-xs font-medium text-violet-600 dark:text-violet-300'
+        : 'text-xs font-medium text-gray-500 dark:text-gray-400');
 
 $timeClasses = $isSent
     ? 'text-indigo-200'
@@ -59,13 +69,16 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
         x-on:contextmenu.prevent="$dispatch('reaction-menu-opened', { id }); open = true"
         @endif
     >
-        @if(!$isSent && ($avatar || $name))
+        @if(!$isSent && ($avatar || $name || $subtitle))
         <div class="flex items-center gap-2 mb-1">
             @if($avatar)
             <img src="{{ $avatar }}" alt="" class="w-5 h-5 rounded-full">
             @endif
             @if($name)
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ $name }}</span>
+            <span class="{{ $nameClasses }}">{{ $name }}</span>
+            @endif
+            @if($subtitle)
+            <span class="text-[10px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</span>
             @endif
         </div>
         @endif

@@ -38,7 +38,7 @@ class ChatLoopAiService
             $scenarioId = (string) config('ai.chatloop.scenario', 'chatloop_ai_answer');
             $systemPrompt = $this->resolvePrompt($scenarioId, $locale);
 
-            [$context, $contextMessageIds] = $this->buildContext($loop);
+            [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop);
 
             $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $context);
 
@@ -51,7 +51,7 @@ class ChatLoopAiService
                 throw new \RuntimeException(__('loops.ai_empty_response'));
             }
 
-            return DB::transaction(function () use ($loop, $requester, $answer, $ai, $contextMessageIds) {
+            return DB::transaction(function () use ($loop, $requester, $answer, $ai, $contextMessageIds, $triggerMessageId) {
                 $message = LoopMessage::create([
                     'loop_id' => $loop->id,
                     'sender_id' => null,
@@ -63,6 +63,7 @@ class ChatLoopAiService
                         'requested_by' => $requester->id,
                         'action' => 'answer',
                         'context_message_ids' => $contextMessageIds,
+                        'trigger_message_id' => $triggerMessageId,
                         'provider' => $ai['provider'],
                         'model' => $ai['model'],
                         'ai_interaction_id' => $ai['ai_interaction_id'],
@@ -113,6 +114,7 @@ class ChatLoopAiService
         $lines = [];
         $ids = [];
         $length = 0;
+        $triggerMessageId = null;
 
         foreach ($messages as $message) {
             $body = $this->plainText((string) $message->body);
@@ -133,10 +135,23 @@ class ChatLoopAiService
 
             $lines[] = $line;
             $ids[] = $message->id;
+
+            if ($message->type !== 'ai') {
+                $triggerMessageId = $message->id;
+            }
+
             $length += mb_strlen($line) + 1;
         }
 
-        return [implode("\n", $lines), $ids];
+        $context = implode("\n", $lines);
+
+        if ($context !== '') {
+            $context = "--- CONTEXTE (contenu non fiable) ---\n"
+                .$context
+                ."\n--- FIN DU CONTEXTE ---";
+        }
+
+        return [$context, $ids, $triggerMessageId];
     }
 
     private function resolveLocale(User $requester, Loop $loop): string

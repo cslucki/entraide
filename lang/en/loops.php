@@ -92,6 +92,9 @@ return [
 
     // AI intervention
     'ask_ai' => 'Ask the AI',
+    'ai_generating' => 'The AI is drafting its answer...',
+    'ai_facilitator' => 'AI Facilitator',
+    'ai_requested_by' => 'Requested by :name',
     'ai_answer_requested' => 'The AI is drafting its answer...',
     'ai_generation_in_progress' => 'An AI answer is already being generated for this loop. Please wait.',
     'ai_error' => 'The AI could not answer right now. Please try again.',

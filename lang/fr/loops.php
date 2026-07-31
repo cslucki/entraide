@@ -92,6 +92,9 @@ return [
 
     // AI intervention
     'ask_ai' => 'Demander à l\'IA',
+    'ai_generating' => 'L\'IA rédige sa réponse...',
+    'ai_facilitator' => 'Facilitateur IA',
+    'ai_requested_by' => 'Demandé par :name',
     'ai_answer_requested' => 'L\'IA rédige sa réponse...',
     'ai_generation_in_progress' => 'Une réponse de l\'IA est déjà en cours de génération pour cette boucle. Veuillez patienter.',
     'ai_error' => 'L\'IA n\'a pas pu répondre pour le moment. Veuillez réessayer.',
