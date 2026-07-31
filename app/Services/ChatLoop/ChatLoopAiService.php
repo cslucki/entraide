@@ -10,11 +10,11 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\User;
+use App\Support\Ai\AiMarkdownSanitizer;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 
 class ChatLoopAiService
 {
@@ -42,7 +42,7 @@ class ChatLoopAiService
 
             $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $context);
 
-            $answer = $this->cleanAiText(
+            $answer = AiMarkdownSanitizer::sanitize(
                 $ai['content'],
                 (int) config('ai.chatloop.max_response_chars', 1400),
             );
@@ -206,16 +206,23 @@ class ChatLoopAiService
             return 'You are a helpful assistant inside a BouclePro loop, a private discussion space '
                 .'shared by members of the same organization. Answer the latest question based only '
                 .'on the conversation context provided. Rules: answer in English; keep the answer '
-                .'between 300 and 700 words; use short paragraphs and simple sentences; never reply '
-                .'with HTML, Markdown or script; never invent facts that are not present in the '
-                .'context; never reveal any internal or sensitive information.';
+                .'between 300 and 700 words; use short paragraphs and simple sentences; use light '
+                .'Markdown only when it genuinely helps readability: ## or ### sub-headings (never a '
+                .'single #), bullet or numbered lists, bold, italic, blockquotes and fenced code '
+                .'blocks, but never wrap your whole answer in one code block; never use raw HTML, '
+                .'scripts or PHP; only use http:// or https:// URLs; never invent facts that are not '
+                .'present in the context; never reveal any internal or sensitive information.';
         }
 
         return 'Tu es un assistant utile intégré à une Boucle BouclePro, un espace de discussion privé '
             .'partagé par les membres d\'une même organisation. Réponds à la dernière question posée '
             .'en t\'appuyant uniquement sur le contexte de la conversation fourni. Règles : réponds '
             .'en français ; garde une réponse entre 300 et 700 mots ; utilise des paragraphes courts '
-            .'et des phrases simples ; ne réponds jamais avec du HTML, du Markdown ou du script ; '
+            .'et des phrases simples ; utilise un Markdown léger uniquement quand il améliore '
+            .'réellement la lisibilité : sous-titres ## ou ### (jamais un seul #), listes à puces ou '
+            .'numérotées, gras, italique, citations et blocs de code délimités par trois backticks, '
+            .'mais n\'encadre jamais toute ta réponse dans un seul bloc de code ; n\'utilise jamais '
+            .'de HTML brut, de script ou de PHP ; n\'utilise que des URL http:// ou https:// ; '
             .'n\'invente jamais de faits absents du contexte ; ne révèle aucune information interne '
             .'ou sensible.';
     }
@@ -337,31 +344,6 @@ class ChatLoopAiService
             'model' => $model,
             'ai_interaction_id' => $interaction->id,
         ];
-    }
-
-    private function cleanAiText(string $text, int $limit = 1400): string
-    {
-        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = preg_replace('/<\?php|<\%|<\?xml/i', '', $text) ?? $text;
-        $text = preg_replace('/\{\{.*?\}\}/s', '', $text) ?? $text;
-        $text = preg_replace('/```[a-z0-9_-]*\s*/i', '', $text) ?? $text;
-        $text = str_replace('```', '', $text);
-        $text = preg_replace('/^\s{0,3}#{1,6}\s+/m', '', $text) ?? $text;
-        $text = preg_replace('/^\s{0,3}(?:-{3,}|_{3,}|\*{3,})\s*$/m', '', $text) ?? $text;
-        $text = preg_replace('/^\s{0,3}>\s?/m', '', $text) ?? $text;
-        $text = preg_replace('/\*\*(.*?)\*\*/s', '$1', $text) ?? $text;
-        $text = preg_replace('/__(.*?)__/s', '$1', $text) ?? $text;
-        $text = preg_replace('/(?<!\*)\*([^*\n]+)\*(?!\*)/u', '$1', $text) ?? $text;
-        $text = preg_replace('/(?<!_)_([^_\n]+)_(?!_)/u', '$1', $text) ?? $text;
-        $text = preg_replace('/^\s*[-*+]\s+/m', '', $text) ?? $text;
-        $text = preg_replace('/^\s*\d+[.)]\s+/m', '', $text) ?? $text;
-        $text = preg_replace('/\[(.*?)\]\((.*?)\)/', '$1', $text) ?? $text;
-        $text = str_replace(['**', '__', '*'], '', $text);
-        $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
-        $text = preg_replace('/\h*\n\h*/', "\n", $text) ?? $text;
-        $text = preg_replace("/\n{3,}/", "\n\n", $text) ?? $text;
-
-        return Str::limit(trim((string) $text), $limit, '');
     }
 
     private function plainText(string $text): string

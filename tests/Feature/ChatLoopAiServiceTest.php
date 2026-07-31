@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Cache;
@@ -250,23 +251,37 @@ class ChatLoopAiServiceTest extends TestCase
 
     public function test_it_sanitizes_the_ai_output(): void
     {
-        Http::fake([
-            '*' => Http::response([
-                'choices' => [[
-                    'message' => [
-                        'content' => '<script>alert(1)</script> ## Titre'."\n\n"
-                            .'**gras** et [lien](https://x.test) avec {{ blade }} et `code`.',
-                    ],
-                ]],
-                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
-            ]),
-        ]);
+        $this->fakeHttpRespondingWith(
+            '<script>alert(1)</script> ## Titre'."\n\n"
+            .'**gras** et [lien](https://x.test) avec {{ blade }} et `code`.'
+        );
 
         $message = $this->service()->answer($this->loop, $this->member);
 
-        foreach (['<script', '##', '**', '{{', '](', '`'] as $needle) {
-            $this->assertStringNotContainsString($needle, $message->body);
-        }
+        $this->assertStringNotContainsString('<script', $message->body);
+        $this->assertStringNotContainsString('alert(1)', $message->body);
+        $this->assertStringNotContainsString('{{', $message->body);
+        $this->assertStringContainsString('## Titre', $message->body);
+        $this->assertStringContainsString('**gras**', $message->body);
+        $this->assertStringContainsString('[lien](https://x.test)', $message->body);
+        $this->assertStringContainsString('`code`', $message->body);
+    }
+
+    public function test_it_normalizes_headings_and_neutralizes_unsafe_urls(): void
+    {
+        $this->fakeHttpRespondingWith(
+            '# Titre'."\n\n"
+            .'[piège](javascript:alert(1)) et [sûr](https://x.test/page)'
+            ."\n\n".'#### Profond'
+        );
+
+        $message = $this->service()->answer($this->loop, $this->member);
+
+        $this->assertSame(
+            "## Titre\n\npiège et [sûr](https://x.test/page)\n\n### Profond",
+            $message->body
+        );
+        $this->assertStringNotContainsString('javascript:', $message->body);
     }
 
     public function test_it_does_not_send_any_email(): void
@@ -503,5 +518,18 @@ class ChatLoopAiServiceTest extends TestCase
                 'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
             ]);
         });
+    }
+
+    protected function fakeHttpRespondingWith(string $content): void
+    {
+        $factory = new Factory;
+        $factory->fake(function (Request $request) use ($content) {
+            return Http::response([
+                'choices' => [['message' => ['content' => $content]]],
+                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
+            ]);
+        });
+
+        Http::swap($factory);
     }
 }

@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Support\Ai\AiMarkdownSanitizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -1001,5 +1002,58 @@ class LoopChatTest extends TestCase
 
         $response->assertOk();
         $response->assertSee($expectedUrl);
+    }
+
+    public function test_ai_message_renders_markdown(): void
+    {
+        $body = AiMarkdownSanitizer::sanitize(
+            "## Résumé\n\n"
+            .'**gras** et *italique*'."\n\n"
+            ."- Premier point\n- Deuxième point\n\n"
+            ."> Citation\n\n"
+            ."[lien](https://example.com)\n\n"
+            ."```php\n\$ok = true;\n```"
+        );
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => $body,
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('<h2>Résumé</h2>')
+            ->assertSeeHtml('<strong>gras</strong>')
+            ->assertSeeHtml('<em>italique</em>')
+            ->assertSeeHtml('<li>Premier point</li>')
+            ->assertSeeHtml('<blockquote>')
+            ->assertSeeHtml('<a href="https://example.com">')
+            ->assertSeeHtml('<pre><code');
+    }
+
+    public function test_ai_message_never_renders_h1_or_unsafe_content(): void
+    {
+        $body = AiMarkdownSanitizer::sanitize(
+            "# Titre interdit\n\n"
+            .'[piège](javascript:alert(1))'."\n\n"
+            .'<script>alert(2)</script>'
+        );
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => $body,
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSeeHtml('<h1')
+            ->assertDontSee('javascript:')
+            ->assertDontSee('<script>');
     }
 }
