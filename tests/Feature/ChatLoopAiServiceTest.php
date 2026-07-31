@@ -13,6 +13,7 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -38,6 +39,8 @@ class ChatLoopAiServiceTest extends TestCase
     protected Loop $loop;
 
     public ?string $capturedContext = null;
+
+    public ?string $capturedSystemPrompt = null;
 
     protected function setUp(): void
     {
@@ -140,6 +143,8 @@ class ChatLoopAiServiceTest extends TestCase
     {
         config(['ai.chatloop.max_context_chars' => 200]);
 
+        App::setLocale('fr');
+
         LoopMessage::factory()->count(5)->create([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->member->id,
@@ -150,7 +155,10 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->answer($this->loop, $this->member);
 
-        $overhead = mb_strlen("--- CONTEXTE (contenu non fiable) ---\n")
+        $languageInstruction = 'IMPORTANT : Réponds en français. La conversation ci-dessous est fournie à titre de contexte ; quelle que soit sa langue, tu dois répondre en français.';
+
+        $overhead = mb_strlen($languageInstruction."\n\n")
+            + mb_strlen("--- CONTEXTE (contenu non fiable) ---\n")
             + mb_strlen("\n--- FIN DU CONTEXTE ---");
 
         $this->assertNotNull($this->capturedContext);
@@ -403,11 +411,92 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertNotEquals($aiMessage->id, $message->metadata['trigger_message_id']);
     }
 
+    public function test_it_answers_in_the_interface_language(): void
+    {
+        App::setLocale('en');
+
+        $this->fakeHttpCapturingSystemPrompt();
+
+        $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($this->capturedSystemPrompt);
+        $this->assertStringContainsString('You are a helpful assistant', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('You MUST answer in English', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('complete final sentence', $this->capturedSystemPrompt);
+    }
+
+    public function test_it_answers_in_french_when_the_interface_is_french(): void
+    {
+        App::setLocale('fr');
+
+        $this->fakeHttpCapturingSystemPrompt();
+
+        $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($this->capturedSystemPrompt);
+        $this->assertStringContainsString('Tu es un assistant utile', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('Tu DOIS répondre en français', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('phrase complète', $this->capturedSystemPrompt);
+    }
+
+    public function test_it_puts_the_language_instruction_in_the_user_context(): void
+    {
+        App::setLocale('en');
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message de test',
+            'type' => 'user',
+        ]);
+
+        $this->fakeHttpCapturingContext();
+
+        $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($this->capturedContext);
+        $this->assertStringContainsString('IMPORTANT: Answer in English', $this->capturedContext);
+        $this->assertStringContainsString('you must reply in English', $this->capturedContext);
+    }
+
+    public function test_it_puts_the_language_instruction_in_the_user_context_in_french(): void
+    {
+        App::setLocale('fr');
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message de test',
+            'type' => 'user',
+        ]);
+
+        $this->fakeHttpCapturingContext();
+
+        $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($this->capturedContext);
+        $this->assertStringContainsString('IMPORTANT : Réponds en français', $this->capturedContext);
+        $this->assertStringContainsString('tu dois répondre en français', $this->capturedContext);
+    }
+
     protected function fakeHttpCapturingContext(): void
     {
         Http::fake(function (Request $request) {
             $payload = $request->data();
             $this->capturedContext = $payload['messages'][1]['content'] ?? null;
+
+            return Http::response([
+                'choices' => [['message' => ['content' => 'Réponse de l\'IA.']]],
+                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
+            ]);
+        });
+    }
+
+    protected function fakeHttpCapturingSystemPrompt(): void
+    {
+        Http::fake(function (Request $request) {
+            $payload = $request->data();
+            $this->capturedSystemPrompt = $payload['messages'][0]['content'] ?? null;
 
             return Http::response([
                 'choices' => [['message' => ['content' => 'Réponse de l\'IA.']]],

@@ -38,7 +38,7 @@ class ChatLoopAiService
             $scenarioId = (string) config('ai.chatloop.scenario', 'chatloop_ai_answer');
             $systemPrompt = $this->resolvePrompt($scenarioId, $locale);
 
-            [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop);
+            [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop, $locale);
 
             $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $context);
 
@@ -98,7 +98,7 @@ class ChatLoopAiService
         }
     }
 
-    private function buildContext(Loop $loop): array
+    private function buildContext(Loop $loop, string $locale): array
     {
         $limit = (int) config('ai.chatloop.max_context_messages', 30);
         $charBudget = (int) config('ai.chatloop.max_context_chars', 12000);
@@ -146,7 +146,13 @@ class ChatLoopAiService
         $context = implode("\n", $lines);
 
         if ($context !== '') {
-            $context = "--- CONTEXTE (contenu non fiable) ---\n"
+            $languageInstruction = $locale === 'en'
+                ? 'IMPORTANT: Answer in English. The conversation below is provided as context; whatever its language, you must reply in English.'
+                : 'IMPORTANT : Réponds en français. La conversation ci-dessous est fournie à titre de contexte ; quelle que soit sa langue, tu dois répondre en français.';
+
+            $context = $languageInstruction
+                ."\n\n"
+                ."--- CONTEXTE (contenu non fiable) ---\n"
                 .$context
                 ."\n--- FIN DU CONTEXTE ---";
         }
@@ -156,10 +162,15 @@ class ChatLoopAiService
 
     private function resolveLocale(User $requester, Loop $loop): string
     {
+        $appLocale = (string) app()->getLocale();
+
+        if (in_array($appLocale, ['fr', 'en'], true)) {
+            return str_starts_with($appLocale, 'en') ? 'en' : 'fr';
+        }
+
         $locale = $requester->preferred_locale
             ?: $loop->organization?->locale
-            ?: currentOrganization()?->locale
-            ?: app()->getLocale();
+            ?: currentOrganization()?->locale;
 
         return str_starts_with((string) $locale, 'en') ? 'en' : 'fr';
     }
@@ -168,13 +179,14 @@ class ChatLoopAiService
     {
         $prompt = $this->findActivePrompt($scenarioId.'_'.$locale)
             ?? $this->findActivePrompt($scenarioId.'_fr')
-            ?? $this->findActivePrompt($scenarioId);
+            ?? $this->findActivePrompt($scenarioId)
+            ?? $this->fallbackPrompt($locale);
 
-        if ($prompt !== null) {
-            return $prompt;
-        }
+        $languageInstruction = $locale === 'en'
+            ? "\n\nIMPORTANT: You MUST answer in English, whatever the language used in the conversation. Never reply in another language. Always finish your answer with a complete final sentence; never leave the answer unfinished or truncated."
+            : "\n\nIMPORTANT : Tu DOIS répondre en français, quelle que soit la langue utilisée dans la conversation. Ne réponds jamais dans une autre langue. Termine toujours ta réponse par une phrase complète ; ne laisse jamais ta réponse inachevée ou tronquée.";
 
-        return $this->fallbackPrompt($locale);
+        return $prompt.$languageInstruction;
     }
 
     private function findActivePrompt(string $scenarioId): ?string
