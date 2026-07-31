@@ -24,13 +24,13 @@ class HomeController extends Controller
         }
 
         $stats = [
-            'users' => User::count(),
-            'services' => Service::where('status', 'active')->count(),
-            'requests' => ServiceRequest::where('status', 'open')->count(),
+            'users' => User::activeAccount()->count(),
+            'services' => Service::active()->count(),
+            'requests' => ServiceRequest::open()->count(),
             'exchanges' => Transaction::where('status', 'completed')->count(),
         ];
 
-        $featuredServices = Service::where('status', 'active')
+        $featuredServices = Service::active()
             ->with('category', 'user')
             ->inRandomOrder()
             ->limit(6)
@@ -52,11 +52,12 @@ class HomeController extends Controller
         $organizationId = $organization->id;
 
         $members = User::where('organization_id', $organizationId)
+            ->activeAccount()
             ->withCount([
-                'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->where('organization_id', $organizationId),
-                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'open')->where('organization_id', $organizationId),
+                'services as active_services_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId),
+                'serviceRequests as open_requests_count' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->open()->where('organization_id', $organizationId),
             ])
-            ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->where('organization_id', $organizationId)->with('skills', 'category')])
+            ->with(['services' => fn ($q) => $q->withoutGlobalScope(BelongsToOrganizationScope::class)->active()->where('organization_id', $organizationId)->with('skills', 'category')])
             ->orderByDesc('created_at')
             ->paginate(16);
 

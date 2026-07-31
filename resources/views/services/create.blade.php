@@ -2,6 +2,10 @@
     $serviceTerm = app()->getLocale() === 'en' ? __('marketplace.service_term') : ($T['service'] ?? __('marketplace.service_term'));
     $_svcOrgSlug = request()->route('organization');
     $_svcStoreAction = $_svcOrgSlug && Route::has('organization.services.store') ? route('organization.services.store', ['organization' => $_svcOrgSlug]) : route('services.store');
+    $_svcAiFormulateAction = $_svcOrgSlug && Route::has('organization.services.ai-formulate') ? route('organization.services.ai-formulate', ['organization' => $_svcOrgSlug]) : route('services.ai-formulate');
+    $pointMin = $organization->servicePointsMin();
+    $pointMax = $organization->servicePointsMax();
+    $pointHelpContext = ['organization' => $organization->name, 'min' => $pointMin, 'max' => $pointMax];
 @endphp
 
 <x-page :heading="__('marketplace.service_create_heading', ['service' => $serviceTerm])" width="3xl">
@@ -15,6 +19,152 @@
                  <p class="font-semibold mb-1">{{ __('marketplace.service_intro_title', ['service' => $serviceTerm]) }}</p>
                  <p class="opacity-80">{{ __('marketplace.service_intro_body') }}</p>
             </div>
+        </div>
+
+        <!-- AI Formulation Panel -->
+        <div x-data="{
+            loading: false,
+            suggestion: null,
+            error: null,
+            categoryLabel: '',
+            canFormulate: false,
+            errorMessageFallback: '',
+            init() {
+                this.errorMessageFallback = this.$el.dataset.errorMessage || '';
+                const self = this;
+                this.refreshCanFormulate();
+                document.addEventListener('input', function(e) {
+                    if ((e.target.name === 'title' || e.target.name === 'description') && e.target.closest('form[data-marketplace-validation]')) {
+                        self.refreshCanFormulate();
+                    }
+                });
+            },
+            refreshCanFormulate() {
+                const t = document.querySelector('[name=\'title\']')?.value?.trim() || '';
+                const d = document.querySelector('[name=\'description\']')?.value?.trim() || '';
+                this.canFormulate = t !== '' || d !== '';
+            },
+            async formulate() {
+                this.loading = true;
+                this.error = null;
+                this.suggestion = null;
+                try {
+                    const form = document.querySelector('form[data-marketplace-validation]');
+                    const fd = new FormData();
+                    fd.append('title', form.querySelector('[name=\'title\']')?.value || '');
+                    fd.append('description', form.querySelector('[name=\'description\']')?.value || '');
+                    fd.append('category_id', form.querySelector('[name=\'category_id\']')?.value || '');
+                    fd.append('delivery_mode', form.querySelector('[name=\'delivery_mode\']:checked')?.value || '');
+                    fd.append('points_cost', form.querySelector('[name=\'points_cost\']')?.value || '');
+
+                    const token = document.querySelector('meta[name=\'csrf-token\']')?.getAttribute('content') || '';
+                    const resp = await fetch('{{ $_svcAiFormulateAction }}', {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+                        body: fd
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) {
+                        this.error = data.error || this.errorMessageFallback;
+                        return;
+                    }
+                    this.suggestion = data.suggestion;
+                    this.categoryLabel = this.getCategoryLabel(this.suggestion.category_id);
+                } catch (e) {
+                    this.error = this.errorMessageFallback;
+                } finally {
+                    this.loading = false;
+                }
+            },
+            getCategoryLabel(catId) {
+                const sel = document.querySelector('[name=\'category_id\']');
+                if (!sel) return catId;
+                const opt = sel.querySelector('option[value=\'' + catId + '\']');
+                return opt ? opt.textContent : catId;
+            },
+            applySuggestion() {
+                if (!this.suggestion) return;
+                const form = document.querySelector('form[data-marketplace-validation]');
+                if (this.suggestion.title) {
+                    const titleEl = form.querySelector('[name=\'title\']');
+                    if (titleEl) { titleEl.value = this.suggestion.title; titleEl.dispatchEvent(new Event('input', { bubbles: true })); }
+                }
+                if (this.suggestion.description_markdown) {
+                    const ta = document.querySelector('textarea[name=\'description\'][data-tiptap-target]');
+                    if (ta && ta.hasAttribute('data-tiptap-initialized')) {
+                        document.dispatchEvent(new CustomEvent('bp:markdown-editor:set-content', {
+                            detail: { name: 'description', markdown: this.suggestion.description_markdown }
+                        }));
+                    } else {
+                        const descEl = form.querySelector('[name=\'description\']');
+                        if (descEl) { descEl.value = this.suggestion.description_markdown; descEl.dispatchEvent(new Event('input', { bubbles: true })); }
+                    }
+                }
+                if (this.suggestion.category_id) {
+                    const catEl = form.querySelector('[name=\'category_id\']');
+                    if (catEl) { catEl.value = this.suggestion.category_id; catEl.dispatchEvent(new Event('change', { bubbles: true })); }
+                }
+                if (this.suggestion.delivery_mode) {
+                    const dmEl = form.querySelector('[name=\'delivery_mode\'][value=\'' + this.suggestion.delivery_mode + '\']');
+                    if (dmEl) dmEl.checked = true;
+                }
+                if (this.suggestion.points_cost != null && this.suggestion.points_cost !== '') {
+                    const ptsEl = form.querySelector('[name=\'points_cost\']');
+                    if (ptsEl) { ptsEl.value = this.suggestion.points_cost; ptsEl.dispatchEvent(new Event('input', { bubbles: true })); }
+                }
+                this.suggestion = null;
+                this.error = null;
+            },
+            dismissSuggestion() {
+                this.suggestion = null;
+                this.error = null;
+            }
+        }" data-error-message="{{ __('ai.service_formulation_error') }}" class="mb-6 p-4 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-600 rounded-xl">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">{{ __('ai.service_formulate_cta_title') }}</p>
+                </div>
+                <button type="button" @click="formulate()" :disabled="loading || !canFormulate"
+                    class="px-4 py-2 text-sm font-medium rounded-lg transition
+                        bg-indigo-50 hover:bg-indigo-100 text-indigo-700
+                        dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300
+                        disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg x-show="loading" class="inline w-4 h-4 animate-spin -ml-1 mr-1" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span x-show="!loading">✨ {{ __('ai.service_formulate_cta') }}</span>
+                    <span x-show="loading">{{ __('ai.service_formulating') }}...</span>
+                </button>
+            </div>
+
+            <p x-show="!canFormulate" class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('ai.service_formulation_intention_hint') }}</p>
+
+            <!-- Suggestion Panel -->
+            <div x-show="suggestion" x-transition class="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-700">
+                <h4 class="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2">{{ __('ai.service_suggestion_title') }}</h4>
+                <div class="text-sm text-indigo-700 dark:text-indigo-300 space-y-1">
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.title') }} :</strong> <span x-text="suggestion?.title"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.description') }} :</strong></p>
+                    <div x-show="suggestion?.description_preview_html" class="prose prose-sm dark:prose-invert max-w-none max-h-64 overflow-y-auto mt-1 border border-indigo-100 dark:border-indigo-800 rounded p-3" x-html="suggestion?.description_preview_html"></div>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.category') }} :</strong> <span x-text="categoryLabel"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.delivery_mode') }} :</strong> <span x-text="suggestion?.delivery_mode"></span></p>
+                    <p><strong class="text-indigo-800 dark:text-indigo-200">{{ __('marketplace.points_requested') }} :</strong> <span x-text="suggestion?.points_cost"></span></p>
+                </div>
+                <div class="flex gap-2 mt-3">
+                    <button type="button" @click="applySuggestion()"
+                        class="px-4 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
+                        {{ __('ai.service_apply_suggestion') }}
+                    </button>
+                    <button type="button" @click="dismissSuggestion()"
+                        class="px-4 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        {{ __('ai.service_dismiss_suggestion') }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Error -->
+            <div x-show="error" x-transition class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-300" x-text="error"></div>
         </div>
 
         @if($errors->any())
@@ -57,9 +207,7 @@
                     {{ __('marketplace.description') }} <span class="text-red-500">{{ __('marketplace.required') }}</span>
                     <span class="text-gray-400 font-normal">{{ __('marketplace.min_chars', ['count' => 100]) }}</span>
                 </label>
-                <textarea name="description" rows="6" required minlength="100"
-                    placeholder="{{ __('marketplace.service_description_placeholder') }}"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">{{ old('description') }}</textarea>
+                <x-markdown-wysiwyg-editor name="description" :value="old('description')" :placeholder="__('marketplace.service_description_placeholder')" required minLength="100" rows="6" :invalid="$errors->has('description')" />
             </div>
 
             <!-- Catégorie -->
@@ -146,14 +294,16 @@
                 <!-- Explication du système de points -->
                 <div class="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-sm text-amber-800 dark:text-amber-200">
                     <p class="font-semibold mb-1">{{ __('marketplace.points_help_title') }}</p>
-                    <p class="mb-2 opacity-90">{!! __('marketplace.points_service_body') !!}</p>
-                    <p class="mb-2 opacity-90">{{ __('marketplace.indicative_ranges') }}</p>
-                    <ul class="space-y-0.5 mb-2 ml-2 opacity-90">
-                        <li><span class="font-medium">{{ __('marketplace.level_essential') }}</span> — 40 à 60 pts <span class="opacity-70">{{ __('marketplace.duration_20_30') }}</span></li>
-                        <li><span class="font-medium">{{ __('marketplace.level_standard') }}</span> — 60 à 80 pts <span class="opacity-70">{{ __('marketplace.duration_30_45') }}</span></li>
-                        <li><span class="font-medium">{{ __('marketplace.level_complete') }}</span> — 80 à 100 pts <span class="opacity-70">{{ __('marketplace.duration_45_60') }}</span></li>
+                    <p class="mb-2 opacity-90">{{ __('marketplace.points_service_body', ['organization' => $organization->name]) }}</p>
+                    <ul class="space-y-0.5 mb-3 ml-2 opacity-90">
+                        <li>{{ __('marketplace.points_one_minute') }}</li>
+                        @if($pointMin !== null)
+                            <li>{{ __('marketplace.points_minimum_allowed', $pointHelpContext) }}</li>
+                        @endif
+                        @if($pointMax !== null)
+                            <li>{{ __('marketplace.points_maximum_allowed', $pointHelpContext) }}</li>
+                        @endif
                     </ul>
-                    <p class="opacity-90 mb-3">{!! __('marketplace.service_points_limits') !!}</p>
                     
                     <hr class="border-amber-200 dark:border-amber-700/50 my-3">
                     
@@ -165,7 +315,7 @@
                 </div>
 
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.points_requested') }} {{ __('marketplace.required') }}</label>
-                <input type="number" name="points_cost" value="{{ old('points_cost') }}" min="40" max="100" required
+                <input type="number" name="points_cost" value="{{ old('points_cost') }}" @if($pointMin !== null) min="{{ $pointMin }}" @endif @if($pointMax !== null) max="{{ $pointMax }}" @endif required
                     class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
 
                 <!-- Guidelines par catégorie -->

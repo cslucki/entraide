@@ -142,7 +142,7 @@ class Explorer extends Component
         if ($this->tab === 'services') {
             $query = Service::withoutGlobalScopes()
                 ->with(['user', 'category', 'skills', 'tags'])
-                ->where('status', 'active')
+                ->active()
                 ->where('organization_id', $orgId);
 
             if ($this->search) {
@@ -198,7 +198,7 @@ class Explorer extends Component
         } else {
             $query = ServiceRequest::withoutGlobalScopes()
                 ->with(['user', 'category'])
-                ->where('status', 'open')
+                ->open()
                 ->where('organization_id', $orgId);
 
             if ($this->search) {

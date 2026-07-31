@@ -66,7 +66,7 @@ class LoopService
 
     public function addMemberByUserId(Loop $loop, string $userId, string $role = 'member'): LoopMember
     {
-        $user = User::findOrFail($userId);
+        $user = User::assignable()->findOrFail($userId);
 
         if ($loop->organization_id !== $user->organization_id) {
             throw new \RuntimeException('Cannot add member from a different organization to this loop.');
@@ -107,6 +107,10 @@ class LoopService
 
     public function addMember(Loop $loop, User $user, string $role = 'member'): LoopMember
     {
+        if ($user->is_deactivated) {
+            throw new \RuntimeException(__('validation.exists', ['attribute' => 'user']));
+        }
+
         $orgId = $user->organization_id;
 
         if ($loop->organization_id !== $orgId) {
@@ -146,6 +150,7 @@ class LoopService
             ->where('organization_id', $loop->organization_id)
             ->whereHas('referred', function ($q) use ($loop, $existingMemberUserIds) {
                 $q->where('organization_id', $loop->organization_id)
+                    ->assignable()
                     ->whereNotIn('id', $existingMemberUserIds);
             })
             ->with('referred')

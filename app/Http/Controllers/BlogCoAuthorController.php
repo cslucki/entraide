@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class BlogCoAuthorController extends Controller
 {
@@ -20,13 +21,13 @@ class BlogCoAuthorController extends Controller
         Gate::authorize('update', $post);
 
         $coAuthors = $post->coAuthors()
-            ->get(['users.id', 'users.name', 'users.first_name', 'users.email', 'users.avatar'])
+            ->get(['users.id', 'users.name', 'users.first_name', 'users.email', 'users.avatar', 'users.organization_id', 'users.banned_at'])
             ->map(fn (User $user) => [
-                'id' => $user->id,
-                'name' => $user->fullName,
-                'first_name' => $user->first_name,
-                'email' => $user->email,
-                'avatar_url' => $user->avatar_url,
+                'id' => $user->isDisplayableIn($organization) ? $user->id : null,
+                'name' => $user->publicDisplayName(),
+                'first_name' => $user->isDisplayableIn($organization) ? $user->first_name : null,
+                'email' => $user->isDisplayableIn($organization) ? $user->email : null,
+                'avatar_url' => $user->publicAvatarUrl(),
             ]);
 
         return response()->json(['co_authors' => $coAuthors]);
@@ -42,10 +43,15 @@ class BlogCoAuthorController extends Controller
         Gate::authorize('manageCoAuthors', $post);
 
         $data = $request->validate([
-            'user_id' => 'required|uuid|exists:users,id',
+            'user_id' => [
+                'required',
+                'uuid',
+                Rule::exists('users', 'id')
+                    ->whereNull('banned_at'),
+            ],
         ]);
 
-        $user = User::findOrFail($data['user_id']);
+        $user = User::assignable()->findOrFail($data['user_id']);
 
         if ($user->organization_id !== $post->organization_id) {
             return response()->json(['message' => __('blog.co_author_cross_org')], 422);
@@ -102,7 +108,8 @@ class BlogCoAuthorController extends Controller
 
         $query = $request->input('q', '');
 
-        $users = User::where('organization_id', $post->organization_id)
+        $users = User::assignable()
+            ->where('organization_id', $post->organization_id)
             ->where(function ($q) use ($query) {
                 $q->where('name', 'like', "%{$query}%")
                     ->orWhere('first_name', 'like', "%{$query}%")

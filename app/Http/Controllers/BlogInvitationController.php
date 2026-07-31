@@ -58,7 +58,8 @@ class BlogInvitationController extends Controller
 
         $sender = $request->user();
         $organization = currentOrganization();
-        $existingMember = User::where('organization_id', $organization->id)
+        $existingMember = User::discoverable()
+            ->where('organization_id', $organization->id)
             ->where('email', $data['recipient_email'])
             ->first();
 
@@ -214,6 +215,8 @@ class BlogInvitationController extends Controller
                 'ref' => $invitation->sender?->referral_code,
             ]));
         }
+
+        abort_if($user->is_deactivated, 403);
 
         $invitation->accept($user);
 

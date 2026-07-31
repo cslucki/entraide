@@ -4,14 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Jobs\GenerateServiceThumbnail;
 use App\Models\Category;
+use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceImage;
 use App\Models\Skill;
 use App\Models\Tag;
+use App\Services\Ai\AiScenarioFactory;
+use App\Services\Ai\Exceptions\SupervisionException;
+use App\Services\Ai\SupervisionProviderResolver;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View as ViewFacade;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Intervention\Image\Laravel\Facades\Image;
@@ -31,11 +38,16 @@ class ServiceController extends Controller
         }
 
         $service->load(['user', 'category', 'skills.category', 'tags', 'images']);
+
+        if ($service->user?->banned_at !== null) {
+            abort(404);
+        }
+
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($service->id);
         $isPaused = $service->status === 'paused';
 
         $ogTitle = $service->title;
-        $ogDescription = Str::limit(strip_tags($service->description), 160);
+        $ogDescription = Str::limit(strip_tags(Str::markdown($service->description, ['html_input' => 'strip', 'allow_unsafe_links' => false])), 160);
         $ogImage = $service->images->first()
             ? $service->images->first()->url
             : null;
@@ -43,13 +55,18 @@ class ServiceController extends Controller
             '@context' => 'https://schema.org',
             '@type' => 'Service',
             'name' => $service->title,
-            'description' => Str::limit(strip_tags($service->description), 160),
+            'description' => Str::limit(strip_tags(Str::markdown($service->description, ['html_input' => 'strip', 'allow_unsafe_links' => false])), 160),
             'provider' => [
                 '@type' => 'Person',
                 'name' => $service->user->name,
                 'url' => route('profile.show', $service->user),
             ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        ViewFacade::share('ogTitle', $ogTitle);
+        ViewFacade::share('ogDescription', $ogDescription);
+        ViewFacade::share('ogImage', $ogImage);
+        ViewFacade::share('jsonLd', $jsonLd);
 
         return view('services.show', compact('service', 'isFavorited', 'isPaused', 'ogTitle', 'ogDescription', 'ogImage', 'jsonLd'));
     }
@@ -62,10 +79,192 @@ class ServiceController extends Controller
     public function create(): View
     {
         $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
         $categories = Category::where('organization_id', $organization?->id)->with('skills', 'pointGuidelines')->get();
         $skills = Skill::where('organization_id', $organization?->id)->with('category')->get()->groupBy('category_id');
 
-        return view('services.create', compact('categories', 'skills'));
+        return view('services.create', compact('categories', 'skills', 'organization'));
+    }
+
+    public function formulate(Request $request): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization) {
+            abort(404);
+        }
+
+        $categories = Category::where('organization_id', $organization->id)
+            ->select('id', 'name_b2c')
+            ->get();
+
+        if ($categories->isEmpty()) {
+            return response()->json(['error' => __('ai.service_formulation_no_categories')], 422);
+        }
+
+        $pointMin = $organization->servicePointsMin();
+        $pointMax = $organization->servicePointsMax();
+
+        $currentTitle = trim($request->input('title', ''));
+        $currentDescription = trim($request->input('description', ''));
+        $currentCategoryId = $request->input('category_id', '') ?? '';
+        $currentDeliveryMode = $request->input('delivery_mode', '') ?? '';
+        $currentPointsCost = $request->input('points_cost', '') ?? '';
+
+        if ($currentTitle === '' && $currentDescription === '') {
+            return response()->json(['error' => __('ai.service_formulation_intention_required')], 422);
+        }
+
+        $categoryList = $categories->map(fn ($c) => "  - {$c->name_b2c} (UUID: {$c->id})")->join("\n");
+
+        $locale = app()->getLocale();
+        $langLabel = $locale === 'en' ? 'English' : 'français';
+
+        $promptLines = [
+            "Langue de réponse : {$langLabel}.",
+            '',
+            "--- INTENTION DE L'UTILISATEUR ---",
+        ];
+
+        if ($currentTitle !== '' && $currentTitle !== null) {
+            $promptLines[] = "Titre saisi : {$currentTitle}";
+        }
+        if ($currentDescription !== '' && $currentDescription !== null) {
+            $promptLines[] = "Description saisie : {$currentDescription}";
+        }
+
+        if ($currentTitle === '' && $currentDescription === '') {
+            $promptLines[] = '(Aucune intention saisie — propose une suggestion générique basée sur le contexte de la plateforme)';
+        }
+
+        $promptLines[] = '';
+        $promptLines[] = '--- CATÉGORIES DISPONIBLES (utilise l\'UUID exact) ---';
+        $promptLines[] = $categoryList;
+        $promptLines[] = '';
+
+        if ($currentCategoryId !== '' && $currentCategoryId !== null) {
+            $currentCat = $categories->firstWhere('id', $currentCategoryId);
+            $promptLines[] = 'Catégorie actuelle : '.($currentCat ? $currentCat->name_b2c.' (UUID: '.$currentCat->id.')' : $currentCategoryId);
+        }
+
+        $promptLines[] = 'Mode de réalisation actuel : '.($currentDeliveryMode !== '' && $currentDeliveryMode !== null ? $currentDeliveryMode : '(non renseigné)');
+        $promptLines[] = '';
+
+        $promptLines[] = '--- BORNES DE POINTS ---';
+        $promptLines[] = '1 point = 1 minute.';
+
+        if ($pointMin !== null) {
+            $promptLines[] = "Minimum : {$pointMin} points.";
+        }
+        if ($pointMax !== null) {
+            $promptLines[] = "Maximum : {$pointMax} points.";
+        }
+        if ($pointMin === null && $pointMax === null) {
+            $promptLines[] = 'Aucune borne spécifique — propose un nombre raisonnable.';
+        }
+
+        $promptLines[] = 'Points actuels : '.($currentPointsCost !== '' && $currentPointsCost !== null ? $currentPointsCost : '(non renseigné)');
+
+        $promptContent = implode("\n", $promptLines);
+
+        $providerName = app(SupervisionProviderResolver::class)->defaultProvider();
+        if (! $providerName) {
+            return response()->json(['error' => __('ai.service_formulation_unavailable')], 503);
+        }
+
+        $scenario = app(AiScenarioFactory::class)->resolve('service_offer_master');
+        if (! $scenario) {
+            return response()->json(['error' => __('ai.service_formulation_unavailable')], 503);
+        }
+
+        try {
+            $provider = app(SupervisionProviderResolver::class)->resolve($providerName);
+            $result = $provider->runScenario($scenario, $promptContent);
+        } catch (SupervisionException $e) {
+            Log::error('AI formulation failed', [
+                'scenario' => 'service_offer_master',
+                'error' => $e->getMessage(),
+                'organization_id' => $organization->id,
+            ]);
+
+            return response()->json(['error' => __('ai.service_formulation_error')], 422);
+        } catch (\Throwable $e) {
+            Log::error('AI formulation unexpected error', [
+                'scenario' => 'service_offer_master',
+                'error' => $e->getMessage(),
+                'organization_id' => $organization->id,
+            ]);
+
+            return response()->json(['error' => __('ai.service_formulation_error')], 500);
+        }
+
+        $suggestion = $this->validateAiSuggestion($result, $organization, $categories, $currentTitle, $currentDescription, $currentCategoryId, $currentDeliveryMode, $currentPointsCost, $pointMin, $pointMax);
+
+        return response()->json(['suggestion' => $suggestion]);
+    }
+
+    private function validateAiSuggestion(
+        array $parsed,
+        Organization $organization,
+        $categories,
+        string $currentTitle,
+        string $currentDescription,
+        string $currentCategoryId,
+        string $currentDeliveryMode,
+        string $currentPointsCost,
+        ?int $pointMin,
+        ?int $pointMax,
+    ): array {
+        $validCategoryIds = $categories->pluck('id')->toArray();
+
+        $title = $parsed['title'] ?? null;
+        if (! is_string($title) || mb_strlen($title) < 10 || mb_strlen($title) > 255) {
+            $title = $currentTitle;
+        }
+
+        $descriptionMarkdown = $parsed['description_markdown'] ?? null;
+        if (! is_string($descriptionMarkdown) || mb_strlen(strip_tags($descriptionMarkdown)) < 100) {
+            $descriptionMarkdown = $currentDescription;
+        } else {
+            $descriptionMarkdown = strip_tags($descriptionMarkdown);
+            $descriptionMarkdown = $this->normalizeDescriptionMarkdown($descriptionMarkdown);
+        }
+
+        $categoryId = $parsed['category_id'] ?? null;
+        if (! is_string($categoryId) || ! in_array($categoryId, $validCategoryIds, true)) {
+            $categoryId = $currentCategoryId;
+        }
+
+        $deliveryMode = $parsed['delivery_mode'] ?? null;
+        if (! is_string($deliveryMode) || ! in_array($deliveryMode, ['remote', 'onsite', 'both'], true)) {
+            $deliveryMode = $currentDeliveryMode;
+        }
+
+        $pointsCost = $parsed['points_cost'] ?? null;
+        if (! is_int($pointsCost) && ! ctype_digit((string) $pointsCost)) {
+            $pointsCost = $currentPointsCost !== '' ? (int) $currentPointsCost : null;
+        } else {
+            $pointsCost = (int) $pointsCost;
+            if (($pointMin !== null && $pointsCost < $pointMin) || ($pointMax !== null && $pointsCost > $pointMax)) {
+                $pointsCost = $currentPointsCost !== '' ? (int) $currentPointsCost : null;
+            }
+            if ($pointsCost <= 0) {
+                $pointsCost = $currentPointsCost !== '' ? (int) $currentPointsCost : null;
+            }
+        }
+
+        $previewHtml = markdown($descriptionMarkdown);
+
+        return [
+            'title' => $title,
+            'description_markdown' => $descriptionMarkdown,
+            'description_preview_html' => $previewHtml,
+            'category_id' => $categoryId,
+            'delivery_mode' => $deliveryMode,
+            'points_cost' => $pointsCost,
+        ];
     }
 
     public function store(Request $request): RedirectResponse
@@ -75,18 +274,7 @@ class ServiceController extends Controller
             abort(404);
         }
 
-        $data = $request->validate([
-            'title' => 'required|string|min:10|max:255',
-            'description' => 'required|string|min:100',
-            'category_id' => 'required|uuid|exists:categories,id',
-            'delivery_mode' => 'required|in:remote,onsite,both',
-            'points_cost' => 'required|integer|min:40|max:100',
-            'skills' => 'nullable|array',
-            'skills.*' => 'uuid|exists:skills,id',
-            'tags' => 'nullable|string',
-            'images' => 'nullable|array|max:5',
-            'images.*' => 'image|max:2048',
-        ], [], __('marketplace.validation_attributes'));
+        $data = $request->validate($this->validationRules($organization), [], __('marketplace.validation_attributes'));
 
         $service = Service::create([
             'user_id' => auth()->id(),
@@ -166,21 +354,11 @@ class ServiceController extends Controller
 
         $this->authorize('update', $service);
 
-        $data = $request->validate([
-            'title' => 'required|string|min:10|max:255',
-            'description' => 'required|string|min:100',
-            'category_id' => 'required|uuid|exists:categories,id',
-            'delivery_mode' => 'required|in:remote,onsite,both',
-            'points_cost' => 'required|integer|min:40|max:100',
+        $data = $request->validate(array_merge($this->validationRules($organization), [
             'status' => 'required|in:active,paused',
-            'skills' => 'nullable|array',
-            'skills.*' => 'uuid|exists:skills,id',
-            'tags' => 'nullable|string',
-            'images' => 'nullable|array|max:5',
-            'images.*' => 'image|max:2048',
             'delete_images' => 'nullable|array',
             'delete_images.*' => 'uuid|exists:service_images,id',
-        ], [], __('marketplace.validation_attributes'));
+        ]), [], __('marketplace.validation_attributes'));
 
         $service->update([
             'title' => $data['title'],
@@ -258,5 +436,59 @@ class ServiceController extends Controller
         $service->delete();
 
         return redirect()->route('dashboard')->with('success', __('services.notification.deleted'));
+    }
+
+    private function validationRules(Organization $organization): array
+    {
+        return [
+            'title' => 'required|string|min:10|max:255',
+            'description' => 'required|string|min:100',
+            'category_id' => 'required|uuid|exists:categories,id',
+            'delivery_mode' => 'required|in:remote,onsite,both',
+            'points_cost' => array_merge(['required', 'integer'], $this->pointLimitRules($organization)),
+            'skills' => 'nullable|array',
+            'skills.*' => 'uuid|exists:skills,id',
+            'tags' => 'nullable|string',
+            'images' => 'nullable|array|max:5',
+            'images.*' => 'image|max:2048',
+        ];
+    }
+
+    private function pointLimitRules(Organization $organization): array
+    {
+        return array_values(array_filter([
+            $organization->servicePointsMin() !== null ? 'min:'.$organization->servicePointsMin() : null,
+            $organization->servicePointsMax() !== null ? 'max:'.$organization->servicePointsMax() : null,
+        ]));
+    }
+
+    private function normalizeDescriptionMarkdown(string $md): string
+    {
+        $md = str_replace(["\r\n", "\r"], "\n", $md);
+
+        // Guard: if text already has reasonable line breaks, leave it alone
+        if (substr_count($md, "\n") >= 3) {
+            return $md;
+        }
+
+        // Fix fused period+dash: "etc.).- text" or "work.- text"
+        $md = preg_replace('/([.!?)])(\s*)-(\s)/u', "$1\n\n- $3", $md);
+
+        // Fix colon followed by dash without line break: "inclut :- text"
+        $md = preg_replace('/:\s*-(\s)/u', ":\n\n- $1", $md);
+
+        // Fix fused capital letter after period (French "etc.À" → "etc.\n\nÀ")
+        $md = preg_replace('/\.(?!\s)([A-ZÀ-ÿ])/u', ".\n\n$1", $md);
+
+        // Fix inline ## headings without preceding double newline
+        $md = preg_replace('/([^\n])\s*##\s+/', "$1\n\n## ", $md);
+
+        // Normalize: ensure single newlines within list items only
+        // Ensure each top-level "- " starts on its own line
+        $md = preg_replace('/([^\n])\s*-\s/', "$1\n- ", $md);
+
+        $md = preg_replace('/\n{3,}/', "\n\n", $md);
+
+        return trim($md);
     }
 }

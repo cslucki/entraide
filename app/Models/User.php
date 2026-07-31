@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -28,6 +29,16 @@ class User extends Authenticatable
         static::creating(function (User $user) {
             if (! $user->isDirty('referral_code')) {
                 $user->referral_code = app(ReferralCodeGenerator::class)->generate($user);
+            }
+        });
+
+        static::saved(function (User $user) {
+            if ($user->wasChanged('banned_at') && $user->banned_at !== null) {
+                try {
+                    $user->tokens()->delete();
+                } catch (QueryException $e) {
+                    report($e);
+                }
             }
         });
     }
@@ -130,6 +141,58 @@ class User extends Authenticatable
         }
 
         return $initials ?: '?';
+    }
+
+    public function getIsDeactivatedAttribute(): bool
+    {
+        return $this->banned_at !== null;
+    }
+
+    public function isDeactivated(): bool
+    {
+        return $this->banned_at !== null;
+    }
+
+    public function isDisplayableIn(Organization|string|null $organization = null): bool
+    {
+        if ($this->isDeactivated()) {
+            return false;
+        }
+
+        if ($organization instanceof Organization) {
+            return $this->organization_id === $organization->id;
+        }
+
+        if (is_string($organization)) {
+            return $this->organization_id === $organization;
+        }
+
+        return true;
+    }
+
+    public function publicDisplayName(): string
+    {
+        return $this->isDeactivated() ? __('profile.deactivated_user') : $this->fullName;
+    }
+
+    public function publicAvatarUrl(): ?string
+    {
+        return $this->isDeactivated() ? null : $this->avatar_url;
+    }
+
+    public function scopeActiveAccount($query): void
+    {
+        $query->whereNull('banned_at');
+    }
+
+    public function scopeDiscoverable($query): void
+    {
+        $query->whereNull('banned_at');
+    }
+
+    public function scopeAssignable($query): void
+    {
+        $query->whereNull('banned_at');
     }
 
     public function services(): HasMany

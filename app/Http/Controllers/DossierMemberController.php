@@ -7,7 +7,7 @@ use App\Models\DossierMember;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class DossierMemberController extends Controller
 {
@@ -20,13 +20,13 @@ class DossierMemberController extends Controller
         $isOwner = $request->user()->id === $dossier->owner_id;
 
         $members = $dossier->dossierMembers()
-            ->with('user:id,first_name,name' . ($isOwner ? ',email' : ''))
+            ->with('user:id,first_name,name,organization_id,banned_at'.($isOwner ? ',email' : ''))
             ->get()
             ->map(fn (DossierMember $m) => [
-                'id' => $m->user_id,
-                'name' => $m->user->name,
-                'first_name' => $m->user->first_name,
-                'email' => $isOwner ? $m->user->email : null,
+                'id' => $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user_id : null,
+                'name' => $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user->name : __('profile.deactivated_user'),
+                'first_name' => $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user->first_name : null,
+                'email' => $isOwner && $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user->email : null,
                 'role' => $m->role,
                 'added_by' => $m->added_by,
             ]);
@@ -42,11 +42,17 @@ class DossierMemberController extends Controller
         $this->authorize('manageMembers', $dossier);
 
         $data = $request->validate([
-            'user_id' => 'required|uuid|exists:users,id',
+            'user_id' => [
+                'required',
+                'uuid',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $organization->id)
+                    ->whereNull('banned_at'),
+            ],
             'role' => 'required|string|in:reader,editor',
         ]);
 
-        $user = User::findOrFail($data['user_id']);
+        $user = User::assignable()->findOrFail($data['user_id']);
 
         if ($user->organization_id !== $organization->id) {
             return response()->json(['message' => __('dossiers.member_cross_org')], 422);
@@ -142,7 +148,8 @@ class DossierMemberController extends Controller
 
         $likePattern = '%'.$query.'%';
 
-        $users = User::where('organization_id', $organization->id)
+        $users = User::assignable()
+            ->where('organization_id', $organization->id)
             ->where('id', '!=', $ownerId)
             ->whereNotIn('id', $memberIds)
             ->where(function ($q) use ($likePattern) {

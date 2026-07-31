@@ -6,6 +6,7 @@ use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\Contracts\AiScenarioDefinition;
 use App\Services\Ai\DTO\AiScenarioResult;
 use App\Services\Ai\DTO\AiSupervisionResult;
+use App\Services\Ai\Scenarios\ServiceOfferMasterScenario;
 use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use Tests\TestCase;
 
@@ -37,10 +38,49 @@ class AiScenarioFactoryTest extends TestCase
         $factory = app(AiScenarioFactory::class);
         $all = $factory->all();
 
-        $this->assertCount(3, $all);
+        $this->assertCount(4, $all);
         $this->assertArrayHasKey('supervision_content', $all);
         $this->assertArrayHasKey('clarify_help_request', $all);
         $this->assertArrayHasKey('bounded_member_presentation', $all);
+        $this->assertArrayHasKey('service_offer_master', $all);
+    }
+
+    public function test_factory_resolves_service_offer_master_scenario(): void
+    {
+        $factory = app(AiScenarioFactory::class);
+
+        $scenario = $factory->resolve('service_offer_master');
+
+        $this->assertInstanceOf(AiScenarioDefinition::class, $scenario);
+        $this->assertInstanceOf(ServiceOfferMasterScenario::class, $scenario);
+        $this->assertSame('service_offer_master', $scenario->id());
+        $this->assertNotNull($scenario->name());
+        $this->assertNotNull($scenario->systemPrompt());
+    }
+
+    public function test_service_offer_master_schema_has_five_required_properties(): void
+    {
+        $scenario = new ServiceOfferMasterScenario;
+        $schema = $scenario->jsonSchema();
+
+        $this->assertSame('object', $schema['type']);
+        $this->assertFalse($schema['additionalProperties']);
+        $this->assertCount(5, $schema['required']);
+        $this->assertContains('title', $schema['required']);
+        $this->assertContains('description_markdown', $schema['required']);
+        $this->assertContains('category_id', $schema['required']);
+        $this->assertContains('delivery_mode', $schema['required']);
+        $this->assertContains('points_cost', $schema['required']);
+    }
+
+    public function test_service_offer_master_prompt_does_not_mention_notes(): void
+    {
+        $scenario = new ServiceOfferMasterScenario;
+        $prompt = $scenario->systemPrompt();
+
+        $this->assertStringNotContainsString('notes', $prompt);
+        $this->assertStringNotContainsString('vides', $prompt);
+        $this->assertStringNotContainsString('empty values', $prompt);
     }
 
     public function test_scenario_result_wraps_supervision_result(): void

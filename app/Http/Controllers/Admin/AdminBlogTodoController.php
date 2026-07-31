@@ -97,7 +97,7 @@ class AdminBlogTodoController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'status' => ['required', Rule::in(self::STATUSES)],
-            'assigned_to' => ['nullable', 'uuid', 'exists:users,id'],
+            'assigned_to' => ['nullable', 'uuid', Rule::exists('users', 'id')->whereNull('banned_at')],
         ]);
 
         $todo->load(['blogPost.coAuthors', 'blogPost.user']);
@@ -106,7 +106,7 @@ class AdminBlogTodoController extends Controller
         $assignedTo = $data['assigned_to'] ?? null;
 
         if ($assignedTo !== null) {
-            $assignee = User::findOrFail($assignedTo);
+            $assignee = User::assignable()->findOrFail($assignedTo);
 
             if (! $this->canAssignToTodo($todo, $assignee)) {
                 abort(422, __('blog.admin_todo_invalid_assignee'));
@@ -171,7 +171,8 @@ class AdminBlogTodoController extends Controller
 
     private function assignees(): Collection
     {
-        return User::whereIn('id', BlogTodo::query()->whereNotNull('assigned_to')->select('assigned_to'))
+        return User::assignable()
+            ->whereIn('id', BlogTodo::query()->whereNotNull('assigned_to')->select('assigned_to'))
             ->orderBy('name')
             ->orderBy('first_name')
             ->get(['id', 'first_name', 'name', 'email', 'organization_id']);

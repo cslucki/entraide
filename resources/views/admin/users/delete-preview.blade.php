@@ -1,4 +1,17 @@
 <x-admin-layout title="Suppression utilisateur">
+    @php
+        $lifecycleGroups = [
+            'own' => ['label' => __('admin.user_lifecycle_transferable'), 'color' => 'text-red-600 dark:text-red-400 font-semibold'],
+            'part' => ['label' => __('admin.user_lifecycle_detachable'), 'color' => 'text-yellow-600 dark:text-yellow-400'],
+            'delete' => ['label' => __('admin.user_lifecycle_deletable'), 'color' => 'text-red-600 dark:text-red-400'],
+            'audit' => ['label' => __('admin.user_lifecycle_anonymizable'), 'color' => 'text-yellow-600 dark:text-yellow-400'],
+            'retain' => ['label' => __('admin.user_lifecycle_retained'), 'color' => 'text-gray-600 dark:text-gray-300'],
+            'block' => ['label' => __('admin.user_lifecycle_blocking'), 'color' => 'text-red-700 dark:text-red-300 font-semibold'],
+            'unclassified' => ['label' => __('admin.user_lifecycle_unclassified'), 'color' => 'text-purple-600 dark:text-purple-400 font-semibold'],
+        ];
+        $impactTotal = collect(array_keys($lifecycleGroups))->sum(fn ($group) => collect($counts[$group] ?? [])->sum());
+        $blockTotal = collect($counts['block'] ?? [])->sum();
+    @endphp
     <div class="max-w-3xl mx-auto">
         <div class="flex items-center gap-3 mb-6">
             <a href="{{ route('admin.users.edit', $user) }}" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
@@ -21,65 +34,45 @@
         </div>
         @endif
 
-        @if(isset($counts['preview_only']) && $counts['preview_only'])
         <div class="mb-5 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl text-sm text-yellow-700 dark:text-yellow-400">
-            ⚠️ <strong>Dry-run uniquement.</strong> Aucune donnée n'a été supprimée. Ceci est un aperçu des lignes qui seraient impactées.
+            <strong>{{ __('admin.user_delete_simulation_banner_title') }}</strong><br>
+            {{ __('admin.user_delete_simulation_banner_body') }}
+        </div>
+
+        @if($blockTotal > 0)
+        <div class="mb-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl text-sm text-red-700 dark:text-red-300">
+            <strong>{{ __('admin.user_lifecycle_blocking') }}</strong><br>
+            {{ __('admin.user_delete_block_warning') }}
         </div>
         @endif
 
         <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-5">
-            <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Aperçu des données impactées</h2>
+            <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.user_delete_impact_preview') }}</h2>
 
             <div class="space-y-4">
-                <div>
-                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Données liées (transférables)</h3>
-                    <table class="w-full text-sm">
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                            @foreach($counts['own'] as $key => $count)
-                            <tr>
-                                <td class="py-1.5 text-gray-600 dark:text-gray-400">{{ __("admin.user_data_{$key}") }}</td>
-                                <td class="py-1.5 text-right font-mono {{ $count > 0 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-400' }}">{{ $count }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-
-                @if(count($counts['part']) > 0)
-                <div>
-                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Participations</h3>
-                    <table class="w-full text-sm">
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                            @foreach($counts['part'] as $key => $count)
-                            <tr>
-                                <td class="py-1.5 text-gray-600 dark:text-gray-400">{{ __("admin.user_data_{$key}") }}</td>
-                                <td class="py-1.5 text-right font-mono {{ $count > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-400' }}">{{ $count }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                @endif
-
-                @if(count($counts['audit']) > 0)
-                <div>
-                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Traces (anonymisables)</h3>
-                    <table class="w-full text-sm">
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                            @foreach($counts['audit'] as $key => $count)
-                            <tr>
-                                <td class="py-1.5 text-gray-600 dark:text-gray-400">{{ __("admin.user_data_{$key}") }}</td>
-                                <td class="py-1.5 text-right font-mono {{ $count > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-400' }}">{{ $count }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                @endif
+                @foreach($lifecycleGroups as $group => $meta)
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $meta['label'] }}</h3>
+                        <table class="w-full text-sm">
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                                @forelse($counts[$group] ?? [] as $key => $count)
+                                <tr>
+                                    <td class="py-1.5 text-gray-600 dark:text-gray-400">{{ __("admin.user_data_{$key}") }}</td>
+                                    <td class="py-1.5 text-right font-mono {{ $count > 0 ? $meta['color'] : 'text-gray-400' }}">{{ $count }}</td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td class="py-1.5 text-gray-400 dark:text-gray-500" colspan="2">{{ __('admin.user_delete_empty_group') }}</td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                @endforeach
 
                 @if(isset($counts['transfer']))
                 <div class="pt-2">
-                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">✅ Sera transféré à {{ \App\Models\User::find(request('transfer_to'))?->name ?? '—' }}</h3>
+                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('admin.user_delete_transfer_simulation_to', ['name' => \App\Models\User::find(request('transfer_to'))?->name ?? '—']) }}</h3>
                     <table class="w-full text-sm">
                         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                             @foreach($counts['transfer'] as $key => $count)
@@ -96,7 +89,7 @@
 
             <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    Total : {{ collect($counts['own'])->sum() + collect($counts['part'])->sum() + collect($counts['audit'])->sum() }} lignes impactées
+                    {{ __('admin.user_delete_total', ['count' => $impactTotal]) }}
                 </p>
             </div>
         </div>
@@ -106,42 +99,42 @@
             @csrf
 
             <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-4">
-                <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Mode : suppression</h2>
+                <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.user_delete_simulation_mode') }}</h2>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Transférer les données vers (optionnel)</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.user_delete_transfer_simulation_label') }}</label>
                     <select name="transfer_to" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
-                        <option value="">— Supprimer les données (pas de transfert) —</option>
+                        <option value="">{{ __('admin.user_delete_transfer_none') }}</option>
                         @foreach($sameOrgUsers as $target)
                         <option value="{{ $target->id }}">{{ $target->name }} ({{ $target->email }})</option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-gray-400 mt-1">Les données transférables seront attribuées à cet utilisateur. Les traces seront anonymisées.</p>
+                    <p class="text-xs text-gray-400 mt-1">{{ __('admin.user_delete_transfer_hint') }}</p>
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Tapez <strong>{{ $user->fullName }}</strong> pour confirmer
+                        {{ __('admin.user_delete_confirmation_label', ['name' => $user->fullName]) }}
                     </label>
-                    <input type="text" name="confirmation" required autocomplete="off" placeholder="Tapez le nom exact de l'utilisateur"
+                    <input type="text" name="confirmation" required autocomplete="off" placeholder="{{ __('admin.user_delete_confirmation_placeholder') }}"
                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-red-500">
-                    <p class="text-xs text-red-500 mt-1">Action irréversible. Vérifiez l'aperçu avant de confirmer.</p>
+                    <p class="text-xs text-gray-400 mt-1">{{ __('admin.user_delete_confirmation_hint') }}</p>
                 </div>
 
                 <button type="submit" class="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-sm transition disabled:opacity-50">
-                    @if(collect($counts['own'])->sum() + collect($counts['part'])->sum() + collect($counts['audit'])->sum() > 0)
-                    Supprimer {{ $user->fullName }} ({{ collect($counts['own'])->sum() + collect($counts['part'])->sum() + collect($counts['audit'])->sum() }} lignes)
+                    @if($impactTotal > 0)
+                    {{ __('admin.user_delete_simulate_button_with_count', ['name' => $user->fullName, 'count' => $impactTotal]) }}
                     @else
-                    Supprimer {{ $user->fullName }}
+                    {{ __('admin.user_delete_simulate_button', ['name' => $user->fullName]) }}
                     @endif
                 </button>
             </div>
         </form>
         @else
         <div class="mt-6 text-center">
-            <p class="text-sm text-gray-400">Ceci est un aperçu dry-run. Aucune donnée n'a été modifiée.</p>
+            <p class="text-sm text-gray-400">{{ __('admin.user_delete_dry_run_footer') }}</p>
             <a href="{{ route('admin.users.edit', $user) }}" class="mt-2 inline-block text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-                Retour à l'édition de l'utilisateur
+                {{ __('admin.user_delete_back_to_edit') }}
             </a>
         </div>
         @endif

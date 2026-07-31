@@ -7,6 +7,7 @@
             }
             return route('organization.blog.'.$name, array_merge(['organization' => $orgSlug], $parameters));
         };
+        $_authorDisplayable = fn ($user) => $user?->isDisplayableIn(currentOrganization());
     @endphp
     <x-slot name="title">{{ $tag->name }} {{ __('blog.blog_brand_suffix') }}</x-slot>
 
@@ -41,8 +42,10 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">{{ $post->summary }}</p>
                     @endif
                     <div class="flex items-center gap-2 text-xs text-gray-400">
-                        <img src="{{ $post->user->avatar_url }}" alt="" class="w-4 h-4 rounded-full">
-                        <span>{{ $post->user->fullName }}</span>
+                        @if($_authorDisplayable($post->user))
+                            <img src="{{ $post->user->avatar_url }}" alt="" class="w-4 h-4 rounded-full">
+                        @endif
+                        <span>{{ $_authorDisplayable($post->user) ? $post->user->fullName : ($post->user?->publicDisplayName() ?? __('profile.deactivated_user')) }}</span>
                         @if($post->read_time)<span>· {{ __('blog.read_time', ['count' => $post->read_time]) }}</span>@endif
                     </div>
                 </div>

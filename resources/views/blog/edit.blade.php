@@ -588,8 +588,8 @@
                         threadStoreUrlBase: @js($_blogRoute('todos.threads.store', ['post' => $post, 'todo' => '__TODO_ID__'])),
                         threadDestroyUrlBase: @js($_blogRoute('todos.threads.destroy', ['post' => $post, 'todo' => '__TODO_ID__', 'thread' => '__THREAD_ID__'])),
                         assignableUsers: @js(
-                            collect([['id' => $post->user_id, 'name' => $post->user->full_name]])
-                                ->merge($post->coAuthors->map(fn($u) => ['id' => $u->id, 'name' => $u->full_name]))
+                            collect($post->user?->isDisplayableIn(currentOrganization()) ? [['id' => $post->user_id, 'name' => $post->user->publicDisplayName()]] : [])
+                                ->merge($post->coAuthors->filter(fn($u) => $u->isDisplayableIn(currentOrganization()))->map(fn($u) => ['id' => $u->id, 'name' => $u->publicDisplayName()]))
                                 ->unique('id')
                                 ->values()
                                 ->toArray()

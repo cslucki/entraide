@@ -28,6 +28,16 @@
         $blogEditRoute = fn ($bp) => $bp && $canManageArticles
             ? route('organization.blog.edit', ['organization' => $orgParam, 'post' => $bp->slug])
             : null;
+        $publicIdentity = fn ($user) => $user?->isDisplayableIn(currentOrganization()) ? [
+            'id' => $user->id,
+            'first_name' => $user->first_name,
+            'name' => $user->name,
+        ] : [
+            'id' => null,
+            'first_name' => null,
+            'name' => __('profile.deactivated_user'),
+        ];
+        $ownerDisplayable = $dossier->owner?->isDisplayableIn(currentOrganization()) ?? false;
 
         $entriesForJs = $entries->map(fn ($entry) => [
             'id' => $entry->getKey(),
@@ -41,15 +51,8 @@
                 'user_id' => $entry->blogPost->user_id,
                 'updated_at' => $entry->blogPost->updated_at?->toIso8601String(),
                 'published_at' => $entry->blogPost->published_at?->toIso8601String(),
-                'author' => $entry->blogPost->user ? [
-                    'first_name' => $entry->blogPost->user->first_name,
-                    'name' => $entry->blogPost->user->name,
-                ] : null,
-                'coAuthors' => $entry->blogPost->coAuthors->map(fn ($u) => [
-                    'id' => $u->id,
-                    'first_name' => $u->first_name,
-                    'name' => $u->name,
-                ])->toArray(),
+                'author' => $entry->blogPost->user ? $publicIdentity($entry->blogPost->user) : null,
+                'coAuthors' => $entry->blogPost->coAuthors->map(fn ($u) => $publicIdentity($u))->toArray(),
                 'canView' => $canView($entry->blogPost),
                 'canEdit' => $canManageArticles,
                 'viewUrl' => $blogShowRoute($entry->blogPost),
@@ -68,15 +71,8 @@
                 'user_id' => $seriesRoot->user_id,
                 'updated_at' => $seriesRoot->updated_at?->toIso8601String(),
                 'published_at' => $seriesRoot->published_at?->toIso8601String(),
-                'author' => $seriesRoot->user ? [
-                    'first_name' => $seriesRoot->user->first_name,
-                    'name' => $seriesRoot->user->name,
-                ] : null,
-                'coAuthors' => $seriesRoot->coAuthors->map(fn ($u) => [
-                    'id' => $u->id,
-                    'first_name' => $u->first_name,
-                    'name' => $u->name,
-                ])->toArray(),
+                'author' => $seriesRoot->user ? $publicIdentity($seriesRoot->user) : null,
+                'coAuthors' => $seriesRoot->coAuthors->map(fn ($u) => $publicIdentity($u))->toArray(),
                 'canView' => $canView($seriesRoot),
                 'canEdit' => $canManageArticles,
                 'viewUrl' => $blogShowRoute($seriesRoot),
@@ -94,15 +90,8 @@
                     'user_id' => $item->blogPost->user_id,
                     'updated_at' => $item->blogPost->updated_at?->toIso8601String(),
                     'published_at' => $item->blogPost->published_at?->toIso8601String(),
-                    'author' => $item->blogPost->user ? [
-                        'first_name' => $item->blogPost->user->first_name,
-                        'name' => $item->blogPost->user->name,
-                    ] : null,
-                    'coAuthors' => $item->blogPost->coAuthors->map(fn ($u) => [
-                        'id' => $u->id,
-                        'first_name' => $u->first_name,
-                        'name' => $u->name,
-                    ])->toArray(),
+                    'author' => $item->blogPost->user ? $publicIdentity($item->blogPost->user) : null,
+                    'coAuthors' => $item->blogPost->coAuthors->map(fn ($u) => $publicIdentity($u))->toArray(),
                     'canView' => $canView($item->blogPost),
                     'canEdit' => $canManageArticles,
                     'viewUrl' => $blogShowRoute($item->blogPost),
@@ -913,7 +902,7 @@
                                             </div>
                                         </td>
                                         <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                                            <span x-text="file.uploader?.name || file.uploader?.email || '—'"></span>
+                                            <span x-text="file.uploader?.name || '—'"></span>
                                         </td>
                                         <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300" x-text="file.sizeFormatted"></td>
                                         <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300" x-text="file.uploadedAtFormatted"></td>
@@ -1081,8 +1070,8 @@
                              'dossierId' => $dossier->getKey(),
                              'orgParam' => $orgParam,
                              'ownerId' => $dossier->owner_id,
-                             'ownerName' => trim(($dossier->owner->first_name ?? '') . ' ' . strtoupper($dossier->owner->name ?? '')),
-                             'ownerInitial' => strtoupper(substr($dossier->owner->first_name ?? $dossier->owner->name ?? '?', 0, 1)),
+                              'ownerName' => $dossier->owner?->publicDisplayName() ?? __('profile.deactivated_user'),
+                              'ownerInitial' => $ownerDisplayable ? strtoupper(substr($dossier->owner->first_name ?? $dossier->owner->name ?? '?', 0, 1)) : '?',
                              'currentUserId' => auth()->id(),
                              'canManage' => $canManageMembers,
                               'i18n' => array_merge([

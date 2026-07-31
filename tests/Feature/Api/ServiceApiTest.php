@@ -35,6 +35,31 @@ class ServiceApiTest extends TestCase
         $this->assertEquals(3, $response->json('total'));
     }
 
+    public function test_index_excludes_services_owned_by_deactivated_users(): void
+    {
+        $deactivatedUser = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'banned_at' => now(),
+        ]);
+
+        Service::factory()->for($this->user)->create([
+            'title' => 'Visible service',
+            'status' => 'active',
+            'organization_id' => $this->org->id,
+        ]);
+        Service::factory()->for($deactivatedUser)->create([
+            'title' => 'Hidden service',
+            'status' => 'active',
+            'organization_id' => $this->org->id,
+        ]);
+
+        $response = $this->actingAs($this->user)->getJson('/api/services');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('total'));
+        $this->assertEquals('Visible service', $response->json('data.0.title'));
+    }
+
     public function test_index_filters_by_search_query(): void
     {
         Service::factory()->create(['title' => 'Cours de piano', 'status' => 'active', 'organization_id' => $this->org->id]);
@@ -98,6 +123,21 @@ class ServiceApiTest extends TestCase
     public function test_show_returns_404_for_inactive_service(): void
     {
         $service = Service::factory()->create(['status' => 'paused', 'organization_id' => $this->org->id]);
+
+        $this->actingAs($this->user)->getJson("/api/services/{$service->id}")
+            ->assertNotFound();
+    }
+
+    public function test_show_returns_404_for_service_owned_by_deactivated_user(): void
+    {
+        $deactivatedUser = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'banned_at' => now(),
+        ]);
+        $service = Service::factory()->for($deactivatedUser)->create([
+            'status' => 'active',
+            'organization_id' => $this->org->id,
+        ]);
 
         $this->actingAs($this->user)->getJson("/api/services/{$service->id}")
             ->assertNotFound();

@@ -48,6 +48,24 @@ class ExplorerTest extends TestCase
             ->assertDontSee('Service pausé');
     }
 
+    public function test_excludes_active_services_owned_by_deactivated_users(): void
+    {
+        $deactivatedOwner = User::factory()->create(['banned_at' => now()]);
+
+        Service::factory()->for($this->owner)->for($this->category)->create([
+            'title' => 'Service propriétaire actif',
+            'status' => 'active',
+        ]);
+        Service::factory()->for($deactivatedOwner)->for($this->category)->create([
+            'title' => 'Service propriétaire désactivé',
+            'status' => 'active',
+        ]);
+
+        Livewire::test(Explorer::class)
+            ->assertSee('Service propriétaire actif')
+            ->assertDontSee('Service propriétaire désactivé');
+    }
+
     public function test_search_filters_by_title(): void
     {
         Service::factory()->for($this->owner)->for($this->category)->create([
@@ -180,5 +198,24 @@ class ExplorerTest extends TestCase
             ->call('switchTab', 'requests')
             ->assertSee('Demande ouverte')
             ->assertDontSee('Demande fermée');
+    }
+
+    public function test_excludes_open_requests_owned_by_deactivated_users(): void
+    {
+        $deactivatedOwner = User::factory()->create(['banned_at' => now()]);
+
+        ServiceRequest::factory()->for($this->owner)->for($this->category)->create([
+            'title' => 'Demande propriétaire actif',
+            'status' => 'open',
+        ]);
+        ServiceRequest::factory()->for($deactivatedOwner)->for($this->category)->create([
+            'title' => 'Demande propriétaire désactivé',
+            'status' => 'open',
+        ]);
+
+        Livewire::test(Explorer::class)
+            ->call('switchTab', 'requests')
+            ->assertSee('Demande propriétaire actif')
+            ->assertDontSee('Demande propriétaire désactivé');
     }
 }

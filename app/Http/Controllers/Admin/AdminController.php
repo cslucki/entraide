@@ -3,25 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AiInteraction;
-use App\Models\BlogComment;
-use App\Models\BlogPost;
-use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\Country;
 use App\Models\EmailLog;
-use App\Models\Favorite;
-use App\Models\FeedPost;
-use App\Models\FeedPostComment;
 use App\Models\LoginLog;
-use App\Models\Loop;
-use App\Models\LoopMember;
-use App\Models\LoopMessage;
-use App\Models\MemberAiProfile;
-use App\Models\Message;
 use App\Models\Organization;
 use App\Models\PointLedger;
-use App\Models\Referral;
 use App\Models\Report;
 use App\Models\RequestAttachment;
 use App\Models\Scopes\BelongsToOrganizationScope;
@@ -31,6 +18,7 @@ use App\Models\Skill;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\UserDataLifecycleRegistry;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -478,7 +466,7 @@ class AdminController extends Controller
         $organizations = Organization::orderBy('name')->get(['id', 'name', 'slug']);
         $categories = Category::where('organization_id', $service->organization_id)->orderBy('name_b2c')->get();
         $skills = Skill::with('category')->where('organization_id', $service->organization_id)->orderBy('name')->get();
-        $users = User::orderBy('first_name')->orderBy('name')->get(['id', 'first_name', 'name', 'email']);
+        $users = User::assignable()->orderBy('first_name')->orderBy('name')->get(['id', 'first_name', 'name', 'email']);
 
         return view('admin.services.edit', compact('service', 'organizations', 'categories', 'skills', 'users'));
     }
@@ -495,12 +483,19 @@ class AdminController extends Controller
             'delivery_mode' => 'required|in:remote,onsite,both',
             'points_cost' => 'required|integer|min:1',
             'status' => 'required|in:active,paused',
-            'user_id' => 'required|uuid|exists:users,id',
+            'user_id' => ['required', 'uuid', Rule::exists('users', 'id')->whereNull('banned_at')],
             'organization_id' => 'required|uuid|exists:organizations,id',
             'skills' => 'nullable|array',
             'skills.*' => 'uuid|exists:skills,id',
             'tags' => 'nullable|string',
         ]);
+
+        $serviceOwner = User::assignable()->find($data['user_id']);
+        if (! $serviceOwner || $serviceOwner->organization_id !== $data['organization_id']) {
+            throw ValidationException::withMessages([
+                'user_id' => __('validation.exists', ['attribute' => 'user']),
+            ]);
+        }
 
         $service->update([
             'title' => $data['title'],
@@ -861,6 +856,7 @@ class AdminController extends Controller
         $counts = $this->countUserRelations($user);
 
         $sameOrgUsers = User::where('organization_id', $user->organization_id)
+            ->assignable()
             ->where('id', '!=', $user->id)
             ->orderBy('name')
             ->get();
@@ -872,7 +868,13 @@ class AdminController extends Controller
     {
         $data = $request->validate([
             'confirmation' => 'required|string',
-            'transfer_to' => 'nullable|uuid|exists:users,id',
+            'transfer_to' => [
+                'nullable',
+                'uuid',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $user->organization_id)
+                    ->whereNull('banned_at'),
+            ],
         ]);
 
         if ($data['confirmation'] !== $user->name) {
@@ -888,6 +890,7 @@ class AdminController extends Controller
         $counts['preview_only'] = true;
 
         $sameOrgUsers = User::where('organization_id', $user->organization_id)
+            ->assignable()
             ->where('id', '!=', $user->id)
             ->orderBy('name')
             ->get();
@@ -897,67 +900,11 @@ class AdminController extends Controller
 
     private function countUserRelations(User $user): array
     {
-        $own = [
-            'services' => Service::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'service_requests' => ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'transactions_as_buyer' => Transaction::where('buyer_id', $user->id)->count(),
-            'transactions_as_seller' => Transaction::where('seller_id', $user->id)->count(),
-            'blog_posts' => BlogPost::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'blog_comments' => BlogComment::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'favorites' => Favorite::where('user_id', $user->id)->count(),
-            'feed_posts' => FeedPost::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'feed_post_comments' => FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'point_ledger' => PointLedger::where('user_id', $user->id)->count(),
-            'member_ai_profile' => MemberAiProfile::where('user_id', $user->id)->count(),
-        ];
-
-        $part = [
-            'loop_memberships' => LoopMember::where('user_id', $user->id)->count(),
-            'orgs_as_admin' => Organization::where('admin_id', $user->id)->count(),
-            'loops_created' => Loop::where('created_by', $user->id)->count(),
-        ];
-
-        $audit = [
-            'messages_sent' => Message::where('sender_id', $user->id)->count(),
-            'loop_messages_sent' => LoopMessage::where('sender_id', $user->id)->count(),
-            'reports_filed' => Report::where('reporter_id', $user->id)->count(),
-            'email_logs' => EmailLog::where('user_id', $user->id)->count(),
-            'bug_reports' => BugReport::where('reporter_id', $user->id)->count(),
-            'login_logs' => LoginLog::where('user_id', $user->id)->count(),
-            'ai_interactions' => AiInteraction::where('user_id', $user->id)->count(),
-            'referrals_made' => Referral::where('referrer_user_id', $user->id)->count(),
-        ];
-
-        return compact('own', 'part', 'audit');
+        return app(UserDataLifecycleRegistry::class)->preview($user);
     }
 
     private function estimateTransferCounts(User $user, string $transferToId): array
     {
-        $transferTo = User::find($transferToId);
-        if (! $transferTo || $transferTo->organization_id !== $user->organization_id) {
-            return [];
-        }
-
-        return [
-            'services' => Service::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'service_requests' => ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'blog_posts' => BlogPost::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'blog_comments' => BlogComment::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'favorites' => Favorite::where('user_id', $user->id)->count(),
-            'feed_posts' => FeedPost::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-            'feed_post_comments' => FeedPostComment::withoutGlobalScope(BelongsToOrganizationScope::class)
-                ->where('user_id', $user->id)->count(),
-        ];
+        return app(UserDataLifecycleRegistry::class)->transferEstimate($user, $transferToId);
     }
 }

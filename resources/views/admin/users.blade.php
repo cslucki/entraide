@@ -160,7 +160,7 @@
                             <form method="POST" action="{{ route('admin.users.toggle-availability', $u) }}">
                                 @csrf @method('PATCH')
                                 <button class="text-xs text-gray-500 hover:text-orange-600">
-                                    {{ $u->is_available ? 'Désactiver' : 'Activer' }}
+                                    {{ $u->is_available ? __('admin.mark_unavailable') : __('admin.mark_available') }}
                                 </button>
                             </form>
 

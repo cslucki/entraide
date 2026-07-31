@@ -151,6 +151,27 @@ class DossierSharingTest extends TestCase
         ]);
     }
 
+    public function test_owner_cannot_add_deactivated_member(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $deactivatedUser = User::factory()->create([
+            'organization_id' => $this->orgA->id,
+            'banned_at' => now(),
+        ]);
+
+        $this->actingAs($this->ownerA)
+            ->postJson($this->orgRoute('dossiers.members.store', $dossier), [
+                'user_id' => $deactivatedUser->id,
+                'role' => 'reader',
+            ])
+            ->assertJsonValidationErrors('user_id');
+
+        $this->assertDatabaseMissing('dossier_members', [
+            'dossier_id' => $dossier->id,
+            'user_id' => $deactivatedUser->id,
+        ]);
+    }
+
     public function test_owner_can_update_member_role(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
@@ -209,6 +230,27 @@ class DossierSharingTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.email', $this->editorA->email);
+    }
+
+    public function test_search_excludes_deactivated_users(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+        $activeUser = User::factory()->create([
+            'organization_id' => $this->orgA->id,
+            'email' => 'active-dossier@example.com',
+        ]);
+        $deactivatedUser = User::factory()->create([
+            'organization_id' => $this->orgA->id,
+            'email' => 'inactive-dossier@example.com',
+            'banned_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'dossier@example.com']))
+            ->assertOk();
+
+        $this->assertStringContainsString($activeUser->id, $response->getContent());
+        $this->assertStringNotContainsString($deactivatedUser->id, $response->getContent());
     }
 
     public function test_reader_cannot_search_users(): void
@@ -317,10 +359,10 @@ class DossierSharingTest extends TestCase
     public function test_search_isolation_does_not_find_other_org_users(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->userB->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->userB->update(['first_name' => 'OtherOrgOnly1048', 'name' => 'Dupont']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Jean']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'OtherOrgOnly1048']))
             ->assertOk()
             ->assertJsonCount(0, 'users');
     }

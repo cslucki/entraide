@@ -40,11 +40,16 @@
                             $isActive = isset($transaction) && $transaction->id === $conv->id;
                             $isDirectConversation = $conv->isDirectConversation();
                             $unread = $unreadCounts[$conv->id] ?? 0;
+                            $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
                         @endphp
                         <a href="{{ $_messagesRoute('messages.show', 'organization.messages.show', ['transaction' => $conv]) }}"
                             class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
                             <div class="relative flex-shrink-0">
-                                <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
+                                @if($otherDisplayable)
+                                    <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
+                                @else
+                                    <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
+                                @endif
                                 @if($unread > 0 && !$isActive)
                                 <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                                     {{ $unread > 9 ? '9+' : $unread }}
@@ -53,7 +58,7 @@
                             </div>
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center justify-between gap-1">
-                                    <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other->name }}</p>
+                                    <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
                                     @unless($isDirectConversation)
                                         <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
                                             {{ match($conv->status) {
@@ -83,7 +88,10 @@
 
             {{-- Mobile: thread view --}}
             @isset($transaction)
-            @php $other = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer; @endphp
+            @php
+                $other = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer;
+                $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
+            @endphp
             <div class="md:hidden flex-1 flex flex-col min-h-0">
                 <div class="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
                     <a href="{{ $_messagesRoute('messages.index', 'organization.messages.index') }}"
@@ -91,9 +99,11 @@
                        aria-label="{{ __('messages.back_to_conversations') }}">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                     </a>
-                    <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
+                    @if($otherDisplayable)
+                        <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
+                    @endif
                     <div class="min-w-0 flex-1">
-                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ $other->name }}</p>
+                        <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
                         <p class="text-xs text-gray-500 truncate">
                             @if($transaction->service)
                             <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>
@@ -124,11 +134,16 @@
                             $isActive = isset($transaction) && $transaction->id === $conv->id;
                             $isDirectConversation = $conv->isDirectConversation();
                             $unread = $unreadCounts[$conv->id] ?? 0;
+                            $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
                         @endphp
                         <a href="{{ $_messagesRoute('messages.show', 'organization.messages.show', ['transaction' => $conv]) }}"
                             class="flex items-start gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-900/30' : '' }}">
                             <div class="relative flex-shrink-0">
-                                <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
+                                @if($otherDisplayable)
+                                    <img src="{{ $other->avatar_url }}" class="w-10 h-10 rounded-full" alt="">
+                                @else
+                                    <span class="flex w-10 h-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">?</span>
+                                @endif
                                 @if($unread > 0 && !$isActive)
                                 <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                                     {{ $unread > 9 ? '9+' : $unread }}
@@ -137,7 +152,7 @@
                             </div>
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center justify-between gap-1">
-                                    <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other->name }}</p>
+                                    <p class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate {{ $unread > 0 && !$isActive ? 'font-bold' : '' }}">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
                                     @unless($isDirectConversation)
                                         <span class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0
                                             {{ match($conv->status) {
@@ -168,11 +183,16 @@
             {{-- Desktop: message thread panel --}}
             <div class="hidden md:flex flex-1 flex-col min-h-0">
                 @isset($transaction)
-                    @php $other = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer; @endphp
+                    @php
+                        $other = auth()->id() === $transaction->buyer_id ? $transaction->seller : $transaction->buyer;
+                        $otherDisplayable = $other?->isDisplayableIn(currentOrganization()) ?? false;
+                    @endphp
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
-                        <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                        @if($otherDisplayable)
+                            <img src="{{ $other->avatar_url }}" class="w-8 h-8 rounded-full" alt="">
+                        @endif
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ $other->name }}</p>
+                            <p class="font-medium text-gray-900 dark:text-gray-100">{{ $other?->publicDisplayName() ?? __('profile.deactivated_user') }}</p>
                             <p class="text-xs text-gray-500">
                                 @if($transaction->service)
                                 <a href="{{ $_messagesRoute('services.show', 'organization.services.show', ['service' => $transaction->service]) }}" class="hover:underline text-indigo-500">{{ $transaction->service->title }}</a>

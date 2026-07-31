@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use League\CommonMark\CommonMarkConverter;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
@@ -71,7 +72,8 @@ class AdminBlogController extends Controller
         $organizations = Organization::orderBy('name')->get(['id', 'name']);
         $categories = Category::with('organization')->orderBy('name_b2c')->get();
         $tags = Tag::orderBy('name')->get();
-        $usersByOrg = User::with('organization')
+        $usersByOrg = User::assignable()
+            ->with('organization')
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'organization_id'])
             ->groupBy(fn ($u) => $u->organization?->name ?? __('blog.organization_none'));
@@ -83,7 +85,7 @@ class AdminBlogController extends Controller
     {
         $data = $request->validate([
             'organization_id' => 'required|uuid|exists:organizations,id',
-            'user_id' => 'required|uuid|exists:users,id',
+            'user_id' => ['required', 'uuid', Rule::exists('users', 'id')->whereNull('banned_at')],
             'title' => 'required|string|max:255',
             'slug' => 'nullable|string|max:255|unique:blog_posts,slug,'.$post->id,
             'summary' => 'nullable|string|max:500',

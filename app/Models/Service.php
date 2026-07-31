@@ -88,6 +88,7 @@ class Service extends Model
 
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
+        return $query->where('status', 'active')
+            ->whereHas('user', fn ($userQuery) => $userQuery->activeAccount());
     }
 }

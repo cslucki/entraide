@@ -28,9 +28,12 @@ class SearchController extends Controller
 
         $like = '%'.$q.'%';
         $likeOperator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+        $organization = currentOrganization();
+        $organizationId = $organization?->id;
 
         $services = Service::with(['user', 'category'])
-            ->where('status', 'active')
+            ->active()
+            ->when($organizationId, fn ($query) => $query->where('organization_id', $organizationId))
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('description', $likeOperator, $like)
             )
@@ -39,7 +42,8 @@ class SearchController extends Controller
             ->get();
 
         $requests = ServiceRequest::with(['user', 'category'])
-            ->where('status', 'open')
+            ->open()
+            ->when($organizationId, fn ($query) => $query->where('organization_id', $organizationId))
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('description', $likeOperator, $like)
             )
@@ -48,7 +52,8 @@ class SearchController extends Controller
             ->get();
 
         $users = User::with(['country', 'organization'])
-            ->whereNull('banned_at')
+            ->discoverable()
+            ->when($organizationId, fn ($query) => $query->where('organization_id', $organizationId))
             ->where(fn ($query) => $query->where('name', $likeOperator, $like)
                 ->orWhere('bio', $likeOperator, $like)
                 ->orWhere('city', $likeOperator, $like)
@@ -58,6 +63,8 @@ class SearchController extends Controller
 
         $posts = BlogPost::published()
             ->with(['user', 'category', 'tags'])
+            ->when($organizationId, fn ($query) => $query->where('organization_id', $organizationId))
+            ->whereHas('user', fn ($query) => $query->activeAccount())
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('content', $likeOperator, $like)
                 ->orWhereHas('tags', fn ($q) => $q->where('name', $likeOperator, $like))

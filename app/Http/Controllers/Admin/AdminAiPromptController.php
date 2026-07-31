@@ -120,6 +120,8 @@ class AdminAiPromptController extends Controller
             'profile_agent_master' => 'Agent de profil IA — Prompt master',
             'profile_agent_setup' => 'Agent de profil IA — Prompt setup',
             'profile_agent_visitor_chat' => 'Agent de profil IA — Chat visiteur',
+            'service_offer_master_fr' => 'Service Offer Master — Prompt FR',
+            'service_offer_master_en' => 'Service Offer Master — Prompt EN',
         ];
     }
 }

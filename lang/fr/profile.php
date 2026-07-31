@@ -5,6 +5,7 @@ return [
     'edit_profile' => 'Modifier mon profil',
     'available' => 'Disponible',
     'unavailable' => 'Indisponible',
+    'deactivated_user' => 'Utilisateur désactivé',
     'exchanges' => ':count échange|:count échanges',
     'points' => ':count pts',
     'about' => 'À propos',

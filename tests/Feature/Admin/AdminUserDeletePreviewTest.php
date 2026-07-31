@@ -92,6 +92,24 @@ class AdminUserDeletePreviewTest extends TestCase
             ->assertSee('Dry-run');
     }
 
+    public function test_post_delete_rejects_deactivated_transfer_target(): void
+    {
+        $org = Organization::factory()->create(['is_active' => true]);
+        $admin = $this->makeAdmin();
+        $user = User::factory()->create(['name' => 'Charlie', 'organization_id' => $org->id]);
+        $transferTarget = User::factory()->create([
+            'organization_id' => $org->id,
+            'banned_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.delete', $user), [
+                'confirmation' => 'Charlie',
+                'transfer_to' => $transferTarget->id,
+            ])
+            ->assertSessionHasErrors('transfer_to');
+    }
+
     // ── Org-admin ─────────────────────────────────────────────────────────────
 
     public function test_org_admin_cannot_access_global_delete_preview(): void
@@ -134,5 +152,26 @@ class AdminUserDeletePreviewTest extends TestCase
         $this->actingAs($admin)
             ->get(route('organization.admin.users.delete-preview', [$org->slug, $userB]))
             ->assertStatus(404);
+    }
+
+    public function test_org_admin_post_delete_rejects_deactivated_transfer_target(): void
+    {
+        $org = Organization::factory()->create(['is_active' => true]);
+        $admin = User::factory()->create(['is_admin' => false, 'organization_id' => $org->id]);
+        $org->admin_id = $admin->id;
+        $org->save();
+
+        $user = User::factory()->create(['name' => 'Dave', 'organization_id' => $org->id]);
+        $transferTarget = User::factory()->create([
+            'organization_id' => $org->id,
+            'banned_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('organization.admin.users.delete', [$org->slug, $user]), [
+                'confirmation' => 'Dave',
+                'transfer_to' => $transferTarget->id,
+            ])
+            ->assertSessionHasErrors('transfer_to');
     }
 }

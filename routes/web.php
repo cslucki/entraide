@@ -233,6 +233,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('profile.complete')->group(function () {
         Route::get('/services/create', [ServiceController::class, 'create'])->name('services.create');
         Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
+        Route::post('/services/ai-formulate', [ServiceController::class, 'formulate'])->name('services.ai-formulate');
     });
     Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->name('services.edit');
     Route::put('/services/{service}', [ServiceController::class, 'update'])->name('services.update');
@@ -595,6 +596,7 @@ Route::prefix('/org/{organization}')
             Route::middleware('profile.complete')->group(function () {
                 Route::get('/services/create', [ServiceController::class, 'create'])->name('services.create');
                 Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
+                Route::post('/services/ai-formulate', [ServiceController::class, 'formulate'])->name('services.ai-formulate');
             });
             Route::get('/services/{service}/edit', [ServiceController::class, 'edit'])->middleware('consume.org')->name('services.edit');
             Route::put('/services/{service}', [ServiceController::class, 'update'])->middleware('consume.org')->name('services.update');

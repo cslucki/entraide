@@ -31,6 +31,10 @@ class ProfileController extends Controller
             abort(404);
         }
 
+        if ($user->banned_at !== null) {
+            abort(404);
+        }
+
         $memberAiProfile = $organization->ai_profiles_enabled
             ? MemberAiProfile::where('user_id', $user->id)
                 ->where('status', MemberAiProfile::STATUS_PUBLISHED)
@@ -78,6 +82,10 @@ class ProfileController extends Controller
     {
         $organization = currentOrganization();
         if (! $organization || $user->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        if (! $user->isDisplayableIn($organization)) {
             abort(404);
         }
 

@@ -281,6 +281,48 @@ class AdminLoopsTest extends TestCase
         ]);
     }
 
+    public function test_superadmin_cannot_create_loop_with_deactivated_owner(): void
+    {
+        $org = $this->makeOrg();
+        $superAdmin = $this->makeAdmin(['organization_id' => null]);
+        $deactivatedOwner = User::factory()->create([
+            'organization_id' => $org->id,
+            'banned_at' => now(),
+        ]);
+
+        $this->actingAs($superAdmin)->post(route('admin.loops.store'), [
+            'name' => 'Loop with inactive owner',
+            'description' => 'Should be rejected',
+            'visibility' => 'private',
+            'owner_id' => $deactivatedOwner->id,
+            'organization_id' => $org->id,
+        ])->assertSessionHasErrors('owner_id');
+
+        $this->assertDatabaseMissing('loops', [
+            'name' => 'Loop with inactive owner',
+        ]);
+    }
+
+    public function test_admin_cannot_add_deactivated_loop_member(): void
+    {
+        $org = $this->makeOrg();
+        $admin = $this->makeAdmin(['organization_id' => $org->id]);
+        $loop = $this->makeLoop($org, $admin);
+        $deactivatedUser = User::factory()->create([
+            'organization_id' => $org->id,
+            'banned_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.loops.members.add', $loop), [
+            'user_id' => $deactivatedUser->id,
+        ])->assertSessionHasErrors('user_id');
+
+        $this->assertDatabaseMissing('loop_members', [
+            'loop_id' => $loop->id,
+            'user_id' => $deactivatedUser->id,
+        ]);
+    }
+
     // ── Archive / Restore ─────────────────────────────────────────────────────
 
     public function test_superadmin_can_archive_loop(): void

@@ -14,6 +14,7 @@
             }
             return route('profile.show', $user);
         };
+        $_authorDisplayable = fn ($user) => $user?->isDisplayableIn(currentOrganization());
     @endphp
     <x-slot name="title">{{ __('blog.title') }} — {{ $brandOrganizationName ?? 'BouclePro' }}</x-slot>
 
@@ -83,10 +84,14 @@
                             <div class="flex flex-col gap-2 text-xs text-gray-500 dark:text-gray-400">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2 min-w-0">
-                                    <a href="{{ $_profileRoute($post->user) }}" class="shrink-0">
-                                        <img src="{{ $post->user->avatar_url }}" alt="" class="w-5 h-5 rounded-full">
-                                    </a>
-                                    <a href="{{ $_profileRoute($post->user) }}" class="truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $post->user->fullName }}</a>
+                                    @if($_authorDisplayable($post->user))
+                                        <a href="{{ $_profileRoute($post->user) }}" class="shrink-0">
+                                            <img src="{{ $post->user->avatar_url }}" alt="" class="w-5 h-5 rounded-full">
+                                        </a>
+                                        <a href="{{ $_profileRoute($post->user) }}" class="truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition">{{ $post->user->fullName }}</a>
+                                    @else
+                                        <span class="truncate text-gray-400 dark:text-gray-500">{{ $post->user?->publicDisplayName() ?? __('profile.deactivated_user') }}</span>
+                                    @endif
                                 </div>
                                 <div class="flex items-center gap-3 flex-shrink-0">
                                         @auth

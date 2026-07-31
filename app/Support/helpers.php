@@ -53,12 +53,15 @@ if (! function_exists('canonicalHome')) {
 }
 
 if (! function_exists('markdown')) {
-    function markdown(string $text): string
+    function markdown(string $text, array $options = []): string
     {
-        $converter = new CommonMarkConverter([
+        $config = array_merge([
             'html_input' => 'escape',
             'allow_unsafe_links' => false,
-        ]);
+            'renderer' => ['soft_break' => "<br />\n"],
+        ], $options);
+
+        $converter = new CommonMarkConverter($config);
         $converter->getEnvironment()->addExtension(new GithubFlavoredMarkdownExtension);
 
         return (string) $converter->convert($text);
