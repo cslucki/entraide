@@ -91,7 +91,7 @@ return [
     'member_removed' => 'Member removed from the loop.',
 
     // AI intervention
-    'ask_ai' => 'Ask the AI',
+    'ask_ai' => 'Make a summary',
     'ai_generating' => 'The AI is drafting its answer...',
     'ai_facilitator' => 'AI Facilitator',
     'ai_requested_by' => 'Requested by :name',
@@ -99,6 +99,11 @@ return [
     'ai_generation_in_progress' => 'An AI answer is already being generated for this loop. Please wait.',
     'ai_error' => 'The AI could not answer right now. Please try again.',
     'ai_empty_response' => 'The AI did not produce a usable answer.',
+    'ask_question' => 'Ask a question',
+    'ask_question_placeholder' => 'Your question in one line...',
+    'ask_question_submit' => 'Ask the question',
+    'ai_question_requested' => 'The AI is thinking about your question...',
+    'not_enough_content_to_summarize' => 'There is not enough content in this loop to make a summary yet. Ask the AI a question instead.',
     'not_an_active_member' => 'You are not an active member of this loop.',
     'cross_organization' => 'You do not belong to the same organization as this loop.',
 ];

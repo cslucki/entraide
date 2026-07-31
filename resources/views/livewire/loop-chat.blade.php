@@ -92,31 +92,96 @@
     </x-conversation.message-list>
 
     @if($isMember && config('ai.chatloop.enabled', true))
-        <form
-            method="POST"
-            action="{{ $aiRoute }}"
-            class="px-3 pt-2"
-            x-data="{ submitting: false }"
-            x-on:submit="submitting = true"
-        >
-            @csrf
-            <input type="hidden" name="action" value="answer">
-            <button
-                type="submit"
-                x-bind:disabled="submitting"
-                class="inline-flex items-center gap-2 text-xs font-medium text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-violet-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        <div class="px-3 pt-2 flex flex-wrap items-center gap-x-4 gap-y-1" x-data="{ askOpen: false, asking: false, question: '' }">
+            <form
+                method="POST"
+                action="{{ $aiRoute }}"
+                x-data="{ submitting: false }"
+                x-on:submit="submitting = true"
             >
-                <svg x-show="!submitting" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                @csrf
+                <input type="hidden" name="action" value="answer">
+                <button
+                    type="submit"
+                    x-bind:disabled="submitting"
+                    class="inline-flex items-center gap-2 text-xs font-medium text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-violet-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <svg x-show="!submitting" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/>
+                    </svg>
+                    <svg x-show="submitting" x-cloak class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <span x-show="!submitting">{{ __('loops.ask_ai') }}</span>
+                    <span x-show="submitting" x-cloak>{{ __('loops.ai_generating') }}</span>
+                </button>
+            </form>
+
+            <button
+                type="button"
+                x-on:click="askOpen = true"
+                class="inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-violet-100 transition"
+            >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/>
                 </svg>
-                <svg x-show="submitting" x-cloak class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-                <span x-show="!submitting">{{ __('loops.ask_ai') }}</span>
-                <span x-show="submitting" x-cloak>{{ __('loops.ai_generating') }}</span>
+                {{ __('loops.ask_question') }}
             </button>
-        </form>
+
+            <template x-teleport="body">
+                <div
+                    x-show="askOpen"
+                    x-cloak
+                    class="fixed inset-0 z-50 flex items-center justify-center"
+                    x-effect="document.body.style.overflow = askOpen ? 'hidden' : ''"
+                    @keydown.escape.window="askOpen = false"
+                >
+                    <div x-show="askOpen" class="fixed inset-0 bg-black/50"></div>
+                    <form
+                        method="POST"
+                        action="{{ $aiRoute }}"
+                        x-show="askOpen"
+                        x-on:submit="asking = true"
+                        class="relative w-full max-w-lg mx-3 bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-5"
+                    >
+                        @csrf
+                        <input type="hidden" name="action" value="ask">
+                        <label for="ai-question" class="block text-sm font-medium text-gray-800 dark:text-gray-200">
+                            {{ __('loops.ask_question') }}
+                        </label>
+                        <input
+                            id="ai-question"
+                            type="text"
+                            name="question"
+                            x-model="question"
+                            required
+                            maxlength="500"
+                            x-bind:disabled="asking"
+                            placeholder="{{ __('loops.ask_question_placeholder') }}"
+                            class="mt-2 w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:border-violet-500 focus:ring-violet-500"
+                        >
+                        <div class="mt-4 flex items-center justify-end gap-2">
+                            <button
+                                type="button"
+                                x-on:click="askOpen = false"
+                                class="text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition"
+                            >
+                                {{ __('loops.cancel') }}
+                            </button>
+                            <button
+                                type="submit"
+                                x-bind:disabled="asking"
+                                class="inline-flex items-center gap-2 text-xs font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg px-3 py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <span x-show="!asking">{{ __('loops.ask_question_submit') }}</span>
+                                <span x-show="asking" x-cloak>{{ __('loops.ai_generating') }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </template>
+        </div>
     @endif
 
     @if($isMember)

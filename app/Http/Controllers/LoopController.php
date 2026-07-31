@@ -449,8 +449,9 @@ class LoopController extends Controller
             abort(404);
         }
 
-        $request->validate([
-            'action' => 'required|string|in:answer',
+        $data = $request->validate([
+            'action' => 'required|string|in:answer,ask',
+            'question' => 'required_if:action,ask|nullable|string|max:500',
         ]);
 
         if (! config('ai.chatloop.enabled', true)) {
@@ -458,13 +459,17 @@ class LoopController extends Controller
         }
 
         try {
-            $this->chatLoopAiService->answer($loop, $request->user());
+            if ($data['action'] === 'ask') {
+                $this->chatLoopAiService->ask($loop, $request->user(), trim((string) ($data['question'] ?? '')));
+            } else {
+                $this->chatLoopAiService->answer($loop, $request->user());
+            }
         } catch (\RuntimeException $e) {
             return redirect($this->loopRoute('loops.show', $loop))
                 ->with('error', $e->getMessage());
         }
 
         return redirect($this->loopRoute('loops.show', $loop))
-            ->with('success', __('loops.ai_answer_requested'));
+            ->with('success', $data['action'] === 'ask' ? __('loops.ai_question_requested') : __('loops.ai_answer_requested'));
     }
 }

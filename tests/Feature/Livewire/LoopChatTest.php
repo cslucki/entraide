@@ -912,6 +912,31 @@ class LoopChatTest extends TestCase
             ->assertSeeHtml('x-show="!submitting"');
     }
 
+    public function test_member_sees_ask_question_button(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.ask_question'));
+    }
+
+    public function test_ask_question_modal_is_rendered(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('name="action" value="ask"')
+            ->assertSeeHtml('id="ai-question"')
+            ->assertSeeHtml(__('loops.ask_question_placeholder'))
+            ->assertSeeHtml(__('loops.ask_question_submit'))
+            ->assertSeeHtml(__('loops.cancel'));
+    }
+
+    public function test_non_member_does_not_see_ask_question_button(): void
+    {
+        Livewire::actingAs($this->nonMember)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSee(__('loops.ask_question'));
+    }
+
     public function test_ai_message_renders_with_facilitator_and_requested_by(): void
     {
         LoopMessage::create([
