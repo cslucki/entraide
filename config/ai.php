@@ -200,7 +200,7 @@ return [
         'timeout' => (int) env('CHATLOOP_AI_TIMEOUT', 30),
         'temperature' => (float) env('CHATLOOP_AI_TEMPERATURE', 0.7),
         'max_simultaneous' => (int) env('CHATLOOP_AI_MAX_SIMULTANEOUS', 1),
-        'lock_ttl' => (int) env('CHATLOOP_AI_LOCK_TTL', 60),
+        'lock_ttl' => (int) env('CHATLOOP_AI_LOCK_TTL', 90),
     ],
 
 ];

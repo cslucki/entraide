@@ -24,7 +24,12 @@ class ChatLoopAiService
 
         $lockKey = 'chatloop_ai_lock:'.$loop->id;
 
-        if (! Cache::add($lockKey, true, (int) config('ai.chatloop.lock_ttl', 60))) {
+        $lockTtl = max(
+            (int) config('ai.chatloop.lock_ttl', 90),
+            (int) config('ai.chatloop.timeout', 30) + 30,
+        );
+
+        if (! Cache::add($lockKey, true, $lockTtl)) {
             throw new \RuntimeException(__('loops.ai_generation_in_progress'));
         }
 

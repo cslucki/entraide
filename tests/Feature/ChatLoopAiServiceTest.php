@@ -202,6 +202,27 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertNotNull($message);
     }
 
+    public function test_lock_ttl_is_never_below_timeout_plus_thirty_seconds(): void
+    {
+        config(['ai.chatloop.lock_ttl' => 5]);
+        config(['ai.chatloop.timeout' => 30]);
+
+        Cache::shouldReceive('add')
+            ->with('chatloop_ai_lock:'.$this->loop->id, true, \Mockery::on(
+                fn (int $ttl): bool => $ttl >= 60
+            ))
+            ->once()
+            ->andReturn(true);
+
+        Cache::shouldReceive('forget')
+            ->with('chatloop_ai_lock:'.$this->loop->id)
+            ->once();
+
+        $message = $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($message);
+    }
+
     public function test_it_dispatches_loop_message_created_event(): void
     {
         Event::fake([LoopMessageCreated::class]);
