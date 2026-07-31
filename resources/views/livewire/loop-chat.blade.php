@@ -52,6 +52,7 @@
                             :show-reactions="$isMember"
                             :reaction-counts="$reactionData[$msg->id] ?? []"
                             :my-reaction="$myReactions[$msg->id] ?? null"
+                            :reply-to="$msg->replyTo ? ['body' => mb_substr($msg->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
                             is-ai="true"
                         >
                             {!! $msg->body !!}

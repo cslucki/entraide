@@ -519,10 +519,19 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->assertDatabaseHas('loop_messages', [
             'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'type' => 'user',
+            'body' => 'Quel est le prix moyen de revente ?',
+        ]);
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
             'sender_id' => null,
             'type' => 'ai',
             'body' => 'Réponse de l\'IA.',
         ]);
+
+        $this->assertNotNull($message->reply_to_id);
 
         $this->assertEquals($this->member->id, $message->metadata['requested_by']);
         $this->assertEquals('ask', $message->metadata['action']);
@@ -621,6 +630,13 @@ class ChatLoopAiServiceTest extends TestCase
 
         $response->assertRedirect(route('loops.show', $this->loop));
         $response->assertSessionHas('success', __('loops.ai_question_requested'));
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'type' => 'user',
+            'body' => 'Quel est le prix moyen de revente ?',
+        ]);
 
         $this->assertDatabaseHas('loop_messages', [
             'loop_id' => $this->loop->id,

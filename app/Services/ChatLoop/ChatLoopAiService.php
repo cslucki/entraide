@@ -126,10 +126,23 @@ class ChatLoopAiService
             }
 
             return DB::transaction(function () use ($loop, $requester, $question, $answer, $ai, $contextMessageIds, $triggerMessageId) {
+                $userMessage = LoopMessage::create([
+                    'loop_id' => $loop->id,
+                    'sender_id' => $requester->id,
+                    'reply_to_id' => null,
+                    'body' => $question,
+                    'image_path' => null,
+                    'type' => 'user',
+                    'metadata' => [
+                        'asked_ai_question' => true,
+                    ],
+                    'organization_id' => $loop->organization_id,
+                ]);
+
                 $message = LoopMessage::create([
                     'loop_id' => $loop->id,
                     'sender_id' => null,
-                    'reply_to_id' => null,
+                    'reply_to_id' => $userMessage->id,
                     'body' => $answer,
                     'image_path' => null,
                     'type' => 'ai',
@@ -146,6 +159,7 @@ class ChatLoopAiService
                     'organization_id' => $loop->organization_id,
                 ]);
 
+                event(new LoopMessageCreated($userMessage));
                 event(new LoopMessageCreated($message));
 
                 $loop->touch();
