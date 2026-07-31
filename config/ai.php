@@ -177,4 +177,30 @@ return [
         'enabled' => (bool) env('AI_CLARIFY_ENABLED', false),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | ChatLoop AI — Persistent AI intervention in loops
+    |--------------------------------------------------------------------------
+    |
+    | Bounds for the ChatLoop AI answer feature. Context is built from the
+    | last `max_context_messages` loop messages (oldest first) and truncated
+    | to `max_context_chars`. The LLM answer is capped by `max_tokens` and the
+    | sanitized, persisted body by `max_response_chars`. One simultaneous
+    | generation per loop is enforced through a short-lived cache lock.
+    |
+    */
+
+    'chatloop' => [
+        'enabled' => (bool) env('CHATLOOP_AI_ENABLED', true),
+        'scenario' => env('CHATLOOP_AI_SCENARIO', 'chatloop_ai_answer'),
+        'max_context_messages' => (int) env('CHATLOOP_AI_MAX_CONTEXT_MESSAGES', 30),
+        'max_context_chars' => (int) env('CHATLOOP_AI_MAX_CONTEXT_CHARS', 12000),
+        'max_tokens' => (int) env('CHATLOOP_AI_MAX_TOKENS', 512),
+        'max_response_chars' => (int) env('CHATLOOP_AI_MAX_RESPONSE_CHARS', 1400),
+        'timeout' => (int) env('CHATLOOP_AI_TIMEOUT', 30),
+        'temperature' => (float) env('CHATLOOP_AI_TEMPERATURE', 0.7),
+        'max_simultaneous' => (int) env('CHATLOOP_AI_MAX_SIMULTANEOUS', 1),
+        'lock_ttl' => (int) env('CHATLOOP_AI_LOCK_TTL', 60),
+    ],
+
 ];

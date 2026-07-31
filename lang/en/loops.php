@@ -89,4 +89,13 @@ return [
     'left' => 'You have left the loop.',
     'member_added' => 'Member added to the loop.',
     'member_removed' => 'Member removed from the loop.',
+
+    // AI intervention
+    'ask_ai' => 'Ask the AI',
+    'ai_answer_requested' => 'The AI is drafting its answer...',
+    'ai_generation_in_progress' => 'An AI answer is already being generated for this loop. Please wait.',
+    'ai_error' => 'The AI could not answer right now. Please try again.',
+    'ai_empty_response' => 'The AI did not produce a usable answer.',
+    'not_an_active_member' => 'You are not an active member of this loop.',
+    'cross_organization' => 'You do not belong to the same organization as this loop.',
 ];
