@@ -1137,12 +1137,14 @@ class LoopChatTest extends TestCase
         $this->assertNotNull($message->image_path);
     }
 
-    public function test_member_sees_ask_ai_button(): void
+    public function test_member_can_reach_ai_ask_endpoint(): void
     {
+        // The standalone "answer/summary" topbar button was removed (it duplicated the
+        // AI Summary card). The "ask a question" flow lives above the composer now.
         $this->actingAs($this->member)
             ->get(route('loops.show', $this->loop))
             ->assertOk()
-            ->assertSee(__('loops.ask_ai'))
+            ->assertSee(__('loops.ask_question'))
             ->assertSee('/loops/'.$this->loop->id.'/ask-ai');
     }
 
@@ -1157,7 +1159,7 @@ class LoopChatTest extends TestCase
             ->assertSee(__('loops.cards.roadmap.label'))
             ->assertSee(__('loops.cards.ai_summary.empty_title'))
             ->assertSee(__('loops.cards.manifesto.empty_title'))
-            ->assertSee(__('loops.cards.roadmap.empty_title'))
+            ->assertSee(__('loops.roadmap_coming_soon'))
             ->assertSeeHtml('activeCard: null')
             ->assertSeeHtml('data-loop-workspace-shell')
             ->assertSeeHtml('data-loop-workspace-chat')
@@ -1221,6 +1223,7 @@ class LoopChatTest extends TestCase
             'core.ai_summary',
             'core.manifesto',
             'core.roadmap',
+            'core.members',
         ], $cards->pluck('key')->all());
 
         $cards->each(function (array $card): void {
@@ -1237,15 +1240,15 @@ class LoopChatTest extends TestCase
             ->assertDontSee(__('loops.ask_ai'));
     }
 
-    public function test_ask_ai_button_has_loading_state_bindings(): void
+    public function test_ask_question_form_has_loading_state_bindings(): void
     {
         $this->actingAs($this->member)
             ->get(route('loops.show', $this->loop))
             ->assertOk()
-            ->assertSeeHtml('x-bind:disabled="submitting"')
-            ->assertSeeHtml('x-on:submit="submitting = true"')
-            ->assertSeeHtml('x-show="submitting"')
-            ->assertSeeHtml('x-show="!submitting"');
+            ->assertSeeHtml('x-bind:disabled="asking"')
+            ->assertSeeHtml('x-on:submit="asking = true"')
+            ->assertSeeHtml('x-show="asking"')
+            ->assertSeeHtml('x-show="!asking"');
     }
 
     public function test_member_sees_ask_question_button(): void
