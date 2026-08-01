@@ -100,7 +100,22 @@ return [
             'empty_body' => 'La Roadmap affichera bientôt une liste simple d’actions, sans table ni migration dans ce lot.',
             'action' => 'Ajouter une action',
         ],
+        'members' => [
+            'label' => 'Membres',
+            'description' => 'Les membres de cette Boucle et l’invitation par email.',
+            'empty_title' => 'Aucun membre actif',
+            'empty_body' => 'Invitez les premières personnes à rejoindre la Boucle.',
+            'action' => 'Inviter',
+        ],
     ],
+    'members_count' => ':count membre(s) actif(s)',
+    'members_invite_title' => 'Inviter par email',
+    'members_invite_email_placeholder' => 'adresse@email.com',
+    'members_invite_name_placeholder' => 'Prénom Nom (optionnel)',
+    'members_invite_submit' => 'Envoyer l’invitation',
+    'members_role_owner' => 'Propriétaire',
+    'members_role_moderator' => 'Modérateur',
+    'members_role_member' => 'Membre',
 
     // Landing / explanation page
     'landing_hero_title' => 'Avancer avec les bonnes personnes, au bon endroit.',

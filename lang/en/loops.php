@@ -100,7 +100,22 @@ return [
             'empty_body' => 'The Roadmap will soon show a simple action list, without table or migration in this batch.',
             'action' => 'Add an action',
         ],
+        'members' => [
+            'label' => 'Members',
+            'description' => 'The members of this Loop and email invitations.',
+            'empty_title' => 'No active member',
+            'empty_body' => 'Invite the first people to join the Loop.',
+            'action' => 'Invite',
+        ],
     ],
+    'members_count' => ':count active member(s)',
+    'members_invite_title' => 'Invite by email',
+    'members_invite_email_placeholder' => 'name@email.com',
+    'members_invite_name_placeholder' => 'First name Last name (optional)',
+    'members_invite_submit' => 'Send invitation',
+    'members_role_owner' => 'Owner',
+    'members_role_moderator' => 'Moderator',
+    'members_role_member' => 'Member',
 
     // Landing / explanation page
     'landing_hero_title' => 'Move forward with the right people, in the right place.',

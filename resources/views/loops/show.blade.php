@@ -23,7 +23,14 @@
         'core.ai_summary' => 'bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300',
         'core.manifesto' => 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300',
         'core.roadmap' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300',
+        'core.members' => 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300',
     ];
+    $loopMembers = $currentLoop->members->where('status', 'active')->sortBy(fn ($m) => match ($m->role) {
+        'owner' => 0, 'moderator' => 1, default => 2,
+    });
+    $inviteAction = ($_org && request()->routeIs('organization.*') && Route::has('organization.points.invitation.send'))
+        ? route('organization.points.invitation.send', ['organization' => $_org])
+        : route('points.invitation.send');
     $canUseWorkspaceCards = $isMember || (bool) auth()->user()?->is_admin;
     $workspaceCards = collect(config('loop_cards.cards', []))
         ->filter(fn ($card) => (bool) ($card['default_enabled'] ?? false))
@@ -390,7 +397,7 @@
                                                 </a>
                                             </div>
                                         @endif
-                                    @else
+                                    @elseif($card['key'] === 'core.roadmap')
                                         {{-- To-do (Roadmap) — ready-to-branch client list, no persistence/migration yet --}}
                                         <div class="space-y-4">
                                             <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
@@ -432,6 +439,57 @@
                                             <p class="text-center text-[11px] text-gray-400 dark:text-gray-500">
                                                 <span x-text="todoRemaining"></span> {{ __('loops.roadmap_remaining') }}
                                             </p>
+                                        </div>
+                                    @elseif($card['key'] === 'core.members')
+                                        {{-- Members list + email invitation --}}
+                                        <div class="space-y-4">
+                                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+                                                <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __($card['label_key']) }}</p>
+                                                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('loops.members_count', ['count' => $loopMembers->count()]) }}</p>
+                                            </div>
+
+                                            @if($loopMembers->isEmpty())
+                                                <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                                                    {{ __($card['empty_title_key']) }}
+                                                </div>
+                                            @else
+                                                <ul class="space-y-2">
+                                                    @foreach($loopMembers as $member)
+                                                        @php
+                                                            $mUser = $member->user;
+                                                            $mAvatar = $mUser?->isDisplayableIn(currentOrganization()) ? $mUser?->avatar_url : null;
+                                                            $roleLabel = __('loops.members_role_'.($member->role ?: 'member'));
+                                                        @endphp
+                                                        <li class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+                                                            @if($mAvatar)
+                                                                <img src="{{ $mAvatar }}" alt="" class="h-8 w-8 shrink-0 rounded-full object-cover">
+                                                            @else
+                                                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-600 dark:bg-violet-500/20 dark:text-violet-300">{{ mb_strtoupper(mb_substr($mUser?->publicDisplayName() ?? '?', 0, 1)) }}</span>
+                                                            @endif
+                                                            <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-800 dark:text-gray-100">{{ $mUser?->publicDisplayName() ?? 'BouclePro' }}</span>
+                                                            <span class="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">{{ $roleLabel }}</span>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            @endif
+
+                                            <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                                                <p class="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                                    <svg class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
+                                                    {{ __('loops.members_invite_title') }}
+                                                </p>
+                                                <form method="POST" action="{{ $inviteAction }}" class="mt-3 space-y-2">
+                                                    @csrf
+                                                    <input type="email" name="recipient_email" required placeholder="{{ __('loops.members_invite_email_placeholder') }}"
+                                                           class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                                                    <input type="text" name="recipient_name" maxlength="255" placeholder="{{ __('loops.members_invite_name_placeholder') }}"
+                                                           class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                                                    <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700">
+                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>
+                                                        {{ __('loops.members_invite_submit') }}
+                                                    </button>
+                                                </form>
+                                            </div>
                                         </div>
                                     @endif
                                 </section>

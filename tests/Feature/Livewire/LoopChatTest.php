@@ -1223,6 +1223,7 @@ class LoopChatTest extends TestCase
             'core.ai_summary',
             'core.manifesto',
             'core.roadmap',
+            'core.members',
         ], $cards->pluck('key')->all());
 
         $cards->each(function (array $card): void {
