@@ -194,6 +194,7 @@ return [
         'enabled' => (bool) env('CHATLOOP_AI_ENABLED', true),
         'scenario' => env('CHATLOOP_AI_SCENARIO', 'chatloop_ai_answer'),
         'ask_scenario' => env('CHATLOOP_AI_ASK_SCENARIO', 'chatloop_ai_ask'),
+        'summarize_scenario' => env('CHATLOOP_AI_SUMMARIZE_SCENARIO', 'chatloop_ai_summarize'),
         'min_summary_words' => (int) env('CHATLOOP_AI_MIN_SUMMARY_WORDS', 30),
         'max_context_messages' => (int) env('CHATLOOP_AI_MAX_CONTEXT_MESSAGES', 30),
         'max_context_chars' => (int) env('CHATLOOP_AI_MAX_CONTEXT_CHARS', 12000),

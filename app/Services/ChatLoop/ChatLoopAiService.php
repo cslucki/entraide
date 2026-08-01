@@ -87,6 +87,89 @@ class ChatLoopAiService
         }
     }
 
+    public function summarize(Loop $loop, User $requester): LoopMessage
+    {
+        $this->assertCanRequest($loop, $requester);
+
+        $lockKey = 'chatloop_ai_lock:'.$loop->id;
+
+        $lockTtl = max(
+            (int) config('ai.chatloop.lock_ttl', 90),
+            (int) config('ai.chatloop.timeout', 30) + 30,
+        );
+
+        if (! Cache::add($lockKey, true, $lockTtl)) {
+            throw new \RuntimeException(__('loops.ai_generation_in_progress'));
+        }
+
+        try {
+            $locale = $this->resolveLocale($requester, $loop);
+
+            if (! $this->loopHasEnoughContent($loop)) {
+                throw new \RuntimeException(__('loops.not_enough_content_to_summarize'));
+            }
+
+            $scenarioId = (string) config('ai.chatloop.summarize_scenario', 'chatloop_ai_summarize');
+            $systemPrompt = $this->resolvePrompt($scenarioId, $locale);
+
+            [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop, $locale);
+
+            $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $context);
+
+            $answer = AiMarkdownSanitizer::sanitize(
+                $ai['content'],
+                (int) config('ai.chatloop.max_response_chars', 1400),
+            );
+
+            if ($answer === '') {
+                throw new \RuntimeException(__('loops.ai_empty_response'));
+            }
+
+            return DB::transaction(function () use ($loop, $requester, $answer, $ai, $contextMessageIds, $triggerMessageId) {
+                $message = LoopMessage::create([
+                    'loop_id' => $loop->id,
+                    'sender_id' => null,
+                    'reply_to_id' => null,
+                    'body' => $answer,
+                    'image_path' => null,
+                    'type' => 'ai',
+                    'metadata' => [
+                        'requested_by' => $requester->id,
+                        'action' => 'summarize',
+                        'context_message_ids' => $contextMessageIds,
+                        'trigger_message_id' => $triggerMessageId,
+                        'provider' => $ai['provider'],
+                        'model' => $ai['model'],
+                        'ai_interaction_id' => $ai['ai_interaction_id'],
+                    ],
+                    'organization_id' => $loop->organization_id,
+                ]);
+
+                event(new LoopMessageCreated($message));
+
+                $loop->touch();
+
+                return $message;
+            });
+        } finally {
+            Cache::forget($lockKey);
+        }
+    }
+
+    /**
+     * Latest AI summary of the loop (metadata.action = 'summarize'), if any.
+     */
+    public function latestSummary(Loop $loop): ?LoopMessage
+    {
+        return $loop->messages()
+            ->where('type', 'ai')
+            ->where('metadata->action', 'summarize')
+            ->notDeleted()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
     public function ask(Loop $loop, User $requester, string $question): LoopMessage
     {
         $this->assertCanRequest($loop, $requester);
@@ -298,11 +381,18 @@ class ChatLoopAiService
     private function resolvePrompt(string $scenarioId, string $locale): string
     {
         $isAskScenario = $scenarioId === config('ai.chatloop.ask_scenario');
+        $isSummarizeScenario = $scenarioId === config('ai.chatloop.summarize_scenario');
+
+        $fallback = match (true) {
+            $isSummarizeScenario => $this->summarizeFallbackPrompt($locale),
+            $isAskScenario => $this->askFallbackPrompt($locale),
+            default => $this->fallbackPrompt($locale),
+        };
 
         $prompt = $this->findActivePrompt($scenarioId.'_'.$locale)
             ?? $this->findActivePrompt($scenarioId.'_fr')
             ?? $this->findActivePrompt($scenarioId)
-            ?? ($isAskScenario ? $this->askFallbackPrompt($locale) : $this->fallbackPrompt($locale));
+            ?? $fallback;
 
         $languageInstruction = $locale === 'en'
             ? "\n\nIMPORTANT: You MUST answer in English, whatever the language used in the conversation. Never reply in another language. Always finish your answer with a complete final sentence; never leave the answer unfinished or truncated."
@@ -343,6 +433,35 @@ class ChatLoopAiService
             .'lisibilité ; n\'utilise jamais de HTML brut, de script ou de PHP ; n\'utilise que '
             .'des URL http:// ou https:// ; n\'invente jamais de faits absents du contexte ou de '
             .'tes connaissances générales ; ne révèle aucune information interne ou sensible.';
+    }
+
+    private function summarizeFallbackPrompt(string $locale): string
+    {
+        if ($locale === 'en') {
+            return 'You are a helpful assistant inside a BouclePro loop, a private discussion space '
+                .'shared by members of the same organization. Produce a concise, structured summary '
+                .'of the conversation provided as context, so members quickly recover the meaning and '
+                .'decisions of the Loop. Focus on: key points discussed, decisions made, open questions, '
+                .'and next steps if any. Rules: answer in English; be faithful to the context and never '
+                .'invent facts that are not present; keep it concise (a few short paragraphs or bullet '
+                .'lists); use light Markdown only when it genuinely helps readability: ## or ### '
+                .'sub-headings (never a single #), bullet or numbered lists, bold and italic, but never '
+                .'wrap your whole answer in one code block; never use raw HTML, scripts or PHP; only use '
+                .'http:// or https:// URLs; never reveal any internal or sensitive information.';
+        }
+
+        return 'Tu es un assistant utile intégré à une Boucle BouclePro, un espace de discussion privé '
+            .'partagé par les membres d\'une même organisation. Produis une synthèse concise et '
+            .'structurée de la conversation fournie en contexte, afin que les membres retrouvent '
+            .'rapidement le sens et les décisions de la Boucle. Mets en avant : les points clés '
+            .'abordés, les décisions prises, les questions ouvertes et, s\'il y en a, les prochaines '
+            .'étapes. Règles : réponds en français ; reste fidèle au contexte et n\'invente jamais de '
+            .'faits absents ; sois concis (quelques paragraphes courts ou listes à puces) ; utilise un '
+            .'Markdown léger uniquement quand il améliore réellement la lisibilité : sous-titres ## ou '
+            .'### (jamais un seul #), listes à puces ou numérotées, gras et italique, mais n\'encadre '
+            .'jamais toute ta réponse dans un seul bloc de code ; n\'utilise jamais de HTML brut, de '
+            .'script ou de PHP ; n\'utilise que des URL http:// ou https:// ; ne révèle aucune '
+            .'information interne ou sensible.';
     }
 
     private function findActivePrompt(string $scenarioId): ?string

@@ -29,6 +29,21 @@ class SeedChatLoopAiPromptsTest extends TestCase
         $this->assertStringContainsString('English', $en->prompt_text);
     }
 
+    public function test_first_run_creates_summarize_prompts(): void
+    {
+        $this->artisan('ai:seed-chatloop-ai-prompts')->assertSuccessful();
+
+        $fr = AdminAiPrompt::active()->where('scenario_id', 'chatloop_ai_summarize_fr')->first();
+        $en = AdminAiPrompt::active()->where('scenario_id', 'chatloop_ai_summarize_en')->first();
+
+        $this->assertNotNull($fr);
+        $this->assertNotNull($en);
+        $this->assertTrue($fr->is_active);
+        $this->assertTrue($en->is_active);
+        $this->assertStringContainsString('synthèse', $fr->prompt_text);
+        $this->assertStringContainsString('summary', $en->prompt_text);
+    }
+
     public function test_second_run_without_changes_does_not_create_duplicates(): void
     {
         $this->artisan('ai:seed-chatloop-ai-prompts')->assertSuccessful();

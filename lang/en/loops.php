@@ -63,12 +63,18 @@ return [
     'cards_panel_back_to_chat' => 'Back to ChatLoop',
     'cards_panel_temporary_state' => 'Temporary state',
     'cards_panel_coming_soon' => 'Coming soon',
+    'ai_summary_generate' => 'Generate summary',
+    'ai_summary_regenerate' => 'Regenerate summary',
+    'ai_summary_generating' => 'Generating summary…',
+    'ai_summary_updated_at' => 'Updated on :date',
+    'ai_summary_requested_by' => 'Requested by :name',
+    'ai_summary_rate_limited' => 'Too many summary requests. Try again in a minute.',
     'cards' => [
         'ai_summary' => [
             'label' => 'AI Summary',
             'description' => 'Condenses the useful exchanges in this Loop.',
             'empty_title' => 'No summary yet',
-            'empty_body' => 'The AI summary will be generated in a later step. ChatLoop remains the living center of the Loop.',
+            'empty_body' => 'No summary has been generated for this Loop yet. ChatLoop remains the living center of the Loop.',
             'action' => 'Regenerate',
         ],
         'manifesto' => [

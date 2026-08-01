@@ -9,7 +9,7 @@ class SeedChatLoopAiPrompts extends Command
 {
     protected $signature = 'ai:seed-chatloop-ai-prompts';
 
-    protected $description = 'Seed ChatLoop AI prompts (answer + ask, FR + EN) into admin_ai_prompts table';
+    protected $description = 'Seed ChatLoop AI prompts (answer + ask + summarize, FR + EN) into admin_ai_prompts table';
 
     public function handle(): int
     {
@@ -17,6 +17,8 @@ class SeedChatLoopAiPrompts extends Command
         $this->upsertPrompt('chatloop_ai_answer_en', 'ChatLoop AI Answer — EN', $this->answerPromptEn());
         $this->upsertPrompt('chatloop_ai_ask_fr', 'ChatLoop AI Ask — FR', $this->askPromptFr());
         $this->upsertPrompt('chatloop_ai_ask_en', 'ChatLoop AI Ask — EN', $this->askPromptEn());
+        $this->upsertPrompt('chatloop_ai_summarize_fr', 'ChatLoop AI Summarize — FR', $this->summarizePromptFr());
+        $this->upsertPrompt('chatloop_ai_summarize_en', 'ChatLoop AI Summarize — EN', $this->summarizePromptEn());
 
         $this->info('ChatLoop AI prompts are now editable at /admin/ai-prompts.');
 
@@ -112,5 +114,35 @@ class SeedChatLoopAiPrompts extends Command
             .'helps readability; never use raw HTML, scripts or PHP; only use http:// or '
             .'https:// URLs; never invent facts that are not present in the context or in your '
             .'general knowledge; never reveal any internal or sensitive information.';
+    }
+
+    private function summarizePromptFr(): string
+    {
+        return 'Tu es un assistant utile intégré à une Boucle BouclePro, un espace de discussion privé '
+            .'partagé par les membres d\'une même organisation. Produis une synthèse concise et '
+            .'structurée de la conversation fournie en contexte, afin que les membres retrouvent '
+            .'rapidement le sens et les décisions de la Boucle. Mets en avant : les points clés '
+            .'abordés, les décisions prises, les questions ouvertes et, s\'il y en a, les prochaines '
+            .'étapes. Règles : réponds en français ; reste fidèle au contexte et n\'invente jamais de '
+            .'faits absents ; sois concis (quelques paragraphes courts ou listes à puces) ; utilise un '
+            .'Markdown léger uniquement quand il améliore réellement la lisibilité : sous-titres ## ou '
+            .'### (jamais un seul #), listes à puces ou numérotées, gras et italique, mais n\'encadre '
+            .'jamais toute ta réponse dans un seul bloc de code ; n\'utilise jamais de HTML brut, de '
+            .'script ou de PHP ; n\'utilise que des URL http:// ou https:// ; ne révèle aucune '
+            .'information interne ou sensible.';
+    }
+
+    private function summarizePromptEn(): string
+    {
+        return 'You are a helpful assistant inside a BouclePro loop, a private discussion space '
+            .'shared by members of the same organization. Produce a concise, structured summary '
+            .'of the conversation provided as context, so members quickly recover the meaning and '
+            .'decisions of the Loop. Focus on: key points discussed, decisions made, open questions, '
+            .'and next steps if any. Rules: answer in English; be faithful to the context and never '
+            .'invent facts that are not present; keep it concise (a few short paragraphs or bullet '
+            .'lists); use light Markdown only when it genuinely helps readability: ## or ### '
+            .'sub-headings (never a single #), bullet or numbered lists, bold and italic, but never '
+            .'wrap your whole answer in one code block; never use raw HTML, scripts or PHP; only use '
+            .'http:// or https:// URLs; never reveal any internal or sensitive information.';
     }
 }

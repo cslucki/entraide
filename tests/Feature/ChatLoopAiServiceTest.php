@@ -128,6 +128,85 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertEquals($interaction->id, $message->metadata['ai_interaction_id']);
     }
 
+    public function test_summarize_persists_ai_message_with_summarize_action(): void
+    {
+        $message = $this->service()->summarize($this->loop, $this->member);
+
+        $this->assertEquals('ai', $message->type);
+        $this->assertNull($message->sender_id);
+        $this->assertEquals('summarize', $message->metadata['action']);
+        $this->assertEquals($this->member->id, $message->metadata['requested_by']);
+        $this->assertEquals($this->loop->organization_id, $message->organization_id);
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'type' => 'ai',
+            'body' => 'Réponse de l\'IA.',
+        ]);
+
+        $interaction = AiInteraction::query()->latest('id')->first();
+        $this->assertNotNull($interaction);
+        $this->assertEquals('chatloop_ai_summarize', $interaction->feature);
+    }
+
+    public function test_summarize_refuses_a_non_member(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        try {
+            $this->service()->summarize($this->loop, $this->nonMember);
+        } finally {
+            $this->assertNoAiMessage();
+        }
+    }
+
+    public function test_summarize_refuses_a_cross_organization_user(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        try {
+            $this->service()->summarize($this->loop, $this->crossUser);
+        } finally {
+            $this->assertNoAiMessage();
+        }
+    }
+
+    public function test_summarize_requires_enough_content(): void
+    {
+        config(['ai.chatloop.min_summary_words' => 30]);
+
+        // Empty loop → not enough content.
+        $this->expectException(\RuntimeException::class);
+
+        try {
+            $this->service()->summarize($this->loop, $this->member);
+        } finally {
+            $this->assertNoAiMessage();
+        }
+    }
+
+    public function test_latest_summary_returns_last_summarize_ignoring_answer_and_deleted(): void
+    {
+        // An answer message must not be picked as a summary.
+        $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNull($this->service()->latestSummary($this->loop));
+
+        $first = $this->service()->summarize($this->loop, $this->member);
+        $second = $this->service()->summarize($this->loop, $this->member);
+
+        $latest = $this->service()->latestSummary($this->loop);
+        $this->assertNotNull($latest);
+        $this->assertSame($second->id, $latest->id);
+
+        // A deleted latest summary is ignored.
+        $second->update(['deleted_at' => now(), 'deleted_by' => $this->member->id]);
+
+        $latestAfterDelete = $this->service()->latestSummary($this->loop);
+        $this->assertNotNull($latestAfterDelete);
+        $this->assertSame($first->id, $latestAfterDelete->id);
+    }
+
     public function test_it_limits_context_to_the_last_thirty_messages(): void
     {
         for ($i = 1; $i <= 35; $i++) {
