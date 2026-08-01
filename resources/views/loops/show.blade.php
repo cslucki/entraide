@@ -55,8 +55,10 @@
         }
     }
     @media (min-width: 768px) {
+        /* No top app header on this page (loops.show sets no $header slot), so the
+           workspace fills the full viewport height — otherwise ~5rem stays empty. */
         .loops-show-container {
-            height: calc(100vh - 5rem);
+            height: 100dvh;
         }
         /* Full-width workspace on desktop: drop the max-w-7xl / page padding so the
            two cards use the whole available width instead of a narrow centred column. */
