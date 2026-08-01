@@ -9,6 +9,12 @@
         return route('loops.'.$name, $params);
     };
     $_aiRoute = $_loopRoute('ai', ['loop' => $currentLoop]);
+    $canUseWorkspaceCards = $isMember || (bool) auth()->user()?->is_admin;
+    $workspaceCards = collect(config('loop_cards.cards', []))
+        ->filter(fn ($card) => (bool) ($card['default_enabled'] ?? false))
+        ->when(! $canUseWorkspaceCards, fn ($cards) => $cards->filter(fn () => false))
+        ->sortBy('order')
+        ->values();
 @endphp
 
 @push('head')
@@ -43,7 +49,13 @@
 
 <x-app-layout :title="$currentLoop->name">
     <x-page-container class="loops-show-wrapper">
-        <div class="loops-show-container h-dvh flex flex-col bg-white dark:bg-gray-800">
+        <div
+            x-data="{ activeCard: null, openCard(card) { this.activeCard = this.activeCard === card ? null : card }, closeCard() { this.activeCard = null } }"
+            x-effect="document.body.style.overflow = activeCard && window.matchMedia('(max-width: 1023px)').matches ? 'hidden' : ''"
+            @keydown.escape.window="closeCard()"
+            class="loops-show-container h-dvh flex flex-col bg-white dark:bg-gray-800"
+            data-loop-workspace-shell
+        >
 
         {{-- Topbar --}}
         <div class="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
@@ -184,9 +196,119 @@
             </div>
         @endif
 
-        {{-- Messages + Composer (Livewire) --}}
-        <div class="flex-1 flex flex-col min-h-0">
-            @livewire('loop-chat', ['loop' => $loop], key('loop-chat-'.$loop->id))
+        {{-- Boucle Workspace Cards shell --}}
+        @if($workspaceCards->isNotEmpty())
+            <div class="flex-shrink-0 border-b border-gray-200 bg-gray-50/80 px-4 py-2 dark:border-gray-700 dark:bg-gray-900/30">
+                <div class="flex items-center gap-3 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <div class="hidden shrink-0 sm:block">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('loops.cards_bar_label') }}</p>
+                        <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ __('loops.cards_bar_hint') }}</p>
+                    </div>
+
+                    <div class="flex min-w-0 flex-1 items-center gap-2">
+                        @foreach($workspaceCards as $card)
+                            <button
+                                type="button"
+                                x-on:click="openCard(@js($card['key']))"
+                                x-bind:aria-pressed="activeCard === @js($card['key'])"
+                                x-bind:class="activeCard === @js($card['key']) ? 'border-violet-200 bg-violet-50 text-violet-800 shadow-sm dark:border-violet-700/70 dark:bg-violet-900/30 dark:text-violet-100' : 'border-gray-200 bg-white text-gray-600 hover:border-violet-200 hover:text-violet-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-violet-700 dark:hover:text-violet-200'"
+                                class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition"
+                            >
+                                <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300" aria-hidden="true">
+                                    @switch($card['icon'] ?? '')
+                                        @case('sparkles')
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
+                                            @break
+                                        @case('document')
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-6a2.25 2.25 0 0 0-.659-1.591l-3-3A2.25 2.25 0 0 0 14.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25v-4.5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3v4.5h4.5"/></svg>
+                                            @break
+                                        @case('map')
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18-6 3V6l6-3m0 15 6 3m-6-3V3m6 18 6-3V3l-6 3m0 15V6m0 0L9 3"/></svg>
+                                            @break
+                                        @default
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m0 0 3-3m-3 3-3-3M15 9v8.25M15 17.25l3-3m-3 3-3-3"/></svg>
+                                    @endswitch
+                                </span>
+                                <span>{{ __($card['label_key']) }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- Messages + Composer (Livewire) + Cards panel --}}
+        <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
+            <div
+                x-bind:class="activeCard ? 'lg:basis-3/5 lg:max-w-[60%]' : 'lg:basis-full lg:max-w-full'"
+                x-bind:data-card-active="activeCard ? 'true' : 'false'"
+                class="flex min-h-0 flex-1 flex-col transition-[flex-basis,max-width] duration-200"
+                data-loop-workspace-chat
+            >
+                @livewire('loop-chat', ['loop' => $currentLoop], key('loop-chat-'.$currentLoop->id))
+            </div>
+
+            @if($workspaceCards->isNotEmpty())
+                <aside
+                    x-show="activeCard"
+                    x-cloak
+                    x-transition.opacity.duration.150ms
+                    class="fixed inset-0 z-40 flex flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900 lg:relative lg:inset-auto lg:z-auto lg:w-[40%] lg:max-w-[40%] lg:shadow-none"
+                    aria-label="{{ __('loops.cards_bar_label') }}"
+                    data-loop-workspace-panel
+                >
+                    <div class="flex min-h-0 flex-1 flex-col">
+                        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                            <button
+                                type="button"
+                                x-on:click="closeCard()"
+                                class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200 lg:hidden"
+                            >
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                                {{ __('loops.cards_panel_back_to_chat') }}
+                            </button>
+
+                            <p class="hidden text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 lg:block">{{ __('loops.cards_bar_label') }}</p>
+
+                            <button
+                                type="button"
+                                x-on:click="closeCard()"
+                                class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                                aria-label="{{ __('loops.cards_panel_close') }}"
+                            >
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+
+                        <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+                            @foreach($workspaceCards as $card)
+                                <section x-show="activeCard === @js($card['key'])" x-cloak class="space-y-5">
+                                    <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+                                        <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __('loops.cards_panel_temporary_state') }}</p>
+                                        <h2 class="mt-2 text-lg font-semibold text-gray-950 dark:text-gray-50">{{ __($card['label_key']) }}</h2>
+                                        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __($card['description_key']) }}</p>
+                                    </div>
+
+                                    <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center dark:border-gray-700 dark:bg-gray-900">
+                                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-200">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0z"/></svg>
+                                        </div>
+                                        <h3 class="mt-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __($card['empty_title_key']) }}</h3>
+                                        <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __($card['empty_body_key']) }}</p>
+                                        <button
+                                            type="button"
+                                            disabled
+                                            class="mt-5 inline-flex items-center justify-center rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-xs font-semibold text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
+                                        >
+                                            {{ __($card['action_key']) }} · {{ __('loops.cards_panel_coming_soon') }}
+                                        </button>
+                                    </div>
+                                </section>
+                            @endforeach
+                        </div>
+                    </div>
+                </aside>
+            @endif
         </div>
 
         <x-conversation.image-lightbox key="loop-chat" />

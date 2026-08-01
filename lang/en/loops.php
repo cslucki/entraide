@@ -56,6 +56,37 @@ return [
     'continue_to_exchanges' => 'Continue to Exchanges',
     'clarification_disabled' => 'AI clarification is not enabled for this organization.',
 
+    // Boucle Workspace Cards
+    'cards_bar_label' => 'Loop Cards',
+    'cards_bar_hint' => 'Open an artifact without leaving ChatLoop',
+    'cards_panel_close' => 'Close panel',
+    'cards_panel_back_to_chat' => 'Back to ChatLoop',
+    'cards_panel_temporary_state' => 'Temporary state',
+    'cards_panel_coming_soon' => 'Coming soon',
+    'cards' => [
+        'ai_summary' => [
+            'label' => 'AI Summary',
+            'description' => 'Condenses the useful exchanges in this Loop.',
+            'empty_title' => 'No summary yet',
+            'empty_body' => 'The AI summary will be generated in a later step. ChatLoop remains the living center of the Loop.',
+            'action' => 'Regenerate',
+        ],
+        'manifesto' => [
+            'label' => 'Manifesto',
+            'description' => 'Keeps the meaning, principles, and reference decisions.',
+            'empty_title' => 'No Manifesto yet',
+            'empty_body' => 'Manifesto creation is deferred to first use in a dedicated task.',
+            'action' => 'Create Manifesto',
+        ],
+        'roadmap' => [
+            'label' => 'Roadmap',
+            'description' => 'Prepares the next collective actions for the Loop.',
+            'empty_title' => 'No action yet',
+            'empty_body' => 'The Roadmap will soon show a simple action list, without table or migration in this batch.',
+            'action' => 'Add an action',
+        ],
+    ],
+
     // Landing / explanation page
     'landing_hero_title' => 'Move forward with the right people, in the right place.',
     'landing_hero_desc' => 'A Loop brings Members together around a need, a topic, or a project. It provides clear context to read, contribute, and move forward together within an Organization.',
