@@ -1,10 +1,23 @@
 <div wire:poll.3s class="flex-1 flex flex-col min-h-0" x-on:reply-to-message.window="$wire.replyTo($event.detail.messageId)">
+    <x-conversation.pinned-message-banner
+        :pinned-message="$pinnedMessage"
+        :can-unpin="$isMember"
+    />
+
     <x-conversation.message-list :has-messages="$messages->isNotEmpty()">
         <x-slot:messages>
-            <x-conversation.pinned-message-banner
-                :pinned-message="$pinnedMessage"
-                :can-unpin="$isMember"
-            />
+            @if($hasOlderMessages)
+                <div class="flex justify-center pb-3">
+                    <button
+                        type="button"
+                        x-on:click="$dispatch('loading-older')"
+                        wire:click="loadOlderMessages"
+                        class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm transition hover:border-violet-200 hover:text-violet-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:text-violet-300"
+                    >
+                        {{ __('messages.load_previous_messages') }}
+                    </button>
+                </div>
+            @endif
 
             @forelse($messages as $msg)
                 @php
@@ -12,14 +25,64 @@
                     $senderDisplayable = $msg->sender?->isDisplayableIn(currentOrganization()) ?? false;
                     $senderName = $msg->sender?->publicDisplayName() ?? 'BouclePro';
                     $replySenderName = $msg->replyTo?->sender?->publicDisplayName() ?? 'BouclePro';
+                    $replyBody = $msg->replyTo?->isDeleted()
+                        ? __('messages.deleted_message_placeholder')
+                        : mb_substr((string) ($msg->replyTo?->body ?? ''), 0, 120);
+                    $isDeleted = $msg->isDeleted();
+                    $canEdit = $isMember && auth()->user() && $msg->isEditableBy(auth()->user());
                 @endphp
-                <div wire:key="msg-{{ $msg->id }}">
-                    @if($msg->type === 'help_request')
+                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300">
+                    @if($isDeleted)
+                        <x-conversation.message-bubble
+                            :type="$isOwn ? 'sent' : 'received'"
+                            :time="$msg->created_at->diffForHumans()"
+                            :name="$isOwn ? __('messages.me') : $senderName"
+                            :message-id="$msg->id"
+                            :reply-to="$msg->replyTo ? ['body' => $replyBody, 'sender_name' => $replySenderName] : null"
+                        >
+                            {{ __('messages.deleted_message_placeholder') }}
+                        </x-conversation.message-bubble>
+                    @elseif($editingMessageId === $msg->id)
+                        <div class="flex justify-end">
+                            <form wire:submit="saveEdit" class="w-full max-w-[90%] sm:max-w-md md:max-w-lg rounded-2xl rounded-br-sm bg-indigo-600 p-3 text-white shadow-sm">
+                                <textarea
+                                    wire:model="editingBody"
+                                    rows="3"
+                                    class="w-full rounded-lg border-indigo-400 bg-white/95 text-sm text-gray-900 focus:border-white focus:ring-white"
+                                ></textarea>
+                                @error('editingBody')
+                                    <p class="mt-1 text-xs text-indigo-100">{{ $message }}</p>
+                                @enderror
+                                <div class="mt-2 flex justify-end gap-2">
+                                    <button type="button" wire:click="cancelEdit" class="text-xs font-medium text-indigo-100 hover:text-white">
+                                        {{ __('messages.cancel_edit') }}
+                                    </button>
+                                    <button type="submit" class="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">
+                                        {{ __('messages.save') }}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    @elseif($msg->type === 'help_request')
                         @php $meta = $msg->metadata ?? []; @endphp
                         <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl p-4 space-y-2">
-                            <div class="flex items-center gap-2">
-                                <span class="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">{{ __('loops.help_request_badge') }}</span>
-                                <span class="text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">{{ __('loops.help_request_badge') }}</span>
+                                    <span class="text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                                    @if($msg->edited_at)
+                                        <span class="text-[10px] text-gray-400 dark:text-gray-500">{{ __('messages.edited') }}</span>
+                                    @endif
+                                </div>
+                                @if($canDeleteMessages)
+                                    <button
+                                        wire:click="deleteMessage('{{ $msg->id }}')"
+                                        wire:confirm="{{ __('messages.delete_confirm') }}"
+                                        class="text-[11px] text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition"
+                                    >
+                                        {{ __('messages.delete') }}
+                                    </button>
+                                @endif
                             </div>
                             <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $meta['title'] ?? __('loops.help_request_badge') }}</h3>
                             <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{{ $msg->body }}</p>
@@ -48,11 +111,13 @@
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
+                            :show-delete-button="$canDeleteMessages"
                             :is-pinned="$pinnedMessage?->id === $msg->id"
+                            :is-edited="$msg->edited_at !== null"
                             :show-reactions="$isMember"
                             :reaction-counts="$reactionData[$msg->id] ?? []"
                             :my-reaction="$myReactions[$msg->id] ?? null"
-                            :reply-to="$msg->replyTo ? ['body' => mb_substr($msg->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
+                            :reply-to="$msg->replyTo ? ['body' => $replyBody, 'sender_name' => $replySenderName] : null"
                             is-ai="true"
                         >
                             {!! $msg->body !!}
@@ -66,11 +131,14 @@
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
+                            :show-edit-button="$canEdit"
+                            :show-delete-button="$canDeleteMessages"
                             :is-pinned="$pinnedMessage?->id === $msg->id"
+                            :is-edited="$msg->edited_at !== null"
                             :show-reactions="$isMember"
                             :reaction-counts="$reactionData[$msg->id] ?? []"
                             :my-reaction="$myReactions[$msg->id] ?? null"
-                            :reply-to="$msg->replyTo ? ['body' => mb_substr($msg->replyTo->body, 0, 120), 'sender_name' => $replySenderName] : null"
+                            :reply-to="$msg->replyTo ? ['body' => $replyBody, 'sender_name' => $replySenderName] : null"
                             :image-path="$msg->imageUrl()"
                             :url-preview="$msg->metadata['url_preview'] ?? null"
                         >

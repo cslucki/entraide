@@ -74,6 +74,48 @@ class LoopChatTest extends TestCase
             ->assertSee('Second message');
     }
 
+    public function test_component_initially_loads_only_the_latest_thirty_messages(): void
+    {
+        for ($i = 1; $i <= 35; $i++) {
+            LoopMessage::create([
+                'loop_id' => $this->loop->id,
+                'sender_id' => $this->member->id,
+                'body' => sprintf('Paged message %02d', $i),
+                'type' => 'user',
+                'organization_id' => $this->loop->organization_id,
+                'created_at' => now()->addMinutes($i),
+            ]);
+        }
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSee('Paged message 01')
+            ->assertSee('Paged message 06')
+            ->assertSee('Paged message 35')
+            ->assertSet('hasOlderMessages', true);
+    }
+
+    public function test_member_can_load_older_messages(): void
+    {
+        for ($i = 1; $i <= 35; $i++) {
+            LoopMessage::create([
+                'loop_id' => $this->loop->id,
+                'sender_id' => $this->member->id,
+                'body' => sprintf('Older batch message %02d', $i),
+                'type' => 'user',
+                'organization_id' => $this->loop->organization_id,
+                'created_at' => now()->addMinutes($i),
+            ]);
+        }
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSee('Older batch message 01')
+            ->call('loadOlderMessages')
+            ->assertSee('Older batch message 01')
+            ->assertSet('hasOlderMessages', false);
+    }
+
     public function test_empty_loop_shows_empty_state(): void
     {
         Livewire::actingAs($this->member)
@@ -210,6 +252,73 @@ class LoopChatTest extends TestCase
             'body' => 'Ma réponse',
             'reply_to_id' => $parent->id,
         ]);
+    }
+
+    public function test_author_can_edit_own_user_message(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message avant édition',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('editMessage', $message->id)
+            ->assertSet('editingMessageId', $message->id)
+            ->set('editingBody', 'Message après édition')
+            ->call('saveEdit')
+            ->assertSet('editingMessageId', null);
+
+        $fresh = $message->fresh();
+
+        $this->assertSame('Message après édition', $fresh->body);
+        $this->assertNotNull($fresh->edited_at);
+        $this->assertSame($this->member->id, $fresh->sender_id);
+        $this->assertSame($this->loop->id, $fresh->loop_id);
+        $this->assertSame($this->loop->organization_id, $fresh->organization_id);
+        $this->assertSame('user', $fresh->type);
+    }
+
+    public function test_non_author_cannot_edit_message(): void
+    {
+        $otherMember = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMember($this->loop, $otherMember);
+
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message protégé',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($otherMember)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('editMessage', $message->id)
+            ->set('editingBody', 'Modification interdite')
+            ->call('saveEdit');
+
+        $this->assertSame('Message protégé', $message->fresh()->body);
+        $this->assertNull($message->fresh()->edited_at);
+    }
+
+    public function test_ai_message_cannot_be_edited(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse IA',
+            'type' => 'ai',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('editMessage', $message->id)
+            ->assertSet('editingMessageId', null);
     }
 
     public function test_cancel_reply_clears_state(): void
@@ -579,6 +688,147 @@ class LoopChatTest extends TestCase
         $fresh = $msg->fresh();
         $this->assertNull($fresh->pinned_at);
         $this->assertNull($fresh->pinned_by_id);
+    }
+
+    public function test_owner_can_logically_delete_message_and_unpin_it(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message à supprimer logiquement',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+            'pinned_at' => now(),
+            'pinned_by_id' => $this->member->id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('deleteMessage', $message->id)
+            ->assertSee(__('messages.deleted_message_placeholder'))
+            ->assertDontSee('Message à supprimer logiquement');
+
+        $fresh = $message->fresh();
+
+        $this->assertNotNull($fresh->deleted_at);
+        $this->assertSame($this->member->id, $fresh->deleted_by);
+        $this->assertNull($fresh->pinned_at);
+        $this->assertNull($fresh->pinned_by_id);
+    }
+
+    public function test_regular_member_cannot_delete_message(): void
+    {
+        $regularMember = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMember($this->loop, $regularMember, 'member');
+
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message réservé à la modération',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($regularMember)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('deleteMessage', $message->id);
+
+        $this->assertNull($message->fresh()->deleted_at);
+    }
+
+    public function test_moderator_can_delete_message(): void
+    {
+        $moderator = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMember($this->loop, $moderator, 'moderator');
+
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message modéré',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($moderator)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('deleteMessage', $message->id);
+
+        $this->assertNotNull($message->fresh()->deleted_at);
+        $this->assertSame($moderator->id, $message->fresh()->deleted_by);
+    }
+
+    public function test_super_admin_can_delete_message_without_being_loop_member(): void
+    {
+        $admin = User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'is_admin' => true,
+        ]);
+
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message supprimé par super-admin',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('deleteMessage', $message->id);
+
+        $this->assertNotNull($message->fresh()->deleted_at);
+        $this->assertSame($admin->id, $message->fresh()->deleted_by);
+    }
+
+    public function test_deleted_message_hides_body_image_and_preview(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Secret supprimé à ne pas rendre',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+            'image_path' => 'message-images/'.$this->organization->id.'/secret.webp',
+            'metadata' => ['url_preview' => ['title' => 'Preview supprimée', 'domain' => 'example.test']],
+            'deleted_at' => now(),
+            'deleted_by' => $this->member->id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('messages.deleted_message_placeholder'))
+            ->assertDontSee($message->body)
+            ->assertDontSee('secret.webp')
+            ->assertDontSee('Preview supprimée');
+    }
+
+    public function test_pinned_message_can_load_its_target_when_outside_initial_batch(): void
+    {
+        $oldest = null;
+
+        for ($i = 1; $i <= 40; $i++) {
+            $message = LoopMessage::create([
+                'loop_id' => $this->loop->id,
+                'sender_id' => $this->member->id,
+                'body' => sprintf('Pinned target message %02d', $i),
+                'type' => 'user',
+                'organization_id' => $this->loop->organization_id,
+                'created_at' => now()->addMinutes($i),
+            ]);
+
+            $oldest ??= $message;
+        }
+
+        $oldest->pin($this->member);
+
+        $component = Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop]);
+
+        $this->assertNotContains($oldest->id, $component->instance()->loadedMessageIds);
+
+        $component->call('showMessageInThread', $oldest->id);
+
+        $this->assertContains($oldest->id, $component->instance()->loadedMessageIds);
     }
 
     public function test_non_member_cannot_pin_message(): void

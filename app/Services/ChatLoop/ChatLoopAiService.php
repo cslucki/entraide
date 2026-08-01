@@ -184,6 +184,7 @@ class ChatLoopAiService
         $words = 0;
 
         $loop->messages()
+            ->notDeleted()
             ->orderByDesc('created_at')
             ->limit($limit)
             ->pluck('body')
@@ -223,6 +224,7 @@ class ChatLoopAiService
 
         $messages = $loop->messages()
             ->with('sender')
+            ->notDeleted()
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get()

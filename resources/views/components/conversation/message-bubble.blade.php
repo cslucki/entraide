@@ -12,7 +12,10 @@
     'imagePath' => null,
     'urlPreview' => null,
     'showPinButton' => false,
+    'showEditButton' => false,
+    'showDeleteButton' => false,
     'isPinned' => false,
+    'isEdited' => false,
     'showReactions' => false,
     'reactionCounts' => [],
     'myReaction' => null,
@@ -105,10 +108,13 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />
         @endif
 
-        @if($time || ($messageId && ($showReplyButton || $showPinButton || $showReactions)))
+        @if($time || $isEdited || ($messageId && ($showReplyButton || $showPinButton || $showEditButton || $showDeleteButton || $showReactions)))
         <div class="flex items-center gap-3 mt-1 {{ $isSent ? 'justify-end' : 'justify-start' }}">
             @if($time)
             <span class="text-[10px] {{ $timeClasses }}">{{ $time }}</span>
+            @endif
+            @if($isEdited)
+            <span class="text-[10px] {{ $timeClasses }}">{{ __('messages.edited') }}</span>
             @endif
             @if($messageId && $showReplyButton)
             <button
@@ -140,6 +146,23 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
                     </svg>
                 </button>
                 @endif
+            @endif
+            @if($messageId && $showEditButton)
+            <button
+                wire:click="editMessage('{{ $messageId }}')"
+                class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' }} transition"
+            >
+                {{ __('messages.edit') }}
+            </button>
+            @endif
+            @if($messageId && $showDeleteButton)
+            <button
+                wire:click="deleteMessage('{{ $messageId }}')"
+                wire:confirm="{{ __('messages.delete_confirm') }}"
+                class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-red-600 dark:hover:text-red-400' }} transition"
+            >
+                {{ __('messages.delete') }}
+            </button>
             @endif
         </div>
         @endif

@@ -153,6 +153,54 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertEquals($expectedIds, array_values($message->metadata['context_message_ids']));
     }
 
+    public function test_deleted_messages_are_excluded_from_ai_context_and_trigger(): void
+    {
+        $kept = LoopMessage::factory()->create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message visible pour le contexte IA',
+            'organization_id' => $this->loop->organization_id,
+            'created_at' => now()->subMinute(),
+        ]);
+
+        $deleted = LoopMessage::factory()->create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Secret supprimé à exclure du contexte IA',
+            'organization_id' => $this->loop->organization_id,
+            'deleted_at' => now(),
+            'deleted_by' => $this->member->id,
+            'created_at' => now(),
+        ]);
+
+        $this->fakeHttpCapturingContext();
+
+        $message = $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($this->capturedContext);
+        $this->assertStringContainsString('Message visible pour le contexte IA', $this->capturedContext);
+        $this->assertStringNotContainsString('Secret supprimé à exclure du contexte IA', $this->capturedContext);
+        $this->assertContains($kept->id, $message->metadata['context_message_ids']);
+        $this->assertNotContains($deleted->id, $message->metadata['context_message_ids']);
+        $this->assertSame($kept->id, $message->metadata['trigger_message_id']);
+    }
+
+    public function test_deleted_messages_do_not_count_for_summary_content_guard(): void
+    {
+        config(['ai.chatloop.min_summary_words' => 5]);
+
+        LoopMessage::factory()->create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'un deux trois quatre cinq six',
+            'organization_id' => $this->loop->organization_id,
+            'deleted_at' => now(),
+            'deleted_by' => $this->member->id,
+        ]);
+
+        $this->assertFalse($this->service()->loopHasEnoughContent($this->loop));
+    }
+
     public function test_it_respects_the_context_char_budget(): void
     {
         config(['ai.chatloop.max_context_chars' => 200]);
