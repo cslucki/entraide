@@ -109,7 +109,8 @@
     @media (min-width: 1024px) {
         .chatloop-workspace {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) var(--ws-gap, 0px) var(--ws-col, 0px);
+            /* grid-template-columns is set inline via gridStyle() (Alpine) */
+            grid-template-columns: 1fr 0px 0px;
             align-items: stretch;
             padding: 4px 20px 20px;
         }
@@ -177,16 +178,11 @@
                 closeCard() { this.activeCard = null; this.focus = 'none' },
                 toggleChatFocus() { this.focus = this.focus === 'chat' ? 'none' : 'chat' },
                 toggleToolFocus() { this.focus = this.focus === 'tool' ? 'none' : 'tool' },
-                chatBasis() {
-                    if (!this.activeCard) return '100%';
-                    if (this.focus === 'tool') return '24%';
-                    if (this.focus === 'chat') return '76%';
-                    return (100 - this.wsWidth) + '%';
-                },
-                wsBasis() {
-                    if (this.focus === 'tool') return '76%';
-                    if (this.focus === 'chat') return '24%';
-                    return this.wsWidth + '%';
+                /* Desktop grid: expand isolates the focused card (the other disappears). */
+                gridStyle() {
+                    if (!this.activeCard || this.focus === 'chat') return 'grid-template-columns: 1fr 0px 0px';
+                    if (this.focus === 'tool') return 'grid-template-columns: 0px 0px 1fr';
+                    return 'grid-template-columns: minmax(0, 1fr) 14px ' + this.wsWidth + '%';
                 },
                 startResize(ev) {
                     if (!window.matchMedia('(min-width: 1024px)').matches) return;
@@ -271,9 +267,10 @@
             x-ref="panes"
             data-loop-workspace-panes
             x-bind:data-has-card="activeCard ? 'true' : 'false'"
-            x-bind:style="activeCard ? ('--ws-gap:14px;--ws-col:' + wsBasis()) : '--ws-gap:0px;--ws-col:0px'"
+            x-bind:style="gridStyle()"
         >
             <div
+                x-show="focus !== 'tool'"
                 x-bind:data-card-active="activeCard ? 'true' : 'false'"
                 class="chatloop-thread-panel"
                 data-loop-workspace-chat
@@ -291,7 +288,7 @@
                 <button
                     type="button"
                     class="chatloop-splitter"
-                    x-show="activeCard"
+                    x-show="activeCard && focus === 'none'"
                     x-cloak
                     x-on:pointerdown="startResize($event)"
                     x-on:dblclick="wsWidth = 40"
@@ -300,7 +297,7 @@
                 ></button>
 
                 <aside
-                    x-show="activeCard"
+                    x-show="activeCard && focus !== 'chat'"
                     x-cloak
                     x-transition.opacity.duration.150ms
                     x-on:keydown.escape.window="closeCard()"
