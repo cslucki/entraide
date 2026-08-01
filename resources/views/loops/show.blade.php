@@ -8,6 +8,7 @@
         }
         return route('loops.'.$name, $params);
     };
+    $_aiRoute = $_loopRoute('ai', ['loop' => $currentLoop]);
 @endphp
 
 @push('head')
@@ -45,7 +46,7 @@
         <div class="loops-show-container h-dvh flex flex-col bg-white dark:bg-gray-800">
 
         {{-- Topbar --}}
-        <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div class="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
             @php $backHome = app()->bound('current_organization') && app('current_organization')->isMonoLoop(); @endphp
             <a href="{{ $backHome ? route('home') : $_loopRoute('index') }}"
                class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
@@ -54,16 +55,113 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
             </a>
-            <div class="flex-1 min-w-0">
-                <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">{{ $currentLoop->name }}</h1>
-                @if($currentLoop->description)
-                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $currentLoop->description }}</p>
+            <div class="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
+                <div class="min-w-0 flex-1">
+                    <div class="flex min-w-0 items-start gap-2">
+                        <h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currentLoop->name }}</h1>
+                        <span class="mt-0.5 inline-flex shrink-0 items-center rounded-full border px-1 py-px text-[8px] font-semibold uppercase tracking-wide {{ $currentLoop->isPublic() ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300' : 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400' }}">
+                            {{ $currentLoop->isPublic() ? __('loops.visibility_public') : __('loops.visibility_private') }}
+                        </span>
+                    </div>
+                    @if($currentLoop->description)
+                        <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $currentLoop->description }}</p>
+                    @endif
+                </div>
+
+                @if($isMember && config('ai.chatloop.enabled', true))
+                <div class="mt-2 flex flex-nowrap items-center justify-start gap-2 overflow-x-auto pb-0.5 sm:mt-0 sm:ml-auto sm:justify-end sm:overflow-visible sm:pb-0" x-data="{ askOpen: false, asking: false, question: '' }">
+                    <form
+                        method="POST"
+                        action="{{ $_aiRoute }}"
+                        x-data="{ submitting: false }"
+                        x-on:submit="submitting = true"
+                    >
+                        @csrf
+                        <input type="hidden" name="action" value="answer">
+                        <button
+                            type="submit"
+                            x-bind:disabled="submitting"
+                            class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800 shadow-sm transition hover:border-violet-200 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-800/50 dark:bg-violet-900/30 dark:text-violet-200 dark:hover:bg-violet-900/50"
+                        >
+                            <svg x-show="!submitting" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/>
+                            </svg>
+                            <svg x-show="submitting" x-cloak class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <span x-show="!submitting" class="sm:hidden">{{ __('loops.ask_ai_short') }}</span>
+                            <span x-show="!submitting" class="hidden sm:inline">{{ __('loops.ask_ai') }}</span>
+                            <span x-show="submitting" x-cloak>{{ __('loops.ai_generating') }}</span>
+                        </button>
+                    </form>
+
+                    <button
+                        type="button"
+                        x-on:click="askOpen = true"
+                        class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200"
+                    >
+                        <svg class="h-4 w-4 text-violet-600 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-5 4v-4z"/>
+                        </svg>
+                        <span class="sm:hidden">{{ __('loops.ask_question_short') }}</span>
+                        <span class="hidden sm:inline">{{ __('loops.ask_question') }}</span>
+                    </button>
+
+                    <template x-teleport="body">
+                        <div
+                            x-show="askOpen"
+                            x-cloak
+                            class="fixed inset-0 z-50 flex items-center justify-center"
+                            x-effect="document.body.style.overflow = askOpen ? 'hidden' : ''"
+                            @keydown.escape.window="askOpen = false"
+                        >
+                            <div x-show="askOpen" class="fixed inset-0 bg-black/50"></div>
+                            <form
+                                method="POST"
+                                action="{{ $_aiRoute }}"
+                                x-show="askOpen"
+                                x-on:submit="asking = true"
+                                class="relative mx-3 w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800"
+                            >
+                                @csrf
+                                <input type="hidden" name="action" value="ask">
+                                <label for="ai-question" class="block text-sm font-medium text-gray-800 dark:text-gray-200">
+                                    {{ __('loops.ask_question') }}
+                                </label>
+                                <input
+                                    id="ai-question"
+                                    type="text"
+                                    name="question"
+                                    x-model="question"
+                                    required
+                                    maxlength="500"
+                                    placeholder="{{ __('loops.ask_question_placeholder') }}"
+                                    class="mt-2 w-full rounded-lg border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                                >
+                                <div class="mt-4 flex items-center justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        x-on:click="askOpen = false"
+                                        class="text-xs font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                                    >
+                                        {{ __('loops.cancel') }}
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        x-bind:disabled="asking"
+                                        class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <span x-show="!asking">{{ __('loops.ask_question_submit') }}</span>
+                                        <span x-show="asking" x-cloak>{{ __('loops.ai_generating') }}</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </template>
+                </div>
                 @endif
             </div>
-            <span class="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium {{ $currentLoop->isPublic() ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' }}">
-                <span class="w-1.5 h-1.5 rounded-full {{ $currentLoop->isPublic() ? 'bg-green-500' : 'bg-gray-400' }}"></span>
-                <span>{{ $currentLoop->isPublic() ? __('loops.visibility_public') : __('loops.visibility_private') }}</span>
-            </span>
         </div>
 
         {{-- Session messages --}}

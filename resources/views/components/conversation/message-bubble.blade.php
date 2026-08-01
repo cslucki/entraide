@@ -102,67 +102,93 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
         </button>
         @endif
 
-        <div class="text-sm whitespace-pre-wrap">{!! markdown((string) $slot) !!}</div>
+        <div class="cursor-default whitespace-pre-wrap text-sm" style="caret-color: transparent;">{!! markdown((string) $slot) !!}</div>
 
         @if($urlPreview)
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />
         @endif
 
         @if($time || $isEdited || ($messageId && ($showReplyButton || $showPinButton || $showEditButton || $showDeleteButton || $showReactions)))
-        <div class="flex items-center gap-3 mt-1 {{ $isSent ? 'justify-end' : 'justify-start' }}">
-            @if($time)
-            <span class="text-[10px] {{ $timeClasses }}">{{ $time }}</span>
-            @endif
-            @if($isEdited)
-            <span class="text-[10px] {{ $timeClasses }}">{{ __('messages.edited') }}</span>
-            @endif
-            @if($messageId && $showReplyButton)
-            <button
-                x-on:click="$dispatch('reply-to-message', { messageId: '{{ $messageId }}' })"
-                class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' }} transition"
-            >
-                {{ __('messages.reply') }}
-            </button>
-            @endif
-            @if($messageId && $showPinButton)
-                @if($isPinned)
+        <div class="mt-1 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                @if($time)
+                <span class="text-[10px] {{ $timeClasses }}">{{ $time }}</span>
+                @endif
+                @if($isEdited)
+                <span class="text-[10px] {{ $timeClasses }}">{{ __('messages.edited') }}</span>
+                @endif
+            </div>
+
+            @if($messageId && ($showReplyButton || $showPinButton || $showEditButton || $showDeleteButton))
+            <div class="ml-auto flex items-center gap-1">
+                @if($showReplyButton)
                 <button
-                    wire:click="unpinMessage"
-                    class="text-[11px] {{ $isSent ? 'text-amber-200 hover:text-white' : 'text-amber-500 hover:text-amber-700 dark:hover:text-amber-300' }} transition"
-                    title="{{ __('messages.unpin') }}"
+                    x-on:click="$dispatch('reply-to-message', { messageId: '{{ $messageId }}' })"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full transition {{ $isSent ? 'text-indigo-200 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-white/70 hover:text-indigo-600 dark:hover:bg-gray-800 dark:hover:text-indigo-300' }}"
+                    title="{{ __('messages.reply') }}"
+                    aria-label="{{ __('messages.reply') }}"
                 >
-                    <svg class="w-3.5 h-3.5 inline-block fill-current" viewBox="0 0 24 24">
-                        <path d="M16 12V4l4-2v2l-4 2v6l-2 2H8l-2-2V8l-4 2v2l4 4v4h6v-4l4-4z"/>
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>
                     </svg>
-                </button>
-                @else
-                <button
-                    wire:click="pinMessage('{{ $messageId }}')"
-                    class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' }} transition"
-                    title="{{ __('messages.pin') }}"
-                >
-                    <svg class="w-3.5 h-3.5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 4v12l4 2V4l-4 2zM8 4v12l-4 2V4l4 2z"/>
-                    </svg>
+                    <span class="sr-only">{{ __('messages.reply') }}</span>
                 </button>
                 @endif
-            @endif
-            @if($messageId && $showEditButton)
-            <button
-                wire:click="editMessage('{{ $messageId }}')"
-                class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' }} transition"
-            >
-                {{ __('messages.edit') }}
-            </button>
-            @endif
-            @if($messageId && $showDeleteButton)
-            <button
-                wire:click="deleteMessage('{{ $messageId }}')"
-                wire:confirm="{{ __('messages.delete_confirm') }}"
-                class="text-[11px] {{ $isSent ? 'text-indigo-200 hover:text-white' : 'text-gray-400 hover:text-red-600 dark:hover:text-red-400' }} transition"
-            >
-                {{ __('messages.delete') }}
-            </button>
+                @if($showPinButton)
+                    @if($isPinned)
+                    <button
+                        wire:click="unpinMessage"
+                        class="inline-flex h-6 w-6 items-center justify-center rounded-full text-amber-500 transition {{ $isSent ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-900/30 dark:hover:text-amber-300' }}"
+                        title="{{ __('messages.unpin') }}"
+                        aria-label="{{ __('messages.unpin') }}"
+                    >
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m3 3 18 18M8 6.5V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v7l2 3H8.5M12 18v3"/>
+                        </svg>
+                        <span class="sr-only">{{ __('messages.unpin') }}</span>
+                    </button>
+                    @else
+                    <button
+                        wire:click="pinMessage('{{ $messageId }}')"
+                        class="inline-flex h-6 w-6 items-center justify-center rounded-full transition {{ $isSent ? 'text-indigo-200 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-white/70 hover:text-amber-600 dark:hover:bg-gray-800 dark:hover:text-amber-300' }}"
+                        title="{{ __('messages.pin') }}"
+                        aria-label="{{ __('messages.pin') }}"
+                    >
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 4.5 19.5 8.25m-3.75-3.75L9 11.25 8.25 15 12 14.25 18.75 7.5M8.25 15 4.5 19.5"/>
+                        </svg>
+                        <span class="sr-only">{{ __('messages.pin') }}</span>
+                    </button>
+                    @endif
+                @endif
+                @if($showEditButton)
+                <button
+                    wire:click="editMessage('{{ $messageId }}')"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full transition {{ $isSent ? 'text-indigo-200 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-white/70 hover:text-indigo-600 dark:hover:bg-gray-800 dark:hover:text-indigo-300' }}"
+                    title="{{ __('messages.edit') }}"
+                    aria-label="{{ __('messages.edit') }}"
+                >
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>
+                    </svg>
+                    <span class="sr-only">{{ __('messages.edit') }}</span>
+                </button>
+                @endif
+                @if($showDeleteButton)
+                <button
+                    wire:click="deleteMessage('{{ $messageId }}')"
+                    wire:confirm="{{ __('messages.delete_confirm') }}"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full transition {{ $isSent ? 'text-indigo-200 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400' }}"
+                    title="{{ __('messages.delete') }}"
+                    aria-label="{{ __('messages.delete') }}"
+                >
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M19.228 5.79 18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+                    </svg>
+                    <span class="sr-only">{{ __('messages.delete') }}</span>
+                </button>
+                @endif
+            </div>
             @endif
         </div>
         @endif

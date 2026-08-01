@@ -1139,8 +1139,9 @@ class LoopChatTest extends TestCase
 
     public function test_member_sees_ask_ai_button(): void
     {
-        Livewire::actingAs($this->member)
-            ->test(LoopChat::class, ['loop' => $this->loop])
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
             ->assertSee(__('loops.ask_ai'))
             ->assertSee('/loops/'.$this->loop->id.'/ask-ai');
     }
@@ -1154,8 +1155,9 @@ class LoopChatTest extends TestCase
 
     public function test_ask_ai_button_has_loading_state_bindings(): void
     {
-        Livewire::actingAs($this->member)
-            ->test(LoopChat::class, ['loop' => $this->loop])
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
             ->assertSeeHtml('x-bind:disabled="submitting"')
             ->assertSeeHtml('x-on:submit="submitting = true"')
             ->assertSeeHtml('x-show="submitting"')
@@ -1164,15 +1166,17 @@ class LoopChatTest extends TestCase
 
     public function test_member_sees_ask_question_button(): void
     {
-        Livewire::actingAs($this->member)
-            ->test(LoopChat::class, ['loop' => $this->loop])
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
             ->assertSee(__('loops.ask_question'));
     }
 
     public function test_ask_question_modal_is_rendered(): void
     {
-        Livewire::actingAs($this->member)
-            ->test(LoopChat::class, ['loop' => $this->loop])
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
             ->assertSeeHtml('name="action" value="ask"')
             ->assertSeeHtml('id="ai-question"')
             ->assertSeeHtml(__('loops.ask_question_placeholder'))
