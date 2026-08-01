@@ -238,7 +238,7 @@
         @endif
 
         {{-- Messages + Composer (Livewire) + Cards panel --}}
-        <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div class="relative flex min-h-0 flex-1 flex-col lg:flex-row">
             <div
                 x-bind:class="activeCard ? 'lg:basis-3/5 lg:max-w-[60%]' : 'lg:basis-full lg:max-w-full'"
                 x-bind:data-card-active="activeCard ? 'true' : 'false'"
@@ -253,7 +253,8 @@
                     x-show="activeCard"
                     x-cloak
                     x-transition.opacity.duration.150ms
-                    class="fixed inset-0 z-40 flex flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900 lg:relative lg:inset-auto lg:z-auto lg:w-[40%] lg:max-w-[40%] lg:shadow-none"
+                    x-on:keydown.escape.window="closeCard()"
+                    class="absolute inset-0 z-20 flex flex-col bg-white shadow-2xl dark:bg-gray-900 lg:relative lg:inset-auto lg:z-auto lg:w-2/5 lg:max-w-2xl lg:border-l lg:border-gray-200 lg:shadow-none dark:lg:border-gray-700"
                     aria-label="{{ __('loops.cards_bar_label') }}"
                     data-loop-workspace-panel
                 >
@@ -262,18 +263,16 @@
                             <button
                                 type="button"
                                 x-on:click="closeCard()"
-                                class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200 lg:hidden"
+                                class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200"
                             >
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
                                 {{ __('loops.cards_panel_back_to_chat') }}
                             </button>
 
-                            <p class="hidden text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 lg:block">{{ __('loops.cards_bar_label') }}</p>
-
                             <button
                                 type="button"
                                 x-on:click="closeCard()"
-                                class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                                class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                                 aria-label="{{ __('loops.cards_panel_close') }}"
                             >
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -283,6 +282,9 @@
                         <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
                             @foreach($workspaceCards as $card)
                                 <section x-show="activeCard === @js($card['key'])" x-cloak class="space-y-5">
+                                    @if($card['key'] === 'core.ai_summary')
+                                        <livewire:loop-ai-summary-card :loop="$currentLoop" :key="'loop-ai-summary-'.$currentLoop->id" lazy />
+                                    @else
                                     <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
                                         <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __('loops.cards_panel_temporary_state') }}</p>
                                         <h2 class="mt-2 text-lg font-semibold text-gray-950 dark:text-gray-50">{{ __($card['label_key']) }}</h2>
@@ -303,6 +305,7 @@
                                             {{ __($card['action_key']) }} · {{ __('loops.cards_panel_coming_soon') }}
                                         </button>
                                     </div>
+                                    @endif
                                 </section>
                             @endforeach
                         </div>

@@ -122,6 +122,12 @@ class AdminAiPromptController extends Controller
             'profile_agent_visitor_chat' => 'Agent de profil IA — Chat visiteur',
             'service_offer_master_fr' => 'Service Offer Master — Prompt FR',
             'service_offer_master_en' => 'Service Offer Master — Prompt EN',
+            'chatloop_ai_answer_fr' => 'ChatLoop IA — Répondre — FR',
+            'chatloop_ai_answer_en' => 'ChatLoop AI — Answer — EN',
+            'chatloop_ai_ask_fr' => 'ChatLoop IA — Question — FR',
+            'chatloop_ai_ask_en' => 'ChatLoop AI — Ask — EN',
+            'chatloop_ai_summarize_fr' => 'ChatLoop IA — Résumé — FR',
+            'chatloop_ai_summarize_en' => 'ChatLoop AI — Summarize — EN',
         ];
     }
 }

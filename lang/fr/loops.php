@@ -63,12 +63,18 @@ return [
     'cards_panel_back_to_chat' => 'Retour à ChatLoop',
     'cards_panel_temporary_state' => 'État temporaire',
     'cards_panel_coming_soon' => 'Bientôt disponible',
+    'ai_summary_generate' => 'Générer le résumé',
+    'ai_summary_regenerate' => 'Régénérer le résumé',
+    'ai_summary_generating' => 'Génération du résumé…',
+    'ai_summary_updated_at' => 'Mis à jour le :date',
+    'ai_summary_requested_by' => 'Demandé par :name',
+    'ai_summary_rate_limited' => 'Trop de demandes de résumé. Réessaie dans une minute.',
     'cards' => [
         'ai_summary' => [
             'label' => 'Résumé IA',
             'description' => 'Condense les échanges utiles de cette Boucle.',
             'empty_title' => 'Pas encore de résumé',
-            'empty_body' => 'Le résumé IA sera généré dans une prochaine étape. ChatLoop reste le centre vivant de la Boucle.',
+            'empty_body' => 'Aucun résumé n\'a encore été généré pour cette Boucle. ChatLoop reste le centre vivant de la Boucle.',
             'action' => 'Régénérer',
         ],
         'manifesto' => [
