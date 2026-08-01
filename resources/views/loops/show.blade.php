@@ -9,6 +9,21 @@
         return route('loops.'.$name, $params);
     };
     $_aiRoute = $_loopRoute('ai', ['loop' => $currentLoop]);
+    // Manifesto = a BlogPost linked to this Loop (blog_post_loop). Designation of a
+    // primary manifesto (loops.manifesto_blog_post_id) is a later task; for now we
+    // surface the first linked article as the living document.
+    $manifestoPost = \App\Models\BlogPost::whereHas('loops', fn ($q) => $q->where('loops.id', $currentLoop->id))
+        ->latest('updated_at')
+        ->first();
+    $manifestoVersion = $manifestoPost
+        ? (\App\Models\BlogSnapshot::where('blog_post_id', $manifestoPost->id)->count() ?: 1)
+        : null;
+    // Per-card accent (icon tile) to echo the mockup's calm colour coding.
+    $cardAccents = [
+        'core.ai_summary' => 'bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300',
+        'core.manifesto' => 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300',
+        'core.roadmap' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300',
+    ];
     $canUseWorkspaceCards = $isMember || (bool) auth()->user()?->is_admin;
     $workspaceCards = collect(config('loop_cards.cards', []))
         ->filter(fn ($card) => (bool) ($card['default_enabled'] ?? false))
@@ -44,16 +59,150 @@
             height: calc(100vh - 5rem);
         }
     }
+
+    /* =========================================================
+       Boucle Workspace — two sibling cards (mockup boucle.php)
+       The workspace parent is NEUTRAL (no card). Card styles live
+       on the two children: thread panel (left) + side panel (right).
+       ========================================================= */
+    .chatloop-workspace {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;            /* mobile: single column */
+        flex-direction: column;
+        position: relative;
+    }
+
+    /* Left card: ChatLoop thread + composer (cream, calm) */
+    .chatloop-thread-panel {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        background: linear-gradient(180deg, #FBF9F3, #FCFAF5);
+    }
+    .dark .chatloop-thread-panel { background: #111827; }
+
+    /* Right card: active tool panel (white) — mobile overlay by default */
+    .chatloop-side-panel {
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        box-shadow: 0 24px 56px -18px rgba(20, 24, 60, .45);
+    }
+    .dark .chatloop-side-panel { background: #0b1220; }
+
+    .chatloop-splitter { display: none; }
+
+    @media (min-width: 1024px) {
+        .chatloop-workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) var(--ws-gap, 0px) var(--ws-col, 0px);
+            align-items: stretch;
+            padding: 4px 20px 20px;
+        }
+        /* Card styling on each child */
+        .chatloop-thread-panel,
+        .chatloop-side-panel {
+            border: 1px solid rgb(229 231 235);
+            border-radius: 24px;
+            box-shadow: 0 1px 2px rgba(20, 24, 60, .05), 0 22px 50px -34px rgba(20, 24, 60, .34);
+            overflow: hidden;
+        }
+        .dark .chatloop-thread-panel,
+        .dark .chatloop-side-panel { border-color: rgb(55 65 81); }
+        /* Side panel becomes a real grid cell (no longer an overlay) */
+        .chatloop-side-panel {
+            position: relative;
+            inset: auto;
+            z-index: auto;
+            grid-column: 3;
+        }
+        .chatloop-thread-panel { grid-column: 1; }
+        /* Vertical splitter in the middle track */
+        .chatloop-splitter {
+            grid-column: 2;
+            display: flex;
+            align-self: stretch;
+            align-items: center;
+            justify-content: center;
+            cursor: col-resize;
+            background: transparent;
+            border: 0;
+            touch-action: none;
+        }
+        .chatloop-splitter::before {
+            content: "";
+            width: 3px;
+            height: 48px;
+            border-radius: 999px;
+            background: rgb(209 213 219);
+            transition: background .15s, height .15s;
+        }
+        .dark .chatloop-splitter::before { background: rgb(75 85 99); }
+        .chatloop-splitter:hover::before,
+        [data-resizing="true"] .chatloop-splitter::before { background: rgb(139 92 246); height: 76px; }
+        [data-resizing="true"] { cursor: col-resize; user-select: none; }
+    }
 </style>
 @endpush
 
 <x-app-layout :title="$currentLoop->name">
     <x-page-container class="loops-show-wrapper">
         <div
-            x-data="{ activeCard: null, openCard(card) { this.activeCard = this.activeCard === card ? null : card }, closeCard() { this.activeCard = null } }"
+            x-data="{
+                activeCard: null,
+                wsWidth: 40,
+                focus: 'none',
+                resizing: false,
+                todos: [],
+                todoText: '',
+                addTodo() { const v = this.todoText.trim(); if (!v) return; this.todos.push({ id: Date.now(), title: v, done: false }); this.todoText = ''; },
+                toggleTodo(it) { it.done = !it.done; },
+                removeTodo(it) { this.todos = this.todos.filter(i => i.id !== it.id); },
+                get todoRemaining() { return this.todos.filter(i => !i.done).length; },
+                openCard(card) { this.focus = 'none'; this.activeCard = this.activeCard === card ? null : card },
+                closeCard() { this.activeCard = null; this.focus = 'none' },
+                toggleChatFocus() { this.focus = this.focus === 'chat' ? 'none' : 'chat' },
+                toggleToolFocus() { this.focus = this.focus === 'tool' ? 'none' : 'tool' },
+                chatBasis() {
+                    if (!this.activeCard) return '100%';
+                    if (this.focus === 'tool') return '24%';
+                    if (this.focus === 'chat') return '76%';
+                    return (100 - this.wsWidth) + '%';
+                },
+                wsBasis() {
+                    if (this.focus === 'tool') return '76%';
+                    if (this.focus === 'chat') return '24%';
+                    return this.wsWidth + '%';
+                },
+                startResize(ev) {
+                    if (!window.matchMedia('(min-width: 1024px)').matches) return;
+                    ev.preventDefault();
+                    this.focus = 'none';
+                    this.resizing = true;
+                    const panes = this.$refs.panes;
+                    const move = (e) => {
+                        const r = panes.getBoundingClientRect();
+                        const pct = (r.right - e.clientX) / r.width * 100;
+                        this.wsWidth = Math.min(64, Math.max(24, Math.round(pct)));
+                    };
+                    const up = () => {
+                        this.resizing = false;
+                        window.removeEventListener('pointermove', move);
+                        window.removeEventListener('pointerup', up);
+                    };
+                    window.addEventListener('pointermove', move);
+                    window.addEventListener('pointerup', up);
+                }
+            }"
             x-effect="document.body.style.overflow = activeCard && window.matchMedia('(max-width: 1023px)').matches ? 'hidden' : ''"
             @keydown.escape.window="closeCard()"
-            class="loops-show-container h-dvh flex flex-col bg-white dark:bg-gray-800"
+            x-bind:data-resizing="resizing ? 'true' : 'false'"
+            class="loops-show-container h-dvh flex flex-col bg-gray-100 dark:bg-gray-950"
             data-loop-workspace-shell
         >
 
@@ -80,99 +229,6 @@
                     @endif
                 </div>
 
-                @if($isMember && config('ai.chatloop.enabled', true))
-                <div class="mt-2 flex flex-nowrap items-center justify-start gap-2 overflow-x-auto pb-0.5 sm:mt-0 sm:ml-auto sm:justify-end sm:overflow-visible sm:pb-0" x-data="{ askOpen: false, asking: false, question: '' }">
-                    <form
-                        method="POST"
-                        action="{{ $_aiRoute }}"
-                        x-data="{ submitting: false }"
-                        x-on:submit="submitting = true"
-                    >
-                        @csrf
-                        <input type="hidden" name="action" value="answer">
-                        <button
-                            type="submit"
-                            x-bind:disabled="submitting"
-                            class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800 shadow-sm transition hover:border-violet-200 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-800/50 dark:bg-violet-900/30 dark:text-violet-200 dark:hover:bg-violet-900/50"
-                        >
-                            <svg x-show="!submitting" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/>
-                            </svg>
-                            <svg x-show="submitting" x-cloak class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
-                            <span x-show="!submitting" class="sm:hidden">{{ __('loops.ask_ai_short') }}</span>
-                            <span x-show="!submitting" class="hidden sm:inline">{{ __('loops.ask_ai') }}</span>
-                            <span x-show="submitting" x-cloak>{{ __('loops.ai_generating') }}</span>
-                        </button>
-                    </form>
-
-                    <button
-                        type="button"
-                        x-on:click="askOpen = true"
-                        class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200"
-                    >
-                        <svg class="h-4 w-4 text-violet-600 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-5 4v-4z"/>
-                        </svg>
-                        <span class="sm:hidden">{{ __('loops.ask_question_short') }}</span>
-                        <span class="hidden sm:inline">{{ __('loops.ask_question') }}</span>
-                    </button>
-
-                    <template x-teleport="body">
-                        <div
-                            x-show="askOpen"
-                            x-cloak
-                            class="fixed inset-0 z-50 flex items-center justify-center"
-                            x-effect="document.body.style.overflow = askOpen ? 'hidden' : ''"
-                            @keydown.escape.window="askOpen = false"
-                        >
-                            <div x-show="askOpen" class="fixed inset-0 bg-black/50"></div>
-                            <form
-                                method="POST"
-                                action="{{ $_aiRoute }}"
-                                x-show="askOpen"
-                                x-on:submit="asking = true"
-                                class="relative mx-3 w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800"
-                            >
-                                @csrf
-                                <input type="hidden" name="action" value="ask">
-                                <label for="ai-question" class="block text-sm font-medium text-gray-800 dark:text-gray-200">
-                                    {{ __('loops.ask_question') }}
-                                </label>
-                                <input
-                                    id="ai-question"
-                                    type="text"
-                                    name="question"
-                                    x-model="question"
-                                    required
-                                    maxlength="500"
-                                    placeholder="{{ __('loops.ask_question_placeholder') }}"
-                                    class="mt-2 w-full rounded-lg border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                                >
-                                <div class="mt-4 flex items-center justify-end gap-2">
-                                    <button
-                                        type="button"
-                                        x-on:click="askOpen = false"
-                                        class="text-xs font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-                                    >
-                                        {{ __('loops.cancel') }}
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        x-bind:disabled="asking"
-                                        class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        <span x-show="!asking">{{ __('loops.ask_question_submit') }}</span>
-                                        <span x-show="asking" x-cloak>{{ __('loops.ai_generating') }}</span>
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </template>
-                </div>
-                @endif
             </div>
         </div>
 
@@ -198,12 +254,12 @@
 
         {{-- Boucle Workspace Cards shell --}}
         @if($workspaceCards->isNotEmpty())
-            <div class="flex-shrink-0 border-b border-gray-200 bg-gray-50/80 px-4 py-2 dark:border-gray-700 dark:bg-gray-900/30">
+            <div class="flex-shrink-0 px-3 pt-3 pb-1 sm:px-5 lg:px-6">
                 <div class="flex items-center gap-3 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <div class="hidden shrink-0 sm:block">
-                        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('loops.cards_bar_label') }}</p>
-                        <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ __('loops.cards_bar_hint') }}</p>
-                    </div>
+                    <span class="hidden shrink-0 items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.04em] text-gray-400 dark:text-gray-500 sm:inline-flex" title="{{ __('loops.cards_bar_hint') }}">
+                        <svg class="h-4 w-4 text-violet-500 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 4V2m0 20v-2M9 4l1 1m4 14 1 1M4 9h2m14 6h2M4 15l1-1m14-4 1-1M6.5 17.5 17 7"/></svg>
+                        {{ __('loops.cards_bar_launch') }}
+                    </span>
 
                     <div class="flex min-w-0 flex-1 items-center gap-2">
                         @foreach($workspaceCards as $card)
@@ -211,50 +267,87 @@
                                 type="button"
                                 x-on:click="openCard(@js($card['key']))"
                                 x-bind:aria-pressed="activeCard === @js($card['key'])"
-                                x-bind:class="activeCard === @js($card['key']) ? 'border-violet-200 bg-violet-50 text-violet-800 shadow-sm dark:border-violet-700/70 dark:bg-violet-900/30 dark:text-violet-100' : 'border-gray-200 bg-white text-gray-600 hover:border-violet-200 hover:text-violet-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-violet-700 dark:hover:text-violet-200'"
-                                class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition"
+                                x-bind:class="activeCard === @js($card['key']) ? 'border-violet-300 bg-white ring-1 ring-violet-200 shadow-sm dark:border-violet-600/70 dark:bg-gray-800 dark:ring-violet-700/50' : 'border-gray-200 bg-white hover:border-violet-200 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:hover:border-violet-700'"
+                                class="group inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-2xl border px-3 py-1.5 transition"
                             >
-                                <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300" aria-hidden="true">
+                                <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl {{ $cardAccents[$card['key']] ?? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300' }}" aria-hidden="true">
                                     @switch($card['icon'] ?? '')
                                         @case('sparkles')
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
                                             @break
                                         @case('document')
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-6a2.25 2.25 0 0 0-.659-1.591l-3-3A2.25 2.25 0 0 0 14.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25v-4.5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3v4.5h4.5"/></svg>
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-6a2.25 2.25 0 0 0-.659-1.591l-3-3A2.25 2.25 0 0 0 14.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25v-4.5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3v4.5h4.5"/></svg>
                                             @break
                                         @case('map')
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18-6 3V6l6-3m0 15 6 3m-6-3V3m6 18 6-3V3l-6 3m0 15V6m0 0L9 3"/></svg>
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m0 0 3-3m-3 3-3-3M15 9v8.25M15 17.25l3-3m-3 3-3-3"/></svg>
                                             @break
                                         @default
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m0 0 3-3m-3 3-3-3M15 9v8.25M15 17.25l3-3m-3 3-3-3"/></svg>
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m0 0 3-3m-3 3-3-3M15 9v8.25M15 17.25l3-3m-3 3-3-3"/></svg>
                                     @endswitch
                                 </span>
-                                <span>{{ __($card['label_key']) }}</span>
+                                <span class="text-sm font-bold tracking-tight text-gray-800 dark:text-gray-100">{{ __($card['label_key']) }}</span>
+                                @if($card['key'] === 'core.manifesto' && $manifestoVersion)
+                                    <span class="ml-0.5 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">v{{ $manifestoVersion }}</span>
+                                @elseif($card['key'] === 'core.roadmap')
+                                    <span class="ml-0.5 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300" x-text="todos.length"></span>
+                                @endif
                             </button>
                         @endforeach
                     </div>
+
+                    {{-- Expand chat (focus) — desktop only, when a panel is open --}}
+                    <button
+                        type="button"
+                        x-show="activeCard"
+                        x-cloak
+                        x-on:click="toggleChatFocus()"
+                        x-bind:aria-pressed="focus === 'chat'"
+                        class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200 lg:inline-flex"
+                        aria-label="{{ __('loops.cards_bar_expand_chat') }}"
+                        title="{{ __('loops.cards_bar_expand_chat') }}"
+                    >
+                        <svg x-show="focus !== 'chat'" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5-5-5m5 5v-4m0 4h-4"/></svg>
+                        <svg x-show="focus === 'chat'" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V5m0 4H5m4 0L4 4m11 5h4m-4 0V5m0 4 5-5M9 15v4m0-4H5m4 0-5 5m11-5h4m-4 0v4m0-4 5 5"/></svg>
+                    </button>
                 </div>
             </div>
         @endif
 
-        {{-- Messages + Composer (Livewire) + Cards panel --}}
-        <div class="relative flex min-h-0 flex-1 flex-col lg:flex-row">
+        {{-- Workspace: neutral parent, two sibling cards (chat | splitter | side) --}}
+        <section
+            class="chatloop-workspace"
+            x-ref="panes"
+            data-loop-workspace-panes
+            x-bind:data-has-card="activeCard ? 'true' : 'false'"
+            x-bind:style="activeCard ? ('--ws-gap:14px;--ws-col:' + wsBasis()) : '--ws-gap:0px;--ws-col:0px'"
+        >
             <div
-                x-bind:class="activeCard ? 'lg:basis-3/5 lg:max-w-[60%]' : 'lg:basis-full lg:max-w-full'"
                 x-bind:data-card-active="activeCard ? 'true' : 'false'"
-                class="flex min-h-0 flex-1 flex-col transition-[flex-basis,max-width] duration-200"
+                class="chatloop-thread-panel"
                 data-loop-workspace-chat
             >
                 @livewire('loop-chat', ['loop' => $currentLoop], key('loop-chat-'.$currentLoop->id))
             </div>
 
             @if($workspaceCards->isNotEmpty())
+                {{-- Resizable vertical splitter (desktop only, when a panel is open) --}}
+                <button
+                    type="button"
+                    class="chatloop-splitter"
+                    x-show="activeCard"
+                    x-cloak
+                    x-on:pointerdown="startResize($event)"
+                    x-on:dblclick="wsWidth = 40"
+                    aria-label="{{ __('loops.cards_panel_resize') }}"
+                    title="{{ __('loops.cards_panel_resize') }}"
+                ></button>
+
                 <aside
                     x-show="activeCard"
                     x-cloak
                     x-transition.opacity.duration.150ms
                     x-on:keydown.escape.window="closeCard()"
-                    class="absolute inset-0 z-20 flex flex-col bg-white shadow-2xl dark:bg-gray-900 lg:relative lg:inset-auto lg:z-auto lg:w-2/5 lg:max-w-2xl lg:border-l lg:border-gray-200 lg:shadow-none dark:lg:border-gray-700"
+                    class="chatloop-side-panel"
                     aria-label="{{ __('loops.cards_bar_label') }}"
                     data-loop-workspace-panel
                 >
@@ -271,8 +364,20 @@
 
                             <button
                                 type="button"
+                                x-on:click="toggleToolFocus()"
+                                x-bind:aria-pressed="focus === 'tool'"
+                                class="ml-auto hidden h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200 lg:inline-flex"
+                                aria-label="{{ __('loops.cards_panel_expand') }}"
+                                title="{{ __('loops.cards_panel_expand') }}"
+                            >
+                                <svg x-show="focus !== 'tool'" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5-5-5m5 5v-4m0 4h-4"/></svg>
+                                <svg x-show="focus === 'tool'" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V5m0 4H5m4 0L4 4m11 5h4m-4 0V5m0 4 5-5M9 15v4m0-4H5m4 0-5 5m11-5h4m-4 0v4m0-4 5 5"/></svg>
+                            </button>
+
+                            <button
+                                type="button"
                                 x-on:click="closeCard()"
-                                class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                                 aria-label="{{ __('loops.cards_panel_close') }}"
                             >
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -284,27 +389,82 @@
                                 <section x-show="activeCard === @js($card['key'])" x-cloak class="space-y-5">
                                     @if($card['key'] === 'core.ai_summary')
                                         <livewire:loop-ai-summary-card :loop="$currentLoop" :key="'loop-ai-summary-'.$currentLoop->id" lazy />
-                                    @else
-                                    <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
-                                        <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __('loops.cards_panel_temporary_state') }}</p>
-                                        <h2 class="mt-2 text-lg font-semibold text-gray-950 dark:text-gray-50">{{ __($card['label_key']) }}</h2>
-                                        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __($card['description_key']) }}</p>
-                                    </div>
-
-                                    <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center dark:border-gray-700 dark:bg-gray-900">
-                                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-200">
-                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0z"/></svg>
+                                    @elseif($card['key'] === 'core.manifesto')
+                                        {{-- Manifesto: living editorial document (BlogPost engine) --}}
+                                        <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __($card['label_key']) }}</p>
+                                            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __($card['description_key']) }}</p>
                                         </div>
-                                        <h3 class="mt-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __($card['empty_title_key']) }}</h3>
-                                        <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __($card['empty_body_key']) }}</p>
-                                        <button
-                                            type="button"
-                                            disabled
-                                            class="mt-5 inline-flex items-center justify-center rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-xs font-semibold text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
-                                        >
-                                            {{ __($card['action_key']) }} · {{ __('loops.cards_panel_coming_soon') }}
-                                        </button>
-                                    </div>
+
+                                        @if($manifestoPost)
+                                            <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                                                <div class="flex items-start justify-between gap-2">
+                                                    <h3 class="min-w-0 truncate text-base font-semibold text-gray-900 dark:text-gray-100">{{ $manifestoPost->title }}</h3>
+                                                    <span class="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">{{ $manifestoPost->status ?? 'draft' }}</span>
+                                                </div>
+                                                <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ \Illuminate\Support\Str::limit(strip_tags((string) ($manifestoPost->content ?? $manifestoPost->excerpt ?? '')), 360) }}</p>
+                                            </div>
+                                            <a href="{{ route('blog.edit', $manifestoPost) }}"
+                                               class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-violet-700 dark:hover:text-violet-200">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931z"/></svg>
+                                                {{ __('loops.manifesto_open_in_editor') }}
+                                            </a>
+                                        @else
+                                            <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center dark:border-gray-700 dark:bg-gray-900">
+                                                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-200">
+                                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-6a2.25 2.25 0 0 0-.659-1.591l-3-3A2.25 2.25 0 0 0 14.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25v-4.5z"/></svg>
+                                                </div>
+                                                <h3 class="mt-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __($card['empty_title_key']) }}</h3>
+                                                <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __($card['empty_body_key']) }}</p>
+                                                <a href="{{ route('blog.create') }}"
+                                                   class="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700">
+                                                    {{ __($card['action_key']) }}
+                                                </a>
+                                            </div>
+                                        @endif
+                                    @else
+                                        {{-- To-do (Roadmap) — ready-to-branch client list, no persistence/migration yet --}}
+                                        <div class="space-y-4">
+                                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+                                                <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __($card['label_key']) }}</p>
+                                                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __($card['description_key']) }}</p>
+                                            </div>
+
+                                            <form x-on:submit.prevent="addTodo()" class="flex items-center gap-2">
+                                                <input x-model="todoText" type="text" maxlength="200" placeholder="{{ __('loops.roadmap_add_placeholder') }}"
+                                                       class="min-w-0 flex-1 rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                                <button type="submit" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white transition hover:bg-violet-700" aria-label="{{ __($card['action_key']) }}">
+                                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                                                </button>
+                                            </form>
+
+                                            <template x-if="todos.length === 0">
+                                                <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                                                    {{ __($card['empty_title_key']) }}
+                                                </div>
+                                            </template>
+
+                                            <ul class="space-y-2" x-show="todos.length > 0" x-cloak>
+                                                <template x-for="it in todos" :key="it.id">
+                                                    <li class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+                                                        <button type="button" x-on:click="toggleTodo(it)"
+                                                                class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition"
+                                                                x-bind:class="it.done ? 'border-violet-500 bg-violet-500 text-white' : 'border-gray-300 text-transparent dark:border-gray-600'"
+                                                                x-bind:aria-pressed="it.done">
+                                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                                                        </button>
+                                                        <span class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-100" x-bind:class="it.done ? 'line-through text-gray-400 dark:text-gray-500' : ''" x-text="it.title"></span>
+                                                        <button type="button" x-on:click="removeTodo(it)" class="shrink-0 text-gray-300 transition hover:text-gray-500 dark:hover:text-gray-300" aria-label="{{ __('loops.cancel') }}">
+                                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                                                        </button>
+                                                    </li>
+                                                </template>
+                                            </ul>
+
+                                            <p class="text-center text-[11px] text-gray-400 dark:text-gray-500">
+                                                <span x-text="todoRemaining"></span> {{ __('loops.roadmap_remaining') }}
+                                            </p>
+                                        </div>
                                     @endif
                                 </section>
                             @endforeach
@@ -312,12 +472,12 @@
                     </div>
                 </aside>
             @endif
-        </div>
+        </section>
 
         <x-conversation.image-lightbox key="loop-chat" />
 
-        {{-- Composer --}}
-        <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
+        {{-- Bottom strip: join CTA (guests) / help-request modal holder (members) --}}
+        <div class="flex-shrink-0">
             @if(!$isMember && $currentLoop->isPublic())
                 <div class="px-4 py-3">
                     <form method="POST" action="{{ $_loopRoute('join', ['loop' => $currentLoop]) }}">
@@ -333,15 +493,9 @@
                 </div>
 
             @elseif($clarificationEnabled || $analysis)
-                <div x-data="{ open: @js($analysis ? true : false) }" class="px-4 py-3">
-                    <button x-show="!open" @click="open = true"
-                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/30 transition">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                        </svg>
-                        <span>{{ __('loops.who_can_help') }}</span>
-                    </button>
-
+                {{-- Help-request modal. Trigger lives above the composer (in loop-chat) and
+                     opens this modal via the `bp-open-help-request` window event. --}}
+                <div x-data="{ open: @js($analysis ? true : false) }" @bp-open-help-request.window="open = true">
                     <template x-teleport="body">
                         <div x-show="open" x-cloak
                             class="fixed inset-0 z-50 flex items-center justify-center"
