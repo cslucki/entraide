@@ -62,14 +62,14 @@
         @endif
 
         <textarea
-            x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 160) + 'px' } }"
+            x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 176) + 'px'; $el.scrollTop = $el.scrollHeight } }"
             x-init="resize()"
             x-on:input="resize()"
             x-on:message-sent.window="$nextTick(() => resize())"
             wire:model="{{ $model }}"
             rows="{{ $rows }}"
             @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"
-            class="max-h-40 min-h-11 flex-1 rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 shadow-sm transition resize-none overflow-y-auto focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            class="max-h-44 min-h-11 flex-1 resize-none overflow-y-hidden rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 shadow-sm transition [scrollbar-width:none] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 [&::-webkit-scrollbar]:hidden"
             placeholder="{{ $placeholder }}"
             @if($disabled || $loading) disabled @endif
         ></textarea>

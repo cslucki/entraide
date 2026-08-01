@@ -1264,6 +1264,7 @@ class LoopChatTest extends TestCase
             ->test(LoopChat::class, ['loop' => $this->loop])
             ->assertSeeHtml('rows="1"')
             ->assertSeeHtml('x-on:input="resize()"')
+            ->assertSeeHtml('overflow-y-hidden')
             ->assertSeeHtml('if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }');
     }
 
@@ -1339,7 +1340,7 @@ class LoopChatTest extends TestCase
         $response->assertSee($expectedUrl);
     }
 
-    public function test_ai_message_renders_markdown(): void
+    public function test_ai_message_renders_safe_markdown_without_overflowing_code_blocks(): void
     {
         $body = AiMarkdownSanitizer::sanitize(
             "## Résumé\n\n"
@@ -1347,7 +1348,8 @@ class LoopChatTest extends TestCase
             ."- Premier point\n- Deuxième point\n\n"
             ."> Citation\n\n"
             ."[lien](https://example.com)\n\n"
-            ."```php\n\$ok = true;\n```"
+            ."```php\n\$ok = true;\n```\n\n"
+            .'`inline_code()`'
         );
 
         LoopMessage::create([
@@ -1366,7 +1368,34 @@ class LoopChatTest extends TestCase
             ->assertSeeHtml('<li>Premier point</li>')
             ->assertSeeHtml('<blockquote>')
             ->assertSeeHtml('<a href="https://example.com">')
-            ->assertSeeHtml('<pre><code');
+            ->assertSee('$ok = true;', false)
+            ->assertSee('inline_code()', false)
+            ->assertDontSeeHtml('<pre')
+            ->assertDontSeeHtml('<code');
+    }
+
+    public function test_ai_message_renders_markdown_tables_as_plain_text(): void
+    {
+        $body = AiMarkdownSanitizer::sanitize(
+            "| Colonne A | Colonne B |\n"
+            ."| --- | --- |\n"
+            .'| Valeur tres longue qui ne doit pas imposer une largeur horizontale | Autre valeur |'
+        );
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => $body,
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee('| Colonne A | Colonne B |', false)
+            ->assertSee('| --- | --- |', false)
+            ->assertDontSeeHtml('<table')
+            ->assertDontSeeHtml('<td');
     }
 
     public function test_ai_message_never_renders_h1_or_unsafe_content(): void

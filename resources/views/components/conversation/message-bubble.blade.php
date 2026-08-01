@@ -49,6 +49,34 @@ $primaryReactionTypes = ['thumbs_up', 'heart', 'thanks', 'surprised', 'sad'];
 $secondaryReactionTypes = array_values(array_diff($reactionTypes, $primaryReactionTypes));
 $reactionEmojis = App\Models\Reaction::emojiMap();
 $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0);
+
+$escapePlainMarkdown = static function (string $text): string {
+    $text = str_replace('\\', '\\\\', $text);
+
+    return preg_replace('/([`*_{}\[\]()#+\-.!|>])/', '\\\\$1', $text) ?? $text;
+};
+
+$renderableBody = preg_replace_callback(
+    '/```[a-z0-9_+-]*[ \t]*\r?\n([\s\S]*?)```[ \t]*/i',
+    static fn (array $match): string => "\n".$escapePlainMarkdown(trim($match[1]))."\n",
+    (string) $slot,
+) ?? (string) $slot;
+
+$renderableBody = preg_replace_callback(
+    '/`([^`\n]+)`/',
+    static fn (array $match): string => $escapePlainMarkdown($match[1]),
+    $renderableBody,
+) ?? $renderableBody;
+
+$renderableBody = preg_replace_callback(
+    '/(?:^|\n)([^\n]*\|[^\n]*\n[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*(?:\|[ \t]*:?-{3,}:?[ \t]*)+\|?[ \t]*(?:\n[^\n]*\|[^\n]*)*)/m',
+    static function (array $match) use ($escapePlainMarkdown): string {
+        return "\n".collect(explode("\n", trim($match[1])))
+            ->map(static fn (string $line): string => $escapePlainMarkdown($line))
+            ->implode("\n");
+    },
+    $renderableBody,
+) ?? $renderableBody;
 @endphp
 
 <div
@@ -158,7 +186,7 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
         </button>
         @endif
 
-        <div x-ref="copyContent" class="cursor-default whitespace-pre-wrap text-sm" style="caret-color: transparent;">{!! markdown((string) $slot) !!}</div>
+        <div x-ref="copyContent" class="min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! markdown($renderableBody) !!}</div>
 
         @if($urlPreview)
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />
