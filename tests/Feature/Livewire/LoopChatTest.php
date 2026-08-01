@@ -1211,6 +1211,62 @@ class LoopChatTest extends TestCase
             ->assertSee('Réponse de l\'IA.', false);
     }
 
+    public function test_message_actions_include_copy_without_native_confirm(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message copiable',
+            'type' => 'user',
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('aria-label="'.__('messages.copy').'"')
+            ->assertSeeHtml('copyMessage')
+            ->assertDontSeeHtml('wire:confirm');
+    }
+
+    public function test_deleted_message_does_not_show_copy_action(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Secret supprimé',
+            'type' => 'user',
+            'deleted_at' => now(),
+            'deleted_by' => $this->member->id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('messages.deleted_message_placeholder'))
+            ->assertDontSeeHtml('aria-label="'.__('messages.copy').'"');
+    }
+
+    public function test_pinned_message_scroll_targets_the_start_of_the_bubble(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message ciblé',
+            'type' => 'user',
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml("scrollIntoView({ block: 'start' })");
+    }
+
+    public function test_chat_composer_starts_on_one_row_and_shift_enter_keeps_new_line(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('rows="1"')
+            ->assertSeeHtml('x-on:input="resize()"')
+            ->assertSeeHtml('if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }');
+    }
+
     public function test_ai_message_without_requested_by_renders_without_subtitle(): void
     {
         LoopMessage::create([

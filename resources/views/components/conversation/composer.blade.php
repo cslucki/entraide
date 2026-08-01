@@ -51,7 +51,7 @@
     </div>
     @endif
 
-    <form wire:submit="sendMessage" class="flex items-center gap-3">
+    <form wire:submit="sendMessage" class="flex items-end gap-3">
         @if($showUpload)
         <label class="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 flex items-center justify-center cursor-pointer transition disabled:opacity-50">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -62,10 +62,14 @@
         @endif
 
         <textarea
+            x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 160) + 'px' } }"
+            x-init="resize()"
+            x-on:input="resize()"
+            x-on:message-sent.window="$nextTick(() => resize())"
             wire:model="{{ $model }}"
             rows="{{ $rows }}"
-            @keydown.enter.prevent="if (!event.shiftKey) $wire.sendMessage()"
-            class="flex-1 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition resize-none"
+            @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"
+            class="max-h-40 min-h-11 flex-1 rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 shadow-sm transition resize-none overflow-y-auto focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
             placeholder="{{ $placeholder }}"
             @if($disabled || $loading) disabled @endif
         ></textarea>

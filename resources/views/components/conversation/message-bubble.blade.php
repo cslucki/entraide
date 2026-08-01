@@ -14,6 +14,7 @@
     'showPinButton' => false,
     'showEditButton' => false,
     'showDeleteButton' => false,
+    'showCopyButton' => false,
     'isPinned' => false,
     'isEdited' => false,
     'showReactions' => false,
@@ -52,8 +53,43 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
 
 <div
     {{ $attributes->merge(['class' => $containerClasses . ' group ' . $class]) }}
+    x-data="{
+        id: @js((string) $messageId),
+        open: false,
+        hover: false,
+        showMore: false,
+        pressTimer: null,
+        copied: false,
+        deleteOpen: false,
+        copyTimer: null,
+        async copyMessage() {
+            const text = (this.$refs.copyContent?.innerText || '').replace(/\n{3,}/g, '\n\n').trim();
+            if (!text) return;
+
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.setAttribute('readonly', '');
+                    textarea.style.position = 'fixed';
+                    textarea.style.left = '-9999px';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                }
+
+                this.copied = true;
+                clearTimeout(this.copyTimer);
+                this.copyTimer = setTimeout(() => this.copied = false, 1400);
+            } catch (error) {
+                this.$dispatch('chatloop-copy-failed');
+            }
+        },
+    }"
     @if($showReactions && $messageId)
-    x-data="{ id: @js((string) $messageId), open: false, hover: false, showMore: false, pressTimer: null }"
     x-on:mouseover="hover = true"
     x-on:mouseleave="hover = false"
     x-on:reaction-menu-opened.window="if ($event.detail.id !== id) { open = false; showMore = false }"
@@ -72,16 +108,36 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
         x-on:contextmenu.prevent="$dispatch('reaction-menu-opened', { id }); open = true"
         @endif
     >
-        @if(!$isSent && ($avatar || $name || $subtitle))
-        <div class="flex items-center gap-2 mb-1">
-            @if($avatar)
-            <img src="{{ $avatar }}" alt="" class="w-5 h-5 rounded-full">
-            @endif
-            @if($name)
-            <span class="{{ $nameClasses }}">{{ $name }}</span>
-            @endif
-            @if($subtitle)
-            <span class="text-[10px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</span>
+        @if($avatar || $name || $subtitle || $time || $isEdited || $isAi)
+        <div class="mb-1 flex items-start justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-2">
+                @if($avatar)
+                <img src="{{ $avatar }}" alt="" class="h-5 w-5 rounded-full">
+                @elseif($isAi)
+                <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-emerald-400 text-white shadow-sm shadow-violet-500/20 ring-1 ring-white/60 dark:ring-violet-300/20" aria-hidden="true">
+                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.091-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.091L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.091 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.091ZM18.25 8.25 18 9.25l-.25-1a2.5 2.5 0 0 0-1.75-1.75L15 6.25l1-.25a2.5 2.5 0 0 0 1.75-1.75l.25-1 .25 1A2.5 2.5 0 0 0 20 6l1 .25-1 .25a2.5 2.5 0 0 0-1.75 1.75Z"/>
+                    </svg>
+                </span>
+                @endif
+                <div class="min-w-0">
+                    @if($name)
+                    <span class="{{ $nameClasses }} block truncate">{{ $name }}</span>
+                    @endif
+                    @if($subtitle)
+                    <span class="block truncate text-[10px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</span>
+                    @endif
+                </div>
+            </div>
+            @if($time || $isEdited)
+            <div class="shrink-0 text-right leading-none">
+                @if($time)
+                <span class="block text-[10px] {{ $timeClasses }}">{{ $time }}</span>
+                @endif
+                @if($isEdited)
+                <span class="mt-0.5 block text-[10px] {{ $timeClasses }}">{{ __('messages.edited') }}</span>
+                @endif
+            </div>
             @endif
         </div>
         @endif
@@ -102,24 +158,15 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
         </button>
         @endif
 
-        <div class="cursor-default whitespace-pre-wrap text-sm" style="caret-color: transparent;">{!! markdown((string) $slot) !!}</div>
+        <div x-ref="copyContent" class="cursor-default whitespace-pre-wrap text-sm" style="caret-color: transparent;">{!! markdown((string) $slot) !!}</div>
 
         @if($urlPreview)
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />
         @endif
 
-        @if($time || $isEdited || ($messageId && ($showReplyButton || $showPinButton || $showEditButton || $showDeleteButton || $showReactions)))
-        <div class="mt-1 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-                @if($time)
-                <span class="text-[10px] {{ $timeClasses }}">{{ $time }}</span>
-                @endif
-                @if($isEdited)
-                <span class="text-[10px] {{ $timeClasses }}">{{ __('messages.edited') }}</span>
-                @endif
-            </div>
-
-            @if($messageId && ($showReplyButton || $showPinButton || $showEditButton || $showDeleteButton))
+        @if($messageId && ($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton || $showReactions))
+        <div class="mt-1 flex items-center justify-end gap-3">
+            @if($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton)
             <div class="ml-auto flex items-center gap-1">
                 @if($showReplyButton)
                 <button
@@ -155,11 +202,31 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
                         aria-label="{{ __('messages.pin') }}"
                     >
                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 4.5 19.5 8.25m-3.75-3.75L9 11.25 8.25 15 12 14.25 18.75 7.5M8.25 15 4.5 19.5"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 6.5V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v7l2 3H6l2-3V6.5M12 18v3"/>
                         </svg>
                         <span class="sr-only">{{ __('messages.pin') }}</span>
                     </button>
                     @endif
+                @endif
+                @if($showCopyButton)
+                <button
+                    type="button"
+                    x-on:click="copyMessage"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full transition {{ $isSent ? 'text-indigo-200 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-white/70 hover:text-emerald-600 dark:hover:bg-gray-800 dark:hover:text-emerald-300' }}"
+                    title="{{ __('messages.copy') }}"
+                    aria-label="{{ __('messages.copy') }}"
+                    x-bind:title="copied ? @js(__('messages.copied')) : @js(__('messages.copy'))"
+                    x-bind:aria-label="copied ? @js(__('messages.copied')) : @js(__('messages.copy'))"
+                >
+                    <svg x-show="!copied" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="11" height="11" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <rect x="4" y="4" width="11" height="11" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <svg x-show="copied" x-cloak class="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+                    </svg>
+                    <span class="sr-only" x-text="copied ? @js(__('messages.copied')) : @js(__('messages.copy'))"></span>
+                </button>
                 @endif
                 @if($showEditButton)
                 <button
@@ -176,8 +243,8 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
                 @endif
                 @if($showDeleteButton)
                 <button
-                    wire:click="deleteMessage('{{ $messageId }}')"
-                    wire:confirm="{{ __('messages.delete_confirm') }}"
+                    type="button"
+                    x-on:click="deleteOpen = true"
                     class="inline-flex h-6 w-6 items-center justify-center rounded-full transition {{ $isSent ? 'text-indigo-200 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400' }}"
                     title="{{ __('messages.delete') }}"
                     aria-label="{{ __('messages.delete') }}"
@@ -214,6 +281,40 @@ $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0
         </div>
         @endif
     </div>
+
+    @if($messageId && $showDeleteButton)
+    <template x-teleport="body">
+        <div
+            x-show="deleteOpen"
+            x-cloak
+            class="fixed inset-0 z-50 flex items-center justify-center px-4"
+            x-on:keydown.escape.window="deleteOpen = false"
+        >
+            <div class="fixed inset-0 bg-gray-950/50 backdrop-blur-sm" x-on:click="deleteOpen = false"></div>
+            <div class="relative w-full max-w-sm rounded-2xl border border-white/70 bg-white p-5 shadow-2xl shadow-gray-950/20 dark:border-gray-700 dark:bg-gray-900">
+                <div class="flex items-start gap-3">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M19.228 5.79 18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+                        </svg>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="text-sm font-semibold text-gray-950 dark:text-gray-100">{{ __('messages.delete_modal_title') }}</h3>
+                        <p class="mt-1 text-sm leading-5 text-gray-500 dark:text-gray-400">{{ __('messages.delete_modal_body') }}</p>
+                    </div>
+                </div>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button type="button" x-on:click="deleteOpen = false" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                        {{ __('messages.cancel_edit') }}
+                    </button>
+                    <button type="button" x-on:click="$wire.deleteMessage('{{ $messageId }}'); deleteOpen = false" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700">
+                        {{ __('messages.delete') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+    @endif
 
         @if($showReactions && $messageId)
         <button

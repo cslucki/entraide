@@ -65,7 +65,7 @@
                         </div>
                     @elseif($msg->type === 'help_request')
                         @php $meta = $msg->metadata ?? []; @endphp
-                        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl p-4 space-y-2">
+                        <div x-data="{ deleteOpen: false }" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl p-4 space-y-2">
                             <div class="flex items-center justify-between gap-2">
                                 <div class="flex items-center gap-2">
                                     <span class="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">{{ __('loops.help_request_badge') }}</span>
@@ -76,12 +76,29 @@
                                 </div>
                                 @if($canDeleteMessages)
                                     <button
-                                        wire:click="deleteMessage('{{ $msg->id }}')"
-                                        wire:confirm="{{ __('messages.delete_confirm') }}"
+                                        type="button"
+                                        x-on:click="deleteOpen = true"
                                         class="text-[11px] text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition"
                                     >
                                         {{ __('messages.delete') }}
                                     </button>
+                                    <template x-teleport="body">
+                                        <div x-show="deleteOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center px-4" x-on:keydown.escape.window="deleteOpen = false">
+                                            <div class="fixed inset-0 bg-gray-950/50 backdrop-blur-sm" x-on:click="deleteOpen = false"></div>
+                                            <div class="relative w-full max-w-sm rounded-2xl border border-white/70 bg-white p-5 shadow-2xl shadow-gray-950/20 dark:border-gray-700 dark:bg-gray-900">
+                                                <h3 class="text-sm font-semibold text-gray-950 dark:text-gray-100">{{ __('messages.delete_modal_title') }}</h3>
+                                                <p class="mt-1 text-sm leading-5 text-gray-500 dark:text-gray-400">{{ __('messages.delete_modal_body') }}</p>
+                                                <div class="mt-5 flex justify-end gap-2">
+                                                    <button type="button" x-on:click="deleteOpen = false" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                                                        {{ __('messages.cancel_edit') }}
+                                                    </button>
+                                                    <button type="button" x-on:click="$wire.deleteMessage('{{ $msg->id }}'); deleteOpen = false" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700">
+                                                        {{ __('messages.delete') }}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
                                 @endif
                             </div>
                             <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $meta['title'] ?? __('loops.help_request_badge') }}</h3>
@@ -111,6 +128,7 @@
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
+                            show-copy-button="true"
                             :show-delete-button="$canDeleteMessages"
                             :is-pinned="$pinnedMessage?->id === $msg->id"
                             :is-edited="$msg->edited_at !== null"
@@ -132,6 +150,7 @@
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
                             :show-edit-button="$canEdit"
+                            show-copy-button="true"
                             :show-delete-button="$canDeleteMessages"
                             :is-pinned="$pinnedMessage?->id === $msg->id"
                             :is-edited="$msg->edited_at !== null"

@@ -23,7 +23,7 @@
         x-on:scroll="atBottom = ($el.scrollTop + $el.clientHeight >= $el.scrollHeight - 10)"
         x-on:loading-older.window="previousScrollHeight = $el.scrollHeight; preservingScroll = true"
         x-on:older-messages-loaded.window="requestAnimationFrame(() => { if (preservingScroll) { $el.scrollTop = $el.scrollHeight - previousScrollHeight; preservingScroll = false } })"
-        x-on:scroll-to-message.window="requestAnimationFrame(() => { const target = document.getElementById('loop-message-' + $event.detail.messageId); if (target) { target.scrollIntoView({ block: 'center' }); target.classList.add('ring-2', 'ring-violet-400', 'rounded-xl'); setTimeout(() => target.classList.remove('ring-2', 'ring-violet-400', 'rounded-xl'), 1800) } })"
+        x-on:scroll-to-message.window="requestAnimationFrame(() => { const target = document.getElementById('loop-message-' + $event.detail.messageId); if (target) { target.scrollIntoView({ block: 'start' }); target.classList.add('ring-2', 'ring-violet-400', 'rounded-xl'); setTimeout(() => target.classList.remove('ring-2', 'ring-violet-400', 'rounded-xl'), 1800) } })"
     @endif
     {{ $attributes->merge(['class' => 'flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-1', 'style' => 'scrollbar-width: thin;']) }}
 >
