@@ -375,30 +375,8 @@
                                             </a>
                                         </div>
                                     @elseif($card['key'] === 'core.roadmap')
-                                        {{-- Roadmap — NOT YET PERSISTED. Input disabled until the future
-                                             loop_roadmap_items task, to avoid implying actions are saved. --}}
-                                        <div class="space-y-4">
-                                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
-                                                <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __($card['label_key']) }}</p>
-                                                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __($card['description_key']) }}</p>
-                                            </div>
-
-                                            <div class="flex items-center gap-2 opacity-60">
-                                                <input type="text" disabled aria-disabled="true" placeholder="{{ __('loops.roadmap_add_placeholder') }}"
-                                                       class="min-w-0 flex-1 cursor-not-allowed rounded-xl border-gray-300 bg-gray-100 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                                                <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500">
-                                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                                                </span>
-                                            </div>
-
-                                            <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center dark:border-gray-700 dark:bg-gray-900">
-                                                <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-                                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0z"/></svg>
-                                                    {{ __('loops.roadmap_coming_soon') }}
-                                                </span>
-                                                <p class="mx-auto mt-3 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __('loops.roadmap_not_saved_note') }}</p>
-                                            </div>
-                                        </div>
+                                        {{-- Roadmap — persistent (loop_roadmap_items), lazy Livewire card --}}
+                                        <livewire:loop-roadmap-card :loop="$currentLoop" :key="'loop-roadmap-'.$currentLoop->id" lazy />
                                     @elseif($card['key'] === 'core.members')
                                         {{-- Members list + email invitation --}}
                                         <div class="space-y-4">
