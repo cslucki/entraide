@@ -58,6 +58,15 @@
         .loops-show-container {
             height: calc(100vh - 5rem);
         }
+        /* Full-width workspace on desktop: drop the max-w-7xl / page padding so the
+           two cards use the whole available width instead of a narrow centred column. */
+        .loops-show-wrapper {
+            max-width: none !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
     }
 
     /* =========================================================
@@ -151,7 +160,7 @@
 @endpush
 
 <x-app-layout :title="$currentLoop->name">
-    <x-page-container class="loops-show-wrapper">
+    <x-page-container width="none" class="loops-show-wrapper">
         <div
             x-data="{
                 activeCard: null,
