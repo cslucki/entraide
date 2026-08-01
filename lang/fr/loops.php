@@ -56,6 +56,37 @@ return [
     'continue_to_exchanges' => 'Continuer vers Échanges',
     'clarification_disabled' => 'La clarification IA n\'est pas activée pour cette organisation.',
 
+    // Boucle Workspace Cards
+    'cards_bar_label' => 'Cards de la Boucle',
+    'cards_bar_hint' => 'Ouvrir un artefact sans quitter ChatLoop',
+    'cards_panel_close' => 'Fermer le panneau',
+    'cards_panel_back_to_chat' => 'Retour à ChatLoop',
+    'cards_panel_temporary_state' => 'État temporaire',
+    'cards_panel_coming_soon' => 'Bientôt disponible',
+    'cards' => [
+        'ai_summary' => [
+            'label' => 'Résumé IA',
+            'description' => 'Condense les échanges utiles de cette Boucle.',
+            'empty_title' => 'Pas encore de résumé',
+            'empty_body' => 'Le résumé IA sera généré dans une prochaine étape. ChatLoop reste le centre vivant de la Boucle.',
+            'action' => 'Régénérer',
+        ],
+        'manifesto' => [
+            'label' => 'Manifeste',
+            'description' => 'Garde le sens, les principes et les décisions de référence.',
+            'empty_title' => 'Aucun Manifeste',
+            'empty_body' => 'La création du Manifeste est différée au premier usage dans une tâche dédiée.',
+            'action' => 'Créer le Manifeste',
+        ],
+        'roadmap' => [
+            'label' => 'Roadmap',
+            'description' => 'Prépare les prochaines actions collectives de la Boucle.',
+            'empty_title' => 'Aucune action',
+            'empty_body' => 'La Roadmap affichera bientôt une liste simple d’actions, sans table ni migration dans ce lot.',
+            'action' => 'Ajouter une action',
+        ],
+    ],
+
     // Landing / explanation page
     'landing_hero_title' => 'Avancer avec les bonnes personnes, au bon endroit.',
     'landing_hero_desc' => 'Une Boucle rassemble des Membres autour d\'un besoin, d\'un sujet ou d\'un projet. Elle donne un contexte clair pour lire, contribuer et avancer ensemble dans une Organisation.',

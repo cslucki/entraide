@@ -1146,6 +1146,90 @@ class LoopChatTest extends TestCase
             ->assertSee('/loops/'.$this->loop->id.'/ask-ai');
     }
 
+    public function test_loop_owner_sees_workspace_cards_shell_closed_by_default(): void
+    {
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSee(__('loops.cards_bar_label'))
+            ->assertSee(__('loops.cards.ai_summary.label'))
+            ->assertSee(__('loops.cards.manifesto.label'))
+            ->assertSee(__('loops.cards.roadmap.label'))
+            ->assertSee(__('loops.cards.ai_summary.empty_title'))
+            ->assertSee(__('loops.cards.manifesto.empty_title'))
+            ->assertSee(__('loops.cards.roadmap.empty_title'))
+            ->assertSeeHtml('activeCard: null')
+            ->assertSeeHtml('data-loop-workspace-shell')
+            ->assertSeeHtml('data-loop-workspace-chat')
+            ->assertSeeHtml('data-loop-workspace-panel')
+            ->assertSeeHtml('core.ai_summary')
+            ->assertSeeHtml('core.manifesto')
+            ->assertSeeHtml('core.roadmap');
+    }
+
+    public function test_active_moderator_sees_workspace_cards_shell(): void
+    {
+        $moderator = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMember($this->loop, $moderator, 'moderator');
+
+        $this->actingAs($moderator)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSee(__('loops.cards_bar_label'))
+            ->assertSee(__('loops.cards.ai_summary.label'))
+            ->assertSee(__('loops.cards.manifesto.label'))
+            ->assertSee(__('loops.cards.roadmap.label'));
+    }
+
+    public function test_platform_super_admin_non_member_sees_workspace_cards_shell(): void
+    {
+        $admin = User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'is_admin' => true,
+        ]);
+        $publicLoop = $this->service->createLoop($this->member, 'Public Admin Cards Loop', visibility: 'public');
+
+        $this->actingAs($admin)
+            ->get(route('loops.show', $publicLoop))
+            ->assertOk()
+            ->assertSee(__('loops.cards_bar_label'))
+            ->assertSee(__('loops.cards.ai_summary.label'))
+            ->assertSee(__('loops.cards.manifesto.label'))
+            ->assertSee(__('loops.cards.roadmap.label'));
+    }
+
+    public function test_non_member_does_not_see_loop_workspace_cards_shell(): void
+    {
+        $publicLoop = $this->service->createLoop($this->member, 'Public Chat Loop', visibility: 'public');
+
+        $this->actingAs($this->nonMember)
+            ->get(route('loops.show', $publicLoop))
+            ->assertOk()
+            ->assertDontSee(__('loops.cards_bar_label'))
+            ->assertDontSee(__('loops.cards.ai_summary.label'))
+            ->assertDontSee(__('loops.cards.manifesto.label'))
+            ->assertDontSee(__('loops.cards.roadmap.label'));
+    }
+
+    public function test_loop_workspace_cards_registry_declares_core_cards_in_order(): void
+    {
+        $cards = collect(config('loop_cards.cards'))
+            ->sortBy('order')
+            ->values();
+
+        $this->assertSame([
+            'core.ai_summary',
+            'core.manifesto',
+            'core.roadmap',
+        ], $cards->pluck('key')->all());
+
+        $cards->each(function (array $card): void {
+            $this->assertTrue($card['default_enabled']);
+            $this->assertSame('loop.active_member', $card['permission']);
+            $this->assertSame('drawer', $card['mobile']);
+        });
+    }
+
     public function test_non_member_does_not_see_ask_ai_button(): void
     {
         Livewire::actingAs($this->nonMember)
