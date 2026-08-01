@@ -1159,7 +1159,6 @@ class LoopChatTest extends TestCase
             ->assertSee(__('loops.cards.roadmap.label'))
             ->assertSee(__('loops.cards.ai_summary.empty_title'))
             ->assertSee(__('loops.cards.manifesto.empty_title'))
-            ->assertSee(__('loops.roadmap_coming_soon'))
             ->assertSeeHtml('activeCard: null')
             ->assertSeeHtml('data-loop-workspace-shell')
             ->assertSeeHtml('data-loop-workspace-chat')

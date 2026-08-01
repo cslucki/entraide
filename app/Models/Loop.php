@@ -111,6 +111,11 @@ class Loop extends Model
         return $this->hasMany(LoopMessage::class);
     }
 
+    public function roadmapItems(): HasMany
+    {
+        return $this->hasMany(LoopRoadmapItem::class);
+    }
+
     public function memberAiProfile(): BelongsTo
     {
         return $this->belongsTo(MemberAiProfile::class);
