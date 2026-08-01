@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Support\Ai\AiMarkdownSanitizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -884,5 +885,200 @@ class LoopChatTest extends TestCase
 
         $message = LoopMessage::where('body', 'Message avec image')->first();
         $this->assertNotNull($message->image_path);
+    }
+
+    public function test_member_sees_ask_ai_button(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.ask_ai'))
+            ->assertSee('/loops/'.$this->loop->id.'/ask-ai');
+    }
+
+    public function test_non_member_does_not_see_ask_ai_button(): void
+    {
+        Livewire::actingAs($this->nonMember)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSee(__('loops.ask_ai'));
+    }
+
+    public function test_ask_ai_button_has_loading_state_bindings(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('x-bind:disabled="submitting"')
+            ->assertSeeHtml('x-on:submit="submitting = true"')
+            ->assertSeeHtml('x-show="submitting"')
+            ->assertSeeHtml('x-show="!submitting"');
+    }
+
+    public function test_member_sees_ask_question_button(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.ask_question'));
+    }
+
+    public function test_ask_question_modal_is_rendered(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('name="action" value="ask"')
+            ->assertSeeHtml('id="ai-question"')
+            ->assertSeeHtml(__('loops.ask_question_placeholder'))
+            ->assertSeeHtml(__('loops.ask_question_submit'))
+            ->assertSeeHtml(__('loops.cancel'));
+    }
+
+    public function test_non_member_does_not_see_ask_question_button(): void
+    {
+        Livewire::actingAs($this->nonMember)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSee(__('loops.ask_question'));
+    }
+
+    public function test_ai_message_renders_with_facilitator_and_requested_by(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse de l\'IA.',
+            'type' => 'ai',
+            'metadata' => [
+                'requested_by' => $this->member->id,
+                'action' => 'answer',
+            ],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.ai_facilitator'))
+            ->assertSee(__('loops.ai_requested_by', ['name' => $this->member->publicDisplayName()]))
+            ->assertSee('Réponse de l\'IA.', false);
+    }
+
+    public function test_ai_message_without_requested_by_renders_without_subtitle(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse IA sans demandeur',
+            'type' => 'ai',
+            'metadata' => [
+                'action' => 'answer',
+            ],
+        ]);
+
+        $subtitlePrefix = trim(explode(':', __('loops.ai_requested_by', ['name' => '']))[0]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.ai_facilitator'))
+            ->assertSee('Réponse IA sans demandeur')
+            ->assertDontSee($subtitlePrefix);
+    }
+
+    public function test_ai_message_with_unknown_requester_does_not_crash(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse IA orpheline',
+            'type' => 'ai',
+            'metadata' => [
+                'requested_by' => 99999999,
+                'action' => 'answer',
+            ],
+        ]);
+
+        $subtitlePrefix = trim(explode(':', __('loops.ai_requested_by', ['name' => '']))[0]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.ai_facilitator'))
+            ->assertSee('Réponse IA orpheline')
+            ->assertDontSee($subtitlePrefix);
+    }
+
+    public function test_ai_error_flash_is_rendered_locally(): void
+    {
+        $flashValue = __('loops.ai_error');
+
+        $response = $this->actingAs($this->member)
+            ->withSession(['error' => $flashValue])
+            ->get(route('loops.show', $this->loop));
+
+        $response->assertOk();
+        $response->assertSee($flashValue);
+    }
+
+    public function test_org_scoped_show_page_uses_org_scoped_ask_ai_url(): void
+    {
+        $expectedUrl = route('organization.loops.ai', [
+            'organization' => $this->organization,
+            'loop' => $this->loop,
+        ]);
+
+        $response = $this->actingAs($this->member)
+            ->get(route('organization.loops.show', [
+                'organization' => $this->organization,
+                'loop' => $this->loop,
+            ]));
+
+        $response->assertOk();
+        $response->assertSee($expectedUrl);
+    }
+
+    public function test_ai_message_renders_markdown(): void
+    {
+        $body = AiMarkdownSanitizer::sanitize(
+            "## Résumé\n\n"
+            .'**gras** et *italique*'."\n\n"
+            ."- Premier point\n- Deuxième point\n\n"
+            ."> Citation\n\n"
+            ."[lien](https://example.com)\n\n"
+            ."```php\n\$ok = true;\n```"
+        );
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => $body,
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('<h2>Résumé</h2>')
+            ->assertSeeHtml('<strong>gras</strong>')
+            ->assertSeeHtml('<em>italique</em>')
+            ->assertSeeHtml('<li>Premier point</li>')
+            ->assertSeeHtml('<blockquote>')
+            ->assertSeeHtml('<a href="https://example.com">')
+            ->assertSeeHtml('<pre><code');
+    }
+
+    public function test_ai_message_never_renders_h1_or_unsafe_content(): void
+    {
+        $body = AiMarkdownSanitizer::sanitize(
+            "# Titre interdit\n\n"
+            .'[piège](javascript:alert(1))'."\n\n"
+            .'<script>alert(2)</script>'
+        );
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => $body,
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSeeHtml('<h1')
+            ->assertDontSee('javascript:')
+            ->assertDontSee('<script>');
     }
 }

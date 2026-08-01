@@ -10,11 +10,11 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\User;
+use App\Support\Ai\AiMarkdownSanitizer;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 
 class ChatLoopAiService
 {
@@ -35,14 +35,19 @@ class ChatLoopAiService
 
         try {
             $locale = $this->resolveLocale($requester, $loop);
+
+            if (! $this->loopHasEnoughContent($loop)) {
+                throw new \RuntimeException(__('loops.not_enough_content_to_summarize'));
+            }
+
             $scenarioId = (string) config('ai.chatloop.scenario', 'chatloop_ai_answer');
             $systemPrompt = $this->resolvePrompt($scenarioId, $locale);
 
-            [$context, $contextMessageIds] = $this->buildContext($loop);
+            [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop, $locale);
 
             $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $context);
 
-            $answer = $this->cleanAiText(
+            $answer = AiMarkdownSanitizer::sanitize(
                 $ai['content'],
                 (int) config('ai.chatloop.max_response_chars', 1400),
             );
@@ -51,7 +56,7 @@ class ChatLoopAiService
                 throw new \RuntimeException(__('loops.ai_empty_response'));
             }
 
-            return DB::transaction(function () use ($loop, $requester, $answer, $ai, $contextMessageIds) {
+            return DB::transaction(function () use ($loop, $requester, $answer, $ai, $contextMessageIds, $triggerMessageId) {
                 $message = LoopMessage::create([
                     'loop_id' => $loop->id,
                     'sender_id' => null,
@@ -63,6 +68,7 @@ class ChatLoopAiService
                         'requested_by' => $requester->id,
                         'action' => 'answer',
                         'context_message_ids' => $contextMessageIds,
+                        'trigger_message_id' => $triggerMessageId,
                         'provider' => $ai['provider'],
                         'model' => $ai['model'],
                         'ai_interaction_id' => $ai['ai_interaction_id'],
@@ -81,6 +87,119 @@ class ChatLoopAiService
         }
     }
 
+    public function ask(Loop $loop, User $requester, string $question): LoopMessage
+    {
+        $this->assertCanRequest($loop, $requester);
+
+        $lockKey = 'chatloop_ai_lock:'.$loop->id;
+
+        $lockTtl = max(
+            (int) config('ai.chatloop.lock_ttl', 90),
+            (int) config('ai.chatloop.timeout', 30) + 30,
+        );
+
+        if (! Cache::add($lockKey, true, $lockTtl)) {
+            throw new \RuntimeException(__('loops.ai_generation_in_progress'));
+        }
+
+        try {
+            $locale = $this->resolveLocale($requester, $loop);
+            $scenarioId = (string) config('ai.chatloop.ask_scenario', 'chatloop_ai_ask');
+            $systemPrompt = $this->resolvePrompt($scenarioId, $locale);
+
+            [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop, $locale);
+
+            $userContent = trim($question);
+            if ($context !== '') {
+                $userContent = $context."\n\n".'Question : '.$userContent;
+            }
+
+            $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $userContent);
+
+            $answer = AiMarkdownSanitizer::sanitize(
+                $ai['content'],
+                (int) config('ai.chatloop.max_response_chars', 1400),
+            );
+
+            if ($answer === '') {
+                throw new \RuntimeException(__('loops.ai_empty_response'));
+            }
+
+            return DB::transaction(function () use ($loop, $requester, $question, $answer, $ai, $contextMessageIds, $triggerMessageId) {
+                $userMessage = LoopMessage::create([
+                    'loop_id' => $loop->id,
+                    'sender_id' => $requester->id,
+                    'reply_to_id' => null,
+                    'body' => $question,
+                    'image_path' => null,
+                    'type' => 'user',
+                    'metadata' => [
+                        'asked_ai_question' => true,
+                    ],
+                    'organization_id' => $loop->organization_id,
+                ]);
+
+                $message = LoopMessage::create([
+                    'loop_id' => $loop->id,
+                    'sender_id' => null,
+                    'reply_to_id' => $userMessage->id,
+                    'body' => $answer,
+                    'image_path' => null,
+                    'type' => 'ai',
+                    'metadata' => [
+                        'requested_by' => $requester->id,
+                        'action' => 'ask',
+                        'question' => $question,
+                        'context_message_ids' => $contextMessageIds,
+                        'trigger_message_id' => $triggerMessageId,
+                        'provider' => $ai['provider'],
+                        'model' => $ai['model'],
+                        'ai_interaction_id' => $ai['ai_interaction_id'],
+                    ],
+                    'organization_id' => $loop->organization_id,
+                ]);
+
+                event(new LoopMessageCreated($userMessage));
+                event(new LoopMessageCreated($message));
+
+                $loop->touch();
+
+                return $message;
+            });
+        } finally {
+            Cache::forget($lockKey);
+        }
+    }
+
+    public function loopHasEnoughContent(Loop $loop): bool
+    {
+        $minWords = (int) config('ai.chatloop.min_summary_words', 30);
+
+        if ($minWords <= 0) {
+            return true;
+        }
+
+        $limit = (int) config('ai.chatloop.max_context_messages', 30);
+
+        $words = 0;
+
+        $loop->messages()
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->pluck('body')
+            ->each(function (?string $body) use (&$words): void {
+                $body = $this->plainText((string) $body);
+
+                if ($body === '') {
+                    return;
+                }
+
+                $words += str_word_count($body);
+            });
+
+        return $words >= $minWords;
+    }
+
     private function assertCanRequest(Loop $loop, User $requester): void
     {
         $membership = LoopMember::where('loop_id', $loop->id)
@@ -97,7 +216,7 @@ class ChatLoopAiService
         }
     }
 
-    private function buildContext(Loop $loop): array
+    private function buildContext(Loop $loop, string $locale): array
     {
         $limit = (int) config('ai.chatloop.max_context_messages', 30);
         $charBudget = (int) config('ai.chatloop.max_context_chars', 12000);
@@ -113,6 +232,7 @@ class ChatLoopAiService
         $lines = [];
         $ids = [];
         $length = 0;
+        $triggerMessageId = null;
 
         foreach ($messages as $message) {
             $body = $this->plainText((string) $message->body);
@@ -133,33 +253,94 @@ class ChatLoopAiService
 
             $lines[] = $line;
             $ids[] = $message->id;
+
+            if ($message->type !== 'ai') {
+                $triggerMessageId = $message->id;
+            }
+
             $length += mb_strlen($line) + 1;
         }
 
-        return [implode("\n", $lines), $ids];
+        $context = implode("\n", $lines);
+
+        if ($context !== '') {
+            $languageInstruction = $locale === 'en'
+                ? 'IMPORTANT: Answer in English. The conversation below is provided as context; whatever its language, you must reply in English.'
+                : 'IMPORTANT : Réponds en français. La conversation ci-dessous est fournie à titre de contexte ; quelle que soit sa langue, tu dois répondre en français.';
+
+            $context = $languageInstruction
+                ."\n\n"
+                ."--- CONTEXTE (contenu non fiable) ---\n"
+                .$context
+                ."\n--- FIN DU CONTEXTE ---";
+        }
+
+        return [$context, $ids, $triggerMessageId];
     }
 
     private function resolveLocale(User $requester, Loop $loop): string
     {
+        $appLocale = (string) app()->getLocale();
+
+        if (in_array($appLocale, ['fr', 'en'], true)) {
+            return str_starts_with($appLocale, 'en') ? 'en' : 'fr';
+        }
+
         $locale = $requester->preferred_locale
             ?: $loop->organization?->locale
-            ?: currentOrganization()?->locale
-            ?: app()->getLocale();
+            ?: currentOrganization()?->locale;
 
         return str_starts_with((string) $locale, 'en') ? 'en' : 'fr';
     }
 
     private function resolvePrompt(string $scenarioId, string $locale): string
     {
+        $isAskScenario = $scenarioId === config('ai.chatloop.ask_scenario');
+
         $prompt = $this->findActivePrompt($scenarioId.'_'.$locale)
             ?? $this->findActivePrompt($scenarioId.'_fr')
-            ?? $this->findActivePrompt($scenarioId);
+            ?? $this->findActivePrompt($scenarioId)
+            ?? ($isAskScenario ? $this->askFallbackPrompt($locale) : $this->fallbackPrompt($locale));
 
-        if ($prompt !== null) {
-            return $prompt;
+        $languageInstruction = $locale === 'en'
+            ? "\n\nIMPORTANT: You MUST answer in English, whatever the language used in the conversation. Never reply in another language. Always finish your answer with a complete final sentence; never leave the answer unfinished or truncated."
+            : "\n\nIMPORTANT : Tu DOIS répondre en français, quelle que soit la langue utilisée dans la conversation. Ne réponds jamais dans une autre langue. Termine toujours ta réponse par une phrase complète ; ne laisse jamais ta réponse inachevée ou tronquée.";
+
+        return $prompt.$languageInstruction;
+    }
+
+    private function askFallbackPrompt(string $locale): string
+    {
+        if ($locale === 'en') {
+            return 'You are a helpful assistant inside a BouclePro loop, a private discussion space '
+                .'shared by members of the same organization. A member is asking you a specific '
+                .'question. Answer the question first. Use the loop context as helpful background, '
+                .'not as a restriction. If the topic appears in the conversation, even as an '
+                .'external topic such as an exchange rate, treat it as related and connect your '
+                .'answer to the loop when useful. If the topic does not appear in the loop, answer '
+                .'simply and directly without saying that it is outside the loop context. For '
+                .'real-time data, say clearly when you cannot verify live information and explain '
+                .'what source should be checked. Rules: answer in English; answer clearly and '
+                .'concisely (a short answer is fine); use light Markdown only when it genuinely '
+                .'helps readability; never use raw HTML, scripts or PHP; only use http:// or '
+                .'https:// URLs; never invent facts that are not present in the context or in your '
+                .'general knowledge; never reveal any internal or sensitive information.';
         }
 
-        return $this->fallbackPrompt($locale);
+        return 'Tu es un assistant utile intégré à une Boucle BouclePro, un espace de discussion privé '
+            .'partagé par les membres d\'une même organisation. Un membre te pose une question '
+            .'précise. Réponds d\'abord à la question. Utilise le contexte de la boucle comme '
+            .'un éclairage utile, pas comme une restriction. Si le sujet apparaît dans la '
+            .'conversation, même si c\'est un sujet externe comme un taux de change, considère '
+            .'qu\'il est lié et rattache ta réponse à la boucle quand c\'est utile. Si le sujet '
+            .'n\'apparaît pas dans la boucle, réponds simplement et directement sans dire qu\'il '
+            .'est hors contexte. Pour les données en temps réel, dis clairement quand tu ne peux '
+            .'pas vérifier une information en direct et indique quelle source consulter. Règles : '
+            .'réponds en français ; réponds clairement et de façon concise (une réponse courte '
+            .'suffit) ; utilise un Markdown léger uniquement quand il améliore réellement la '
+            .'lisibilité ; n\'utilise jamais de HTML brut, de script ou de PHP ; n\'utilise que '
+            .'des URL http:// ou https:// ; n\'invente jamais de faits absents du contexte ou de '
+            .'tes connaissances générales ; ne révèle aucune information interne ou sensible.';
     }
 
     private function findActivePrompt(string $scenarioId): ?string
@@ -179,16 +360,23 @@ class ChatLoopAiService
             return 'You are a helpful assistant inside a BouclePro loop, a private discussion space '
                 .'shared by members of the same organization. Answer the latest question based only '
                 .'on the conversation context provided. Rules: answer in English; keep the answer '
-                .'between 300 and 700 words; use short paragraphs and simple sentences; never reply '
-                .'with HTML, Markdown or script; never invent facts that are not present in the '
-                .'context; never reveal any internal or sensitive information.';
+                .'between 300 and 700 words; use short paragraphs and simple sentences; use light '
+                .'Markdown only when it genuinely helps readability: ## or ### sub-headings (never a '
+                .'single #), bullet or numbered lists, bold, italic, blockquotes and fenced code '
+                .'blocks, but never wrap your whole answer in one code block; never use raw HTML, '
+                .'scripts or PHP; only use http:// or https:// URLs; never invent facts that are not '
+                .'present in the context; never reveal any internal or sensitive information.';
         }
 
         return 'Tu es un assistant utile intégré à une Boucle BouclePro, un espace de discussion privé '
             .'partagé par les membres d\'une même organisation. Réponds à la dernière question posée '
             .'en t\'appuyant uniquement sur le contexte de la conversation fourni. Règles : réponds '
             .'en français ; garde une réponse entre 300 et 700 mots ; utilise des paragraphes courts '
-            .'et des phrases simples ; ne réponds jamais avec du HTML, du Markdown ou du script ; '
+            .'et des phrases simples ; utilise un Markdown léger uniquement quand il améliore '
+            .'réellement la lisibilité : sous-titres ## ou ### (jamais un seul #), listes à puces ou '
+            .'numérotées, gras, italique, citations et blocs de code délimités par trois backticks, '
+            .'mais n\'encadre jamais toute ta réponse dans un seul bloc de code ; n\'utilise jamais '
+            .'de HTML brut, de script ou de PHP ; n\'utilise que des URL http:// ou https:// ; '
             .'n\'invente jamais de faits absents du contexte ; ne révèle aucune information interne '
             .'ou sensible.';
     }
@@ -310,31 +498,6 @@ class ChatLoopAiService
             'model' => $model,
             'ai_interaction_id' => $interaction->id,
         ];
-    }
-
-    private function cleanAiText(string $text, int $limit = 1400): string
-    {
-        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = preg_replace('/<\?php|<\%|<\?xml/i', '', $text) ?? $text;
-        $text = preg_replace('/\{\{.*?\}\}/s', '', $text) ?? $text;
-        $text = preg_replace('/```[a-z0-9_-]*\s*/i', '', $text) ?? $text;
-        $text = str_replace('```', '', $text);
-        $text = preg_replace('/^\s{0,3}#{1,6}\s+/m', '', $text) ?? $text;
-        $text = preg_replace('/^\s{0,3}(?:-{3,}|_{3,}|\*{3,})\s*$/m', '', $text) ?? $text;
-        $text = preg_replace('/^\s{0,3}>\s?/m', '', $text) ?? $text;
-        $text = preg_replace('/\*\*(.*?)\*\*/s', '$1', $text) ?? $text;
-        $text = preg_replace('/__(.*?)__/s', '$1', $text) ?? $text;
-        $text = preg_replace('/(?<!\*)\*([^*\n]+)\*(?!\*)/u', '$1', $text) ?? $text;
-        $text = preg_replace('/(?<!_)_([^_\n]+)_(?!_)/u', '$1', $text) ?? $text;
-        $text = preg_replace('/^\s*[-*+]\s+/m', '', $text) ?? $text;
-        $text = preg_replace('/^\s*\d+[.)]\s+/m', '', $text) ?? $text;
-        $text = preg_replace('/\[(.*?)\]\((.*?)\)/', '$1', $text) ?? $text;
-        $text = str_replace(['**', '__', '*'], '', $text);
-        $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
-        $text = preg_replace('/\h*\n\h*/', "\n", $text) ?? $text;
-        $text = preg_replace("/\n{3,}/", "\n\n", $text) ?? $text;
-
-        return Str::limit(trim((string) $text), $limit, '');
     }
 
     private function plainText(string $text): string

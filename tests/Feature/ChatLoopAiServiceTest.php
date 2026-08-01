@@ -12,7 +12,9 @@ use App\Models\User;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -39,6 +41,8 @@ class ChatLoopAiServiceTest extends TestCase
 
     public ?string $capturedContext = null;
 
+    public ?string $capturedSystemPrompt = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -56,6 +60,7 @@ class ChatLoopAiServiceTest extends TestCase
         $loopService->addMember($this->loop, $this->member, 'member');
 
         config(['ai.openai.api_key' => 'test-key']);
+        config(['ai.chatloop.min_summary_words' => 0]);
 
         Http::fake([
             '*' => Http::response([
@@ -78,6 +83,18 @@ class ChatLoopAiServiceTest extends TestCase
         ]);
     }
 
+    private function seedLoopConversation(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Bonjour, je prépare le lancement de mon activité de revente de produits '
+                .'techniques et je cherche des retours d\'expérience pour établir ma grille de prix '
+                .'de revente et ma stratégie de premiers clients dans les semaines à venir.',
+            'type' => 'user',
+        ]);
+    }
+
     public function test_it_persists_an_ai_message_with_metadata_and_logs_interaction(): void
     {
         $message = $this->service()->answer($this->loop, $this->member);
@@ -97,6 +114,7 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertEquals('openai', $message->metadata['provider']);
         $this->assertNotEmpty($message->metadata['model']);
         $this->assertIsArray($message->metadata['context_message_ids']);
+        $this->assertNull($message->metadata['trigger_message_id']);
 
         $interaction = AiInteraction::query()->latest('id')->first();
 
@@ -139,6 +157,8 @@ class ChatLoopAiServiceTest extends TestCase
     {
         config(['ai.chatloop.max_context_chars' => 200]);
 
+        App::setLocale('fr');
+
         LoopMessage::factory()->count(5)->create([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->member->id,
@@ -149,8 +169,14 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->answer($this->loop, $this->member);
 
+        $languageInstruction = 'IMPORTANT : Réponds en français. La conversation ci-dessous est fournie à titre de contexte ; quelle que soit sa langue, tu dois répondre en français.';
+
+        $overhead = mb_strlen($languageInstruction."\n\n")
+            + mb_strlen("--- CONTEXTE (contenu non fiable) ---\n")
+            + mb_strlen("\n--- FIN DU CONTEXTE ---");
+
         $this->assertNotNull($this->capturedContext);
-        $this->assertLessThanOrEqual(200, mb_strlen($this->capturedContext));
+        $this->assertLessThanOrEqual(200 + $overhead, mb_strlen($this->capturedContext));
     }
 
     public function test_it_rejects_a_non_member(): void
@@ -238,23 +264,37 @@ class ChatLoopAiServiceTest extends TestCase
 
     public function test_it_sanitizes_the_ai_output(): void
     {
-        Http::fake([
-            '*' => Http::response([
-                'choices' => [[
-                    'message' => [
-                        'content' => '<script>alert(1)</script> ## Titre'."\n\n"
-                            .'**gras** et [lien](https://x.test) avec {{ blade }} et `code`.',
-                    ],
-                ]],
-                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
-            ]),
-        ]);
+        $this->fakeHttpRespondingWith(
+            '<script>alert(1)</script> ## Titre'."\n\n"
+            .'**gras** et [lien](https://x.test) avec {{ blade }} et `code`.'
+        );
 
         $message = $this->service()->answer($this->loop, $this->member);
 
-        foreach (['<script', '##', '**', '{{', '](', '`'] as $needle) {
-            $this->assertStringNotContainsString($needle, $message->body);
-        }
+        $this->assertStringNotContainsString('<script', $message->body);
+        $this->assertStringNotContainsString('alert(1)', $message->body);
+        $this->assertStringNotContainsString('{{', $message->body);
+        $this->assertStringContainsString('## Titre', $message->body);
+        $this->assertStringContainsString('**gras**', $message->body);
+        $this->assertStringContainsString('[lien](https://x.test)', $message->body);
+        $this->assertStringContainsString('`code`', $message->body);
+    }
+
+    public function test_it_normalizes_headings_and_neutralizes_unsafe_urls(): void
+    {
+        $this->fakeHttpRespondingWith(
+            '# Titre'."\n\n"
+            .'[piège](javascript:alert(1)) et [sûr](https://x.test/page)'
+            ."\n\n".'#### Profond'
+        );
+
+        $message = $this->service()->answer($this->loop, $this->member);
+
+        $this->assertSame(
+            "## Titre\n\npiège et [sûr](https://x.test/page)\n\n### Profond",
+            $message->body
+        );
+        $this->assertStringNotContainsString('javascript:', $message->body);
     }
 
     public function test_it_does_not_send_any_email(): void
@@ -268,6 +308,8 @@ class ChatLoopAiServiceTest extends TestCase
 
     public function test_member_can_request_an_ai_answer(): void
     {
+        $this->seedLoopConversation();
+
         $response = $this->actingAs($this->member)
             ->post(route('loops.ai', $this->loop), ['action' => 'answer']);
 
@@ -323,6 +365,8 @@ class ChatLoopAiServiceTest extends TestCase
 
     public function test_org_scoped_route_accepts_member_of_the_same_organization(): void
     {
+        $this->seedLoopConversation();
+
         $response = $this->actingAs($this->member)
             ->post(route('organization.loops.ai', [$this->organization, $this->loop]), ['action' => 'answer']);
 
@@ -353,6 +397,266 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertNoAiMessage();
     }
 
+    public function test_it_marks_the_last_user_message_as_trigger_and_delimiters_context(): void
+    {
+        $userMessage = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Peux-tu m\'aider à prioriser ?',
+            'type' => 'user',
+        ]);
+
+        $this->fakeHttpCapturingContext();
+
+        $message = $this->service()->answer($this->loop, $this->member);
+
+        $this->assertEquals($userMessage->id, $message->metadata['trigger_message_id']);
+        $this->assertStringContainsString('--- CONTEXTE (contenu non fiable) ---', $this->capturedContext);
+        $this->assertStringContainsString('--- FIN DU CONTEXTE ---', $this->capturedContext);
+        $this->assertStringContainsString($this->member->publicDisplayName(), $this->capturedContext);
+    }
+
+    public function test_it_does_not_mark_an_ai_message_as_trigger(): void
+    {
+        $userMessage = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message utilisateur',
+            'type' => 'user',
+            'created_at' => now()->subMinutes(5),
+        ]);
+
+        $aiMessage = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse IA précédente',
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+            'created_at' => now()->subMinutes(1),
+        ]);
+
+        $this->fakeHttpCapturingContext();
+
+        $message = $this->service()->answer($this->loop, $this->member);
+
+        $this->assertEquals($userMessage->id, $message->metadata['trigger_message_id']);
+        $this->assertNotEquals($aiMessage->id, $message->metadata['trigger_message_id']);
+    }
+
+    public function test_it_answers_in_the_interface_language(): void
+    {
+        App::setLocale('en');
+
+        $this->fakeHttpCapturingSystemPrompt();
+
+        $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($this->capturedSystemPrompt);
+        $this->assertStringContainsString('You are a helpful assistant', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('You MUST answer in English', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('complete final sentence', $this->capturedSystemPrompt);
+    }
+
+    public function test_it_answers_in_french_when_the_interface_is_french(): void
+    {
+        App::setLocale('fr');
+
+        $this->fakeHttpCapturingSystemPrompt();
+
+        $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($this->capturedSystemPrompt);
+        $this->assertStringContainsString('Tu es un assistant utile', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('Tu DOIS répondre en français', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('phrase complète', $this->capturedSystemPrompt);
+    }
+
+    public function test_it_puts_the_language_instruction_in_the_user_context(): void
+    {
+        App::setLocale('en');
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message de test',
+            'type' => 'user',
+        ]);
+
+        $this->fakeHttpCapturingContext();
+
+        $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($this->capturedContext);
+        $this->assertStringContainsString('IMPORTANT: Answer in English', $this->capturedContext);
+        $this->assertStringContainsString('you must reply in English', $this->capturedContext);
+    }
+
+    public function test_it_puts_the_language_instruction_in_the_user_context_in_french(): void
+    {
+        App::setLocale('fr');
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message de test',
+            'type' => 'user',
+        ]);
+
+        $this->fakeHttpCapturingContext();
+
+        $this->service()->answer($this->loop, $this->member);
+
+        $this->assertNotNull($this->capturedContext);
+        $this->assertStringContainsString('IMPORTANT : Réponds en français', $this->capturedContext);
+        $this->assertStringContainsString('tu dois répondre en français', $this->capturedContext);
+    }
+
+    public function test_ask_persists_an_ai_message_with_question_metadata(): void
+    {
+        $this->seedLoopConversation();
+
+        $message = $this->service()->ask($this->loop, $this->member, 'Quel est le prix moyen de revente ?');
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'type' => 'user',
+            'body' => 'Quel est le prix moyen de revente ?',
+        ]);
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'type' => 'ai',
+            'body' => 'Réponse de l\'IA.',
+        ]);
+
+        $this->assertNotNull($message->reply_to_id);
+
+        $this->assertEquals($this->member->id, $message->metadata['requested_by']);
+        $this->assertEquals('ask', $message->metadata['action']);
+        $this->assertEquals('Quel est le prix moyen de revente ?', $message->metadata['question']);
+        $this->assertEquals('openai', $message->metadata['provider']);
+        $this->assertNotEmpty($message->metadata['model']);
+        $this->assertArrayHasKey('ai_interaction_id', $message->metadata);
+    }
+
+    public function test_ask_sends_the_question_in_the_user_payload(): void
+    {
+        $this->seedLoopConversation();
+
+        $this->fakeHttpCapturingContext();
+
+        $this->service()->ask($this->loop, $this->member, 'Quel est le prix moyen de revente ?');
+
+        $this->assertNotNull($this->capturedContext);
+        $this->assertStringContainsString('Question : Quel est le prix moyen de revente ?', $this->capturedContext);
+    }
+
+    public function test_ask_uses_the_ask_scenario_and_french_fallback_prompt(): void
+    {
+        App::setLocale('fr');
+
+        $this->fakeHttpCapturingSystemPrompt();
+
+        $this->service()->ask($this->loop, $this->member, 'Une question');
+
+        $this->assertNotNull($this->capturedSystemPrompt);
+        $this->assertStringContainsString('Tu es un assistant utile', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('Réponds d\'abord à la question', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('pas comme une restriction', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('Tu DOIS répondre en français', $this->capturedSystemPrompt);
+    }
+
+    public function test_ask_uses_english_fallback_prompt_in_english_interface(): void
+    {
+        App::setLocale('en');
+
+        $this->fakeHttpCapturingSystemPrompt();
+
+        $this->service()->ask($this->loop, $this->member, 'A question');
+
+        $this->assertNotNull($this->capturedSystemPrompt);
+        $this->assertStringContainsString('You are a helpful assistant', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('Answer the question first', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('not as a restriction', $this->capturedSystemPrompt);
+        $this->assertStringContainsString('You MUST answer in English', $this->capturedSystemPrompt);
+    }
+
+    public function test_ask_uses_the_same_generation_lock(): void
+    {
+        $this->seedLoopConversation();
+
+        Cache::add('chatloop_ai_lock:'.$this->loop->id, true, 60);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage(__('loops.ai_generation_in_progress'));
+
+        $this->service()->ask($this->loop, $this->member, 'Une question');
+    }
+
+    public function test_loop_without_content_is_not_summarizable(): void
+    {
+        config(['ai.chatloop.min_summary_words' => 30]);
+
+        $this->assertFalse($this->service()->loopHasEnoughContent($this->loop));
+    }
+
+    public function test_loop_with_enough_content_is_summarizable(): void
+    {
+        $this->seedLoopConversation();
+        config(['ai.chatloop.min_summary_words' => 30]);
+
+        $this->assertTrue($this->service()->loopHasEnoughContent($this->loop));
+    }
+
+    public function test_empty_loop_summary_route_is_rejected_with_a_helpful_message(): void
+    {
+        config(['ai.chatloop.min_summary_words' => 30]);
+        $response = $this->actingAs($this->member)
+            ->post(route('loops.ai', $this->loop), ['action' => 'answer']);
+
+        $response->assertRedirect(route('loops.show', $this->loop));
+        $response->assertSessionHas('error', __('loops.not_enough_content_to_summarize'));
+
+        $this->assertNoAiMessage();
+    }
+
+    public function test_member_can_ask_a_question_via_the_route(): void
+    {
+        $response = $this->actingAs($this->member)
+            ->post(route('loops.ai', $this->loop), [
+                'action' => 'ask',
+                'question' => 'Quel est le prix moyen de revente ?',
+            ]);
+
+        $response->assertRedirect(route('loops.show', $this->loop));
+        $response->assertSessionHas('success', __('loops.ai_question_requested'));
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'type' => 'user',
+            'body' => 'Quel est le prix moyen de revente ?',
+        ]);
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'type' => 'ai',
+        ]);
+    }
+
+    public function test_question_is_required_when_action_is_ask(): void
+    {
+        $response = $this->actingAs($this->member)
+            ->post(route('loops.ai', $this->loop), ['action' => 'ask']);
+
+        $response->assertSessionHasErrors('question');
+
+        $this->assertNoAiMessage();
+    }
+
     protected function fakeHttpCapturingContext(): void
     {
         Http::fake(function (Request $request) {
@@ -364,5 +668,31 @@ class ChatLoopAiServiceTest extends TestCase
                 'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
             ]);
         });
+    }
+
+    protected function fakeHttpCapturingSystemPrompt(): void
+    {
+        Http::fake(function (Request $request) {
+            $payload = $request->data();
+            $this->capturedSystemPrompt = $payload['messages'][0]['content'] ?? null;
+
+            return Http::response([
+                'choices' => [['message' => ['content' => 'Réponse de l\'IA.']]],
+                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
+            ]);
+        });
+    }
+
+    protected function fakeHttpRespondingWith(string $content): void
+    {
+        $factory = new Factory;
+        $factory->fake(function (Request $request) use ($content) {
+            return Http::response([
+                'choices' => [['message' => ['content' => $content]]],
+                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
+            ]);
+        });
+
+        Http::swap($factory);
     }
 }

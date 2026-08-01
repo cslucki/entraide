@@ -6,8 +6,11 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\Reaction;
+use App\Models\User;
 use App\Services\LoopMessageService;
 use App\Services\UrlPreviewService;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
@@ -42,6 +45,20 @@ class LoopChat extends Component
                 ->where('status', 'active')
                 ->exists();
         }
+    }
+
+    public function aiRoute(): string
+    {
+        $organization = request()->route('organization');
+
+        if ($organization && request()->routeIs('organization.*') && Route::has('organization.loops.ai')) {
+            return route('organization.loops.ai', [
+                'organization' => $organization,
+                'loop' => $this->loop,
+            ]);
+        }
+
+        return route('loops.ai', $this->loop);
     }
 
     public function replyTo(string $messageId): void
@@ -248,6 +265,52 @@ class LoopChat extends Component
             $myReactions[$msg->id] = $myReaction;
         }
 
-        return view('livewire.loop-chat', compact('messages', 'pinnedMessage', 'reactionData', 'myReactions'));
+        $requestedByNames = $this->requestedByNames($messages);
+        $aiRoute = $this->aiRoute();
+
+        return view('livewire.loop-chat', compact(
+            'messages',
+            'pinnedMessage',
+            'reactionData',
+            'myReactions',
+            'requestedByNames',
+            'aiRoute',
+        ));
+    }
+
+    private function requestedByNames(Collection $messages): array
+    {
+        $requesterIds = $messages
+            ->where('type', 'ai')
+            ->map(fn (LoopMessage $message) => $message->metadata['requested_by'] ?? null)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($requesterIds->isEmpty()) {
+            return [];
+        }
+
+        $names = User::query()
+            ->whereIn('id', $requesterIds)
+            ->get()
+            ->keyBy('id')
+            ->map(fn (User $user) => $user->publicDisplayName());
+
+        $map = [];
+
+        foreach ($messages as $message) {
+            if ($message->type !== 'ai') {
+                continue;
+            }
+
+            $requesterId = $message->metadata['requested_by'] ?? null;
+
+            if ($requesterId !== null && $names->has($requesterId)) {
+                $map[$message->id] = (string) $names->get($requesterId);
+            }
+        }
+
+        return $map;
     }
 }

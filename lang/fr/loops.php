@@ -91,11 +91,19 @@ return [
     'member_removed' => 'Membre retiré de la boucle.',
 
     // AI intervention
-    'ask_ai' => 'Demander à l\'IA',
+    'ask_ai' => 'Faire un résumé',
+    'ai_generating' => 'L\'IA rédige sa réponse...',
+    'ai_facilitator' => 'Facilitateur IA',
+    'ai_requested_by' => 'Demandé par :name',
     'ai_answer_requested' => 'L\'IA rédige sa réponse...',
     'ai_generation_in_progress' => 'Une réponse de l\'IA est déjà en cours de génération pour cette boucle. Veuillez patienter.',
     'ai_error' => 'L\'IA n\'a pas pu répondre pour le moment. Veuillez réessayer.',
     'ai_empty_response' => 'L\'IA n\'a pas produit de réponse exploitable.',
+    'ask_question' => 'Poser une question',
+    'ask_question_placeholder' => 'Ta question en une ligne...',
+    'ask_question_submit' => 'Poser la question',
+    'ai_question_requested' => 'L\'IA réfléchit à ta question...',
+    'not_enough_content_to_summarize' => 'Il n\'y a pas encore assez de contenu dans cette boucle pour faire un résumé. Pose plutôt une question à l\'IA.',
     'not_an_active_member' => 'Vous n\'êtes pas un membre actif de cette boucle.',
     'cross_organization' => 'Vous n\'appartenez pas à la même organisation que cette boucle.',
 ];
