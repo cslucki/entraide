@@ -92,6 +92,7 @@ return [
 
     // AI intervention
     'ask_ai' => 'Make a summary',
+    'ask_ai_short' => 'Summary',
     'ai_generating' => 'The AI is drafting its answer...',
     'ai_facilitator' => 'AI Facilitator',
     'ai_requested_by' => 'Requested by :name',
@@ -100,6 +101,7 @@ return [
     'ai_error' => 'The AI could not answer right now. Please try again.',
     'ai_empty_response' => 'The AI did not produce a usable answer.',
     'ask_question' => 'Ask a question',
+    'ask_question_short' => 'Question',
     'ask_question_placeholder' => 'Your question in one line...',
     'ask_question_submit' => 'Ask the question',
     'ai_question_requested' => 'The AI is thinking about your question...',

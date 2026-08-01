@@ -27,6 +27,9 @@ class LoopMessage extends Model
         'organization_id',
         'pinned_at',
         'pinned_by_id',
+        'edited_at',
+        'deleted_at',
+        'deleted_by',
     ];
 
     protected function casts(): array
@@ -34,6 +37,8 @@ class LoopMessage extends Model
         return [
             'metadata' => 'array',
             'pinned_at' => 'datetime',
+            'edited_at' => 'datetime',
+            'deleted_at' => 'datetime',
         ];
     }
 
@@ -67,6 +72,11 @@ class LoopMessage extends Model
         return $this->belongsTo(User::class, 'pinned_by_id');
     }
 
+    public function deletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by');
+    }
+
     public function reactions(): MorphMany
     {
         return $this->morphMany(Reaction::class, 'reactionable');
@@ -74,6 +84,10 @@ class LoopMessage extends Model
 
     public function imageUrl(): ?string
     {
+        if ($this->isDeleted()) {
+            return null;
+        }
+
         return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
     }
 
@@ -90,6 +104,23 @@ class LoopMessage extends Model
     public function scopePinned($query)
     {
         return $query->whereNotNull('pinned_at');
+    }
+
+    public function scopeNotDeleted($query)
+    {
+        return $query->whereNull('deleted_at');
+    }
+
+    public function isDeleted(): bool
+    {
+        return $this->deleted_at !== null;
+    }
+
+    public function isEditableBy(User $user): bool
+    {
+        return $this->type === 'user'
+            && ! $this->isDeleted()
+            && $this->sender_id === $user->id;
     }
 
     public function isPinned(): bool

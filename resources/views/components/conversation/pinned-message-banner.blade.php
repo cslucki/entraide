@@ -4,22 +4,25 @@
 ])
 
 @if($pinnedMessage)
-@php $senderName = $pinnedMessage->sender?->publicDisplayName() ?? 'BouclePro'; @endphp
-<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg px-3 py-2 mb-2 flex items-center justify-between gap-3">
+@php
+    $senderName = $pinnedMessage->sender?->publicDisplayName() ?? 'BouclePro';
+    $body = $pinnedMessage->isDeleted() ? __('messages.deleted_message_placeholder') : mb_substr($pinnedMessage->body, 0, 120);
+@endphp
+<div class="sticky top-0 z-20 bg-amber-50/95 dark:bg-amber-900/90 backdrop-blur border border-amber-200 dark:border-amber-700/50 rounded-lg px-3 py-2 mx-3 mt-2 flex items-center justify-between gap-3 shadow-sm">
     <div class="flex items-center gap-2 min-w-0">
         <svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16 4v12l4 2V4l-4 2zM8 4v12l-4 2V4l4 2z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 6.5V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v7l2 3H6l2-3V6.5M12 18v3" />
         </svg>
         <div class="min-w-0">
             <p class="text-xs font-semibold text-amber-700 dark:text-amber-300">{{ __('messages.pinned_message') }}</p>
             <p class="text-xs text-gray-600 dark:text-gray-400 truncate">
-                &laquo;&nbsp;{{ mb_substr($pinnedMessage->body, 0, 120) }}&nbsp;&raquo;&nbsp;&mdash;&nbsp;{{ $senderName }}
+                &laquo;&nbsp;{{ $body }}&nbsp;&raquo;&nbsp;&mdash;&nbsp;{{ $senderName }}
             </p>
         </div>
     </div>
     <div class="flex items-center gap-2 shrink-0">
         <button
-            x-on:click="$dispatch('scroll-to-message', { messageId: '{{ $pinnedMessage->id }}' })"
+            wire:click="showMessageInThread('{{ $pinnedMessage->id }}')"
             class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
         >
             {{ __('messages.view') }}

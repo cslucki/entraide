@@ -92,6 +92,7 @@ return [
 
     // AI intervention
     'ask_ai' => 'Faire un résumé',
+    'ask_ai_short' => 'Résumé',
     'ai_generating' => 'L\'IA rédige sa réponse...',
     'ai_facilitator' => 'Facilitateur IA',
     'ai_requested_by' => 'Demandé par :name',
@@ -100,6 +101,7 @@ return [
     'ai_error' => 'L\'IA n\'a pas pu répondre pour le moment. Veuillez réessayer.',
     'ai_empty_response' => 'L\'IA n\'a pas produit de réponse exploitable.',
     'ask_question' => 'Poser une question',
+    'ask_question_short' => 'Question',
     'ask_question_placeholder' => 'Ta question en une ligne...',
     'ask_question_submit' => 'Poser la question',
     'ai_question_requested' => 'L\'IA réfléchit à ta question...',

@@ -83,6 +83,50 @@ class LoopMessageService
         });
     }
 
+    public function updateUserMessage(Loop $loop, LoopMessage $message, User $user, string $body, ?array $metadata = null): LoopMessage
+    {
+        $this->assertCanSend($loop, $user);
+        $this->assertMessageBelongsToLoop($loop, $message);
+
+        if (! $message->isEditableBy($user)) {
+            throw new \RuntimeException('Message cannot be edited.');
+        }
+
+        $body = trim($body);
+
+        if ($body === '') {
+            throw new \RuntimeException('Message body is required.');
+        }
+
+        $message->forceFill([
+            'body' => $body,
+            'metadata' => $metadata,
+            'edited_at' => now(),
+        ])->save();
+
+        $loop->touch();
+
+        return $message;
+    }
+
+    public function deleteMessage(Loop $loop, LoopMessage $message, User $user): void
+    {
+        $this->assertMessageBelongsToLoop($loop, $message);
+
+        if (! $this->canDeleteMessage($loop, $user)) {
+            throw new \RuntimeException('Message cannot be deleted.');
+        }
+
+        $message->forceFill([
+            'deleted_at' => now(),
+            'deleted_by' => $user->id,
+            'pinned_at' => null,
+            'pinned_by_id' => null,
+        ])->save();
+
+        $loop->touch();
+    }
+
     private function assertCanSend(Loop $loop, User $sender): void
     {
         $membership = LoopMember::where('loop_id', $loop->id)
@@ -99,5 +143,35 @@ class LoopMessageService
         if ($loop->organization_id !== $orgId) {
             throw new \RuntimeException('User does not belong to the same organization as this loop.');
         }
+    }
+
+    private function assertMessageBelongsToLoop(Loop $loop, LoopMessage $message): void
+    {
+        if ($message->loop_id !== $loop->id || $message->organization_id !== $loop->organization_id) {
+            throw new \RuntimeException('Message not found.');
+        }
+    }
+
+    public function canDeleteMessage(Loop $loop, User $user): bool
+    {
+        if ($user->is_admin) {
+            return true;
+        }
+
+        if ($loop->organization_id !== $user->organization_id) {
+            return false;
+        }
+
+        $role = $this->activeMembershipRole($loop, $user);
+
+        return $role !== null && in_array($role, ['owner', 'moderator'], true);
+    }
+
+    private function activeMembershipRole(Loop $loop, User $user): ?string
+    {
+        return LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->value('role');
     }
 }
