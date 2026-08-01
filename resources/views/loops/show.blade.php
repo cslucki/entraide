@@ -9,15 +9,9 @@
         return route('loops.'.$name, $params);
     };
     $_aiRoute = $_loopRoute('ai', ['loop' => $currentLoop]);
-    // Manifesto = a BlogPost linked to this Loop (blog_post_loop). Designation of a
-    // primary manifesto (loops.manifesto_blog_post_id) is a later task; for now we
-    // surface the first linked article as the living document.
-    $manifestoPost = \App\Models\BlogPost::whereHas('loops', fn ($q) => $q->where('loops.id', $currentLoop->id))
-        ->latest('updated_at')
-        ->first();
-    $manifestoVersion = $manifestoPost
-        ? (\App\Models\BlogSnapshot::where('blog_post_id', $manifestoPost->id)->count() ?: 1)
-        : null;
+    // NOTE: a primary Manifesto designation (loops.manifesto_blog_post_id) is a future
+    // dedicated task. We deliberately do NOT auto-pick the first linked BlogPost as "the
+    // Manifesto" here, to avoid presenting an arbitrary article as the reference document.
     // Per-card accent (icon tile) to echo the mockup's calm colour coding.
     $cardAccents = [
         'core.ai_summary' => 'bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300',
@@ -177,12 +171,6 @@
                 wsWidth: 40,
                 focus: 'none',
                 resizing: false,
-                todos: [],
-                todoText: '',
-                addTodo() { const v = this.todoText.trim(); if (!v) return; this.todos.push({ id: Date.now(), title: v, done: false }); this.todoText = ''; },
-                toggleTodo(it) { it.done = !it.done; },
-                removeTodo(it) { this.todos = this.todos.filter(i => i.id !== it.id); },
-                get todoRemaining() { return this.todos.filter(i => !i.done).length; },
                 openCard(card) { this.focus = 'none'; this.activeCard = this.activeCard === card ? null : card },
                 closeCard() { this.activeCard = null; this.focus = 'none' },
                 toggleChatFocus() { this.focus = this.focus === 'chat' ? 'none' : 'chat' },
@@ -371,74 +359,45 @@
                                             <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __($card['description_key']) }}</p>
                                         </div>
 
-                                        @if($manifestoPost)
-                                            <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-                                                <div class="flex items-start justify-between gap-2">
-                                                    <h3 class="min-w-0 truncate text-base font-semibold text-gray-900 dark:text-gray-100">{{ $manifestoPost->title }}</h3>
-                                                    <span class="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">{{ $manifestoPost->status ?? 'draft' }}</span>
-                                                </div>
-                                                <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ \Illuminate\Support\Str::limit(strip_tags((string) ($manifestoPost->content ?? $manifestoPost->excerpt ?? '')), 360) }}</p>
+                                        {{-- Neutral state: no primary Manifesto is DESIGNATED yet.
+                                             We intentionally do NOT present the first linked BlogPost as
+                                             "the Manifesto" (designation via loops.manifesto_blog_post_id
+                                             is a future dedicated task). --}}
+                                        <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center dark:border-gray-700 dark:bg-gray-900">
+                                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-200">
+                                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-6a2.25 2.25 0 0 0-.659-1.591l-3-3A2.25 2.25 0 0 0 14.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25v-4.5z"/></svg>
                                             </div>
-                                            <a href="{{ route('blog.edit', $manifestoPost) }}"
-                                               class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-violet-700 dark:hover:text-violet-200">
-                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931z"/></svg>
-                                                {{ __('loops.manifesto_open_in_editor') }}
+                                            <h3 class="mt-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __($card['empty_title_key']) }}</h3>
+                                            <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __('loops.manifesto_none_neutral') }}</p>
+                                            <a href="{{ route('blog.create') }}"
+                                               class="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700">
+                                                {{ __($card['action_key']) }}
                                             </a>
-                                        @else
-                                            <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center dark:border-gray-700 dark:bg-gray-900">
-                                                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-200">
-                                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-6a2.25 2.25 0 0 0-.659-1.591l-3-3A2.25 2.25 0 0 0 14.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25v-4.5z"/></svg>
-                                                </div>
-                                                <h3 class="mt-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __($card['empty_title_key']) }}</h3>
-                                                <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __($card['empty_body_key']) }}</p>
-                                                <a href="{{ route('blog.create') }}"
-                                                   class="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700">
-                                                    {{ __($card['action_key']) }}
-                                                </a>
-                                            </div>
-                                        @endif
+                                        </div>
                                     @elseif($card['key'] === 'core.roadmap')
-                                        {{-- To-do (Roadmap) — ready-to-branch client list, no persistence/migration yet --}}
+                                        {{-- Roadmap — NOT YET PERSISTED. Input disabled until the future
+                                             loop_roadmap_items task, to avoid implying actions are saved. --}}
                                         <div class="space-y-4">
                                             <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
                                                 <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __($card['label_key']) }}</p>
                                                 <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __($card['description_key']) }}</p>
                                             </div>
 
-                                            <form x-on:submit.prevent="addTodo()" class="flex items-center gap-2">
-                                                <input x-model="todoText" type="text" maxlength="200" placeholder="{{ __('loops.roadmap_add_placeholder') }}"
-                                                       class="min-w-0 flex-1 rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-                                                <button type="submit" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white transition hover:bg-violet-700" aria-label="{{ __($card['action_key']) }}">
+                                            <div class="flex items-center gap-2 opacity-60">
+                                                <input type="text" disabled aria-disabled="true" placeholder="{{ __('loops.roadmap_add_placeholder') }}"
+                                                       class="min-w-0 flex-1 cursor-not-allowed rounded-xl border-gray-300 bg-gray-100 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                                                <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500">
                                                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                                                </button>
-                                            </form>
+                                                </span>
+                                            </div>
 
-                                            <template x-if="todos.length === 0">
-                                                <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-                                                    {{ __($card['empty_title_key']) }}
-                                                </div>
-                                            </template>
-
-                                            <ul class="space-y-2" x-show="todos.length > 0" x-cloak>
-                                                <template x-for="it in todos" :key="it.id">
-                                                    <li class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
-                                                        <button type="button" x-on:click="toggleTodo(it)"
-                                                                class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition"
-                                                                x-bind:class="it.done ? 'border-violet-500 bg-violet-500 text-white' : 'border-gray-300 text-transparent dark:border-gray-600'"
-                                                                x-bind:aria-pressed="it.done">
-                                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                                        </button>
-                                                        <span class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-100" x-bind:class="it.done ? 'line-through text-gray-400 dark:text-gray-500' : ''" x-text="it.title"></span>
-                                                        <button type="button" x-on:click="removeTodo(it)" class="shrink-0 text-gray-300 transition hover:text-gray-500 dark:hover:text-gray-300" aria-label="{{ __('loops.cancel') }}">
-                                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
-                                                        </button>
-                                                    </li>
-                                                </template>
-                                            </ul>
-
-                                            <p class="text-center text-[11px] text-gray-400 dark:text-gray-500">
-                                                <span x-text="todoRemaining"></span> {{ __('loops.roadmap_remaining') }}
-                                            </p>
+                                            <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center dark:border-gray-700 dark:bg-gray-900">
+                                                <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0z"/></svg>
+                                                    {{ __('loops.roadmap_coming_soon') }}
+                                                </span>
+                                                <p class="mx-auto mt-3 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __('loops.roadmap_not_saved_note') }}</p>
+                                            </div>
                                         </div>
                                     @elseif($card['key'] === 'core.members')
                                         {{-- Members list + email invitation --}}
