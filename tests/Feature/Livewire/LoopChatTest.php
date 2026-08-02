@@ -1182,8 +1182,13 @@ class LoopChatTest extends TestCase
             ->assertSee(__('loops.cards.roadmap.label'));
     }
 
-    public function test_platform_super_admin_non_member_sees_workspace_cards_shell(): void
+    public function test_platform_super_admin_non_member_sees_presentation_not_workspace(): void
     {
+        // TASK-1075: viewing the workspace requires actual membership — is_admin
+        // is deliberately NOT a bypass here (same principle as LoopPolicy::create/
+        // update in TASK-1073/1074). A non-member super-admin sees the discovery
+        // presentation card, never the ChatLoop/Cards workspace, even on a Loop
+        // whose legacy `visibility` is public.
         $admin = User::factory()->create([
             'organization_id' => $this->organization->id,
             'is_admin' => true,
@@ -1193,10 +1198,11 @@ class LoopChatTest extends TestCase
         $this->actingAs($admin)
             ->get(route('loops.show', $publicLoop))
             ->assertOk()
-            ->assertSee(__('loops.cards_bar_label'))
-            ->assertSee(__('loops.cards.ai_summary.label'))
-            ->assertSee(__('loops.cards.manifesto.label'))
-            ->assertSee(__('loops.cards.roadmap.label'));
+            ->assertDontSee(__('loops.cards_bar_label'))
+            ->assertDontSee(__('loops.cards.ai_summary.label'))
+            ->assertDontSee(__('loops.cards.manifesto.label'))
+            ->assertDontSee(__('loops.cards.roadmap.label'))
+            ->assertSee(__('loops.presentation_locked_title'));
     }
 
     public function test_non_member_does_not_see_loop_workspace_cards_shell(): void
@@ -1209,7 +1215,8 @@ class LoopChatTest extends TestCase
             ->assertDontSee(__('loops.cards_bar_label'))
             ->assertDontSee(__('loops.cards.ai_summary.label'))
             ->assertDontSee(__('loops.cards.manifesto.label'))
-            ->assertDontSee(__('loops.cards.roadmap.label'));
+            ->assertDontSee(__('loops.cards.roadmap.label'))
+            ->assertSee(__('loops.presentation_locked_title'));
     }
 
     public function test_loop_workspace_cards_registry_declares_core_cards_in_order(): void

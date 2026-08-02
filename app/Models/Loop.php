@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 
 class Loop extends Model
@@ -147,6 +148,17 @@ class Loop extends Model
     public function activeMembers(): HasMany
     {
         return $this->hasMany(LoopMember::class)->where('status', 'active');
+    }
+
+    /**
+     * The active owner LoopMember — used to present "who runs this Loop" in
+     * the catalog and presentation views. May be null if ownership was
+     * transferred imperfectly or the owner left (edge case, handled
+     * gracefully in views rather than enforced here).
+     */
+    public function owner(): HasOne
+    {
+        return $this->hasOne(LoopMember::class)->where('role', 'owner')->where('status', 'active');
     }
 
     public function messages(): HasMany
