@@ -153,6 +153,7 @@ return [
     'roadmap_complete' => 'Marquer comme terminée',
     'roadmap_reopen' => 'Réouvrir',
     'roadmap_open_count' => '{0} Aucune action restante|{1} :count action restante|[2,*] :count actions restantes',
+    'roadmap_last_updated' => 'Modifiée le :date',
     'manifesto_none_neutral' => 'Aucun Manifeste principal n’est encore désigné pour cette Boucle. La désignation explicite du Manifeste principal viendra dans une tâche dédiée.',
     'manifesto_pitch' => 'Le Manifeste exprime la raison d’être et les principes de cette Boucle.',
     'manifesto_choose_existing' => 'Choisir un article existant',

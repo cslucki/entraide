@@ -990,6 +990,7 @@ class LoopRoadmapCard extends Component
             'items' => $items,
             'columns' => $columns,
             'openCount' => $columns[LoopRoadmapItem::STATUS_TODO]->count() + $columns[LoopRoadmapItem::STATUS_IN_PROGRESS]->count(),
+            'lastUpdated' => $items->max('updated_at'),
             'canManage' => $canManage,
             'canModify' => $canModify,
             'canAddMembers' => $canAddMembers,

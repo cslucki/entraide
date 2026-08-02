@@ -5526,6 +5526,45 @@ function registerRoadmapSortable() {
 
 document.addEventListener('livewire:init', registerRoadmapSortable);
 
+// -------------------------------------------------------------------------
+// Roadmap card actions menu — fixed-positioned dropdown that flips up/down so it
+// never clips against the panel/column edges. Registered once for all cards.
+// -------------------------------------------------------------------------
+function registerRoadmapMenu() {
+    if (!window.Alpine || window.__roadmapMenuRegistered) {
+        return;
+    }
+    window.__roadmapMenuRegistered = true;
+
+    window.Alpine.data('roadmapMenu', () => ({
+        open: false,
+        top: 0,
+        bottom: 0,
+        left: 0,
+        placement: 'bottom',
+        toggle() { this.open ? this.close() : this.openMenu(); },
+        openMenu() {
+            const r = this.$refs.btn.getBoundingClientRect();
+            const menuW = 208; // w-52
+            const menuH = 220;
+            const spaceBelow = window.innerHeight - r.bottom;
+            this.placement = spaceBelow < menuH ? 'top' : 'bottom';
+            this.left = Math.min(Math.max(8, r.right - menuW), window.innerWidth - menuW - 8);
+            this.top = r.bottom + 4;
+            this.bottom = window.innerHeight - r.top + 4;
+            this.open = true;
+        },
+        close() { this.open = false; },
+        get menuStyle() {
+            const v = this.placement === 'bottom' ? `top:${this.top}px` : `bottom:${this.bottom}px`;
+            return `position:fixed; left:${this.left}px; ${v}; width:13rem;`;
+        },
+    }));
+}
+
+document.addEventListener('alpine:init', registerRoadmapMenu);
+registerRoadmapMenu();
+
 // Service Worker registration
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

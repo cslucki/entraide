@@ -113,7 +113,7 @@
                     @if($detailCanModify)
                         <div wire:key="desc-{{ $detail->id }}" wire:ignore
                              x-data="{ saved: false, save() { const ta = this.$root.querySelector('textarea[data-tiptap-target]'); if (ta) { $wire.saveDescription(ta.value); this.saved = true; setTimeout(() => this.saved = false, 1800); } } }"
-                             x-init="$nextTick(() => document.dispatchEvent(new CustomEvent('bp:markdown-editor:init')))">
+                             x-init="$nextTick(() => { document.dispatchEvent(new CustomEvent('bp:markdown-editor:init')); setTimeout(() => document.dispatchEvent(new CustomEvent('bp:markdown-editor:init')), 250); })">
                             <x-markdown-wysiwyg-editor
                                 name="roadmap-desc-{{ $detail->id }}"
                                 :value="$detail->description ?? ''"

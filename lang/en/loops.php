@@ -153,6 +153,7 @@ return [
     'roadmap_complete' => 'Mark as done',
     'roadmap_reopen' => 'Reopen',
     'roadmap_open_count' => '{0} No action left|{1} :count action left|[2,*] :count actions left',
+    'roadmap_last_updated' => 'Updated :date',
     'manifesto_none_neutral' => 'No primary Manifesto is designated for this Loop yet. Explicit primary-Manifesto designation will come in a dedicated task.',
     'manifesto_pitch' => 'The Manifesto expresses the purpose and principles of this Loop.',
     'manifesto_choose_existing' => 'Choose an existing article',

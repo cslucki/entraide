@@ -119,8 +119,12 @@
                 @endforeach
             </div>
 
-            <p class="text-center text-[11px] text-gray-400 dark:text-gray-500">
-                {{ trans_choice('loops.roadmap_open_count', $openCount, ['count' => $openCount]) }}
+            <p class="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-center text-[11px] text-gray-400 dark:text-gray-500">
+                <span>{{ trans_choice('loops.roadmap_open_count', $openCount, ['count' => $openCount]) }}</span>
+                @if($lastUpdated)
+                    <span aria-hidden="true">·</span>
+                    <span>{{ __('loops.roadmap_last_updated', ['date' => $lastUpdated->isoFormat('D MMM · HH:mm')]) }}</span>
+                @endif
             </p>
         @endif
 
