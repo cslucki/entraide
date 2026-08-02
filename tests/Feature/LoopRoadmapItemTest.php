@@ -37,7 +37,7 @@ class LoopRoadmapItemTest extends TestCase
             'organization_id' => $this->loop->organization_id,
             'loop_id' => $this->loop->id,
             'title' => 'Prévisionnel budgétaire',
-            'status' => LoopRoadmapItem::STATUS_OPEN,
+            'status' => LoopRoadmapItem::STATUS_TODO,
             'position' => 0,
             'created_by' => $this->owner->id,
         ]);
@@ -45,22 +45,24 @@ class LoopRoadmapItemTest extends TestCase
         $this->assertSame($this->loop->id, $item->loop->id);
         $this->assertSame($this->organization->id, $item->organization->id);
         $this->assertSame($this->owner->id, $item->creator->id);
-        $this->assertNull($item->assignee);
+        $this->assertCount(0, $item->assignees);
         $this->assertFalse($item->isDone());
     }
 
-    public function test_assignee_relation_is_nullable(): void
+    public function test_assignees_relation_supports_multiple_people(): void
     {
-        $assignee = User::factory()->create(['organization_id' => $this->organization->id]);
+        $a = User::factory()->create(['organization_id' => $this->organization->id]);
+        $b = User::factory()->create(['organization_id' => $this->organization->id]);
 
         $item = LoopRoadmapItem::factory()->create([
             'loop_id' => $this->loop->id,
             'organization_id' => $this->loop->organization_id,
             'created_by' => $this->owner->id,
-            'assigned_to' => $assignee->id,
         ]);
+        $item->assignees()->sync([$a->id, $b->id]);
 
-        $this->assertSame($assignee->id, $item->assignee->id);
+        $this->assertCount(2, $item->fresh()->assignees);
+        $this->assertEqualsCanonicalizing([$a->id, $b->id], $item->fresh()->assignees->pluck('id')->all());
     }
 
     public function test_done_state_and_completed_at(): void
@@ -93,5 +95,25 @@ class LoopRoadmapItemTest extends TestCase
         $ordered = LoopRoadmapItem::query()->where('loop_id', $this->loop->id)->ordered()->pluck('id')->all();
 
         $this->assertSame([$openA->id, $openB->id, $done->id], $ordered);
+    }
+
+    public function test_ordered_scope_orders_the_three_columns(): void
+    {
+        $done = LoopRoadmapItem::factory()->done()->create([
+            'loop_id' => $this->loop->id, 'organization_id' => $this->loop->organization_id,
+            'created_by' => $this->owner->id, 'position' => 0, 'title' => 'Done',
+        ]);
+        $inProg = LoopRoadmapItem::factory()->inProgress()->create([
+            'loop_id' => $this->loop->id, 'organization_id' => $this->loop->organization_id,
+            'created_by' => $this->owner->id, 'position' => 0, 'title' => 'Doing',
+        ]);
+        $todo = LoopRoadmapItem::factory()->todo()->create([
+            'loop_id' => $this->loop->id, 'organization_id' => $this->loop->organization_id,
+            'created_by' => $this->owner->id, 'position' => 0, 'title' => 'Todo',
+        ]);
+
+        $ordered = LoopRoadmapItem::query()->where('loop_id', $this->loop->id)->ordered()->pluck('id')->all();
+
+        $this->assertSame([$todo->id, $inProg->id, $done->id], $ordered);
     }
 }

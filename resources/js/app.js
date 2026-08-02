@@ -5456,9 +5456,9 @@ registerBlogExplorerModal();
 registerBlogExplorerCard();
 
 // -------------------------------------------------------------------------
-// Roadmap drag & drop (LoopRoadmapCard, Livewire) — reuses SortableJS.
-// One Sortable per status group; cross-group moves are structurally blocked
-// (distinct group names + put:false). onEnd bridges to $wire.reorderGroup.
+// Roadmap mini-kanban drag & drop (LoopRoadmapCard, Livewire) — reuses SortableJS.
+// Three columns share one group → intra-column reorder AND inter-column moves.
+// onEnd bridges to $wire.reorderGroup (same column) or $wire.moveItem (across columns).
 // -------------------------------------------------------------------------
 function registerRoadmapSortable() {
     if (window.__roadmapSortableRegistered || !window.Livewire) {
@@ -5466,10 +5466,13 @@ function registerRoadmapSortable() {
     }
     window.__roadmapSortableRegistered = true;
 
+    const collect = (ul) => Array.from(ul.querySelectorAll('[data-roadmap-id]'))
+        .map((el) => el.getAttribute('data-roadmap-id'))
+        .filter(Boolean);
+
     const buildRoot = (root) => {
         if (!root) return;
         const canManage = root.getAttribute('data-roadmap-can-manage') === '1';
-        const crossMsg = root.getAttribute('data-roadmap-cross-msg') || '';
 
         root.querySelectorAll('[data-roadmap-group]').forEach((container) => {
             if (container._sortable) {
@@ -5478,10 +5481,8 @@ function registerRoadmapSortable() {
             }
             if (!canManage) return;
 
-            const status = container.getAttribute('data-status');
-
             container._sortable = Sortable.create(container, {
-                group: { name: 'roadmap-' + status, pull: false, put: false },
+                group: { name: 'roadmap-kanban', pull: true, put: true },
                 draggable: '[data-roadmap-id]',
                 handle: '.drag-handle',
                 filter: '[data-no-drag]',
@@ -5490,24 +5491,18 @@ function registerRoadmapSortable() {
                 delayOnTouchOnly: true,
                 ghostClass: 'roadmap-ghost',
                 chosenClass: 'roadmap-chosen',
-                onMove: (evt) => {
-                    // Belt-and-suspenders: never allow leaving the group.
-                    if (evt.from !== evt.to) {
-                        if (crossMsg) {
-                            window.dispatchEvent(new CustomEvent('roadmap-cross-group', { detail: crossMsg }));
-                        }
-                        return false;
-                    }
-                    return true;
-                },
-                onEnd: () => {
-                    const ids = Array.from(container.querySelectorAll('[data-roadmap-id]'))
-                        .map((el) => el.getAttribute('data-roadmap-id'))
-                        .filter(Boolean);
+                onEnd: (evt) => {
+                    const fromStatus = evt.from.getAttribute('data-status');
+                    const toStatus = evt.to.getAttribute('data-status');
+                    const itemId = evt.item.getAttribute('data-roadmap-id');
                     const wireId = root.getAttribute('wire:id');
                     const component = wireId ? window.Livewire.find(wireId) : null;
-                    if (component) {
-                        component.call('reorderGroup', status, ids);
+                    if (!component || !itemId) return;
+
+                    if (fromStatus === toStatus) {
+                        component.call('reorderGroup', toStatus, collect(evt.to));
+                    } else {
+                        component.call('moveItem', itemId, fromStatus, toStatus, collect(evt.from), collect(evt.to));
                     }
                 },
             });
@@ -5530,6 +5525,45 @@ function registerRoadmapSortable() {
 }
 
 document.addEventListener('livewire:init', registerRoadmapSortable);
+
+// -------------------------------------------------------------------------
+// Roadmap card actions menu — fixed-positioned dropdown that flips up/down so it
+// never clips against the panel/column edges. Registered once for all cards.
+// -------------------------------------------------------------------------
+function registerRoadmapMenu() {
+    if (!window.Alpine || window.__roadmapMenuRegistered) {
+        return;
+    }
+    window.__roadmapMenuRegistered = true;
+
+    window.Alpine.data('roadmapMenu', () => ({
+        open: false,
+        top: 0,
+        bottom: 0,
+        left: 0,
+        placement: 'bottom',
+        toggle() { this.open ? this.close() : this.openMenu(); },
+        openMenu() {
+            const r = this.$refs.btn.getBoundingClientRect();
+            const menuW = 208; // w-52
+            const menuH = 220;
+            const spaceBelow = window.innerHeight - r.bottom;
+            this.placement = spaceBelow < menuH ? 'top' : 'bottom';
+            this.left = Math.min(Math.max(8, r.right - menuW), window.innerWidth - menuW - 8);
+            this.top = r.bottom + 4;
+            this.bottom = window.innerHeight - r.top + 4;
+            this.open = true;
+        },
+        close() { this.open = false; },
+        get menuStyle() {
+            const v = this.placement === 'bottom' ? `top:${this.top}px` : `bottom:${this.bottom}px`;
+            return `position:fixed; left:${this.left}px; ${v}; width:13rem;`;
+        },
+    }));
+}
+
+document.addEventListener('alpine:init', registerRoadmapMenu);
+registerRoadmapMenu();
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {
