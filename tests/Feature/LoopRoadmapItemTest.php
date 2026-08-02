@@ -45,22 +45,24 @@ class LoopRoadmapItemTest extends TestCase
         $this->assertSame($this->loop->id, $item->loop->id);
         $this->assertSame($this->organization->id, $item->organization->id);
         $this->assertSame($this->owner->id, $item->creator->id);
-        $this->assertNull($item->assignee);
+        $this->assertCount(0, $item->assignees);
         $this->assertFalse($item->isDone());
     }
 
-    public function test_assignee_relation_is_nullable(): void
+    public function test_assignees_relation_supports_multiple_people(): void
     {
-        $assignee = User::factory()->create(['organization_id' => $this->organization->id]);
+        $a = User::factory()->create(['organization_id' => $this->organization->id]);
+        $b = User::factory()->create(['organization_id' => $this->organization->id]);
 
         $item = LoopRoadmapItem::factory()->create([
             'loop_id' => $this->loop->id,
             'organization_id' => $this->loop->organization_id,
             'created_by' => $this->owner->id,
-            'assigned_to' => $assignee->id,
         ]);
+        $item->assignees()->sync([$a->id, $b->id]);
 
-        $this->assertSame($assignee->id, $item->assignee->id);
+        $this->assertCount(2, $item->fresh()->assignees);
+        $this->assertEqualsCanonicalizing([$a->id, $b->id], $item->fresh()->assignees->pluck('id')->all());
     }
 
     public function test_done_state_and_completed_at(): void

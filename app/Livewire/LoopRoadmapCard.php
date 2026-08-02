@@ -20,7 +20,8 @@ class LoopRoadmapCard extends Component
 
     public string $newStatus = LoopRoadmapItem::STATUS_TODO;
 
-    public ?string $newAssignee = null;
+    /** @var array<int,string> */
+    public array $newAssignees = [];
 
     public ?string $newDueAt = null;
 
@@ -29,7 +30,8 @@ class LoopRoadmapCard extends Component
 
     public string $editingTitle = '';
 
-    public ?string $editingAssignee = null;
+    /** @var array<int,string> */
+    public array $editingAssignees = [];
 
     public ?string $editingDueAt = null;
 
@@ -59,14 +61,11 @@ class LoopRoadmapCard extends Component
             ? $this->newStatus
             : LoopRoadmapItem::STATUS_TODO;
 
-        $assignee = null;
-        if ($this->newAssignee) {
-            if (! $this->isActiveLoopMember($this->newAssignee)) {
-                $this->errorMessage = __('loops.roadmap_invalid_assignee');
+        $assignees = $this->validAssignees($this->newAssignees);
+        if ($assignees === null) {
+            $this->errorMessage = __('loops.roadmap_invalid_assignee');
 
-                return;
-            }
-            $assignee = $this->newAssignee;
+            return;
         }
 
         $maxPosition = LoopRoadmapItem::query()
@@ -75,19 +74,22 @@ class LoopRoadmapCard extends Component
             ->where('status', $status)
             ->max('position');
 
-        LoopRoadmapItem::create([
+        $item = LoopRoadmapItem::create([
             'organization_id' => $this->loop->organization_id,
             'loop_id' => $this->loop->id,
             'title' => $title,
             'status' => $status,
             'position' => ($maxPosition === null ? 0 : $maxPosition + 1),
-            'assigned_to' => $assignee,
             'due_at' => $this->newDueAt ?: null,
             'completed_at' => $status === LoopRoadmapItem::STATUS_DONE ? now() : null,
             'created_by' => auth()->id(),
         ]);
 
-        $this->reset(['newTitle', 'newAssignee', 'newDueAt']);
+        if ($assignees !== []) {
+            $item->assignees()->sync($assignees);
+        }
+
+        $this->reset(['newTitle', 'newAssignees', 'newDueAt']);
         $this->newStatus = LoopRoadmapItem::STATUS_TODO;
 
         $this->dispatch('roadmap-action-created');
@@ -154,13 +156,13 @@ class LoopRoadmapCard extends Component
 
         $this->editingId = $item->id;
         $this->editingTitle = $item->title;
-        $this->editingAssignee = $item->assigned_to;
+        $this->editingAssignees = $item->assignees()->pluck('users.id')->map(fn ($v) => (string) $v)->all();
         $this->editingDueAt = $item->due_at?->format('Y-m-d');
     }
 
     public function cancelEdit(): void
     {
-        $this->reset(['editingId', 'editingTitle', 'editingAssignee', 'editingDueAt', 'errorMessage']);
+        $this->reset(['editingId', 'editingTitle', 'editingAssignees', 'editingDueAt', 'errorMessage']);
     }
 
     public function saveEdit(): void
@@ -186,30 +188,29 @@ class LoopRoadmapCard extends Component
         }
         $title = mb_substr($title, 0, 255);
 
-        // Assignee must be an active member of THIS loop (same organization).
-        $assignee = null;
-        if ($this->editingAssignee) {
-            if (! $this->isActiveLoopMember($this->editingAssignee)) {
-                $this->errorMessage = __('loops.roadmap_invalid_assignee');
+        // Assignees must be active members of THIS loop (same organization), max 3.
+        $assignees = $this->validAssignees($this->editingAssignees);
+        if ($assignees === null) {
+            $this->errorMessage = __('loops.roadmap_invalid_assignee');
 
-                return;
-            }
-            $assignee = $this->editingAssignee;
+            return;
         }
 
         $item->update([
             'title' => $title,
-            'assigned_to' => $assignee,
             'due_at' => $this->editingDueAt ?: null,
         ]);
+        $item->assignees()->sync($assignees);
 
         $this->cancelEdit();
     }
 
     /**
-     * Assign an item to an existing active member of the Loop (category A).
+     * Set the full assignee list of an item (category A). Max 3 active members.
+     *
+     * @param  array<int,string>  $userIds
      */
-    public function assign(string $id, string $userId): void
+    public function assign(string $id, array $userIds): void
     {
         $this->errorMessage = null;
 
@@ -218,19 +219,20 @@ class LoopRoadmapCard extends Component
             return;
         }
 
-        if (! $this->isActiveLoopMember($userId)) {
+        $assignees = $this->validAssignees($userIds);
+        if ($assignees === null) {
             $this->errorMessage = __('loops.roadmap_invalid_assignee');
 
             return;
         }
 
-        $item->update(['assigned_to' => $userId]);
+        $item->assignees()->sync($assignees);
     }
 
     /**
      * Category B: the selected user belongs to the same Organization but is not yet a
-     * member of this Loop. Add them (member role) then assign — never silently, never
-     * cross-org, never by email invitation.
+     * member of this Loop. Add them (member role) then append to the assignees — never
+     * silently, never cross-org, never by email invitation. Respects the max of 3.
      */
     public function assignAndAddMember(string $id, string $userId): void
     {
@@ -241,7 +243,7 @@ class LoopRoadmapCard extends Component
             return;
         }
 
-        // Must be an assignable user of THIS organization, not already an active member.
+        // Must be an assignable user of THIS organization.
         $user = User::assignable()
             ->where('organization_id', $this->loop->organization_id)
             ->find($userId);
@@ -252,17 +254,43 @@ class LoopRoadmapCard extends Component
             return;
         }
 
-        if ($this->isActiveLoopMember($userId)) {
-            // Already a member — just assign.
-            $item->update(['assigned_to' => $userId]);
+        if (! $item->assignees()->whereKey($user->id)->exists()
+            && $item->assignees()->count() >= LoopRoadmapItem::MAX_ASSIGNEES) {
+            $this->errorMessage = __('loops.roadmap_max_assignees');
 
             return;
         }
 
         DB::transaction(function () use ($item, $user) {
-            app(LoopService::class)->addMemberByUserId($this->loop, $user->id, 'member');
-            $item->update(['assigned_to' => $user->id]);
+            if (! $this->isActiveLoopMember($user->id)) {
+                app(LoopService::class)->addMemberByUserId($this->loop, $user->id, 'member');
+            }
+            $item->assignees()->syncWithoutDetaching([$user->id]);
         });
+    }
+
+    /**
+     * Normalize + validate an assignee id list: unique, ≤ MAX, all active Loop members.
+     * Returns the clean list, or null if invalid.
+     *
+     * @param  array<int,string>  $ids
+     * @return array<int,string>|null
+     */
+    private function validAssignees(array $ids): ?array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids), fn ($v) => $v !== '')));
+
+        if (count($ids) > LoopRoadmapItem::MAX_ASSIGNEES) {
+            return null;
+        }
+
+        foreach ($ids as $id) {
+            if (! $this->isActiveLoopMember($id)) {
+                return null;
+            }
+        }
+
+        return $ids;
     }
 
     public function deleteItem(string $id): void
@@ -613,7 +641,7 @@ class LoopRoadmapCard extends Component
             ? LoopRoadmapItem::query()
                 ->where('organization_id', $this->loop->organization_id)
                 ->where('loop_id', $this->loop->id)
-                ->with('assignee')
+                ->with('assignees')
                 ->ordered()
                 ->get()
             : collect();

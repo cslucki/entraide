@@ -23,7 +23,6 @@ class LoopRoadmapItemFactory extends Factory
             'title' => fake()->sentence(3),
             'status' => LoopRoadmapItem::STATUS_TODO,
             'position' => 0,
-            'assigned_to' => null,
             'due_at' => null,
             'created_by' => User::factory(),
             'completed_at' => null,
@@ -50,6 +49,6 @@ class LoopRoadmapItemFactory extends Factory
 
     public function assignedTo(User $user): static
     {
-        return $this->state(fn () => ['assigned_to' => $user->id]);
+        return $this->afterCreating(fn (LoopRoadmapItem $item) => $item->assignees()->syncWithoutDetaching([$user->id]));
     }
 }

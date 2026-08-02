@@ -201,17 +201,40 @@ class LoopRoadmapCardTest extends TestCase
         // Valid: assign to an active member
         Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
             ->call('startEdit', $item->id)
-            ->set('editingAssignee', $this->member->id)
+            ->set('editingAssignees', [$this->member->id])
             ->call('saveEdit');
-        $this->assertSame($this->member->id, $item->fresh()->assigned_to);
+        $this->assertEqualsCanonicalizing([$this->member->id], $item->fresh()->assignees->pluck('id')->all());
 
         // Invalid: assign to a non-member -> refused, error message
         Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
             ->call('startEdit', $item->id)
-            ->set('editingAssignee', $this->nonMember->id)
+            ->set('editingAssignees', [$this->nonMember->id])
             ->call('saveEdit')
             ->assertSet('errorMessage', __('loops.roadmap_invalid_assignee'));
-        $this->assertSame($this->member->id, $item->fresh()->assigned_to);
+        $this->assertEqualsCanonicalizing([$this->member->id], $item->fresh()->assignees->pluck('id')->all());
+    }
+
+    public function test_assign_supports_up_to_three_members_and_rejects_four(): void
+    {
+        $m2 = User::factory()->create(['organization_id' => $this->organization->id]);
+        $m3 = User::factory()->create(['organization_id' => $this->organization->id]);
+        $m4 = User::factory()->create(['organization_id' => $this->organization->id]);
+        foreach ([$m2, $m3, $m4] as $u) {
+            $this->service->addMember($this->loop, $u, 'member');
+        }
+        $item = $this->item(['created_by' => $this->owner->id]);
+
+        $this->actingAs($this->owner);
+        // Three is allowed.
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('assign', $item->id, [$this->member->id, $m2->id, $m3->id]);
+        $this->assertCount(3, $item->fresh()->assignees);
+
+        // Four is refused, previous set unchanged.
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('assign', $item->id, [$this->member->id, $m2->id, $m3->id, $m4->id])
+            ->assertSet('errorMessage', __('loops.roadmap_invalid_assignee'));
+        $this->assertCount(3, $item->fresh()->assignees);
     }
 
     public function test_non_member_cannot_manage(): void
@@ -581,17 +604,15 @@ class LoopRoadmapCardTest extends TestCase
         Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
             ->set('newTitle', 'Kickoff')
             ->set('newStatus', 'in_progress')
-            ->set('newAssignee', $this->member->id)
+            ->set('newAssignees', [$this->member->id])
             ->set('newDueAt', '2026-09-01')
             ->call('createAction')
             ->assertDispatched('roadmap-action-created');
 
-        $this->assertDatabaseHas('loop_roadmap_items', [
-            'loop_id' => $this->loop->id,
-            'title' => 'Kickoff',
-            'status' => 'in_progress',
-            'assigned_to' => $this->member->id,
-        ]);
+        $item = LoopRoadmapItem::where('title', 'Kickoff')->first();
+        $this->assertNotNull($item);
+        $this->assertSame('in_progress', $item->status);
+        $this->assertEqualsCanonicalizing([$this->member->id], $item->assignees->pluck('id')->all());
     }
 
     public function test_create_action_rejects_non_member_assignee(): void
@@ -600,7 +621,7 @@ class LoopRoadmapCardTest extends TestCase
 
         Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
             ->set('newTitle', 'Bad assignee')
-            ->set('newAssignee', $this->nonMember->id)
+            ->set('newAssignees', [$this->nonMember->id])
             ->call('createAction')
             ->assertSet('errorMessage', __('loops.roadmap_invalid_assignee'));
 
@@ -618,7 +639,7 @@ class LoopRoadmapCardTest extends TestCase
         Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
             ->call('assignAndAddMember', $item->id, $orgUser->id);
 
-        $this->assertSame($orgUser->id, $item->fresh()->assigned_to);
+        $this->assertTrue($item->fresh()->assignees->contains('id', $orgUser->id));
         $this->assertDatabaseHas('loop_members', [
             'loop_id' => $this->loop->id,
             'user_id' => $orgUser->id,
@@ -637,7 +658,7 @@ class LoopRoadmapCardTest extends TestCase
         Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
             ->call('assignAndAddMember', $item->id, $orgUser->id);
 
-        $this->assertNull($item->fresh()->assigned_to);
+        $this->assertCount(0, $item->fresh()->assignees);
         $this->assertDatabaseMissing('loop_members', [
             'loop_id' => $this->loop->id,
             'user_id' => $orgUser->id,
@@ -653,7 +674,7 @@ class LoopRoadmapCardTest extends TestCase
             ->call('assignAndAddMember', $item->id, $this->crossUser->id)
             ->assertSet('errorMessage', __('loops.roadmap_invalid_assignee'));
 
-        $this->assertNull($item->fresh()->assigned_to);
+        $this->assertCount(0, $item->fresh()->assignees);
         $this->assertDatabaseMissing('loop_members', [
             'loop_id' => $this->loop->id,
             'user_id' => $this->crossUser->id,

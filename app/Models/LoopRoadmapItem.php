@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class LoopRoadmapItem extends Model
 {
@@ -24,13 +25,15 @@ class LoopRoadmapItem extends Model
     /** The three kanban columns, in display order. */
     public const STATUSES = [self::STATUS_TODO, self::STATUS_IN_PROGRESS, self::STATUS_DONE];
 
+    /** An action can be assigned to at most three people. */
+    public const MAX_ASSIGNEES = 3;
+
     protected $fillable = [
         'organization_id',
         'loop_id',
         'title',
         'status',
         'position',
-        'assigned_to',
         'due_at',
         'created_by',
         'completed_at',
@@ -56,9 +59,11 @@ class LoopRoadmapItem extends Model
         return $this->belongsTo(Loop::class);
     }
 
-    public function assignee(): BelongsTo
+    public function assignees(): BelongsToMany
     {
-        return $this->belongsTo(User::class, 'assigned_to');
+        return $this->belongsToMany(User::class, 'loop_roadmap_item_user')
+            ->withTimestamps()
+            ->orderBy('name');
     }
 
     public function creator(): BelongsTo

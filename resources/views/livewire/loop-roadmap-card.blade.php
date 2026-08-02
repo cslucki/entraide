@@ -3,33 +3,33 @@
     \App\Models\LoopRoadmapItem::STATUS_IN_PROGRESS => ['label' => 'roadmap_status_in_progress', 'dot' => 'bg-amber-400'],
     \App\Models\LoopRoadmapItem::STATUS_DONE => ['label' => 'roadmap_status_done', 'dot' => 'bg-emerald-400'],
 ]; @endphp
-<div class="space-y-4"
+<div class="space-y-3"
      data-roadmap-root
      data-roadmap-can-manage="{{ $canManage ? '1' : '0' }}"
      x-data="{
         createOpen: false,
+        mode: (localStorage.getItem('roadmapView') || 'kanban'),
         openCreate(status) { $wire.set('newStatus', status); this.createOpen = true; this.$nextTick(() => this.$refs.createTitle && this.$refs.createTitle.focus()); },
      }"
+     x-init="$watch('mode', v => localStorage.setItem('roadmapView', v))"
      x-on:roadmap-action-created.window="createOpen = false">
     @once
         <style>
             .roadmap-ghost { opacity: .45; }
             .roadmap-chosen { box-shadow: 0 8px 20px -6px rgba(124,58,237,.35); }
             [data-roadmap-group] .drag-handle { touch-action: none; }
+            /* Kanban: horizontal columns (mobile scroll-snap, desktop grid). */
             .roadmap-board { display: flex; gap: .625rem; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-            .roadmap-col { flex: 0 0 84vw; scroll-snap-align: start; min-width: 0; }
+            .roadmap-board .roadmap-col { flex: 0 0 84vw; scroll-snap-align: start; min-width: 0; }
             @media (min-width: 1024px) {
                 .roadmap-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; }
-                .roadmap-col { flex: none; }
+                .roadmap-board .roadmap-col { flex: none; }
             }
+            /* List: full-width stacked status sections. */
+            .roadmap-list { display: flex; flex-direction: column; gap: .75rem; }
+            .roadmap-list .roadmap-col { width: 100%; }
         </style>
     @endonce
-
-    {{-- Header --}}
-    <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __('loops.cards.roadmap.label') }}</p>
-        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('loops.cards.roadmap.description') }}</p>
-    </div>
 
     @if($errorMessage)
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200">
@@ -38,12 +38,29 @@
     @endif
 
     @if($canManage)
-        {{-- Global add button --}}
-        <button type="button" x-on:click="openCreate(@js(\App\Models\LoopRoadmapItem::STATUS_TODO))"
-                class="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-            {{ __('loops.roadmap_add_action') }}
-        </button>
+        {{-- Toolbar: add button + Kanban/List segmented toggle (Material 3) --}}
+        <div class="flex items-center justify-between gap-2">
+            <button type="button" x-on:click="openCreate(@js(\App\Models\LoopRoadmapItem::STATUS_TODO))"
+                    class="inline-flex items-center gap-2 rounded-full bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                {{ __('loops.roadmap_add_action') }}
+            </button>
+
+            <div class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 p-0.5 dark:border-gray-700 dark:bg-gray-800" role="group" aria-label="{{ __('loops.roadmap_view_toggle') }}">
+                <button type="button" x-on:click="mode = 'kanban'"
+                        x-bind:class="mode === 'kanban' ? 'bg-white text-violet-700 shadow-sm dark:bg-gray-700 dark:text-violet-200' : 'text-gray-500 dark:text-gray-400'"
+                        class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition" x-bind:aria-pressed="mode === 'kanban'">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v12a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18V6ZM13.5 6A2.25 2.25 0 0 1 15.75 3.75H18A2.25 2.25 0 0 1 20.25 6v6A2.25 2.25 0 0 1 18 14.25h-2.25A2.25 2.25 0 0 1 13.5 12V6Z"/></svg>
+                    <span class="hidden sm:inline">{{ __('loops.roadmap_view_kanban') }}</span>
+                </button>
+                <button type="button" x-on:click="mode = 'list'"
+                        x-bind:class="mode === 'list' ? 'bg-white text-violet-700 shadow-sm dark:bg-gray-700 dark:text-violet-200' : 'text-gray-500 dark:text-gray-400'"
+                        class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition" x-bind:aria-pressed="mode === 'list'">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+                    <span class="hidden sm:inline">{{ __('loops.roadmap_view_list') }}</span>
+                </button>
+            </div>
+        </div>
 
         @if($items->isEmpty())
             <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-center dark:border-gray-700 dark:bg-gray-900">
@@ -54,8 +71,8 @@
                 <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __('loops.roadmap_empty_pitch') }}</p>
             </div>
         @else
-            {{-- Mini-kanban board: 3 columns (desktop simultaneous, mobile horizontal scroll-snap) --}}
-            <div class="roadmap-board pb-1">
+            {{-- Board: same DOM for both modes; layout switches via container class --}}
+            <div x-bind:class="mode === 'kanban' ? 'roadmap-board pb-1' : 'roadmap-list'">
                 @foreach($columns as $status => $colItems)
                     <section class="roadmap-col flex flex-col rounded-2xl border border-gray-200 bg-gray-50/60 p-2 dark:border-gray-700 dark:bg-gray-800/40">
                         <div class="mb-2 flex items-center justify-between px-1">
@@ -116,13 +133,8 @@
                             </div>
                         </div>
                         <div>
-                            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('loops.roadmap_field_assignee') }}</label>
-                            <select wire:model="newAssignee" class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-700 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200">
-                                <option value="">{{ __('loops.roadmap_assign_none') }}</option>
-                                @foreach($members as $m)
-                                    <option value="{{ $m['id'] }}">{{ $m['name'] }}</option>
-                                @endforeach
-                            </select>
+                            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('loops.roadmap_assignees') }}</label>
+                            @include('livewire.partials.assignee-picker', ['model' => 'newAssignees', 'options' => $members])
                         </div>
                         @if($errorMessage)
                             <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{{ $errorMessage }}</p>

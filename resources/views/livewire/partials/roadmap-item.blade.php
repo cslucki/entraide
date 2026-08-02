@@ -1,10 +1,11 @@
-{{-- Single Roadmap action card (mini-kanban). Shared by the three columns.
+{{-- Single Roadmap action card (mini-kanban). Shared by the three columns/sections.
      Drag starts only from `.drag-handle`. $item, $editingId, $members, $orgCandidates,
      $canManage, $canModify, $canAddMembers inherited from the parent view. --}}
 @php
     $overdue = $item->due_at && ! $item->isDone() && $item->due_at->isPast();
     $mine = $canModify[$item->id] ?? false;
     $otherStatuses = array_values(array_diff(\App\Models\LoopRoadmapItem::STATUSES, [$item->status]));
+    $assignees = $item->assignees;
 @endphp
 <li wire:key="ri-{{ $item->id }}" data-roadmap-id="{{ $item->id }}"
     class="rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm transition dark:border-gray-700 dark:bg-gray-900 {{ $item->isDone() ? 'opacity-70' : '' }}">
@@ -14,15 +15,8 @@
             <input wire:model="editingTitle" type="text" maxlength="255"
                    x-on:keydown.enter.prevent="$wire.saveEdit()" x-on:keydown.escape.prevent="$wire.cancelEdit()"
                    class="w-full rounded-lg border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
-            <div class="flex flex-wrap items-center gap-2">
-                <select wire:model="editingAssignee" class="min-w-0 flex-1 rounded-lg border-gray-300 bg-white text-xs text-gray-700 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200">
-                    <option value="">{{ __('loops.roadmap_assign_none') }}</option>
-                    @foreach($members as $m)
-                        <option value="{{ $m['id'] }}">{{ $m['name'] }}</option>
-                    @endforeach
-                </select>
-                <input wire:model="editingDueAt" type="date" class="rounded-lg border-gray-300 bg-white text-xs text-gray-700 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200">
-            </div>
+            @include('livewire.partials.assignee-picker', ['model' => 'editingAssignees', 'options' => $members])
+            <input wire:model="editingDueAt" type="date" class="w-full rounded-lg border-gray-300 bg-white text-xs text-gray-700 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200">
             <div class="flex items-center justify-end gap-2">
                 <button type="button" wire:click="cancelEdit" class="text-xs font-medium text-gray-500 transition hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">{{ __('loops.cancel') }}</button>
                 <button type="button" wire:click="saveEdit" wire:loading.attr="disabled" wire:target="saveEdit"
@@ -54,10 +48,11 @@
 
                 {{-- Meta --}}
                 <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500">
-                    @if($item->assignee)
-                        <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                            <span class="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 text-[9px] font-bold text-violet-700 dark:bg-violet-500/30 dark:text-violet-200">{{ mb_strtoupper(mb_substr($item->assignee->publicDisplayName(), 0, 1)) }}</span>
-                            {{ $item->assignee->publicDisplayName() }}
+                    @if($assignees->isNotEmpty())
+                        <span class="flex -space-x-1.5" title="{{ $assignees->map(fn ($u) => $u->publicDisplayName())->join(', ') }}">
+                            @foreach($assignees as $a)
+                                <span class="flex h-5 w-5 items-center justify-center rounded-full border border-white bg-violet-200 text-[9px] font-bold text-violet-800 ring-0 dark:border-gray-900 dark:bg-violet-500/30 dark:text-violet-100">{{ mb_strtoupper(mb_substr($a->publicDisplayName(), 0, 1)) }}</span>
+                            @endforeach
                         </span>
                     @endif
                     @if($item->due_at)
@@ -69,15 +64,12 @@
                             {{ $item->due_at->isoFormat('D MMM') }}@if($overdue) · {{ __('loops.roadmap_overdue') }}@endif
                         </span>
                     @endif
-                    @if($item->created_at)
-                        <span class="opacity-70">{{ $item->created_at->isoFormat('D MMM') }}</span>
-                    @endif
                 </div>
             </div>
 
             {{-- Actions menu --}}
             @if($canManage)
-                <div x-data="{ open: false, sub: null }" class="relative shrink-0">
+                <div x-data="{ open: false, sub: null, q: '' }" class="relative shrink-0">
                     <button type="button" x-on:click="open = !open; sub = null" x-bind:aria-expanded="open" aria-haspopup="true"
                             class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-300 transition hover:bg-gray-100 hover:text-gray-600 dark:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                             aria-label="{{ __('loops.roadmap_actions_menu') }}">
@@ -95,28 +87,25 @@
                             </button>
                         @endforeach
 
-                        {{-- Assign --}}
-                        @if($mine)
+                        {{-- Add an Organization member (category B) then assign --}}
+                        @if($mine && $canAddMembers && $orgCandidates->isNotEmpty())
                             <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                            <button type="button" x-on:click="sub = (sub === 'assign' ? null : 'assign')" role="menuitem"
+                            <button type="button" x-on:click="sub = (sub === 'org' ? null : 'org'); q = ''" role="menuitem"
                                     class="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">
-                                {{ __('loops.roadmap_change_assignee') }}
+                                {{ __('loops.roadmap_group_org_members') }}
                                 <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
                             </button>
-                            <div x-show="sub === 'assign'" x-cloak class="max-h-44 overflow-y-auto bg-gray-50 dark:bg-gray-900/40">
-                                <button type="button" wire:click="assign('{{ $item->id }}', '')" x-on:click="open = false; sub = null"
-                                        class="block w-full px-5 py-1.5 text-left text-xs text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700/60">{{ __('loops.roadmap_assign_none') }}</button>
-                                @foreach($members as $m)
-                                    <button type="button" wire:click="assign('{{ $item->id }}', '{{ $m['id'] }}')" x-on:click="open = false; sub = null"
-                                            class="block w-full truncate px-5 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ $m['name'] }}</button>
-                                @endforeach
-                                @if($canAddMembers && $orgCandidates->isNotEmpty())
-                                    <p class="px-5 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.roadmap_group_org_members') }}</p>
+                            <div x-show="sub === 'org'" x-cloak class="bg-gray-50 dark:bg-gray-900/40">
+                                <input type="text" x-model="q" placeholder="{{ __('loops.roadmap_search_member') }}"
+                                       class="m-2 w-[calc(100%-1rem)] rounded-lg border-gray-300 bg-white text-xs dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                                <div class="max-h-40 overflow-y-auto pb-1">
                                     @foreach($orgCandidates as $c)
-                                        <button type="button" x-on:click="open = false; sub = null; $dispatch('open-confirm', { title: @js(__('loops.roadmap_add_member_title')), body: @js(__('loops.roadmap_add_member_body')), confirmLabel: @js(__('loops.roadmap_add_and_assign')), accept: 'assignAndAddMember', params: ['{{ $item->id }}', '{{ $c['id'] }}'] })"
+                                        <button type="button"
+                                                x-show="q === '' || @js(mb_strtolower($c['name'])).includes(q.toLowerCase())"
+                                                x-on:click="open = false; sub = null; $dispatch('open-confirm', { title: @js(__('loops.roadmap_add_member_title')), body: @js(__('loops.roadmap_add_member_body')), confirmLabel: @js(__('loops.roadmap_add_and_assign')), accept: 'assignAndAddMember', params: ['{{ $item->id }}', '{{ $c['id'] }}'] })"
                                                 class="block w-full truncate px-5 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ $c['name'] }} <span class="text-[10px] text-gray-400">+</span></button>
                                     @endforeach
-                                @endif
+                                </div>
                             </div>
                         @endif
 
