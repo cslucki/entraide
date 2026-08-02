@@ -22,7 +22,9 @@
         createOpen: false,
         archivesOpen: false,
         mode: (localStorage.getItem('roadmapView') || 'kanban'),
+        collapsed: { todo: true, in_progress: true, done: true },
         openCreate(status) { $wire.set('newStatus', status); this.createOpen = true; this.$nextTick(() => this.$refs.createTitle && this.$refs.createTitle.focus()); },
+        shown(status) { return this.mode === 'kanban' || ! this.collapsed[status]; },
      }"
      x-init="$watch('mode', v => localStorage.setItem('roadmapView', v))"
      x-on:roadmap-action-created.window="createOpen = false">
@@ -107,25 +109,32 @@
                 @foreach($columns as $status => $colItems)
                     <section class="roadmap-col flex flex-col rounded-2xl border p-2 {{ $statusMeta[$status]['col'] }}">
                         <div class="mb-2 flex items-center justify-between px-1">
-                            <p class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide {{ $statusMeta[$status]['chip'] }}">
+                            {{-- Header: in list mode it toggles the section (chevron); in kanban it's a static label --}}
+                            <button type="button" x-on:click="mode === 'list' && (collapsed[@js($status)] = ! collapsed[@js($status)])"
+                                    x-bind:class="mode === 'list' ? 'cursor-pointer' : 'cursor-default'"
+                                    class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide {{ $statusMeta[$status]['chip'] }}">
+                                <svg x-show="mode === 'list'" x-cloak class="h-3.5 w-3.5 transition-transform" x-bind:class="!collapsed[@js($status)] && 'rotate-90'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
                                 <span class="h-2 w-2 rounded-full {{ $statusMeta[$status]['dot'] }}"></span>
                                 {{ __('loops.'.$statusMeta[$status]['label']) }}
                                 <span class="rounded-full bg-white/70 px-1.5 text-[10px] text-gray-600 dark:bg-gray-900/50 dark:text-gray-300">{{ $colItems->count() }}</span>
-                            </p>
+                            </button>
                             <button type="button" x-on:click="openCreate(@js($status))"
                                     class="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                                     aria-label="{{ __('loops.roadmap_add_action') }}">
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                             </button>
                         </div>
-                        <ul class="min-h-[3rem] flex-1 space-y-2" data-roadmap-group data-status="{{ $status }}">
-                            @foreach($colItems as $item)
-                                @include('livewire.partials.roadmap-item')
-                            @endforeach
-                        </ul>
-                        @if($colItems->isEmpty())
-                            <p class="px-2 py-3 text-center text-[11px] text-gray-400 dark:text-gray-600">{{ __('loops.roadmap_empty_column') }}</p>
-                        @endif
+                        <div x-show="shown(@js($status))" x-cloak
+                             x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+                            <ul class="min-h-[3rem] flex-1 space-y-2" data-roadmap-group data-status="{{ $status }}">
+                                @foreach($colItems as $item)
+                                    @include('livewire.partials.roadmap-item')
+                                @endforeach
+                            </ul>
+                            @if($colItems->isEmpty())
+                                <p class="px-2 py-3 text-center text-[11px] text-gray-400 dark:text-gray-600">{{ __('loops.roadmap_empty_column') }}</p>
+                            @endif
+                        </div>
                     </section>
                 @endforeach
             </div>
