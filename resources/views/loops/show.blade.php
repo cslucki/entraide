@@ -232,6 +232,15 @@
                 </div>
 
             </div>
+            @can('update', $currentLoop)
+                <a href="{{ $_loopRoute('edit', ['loop' => $currentLoop]) }}"
+                   class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                   aria-label="{{ __('loops.edit') }}" title="{{ __('loops.edit') }}">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487a2.1 2.1 0 1 1 2.97 2.97L8.63 18.66l-4.243.53.53-4.243L16.862 4.487Z"/>
+                    </svg>
+                </a>
+            @endcan
         </div>
 
         {{-- Session messages --}}

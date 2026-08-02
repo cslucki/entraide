@@ -15,6 +15,7 @@ return [
     'type_custom' => 'Custom',
     'back_home' => 'Back to home',
     'back_to_loops' => 'Back to loops',
+    'edit' => 'Edit loop',
     'visibility_public' => 'Public',
     'visibility_private' => 'Private',
     'join' => 'Join this loop',

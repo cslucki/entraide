@@ -315,6 +315,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+        Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
+        Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
         Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
         Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
         Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
@@ -659,6 +661,8 @@ Route::prefix('/org/{organization}')
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+                Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
+                Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
                 Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
                 Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
                 Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
