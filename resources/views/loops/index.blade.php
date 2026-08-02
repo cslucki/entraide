@@ -25,7 +25,20 @@
         @endif
     </x-slot>
 
-    <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">{{ __('loops.collaboration_spaces') }}</p>
+    <div class="flex items-center justify-between gap-3 mb-6 md:block">
+        <p class="text-gray-500 dark:text-gray-400 text-sm">{{ __('loops.collaboration_spaces') }}</p>
+        @if($canCreate)
+            {{-- Mobile-only access: the desktop button lives in headingActions (hidden md:flex),
+                 which is not reachable on small viewports. Local to this page only. --}}
+            <a href="{{ $loopsCreateHref }}"
+               class="md:hidden shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span>{{ __('loops.new') }}</span>
+            </a>
+        @endif
+    </div>
 
         @if(session('success'))
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"

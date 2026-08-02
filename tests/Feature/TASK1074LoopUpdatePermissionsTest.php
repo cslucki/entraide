@@ -306,4 +306,32 @@ class TASK1074LoopUpdatePermissionsTest extends TestCase
             ->assertOk()
             ->assertDontSee(__('loops.edit'));
     }
+
+    // ── Mobile access to "Nouvelle" on the list page ──────────────────────────
+
+    public function test_mobile_only_new_loop_link_is_rendered_when_authorized(): void
+    {
+        $organization = $this->org(['members_can_create_loops' => true, 'loop_mode' => 'multi']);
+        Loop::factory()->count(2)->create(['organization_id' => $organization->id]);
+        $member = User::factory()->create(['organization_id' => $organization->id]);
+        $this->withCurrentOrganization($organization);
+
+        $this->actingAs($member)
+            ->get(route('loops.index'))
+            ->assertOk()
+            ->assertSee('md:hidden shrink-0 inline-flex', false);
+    }
+
+    public function test_mobile_only_new_loop_link_is_absent_when_not_authorized(): void
+    {
+        $organization = $this->org(['members_can_create_loops' => false, 'loop_mode' => 'multi']);
+        Loop::factory()->count(2)->create(['organization_id' => $organization->id]);
+        $member = User::factory()->create(['organization_id' => $organization->id]);
+        $this->withCurrentOrganization($organization);
+
+        $this->actingAs($member)
+            ->get(route('loops.index'))
+            ->assertOk()
+            ->assertDontSee('md:hidden shrink-0 inline-flex', false);
+    }
 }
