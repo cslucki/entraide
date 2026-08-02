@@ -15,6 +15,7 @@ return [
     'type_custom' => 'Personnalisée',
     'back_home' => 'Retour à l\'accueil',
     'back_to_loops' => 'Retour aux boucles',
+    'edit' => 'Modifier la boucle',
     'visibility_public' => 'Publique',
     'visibility_private' => 'Privée',
     'join' => 'Rejoindre cette boucle',

@@ -185,6 +185,44 @@ class LoopController extends Controller
             ->with('success', 'Boucle créée avec succès.');
     }
 
+    public function edit(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $loop);
+
+        return view('loops.edit', compact('loop'));
+    }
+
+    public function update(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('update', $loop);
+
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:5000',
+        ]);
+
+        $this->loopService->updateLoop($loop, $data);
+
+        return redirect($this->loopRoute('loops.show', $loop))
+            ->with('success', 'Boucle mise à jour.');
+    }
+
     public function show(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View
     {
         $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
