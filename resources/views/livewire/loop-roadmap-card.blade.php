@@ -40,6 +40,13 @@
             /* List: full-width stacked status sections. */
             .roadmap-list { display: flex; flex-direction: column; gap: .75rem; }
             .roadmap-list .roadmap-col { width: 100%; }
+            /* Minimal prose for the TipTap description. */
+            .roadmap-prose p { margin: 0 0 .4rem; }
+            .roadmap-prose ul { list-style: disc; padding-left: 1.25rem; margin: 0 0 .4rem; }
+            .roadmap-prose ol { list-style: decimal; padding-left: 1.25rem; margin: 0 0 .4rem; }
+            .roadmap-prose h3 { font-weight: 700; font-size: .95rem; margin: .2rem 0 .3rem; }
+            .roadmap-prose a { color: #7c3aed; text-decoration: underline; }
+            .roadmap-prose:empty::before, .roadmap-prose .is-editor-empty:first-child::before { content: attr(data-placeholder); color: #9ca3af; }
         </style>
     @endonce
 
@@ -163,6 +170,11 @@
                 </form>
             </div>
         </template>
+    @endif
+
+    {{-- Premium detail card --}}
+    @if($detail)
+        @include('livewire.partials.roadmap-detail')
     @endif
 
     {{-- Reusable premium confirmation modal (delete, add-and-assign) --}}

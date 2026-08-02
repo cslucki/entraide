@@ -680,4 +680,151 @@ class LoopRoadmapCardTest extends TestCase
             'user_id' => $this->crossUser->id,
         ]);
     }
+
+    // ---------------------------------------------------------------------
+    // Detail card: description, labels, thread.
+    // ---------------------------------------------------------------------
+
+    public function test_open_detail_sets_the_open_item(): void
+    {
+        $item = $this->item(['title' => 'Detail me']);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('openDetail', $item->id)
+            ->assertSet('detailId', $item->id)
+            ->assertSet('detailTitle', 'Detail me');
+    }
+
+    public function test_save_description_persists_for_modifier_and_refused_otherwise(): void
+    {
+        $item = $this->item(['created_by' => $this->owner->id]);
+
+        // Regular member (not creator) cannot modify.
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('openDetail', $item->id)
+            ->call('saveDescription', '# Nope');
+        $this->assertNull($item->fresh()->description);
+
+        // Owner can.
+        $this->actingAs($this->owner);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('openDetail', $item->id)
+            ->call('saveDescription', 'Hello **world**');
+        $this->assertSame('Hello **world**', $item->fresh()->description);
+    }
+
+    public function test_create_label_attaches_to_open_item_and_enforces_unique_name(): void
+    {
+        $item = $this->item(['created_by' => $this->owner->id]);
+        $this->actingAs($this->owner);
+
+        $c = Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('openDetail', $item->id)
+            ->set('newLabelName', 'Urgent')
+            ->set('newLabelColor', 'red')
+            ->call('createLabel');
+
+        $this->assertDatabaseHas('loop_roadmap_labels', [
+            'loop_id' => $this->loop->id, 'name' => 'Urgent', 'color' => 'red',
+        ]);
+        $this->assertCount(1, $item->fresh()->labels);
+
+        // Same name (case-insensitive) rejected.
+        $c->set('newLabelName', 'urgent')->call('createLabel')
+            ->assertSet('errorMessage', __('loops.roadmap_label_exists'));
+        $this->assertSame(1, \App\Models\LoopRoadmapLabel::where('loop_id', $this->loop->id)->count());
+    }
+
+    public function test_toggle_label_attaches_detaches_and_caps_at_five(): void
+    {
+        $item = $this->item(['created_by' => $this->owner->id]);
+        $labels = collect(range(1, 6))->map(fn ($i) => \App\Models\LoopRoadmapLabel::create([
+            'organization_id' => $this->loop->organization_id, 'loop_id' => $this->loop->id,
+            'name' => "L$i", 'color' => 'gray', 'created_by' => $this->owner->id,
+        ]));
+
+        $this->actingAs($this->owner);
+        $c = Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])->call('openDetail', $item->id);
+
+        foreach ($labels->take(5) as $l) {
+            $c->call('toggleLabel', $item->id, $l->id);
+        }
+        $this->assertCount(5, $item->fresh()->labels);
+
+        // 6th is refused (max 5).
+        $c->call('toggleLabel', $item->id, $labels[5]->id)
+            ->assertSet('errorMessage', __('loops.roadmap_label_max'));
+        $this->assertCount(5, $item->fresh()->labels);
+
+        // Detach one.
+        $c->call('toggleLabel', $item->id, $labels[0]->id);
+        $this->assertCount(4, $item->fresh()->labels);
+    }
+
+    public function test_toggle_label_refuses_label_of_another_loop(): void
+    {
+        $item = $this->item(['created_by' => $this->owner->id]);
+        $foreignLabel = \App\Models\LoopRoadmapLabel::create([
+            'organization_id' => $this->otherLoop->organization_id, 'loop_id' => $this->otherLoop->id,
+            'name' => 'Foreign', 'color' => 'gray', 'created_by' => $this->crossUser->id,
+        ]);
+
+        $this->actingAs($this->owner);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('toggleLabel', $item->id, $foreignLabel->id);
+
+        $this->assertCount(0, $item->fresh()->labels);
+    }
+
+    public function test_thread_add_edit_delete_and_permissions(): void
+    {
+        $item = $this->item(['created_by' => $this->owner->id]);
+
+        // Member adds a comment.
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('openDetail', $item->id)
+            ->set('newMessage', 'First comment')
+            ->call('addMessage');
+        $msg = \App\Models\LoopRoadmapItemMessage::where('loop_roadmap_item_id', $item->id)->first();
+        $this->assertNotNull($msg);
+        $this->assertSame($this->member->id, $msg->user_id);
+
+        // Another regular member cannot edit it.
+        $other = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMember($this->loop, $other, 'member');
+        $this->actingAs($other);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('startEditMessage', $msg->id)
+            ->assertSet('editingMessageId', null);
+
+        // The author edits it.
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('startEditMessage', $msg->id)
+            ->set('editingMessageBody', 'Edited')
+            ->call('saveMessage');
+        $this->assertSame('Edited', $msg->fresh()->body);
+
+        // A moderator (privileged) can delete someone else's comment.
+        $this->actingAs($this->moderator);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('deleteMessage', $msg->id);
+        $this->assertSoftDeleted('loop_roadmap_item_messages', ['id' => $msg->id]);
+    }
+
+    public function test_non_member_cannot_add_message(): void
+    {
+        $item = $this->item(['created_by' => $this->owner->id]);
+        $this->actingAs($this->nonMember);
+
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->set('detailId', $item->id)
+            ->set('newMessage', 'Should not persist')
+            ->call('addMessage');
+
+        $this->assertSame(0, \App\Models\LoopRoadmapItemMessage::where('loop_roadmap_item_id', $item->id)->count());
+    }
 }

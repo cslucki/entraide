@@ -5,6 +5,8 @@ namespace App\Livewire;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopRoadmapItem;
+use App\Models\LoopRoadmapItemMessage;
+use App\Models\LoopRoadmapLabel;
 use App\Models\User;
 use App\Services\LoopService;
 use Illuminate\Support\Collection;
@@ -34,6 +36,28 @@ class LoopRoadmapCard extends Component
     public array $editingAssignees = [];
 
     public ?string $editingDueAt = null;
+
+    // Detail card (premium modal).
+    public ?string $detailId = null;
+
+    public string $detailTitle = '';
+
+    /** @var array<int,string> */
+    public array $detailAssignees = [];
+
+    public ?string $detailDueAt = null;
+
+    // Label creation (from the detail card).
+    public string $newLabelName = '';
+
+    public string $newLabelColor = 'violet';
+
+    // Thread (comments) on the open detail item.
+    public string $newMessage = '';
+
+    public ?string $editingMessageId = null;
+
+    public string $editingMessageBody = '';
 
     public ?string $errorMessage = null;
 
@@ -305,8 +329,286 @@ class LoopRoadmapCard extends Component
         if ($this->editingId === $item->id) {
             $this->cancelEdit();
         }
+        if ($this->detailId === $item->id) {
+            $this->closeDetail();
+        }
 
         $item->delete();
+    }
+
+    // -----------------------------------------------------------------
+    // Detail card (premium modal): title, description, labels.
+    // -----------------------------------------------------------------
+
+    public function openDetail(string $id): void
+    {
+        $this->errorMessage = null;
+
+        $item = $this->resolveItem($id);
+        if (! $item) {
+            return;
+        }
+
+        $this->detailId = $item->id;
+        $this->detailTitle = $item->title;
+        $this->detailAssignees = $item->assignees()->pluck('users.id')->map(fn ($v) => (string) $v)->all();
+        $this->detailDueAt = $item->due_at?->format('Y-m-d');
+    }
+
+    public function closeDetail(): void
+    {
+        $this->reset(['detailId', 'detailTitle', 'detailAssignees', 'detailDueAt', 'newLabelName', 'errorMessage']);
+        $this->newLabelColor = 'violet';
+    }
+
+    public function saveDetailDue(): void
+    {
+        $this->errorMessage = null;
+
+        $item = $this->resolveItem((string) $this->detailId);
+        if (! $item || ! $this->canModify($item)) {
+            return;
+        }
+
+        $item->update(['due_at' => $this->detailDueAt ?: null]);
+    }
+
+    public function saveDetailTitle(): void
+    {
+        $this->errorMessage = null;
+
+        $item = $this->resolveItem((string) $this->detailId);
+        if (! $item || ! $this->canModify($item)) {
+            return;
+        }
+
+        $title = trim($this->detailTitle);
+        if ($title === '') {
+            $this->errorMessage = __('loops.roadmap_title_required');
+
+            return;
+        }
+
+        $item->update(['title' => mb_substr($title, 0, 255)]);
+    }
+
+    /**
+     * Persist the description as Markdown (from the shared WYSIWYG editor). Rendered
+     * read-only via Str::markdown() with html_input=strip, so raw HTML is neutralized.
+     */
+    public function saveDescription(string $markdown): void
+    {
+        $this->errorMessage = null;
+
+        $item = $this->resolveItem((string) $this->detailId);
+        if (! $item || ! $this->canModify($item)) {
+            return;
+        }
+
+        $markdown = trim($markdown);
+        $item->update(['description' => $markdown === '' ? null : mb_substr($markdown, 0, 20000)]);
+    }
+
+    public function createLabel(): void
+    {
+        $this->errorMessage = null;
+
+        if (! $this->isMemberOrAdmin()) {
+            return;
+        }
+
+        $name = trim($this->newLabelName);
+        if ($name === '') {
+            $this->errorMessage = __('loops.roadmap_label_name_required');
+
+            return;
+        }
+        $name = mb_substr($name, 0, 40);
+
+        $color = LoopRoadmapLabel::isValidColor($this->newLabelColor) ? $this->newLabelColor : 'gray';
+
+        // Unique name per loop, case-insensitive.
+        $exists = LoopRoadmapLabel::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->exists();
+        if ($exists) {
+            $this->errorMessage = __('loops.roadmap_label_exists');
+
+            return;
+        }
+
+        $label = LoopRoadmapLabel::create([
+            'organization_id' => $this->loop->organization_id,
+            'loop_id' => $this->loop->id,
+            'name' => $name,
+            'color' => $color,
+            'created_by' => auth()->id(),
+        ]);
+
+        // Attach immediately to the open item if under the per-item cap.
+        if ($this->detailId) {
+            $item = $this->resolveItem((string) $this->detailId);
+            if ($item && $this->canModify($item) && $item->labels()->count() < LoopRoadmapLabel::MAX_PER_ITEM) {
+                $item->labels()->syncWithoutDetaching([$label->id]);
+            }
+        }
+
+        $this->reset(['newLabelName']);
+        $this->newLabelColor = 'violet';
+    }
+
+    public function toggleLabel(string $itemId, string $labelId): void
+    {
+        $this->errorMessage = null;
+
+        $item = $this->resolveItem($itemId);
+        if (! $item || ! $this->canModify($item)) {
+            return;
+        }
+
+        $label = $this->resolveLabel($labelId);
+        if (! $label) {
+            return;
+        }
+
+        if ($item->labels()->whereKey($label->id)->exists()) {
+            $item->labels()->detach($label->id);
+
+            return;
+        }
+
+        if ($item->labels()->count() >= LoopRoadmapLabel::MAX_PER_ITEM) {
+            $this->errorMessage = __('loops.roadmap_label_max');
+
+            return;
+        }
+
+        $item->labels()->syncWithoutDetaching([$label->id]);
+    }
+
+    public function deleteLabel(string $labelId): void
+    {
+        $this->errorMessage = null;
+
+        $label = $this->resolveLabel($labelId);
+        if (! $label) {
+            return;
+        }
+        if (! $this->isPrivileged() && $label->created_by !== auth()->id()) {
+            return;
+        }
+
+        $label->delete(); // pivot rows cascade
+    }
+
+    // -----------------------------------------------------------------
+    // Thread (comments) — dedicated per-action messages.
+    // -----------------------------------------------------------------
+
+    public function addMessage(): void
+    {
+        $this->errorMessage = null;
+
+        $item = $this->resolveItem((string) $this->detailId);
+        if (! $item) {
+            return;
+        }
+
+        $body = trim($this->newMessage);
+        if ($body === '') {
+            return;
+        }
+
+        LoopRoadmapItemMessage::create([
+            'organization_id' => $this->loop->organization_id,
+            'loop_id' => $this->loop->id,
+            'loop_roadmap_item_id' => $item->id,
+            'user_id' => auth()->id(),
+            'body' => mb_substr($body, 0, 5000),
+        ]);
+
+        $this->reset(['newMessage']);
+    }
+
+    public function startEditMessage(string $messageId): void
+    {
+        $message = $this->resolveMessage($messageId);
+        if (! $message || $message->user_id !== auth()->id()) {
+            return;
+        }
+
+        $this->editingMessageId = $message->id;
+        $this->editingMessageBody = $message->body;
+    }
+
+    public function cancelEditMessage(): void
+    {
+        $this->reset(['editingMessageId', 'editingMessageBody']);
+    }
+
+    public function saveMessage(): void
+    {
+        if ($this->editingMessageId === null) {
+            return;
+        }
+
+        $message = $this->resolveMessage($this->editingMessageId);
+        if (! $message || $message->user_id !== auth()->id()) {
+            $this->cancelEditMessage();
+
+            return;
+        }
+
+        $body = trim($this->editingMessageBody);
+        if ($body === '') {
+            return;
+        }
+
+        $message->update(['body' => mb_substr($body, 0, 5000)]);
+        $this->cancelEditMessage();
+    }
+
+    public function deleteMessage(string $messageId): void
+    {
+        $message = $this->resolveMessage($messageId);
+        if (! $message) {
+            return;
+        }
+
+        // Author, or a privileged member (owner/moderator/super-admin).
+        if ($message->user_id !== auth()->id() && ! $this->isPrivileged()) {
+            return;
+        }
+
+        $message->delete();
+    }
+
+    /** Re-scope a message to this Organization + Loop. Requires active membership. */
+    private function resolveMessage(string $messageId): ?LoopRoadmapItemMessage
+    {
+        if (! $this->isMemberOrAdmin()) {
+            return null;
+        }
+
+        return LoopRoadmapItemMessage::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->find($messageId);
+    }
+
+    /** Re-scope a label to this Organization + Loop. Never trust a browser id. */
+    private function resolveLabel(string $labelId): ?LoopRoadmapLabel
+    {
+        if (! $this->isMemberOrAdmin()) {
+            return null;
+        }
+
+        return LoopRoadmapLabel::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->find($labelId);
     }
 
     /** Keyboard/a11y fallback: move one action up within its status column. */
@@ -641,7 +943,8 @@ class LoopRoadmapCard extends Component
             ? LoopRoadmapItem::query()
                 ->where('organization_id', $this->loop->organization_id)
                 ->where('loop_id', $this->loop->id)
-                ->with('assignees')
+                ->with(['assignees', 'labels'])
+                ->withCount('messages')
                 ->ordered()
                 ->get()
             : collect();
@@ -659,6 +962,30 @@ class LoopRoadmapCard extends Component
 
         $canAddMembers = $canManage && $this->canAddMembers();
 
+        // Detail card (open item), if any.
+        $detail = null;
+        if ($canManage && $this->detailId) {
+            $detail = $items->firstWhere('id', $this->detailId)
+                ?? LoopRoadmapItem::query()
+                    ->where('organization_id', $this->loop->organization_id)
+                    ->where('loop_id', $this->loop->id)
+                    ->with(['assignees', 'labels', 'creator'])
+                    ->find($this->detailId);
+            if ($detail && ! $detail->relationLoaded('creator')) {
+                $detail->load('creator');
+            }
+        }
+
+        $detailMessages = ($detail)
+            ? LoopRoadmapItemMessage::query()
+                ->where('organization_id', $this->loop->organization_id)
+                ->where('loop_id', $this->loop->id)
+                ->where('loop_roadmap_item_id', $detail->id)
+                ->with('user')
+                ->orderBy('created_at')
+                ->get()
+            : collect();
+
         return view('livewire.loop-roadmap-card', [
             'items' => $items,
             'columns' => $columns,
@@ -668,6 +995,21 @@ class LoopRoadmapCard extends Component
             'canAddMembers' => $canAddMembers,
             'members' => $canManage ? $this->assignableMembers() : collect(),
             'orgCandidates' => $canAddMembers ? $this->organizationCandidates() : collect(),
+            'loopLabels' => $canManage ? $this->loopLabels() : collect(),
+            'detail' => $detail,
+            'detailCanModify' => $detail ? $this->canModify($detail) : false,
+            'detailMessages' => $detailMessages,
+            'isPrivileged' => $this->isPrivileged(),
+            'palette' => LoopRoadmapLabel::COLORS,
         ]);
+    }
+
+    private function loopLabels(): Collection
+    {
+        return LoopRoadmapLabel::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->orderBy('name')
+            ->get();
     }
 }

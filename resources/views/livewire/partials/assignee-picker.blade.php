@@ -1,10 +1,19 @@
 {{-- Searchable multi-assignee picker (max 3), Material 3 inspired: input chips +
      filter field + option list. Bound to a Livewire array property via entangle.
-     Params: $model (string property name), $options (collection of ['id','name']). --}}
+     Params: $model (property name), $options (collection of ['id','name']).
+     Optional: $change (wire method) + $changeArg to persist live on every change. --}}
+@php $change = $change ?? null; $changeArg = $changeArg ?? null; @endphp
 <div x-data="{
         selected: @entangle($model),
         q: '',
         open: false,
+        _change: @js($change),
+        _arg: @js($changeArg),
+        init() {
+            if (this._change) {
+                this.$watch('selected', (v) => this.$wire.call(this._change, this._arg, v.map(String)));
+            }
+        },
         options: {{ \Illuminate\Support\Js::from($options->map(fn ($o) => ['id' => (string) $o['id'], 'name' => $o['name']])->values()) }},
         max: {{ \App\Models\LoopRoadmapItem::MAX_ASSIGNEES }},
         get chips() { return this.options.filter(o => this.selected.map(String).includes(o.id)); },
