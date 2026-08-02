@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LoopRoadmapItem extends Model
 {
@@ -32,6 +33,7 @@ class LoopRoadmapItem extends Model
         'organization_id',
         'loop_id',
         'title',
+        'description',
         'status',
         'position',
         'due_at',
@@ -64,6 +66,18 @@ class LoopRoadmapItem extends Model
         return $this->belongsToMany(User::class, 'loop_roadmap_item_user')
             ->withTimestamps()
             ->orderBy('name');
+    }
+
+    public function labels(): BelongsToMany
+    {
+        return $this->belongsToMany(LoopRoadmapLabel::class, 'loop_roadmap_item_label')
+            ->withTimestamps()
+            ->orderBy('name');
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(LoopRoadmapItemMessage::class)->latest();
     }
 
     public function creator(): BelongsTo
