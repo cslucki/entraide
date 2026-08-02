@@ -262,4 +262,215 @@ class LoopRoadmapCardTest extends TestCase
         Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
             ->assertViewHas('openCount', 2);
     }
+
+    // ---------------------------------------------------------------------
+    // Drag & drop reorder (reorderGroup) — per status group.
+    // ---------------------------------------------------------------------
+
+    public function test_reorder_group_persists_new_order(): void
+    {
+        $a = $this->item(['title' => 'A', 'status' => 'open', 'position' => 0]);
+        $b = $this->item(['title' => 'B', 'status' => 'open', 'position' => 1]);
+        $c = $this->item(['title' => 'C', 'status' => 'open', 'position' => 2]);
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$c->id, $a->id, $b->id]);
+
+        $this->assertSame(0, $c->fresh()->position);
+        $this->assertSame(1, $a->fresh()->position);
+        $this->assertSame(2, $b->fresh()->position);
+    }
+
+    public function test_reorder_group_first_to_last_and_stable_after_reload(): void
+    {
+        $a = $this->item(['title' => 'A', 'status' => 'open', 'position' => 0]);
+        $b = $this->item(['title' => 'B', 'status' => 'open', 'position' => 1]);
+        $c = $this->item(['title' => 'C', 'status' => 'open', 'position' => 2]);
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$b->id, $c->id, $a->id]);
+
+        $ordered = LoopRoadmapItem::query()
+            ->where('loop_id', $this->loop->id)
+            ->open()->orderBy('position')->pluck('id')->all();
+
+        $this->assertSame([$b->id, $c->id, $a->id], $ordered);
+    }
+
+    public function test_reorder_group_only_touches_its_own_status(): void
+    {
+        $o1 = $this->item(['status' => 'open', 'position' => 0]);
+        $o2 = $this->item(['status' => 'open', 'position' => 1]);
+        $d1 = LoopRoadmapItem::factory()->done()->create([
+            'loop_id' => $this->loop->id, 'organization_id' => $this->loop->organization_id, 'created_by' => $this->owner->id, 'position' => 0,
+        ]);
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$o2->id, $o1->id]);
+
+        $this->assertSame(0, $o2->fresh()->position);
+        $this->assertSame(1, $o1->fresh()->position);
+        $this->assertSame(0, $d1->fresh()->position); // untouched
+    }
+
+    public function test_reorder_group_rejects_invalid_status(): void
+    {
+        $a = $this->item(['status' => 'open', 'position' => 0]);
+        $b = $this->item(['status' => 'open', 'position' => 1]);
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'archived', [$b->id, $a->id])
+            ->assertSet('errorMessage', __('loops.roadmap_reorder_failed'));
+
+        $this->assertSame(0, $a->fresh()->position);
+        $this->assertSame(1, $b->fresh()->position);
+    }
+
+    public function test_reorder_group_rejects_duplicate_ids(): void
+    {
+        $a = $this->item(['status' => 'open', 'position' => 0]);
+        $b = $this->item(['status' => 'open', 'position' => 1]);
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$a->id, $a->id])
+            ->assertSet('errorMessage', __('loops.roadmap_reorder_failed'));
+
+        $this->assertSame(0, $a->fresh()->position);
+        $this->assertSame(1, $b->fresh()->position);
+    }
+
+    public function test_reorder_group_rejects_incomplete_set(): void
+    {
+        $a = $this->item(['status' => 'open', 'position' => 0]);
+        $b = $this->item(['status' => 'open', 'position' => 1]);
+        $c = $this->item(['status' => 'open', 'position' => 2]);
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$b->id, $a->id]) // missing $c
+            ->assertSet('errorMessage', __('loops.roadmap_reorder_failed'));
+
+        $this->assertSame(0, $a->fresh()->position);
+        $this->assertSame(1, $b->fresh()->position);
+        $this->assertSame(2, $c->fresh()->position);
+    }
+
+    public function test_reorder_group_rejects_wrong_status_member_of_set(): void
+    {
+        $o1 = $this->item(['status' => 'open', 'position' => 0]);
+        $o2 = $this->item(['status' => 'open', 'position' => 1]);
+        $done = LoopRoadmapItem::factory()->done()->create([
+            'loop_id' => $this->loop->id, 'organization_id' => $this->loop->organization_id, 'created_by' => $this->owner->id, 'position' => 0,
+        ]);
+
+        // Trying to sneak a done item into the open group payload.
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$o1->id, $o2->id, $done->id])
+            ->assertSet('errorMessage', __('loops.roadmap_reorder_failed'));
+
+        $this->assertSame(0, $o1->fresh()->position);
+        $this->assertSame(1, $o2->fresh()->position);
+    }
+
+    public function test_reorder_group_rejects_item_of_another_loop(): void
+    {
+        $a = $this->item(['status' => 'open', 'position' => 0]);
+        $b = $this->item(['status' => 'open', 'position' => 1]);
+        $foreign = LoopRoadmapItem::factory()->create([
+            'loop_id' => $this->otherLoop->id,
+            'organization_id' => $this->otherLoop->organization_id,
+            'created_by' => $this->crossUser->id,
+            'status' => 'open', 'position' => 0,
+        ]);
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$foreign->id, $a->id, $b->id])
+            ->assertSet('errorMessage', __('loops.roadmap_reorder_failed'));
+
+        $this->assertSame(0, $a->fresh()->position);
+        $this->assertSame(1, $b->fresh()->position);
+        $this->assertSame(0, $foreign->fresh()->position);
+    }
+
+    public function test_reorder_group_refused_for_non_member(): void
+    {
+        $a = $this->item(['status' => 'open', 'position' => 0]);
+        $b = $this->item(['status' => 'open', 'position' => 1]);
+
+        $this->actingAs($this->nonMember);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$b->id, $a->id]);
+
+        $this->assertSame(0, $a->fresh()->position);
+        $this->assertSame(1, $b->fresh()->position);
+    }
+
+    public function test_reorder_group_refused_for_deactivated_member(): void
+    {
+        $a = $this->item(['status' => 'open', 'position' => 0]);
+        $b = $this->item(['status' => 'open', 'position' => 1]);
+        $this->member->update(['banned_at' => now()]);
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$b->id, $a->id]);
+
+        $this->assertSame(0, $a->fresh()->position);
+        $this->assertSame(1, $b->fresh()->position);
+    }
+
+    public function test_reorder_group_covered_for_super_admin_non_member(): void
+    {
+        $admin = User::factory()->create(['organization_id' => $this->organization->id, 'is_admin' => true]);
+        $a = $this->item(['status' => 'open', 'position' => 0]);
+        $b = $this->item(['status' => 'open', 'position' => 1]);
+
+        $this->actingAs($admin);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$b->id, $a->id]);
+
+        $this->assertSame(0, $b->fresh()->position);
+        $this->assertSame(1, $a->fresh()->position);
+    }
+
+    public function test_reorder_group_is_transactional_no_partial_write_on_reject(): void
+    {
+        $a = $this->item(['status' => 'open', 'position' => 0]);
+        $b = $this->item(['status' => 'open', 'position' => 1]);
+        $c = $this->item(['status' => 'open', 'position' => 2]);
+
+        // Surplus (unknown id appended) -> whole call rejected, no position changes.
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('reorderGroup', 'open', [$c->id, $b->id, $a->id, 'not-a-real-id'])
+            ->assertSet('errorMessage', __('loops.roadmap_reorder_failed'));
+
+        $this->assertSame(0, $a->fresh()->position);
+        $this->assertSame(1, $b->fresh()->position);
+        $this->assertSame(2, $c->fresh()->position);
+    }
+
+    public function test_toggle_does_not_destroy_group_order(): void
+    {
+        $a = $this->item(['title' => 'A', 'status' => 'open', 'position' => 0]);
+        $b = $this->item(['title' => 'B', 'status' => 'open', 'position' => 1]);
+        $c = $this->item(['title' => 'C', 'status' => 'open', 'position' => 2]);
+
+        $this->actingAs($this->member);
+        $component = Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop]);
+        $component->call('reorderGroup', 'open', [$c->id, $a->id, $b->id]);
+        // Toggling B keeps the remaining open positions intact.
+        $component->call('toggle', $b->id);
+
+        $this->assertSame(0, $c->fresh()->position);
+        $this->assertSame(1, $a->fresh()->position);
+        $this->assertSame('done', $b->fresh()->status);
+    }
 }
