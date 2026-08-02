@@ -5,6 +5,8 @@ namespace Tests\Feature\Livewire;
 use App\Livewire\LoopRoadmapCard;
 use App\Models\Loop;
 use App\Models\LoopRoadmapItem;
+use App\Models\LoopRoadmapItemMessage;
+use App\Models\LoopRoadmapLabel;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
@@ -161,18 +163,52 @@ class LoopRoadmapCardTest extends TestCase
         $this->assertSame('Edited by moderator', $item->fresh()->title);
     }
 
-    public function test_delete_authorized_for_owner_refused_for_non_creator(): void
+    public function test_archive_authorized_for_owner_refused_for_non_creator(): void
     {
         $item = $this->item(['created_by' => $this->owner->id]);
 
-        // Non-creator regular member cannot delete
+        // Non-creator regular member cannot archive
         $this->actingAs($this->member);
-        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])->call('deleteItem', $item->id);
-        $this->assertDatabaseHas('loop_roadmap_items', ['id' => $item->id]);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])->call('archiveItem', $item->id);
+        $this->assertNotSoftDeleted('loop_roadmap_items', ['id' => $item->id]);
 
-        // Owner can delete
+        // Owner can archive (soft delete)
         $this->actingAs($this->owner);
-        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])->call('deleteItem', $item->id);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])->call('archiveItem', $item->id);
+        $this->assertSoftDeleted('loop_roadmap_items', ['id' => $item->id]);
+    }
+
+    public function test_archived_items_leave_the_columns_and_can_be_restored(): void
+    {
+        $item = $this->item(['created_by' => $this->owner->id, 'status' => 'in_progress', 'position' => 0]);
+        $this->actingAs($this->owner);
+
+        $c = Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop]);
+        $c->call('archiveItem', $item->id);
+        // Gone from the visible columns, present in archives.
+        $c->assertViewHas('archivedCount', 1);
+        $this->assertSoftDeleted('loop_roadmap_items', ['id' => $item->id]);
+
+        // Restore brings it back (same status).
+        $c->call('restoreItem', $item->id);
+        $this->assertNotSoftDeleted('loop_roadmap_items', ['id' => $item->id]);
+        $this->assertSame('in_progress', $item->fresh()->status);
+    }
+
+    public function test_force_delete_is_privileged_only(): void
+    {
+        $item = $this->item(['created_by' => $this->member->id]);
+        // Archive it first (as the creator).
+        $this->actingAs($this->member);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])->call('archiveItem', $item->id);
+
+        // Regular member (creator) cannot permanently delete.
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])->call('forceDeleteItem', $item->id);
+        $this->assertSoftDeleted('loop_roadmap_items', ['id' => $item->id]);
+
+        // Moderator (privileged) can.
+        $this->actingAs($this->moderator);
+        Livewire::test(LoopRoadmapCard::class, ['loop' => $this->loop])->call('forceDeleteItem', $item->id);
         $this->assertDatabaseMissing('loop_roadmap_items', ['id' => $item->id]);
     }
 
@@ -734,13 +770,13 @@ class LoopRoadmapCardTest extends TestCase
         // Same name (case-insensitive) rejected.
         $c->set('newLabelName', 'urgent')->call('createLabel')
             ->assertSet('errorMessage', __('loops.roadmap_label_exists'));
-        $this->assertSame(1, \App\Models\LoopRoadmapLabel::where('loop_id', $this->loop->id)->count());
+        $this->assertSame(1, LoopRoadmapLabel::where('loop_id', $this->loop->id)->count());
     }
 
     public function test_toggle_label_attaches_detaches_and_caps_at_five(): void
     {
         $item = $this->item(['created_by' => $this->owner->id]);
-        $labels = collect(range(1, 6))->map(fn ($i) => \App\Models\LoopRoadmapLabel::create([
+        $labels = collect(range(1, 6))->map(fn ($i) => LoopRoadmapLabel::create([
             'organization_id' => $this->loop->organization_id, 'loop_id' => $this->loop->id,
             'name' => "L$i", 'color' => 'gray', 'created_by' => $this->owner->id,
         ]));
@@ -766,7 +802,7 @@ class LoopRoadmapCardTest extends TestCase
     public function test_toggle_label_refuses_label_of_another_loop(): void
     {
         $item = $this->item(['created_by' => $this->owner->id]);
-        $foreignLabel = \App\Models\LoopRoadmapLabel::create([
+        $foreignLabel = LoopRoadmapLabel::create([
             'organization_id' => $this->otherLoop->organization_id, 'loop_id' => $this->otherLoop->id,
             'name' => 'Foreign', 'color' => 'gray', 'created_by' => $this->crossUser->id,
         ]);
@@ -788,7 +824,7 @@ class LoopRoadmapCardTest extends TestCase
             ->call('openDetail', $item->id)
             ->set('newMessage', 'First comment')
             ->call('addMessage');
-        $msg = \App\Models\LoopRoadmapItemMessage::where('loop_roadmap_item_id', $item->id)->first();
+        $msg = LoopRoadmapItemMessage::where('loop_roadmap_item_id', $item->id)->first();
         $this->assertNotNull($msg);
         $this->assertSame($this->member->id, $msg->user_id);
 
@@ -825,6 +861,6 @@ class LoopRoadmapCardTest extends TestCase
             ->set('newMessage', 'Should not persist')
             ->call('addMessage');
 
-        $this->assertSame(0, \App\Models\LoopRoadmapItemMessage::where('loop_roadmap_item_id', $item->id)->count());
+        $this->assertSame(0, LoopRoadmapItemMessage::where('loop_roadmap_item_id', $item->id)->count());
     }
 }

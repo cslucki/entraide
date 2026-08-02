@@ -95,15 +95,6 @@
                     </span>
                 @endif
 
-                {{-- Direct delete (left of the menu) — no need to open the menu --}}
-                @if($canManage && $mine)
-                    <button type="button" x-on:click.stop="$dispatch('open-confirm', { title: @js(__('loops.roadmap_delete_title')), body: @js(__('loops.roadmap_delete_body')), confirmLabel: @js(__('loops.roadmap_delete')), danger: true, accept: 'deleteItem', params: ['{{ $item->id }}'] })"
-                            title="{{ __('loops.roadmap_delete') }}" aria-label="{{ __('loops.roadmap_delete') }}"
-                            class="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
-                    </button>
-                @endif
-
                 {{-- Actions menu (flips to stay on screen) --}}
                 @if($canManage)
                     <div x-data="roadmapMenu()" class="relative" x-on:click.stop>
@@ -124,6 +115,15 @@
                             <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
                             <button type="button" wire:click="moveUp('{{ $item->id }}')" x-on:click="close()" role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('loops.roadmap_move_up') }}</button>
                             <button type="button" wire:click="moveDown('{{ $item->id }}')" x-on:click="close()" role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('loops.roadmap_move_down') }}</button>
+                            @if($mine)
+                                <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                                <button type="button" role="menuitem"
+                                        x-on:click="close(); $dispatch('open-confirm', { title: @js(__('loops.roadmap_archive_title')), body: @js(__('loops.roadmap_archive_body')), confirmLabel: @js(__('loops.roadmap_archive')), accept: 'archiveItem', params: ['{{ $item->id }}'] })"
+                                        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">
+                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/></svg>
+                                    {{ __('loops.roadmap_archive') }}
+                                </button>
+                            @endif
                         </div>
                     </div>
                 @endif

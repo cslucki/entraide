@@ -233,5 +233,17 @@
                 </div>
             </div>
         </div>
+
+        {{-- Footer: archive (bottom-right) --}}
+        @if($detailCanModify)
+            <div class="flex shrink-0 items-center justify-end border-t border-gray-100 px-4 py-2.5 dark:border-gray-800">
+                <button type="button"
+                        x-on:click="$dispatch('open-confirm', { title: @js(__('loops.roadmap_archive_title')), body: @js(__('loops.roadmap_archive_body')), confirmLabel: @js(__('loops.roadmap_archive')), accept: 'archiveItem', params: ['{{ $detail->id }}'] })"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-red-800 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/></svg>
+                    {{ __('loops.roadmap_archive') }}
+                </button>
+            </div>
+        @endif
     </div>
 </div>

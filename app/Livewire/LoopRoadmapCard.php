@@ -317,7 +317,8 @@ class LoopRoadmapCard extends Component
         return $ids;
     }
 
-    public function deleteItem(string $id): void
+    /** Archive an action (reversible soft delete). Creator or privileged. */
+    public function archiveItem(string $id): void
     {
         $this->errorMessage = null;
 
@@ -333,7 +334,57 @@ class LoopRoadmapCard extends Component
             $this->closeDetail();
         }
 
-        $item->delete();
+        $item->delete(); // soft delete
+    }
+
+    /** Restore an archived action back to the end of its status column. */
+    public function restoreItem(string $id): void
+    {
+        $this->errorMessage = null;
+
+        $item = $this->resolveTrashedItem($id);
+        if (! $item || ! $this->canModify($item)) {
+            return;
+        }
+
+        $maxPosition = LoopRoadmapItem::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->where('status', $item->status)
+            ->max('position');
+
+        $item->restore();
+        $item->update(['position' => ($maxPosition === null ? 0 : $maxPosition + 1)]);
+    }
+
+    /** Permanently delete an archived action. Privileged only. */
+    public function forceDeleteItem(string $id): void
+    {
+        $this->errorMessage = null;
+
+        if (! $this->isPrivileged()) {
+            return;
+        }
+
+        $item = $this->resolveTrashedItem($id);
+        if (! $item) {
+            return;
+        }
+
+        $item->forceDelete();
+    }
+
+    /** Re-scope an archived item to this Organization + Loop. */
+    private function resolveTrashedItem(string $id): ?LoopRoadmapItem
+    {
+        if (! $this->isMemberOrAdmin()) {
+            return null;
+        }
+
+        return LoopRoadmapItem::onlyTrashed()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->find($id);
     }
 
     // -----------------------------------------------------------------
@@ -955,6 +1006,15 @@ class LoopRoadmapCard extends Component
             LoopRoadmapItem::STATUS_DONE => $items->where('status', LoopRoadmapItem::STATUS_DONE)->values(),
         ];
 
+        $archivedItems = $canManage
+            ? LoopRoadmapItem::onlyTrashed()
+                ->where('organization_id', $this->loop->organization_id)
+                ->where('loop_id', $this->loop->id)
+                ->orderByDesc('deleted_at')
+                ->limit(50)
+                ->get()
+            : collect();
+
         $canModify = [];
         foreach ($items as $item) {
             $canModify[$item->id] = $this->canModify($item);
@@ -1001,6 +1061,8 @@ class LoopRoadmapCard extends Component
             'detailCanModify' => $detail ? $this->canModify($detail) : false,
             'detailMessages' => $detailMessages,
             'isPrivileged' => $this->isPrivileged(),
+            'archivedItems' => $archivedItems,
+            'archivedCount' => $archivedItems->count(),
             'palette' => LoopRoadmapLabel::COLORS,
         ]);
     }
