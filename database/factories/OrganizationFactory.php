@@ -28,6 +28,7 @@ class OrganizationFactory extends Factory
             'accent_color' => '#6366f1',
             'welcome_points' => 100,
             'loops_enabled' => true,
+            'members_can_create_loops' => true,
             'loop_mode' => 'multi',
         ];
     }

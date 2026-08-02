@@ -133,7 +133,9 @@ class LoopController extends Controller
             return redirect($this->loopRoute('loops.show', $loops->first()));
         }
 
-        return view('loops.index', compact('loops'))->with('canCreate', true);
+        $canCreate = $user->can('create', [Loop::class, $organization]);
+
+        return view('loops.index', compact('loops'))->with('canCreate', $canCreate);
     }
 
     private function getAccessibleLoopsQuery(string $organizationId, $user)
@@ -157,6 +159,7 @@ class LoopController extends Controller
     {
         $organization = $this->resolveOrganization();
         $this->assertUserBelongsToOrganization($organization);
+        $this->authorize('create', [Loop::class, $organization]);
 
         return view('loops.create');
     }
@@ -165,6 +168,7 @@ class LoopController extends Controller
     {
         $organization = $this->resolveOrganization();
         $this->assertUserBelongsToOrganization($organization);
+        $this->authorize('create', [Loop::class, $organization]);
 
         $data = $request->validate([
             'name' => 'required|string|max:255',

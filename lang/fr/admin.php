@@ -246,6 +246,8 @@ return [
     'user_data_point_ledger' => 'Entrées journal points',
     'subscriptions_toggle_label' => 'Proposer les abonnements',
     'subscriptions_toggle_desc' => 'Quand activé, une page de présentation des abonnements est proposée aux visiteurs de l\'organisation.',
+    'members_can_create_loops_label' => 'Autoriser les membres à créer des Boucles',
+    'members_can_create_loops_desc' => 'Lorsque cette option est activée, les membres actifs de l\'organisation peuvent créer leurs propres Boucles. Sans effet si « Boucles activées » est désactivé.',
     'user_data_member_ai_profile' => 'Profil IA',
     'user_data_loop_memberships' => 'Adhésions boucles',
     'user_data_orgs_as_admin' => 'Organisations possédées',

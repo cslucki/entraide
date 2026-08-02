@@ -246,6 +246,8 @@ return [
     'user_data_point_ledger' => 'Point ledger entries',
     'subscriptions_toggle_label' => 'Offer subscriptions',
     'subscriptions_toggle_desc' => 'When enabled, a subscription presentation page is shown to visitors of this organization.',
+    'members_can_create_loops_label' => 'Allow members to create Loops',
+    'members_can_create_loops_desc' => 'When enabled, active members of the organization can create their own Loops. Has no effect when "Loops enabled" is off.',
     'user_data_member_ai_profile' => 'AI profile',
     'user_data_loop_memberships' => 'Loop memberships',
     'user_data_orgs_as_admin' => 'Organizations owned',
