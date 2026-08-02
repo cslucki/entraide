@@ -68,6 +68,10 @@ class LoopVisibilityMembershipTest extends TestCase
     public function test_user_can_self_join_loop_in_same_organization(): void
     {
         $loop = $this->service->createLoop($this->user, 'Joinable Loop');
+        // TASK-1075: self-join now requires access_mode=open (createLoop() defaults
+        // to 'request' — a deliberate product decision, not the pre-TASK-1075
+        // unconditional join()).
+        $loop->update(['access_mode' => 'open']);
 
         app()->instance('current_organization', $this->organization);
 
@@ -158,20 +162,26 @@ class LoopVisibilityMembershipTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // Loop privée bloquée pour non membre Loop (même Organization)
+    // Loop privée -> fiche de présentation pour non membre Loop (TASK-1075)
     // -------------------------------------------------------------------------
 
-    public function test_private_loop_blocked_for_non_member_of_same_organization(): void
+    public function test_private_loop_shows_presentation_not_404_for_non_member_of_same_organization(): void
     {
+        // TASK-1075: "private" no longer means "hidden/404 for non-members" —
+        // it means the workspace content is locked. A same-org non-member now
+        // gets the discovery presentation card (200), never the workspace.
         $loop = $this->service->createLoop($this->user, 'Private Loop');
-        // visibility defaults to 'private'
+        // visibility defaults to 'private'; access_mode defaults to 'request'.
 
         app()->instance('current_organization', $this->organization);
 
         $response = $this->actingAs($this->otherUser)
             ->get(route('loops.show', $loop));
 
-        $response->assertStatus(404);
+        $response->assertOk();
+        $response->assertSee('Private Loop');
+        $response->assertSee(__('loops.presentation_locked_title'));
+        $response->assertDontSee(__('loops.cards_bar_label'));
     }
 
     // -------------------------------------------------------------------------
@@ -181,7 +191,7 @@ class LoopVisibilityMembershipTest extends TestCase
     public function test_public_loop_shows_join_button_to_non_member(): void
     {
         $loop = $this->service->createLoop($this->user, 'Public Joinable');
-        $loop->update(['visibility' => 'public']);
+        $loop->update(['visibility' => 'public', 'access_mode' => 'open']);
 
         app()->instance('current_organization', $this->organization);
 
@@ -189,7 +199,7 @@ class LoopVisibilityMembershipTest extends TestCase
             ->get(route('loops.show', $loop));
 
         $response->assertStatus(200);
-        $response->assertSee(__('loops.join'));
+        $response->assertSee(__('loops.cta_join'));
         $response->assertSee(route('loops.join', $loop));
     }
 

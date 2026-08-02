@@ -9,20 +9,33 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Storage;
 
 class Loop extends Model
 {
     /** @use HasFactory<LoopFactory> */
     use HasFactory, HasOrganizationId, HasUuids;
 
+    public const ACCESS_OPEN = 'open';
+
+    public const ACCESS_REQUEST = 'request';
+
+    public const ACCESS_INVITATION = 'invitation';
+
+    public const ACCESS_MODES = [self::ACCESS_OPEN, self::ACCESS_REQUEST, self::ACCESS_INVITATION];
+
     protected $fillable = [
         'organization_id',
         'name',
         'slug',
         'description',
+        'tagline',
+        'cover_image_path',
         'type',
         'status',
         'visibility',
+        'access_mode',
         'created_by',
         'member_ai_profile_id',
         'manifesto_blog_post_id',
@@ -34,7 +47,37 @@ class Loop extends Model
             'type' => 'string',
             'status' => 'string',
             'visibility' => 'string',
+            'access_mode' => 'string',
         ];
+    }
+
+    public static function isValidAccessMode(string $mode): bool
+    {
+        return in_array($mode, self::ACCESS_MODES, true);
+    }
+
+    public function isOpenAccess(): bool
+    {
+        return $this->access_mode === self::ACCESS_OPEN;
+    }
+
+    public function isRequestAccess(): bool
+    {
+        return $this->access_mode === self::ACCESS_REQUEST;
+    }
+
+    public function isInvitationAccess(): bool
+    {
+        return $this->access_mode === self::ACCESS_INVITATION;
+    }
+
+    public function getCoverImageUrlAttribute(): ?string
+    {
+        if (! $this->cover_image_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->cover_image_path);
     }
 
     public function scopePublic($query)
@@ -107,6 +150,17 @@ class Loop extends Model
         return $this->hasMany(LoopMember::class)->where('status', 'active');
     }
 
+    /**
+     * The active owner LoopMember — used to present "who runs this Loop" in
+     * the catalog and presentation views. May be null if ownership was
+     * transferred imperfectly or the owner left (edge case, handled
+     * gracefully in views rather than enforced here).
+     */
+    public function owner(): HasOne
+    {
+        return $this->hasOne(LoopMember::class)->where('role', 'owner')->where('status', 'active');
+    }
+
     public function messages(): HasMany
     {
         return $this->hasMany(LoopMessage::class);
@@ -115,6 +169,16 @@ class Loop extends Model
     public function roadmapItems(): HasMany
     {
         return $this->hasMany(LoopRoadmapItem::class);
+    }
+
+    public function joinRequests(): HasMany
+    {
+        return $this->hasMany(LoopJoinRequest::class);
+    }
+
+    public function pendingJoinRequests(): HasMany
+    {
+        return $this->hasMany(LoopJoinRequest::class)->where('status', LoopJoinRequest::STATUS_PENDING);
     }
 
     /**
