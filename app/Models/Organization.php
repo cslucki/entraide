@@ -36,6 +36,7 @@ class Organization extends Model
         'service_points_min',
         'service_points_max',
         'loops_enabled',
+        'members_can_create_loops',
         'ai_profiles_enabled',
         'subscriptions_enabled',
         'loop_mode',
@@ -71,6 +72,7 @@ class Organization extends Model
             'service_points_min' => 'integer',
             'service_points_max' => 'integer',
             'loops_enabled' => 'boolean',
+            'members_can_create_loops' => 'boolean',
             'ai_profiles_enabled' => 'boolean',
             'subscriptions_enabled' => 'boolean',
             'maintenance_mode' => 'boolean',
@@ -222,6 +224,11 @@ class Organization extends Model
     public function isMultiLoop(): bool
     {
         return $this->loop_mode !== 'mono';
+    }
+
+    public function membersCanCreateLoops(): bool
+    {
+        return (bool) $this->loops_enabled && (bool) $this->members_can_create_loops;
     }
 
     public function isFeedPostPublishableByMembers(): bool
