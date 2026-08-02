@@ -25,6 +25,7 @@ class Loop extends Model
         'visibility',
         'created_by',
         'member_ai_profile_id',
+        'manifesto_blog_post_id',
     ];
 
     protected function casts(): array
@@ -114,6 +115,15 @@ class Loop extends Model
     public function roadmapItems(): HasMany
     {
         return $this->hasMany(LoopRoadmapItem::class);
+    }
+
+    /**
+     * The designated primary Manifesto (a BlogPost). Null if none is designated
+     * or if the designated post has been (soft) deleted (SoftDeletes scope).
+     */
+    public function manifesto(): BelongsTo
+    {
+        return $this->belongsTo(BlogPost::class, 'manifesto_blog_post_id');
     }
 
     public function memberAiProfile(): BelongsTo

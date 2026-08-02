@@ -353,27 +353,8 @@
                                     @if($card['key'] === 'core.ai_summary')
                                         <livewire:loop-ai-summary-card :loop="$currentLoop" :key="'loop-ai-summary-'.$currentLoop->id" lazy />
                                     @elseif($card['key'] === 'core.manifesto')
-                                        {{-- Manifesto: living editorial document (BlogPost engine) --}}
-                                        <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
-                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __($card['label_key']) }}</p>
-                                            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __($card['description_key']) }}</p>
-                                        </div>
-
-                                        {{-- Neutral state: no primary Manifesto is DESIGNATED yet.
-                                             We intentionally do NOT present the first linked BlogPost as
-                                             "the Manifesto" (designation via loops.manifesto_blog_post_id
-                                             is a future dedicated task). --}}
-                                        <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center dark:border-gray-700 dark:bg-gray-900">
-                                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-200">
-                                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-6a2.25 2.25 0 0 0-.659-1.591l-3-3A2.25 2.25 0 0 0 14.25 3H6.75A2.25 2.25 0 0 0 4.5 5.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25v-4.5z"/></svg>
-                                            </div>
-                                            <h3 class="mt-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __($card['empty_title_key']) }}</h3>
-                                            <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __('loops.manifesto_none_neutral') }}</p>
-                                            <a href="{{ route('blog.create') }}"
-                                               class="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700">
-                                                {{ __($card['action_key']) }}
-                                            </a>
-                                        </div>
+                                        {{-- Manifesto — designated primary BlogPost (lazy Livewire card) --}}
+                                        <livewire:loop-manifesto-card :loop="$currentLoop" :key="'loop-manifesto-'.$currentLoop->id" lazy />
                                     @elseif($card['key'] === 'core.roadmap')
                                         {{-- Roadmap — persistent (loop_roadmap_items), lazy Livewire card --}}
                                         <livewire:loop-roadmap-card :loop="$currentLoop" :key="'loop-roadmap-'.$currentLoop->id" lazy />
