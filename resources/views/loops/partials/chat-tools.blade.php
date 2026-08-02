@@ -38,6 +38,9 @@
                 <span class="text-sm font-bold tracking-tight text-gray-800 dark:text-gray-100">{{ __($card['label_key']) }}</span>
                 @if($card['key'] === 'core.members')
                     <span class="ml-0.5 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">{{ $loopMembers->count() }}</span>
+                    @if(($canManageJoinRequests ?? false) && $pendingJoinRequests->isNotEmpty())
+                        <span class="ml-0.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white" title="{{ __('loops.join_requests_title') }}">{{ $pendingJoinRequests->count() }}</span>
+                    @endif
                 @endif
             </button>
         @endforeach

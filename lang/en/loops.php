@@ -266,6 +266,12 @@ return [
     'member_removed' => 'Member removed from the loop.',
     'join_request_sent' => 'Your request has been sent.',
     'join_request_cancelled' => 'Your request has been cancelled.',
+    'join_request_accepted' => 'Request accepted. The member has joined the loop.',
+    'join_request_rejected' => 'Request rejected.',
+    'join_requests_title' => 'Pending requests',
+    'join_requests_accept' => 'Accept',
+    'join_requests_reject' => 'Reject',
+    'join_requests_no_message' => 'No message.',
 
     // Discovery catalog & presentation (TASK-1075)
     'discover_title' => 'Discover',

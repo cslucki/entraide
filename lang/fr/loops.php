@@ -266,6 +266,12 @@ return [
     'member_removed' => 'Membre retiré de la boucle.',
     'join_request_sent' => 'Votre demande a été envoyée.',
     'join_request_cancelled' => 'Votre demande a été annulée.',
+    'join_request_accepted' => 'Demande acceptée. Le membre a rejoint la boucle.',
+    'join_request_rejected' => 'Demande refusée.',
+    'join_requests_title' => 'Demandes en attente',
+    'join_requests_accept' => 'Accepter',
+    'join_requests_reject' => 'Refuser',
+    'join_requests_no_message' => 'Aucun message.',
 
     // Discovery catalog & presentation (TASK-1075)
     'discover_title' => 'Découvrir',

@@ -327,6 +327,8 @@ Route::middleware('auth')->group(function () {
         // nested {joinRequest} segment breaks that resolution. The Loop is resolved
         // from the request's own relation instead of a route segment.
         Route::delete('/join-requests/{joinRequest}', [LoopController::class, 'cancelJoinRequest'])->name('loop-join-requests.cancel');
+        Route::post('/join-requests/{joinRequest}/accept', [LoopController::class, 'acceptJoinRequest'])->name('loop-join-requests.accept');
+        Route::post('/join-requests/{joinRequest}/reject', [LoopController::class, 'rejectJoinRequest'])->name('loop-join-requests.reject');
         Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
         Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
         Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');

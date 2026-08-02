@@ -316,7 +316,19 @@ class LoopController extends Controller
 
         $clarificationEnabled = AiConfig::get('clarification_enabled', false);
 
-        return view('loops.show', compact('loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled'));
+        $canManageJoinRequests = $user->can('manageJoinRequests', $loop);
+        $pendingJoinRequests = $canManageJoinRequests
+            ? LoopJoinRequest::where('loop_id', $loop->id)
+                ->where('status', LoopJoinRequest::STATUS_PENDING)
+                ->with('user')
+                ->oldest()
+                ->get()
+            : collect();
+
+        return view('loops.show', compact(
+            'loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled',
+            'canManageJoinRequests', 'pendingJoinRequests',
+        ));
     }
 
     private function showPresentation(Loop $loop, $user): View
@@ -416,6 +428,52 @@ class LoopController extends Controller
 
         return redirect($this->loopRoute('loops.show', $loop))
             ->with('info', __('loops.join_request_cancelled'));
+    }
+
+    public function acceptJoinRequest(Request $request, LoopJoinRequest $joinRequest): RedirectResponse
+    {
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($joinRequest->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $loop = $joinRequest->loop;
+
+        $this->authorize('manageJoinRequests', $loop);
+
+        try {
+            $this->loopService->acceptJoinRequest($joinRequest, $request->user());
+        } catch (\RuntimeException $e) {
+            return redirect($this->loopRoute('loops.show', $loop))->with('error', $e->getMessage());
+        }
+
+        return redirect($this->loopRoute('loops.show', $loop))
+            ->with('success', __('loops.join_request_accepted'));
+    }
+
+    public function rejectJoinRequest(Request $request, LoopJoinRequest $joinRequest): RedirectResponse
+    {
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($joinRequest->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $loop = $joinRequest->loop;
+
+        $this->authorize('manageJoinRequests', $loop);
+
+        try {
+            $this->loopService->rejectJoinRequest($joinRequest, $request->user());
+        } catch (\RuntimeException $e) {
+            return redirect($this->loopRoute('loops.show', $loop))->with('error', $e->getMessage());
+        }
+
+        return redirect($this->loopRoute('loops.show', $loop))
+            ->with('info', __('loops.join_request_rejected'));
     }
 
     public function leave(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse

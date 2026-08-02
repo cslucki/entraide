@@ -375,6 +375,42 @@
                                                 <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('loops.members_count', ['count' => $loopMembers->count()]) }}</p>
                                             </div>
 
+                                            @if(($canManageJoinRequests ?? false) && $pendingJoinRequests->isNotEmpty())
+                                                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-900/10">
+                                                    <p class="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                                                        {{ __('loops.join_requests_title') }}
+                                                        <span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">{{ $pendingJoinRequests->count() }}</span>
+                                                    </p>
+                                                    <ul class="space-y-2">
+                                                        @foreach($pendingJoinRequests as $joinRequest)
+                                                            @php $rUser = $joinRequest->user; @endphp
+                                                            <li class="rounded-xl border border-amber-200 bg-white p-3 dark:border-amber-800/50 dark:bg-gray-900">
+                                                                <div class="flex items-center gap-2">
+                                                                    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">{{ mb_strtoupper(mb_substr($rUser?->publicDisplayName() ?? '?', 0, 1)) }}</span>
+                                                                    <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{{ $rUser?->publicDisplayName() ?? '—' }}</span>
+                                                                    <span class="shrink-0 text-[11px] text-gray-400 dark:text-gray-500">{{ $joinRequest->created_at->diffForHumans() }}</span>
+                                                                </div>
+                                                                <p class="mt-1.5 text-xs leading-5 text-gray-600 dark:text-gray-300">{{ $joinRequest->message ?: __('loops.join_requests_no_message') }}</p>
+                                                                <div class="mt-2.5 flex gap-2">
+                                                                    <form method="POST" action="{{ route('loop-join-requests.accept', $joinRequest) }}" class="flex-1">
+                                                                        @csrf
+                                                                        <button type="submit" class="w-full rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">
+                                                                            {{ __('loops.join_requests_accept') }}
+                                                                        </button>
+                                                                    </form>
+                                                                    <form method="POST" action="{{ route('loop-join-requests.reject', $joinRequest) }}" class="flex-1">
+                                                                        @csrf
+                                                                        <button type="submit" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
+                                                                            {{ __('loops.join_requests_reject') }}
+                                                                        </button>
+                                                                    </form>
+                                                                </div>
+                                                            </li>
+                                                        @endforeach
+                                                    </ul>
+                                                </div>
+                                            @endif
+
                                             @if($loopMembers->isEmpty())
                                                 <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                                                     {{ __($card['empty_title_key']) }}
