@@ -37,7 +37,7 @@ class LoopRoadmapItemTest extends TestCase
             'organization_id' => $this->loop->organization_id,
             'loop_id' => $this->loop->id,
             'title' => 'Prévisionnel budgétaire',
-            'status' => LoopRoadmapItem::STATUS_OPEN,
+            'status' => LoopRoadmapItem::STATUS_TODO,
             'position' => 0,
             'created_by' => $this->owner->id,
         ]);
@@ -93,5 +93,25 @@ class LoopRoadmapItemTest extends TestCase
         $ordered = LoopRoadmapItem::query()->where('loop_id', $this->loop->id)->ordered()->pluck('id')->all();
 
         $this->assertSame([$openA->id, $openB->id, $done->id], $ordered);
+    }
+
+    public function test_ordered_scope_orders_the_three_columns(): void
+    {
+        $done = LoopRoadmapItem::factory()->done()->create([
+            'loop_id' => $this->loop->id, 'organization_id' => $this->loop->organization_id,
+            'created_by' => $this->owner->id, 'position' => 0, 'title' => 'Done',
+        ]);
+        $inProg = LoopRoadmapItem::factory()->inProgress()->create([
+            'loop_id' => $this->loop->id, 'organization_id' => $this->loop->organization_id,
+            'created_by' => $this->owner->id, 'position' => 0, 'title' => 'Doing',
+        ]);
+        $todo = LoopRoadmapItem::factory()->todo()->create([
+            'loop_id' => $this->loop->id, 'organization_id' => $this->loop->organization_id,
+            'created_by' => $this->owner->id, 'position' => 0, 'title' => 'Todo',
+        ]);
+
+        $ordered = LoopRoadmapItem::query()->where('loop_id', $this->loop->id)->ordered()->pluck('id')->all();
+
+        $this->assertSame([$todo->id, $inProg->id, $done->id], $ordered);
     }
 }
