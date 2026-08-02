@@ -168,7 +168,7 @@
         <div
             x-data="{
                 activeCard: null,
-                wsWidth: 40,
+                wsWidth: 50,
                 focus: 'none',
                 resizing: false,
                 openCard(card) { this.focus = 'none'; this.activeCard = this.activeCard === card ? null : card },
@@ -288,7 +288,7 @@
                     x-show="activeCard && focus === 'none'"
                     x-cloak
                     x-on:pointerdown="startResize($event)"
-                    x-on:dblclick="wsWidth = 40"
+                    x-on:dblclick="wsWidth = 50"
                     aria-label="{{ __('loops.cards_panel_resize') }}"
                     title="{{ __('loops.cards_panel_resize') }}"
                 ></button>
