@@ -27,6 +27,7 @@ class LoopFactory extends Factory
             'type' => 'custom',
             'status' => 'active',
             'visibility' => 'private',
+            'access_mode' => 'request',
             'created_by' => User::factory(),
         ];
     }
@@ -34,6 +35,21 @@ class LoopFactory extends Factory
     public function public(): static
     {
         return $this->state(['visibility' => 'public']);
+    }
+
+    public function openAccess(): static
+    {
+        return $this->state(['access_mode' => 'open']);
+    }
+
+    public function requestAccess(): static
+    {
+        return $this->state(['access_mode' => 'request']);
+    }
+
+    public function invitationAccess(): static
+    {
+        return $this->state(['access_mode' => 'invitation']);
     }
 
     public function system(): static
