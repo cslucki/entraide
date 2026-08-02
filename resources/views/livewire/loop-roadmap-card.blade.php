@@ -1,7 +1,19 @@
 @php $statusMeta = [
-    \App\Models\LoopRoadmapItem::STATUS_TODO => ['label' => 'roadmap_status_todo', 'dot' => 'bg-gray-400'],
-    \App\Models\LoopRoadmapItem::STATUS_IN_PROGRESS => ['label' => 'roadmap_status_in_progress', 'dot' => 'bg-amber-400'],
-    \App\Models\LoopRoadmapItem::STATUS_DONE => ['label' => 'roadmap_status_done', 'dot' => 'bg-emerald-400'],
+    \App\Models\LoopRoadmapItem::STATUS_TODO => [
+        'label' => 'roadmap_status_todo', 'dot' => 'bg-violet-500',
+        'col' => 'border-violet-200/70 bg-violet-50/60 dark:border-violet-900/40 dark:bg-violet-950/25',
+        'chip' => 'text-violet-700 dark:text-violet-300',
+    ],
+    \App\Models\LoopRoadmapItem::STATUS_IN_PROGRESS => [
+        'label' => 'roadmap_status_in_progress', 'dot' => 'bg-amber-500',
+        'col' => 'border-amber-200/70 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/25',
+        'chip' => 'text-amber-700 dark:text-amber-300',
+    ],
+    \App\Models\LoopRoadmapItem::STATUS_DONE => [
+        'label' => 'roadmap_status_done', 'dot' => 'bg-emerald-500',
+        'col' => 'border-emerald-200/70 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/25',
+        'chip' => 'text-emerald-700 dark:text-emerald-300',
+    ],
 ]; @endphp
 <div class="space-y-3"
      data-roadmap-root
@@ -38,14 +50,8 @@
     @endif
 
     @if($canManage)
-        {{-- Toolbar: add button + Kanban/List segmented toggle (Material 3) --}}
+        {{-- Toolbar: Kanban/List segmented toggle (Material 3) + compact FAB --}}
         <div class="flex items-center justify-between gap-2">
-            <button type="button" x-on:click="openCreate(@js(\App\Models\LoopRoadmapItem::STATUS_TODO))"
-                    class="inline-flex items-center gap-2 rounded-full bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                {{ __('loops.roadmap_add_action') }}
-            </button>
-
             <div class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 p-0.5 dark:border-gray-700 dark:bg-gray-800" role="group" aria-label="{{ __('loops.roadmap_view_toggle') }}">
                 <button type="button" x-on:click="mode = 'kanban'"
                         x-bind:class="mode === 'kanban' ? 'bg-white text-violet-700 shadow-sm dark:bg-gray-700 dark:text-violet-200' : 'text-gray-500 dark:text-gray-400'"
@@ -60,6 +66,13 @@
                     <span class="hidden sm:inline">{{ __('loops.roadmap_view_list') }}</span>
                 </button>
             </div>
+
+            {{-- Compact FAB — sits just left of the panel "expand" control --}}
+            <button type="button" x-on:click="openCreate(@js(\App\Models\LoopRoadmapItem::STATUS_TODO))"
+                    class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-md transition hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
+                    title="{{ __('loops.roadmap_add_action') }}" aria-label="{{ __('loops.roadmap_add_action') }}">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            </button>
         </div>
 
         @if($items->isEmpty())
@@ -74,12 +87,12 @@
             {{-- Board: same DOM for both modes; layout switches via container class --}}
             <div x-bind:class="mode === 'kanban' ? 'roadmap-board pb-1' : 'roadmap-list'">
                 @foreach($columns as $status => $colItems)
-                    <section class="roadmap-col flex flex-col rounded-2xl border border-gray-200 bg-gray-50/60 p-2 dark:border-gray-700 dark:bg-gray-800/40">
+                    <section class="roadmap-col flex flex-col rounded-2xl border p-2 {{ $statusMeta[$status]['col'] }}">
                         <div class="mb-2 flex items-center justify-between px-1">
-                            <p class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            <p class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide {{ $statusMeta[$status]['chip'] }}">
                                 <span class="h-2 w-2 rounded-full {{ $statusMeta[$status]['dot'] }}"></span>
                                 {{ __('loops.'.$statusMeta[$status]['label']) }}
-                                <span class="rounded-full bg-gray-200 px-1.5 text-[10px] text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ $colItems->count() }}</span>
+                                <span class="rounded-full bg-white/70 px-1.5 text-[10px] text-gray-600 dark:bg-gray-900/50 dark:text-gray-300">{{ $colItems->count() }}</span>
                             </p>
                             <button type="button" x-on:click="openCreate(@js($status))"
                                     class="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
