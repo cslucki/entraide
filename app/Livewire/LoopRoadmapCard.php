@@ -6,6 +6,7 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopRoadmapItem;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 
 class LoopRoadmapCard extends Component
@@ -172,17 +173,81 @@ class LoopRoadmapCard extends Component
         $item->delete();
     }
 
+    /** Keyboard/a11y fallback: move one action up within its status group. */
     public function moveUp(string $id): void
     {
-        $this->reorder($id, -1);
+        $this->shiftPosition($id, -1);
     }
 
+    /** Keyboard/a11y fallback: move one action down within its status group. */
     public function moveDown(string $id): void
     {
-        $this->reorder($id, 1);
+        $this->shiftPosition($id, 1);
     }
 
-    private function reorder(string $id, int $direction): void
+    /**
+     * Drag & drop reorder of ONE status group.
+     *
+     * The payload contains only the UUIDs of the given group, in their new order.
+     * Cross-group moves are impossible (status is driven exclusively by the toggle);
+     * the set is validated exactly against the group before any write.
+     */
+    public function reorderGroup(string $status, array $orderedIds): void
+    {
+        $this->errorMessage = null;
+
+        if (! $this->isMemberOrAdmin()) {
+            return;
+        }
+
+        if (! in_array($status, [LoopRoadmapItem::STATUS_OPEN, LoopRoadmapItem::STATUS_DONE], true)) {
+            $this->errorMessage = __('loops.roadmap_reorder_failed');
+
+            return;
+        }
+
+        // Normalize input, reject empty and duplicates. Never trust the browser order.
+        $orderedIds = array_values(array_filter(array_map('strval', $orderedIds), fn ($v) => $v !== ''));
+        if ($orderedIds === [] || count($orderedIds) !== count(array_unique($orderedIds))) {
+            $this->errorMessage = __('loops.roadmap_reorder_failed');
+
+            return;
+        }
+
+        // Exact set of items for THIS org + loop + status group.
+        $group = LoopRoadmapItem::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->where('status', $status)
+            ->get();
+
+        $groupIds = $group->pluck('id')->map(fn ($v) => (string) $v)->all();
+
+        // Reject foreign / other loop / other org / other status / incomplete / surplus.
+        $expected = $groupIds;
+        $received = $orderedIds;
+        sort($expected);
+        sort($received);
+        if ($expected !== $received) {
+            $this->errorMessage = __('loops.roadmap_reorder_failed');
+
+            return; // re-render restores the server order
+        }
+
+        $byId = $group->keyBy('id');
+
+        // Normalize positions 0..n-1 within the group, transactionally (no partial write).
+        DB::transaction(function () use ($orderedIds, $byId) {
+            foreach ($orderedIds as $index => $id) {
+                $item = $byId[$id];
+                if ((int) $item->position !== $index) {
+                    $item->update(['position' => $index]);
+                }
+            }
+        });
+    }
+
+    private function shiftPosition(string $id, int $direction): void
     {
         $this->errorMessage = null;
 
@@ -312,7 +377,9 @@ class LoopRoadmapCard extends Component
                 ->get()
             : collect();
 
-        $openCount = $items->where('status', LoopRoadmapItem::STATUS_OPEN)->count();
+        $openItems = $items->where('status', LoopRoadmapItem::STATUS_OPEN)->values();
+        $doneItems = $items->where('status', LoopRoadmapItem::STATUS_DONE)->values();
+        $openCount = $openItems->count();
 
         $canModify = [];
         foreach ($items as $item) {
@@ -321,6 +388,8 @@ class LoopRoadmapCard extends Component
 
         return view('livewire.loop-roadmap-card', [
             'items' => $items,
+            'openItems' => $openItems,
+            'doneItems' => $doneItems,
             'openCount' => $openCount,
             'canManage' => $canManage,
             'canModify' => $canModify,

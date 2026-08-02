@@ -5455,6 +5455,82 @@ registerBlogPlanCard();
 registerBlogExplorerModal();
 registerBlogExplorerCard();
 
+// -------------------------------------------------------------------------
+// Roadmap drag & drop (LoopRoadmapCard, Livewire) — reuses SortableJS.
+// One Sortable per status group; cross-group moves are structurally blocked
+// (distinct group names + put:false). onEnd bridges to $wire.reorderGroup.
+// -------------------------------------------------------------------------
+function registerRoadmapSortable() {
+    if (window.__roadmapSortableRegistered || !window.Livewire) {
+        return;
+    }
+    window.__roadmapSortableRegistered = true;
+
+    const buildRoot = (root) => {
+        if (!root) return;
+        const canManage = root.getAttribute('data-roadmap-can-manage') === '1';
+        const crossMsg = root.getAttribute('data-roadmap-cross-msg') || '';
+
+        root.querySelectorAll('[data-roadmap-group]').forEach((container) => {
+            if (container._sortable) {
+                container._sortable.destroy();
+                container._sortable = null;
+            }
+            if (!canManage) return;
+
+            const status = container.getAttribute('data-status');
+
+            container._sortable = Sortable.create(container, {
+                group: { name: 'roadmap-' + status, pull: false, put: false },
+                draggable: '[data-roadmap-id]',
+                handle: '.drag-handle',
+                filter: '[data-no-drag]',
+                animation: 150,
+                delay: 150,
+                delayOnTouchOnly: true,
+                ghostClass: 'roadmap-ghost',
+                chosenClass: 'roadmap-chosen',
+                onMove: (evt) => {
+                    // Belt-and-suspenders: never allow leaving the group.
+                    if (evt.from !== evt.to) {
+                        if (crossMsg) {
+                            window.dispatchEvent(new CustomEvent('roadmap-cross-group', { detail: crossMsg }));
+                        }
+                        return false;
+                    }
+                    return true;
+                },
+                onEnd: () => {
+                    const ids = Array.from(container.querySelectorAll('[data-roadmap-id]'))
+                        .map((el) => el.getAttribute('data-roadmap-id'))
+                        .filter(Boolean);
+                    const wireId = root.getAttribute('wire:id');
+                    const component = wireId ? window.Livewire.find(wireId) : null;
+                    if (component) {
+                        component.call('reorderGroup', status, ids);
+                    }
+                },
+            });
+        });
+    };
+
+    const buildAll = () => document.querySelectorAll('[data-roadmap-root]').forEach(buildRoot);
+
+    // Rebuild after each Livewire morph (covers lazy load, add/toggle/edit/delete/reorder).
+    window.Livewire.hook('morphed', ({ el }) => {
+        if (el?.matches?.('[data-roadmap-root]')) {
+            buildRoot(el);
+        } else {
+            el?.querySelectorAll?.('[data-roadmap-root]').forEach(buildRoot);
+        }
+    });
+
+    buildAll();
+    document.addEventListener('livewire:navigated', buildAll);
+}
+
+document.addEventListener('livewire:init', registerRoadmapSortable);
+
 // Service Worker registration
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
