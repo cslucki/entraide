@@ -49,6 +49,7 @@ class Organization extends Model
         'header_javascript',
         'blog_naming',
         'transactions_naming',
+        'loops_naming',
         'feed_post_publish_mode',
         'theme_id',
         'locale',

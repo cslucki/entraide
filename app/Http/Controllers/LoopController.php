@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiConfig;
+use App\Models\Category;
 use App\Models\Loop;
 use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
@@ -139,7 +140,12 @@ class LoopController extends Controller
 
         $canCreate = $user->can('create', [Loop::class, $organization]);
 
-        return view('loops.index', compact('loops'))->with('canCreate', $canCreate);
+        // Only the domains actually used by the listed Loops: a filter offering
+        // empty options would be noise on a ~200-people Organization.
+        $filterDomains = $loops->pluck('categories')->flatten()->unique('id')
+            ->sortBy(fn ($c) => $c->displayName('loops'))->values();
+
+        return view('loops.index', compact('loops', 'filterDomains'))->with('canCreate', $canCreate);
     }
 
     /**
@@ -154,7 +160,7 @@ class LoopController extends Controller
         return Loop::query()
             ->where('organization_id', $organizationId)
             ->where('status', 'active')
-            ->with('owner.user')
+            ->with(['owner.user', 'categories'])
             ->withCount('activeMembers')
             ->withMax('messages as last_message_at', 'created_at')
             ->withExists(['members as is_member' => function ($q) use ($user) {
@@ -175,7 +181,7 @@ class LoopController extends Controller
         $this->assertUserBelongsToOrganization($organization);
         $this->authorize('create', [Loop::class, $organization]);
 
-        return view('loops.create');
+        return view('loops.create', ['domains' => $this->organizationDomains($organization)]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -190,6 +196,8 @@ class LoopController extends Controller
             'description' => 'nullable|string|max:5000',
             'access_mode' => ['nullable', Rule::in(Loop::ACCESS_MODES)],
             'cover_image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
+            'category_ids' => 'nullable|array|max:'.Loop::MAX_DOMAINS,
+            'category_ids.*' => 'string',
         ]);
 
         $loop = $this->loopService->createLoop(
@@ -200,6 +208,8 @@ class LoopController extends Controller
             $data['tagline'] ?? null,
             $data['access_mode'] ?? Loop::ACCESS_REQUEST,
         );
+
+        $loop->categories()->sync($this->resolveDomainIds($organization, $data['category_ids'] ?? []));
 
         if ($request->hasFile('cover_image')) {
             $loop->update(['cover_image_path' => $this->storeCoverImage($request, $loop)]);
@@ -221,7 +231,12 @@ class LoopController extends Controller
 
         $this->authorize('update', $loop);
 
-        return view('loops.edit', compact('loop'));
+        $loop->load('categories');
+
+        return view('loops.edit', [
+            'loop' => $loop,
+            'domains' => $this->organizationDomains($organization),
+        ]);
     }
 
     public function update(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
@@ -243,6 +258,8 @@ class LoopController extends Controller
             'access_mode' => ['nullable', Rule::in(Loop::ACCESS_MODES)],
             'cover_image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'remove_cover_image' => 'nullable|boolean',
+            'category_ids' => 'nullable|array|max:'.Loop::MAX_DOMAINS,
+            'category_ids.*' => 'string',
         ]);
 
         if ($request->boolean('remove_cover_image') && $loop->cover_image_path) {
@@ -252,7 +269,9 @@ class LoopController extends Controller
             $data['cover_image_path'] = $this->storeCoverImage($request, $loop);
         }
 
-        unset($data['cover_image'], $data['remove_cover_image']);
+        $loop->categories()->sync($this->resolveDomainIds($organization, $data['category_ids'] ?? []));
+
+        unset($data['cover_image'], $data['remove_cover_image'], $data['category_ids']);
 
         $this->loopService->updateLoop($loop, $data);
 
@@ -261,6 +280,33 @@ class LoopController extends Controller
         // into the workspace. The AdminLoopController flow is untouched.
         return redirect($this->loopsIndexRoute(['updated' => $loop->id]))
             ->with('success', __('loops.catalog_updated'));
+    }
+
+    /** Domains (Annuaire referential) selectable for this Organization. */
+    private function organizationDomains(Organization $organization)
+    {
+        return Category::where('organization_id', $organization->id)
+            ->orderBy('name_b2c')
+            ->get();
+    }
+
+    /**
+     * Keep only domain ids that really belong to this Organization, capped at
+     * MAX_DOMAINS. Tenant scoping is enforced here, server-side: a forged
+     * category_ids payload pointing at another Organization is silently dropped
+     * rather than trusted from the form.
+     */
+    private function resolveDomainIds(Organization $organization, array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return Category::where('organization_id', $organization->id)
+            ->whereIn('id', $ids)
+            ->limit(Loop::MAX_DOMAINS)
+            ->pluck('id')
+            ->all();
     }
 
     /**
@@ -355,7 +401,7 @@ class LoopController extends Controller
     private function showPresentation(Loop $loop, $user): View
     {
         $loop->loadCount('activeMembers');
-        $loop->load('owner.user');
+        $loop->load(['owner.user', 'categories']);
 
         $pendingRequest = LoopJoinRequest::where('loop_id', $loop->id)
             ->where('user_id', $user->id)

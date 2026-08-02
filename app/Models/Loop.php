@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
@@ -24,6 +25,9 @@ class Loop extends Model
     public const ACCESS_INVITATION = 'invitation';
 
     public const ACCESS_MODES = [self::ACCESS_OPEN, self::ACCESS_REQUEST, self::ACCESS_INVITATION];
+
+    /** A Loop carries at most 3 domains (Annuaire referential) — TASK-1076. */
+    public const MAX_DOMAINS = 3;
 
     protected $fillable = [
         'organization_id',
@@ -169,6 +173,15 @@ class Loop extends Model
     public function roadmapItems(): HasMany
     {
         return $this->hasMany(LoopRoadmapItem::class);
+    }
+
+    /**
+     * Domains (Annuaire referential) this Loop is tagged with — 0 to 3, scoped
+     * to the Loop's own Organization. Deliberately not linked to Skill.
+     */
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class, 'category_loop')->withTimestamps();
     }
 
     public function joinRequests(): HasMany

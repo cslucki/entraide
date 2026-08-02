@@ -61,6 +61,8 @@
                     @endif
                 </div>
 
+                <x-loops.domain-badges :loop="$loop" class="mb-4" />
+
                 @if($loop->description)
                     <p class="mb-6 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $loop->description }}</p>
                 @endif
