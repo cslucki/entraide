@@ -32,7 +32,7 @@
         @endif
 
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-            <x-loops.cover :loop="$loop" class="aspect-[21/9]" />
+            <x-loops.cover :loop="$loop" ratio="21 / 9" />
 
             <div class="p-6 sm:p-8">
                 <div class="mb-3 flex flex-wrap items-start justify-between gap-3">

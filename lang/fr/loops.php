@@ -292,7 +292,19 @@ return [
     'cover_image_remove' => 'Retirer l\'image',
     'cta_join' => 'Rejoindre la Boucle',
     'cta_request' => 'Demander à rejoindre',
-    'cta_pending' => 'Demande envoyée',
+    'cta_pending' => 'Demande en attente',
+    'cta_discover' => 'Découvrir',
+
+    // Catalog card (TASK-1076) — badge wording is deliberately more explicit
+    // than the radio labels used in the create/edit forms.
+    'access_badge_open' => 'Ouverte',
+    'access_badge_request' => 'Accès sur demande',
+    'access_badge_invitation' => 'Accès sur invitation',
+    'role_owner' => 'Propriétaire',
+    'role_member' => 'Membre',
+    'card_no_pitch' => 'Pas encore de présentation.',
+    'card_recently_active' => 'Actif récemment',
+    'catalog_updated' => 'Boucle mise à jour.',
     'cta_invitation' => 'Accès sur invitation',
     'cta_open_workspace' => 'Ouvrir la Boucle',
     'cta_cancel_request' => 'Annuler la demande',

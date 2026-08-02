@@ -18,6 +18,15 @@
 
             return route('loops.join', $loop);
         };
+        $loopEditHref = function ($loop) use ($organizationRouteParam) {
+            if ($organizationRouteParam && request()->routeIs('organization.*')) {
+                return route('organization.loops.edit', ['organization' => $organizationRouteParam, 'loop' => $loop]);
+            }
+
+            return route('loops.edit', $loop);
+        };
+        // Set by LoopController::update() so the freshly edited card is easy to spot.
+        $highlightedLoopId = request()->query('updated');
         $mine = $loops->where('is_member', true)->values();
         $discover = $loops->where('is_member', false)->values();
     @endphp

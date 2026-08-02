@@ -160,6 +160,9 @@ class LoopController extends Controller
             ->withExists(['members as is_member' => function ($q) use ($user) {
                 $q->where('user_id', $user->id)->where('status', 'active');
             }])
+            ->withExists(['members as is_owner' => function ($q) use ($user) {
+                $q->where('user_id', $user->id)->where('status', 'active')->where('role', 'owner');
+            }])
             ->withExists(['joinRequests as has_pending_request' => function ($q) use ($user) {
                 $q->where('user_id', $user->id)->where('status', LoopJoinRequest::STATUS_PENDING);
             }])
@@ -253,8 +256,26 @@ class LoopController extends Controller
 
         $this->loopService->updateLoop($loop, $data);
 
-        return redirect($this->loopRoute('loops.show', $loop))
-            ->with('success', 'Boucle mise à jour.');
+        // TASK-1076: editing is started from the catalog, so we come back to it
+        // (with ?updated=<id> to highlight the card) instead of dropping the user
+        // into the workspace. The AdminLoopController flow is untouched.
+        return redirect($this->loopsIndexRoute(['updated' => $loop->id]))
+            ->with('success', __('loops.catalog_updated'));
+    }
+
+    /**
+     * URL of the Loop catalog, preserving the organization-prefixed route group
+     * when the current request is inside it.
+     */
+    private function loopsIndexRoute(array $query = []): string
+    {
+        $organization = request()->route('organization');
+
+        if ($organization && request()->routeIs('organization.*') && Route::has('organization.loops.index')) {
+            return route('organization.loops.index', array_merge(['organization' => $organization], $query));
+        }
+
+        return route('loops.index', $query);
     }
 
     private function storeCoverImage(Request $request, Loop $loop): string

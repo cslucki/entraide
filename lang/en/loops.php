@@ -292,7 +292,19 @@ return [
     'cover_image_remove' => 'Remove image',
     'cta_join' => 'Join the Loop',
     'cta_request' => 'Request to join',
-    'cta_pending' => 'Request sent',
+    'cta_pending' => 'Request pending',
+    'cta_discover' => 'Discover',
+
+    // Catalog card (TASK-1076) — badge wording is deliberately more explicit
+    // than the radio labels used in the create/edit forms.
+    'access_badge_open' => 'Open',
+    'access_badge_request' => 'Access on request',
+    'access_badge_invitation' => 'Access by invitation',
+    'role_owner' => 'Owner',
+    'role_member' => 'Member',
+    'card_no_pitch' => 'No description yet.',
+    'card_recently_active' => 'Recently active',
+    'catalog_updated' => 'Loop updated.',
     'cta_invitation' => 'By invitation only',
     'cta_open_workspace' => 'Open the Loop',
     'cta_cancel_request' => 'Cancel request',
