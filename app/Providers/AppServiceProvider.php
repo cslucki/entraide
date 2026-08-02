@@ -29,6 +29,7 @@ use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
 use App\Observers\TranslationOverrideObserver;
 use App\Policies\FeedPostPolicy;
+use App\Policies\LoopPolicy;
 use App\Policies\MessagePolicy;
 use App\Policies\ProfileAgentConversationPolicy;
 use App\Policies\ReviewPolicy;
@@ -250,6 +251,7 @@ class AppServiceProvider extends ServiceProvider
         );
 
         Gate::policy(FeedPost::class, FeedPostPolicy::class);
+        Gate::policy(Loop::class, LoopPolicy::class);
         Gate::policy(ProfileAgentConversation::class, ProfileAgentConversationPolicy::class);
         Gate::policy(Service::class, ServicePolicy::class);
         Gate::policy(ServiceRequest::class, ServiceRequestPolicy::class);
