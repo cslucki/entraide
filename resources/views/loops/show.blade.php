@@ -8,6 +8,29 @@
         }
         return route('loops.'.$name, $params);
     };
+    $_aiRoute = $_loopRoute('ai', ['loop' => $currentLoop]);
+    // NOTE: a primary Manifesto designation (loops.manifesto_blog_post_id) is a future
+    // dedicated task. We deliberately do NOT auto-pick the first linked BlogPost as "the
+    // Manifesto" here, to avoid presenting an arbitrary article as the reference document.
+    // Per-card accent (icon tile) to echo the mockup's calm colour coding.
+    $cardAccents = [
+        'core.ai_summary' => 'bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300',
+        'core.manifesto' => 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300',
+        'core.roadmap' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300',
+        'core.members' => 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300',
+    ];
+    $loopMembers = $currentLoop->members->where('status', 'active')->sortBy(fn ($m) => match ($m->role) {
+        'owner' => 0, 'moderator' => 1, default => 2,
+    });
+    $inviteAction = ($_org && request()->routeIs('organization.*') && Route::has('organization.points.invitation.send'))
+        ? route('organization.points.invitation.send', ['organization' => $_org])
+        : route('points.invitation.send');
+    $canUseWorkspaceCards = $isMember || (bool) auth()->user()?->is_admin;
+    $workspaceCards = collect(config('loop_cards.cards', []))
+        ->filter(fn ($card) => (bool) ($card['default_enabled'] ?? false))
+        ->when(! $canUseWorkspaceCards, fn ($cards) => $cards->filter(fn () => false))
+        ->sortBy('order')
+        ->values();
 @endphp
 
 @push('head')
@@ -33,19 +56,160 @@
         }
     }
     @media (min-width: 768px) {
+        /* No top app header on this page (loops.show sets no $header slot), so the
+           workspace fills the full viewport height — otherwise ~5rem stays empty. */
         .loops-show-container {
-            height: calc(100vh - 5rem);
+            height: 100dvh;
         }
+        /* Full-width workspace on desktop: drop the max-w-7xl / page padding so the
+           two cards use the whole available width instead of a narrow centred column. */
+        .loops-show-wrapper {
+            max-width: none !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+    }
+
+    /* =========================================================
+       Boucle Workspace — two sibling cards (mockup boucle.php)
+       The workspace parent is NEUTRAL (no card). Card styles live
+       on the two children: thread panel (left) + side panel (right).
+       ========================================================= */
+    .chatloop-workspace {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;            /* mobile: single column */
+        flex-direction: column;
+        position: relative;
+    }
+
+    /* Left card: ChatLoop thread + composer (cream, calm) */
+    .chatloop-thread-panel {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        background: linear-gradient(180deg, #FBF9F3, #FCFAF5);
+    }
+    .dark .chatloop-thread-panel { background: #111827; }
+
+    /* Right card: active tool panel (white) — mobile overlay by default */
+    .chatloop-side-panel {
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        box-shadow: 0 24px 56px -18px rgba(20, 24, 60, .45);
+    }
+    .dark .chatloop-side-panel { background: #0b1220; }
+
+    .chatloop-splitter { display: none; }
+
+    @media (min-width: 1024px) {
+        .chatloop-workspace {
+            display: grid;
+            /* grid-template-columns is set inline via gridStyle() (Alpine) */
+            grid-template-columns: 1fr 0px 0px;
+            align-items: stretch;
+            padding: 4px 20px 20px;
+        }
+        /* Card styling on each child */
+        .chatloop-thread-panel,
+        .chatloop-side-panel {
+            border: 1px solid rgb(229 231 235);
+            border-radius: 24px;
+            box-shadow: 0 1px 2px rgba(20, 24, 60, .05), 0 22px 50px -34px rgba(20, 24, 60, .34);
+            overflow: hidden;
+        }
+        .dark .chatloop-thread-panel,
+        .dark .chatloop-side-panel { border-color: rgb(55 65 81); }
+        /* Side panel becomes a real grid cell (no longer an overlay) */
+        .chatloop-side-panel {
+            position: relative;
+            inset: auto;
+            z-index: auto;
+            grid-column: 3;
+        }
+        .chatloop-thread-panel { grid-column: 1; }
+        /* Vertical splitter in the middle track */
+        .chatloop-splitter {
+            grid-column: 2;
+            display: flex;
+            align-self: stretch;
+            align-items: center;
+            justify-content: center;
+            cursor: col-resize;
+            background: transparent;
+            border: 0;
+            touch-action: none;
+        }
+        .chatloop-splitter::before {
+            content: "";
+            width: 3px;
+            height: 48px;
+            border-radius: 999px;
+            background: rgb(209 213 219);
+            transition: background .15s, height .15s;
+        }
+        .dark .chatloop-splitter::before { background: rgb(75 85 99); }
+        .chatloop-splitter:hover::before,
+        [data-resizing="true"] .chatloop-splitter::before { background: rgb(139 92 246); height: 76px; }
+        [data-resizing="true"] { cursor: col-resize; user-select: none; }
     }
 </style>
 @endpush
 
 <x-app-layout :title="$currentLoop->name">
-    <x-page-container class="loops-show-wrapper">
-        <div class="loops-show-container h-dvh flex flex-col bg-white dark:bg-gray-800">
+    <x-page-container width="none" class="loops-show-wrapper">
+        <div
+            x-data="{
+                activeCard: null,
+                wsWidth: 50,
+                focus: 'none',
+                resizing: false,
+                openCard(card) { this.focus = 'none'; this.activeCard = this.activeCard === card ? null : card },
+                closeCard() { this.activeCard = null; this.focus = 'none' },
+                toggleChatFocus() { this.focus = this.focus === 'chat' ? 'none' : 'chat' },
+                toggleToolFocus() { this.focus = this.focus === 'tool' ? 'none' : 'tool' },
+                /* Desktop grid: expand isolates the focused card (the other disappears). */
+                gridStyle() {
+                    if (!this.activeCard || this.focus === 'chat') return 'grid-template-columns: 1fr 0px 0px';
+                    if (this.focus === 'tool') return 'grid-template-columns: 0px 0px 1fr';
+                    return 'grid-template-columns: minmax(0, 1fr) 14px ' + this.wsWidth + '%';
+                },
+                startResize(ev) {
+                    if (!window.matchMedia('(min-width: 1024px)').matches) return;
+                    ev.preventDefault();
+                    this.focus = 'none';
+                    this.resizing = true;
+                    const panes = this.$refs.panes;
+                    const move = (e) => {
+                        const r = panes.getBoundingClientRect();
+                        const pct = (r.right - e.clientX) / r.width * 100;
+                        this.wsWidth = Math.min(64, Math.max(24, Math.round(pct)));
+                    };
+                    const up = () => {
+                        this.resizing = false;
+                        window.removeEventListener('pointermove', move);
+                        window.removeEventListener('pointerup', up);
+                    };
+                    window.addEventListener('pointermove', move);
+                    window.addEventListener('pointerup', up);
+                }
+            }"
+            x-effect="document.body.style.overflow = activeCard && window.matchMedia('(max-width: 1023px)').matches ? 'hidden' : ''"
+            @keydown.escape.window="closeCard()"
+            x-bind:data-resizing="resizing ? 'true' : 'false'"
+            class="loops-show-container h-dvh flex flex-col bg-gray-100 dark:bg-gray-950"
+            data-loop-workspace-shell
+        >
 
         {{-- Topbar --}}
-        <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div class="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
             @php $backHome = app()->bound('current_organization') && app('current_organization')->isMonoLoop(); @endphp
             <a href="{{ $backHome ? route('home') : $_loopRoute('index') }}"
                class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
@@ -54,16 +218,20 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
             </a>
-            <div class="flex-1 min-w-0">
-                <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">{{ $currentLoop->name }}</h1>
-                @if($currentLoop->description)
-                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $currentLoop->description }}</p>
-                @endif
+            <div class="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
+                <div class="min-w-0 flex-1">
+                    <div class="flex min-w-0 items-start gap-2">
+                        <h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currentLoop->name }}</h1>
+                        <span class="mt-0.5 inline-flex shrink-0 items-center rounded-full border px-1 py-px text-[8px] font-semibold uppercase tracking-wide {{ $currentLoop->isPublic() ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300' : 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400' }}">
+                            {{ $currentLoop->isPublic() ? __('loops.visibility_public') : __('loops.visibility_private') }}
+                        </span>
+                    </div>
+                    @if($currentLoop->description)
+                        <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $currentLoop->description }}</p>
+                    @endif
+                </div>
+
             </div>
-            <span class="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium {{ $currentLoop->isPublic() ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' }}">
-                <span class="w-1.5 h-1.5 rounded-full {{ $currentLoop->isPublic() ? 'bg-green-500' : 'bg-gray-400' }}"></span>
-                <span>{{ $currentLoop->isPublic() ? __('loops.visibility_public') : __('loops.visibility_private') }}</span>
-            </span>
         </div>
 
         {{-- Session messages --}}
@@ -86,15 +254,174 @@
             </div>
         @endif
 
-        {{-- Messages + Composer (Livewire) --}}
-        <div class="flex-1 flex flex-col min-h-0">
-            @livewire('loop-chat', ['loop' => $loop], key('loop-chat-'.$loop->id))
-        </div>
+        {{-- The workspace tool bar ("Lancer" + tools) is the INTERNAL header of the
+             left ChatLoop card — see the .chatloop-thread-panel below — not a global
+             strip above the workspace. --}}
+
+        {{-- Workspace: neutral parent, two sibling cards (chat | splitter | side) --}}
+        <section
+            class="chatloop-workspace"
+            x-ref="panes"
+            data-loop-workspace-panes
+            x-bind:data-has-card="activeCard ? 'true' : 'false'"
+            x-bind:style="gridStyle()"
+        >
+            <div
+                x-show="focus !== 'tool'"
+                x-bind:data-card-active="activeCard ? 'true' : 'false'"
+                class="chatloop-thread-panel"
+                data-loop-workspace-chat
+            >
+                @if($workspaceCards->isNotEmpty())
+                    <div class="flex-shrink-0 border-b border-gray-200 bg-white/90 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/90 sm:px-4">
+                        @include('loops.partials.chat-tools')
+                    </div>
+                @endif
+                @livewire('loop-chat', ['loop' => $currentLoop], key('loop-chat-'.$currentLoop->id))
+            </div>
+
+            @if($workspaceCards->isNotEmpty())
+                {{-- Resizable vertical splitter (desktop only, when a panel is open) --}}
+                <button
+                    type="button"
+                    class="chatloop-splitter"
+                    x-show="activeCard && focus === 'none'"
+                    x-cloak
+                    x-on:pointerdown="startResize($event)"
+                    x-on:dblclick="wsWidth = 50"
+                    aria-label="{{ __('loops.cards_panel_resize') }}"
+                    title="{{ __('loops.cards_panel_resize') }}"
+                ></button>
+
+                <aside
+                    x-show="activeCard && focus !== 'chat'"
+                    x-cloak
+                    x-transition.opacity.duration.150ms
+                    x-on:keydown.escape.window="closeCard()"
+                    class="chatloop-side-panel"
+                    aria-label="{{ __('loops.cards_bar_label') }}"
+                    data-loop-workspace-panel
+                >
+                    <div class="flex min-h-0 flex-1 flex-col">
+                        {{-- Side card header. Desktop = docked card (title + expand only).
+                             Mobile = full-screen panel (back + close). --}}
+                        <div class="flex shrink-0 items-center gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                            {{-- Mobile only: back to chat --}}
+                            <button
+                                type="button"
+                                x-on:click="closeCard()"
+                                class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200 lg:hidden"
+                            >
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                                {{ __('loops.cards_panel_back_to_chat') }}
+                            </button>
+
+                            {{-- Desktop: active tool title (docked card) --}}
+                            <div class="hidden min-w-0 flex-1 lg:block">
+                                @foreach($workspaceCards as $card)
+                                    <p x-show="activeCard === @js($card['key'])" x-cloak class="truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ __($card['label_key']) }}</p>
+                                @endforeach
+                            </div>
+
+                            {{-- Expand / restore (desktop only) --}}
+                            <button
+                                type="button"
+                                x-on:click="toggleToolFocus()"
+                                x-bind:aria-pressed="focus === 'tool'"
+                                class="hidden h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200 lg:inline-flex"
+                                aria-label="{{ __('loops.cards_panel_expand') }}"
+                                title="{{ __('loops.cards_panel_expand') }}"
+                            >
+                                <svg x-show="focus !== 'tool'" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5-5-5m5 5v-4m0 4h-4"/></svg>
+                                <svg x-show="focus === 'tool'" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V5m0 4H5m4 0L4 4m11 5h4m-4 0V5m0 4 5-5M9 15v4m0-4H5m4 0-5 5m11-5h4m-4 0v4m0-4 5 5"/></svg>
+                            </button>
+
+                            {{-- Mobile only: close --}}
+                            <button
+                                type="button"
+                                x-on:click="closeCard()"
+                                class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200 lg:hidden"
+                                aria-label="{{ __('loops.cards_panel_close') }}"
+                            >
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+
+                        <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+                            @foreach($workspaceCards as $card)
+                                <section x-show="activeCard === @js($card['key'])" x-cloak class="space-y-5">
+                                    @if($card['key'] === 'core.ai_summary')
+                                        <livewire:loop-ai-summary-card :loop="$currentLoop" :key="'loop-ai-summary-'.$currentLoop->id" lazy />
+                                    @elseif($card['key'] === 'core.manifesto')
+                                        {{-- Manifesto — designated primary BlogPost (lazy Livewire card) --}}
+                                        <livewire:loop-manifesto-card :loop="$currentLoop" :key="'loop-manifesto-'.$currentLoop->id" lazy />
+                                    @elseif($card['key'] === 'core.roadmap')
+                                        {{-- Roadmap — persistent (loop_roadmap_items), lazy Livewire card --}}
+                                        <livewire:loop-roadmap-card :loop="$currentLoop" :key="'loop-roadmap-'.$currentLoop->id" lazy />
+                                    @elseif($card['key'] === 'core.members')
+                                        {{-- Members list + email invitation --}}
+                                        <div class="space-y-4">
+                                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+                                                <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __($card['label_key']) }}</p>
+                                                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('loops.members_count', ['count' => $loopMembers->count()]) }}</p>
+                                            </div>
+
+                                            @if($loopMembers->isEmpty())
+                                                <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                                                    {{ __($card['empty_title_key']) }}
+                                                </div>
+                                            @else
+                                                <ul class="space-y-2">
+                                                    @foreach($loopMembers as $member)
+                                                        @php
+                                                            $mUser = $member->user;
+                                                            $mAvatar = $mUser?->isDisplayableIn(currentOrganization()) ? $mUser?->avatar_url : null;
+                                                            $roleLabel = __('loops.members_role_'.($member->role ?: 'member'));
+                                                        @endphp
+                                                        <li class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+                                                            @if($mAvatar)
+                                                                <img src="{{ $mAvatar }}" alt="" class="h-8 w-8 shrink-0 rounded-full object-cover">
+                                                            @else
+                                                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-600 dark:bg-violet-500/20 dark:text-violet-300">{{ mb_strtoupper(mb_substr($mUser?->publicDisplayName() ?? '?', 0, 1)) }}</span>
+                                                            @endif
+                                                            <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-800 dark:text-gray-100">{{ $mUser?->publicDisplayName() ?? 'BouclePro' }}</span>
+                                                            <span class="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">{{ $roleLabel }}</span>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            @endif
+
+                                            <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                                                <p class="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                                    <svg class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
+                                                    {{ __('loops.members_invite_title') }}
+                                                </p>
+                                                <form method="POST" action="{{ $inviteAction }}" class="mt-3 space-y-2">
+                                                    @csrf
+                                                    <input type="email" name="recipient_email" required placeholder="{{ __('loops.members_invite_email_placeholder') }}"
+                                                           class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                                                    <input type="text" name="recipient_name" maxlength="255" placeholder="{{ __('loops.members_invite_name_placeholder') }}"
+                                                           class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                                                    <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700">
+                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>
+                                                        {{ __('loops.members_invite_submit') }}
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    @endif
+                                </section>
+                            @endforeach
+                        </div>
+                    </div>
+                </aside>
+            @endif
+        </section>
 
         <x-conversation.image-lightbox key="loop-chat" />
 
-        {{-- Composer --}}
-        <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
+        {{-- Bottom strip: join CTA (guests) / help-request modal holder (members) --}}
+        <div class="flex-shrink-0">
             @if(!$isMember && $currentLoop->isPublic())
                 <div class="px-4 py-3">
                     <form method="POST" action="{{ $_loopRoute('join', ['loop' => $currentLoop]) }}">
@@ -110,15 +437,9 @@
                 </div>
 
             @elseif($clarificationEnabled || $analysis)
-                <div x-data="{ open: @js($analysis ? true : false) }" class="px-4 py-3">
-                    <button x-show="!open" @click="open = true"
-                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/30 transition">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                        </svg>
-                        <span>{{ __('loops.who_can_help') }}</span>
-                    </button>
-
+                {{-- Help-request modal. Trigger lives above the composer (in loop-chat) and
+                     opens this modal via the `bp-open-help-request` window event. --}}
+                <div x-data="{ open: @js($analysis ? true : false) }" @bp-open-help-request.window="open = true">
                     <template x-teleport="body">
                         <div x-show="open" x-cloak
                             class="fixed inset-0 z-50 flex items-center justify-center"

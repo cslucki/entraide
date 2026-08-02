@@ -197,6 +197,10 @@ function initAll() {
 
 document.addEventListener('bp:markdown-editor:set-content', handleSetContent);
 
+// On-demand init for editors injected after load (e.g. inside a Livewire modal).
+// setupEditor() guards already-initialized containers via data-tiptap-initialized.
+document.addEventListener('bp:markdown-editor:init', () => initAll());
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initAll);
 } else {

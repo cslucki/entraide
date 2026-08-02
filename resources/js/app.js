@@ -5455,6 +5455,116 @@ registerBlogPlanCard();
 registerBlogExplorerModal();
 registerBlogExplorerCard();
 
+// -------------------------------------------------------------------------
+// Roadmap mini-kanban drag & drop (LoopRoadmapCard, Livewire) — reuses SortableJS.
+// Three columns share one group → intra-column reorder AND inter-column moves.
+// onEnd bridges to $wire.reorderGroup (same column) or $wire.moveItem (across columns).
+// -------------------------------------------------------------------------
+function registerRoadmapSortable() {
+    if (window.__roadmapSortableRegistered || !window.Livewire) {
+        return;
+    }
+    window.__roadmapSortableRegistered = true;
+
+    const collect = (ul) => Array.from(ul.querySelectorAll('[data-roadmap-id]'))
+        .map((el) => el.getAttribute('data-roadmap-id'))
+        .filter(Boolean);
+
+    const buildRoot = (root) => {
+        if (!root) return;
+        const canManage = root.getAttribute('data-roadmap-can-manage') === '1';
+
+        root.querySelectorAll('[data-roadmap-group]').forEach((container) => {
+            if (container._sortable) {
+                container._sortable.destroy();
+                container._sortable = null;
+            }
+            if (!canManage) return;
+
+            container._sortable = Sortable.create(container, {
+                group: { name: 'roadmap-kanban', pull: true, put: true },
+                draggable: '[data-roadmap-id]',
+                handle: '.drag-handle',
+                filter: '[data-no-drag]',
+                animation: 150,
+                delay: 150,
+                delayOnTouchOnly: true,
+                ghostClass: 'roadmap-ghost',
+                chosenClass: 'roadmap-chosen',
+                onEnd: (evt) => {
+                    const fromStatus = evt.from.getAttribute('data-status');
+                    const toStatus = evt.to.getAttribute('data-status');
+                    const itemId = evt.item.getAttribute('data-roadmap-id');
+                    const wireId = root.getAttribute('wire:id');
+                    const component = wireId ? window.Livewire.find(wireId) : null;
+                    if (!component || !itemId) return;
+
+                    if (fromStatus === toStatus) {
+                        component.call('reorderGroup', toStatus, collect(evt.to));
+                    } else {
+                        component.call('moveItem', itemId, fromStatus, toStatus, collect(evt.from), collect(evt.to));
+                    }
+                },
+            });
+        });
+    };
+
+    const buildAll = () => document.querySelectorAll('[data-roadmap-root]').forEach(buildRoot);
+
+    // Rebuild after each Livewire morph (covers lazy load, add/toggle/edit/delete/reorder).
+    window.Livewire.hook('morphed', ({ el }) => {
+        if (el?.matches?.('[data-roadmap-root]')) {
+            buildRoot(el);
+        } else {
+            el?.querySelectorAll?.('[data-roadmap-root]').forEach(buildRoot);
+        }
+    });
+
+    buildAll();
+    document.addEventListener('livewire:navigated', buildAll);
+}
+
+document.addEventListener('livewire:init', registerRoadmapSortable);
+
+// -------------------------------------------------------------------------
+// Roadmap card actions menu — fixed-positioned dropdown that flips up/down so it
+// never clips against the panel/column edges. Registered once for all cards.
+// -------------------------------------------------------------------------
+function registerRoadmapMenu() {
+    if (!window.Alpine || window.__roadmapMenuRegistered) {
+        return;
+    }
+    window.__roadmapMenuRegistered = true;
+
+    window.Alpine.data('roadmapMenu', () => ({
+        open: false,
+        top: 0,
+        bottom: 0,
+        left: 0,
+        placement: 'bottom',
+        toggle() { this.open ? this.close() : this.openMenu(); },
+        openMenu() {
+            const r = this.$refs.btn.getBoundingClientRect();
+            const menuW = 208; // w-52
+            const menuH = 220;
+            const spaceBelow = window.innerHeight - r.bottom;
+            this.placement = spaceBelow < menuH ? 'top' : 'bottom';
+            this.left = Math.min(Math.max(8, r.right - menuW), window.innerWidth - menuW - 8);
+            this.top = r.bottom + 4;
+            this.bottom = window.innerHeight - r.top + 4;
+            this.open = true;
+        },
+        close() { this.open = false; },
+        get menuStyle() {
+            const v = this.placement === 'bottom' ? `top:${this.top}px` : `bottom:${this.bottom}px`;
+            return `position:fixed; left:${this.left}px; ${v}; width:13rem;`;
+        },
+    }));
+}
+
+document.addEventListener('alpine:init', registerRoadmapMenu);
+registerRoadmapMenu();
+
 // Service Worker registration
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Support\Ai\AiMarkdownSanitizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -71,6 +72,48 @@ class LoopChatTest extends TestCase
             ->test(LoopChat::class, ['loop' => $this->loop])
             ->assertSee('Hello from the loop!')
             ->assertSee('Second message');
+    }
+
+    public function test_component_initially_loads_only_the_latest_thirty_messages(): void
+    {
+        for ($i = 1; $i <= 35; $i++) {
+            LoopMessage::create([
+                'loop_id' => $this->loop->id,
+                'sender_id' => $this->member->id,
+                'body' => sprintf('Paged message %02d', $i),
+                'type' => 'user',
+                'organization_id' => $this->loop->organization_id,
+                'created_at' => now()->addMinutes($i),
+            ]);
+        }
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSee('Paged message 01')
+            ->assertSee('Paged message 06')
+            ->assertSee('Paged message 35')
+            ->assertSet('hasOlderMessages', true);
+    }
+
+    public function test_member_can_load_older_messages(): void
+    {
+        for ($i = 1; $i <= 35; $i++) {
+            LoopMessage::create([
+                'loop_id' => $this->loop->id,
+                'sender_id' => $this->member->id,
+                'body' => sprintf('Older batch message %02d', $i),
+                'type' => 'user',
+                'organization_id' => $this->loop->organization_id,
+                'created_at' => now()->addMinutes($i),
+            ]);
+        }
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSee('Older batch message 01')
+            ->call('loadOlderMessages')
+            ->assertSee('Older batch message 01')
+            ->assertSet('hasOlderMessages', false);
     }
 
     public function test_empty_loop_shows_empty_state(): void
@@ -209,6 +252,73 @@ class LoopChatTest extends TestCase
             'body' => 'Ma réponse',
             'reply_to_id' => $parent->id,
         ]);
+    }
+
+    public function test_author_can_edit_own_user_message(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message avant édition',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('editMessage', $message->id)
+            ->assertSet('editingMessageId', $message->id)
+            ->set('editingBody', 'Message après édition')
+            ->call('saveEdit')
+            ->assertSet('editingMessageId', null);
+
+        $fresh = $message->fresh();
+
+        $this->assertSame('Message après édition', $fresh->body);
+        $this->assertNotNull($fresh->edited_at);
+        $this->assertSame($this->member->id, $fresh->sender_id);
+        $this->assertSame($this->loop->id, $fresh->loop_id);
+        $this->assertSame($this->loop->organization_id, $fresh->organization_id);
+        $this->assertSame('user', $fresh->type);
+    }
+
+    public function test_non_author_cannot_edit_message(): void
+    {
+        $otherMember = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMember($this->loop, $otherMember);
+
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message protégé',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($otherMember)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('editMessage', $message->id)
+            ->set('editingBody', 'Modification interdite')
+            ->call('saveEdit');
+
+        $this->assertSame('Message protégé', $message->fresh()->body);
+        $this->assertNull($message->fresh()->edited_at);
+    }
+
+    public function test_ai_message_cannot_be_edited(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse IA',
+            'type' => 'ai',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('editMessage', $message->id)
+            ->assertSet('editingMessageId', null);
     }
 
     public function test_cancel_reply_clears_state(): void
@@ -580,6 +690,147 @@ class LoopChatTest extends TestCase
         $this->assertNull($fresh->pinned_by_id);
     }
 
+    public function test_owner_can_logically_delete_message_and_unpin_it(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message à supprimer logiquement',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+            'pinned_at' => now(),
+            'pinned_by_id' => $this->member->id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('deleteMessage', $message->id)
+            ->assertSee(__('messages.deleted_message_placeholder'))
+            ->assertDontSee('Message à supprimer logiquement');
+
+        $fresh = $message->fresh();
+
+        $this->assertNotNull($fresh->deleted_at);
+        $this->assertSame($this->member->id, $fresh->deleted_by);
+        $this->assertNull($fresh->pinned_at);
+        $this->assertNull($fresh->pinned_by_id);
+    }
+
+    public function test_regular_member_cannot_delete_message(): void
+    {
+        $regularMember = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMember($this->loop, $regularMember, 'member');
+
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message réservé à la modération',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($regularMember)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('deleteMessage', $message->id);
+
+        $this->assertNull($message->fresh()->deleted_at);
+    }
+
+    public function test_moderator_can_delete_message(): void
+    {
+        $moderator = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMember($this->loop, $moderator, 'moderator');
+
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message modéré',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($moderator)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('deleteMessage', $message->id);
+
+        $this->assertNotNull($message->fresh()->deleted_at);
+        $this->assertSame($moderator->id, $message->fresh()->deleted_by);
+    }
+
+    public function test_super_admin_can_delete_message_without_being_loop_member(): void
+    {
+        $admin = User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'is_admin' => true,
+        ]);
+
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message supprimé par super-admin',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('deleteMessage', $message->id);
+
+        $this->assertNotNull($message->fresh()->deleted_at);
+        $this->assertSame($admin->id, $message->fresh()->deleted_by);
+    }
+
+    public function test_deleted_message_hides_body_image_and_preview(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Secret supprimé à ne pas rendre',
+            'type' => 'user',
+            'organization_id' => $this->loop->organization_id,
+            'image_path' => 'message-images/'.$this->organization->id.'/secret.webp',
+            'metadata' => ['url_preview' => ['title' => 'Preview supprimée', 'domain' => 'example.test']],
+            'deleted_at' => now(),
+            'deleted_by' => $this->member->id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('messages.deleted_message_placeholder'))
+            ->assertDontSee($message->body)
+            ->assertDontSee('secret.webp')
+            ->assertDontSee('Preview supprimée');
+    }
+
+    public function test_pinned_message_can_load_its_target_when_outside_initial_batch(): void
+    {
+        $oldest = null;
+
+        for ($i = 1; $i <= 40; $i++) {
+            $message = LoopMessage::create([
+                'loop_id' => $this->loop->id,
+                'sender_id' => $this->member->id,
+                'body' => sprintf('Pinned target message %02d', $i),
+                'type' => 'user',
+                'organization_id' => $this->loop->organization_id,
+                'created_at' => now()->addMinutes($i),
+            ]);
+
+            $oldest ??= $message;
+        }
+
+        $oldest->pin($this->member);
+
+        $component = Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop]);
+
+        $this->assertNotContains($oldest->id, $component->instance()->loadedMessageIds);
+
+        $component->call('showMessageInThread', $oldest->id);
+
+        $this->assertContains($oldest->id, $component->instance()->loadedMessageIds);
+    }
+
     public function test_non_member_cannot_pin_message(): void
     {
         $msg = LoopMessage::create([
@@ -884,5 +1135,375 @@ class LoopChatTest extends TestCase
 
         $message = LoopMessage::where('body', 'Message avec image')->first();
         $this->assertNotNull($message->image_path);
+    }
+
+    public function test_member_can_reach_ai_ask_endpoint(): void
+    {
+        // The standalone "answer/summary" topbar button was removed (it duplicated the
+        // AI Summary card). The "ask a question" flow lives above the composer now.
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSee(__('loops.ask_question'))
+            ->assertSee('/loops/'.$this->loop->id.'/ask-ai');
+    }
+
+    public function test_loop_owner_sees_workspace_cards_shell_closed_by_default(): void
+    {
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSee(__('loops.cards_bar_label'))
+            ->assertSee(__('loops.cards.ai_summary.label'))
+            ->assertSee(__('loops.cards.manifesto.label'))
+            ->assertSee(__('loops.cards.roadmap.label'))
+            ->assertSee(__('loops.cards.ai_summary.empty_title'))
+            ->assertSee(__('loops.cards.manifesto.empty_title'))
+            ->assertSeeHtml('activeCard: null')
+            ->assertSeeHtml('data-loop-workspace-shell')
+            ->assertSeeHtml('data-loop-workspace-chat')
+            ->assertSeeHtml('data-loop-workspace-panel')
+            ->assertSeeHtml('core.ai_summary')
+            ->assertSeeHtml('core.manifesto')
+            ->assertSeeHtml('core.roadmap');
+    }
+
+    public function test_active_moderator_sees_workspace_cards_shell(): void
+    {
+        $moderator = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->service->addMember($this->loop, $moderator, 'moderator');
+
+        $this->actingAs($moderator)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSee(__('loops.cards_bar_label'))
+            ->assertSee(__('loops.cards.ai_summary.label'))
+            ->assertSee(__('loops.cards.manifesto.label'))
+            ->assertSee(__('loops.cards.roadmap.label'));
+    }
+
+    public function test_platform_super_admin_non_member_sees_workspace_cards_shell(): void
+    {
+        $admin = User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'is_admin' => true,
+        ]);
+        $publicLoop = $this->service->createLoop($this->member, 'Public Admin Cards Loop', visibility: 'public');
+
+        $this->actingAs($admin)
+            ->get(route('loops.show', $publicLoop))
+            ->assertOk()
+            ->assertSee(__('loops.cards_bar_label'))
+            ->assertSee(__('loops.cards.ai_summary.label'))
+            ->assertSee(__('loops.cards.manifesto.label'))
+            ->assertSee(__('loops.cards.roadmap.label'));
+    }
+
+    public function test_non_member_does_not_see_loop_workspace_cards_shell(): void
+    {
+        $publicLoop = $this->service->createLoop($this->member, 'Public Chat Loop', visibility: 'public');
+
+        $this->actingAs($this->nonMember)
+            ->get(route('loops.show', $publicLoop))
+            ->assertOk()
+            ->assertDontSee(__('loops.cards_bar_label'))
+            ->assertDontSee(__('loops.cards.ai_summary.label'))
+            ->assertDontSee(__('loops.cards.manifesto.label'))
+            ->assertDontSee(__('loops.cards.roadmap.label'));
+    }
+
+    public function test_loop_workspace_cards_registry_declares_core_cards_in_order(): void
+    {
+        $cards = collect(config('loop_cards.cards'))
+            ->sortBy('order')
+            ->values();
+
+        $this->assertSame([
+            'core.ai_summary',
+            'core.manifesto',
+            'core.roadmap',
+            'core.members',
+        ], $cards->pluck('key')->all());
+
+        $cards->each(function (array $card): void {
+            $this->assertTrue($card['default_enabled']);
+            $this->assertSame('loop.active_member', $card['permission']);
+            $this->assertSame('drawer', $card['mobile']);
+        });
+    }
+
+    public function test_non_member_does_not_see_ask_ai_button(): void
+    {
+        Livewire::actingAs($this->nonMember)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSee(__('loops.ask_ai'));
+    }
+
+    public function test_ask_question_form_has_loading_state_bindings(): void
+    {
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSeeHtml('x-bind:disabled="asking"')
+            ->assertSeeHtml('x-on:submit="asking = true"')
+            ->assertSeeHtml('x-show="asking"')
+            ->assertSeeHtml('x-show="!asking"');
+    }
+
+    public function test_member_sees_ask_question_button(): void
+    {
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSee(__('loops.ask_question'));
+    }
+
+    public function test_ask_question_modal_is_rendered(): void
+    {
+        $this->actingAs($this->member)
+            ->get(route('loops.show', $this->loop))
+            ->assertOk()
+            ->assertSeeHtml('name="action" value="ask"')
+            ->assertSeeHtml('id="ai-question"')
+            ->assertSeeHtml(__('loops.ask_question_placeholder'))
+            ->assertSeeHtml(__('loops.ask_question_submit'))
+            ->assertSeeHtml(__('loops.cancel'));
+    }
+
+    public function test_non_member_does_not_see_ask_question_button(): void
+    {
+        Livewire::actingAs($this->nonMember)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSee(__('loops.ask_question'));
+    }
+
+    public function test_ai_message_renders_with_facilitator_and_requested_by(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse de l\'IA.',
+            'type' => 'ai',
+            'metadata' => [
+                'requested_by' => $this->member->id,
+                'action' => 'answer',
+            ],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.ai_facilitator'))
+            ->assertSee(__('loops.ai_requested_by', ['name' => $this->member->publicDisplayName()]))
+            ->assertSee('Réponse de l\'IA.', false);
+    }
+
+    public function test_message_actions_include_copy_without_native_confirm(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message copiable',
+            'type' => 'user',
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('aria-label="'.__('messages.copy').'"')
+            ->assertSeeHtml('copyMessage')
+            ->assertDontSeeHtml('wire:confirm');
+    }
+
+    public function test_deleted_message_does_not_show_copy_action(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Secret supprimé',
+            'type' => 'user',
+            'deleted_at' => now(),
+            'deleted_by' => $this->member->id,
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('messages.deleted_message_placeholder'))
+            ->assertDontSeeHtml('aria-label="'.__('messages.copy').'"');
+    }
+
+    public function test_pinned_message_scroll_targets_the_start_of_the_bubble(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'body' => 'Message ciblé',
+            'type' => 'user',
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml("scrollIntoView({ block: 'start' })");
+    }
+
+    public function test_chat_composer_starts_on_one_row_and_shift_enter_keeps_new_line(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('rows="1"')
+            ->assertSeeHtml('x-on:input="resize()"')
+            ->assertSeeHtml('overflow-y-hidden')
+            ->assertSeeHtml('if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }');
+    }
+
+    public function test_ai_message_without_requested_by_renders_without_subtitle(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse IA sans demandeur',
+            'type' => 'ai',
+            'metadata' => [
+                'action' => 'answer',
+            ],
+        ]);
+
+        $subtitlePrefix = trim(explode(':', __('loops.ai_requested_by', ['name' => '']))[0]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.ai_facilitator'))
+            ->assertSee('Réponse IA sans demandeur')
+            ->assertDontSee($subtitlePrefix);
+    }
+
+    public function test_ai_message_with_unknown_requester_does_not_crash(): void
+    {
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Réponse IA orpheline',
+            'type' => 'ai',
+            'metadata' => [
+                'requested_by' => 99999999,
+                'action' => 'answer',
+            ],
+        ]);
+
+        $subtitlePrefix = trim(explode(':', __('loops.ai_requested_by', ['name' => '']))[0]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.ai_facilitator'))
+            ->assertSee('Réponse IA orpheline')
+            ->assertDontSee($subtitlePrefix);
+    }
+
+    public function test_ai_error_flash_is_rendered_locally(): void
+    {
+        $flashValue = __('loops.ai_error');
+
+        $response = $this->actingAs($this->member)
+            ->withSession(['error' => $flashValue])
+            ->get(route('loops.show', $this->loop));
+
+        $response->assertOk();
+        $response->assertSee($flashValue);
+    }
+
+    public function test_org_scoped_show_page_uses_org_scoped_ask_ai_url(): void
+    {
+        $expectedUrl = route('organization.loops.ai', [
+            'organization' => $this->organization,
+            'loop' => $this->loop,
+        ]);
+
+        $response = $this->actingAs($this->member)
+            ->get(route('organization.loops.show', [
+                'organization' => $this->organization,
+                'loop' => $this->loop,
+            ]));
+
+        $response->assertOk();
+        $response->assertSee($expectedUrl);
+    }
+
+    public function test_ai_message_renders_safe_markdown_without_overflowing_code_blocks(): void
+    {
+        $body = AiMarkdownSanitizer::sanitize(
+            "## Résumé\n\n"
+            .'**gras** et *italique*'."\n\n"
+            ."- Premier point\n- Deuxième point\n\n"
+            ."> Citation\n\n"
+            ."[lien](https://example.com)\n\n"
+            ."```php\n\$ok = true;\n```\n\n"
+            .'`inline_code()`'
+        );
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => $body,
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('<h2>Résumé</h2>')
+            ->assertSeeHtml('<strong>gras</strong>')
+            ->assertSeeHtml('<em>italique</em>')
+            ->assertSeeHtml('<li>Premier point</li>')
+            ->assertSeeHtml('<blockquote>')
+            ->assertSeeHtml('<a href="https://example.com">')
+            ->assertSee('$ok = true;', false)
+            ->assertSee('inline_code()', false)
+            ->assertDontSeeHtml('<pre')
+            ->assertDontSeeHtml('<code');
+    }
+
+    public function test_ai_message_renders_markdown_tables_as_plain_text(): void
+    {
+        $body = AiMarkdownSanitizer::sanitize(
+            "| Colonne A | Colonne B |\n"
+            ."| --- | --- |\n"
+            .'| Valeur tres longue qui ne doit pas imposer une largeur horizontale | Autre valeur |'
+        );
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => $body,
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertSee('| Colonne A | Colonne B |', false)
+            ->assertSee('| --- | --- |', false)
+            ->assertDontSeeHtml('<table')
+            ->assertDontSeeHtml('<td');
+    }
+
+    public function test_ai_message_never_renders_h1_or_unsafe_content(): void
+    {
+        $body = AiMarkdownSanitizer::sanitize(
+            "# Titre interdit\n\n"
+            .'[piège](javascript:alert(1))'."\n\n"
+            .'<script>alert(2)</script>'
+        );
+
+        LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => $body,
+            'type' => 'ai',
+            'metadata' => ['requested_by' => $this->member->id, 'action' => 'answer'],
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSeeHtml('<h1')
+            ->assertDontSee('javascript:')
+            ->assertDontSee('<script>');
     }
 }
