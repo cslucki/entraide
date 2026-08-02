@@ -9,6 +9,7 @@ use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\Referral;
+use App\Models\User;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopMessageService;
@@ -215,8 +216,10 @@ class LoopController extends Controller
             $loop->update(['cover_image_path' => $this->storeCoverImage($request, $loop)]);
         }
 
-        return redirect($this->loopRoute('loops.show', $loop))
-            ->with('success', 'Boucle créée avec succès.');
+        // TASK-1076: optional post-creation step. Never blocking — the screen
+        // offers "Plus tard" and "Ouvrir la Boucle".
+        return redirect($this->loopRoute('loops.invite', $loop))
+            ->with('success', __('loops.created_success'));
     }
 
     public function edit(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View
@@ -280,6 +283,73 @@ class LoopController extends Controller
         // into the workspace. The AdminLoopController flow is untouched.
         return redirect($this->loopsIndexRoute(['updated' => $loop->id]))
             ->with('success', __('loops.catalog_updated'));
+    }
+
+    /**
+     * Optional "invite people" step shown right after a Loop is created.
+     * Restricted to whoever may manage the Loop (owner / Organization admin) —
+     * a standard member never reaches it.
+     */
+    public function invite(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('manageJoinRequests', $loop);
+
+        return view('loops.invite', [
+            'loop' => $loop,
+            'candidates' => $this->invitableOrganizationMembers($loop, $organization),
+        ]);
+    }
+
+    public function storeMembers(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('manageJoinRequests', $loop);
+
+        $data = $request->validate([
+            'user_ids' => 'required|array|min:1',
+            'user_ids.*' => 'string',
+        ]);
+
+        // Re-scope server-side: only active users of THIS Organization, whatever
+        // the form posted.
+        $userIds = $this->invitableOrganizationMembers($loop, $organization)
+            ->whereIn('id', $data['user_ids'])
+            ->pluck('id')
+            ->all();
+
+        $result = $this->loopService->addMembersFromOrganization($loop, $userIds, $request->user());
+
+        return redirect($this->loopRoute('loops.invite', $loop))
+            ->with('success', trans_choice('loops.invite_members_added', $result['added'], ['count' => $result['added']]));
+    }
+
+    /** Active Organization members who are not active members of this Loop yet. */
+    private function invitableOrganizationMembers(Loop $loop, Organization $organization)
+    {
+        $alreadyIn = LoopMember::where('loop_id', $loop->id)
+            ->where('status', 'active')
+            ->pluck('user_id');
+
+        return User::assignable()
+            ->where('organization_id', $organization->id)
+            ->whereNotIn('id', $alreadyIn)
+            ->orderBy('name')
+            ->get(['id', 'name', 'first_name', 'email']);
     }
 
     /** Domains (Annuaire referential) selectable for this Organization. */

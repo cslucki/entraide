@@ -8,6 +8,7 @@ use App\Models\LoopMember;
 use App\Models\Referral;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -101,6 +102,50 @@ class LoopService
             'joined_at' => now(),
             'organization_id' => $loop->organization_id,
         ]);
+    }
+
+    /**
+     * Bulk-add existing Organization members to a Loop (TASK-1076, post-creation
+     * step). Wraps addMemberByUserId() rather than duplicating its invariants:
+     * cross-organization and deactivated users are refused there, and a user who
+     * is already an active member is skipped instead of failing the whole batch,
+     * so the operation is idempotent.
+     *
+     * A pending join request from someone added this way is closed as accepted —
+     * otherwise it would linger and the person could appear as "waiting" while
+     * already being a member.
+     *
+     * @param  array<int, string>  $userIds
+     * @return array{added: int, skipped: int}
+     */
+    public function addMembersFromOrganization(Loop $loop, array $userIds, User $actor): array
+    {
+        $added = 0;
+        $skipped = 0;
+
+        foreach (array_unique($userIds) as $userId) {
+            try {
+                $this->addMemberByUserId($loop, $userId);
+                $added++;
+            } catch (\RuntimeException|ModelNotFoundException) {
+                // Already an active member, cross-organization or deactivated:
+                // silently skipped, the caller reports the counts.
+                $skipped++;
+
+                continue;
+            }
+
+            LoopJoinRequest::where('loop_id', $loop->id)
+                ->where('user_id', $userId)
+                ->where('status', LoopJoinRequest::STATUS_PENDING)
+                ->update([
+                    'status' => LoopJoinRequest::STATUS_ACCEPTED,
+                    'decided_by' => $actor->id,
+                    'decided_at' => now(),
+                ]);
+        }
+
+        return ['added' => $added, 'skipped' => $skipped];
     }
 
     public function removeMember(LoopMember $member): void

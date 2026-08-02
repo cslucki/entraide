@@ -320,6 +320,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
         Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
         Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+        Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
+        Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');
         // Flat route (not nested under /loops/{loop}/...): a join request id is
         // already globally unique, and the dual path-based/org-prefixed union-typed
         // $loopOrOrganization/$loop controller pattern used everywhere else in this
@@ -676,6 +678,8 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
                 Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
                 Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+                Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
+                Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');
                 Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
                 Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
                 Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
