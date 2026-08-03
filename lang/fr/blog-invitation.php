@@ -48,4 +48,13 @@ return [
     'invite_accepted_title' => 'Invitation déjà acceptée',
     'invite_accepted_message' => 'Cette invitation a déjà été utilisée. Connectez-vous pour accéder à l\'article.',
     'invite_go_home' => 'Retour à l\'accueil',
+
+    // TASK-1078 — reprise après authentification
+    'invite_btn_register' => 'Créer mon compte',
+    'accept_email_mismatch' => 'Cette invitation a été envoyée à une autre adresse email. Connectez-vous avec le compte correspondant.',
+    'accept_expired' => 'Cette invitation a expiré.',
+    'accept_taken' => 'Cette invitation a déjà été utilisée par une autre personne.',
+    'accept_user_deactivated' => 'Votre compte est désactivé.',
+    'accept_post_unavailable' => 'Cet article n\'est plus accessible.',
+    'accept_invalid' => 'Cette invitation est introuvable ou invalide.',
 ];

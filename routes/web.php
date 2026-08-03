@@ -210,6 +210,9 @@ Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.sho
 // Blog invitation public routes (no auth required)
 Route::get('/blog-invitations/{token}', [BlogInvitationController::class, 'show'])->name('blog.invite.show');
 Route::post('/blog-invitations/{token}/accept', [BlogInvitationController::class, 'accept'])->name('blog.invite.accept');
+// POST, not a link: it parks the token in the session before handing over to
+// login or registration, where the acceptance actually happens (TASK-1078).
+Route::post('/blog-invitations/{token}/prepare', [BlogInvitationController::class, 'prepare'])->middleware('throttle:20,1')->name('blog.invite.prepare');
 
 // Loop invitation public routes (no auth required). The GET is strictly
 // read-only; `prepare` is a POST because it writes the token to the session

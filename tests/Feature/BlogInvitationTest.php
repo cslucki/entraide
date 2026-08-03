@@ -608,7 +608,19 @@ class BlogInvitationTest extends TestCase
 
         $response = $this->post(route('blog.invite.accept', ['token' => 'expired-accept-token']));
 
-        $response->assertNotFound();
+        // TASK-1078: an expired invitation used to 404, because accept() looked it
+        // up through scopeValid(). A dead end with no explanation is the wrong
+        // answer for a recipient who simply clicked too late — the invitation now
+        // resolves and says so. The refusal itself is unchanged: no co-author is
+        // attached, and the stale pending row is flipped to expired.
+        $response->assertRedirect(route('blog.invite.show', 'expired-accept-token'))
+            ->assertSessionHas('error', __('blog-invitation.accept_expired'));
+
+        $this->assertSame('expired', BlogPostInvitation::where('token', 'expired-accept-token')->value('status'));
+        $this->assertDatabaseMissing('blog_post_user', [
+            'blog_post_id' => $this->post->id,
+            'user_id' => $this->member->id,
+        ]);
     }
 
     public function test_invitation_token_stored_in_email_log(): void
