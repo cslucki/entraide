@@ -65,10 +65,33 @@
                             </button>
                         </form>
 
-                        <div class="text-center text-sm text-gray-500">
-                            {{ __('blog-invitation.invite_not_you') }}
-                            <a href="{{ route('login') }}" class="text-indigo-600 hover:text-indigo-800 font-medium">{{ __('blog.login') }}</a>
-                        </div>
+                        {{-- POST, not a link (TASK-1078): this parks the token in the
+                             session so the acceptance can be picked up inside the
+                             login/registration POST. A plain <a> lost it, which is
+                             exactly why the guest journey used to dead-end. --}}
+                        @guest
+                            <div class="flex flex-col gap-2 sm:flex-row">
+                                <form method="POST" action="{{ route('blog.invite.prepare', ['token' => $invitation->token]) }}" class="flex-1">
+                                    @csrf
+                                    <input type="hidden" name="intent" value="login">
+                                    <button type="submit" class="w-full rounded-lg border border-gray-300 px-6 py-3 font-semibold text-gray-700 transition hover:bg-gray-50">
+                                        {{ __('blog.login') }}
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ route('blog.invite.prepare', ['token' => $invitation->token]) }}" class="flex-1">
+                                    @csrf
+                                    <input type="hidden" name="intent" value="register">
+                                    <button type="submit" class="w-full rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white transition hover:bg-indigo-700">
+                                        {{ __('blog-invitation.invite_btn_register') }}
+                                    </button>
+                                </form>
+                            </div>
+                        @else
+                            <div class="text-center text-sm text-gray-500">
+                                {{ __('blog-invitation.invite_not_you') }}
+                                <a href="{{ route('login') }}" class="text-indigo-600 hover:text-indigo-800 font-medium">{{ __('blog.login') }}</a>
+                            </div>
+                        @endguest
                     </div>
 
                     {{-- Expiry notice --}}

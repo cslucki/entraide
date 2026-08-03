@@ -3,9 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\LoopInvitationController;
 use App\Http\Requests\Auth\LoginRequest;
-use App\Services\LoopInvitationService;
+use App\Services\InvitationResumption;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,12 +31,14 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->user();
 
-        // A Loop invitation parked before login is consumed here, inside the POST:
-        // accepting mutates state and must not happen on a GET navigation. The
-        // recipient e-mail is re-checked against the freshly authenticated user by
-        // the service, so logging in as somebody else cannot claim the token.
-        if ($outcome = app(LoopInvitationService::class)->resumeFromSession($user)) {
-            return app(LoopInvitationController::class)->redirectForOutcome($outcome);
+        // An invitation (Loop or Blog) parked before login is consumed here,
+        // inside the POST: accepting mutates state and must not happen on a GET
+        // navigation. The recipient e-mail is re-checked against the freshly
+        // authenticated user, so signing in as somebody else cannot claim the
+        // token. Returns null when nothing is pending, leaving normal sign-in
+        // untouched.
+        if ($redirect = app(InvitationResumption::class)->resume($user)) {
+            return $redirect;
         }
 
         return redirect()->intended($user->getLoginRedirectTarget());
