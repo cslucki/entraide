@@ -1,6 +1,14 @@
 <x-app-layout>
     <div class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-lg w-full">
+            {{-- A refused acceptance redirects back here with a reason. Without
+                 this the visitor was simply bounced with no explanation. --}}
+            @if(session('error'))
+                <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {{ session('error') }}
+                </div>
+            @endif
+
             <div class="bg-white rounded-xl shadow-md p-8">
                 {{-- Badge --}}
                 <div class="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full mb-4">

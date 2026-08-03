@@ -117,6 +117,13 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
             'blog_post_id' => $this->post->id, 'user_id' => $intruder->id,
         ]);
         $this->assertSame('pending', $invitation->fresh()->status);
+
+        // The reason must actually reach the page: a silent bounce leaves the
+        // visitor with no idea why nothing happened.
+        $this->actingAs($intruder)
+            ->get(route('blog.invite.show', $invitation->token))
+            ->assertOk()
+            ->assertSee(__('blog-invitation.accept_email_mismatch'));
     }
 
     public function test_email_comparison_ignores_case_and_whitespace(): void
