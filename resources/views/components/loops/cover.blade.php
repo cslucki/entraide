@@ -16,11 +16,17 @@
 --}}
 {{--
     The ratio is applied as an inline `aspect-ratio` rather than a Tailwind
-    `aspect-[x/y]` class on purpose: this project ships both tailwindcss v3 and
-    @tailwindcss/vite v4, so v3-style arbitrary values are never emitted into the
-    built CSS (verified: no `aspect-[…]` rule exists in public/build). An inline
-    style is build-independent and guarantees the placeholder and a real cover
-    image occupy exactly the same box.
+    `aspect-[x/y]` class because `ratio` is a prop that varies per call site
+    (5 / 2 on catalog cards, 21 / 9 on the presentation page). Tailwind scans
+    source files as plain text and never executes Blade, so a class built from
+    an interpolated value would not be seen and the rule would not be emitted.
+    An inline style keeps the placeholder and a real cover image in exactly the
+    same box whatever the ratio.
+
+    Arbitrary values themselves work fine here — tailwind.config.js is honoured
+    through postcss.config.js and the built CSS does contain rules such as
+    `aspect-[335/364]`. (`@tailwindcss/vite` sits in package.json but is never
+    wired into vite.config.js, so it has no effect either way.)
 --}}
 @props(['loop', 'ratio' => '5 / 2', 'rounded' => 'rounded-t-2xl'])
 @php
