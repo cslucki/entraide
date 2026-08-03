@@ -198,6 +198,30 @@ class Loop extends Model
      * The designated primary Manifesto (a BlogPost). Null if none is designated
      * or if the designated post has been (soft) deleted (SoftDeletes scope).
      */
+    /** Cards enabled on this Loop (TASK-1079); the catalogue lives in config. */
+    public function cards(): HasMany
+    {
+        return $this->hasMany(LoopCard::class);
+    }
+
+    /** Dossiers documents linked as sources of this Loop's Manifesto. */
+    public function manifestoSources(): HasMany
+    {
+        return $this->hasMany(LoopManifestoSource::class);
+    }
+
+    /**
+     * The Manifesto is only public material once a human published it, and only
+     * on a Loop that is not private. Confidentiality of the Loop always wins:
+     * this is never a fallback for a missing description.
+     */
+    public function hasPublicManifesto(): bool
+    {
+        return $this->visibility !== 'private'
+            && $this->manifesto !== null
+            && $this->manifesto->status === 'published';
+    }
+
     public function manifesto(): BelongsTo
     {
         return $this->belongsTo(BlogPost::class, 'manifesto_blog_post_id');
