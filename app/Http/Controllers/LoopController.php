@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AiConfig;
 use App\Models\Category;
 use App\Models\Loop;
+use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\Organization;
@@ -15,6 +16,7 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
 use App\Support\Tenancy\CurrentOrganization;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -305,7 +307,23 @@ class LoopController extends Controller
         return view('loops.invite', [
             'loop' => $loop,
             'candidates' => $this->invitableOrganizationMembers($loop, $organization),
+            'pendingInvitations' => $this->loopInvitationsFor($loop),
         ]);
+    }
+
+    /**
+     * E-mail invitations of this Loop, through the shared visibility scope so
+     * this screen, the Members Card and the Organization tracking page always
+     * agree on who sees what and on what a revocation looks like.
+     *
+     * @return Collection<int, LoopInvitation>
+     */
+    private function loopInvitationsFor(Loop $loop): Collection
+    {
+        return LoopInvitation::visibleTo(auth()->user())
+            ->where('loop_id', $loop->id)
+            ->latest()
+            ->get();
     }
 
     public function storeMembers(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
@@ -462,9 +480,11 @@ class LoopController extends Controller
                 ->get()
             : collect();
 
+        $loopInvitations = $canManageJoinRequests ? $this->loopInvitationsFor($loop) : collect();
+
         return view('loops.show', compact(
             'loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled',
-            'canManageJoinRequests', 'pendingJoinRequests',
+            'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations',
         ));
     }
 
