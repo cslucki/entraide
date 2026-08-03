@@ -144,12 +144,15 @@ class TASK1074LoopUpdatePermissionsTest extends TestCase
         LoopMember::factory()->owner()->create(['loop_id' => $loop->id, 'user_id' => $owner->id]);
         $this->withCurrentOrganization($organization);
 
+        // TASK-1076: editing is started from the catalog, so a successful update
+        // now returns to the catalog (highlighting the edited card) instead of
+        // dropping the user into the workspace.
         $this->actingAs($owner)
             ->put(route('loops.update', $loop), [
                 'name' => 'Nouveau nom',
                 'description' => 'Nouvelle description',
             ])
-            ->assertRedirect(route('loops.show', $loop))
+            ->assertRedirect(route('loops.index', ['updated' => $loop->id]))
             ->assertSessionHas('success');
 
         $loop->refresh();

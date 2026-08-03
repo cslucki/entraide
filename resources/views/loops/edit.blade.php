@@ -91,6 +91,32 @@
                 @enderror
             </div>
 
+
+            @if($domains->isNotEmpty())
+                <div>
+                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('loops.domains_label') }}</span>
+                    <p class="mb-2 text-xs text-gray-400 dark:text-gray-500">{{ __('loops.domains_help') }}</p>
+                    {{-- Plain checkboxes: an Organization holds a handful of domains,
+                         a heavier multiselect widget would be overkill here. The 3-max
+                         rule is enforced server-side; Alpine only guides the user. --}}
+                    <div x-data="{ picked: {{ \Illuminate\Support\Js::from(old('category_ids', $currentLoop->categories->pluck('id')->all())) }}, max: 3 }" class="flex flex-wrap gap-2">
+                        @foreach($domains as $domain)
+                            <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm has-[:checked]:border-indigo-400 has-[:checked]:bg-indigo-50 dark:border-gray-700 dark:has-[:checked]:border-indigo-600 dark:has-[:checked]:bg-indigo-900/20">
+                                <input type="checkbox" name="category_ids[]" value="{{ $domain->id }}"
+                                       x-model="picked"
+                                       x-bind:disabled="picked.length >= max && !picked.includes('{{ $domain->id }}')"
+                                       class="rounded text-indigo-600 focus:ring-indigo-500 disabled:opacity-40">
+                                <span class="text-gray-700 dark:text-gray-200">{{ $domain->displayName('loops') }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500" x-show="picked.length >= max" x-cloak>{{ __('loops.domains_max') }}</p>
+                    @error('category_ids')
+                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                    @enderror
+                </div>
+            @endif
+
             <div class="flex items-center gap-3">
                 <button type="submit"
                         class="px-6 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">

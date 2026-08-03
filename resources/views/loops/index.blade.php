@@ -18,6 +18,15 @@
 
             return route('loops.join', $loop);
         };
+        $loopEditHref = function ($loop) use ($organizationRouteParam) {
+            if ($organizationRouteParam && request()->routeIs('organization.*')) {
+                return route('organization.loops.edit', ['organization' => $organizationRouteParam, 'loop' => $loop]);
+            }
+
+            return route('loops.edit', $loop);
+        };
+        // Set by LoopController::update() so the freshly edited card is easy to spot.
+        $highlightedLoopId = request()->query('updated');
         $mine = $loops->where('is_member', true)->values();
         $discover = $loops->where('is_member', false)->values();
     @endphp
@@ -34,7 +43,7 @@
         @endif
     </x-slot>
 
-    <div x-data="{ q: '' }">
+    <div x-data="{ q: '', domain: '' }">
         <div class="flex items-center justify-between gap-3 mb-6 md:block">
             <p class="text-gray-500 dark:text-gray-400 text-sm">{{ __('loops.collaboration_spaces') }}</p>
             @if($canCreate)
@@ -91,13 +100,31 @@
                 @endif
             </div>
         @else
-            @if($loops->count() > 6)
-                <div class="relative mb-6 max-w-sm">
-                    <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
-                    </svg>
-                    <input type="search" x-model="q" placeholder="{{ __('loops.search_placeholder') }}"
-                           class="w-full rounded-xl border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+            @php $catalogDomains = $filterDomains ?? collect(); @endphp
+            @if($loops->count() > 6 || $catalogDomains->isNotEmpty())
+                <div class="mb-6 flex flex-wrap items-center gap-3">
+                    @if($loops->count() > 6)
+                        <div class="relative w-full max-w-sm">
+                            <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+                            </svg>
+                            <input type="search" x-model="q" placeholder="{{ __('loops.search_placeholder') }}"
+                                   class="w-full rounded-xl border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                        </div>
+                    @endif
+
+                    @if($catalogDomains->isNotEmpty())
+                        {{-- Client-side filter: an Organization holds ~200 people and a
+                             handful of Loops, so no extra server round-trip is needed. --}}
+                        <label class="sr-only" for="domain-filter">{{ __('loops.filter_by_domain') }}</label>
+                        <select id="domain-filter" x-model="domain"
+                                class="rounded-xl border border-gray-300 bg-white py-2 pl-3 pr-8 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                            <option value="">{{ __('loops.filter_all_domains') }}</option>
+                            @foreach($catalogDomains as $domain)
+                                <option value="{{ $domain->id }}">{{ $domain->displayName('loops') }}</option>
+                            @endforeach
+                        </select>
+                    @endif
                 </div>
             @endif
 

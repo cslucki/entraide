@@ -32,7 +32,7 @@
         @endif
 
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-            <x-loops.cover :loop="$loop" class="aspect-[21/9]" />
+            <x-loops.cover :loop="$loop" ratio="21 / 9" />
 
             <div class="p-6 sm:p-8">
                 <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -60,6 +60,8 @@
                         </span>
                     @endif
                 </div>
+
+                <x-loops.domain-badges :loop="$loop" class="mb-4" />
 
                 @if($loop->description)
                     <p class="mb-6 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $loop->description }}</p>
