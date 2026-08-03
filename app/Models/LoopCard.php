@@ -44,10 +44,16 @@ class LoopCard extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    /** Catalogue entry backing this row, or null if it vanished from config. */
+    /**
+     * Catalogue entry backing this row, or null if it vanished from config.
+     *
+     * Array access, not config() dot-notation: card keys contain a dot
+     * ("core.manifesto"), which dot-notation would split into a nested lookup
+     * that never resolves.
+     */
     public function definition(): ?array
     {
-        return config('loop_cards.cards.'.$this->card_key);
+        return config('loop_cards.cards', [])[$this->card_key] ?? null;
     }
 
     public function label(): string

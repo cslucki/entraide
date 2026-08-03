@@ -135,12 +135,11 @@ class OrgAdminController extends Controller
     public function loops(Request $request, Organization $organization): View
     {
         $orgId = $organization->id;
-        // activeMembers stays eager-loaded: the page manages members inline, so
-        // the collection is genuinely needed, and with() is already the fix for
-        // N+1 rather than the cause. The new counters are aggregated in SQL so
-        // they cost nothing per row (TASK-1079).
+        // A listing, nothing more (TASK-1079): editing and member management moved
+        // to a dedicated page, so there is no reason to hydrate every member of
+        // every Loop here. Counters are aggregated in SQL.
         $query = Loop::where('organization_id', $orgId)
-            ->with(['creator', 'owner.user', 'activeMembers.user', 'cards'])
+            ->with(['creator', 'owner.user', 'cards'])
             ->withCount([
                 'activeMembers',
                 'invitations',
@@ -219,6 +218,44 @@ class OrgAdminController extends Controller
      * Strictly tenant-scoped, and deliberately narrow — the full editing
      * surface stays in LoopController rather than being duplicated here.
      */
+    /**
+     * Dedicated edit page for one Loop.
+     *
+     * Everything that acts on a Loop lives here rather than being crammed into
+     * the listing table: identity, type and its card composition, members, and
+     * the invitation figures.
+     */
+    public function editLoop(Organization $organization, Loop $loop): View
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $registry = app(LoopTypeRegistry::class);
+
+        $loop->load(['creator', 'owner.user', 'activeMembers.user', 'cards']);
+        $loop->loadCount([
+            'activeMembers',
+            'invitations',
+            'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
+        ]);
+
+        $memberIds = $loop->activeMembers->pluck('user_id');
+
+        return view('admin.org.loop-edit', [
+            'organization' => $organization,
+            'loop' => $loop,
+            'loopTypes' => $registry->all(),
+            'currentType' => $registry->resolve($loop->type),
+            // What the type prescribes, so the admin can tell the baseline apart
+            // from what this Loop added on its own.
+            'presetCards' => $registry->cardsFor($loop->type),
+            'candidates' => User::assignable()
+                ->where('organization_id', $organization->id)
+                ->whereNotIn('id', $memberIds)
+                ->orderBy('name')
+                ->get(['id', 'name', 'first_name', 'email']),
+        ]);
+    }
+
     public function updateLoop(Request $request, Organization $organization, Loop $loop): RedirectResponse
     {
         abort_if($loop->organization_id !== $organization->id, 404);
@@ -243,10 +280,12 @@ class OrgAdminController extends Controller
 
         $added = $registry->applyPreset($loop->fresh());
 
-        return back()->with('success', $added === []
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with('success', $added === []
             ? __('loops.type_changed_no_card')
             : __('loops.type_changed', [
-                'cards' => collect($added)->map(fn ($k) => __(config('loop_cards.cards.'.$k.'.label_key')))->implode(', '),
+                'cards' => collect($added)->map(fn ($k) => $registry->cardLabel($k))->implode(', '),
             ]));
     }
 

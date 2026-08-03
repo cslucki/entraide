@@ -180,9 +180,109 @@ class TASK1079LoopAdminTest extends TestCase
 
         $this->assertSame(3, $listed->active_members_count);
         $this->assertSame(1, $listed->invitations_count);
-        // activeMembers stays loaded on purpose: this screen manages members
-        // inline. What matters is that the counters come from SQL.
-        $this->assertTrue($listed->relationLoaded('activeMembers'));
+        // The listing is a listing: member management moved to the dedicated edit
+        // page, so no member is hydrated here.
+        $this->assertFalse($listed->relationLoaded('activeMembers'));
+    }
+
+    // ── Page d'édition dédiée (CRUD) ────────────────────────────────────────
+
+    public function test_the_edit_page_gathers_identity_type_cards_and_members(): void
+    {
+        $loop = $this->loop(['name' => 'Boucle Editable', 'type' => 'project']);
+        $this->registry()->applyPreset($loop);
+        $member = User::factory()->create(['organization_id' => $this->org->id, 'name' => 'Membre Actif']);
+        LoopMember::factory()->create(['loop_id' => $loop->id, 'user_id' => $member->id, 'status' => 'active']);
+        $candidate = User::factory()->create(['organization_id' => $this->org->id, 'name' => 'Candidat Libre']);
+
+        $response = $this->actingAs($this->orgAdmin)
+            ->get(route('organization.admin.loops.edit', ['organization' => $this->org->slug, 'loop' => $loop->id]))
+            ->assertOk();
+
+        $response->assertSee('Boucle Editable');
+        // The four types are offered, with the current one selected.
+        foreach ($this->registry()->keys() as $type) {
+            $response->assertSee($this->registry()->label($type));
+        }
+        $this->assertSame('project', $response->viewData('currentType'));
+        // Cards, members and candidates all resolved server-side.
+        $response->assertSee(__(config('loop_cards.cards.core.manifesto.label_key')));
+        $response->assertSee('Membre Actif');
+        $response->assertSee('Candidat Libre');
+    }
+
+    public function test_the_edit_page_marks_which_cards_come_from_the_type(): void
+    {
+        $loop = $this->loop(['type' => 'peer_support']);
+        $this->registry()->applyPreset($loop);
+        LoopCard::create([
+            'organization_id' => $this->org->id, 'loop_id' => $loop->id,
+            'card_key' => 'core.roadmap', 'enabled' => true, 'added_by_preset' => null,
+        ]);
+
+        $preset = $this->actingAs($this->orgAdmin)
+            ->get(route('organization.admin.loops.edit', ['organization' => $this->org->slug, 'loop' => $loop->id]))
+            ->assertOk()
+            ->viewData('presetCards');
+
+        $this->assertContains('core.manifesto', $preset);
+        $this->assertNotContains('core.roadmap', $preset, 'A human-added card must not read as part of the type baseline');
+    }
+
+    public function test_the_edit_page_only_offers_candidates_of_this_organization(): void
+    {
+        $loop = $this->loop();
+        $otherOrg = Organization::factory()->create();
+        $foreigner = User::factory()->create(['organization_id' => $otherOrg->id, 'name' => 'Etranger Total']);
+        $alreadyIn = User::factory()->create(['organization_id' => $this->org->id, 'name' => 'Deja Membre']);
+        LoopMember::factory()->create(['loop_id' => $loop->id, 'user_id' => $alreadyIn->id, 'status' => 'active']);
+
+        $candidates = $this->actingAs($this->orgAdmin)
+            ->get(route('organization.admin.loops.edit', ['organization' => $this->org->slug, 'loop' => $loop->id]))
+            ->assertOk()
+            ->viewData('candidates')->pluck('id');
+
+        $this->assertNotContains($foreigner->id, $candidates);
+        $this->assertNotContains($alreadyIn->id, $candidates);
+    }
+
+    public function test_the_edit_page_of_another_organization_is_refused(): void
+    {
+        $otherOrg = Organization::factory()->create(['loops_enabled' => true]);
+        $foreignLoop = Loop::factory()->create(['organization_id' => $otherOrg->id]);
+
+        $this->actingAs($this->orgAdmin)
+            ->get(route('organization.admin.loops.edit', ['organization' => $this->org->slug, 'loop' => $foreignLoop->id]))
+            ->assertNotFound();
+    }
+
+    public function test_saving_returns_to_the_edit_page(): void
+    {
+        $loop = $this->loop(['type' => 'general']);
+
+        $this->actingAs($this->orgAdmin)
+            ->put(route('organization.admin.loops.update', ['organization' => $this->org->slug, 'loop' => $loop->id]), [
+                'name' => 'Renommée', 'description' => 'Desc', 'type' => 'project',
+            ])
+            ->assertRedirect(route('organization.admin.loops.edit', ['organization' => $this->org->slug, 'loop' => $loop->id]));
+    }
+
+    public function test_the_listing_no_longer_carries_edit_forms(): void
+    {
+        $loop = $this->loop();
+        LoopMember::factory()->create(['loop_id' => $loop->id, 'status' => 'active']);
+
+        $html = $this->actingAs($this->orgAdmin)
+            ->get(route('organization.admin.loops', ['organization' => $this->org->slug]))
+            ->assertOk()
+            ->getContent();
+
+        // Member management and editing live on the dedicated page now.
+        $this->assertStringNotContainsString('loops.members.add', $html);
+        $this->assertStringContainsString(
+            route('organization.admin.loops.edit', ['organization' => $this->org->slug, 'loop' => $loop->id]),
+            $html,
+        );
     }
 
     public function test_an_org_admin_cannot_touch_a_loop_of_another_organization(): void

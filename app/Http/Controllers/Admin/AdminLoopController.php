@@ -78,7 +78,7 @@ class AdminLoopController extends Controller
         return back()->with('success', $added === []
             ? __('loops.type_changed_no_card')
             : __('loops.type_changed', [
-                'cards' => collect($added)->map(fn ($k) => __(config('loop_cards.cards.'.$k.'.label_key')))->implode(', '),
+                'cards' => collect($added)->map(fn ($k) => $registry->cardLabel($k))->implode(', '),
             ]));
     }
 

@@ -166,8 +166,14 @@ class TASK1079LoopTypeRegistryTest extends TestCase
         $this->registry()->applyPreset($loop);
 
         $active = $this->registry()->activeCardsFor($loop);
-        $orders = array_map(fn ($k) => config('loop_cards.cards.'.$k.'.order'), $active);
+        // Array access: card keys contain a dot, so config() dot-notation would
+        // return null for every one of them and this assertion would pass on
+        // nothing at all.
+        $catalogue = config('loop_cards.cards');
+        $orders = array_map(fn ($k) => $catalogue[$k]['order'], $active);
 
+        $this->assertNotEmpty($orders);
+        $this->assertNotContains(null, $orders);
         $sorted = $orders;
         sort($sorted);
         $this->assertSame($sorted, $orders);
@@ -189,6 +195,19 @@ class TASK1079LoopTypeRegistryTest extends TestCase
         LoopCard::where('loop_id', $loop->id)->where('card_key', 'core.roadmap')->update(['enabled' => false]);
 
         $this->assertNotContains('core.roadmap', $this->registry()->activeCardsFor($loop->fresh()));
+    }
+
+    public function test_card_labels_resolve_instead_of_showing_raw_keys(): void
+    {
+        $loop = $this->loop('general');
+        $this->registry()->applyPreset($loop);
+
+        foreach (LoopCard::where('loop_id', $loop->id)->get() as $card) {
+            // Surfaced in the browser: the admin screens showed "core.manifesto"
+            // because config() dot-notation splits on the dot inside the key.
+            $this->assertNotSame($card->card_key, $card->label(), "Card {$card->card_key} renders as its raw key");
+            $this->assertNotSame($card->card_key, $this->registry()->cardLabel($card->card_key));
+        }
     }
 
     public function test_a_card_key_removed_from_the_catalogue_does_not_break_anything(): void

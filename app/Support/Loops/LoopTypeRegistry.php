@@ -91,6 +91,19 @@ class LoopTypeRegistry
     }
 
     /**
+     * Human label of a card key.
+     *
+     * Array access rather than config() dot-notation: keys contain a dot
+     * ("core.manifesto"), which dot-notation would split into a nested lookup.
+     */
+    public function cardLabel(string $cardKey): string
+    {
+        $definition = config('loop_cards.cards', [])[$cardKey] ?? null;
+
+        return $definition ? __($definition['label_key']) : $cardKey;
+    }
+
+    /**
      * Apply a type's preset to a Loop: add what is missing, remove nothing.
      *
      * Idempotent — running it twice adds nothing the second time — and
