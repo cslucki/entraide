@@ -198,6 +198,12 @@ class Loop extends Model
      * The designated primary Manifesto (a BlogPost). Null if none is designated
      * or if the designated post has been (soft) deleted (SoftDeletes scope).
      */
+    /** Targeted e-mail invitations sent for this Loop (TASK-1077). */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(LoopInvitation::class);
+    }
+
     /** Cards enabled on this Loop (TASK-1079); the catalogue lives in config. */
     public function cards(): HasMany
     {

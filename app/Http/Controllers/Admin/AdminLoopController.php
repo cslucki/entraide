@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Loop;
+use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,8 +28,16 @@ class AdminLoopController extends Controller
         $organizations = $this->adminOrganizations();
         $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
 
-        $query = Loop::with(['creator:id,name,email', 'organization:id,name,slug'])
-            ->withCount('activeMembers')
+        // Everything the list shows is counted in the query rather than walked
+        // per row: members, invitations (total and pending) and cards. `cards`
+        // is eager-loaded once for the badges — 25 rows, no N+1.
+        $query = Loop::with(['creator:id,name,email', 'organization:id,name,slug', 'cards'])
+            ->withCount([
+                'activeMembers',
+                'invitations',
+                'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
+                'cards as enabled_cards_count' => fn ($q) => $q->where('enabled', true),
+            ])
             ->latest();
 
         if ($selectedOrganizationId !== 'all') {
@@ -38,7 +48,38 @@ class AdminLoopController extends Controller
 
         $loops->load(['messages' => fn ($q) => $q->latest()->limit(1)]);
 
-        return view('admin.loops.index', compact('loops', 'organizations', 'selectedOrganizationId'));
+        return view('admin.loops.index', [
+            'loops' => $loops,
+            'organizations' => $organizations,
+            'selectedOrganizationId' => $selectedOrganizationId,
+            'loopTypes' => app(LoopTypeRegistry::class)->all(),
+        ]);
+    }
+
+    /**
+     * Change a Loop's type and apply the new preset.
+     *
+     * Additive only: missing cards are added, nothing is ever removed and no
+     * content is touched. The admin is told exactly what was added.
+     */
+    public function updateType(Request $request, Loop $loop): RedirectResponse
+    {
+        $registry = app(LoopTypeRegistry::class);
+
+        $type = (string) $request->input('type');
+
+        if (! $registry->exists($type)) {
+            return back()->with('error', __('loops.type_invalid'));
+        }
+
+        $loop->update(['type' => $type]);
+        $added = $registry->applyPreset($loop->fresh());
+
+        return back()->with('success', $added === []
+            ? __('loops.type_changed_no_card')
+            : __('loops.type_changed', [
+                'cards' => collect($added)->map(fn ($k) => __(config('loop_cards.cards.'.$k.'.label_key')))->implode(', '),
+            ]));
     }
 
     public function archive(Loop $loop): RedirectResponse

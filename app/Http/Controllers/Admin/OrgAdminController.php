@@ -8,6 +8,7 @@ use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\LoginLog;
 use App\Models\Loop;
+use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
@@ -24,6 +25,7 @@ use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use App\Services\UserDataLifecycleRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -133,7 +135,17 @@ class OrgAdminController extends Controller
     public function loops(Request $request, Organization $organization): View
     {
         $orgId = $organization->id;
-        $query = Loop::where('organization_id', $orgId)->with(['creator', 'activeMembers.user']);
+        // activeMembers stays eager-loaded: the page manages members inline, so
+        // the collection is genuinely needed, and with() is already the fix for
+        // N+1 rather than the cause. The new counters are aggregated in SQL so
+        // they cost nothing per row (TASK-1079).
+        $query = Loop::where('organization_id', $orgId)
+            ->with(['creator', 'owner.user', 'activeMembers.user', 'cards'])
+            ->withCount([
+                'activeMembers',
+                'invitations',
+                'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
+            ]);
 
         if ($request->filled('search')) {
             $query->where('name', 'like', '%'.$request->search.'%');
@@ -152,6 +164,7 @@ class OrgAdminController extends Controller
         return view('admin.org.loops', [
             'organization' => $organization,
             'loops' => $loops,
+            'loopTypes' => app(LoopTypeRegistry::class)->all(),
         ]);
     }
 
@@ -198,6 +211,43 @@ class OrgAdminController extends Controller
             'organization' => $organization,
             'posts' => $posts,
         ]);
+    }
+
+    /**
+     * Edit a Loop from the Organization admin: name, description, type.
+     *
+     * Strictly tenant-scoped, and deliberately narrow — the full editing
+     * surface stays in LoopController rather than being duplicated here.
+     */
+    public function updateLoop(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $registry = app(LoopTypeRegistry::class);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'type' => ['required', 'string'],
+        ]);
+
+        if (! $registry->exists($data['type'])) {
+            return back()->with('error', __('loops.type_invalid'));
+        }
+
+        $loop->update([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'type' => $data['type'],
+        ]);
+
+        $added = $registry->applyPreset($loop->fresh());
+
+        return back()->with('success', $added === []
+            ? __('loops.type_changed_no_card')
+            : __('loops.type_changed', [
+                'cards' => collect($added)->map(fn ($k) => __(config('loop_cards.cards.'.$k.'.label_key')))->implode(', '),
+            ]));
     }
 
     public function toggleLoopActive(Organization $organization, Loop $loop): RedirectResponse

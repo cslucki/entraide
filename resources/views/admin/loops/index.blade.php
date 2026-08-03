@@ -32,7 +32,10 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Visibilité</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">Statut</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">Créateur</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">{{ __('loops.type_label') }}</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">{{ __('loops.invitations_sent_count') }}</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden xl:table-cell">{{ __('loops.cards_linked') }}</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">Dernière activité</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
@@ -81,9 +84,37 @@
                         <span class="text-gray-400">—</span>
                         @endif
                     </td>
+                    <td class="px-4 py-3 hidden md:table-cell">
+                        {{-- Inline form: changing the type applies the preset, which
+                             only ever adds missing cards. Nothing is removed. --}}
+                        <form method="POST" action="{{ route('admin.loops.type.update', $orgLoop) }}">
+                            @csrf @method('PUT')
+                            <select name="type" onchange="this.form.submit()"
+                                    class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                @foreach($loopTypes as $key => $definition)
+                                    <option value="{{ $key }}" @selected(app(\App\Support\Loops\LoopTypeRegistry::class)->resolve($orgLoop->type) === $key)>{{ __($definition['label_key']) }}</option>
+                                @endforeach
+                            </select>
+                        </form>
+                    </td>
                     <td class="px-4 py-3">
                         <span class="font-medium text-gray-900 dark:text-gray-100">{{ $orgLoop->active_members_count }}</span>
                         <span class="text-xs text-gray-500 dark:text-gray-400"> membre{{ $orgLoop->active_members_count !== 1 ? 's' : '' }}</span>
+                    </td>
+                    <td class="px-4 py-3 hidden lg:table-cell whitespace-nowrap">
+                        {{-- Total, with pending as a sub-indication. Never a token. --}}
+                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ $orgLoop->invitations_count }}</span>
+                        @if($orgLoop->pending_invitations_count)
+                            <span class="text-xs text-amber-600 dark:text-amber-400"> · {{ $orgLoop->pending_invitations_count }} en attente</span>
+                        @endif
+                    </td>
+                    <td class="px-4 py-3 hidden xl:table-cell">
+                        {{-- Compact: a count plus the labels on hover, so the column
+                             stays narrow whatever the composition. --}}
+                        <span class="cursor-help rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                              title="{{ $orgLoop->cards->where('enabled', true)->map->label()->implode(', ') ?: '—' }}">
+                            {{ $orgLoop->enabled_cards_count }}
+                        </span>
                     </td>
                     <td class="px-4 py-3 hidden md:table-cell text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         @php $lastMsg = $orgLoop->messages->first(); @endphp
@@ -96,6 +127,7 @@
                     <td class="px-4 py-3">
                         <div class="flex gap-2 items-center">
                             <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
+                            <a href="{{ route('loops.show', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
                             <a href="{{ route('admin.loops.files', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Fichiers</a>
                             @if($orgLoop->isActive())
                             <form method="POST" action="{{ route('admin.loops.archive', $orgLoop) }}"
@@ -120,7 +152,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <td colspan="11" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                         Aucune boucle dans cette Organisation.
                     </td>
                 </tr>

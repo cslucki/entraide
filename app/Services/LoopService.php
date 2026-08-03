@@ -7,6 +7,7 @@ use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\Referral;
 use App\Models\User;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,7 @@ class LoopService
             'slug' => $slug,
             'description' => $description,
             'tagline' => $tagline,
-            'type' => 'custom',
+            'type' => app(LoopTypeRegistry::class)->default(),
             'status' => 'active',
             'visibility' => $visibility,
             'access_mode' => Loop::isValidAccessMode($accessMode) ? $accessMode : Loop::ACCESS_REQUEST,
@@ -53,7 +54,7 @@ class LoopService
             'description' => $description,
             'tagline' => $tagline,
             'cover_image_path' => $coverImagePath,
-            'type' => 'custom',
+            'type' => app(LoopTypeRegistry::class)->default(),
             'status' => 'active',
             'visibility' => $visibility,
             'access_mode' => Loop::isValidAccessMode($accessMode) ? $accessMode : Loop::ACCESS_REQUEST,
@@ -61,6 +62,10 @@ class LoopService
         ]);
 
         $this->addMember($loop, $user, 'owner');
+
+        // The type's card preset defines the Loop's starting composition
+        // (TASK-1079). Additive and idempotent — see LoopTypeRegistry.
+        app(LoopTypeRegistry::class)->applyPreset($loop);
 
         return $loop;
     }

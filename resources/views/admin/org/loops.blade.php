@@ -35,10 +35,43 @@
                 @forelse($loops as $boucle)
                 <tr class="{{ $boucle->isArchived() ? 'opacity-50' : '' }}">
                     <td class="px-4 py-3">
-                        <p class="font-medium text-gray-900 dark:text-gray-100">{{ $boucle->name }}</p>
-                        <p class="text-xs text-gray-500">{{ $boucle->slug }}</p>
+                        <form method="POST" action="{{ route('organization.admin.loops.update', ['organization' => $organization->slug, 'loop' => $boucle->id]) }}"
+                              class="flex flex-col gap-1">
+                            @csrf @method('PUT')
+                            <input type="hidden" name="type" value="{{ app(\App\Support\Loops\LoopTypeRegistry::class)->resolve($boucle->type) }}">
+                            <input type="text" name="name" value="{{ $boucle->name }}" required maxlength="255"
+                                   class="w-44 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium text-gray-900 hover:border-gray-300 focus:border-indigo-500 focus:bg-white dark:text-gray-100 dark:hover:border-gray-600 dark:focus:bg-gray-900">
+                            <textarea name="description" rows="1" maxlength="5000" placeholder="—"
+                                      class="w-44 resize-none rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-gray-500 hover:border-gray-300 focus:border-indigo-500 focus:bg-white dark:hover:border-gray-600 dark:focus:bg-gray-900">{{ $boucle->description }}</textarea>
+                            <div class="flex items-center gap-2">
+                                <button type="submit" class="text-[10px] font-semibold text-indigo-600 hover:underline">{{ __('navigation.org_admin_table_actions') }}</button>
+                                <a href="{{ route('loops.show', $boucle) }}" class="text-[10px] text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
+                            </div>
+                        </form>
+                        <p class="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-gray-400">
+                            <span>{{ $boucle->active_members_count }} membre{{ $boucle->active_members_count !== 1 ? 's' : '' }}</span>
+                            <span>· {{ $boucle->invitations_count }} {{ mb_strtolower(__('loops.invitations_sent_count')) }}@if($boucle->pending_invitations_count) ({{ $boucle->pending_invitations_count }} en attente)@endif</span>
+                            <span class="cursor-help" title="{{ $boucle->cards->where('enabled', true)->map->label()->implode(', ') ?: '—' }}">
+                                · {{ $boucle->cards->where('enabled', true)->count() }} {{ mb_strtolower(__('loops.cards_linked')) }}
+                            </span>
+                        </p>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 capitalize">{{ $boucle->type }}</td>
+                    <td class="px-4 py-3">
+                        {{-- Inline edit of name, description and type. Applying the
+                             new type's preset only ever adds missing cards. --}}
+                        <form method="POST" action="{{ route('organization.admin.loops.update', ['organization' => $organization->slug, 'loop' => $boucle->id]) }}"
+                              class="flex flex-col gap-1">
+                            @csrf @method('PUT')
+                            <input type="hidden" name="name" value="{{ $boucle->name }}">
+                            <input type="hidden" name="description" value="{{ $boucle->description }}">
+                            <select name="type" onchange="this.form.submit()"
+                                    class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                @foreach($loopTypes as $key => $definition)
+                                    <option value="{{ $key }}" @selected(app(\App\Support\Loops\LoopTypeRegistry::class)->resolve($boucle->type) === $key)>{{ __($definition['label_key']) }}</option>
+                                @endforeach
+                            </select>
+                        </form>
+                    </td>
                     <td class="px-4 py-3">
                         @php
                             $sc = $boucle->isActive() ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'

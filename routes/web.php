@@ -568,6 +568,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/loops/{loop}/members', [AdminLoopController::class, 'addMember'])->name('loops.members.add');
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
+    Route::put('/loops/{loop}/type', [AdminLoopController::class, 'updateType'])->name('loops.type.update');
     Route::post('/loops/{loop}/archive', [AdminLoopController::class, 'archive'])->name('loops.archive');
     Route::post('/loops/{loop}/restore', [AdminLoopController::class, 'restore'])->name('loops.restore');
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
@@ -867,6 +868,7 @@ Route::prefix('/org/{organization}')
 
                 // Community
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
+                Route::put('/loops/{loop}', [OrgAdminController::class, 'updateLoop'])->name('loops.update');
                 Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
                 Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
                 Route::delete('/loops/{loop}/members/{member}', [OrgAdminController::class, 'removeLoopMember'])->name('loops.members.remove');
