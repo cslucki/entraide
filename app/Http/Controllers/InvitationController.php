@@ -3,10 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\EmailLog;
+use App\Models\LoopInvitation;
 use Illuminate\View\View;
 
 class InvitationController extends Controller
 {
+    /**
+     * Personal invitation tracking.
+     *
+     * Every query here is scoped to the signed-in user — this screen has always
+     * been "my invitations", not an Organization-wide console. Loop invitations
+     * follow the same rule through LoopInvitation::visibleTo(), which widens the
+     * set for Loop owners and Organization admins without exposing one member's
+     * invitations to another.
+     */
     public function index(): View
     {
         $user = auth()->user();
@@ -33,6 +43,14 @@ class InvitationController extends Controller
 
         $orgSlug = $user->organization?->slug;
 
+        // Loaded in full rather than paginated: an Organization holds ~200 people,
+        // so the list stays small and the filters below can stay client-side,
+        // matching the catalog pattern and adding no new frontend dependency.
+        $loopInvitations = LoopInvitation::visibleTo($user)
+            ->with(['loop', 'sender'])
+            ->latest()
+            ->get();
+
         return view('invitations.index', compact(
             'referralPointsEarned',
             'sentReferralsCount',
@@ -40,6 +58,7 @@ class InvitationController extends Controller
             'referralLink',
             'sentInvitations',
             'joinedInvitations',
+            'loopInvitations',
             'orgSlug',
         ));
     }

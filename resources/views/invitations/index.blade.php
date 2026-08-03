@@ -98,6 +98,117 @@
             </div>
         </div>
 
+        {{--
+            Loop invitations. Full width under the two-column grid rather than a
+            third column: the rows carry more fields than the referral cards and
+            would be unreadable squeezed beside them.
+
+            Filtering and search are client-side Alpine over an already-loaded
+            collection — same approach as the Loop catalog, no new dependency,
+            and appropriate for an Organization of ~200 people.
+        --}}
+        <div class="mt-6 rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+             x-data="{ q: '', status: '' }">
+            <div class="flex flex-wrap items-center gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+                <h2 class="mr-auto font-semibold text-gray-900 dark:text-gray-100">
+                    {{ __('loops.invitations_loop_section_title') }}
+                </h2>
+
+                @if($loopInvitations->isNotEmpty())
+                    <input type="search" x-model="q" placeholder="{{ __('loops.invitations_search_placeholder') }}"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 sm:w-64">
+                    <select x-model="status"
+                            class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                        <option value="">{{ __('loops.invitations_filter_all') }}</option>
+                        @foreach(['pending', 'accepted', 'expired', 'revoked'] as $state)
+                            <option value="{{ $state }}">{{ __('loops.invitations_status_'.$state) }}</option>
+                        @endforeach
+                    </select>
+                @endif
+            </div>
+
+            @if($loopInvitations->isEmpty())
+                <div class="px-5 py-10 text-center text-sm text-gray-400">{{ __('loops.invitations_loop_section_empty') }}</div>
+            @else
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[46rem] text-left text-sm">
+                        <thead class="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400 dark:border-gray-700">
+                            <tr>
+                                <th class="px-5 py-2 font-medium">{{ __('loops.invitations_col_recipient') }}</th>
+                                <th class="px-5 py-2 font-medium">{{ __('loops.invitations_col_loop') }}</th>
+                                <th class="px-5 py-2 font-medium">{{ __('loops.invitations_col_sender') }}</th>
+                                <th class="px-5 py-2 font-medium">{{ __('loops.invitations_col_sent_at') }}</th>
+                                <th class="px-5 py-2 font-medium">{{ __('loops.invitations_col_expires_at') }}</th>
+                                <th class="px-5 py-2 font-medium"></th>
+                                <th class="px-5 py-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            @foreach($loopInvitations as $invitation)
+                                @php
+                                    // Mirrors the pill component: a row still flagged pending
+                                    // past its window must filter as expired, not as pending.
+                                    $state = match (true) {
+                                        $invitation->isRevoked() => 'revoked',
+                                        $invitation->isAccepted() => 'accepted',
+                                        $invitation->isExpired() => 'expired',
+                                        default => 'pending',
+                                    };
+                                    $haystack = mb_strtolower(trim(implode(' ', [
+                                        $invitation->recipient_name,
+                                        $invitation->recipient_email,
+                                        $invitation->loop?->name,
+                                    ])));
+                                @endphp
+                                <tr x-show="(q === '' || {{ \Illuminate\Support\Js::from($haystack) }}.includes(q.toLowerCase()))
+                                            && (status === '' || status === {{ \Illuminate\Support\Js::from($state) }})">
+                                    <td class="px-5 py-3">
+                                        <p class="font-medium text-gray-800 dark:text-gray-100">{{ $invitation->recipient_name ?: '—' }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $invitation->recipient_email }}</p>
+                                        <p class="text-xs text-gray-400">
+                                            {{ __('loops.invitations_recipient_'.($invitation->invitation_type === \App\Models\LoopInvitation::TYPE_EXISTING_MEMBER ? 'existing_member' : 'external')) }}
+                                        </p>
+                                    </td>
+                                    <td class="px-5 py-3">
+                                        {{-- visibleTo() already constrains rows to the user's own
+                                             Organization, and loops.show degrades to the public
+                                             presentation page for non-members, so the target is
+                                             always safely reachable from here. --}}
+                                        @if($invitation->loop)
+                                            <a href="{{ route('loops.show', $invitation->loop) }}"
+                                               class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ $invitation->loop->name }}</a>
+                                        @else
+                                            <span class="text-gray-700 dark:text-gray-300">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-5 py-3 text-gray-700 dark:text-gray-300">{{ $invitation->sender?->publicDisplayName() ?? '—' }}</td>
+                                    <td class="px-5 py-3 text-gray-500 dark:text-gray-400">{{ $invitation->created_at?->isoFormat('L') }}</td>
+                                    <td class="px-5 py-3 text-gray-500 dark:text-gray-400">{{ $invitation->expires_at?->isoFormat('L') ?? '—' }}</td>
+                                    <td class="px-5 py-3">
+                                        <x-loops.invitation-status :invitation="$invitation" />
+                                        @if($invitation->isAccepted() && $invitation->accepted_at)
+                                            <p class="mt-1 text-xs text-gray-400">{{ __('loops.invitations_col_accepted_at') }} {{ $invitation->accepted_at->isoFormat('L') }}</p>
+                                        @endif
+                                    </td>
+                                    <td class="px-5 py-3 text-right">
+                                        @if($invitation->isPending() && $invitation->loop && auth()->user()->can('update', $invitation->loop))
+                                            <form method="POST" action="{{ route('loop-invitations.revoke', $invitation) }}">
+                                                @csrf
+                                                <button type="submit"
+                                                        class="rounded-lg px-2 py-1 text-xs font-medium text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                                                    {{ __('loops.invitations_action_revoke') }}
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+
         @if($referralLink)
             <div x-show="modalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center">
                 <div class="fixed inset-0 bg-black/50" @click="modalOpen = false"></div>

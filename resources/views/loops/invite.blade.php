@@ -70,10 +70,40 @@
             @endif
         </div>
 
-        {{-- Email invitations stay where they already live: the Members Card of the
-             Loop. Building a Loop-targeted email invitation needs a persisted
-             invitation entity, which does not exist yet — tracked as a dedicated
-             follow-up task rather than half-built here. --}}
+        <div class="mt-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.invite_email_title') }}</h2>
+            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ __('loops.invite_email_help') }}</p>
+
+            <form method="POST" action="{{ $_loopRoute('invitations.store', ['loop' => $currentLoop]) }}" class="mt-4 space-y-3">
+                @csrf
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('loops.invite_email_label') }}</span>
+                        <input type="email" name="email" required
+                               class="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('loops.invite_email_name_label') }}</span>
+                        <input type="text" name="name"
+                               class="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                    </label>
+                </div>
+                <label class="block">
+                    <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('loops.invite_email_message_label') }}</span>
+                    <textarea name="message" rows="2"
+                              class="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                </label>
+                @error('email')
+                    <p class="text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                @enderror
+                <button type="submit"
+                        class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white sm:w-auto">
+                    {{ __('loops.invite_email_submit') }}
+                </button>
+            </form>
+
+            <x-loops.invitation-list :invitations="$pendingInvitations" class="mt-5" />
+        </div>
 
         <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-between">
             <a href="{{ $_loopRoute('index') }}"

@@ -109,6 +109,33 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><a href="{{ article_url }}">Read the article: {{ article_title }}</a></p>',
             'variables' => ['sender_name', 'recipient_name', 'sender_message', 'article_url', 'article_title', 'register_url'],
         ],
+        'loop_invitation' => [
+            'name_fr' => 'Invitation à rejoindre une Boucle',
+            'name_en' => 'Invitation to join a Loop',
+            'subject_fr' => '{{ sender_name }} vous invite à rejoindre la Boucle {{ loop_name }}',
+            'subject_en' => '{{ sender_name }} invites you to join the {{ loop_name }} Loop',
+            'content_html_fr' => '<h1>{{ sender_name }} vous invite à rejoindre {{ loop_name }}</h1>
+<p>Bonjour {{ recipient_name }},</p>
+<p><strong>{{ sender_name }}</strong> vous invite à rejoindre la Boucle <strong>{{ loop_name }}</strong> au sein de {{ organization_name }}.</p>
+<p><em>{{ loop_tagline }}</em></p>
+<blockquote>{{ personal_message }}</blockquote>
+<p><a href="{{ invitation_url }}">Voir l\'invitation et rejoindre la Boucle</a></p>
+<p>Cette invitation expire le {{ expires_at }}.</p>
+<p>— {{ app_name }}</p>',
+            'content_html_en' => '<h1>{{ sender_name }} invites you to join {{ loop_name }}</h1>
+<p>Hello {{ recipient_name }},</p>
+<p><strong>{{ sender_name }}</strong> invites you to join the <strong>{{ loop_name }}</strong> Loop within {{ organization_name }}.</p>
+<p><em>{{ loop_tagline }}</em></p>
+<blockquote>{{ personal_message }}</blockquote>
+<p><a href="{{ invitation_url }}">View the invitation and join the Loop</a></p>
+<p>This invitation expires on {{ expires_at }}.</p>
+<p>— {{ app_name }}</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
+                'loop_name', 'loop_tagline', 'personal_message', 'invitation_url',
+                'expires_at', 'app_name',
+            ],
+        ],
     ];
 
     public function run(): void
