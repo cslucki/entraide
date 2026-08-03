@@ -214,30 +214,94 @@ class LoopManifestoCard extends Component
             ->first();
     }
 
+    /**
+     * Reading the Manifesto inside the workspace.
+     *
+     * Active members, the admin of the scoped Organization, and the platform
+     * super-admin. The Organization admin is included deliberately: they may
+     * edit the Manifesto (see canManageDesignation), and granting write without
+     * read would leave them staring at an empty card.
+     */
     private function canRead(): bool
     {
         $user = auth()->user();
+
         if (! $user || $user->isDeactivated()) {
             return false;
         }
 
-        return $user->is_admin || $this->activeMembership() !== null;
+        if ($user->is_admin) {
+            return true;
+        }
+
+        if ($this->loop->organization_id === $user->organization_id
+            && $this->loop->organization?->admin_id === $user->id) {
+            return true;
+        }
+
+        return $this->activeMembership() !== null;
     }
 
-    /** Designation is reserved to owner / moderator / super-admin. */
+    /**
+     * Who may edit the Manifesto (TASK-1079).
+     *
+     * Deliberately narrow: the Loop owner, the admin of the scoped Organization,
+     * and the platform super-admin. A moderator used to qualify — the Manifesto
+     * is the Loop's founding text, not day-to-day moderation, so that was too
+     * wide. Everyone else reads only.
+     */
     private function canManageDesignation(): bool
     {
         $user = auth()->user();
+
         if (! $user || $user->isDeactivated()) {
             return false;
         }
+
         if ($user->is_admin) {
+            return true;
+        }
+
+        // Admin of the Organization this Loop belongs to — and only that one.
+        if ($this->loop->organization_id === $user->organization_id
+            && $this->loop->organization?->admin_id === $user->id) {
             return true;
         }
 
         $membership = $this->activeMembership();
 
-        return $membership !== null && in_array($membership->role, ['owner', 'moderator'], true);
+        return $membership !== null && $membership->role === 'owner';
+    }
+
+    /**
+     * Manifesto body, sanitised for display inside the card.
+     *
+     * The Blog editor already sanitises on save, but the starter content is
+     * inserted directly by createManifesto(), and a card is not the place to
+     * trust that: this is defence in depth. The allowlist is deliberately
+     * narrower than the Blog one — no iframe, no div, no table in a side panel.
+     */
+    private function renderManifesto(?BlogPost $manifesto): string
+    {
+        if (! $manifesto) {
+            return '';
+        }
+
+        $allowed = ['h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 'br', 'a', 'code', 'pre', 'blockquote'];
+
+        // Whole blocks first: strip_tags removes the tags but keeps their text,
+        // so a <script> would survive as visible "alert(1)" gibberish. Inert,
+        // but it has no business being displayed.
+        $html = preg_replace('#<(script|style|template)\b[^>]*>.*?</\1>#is', '', (string) $manifesto->content);
+
+        $html = strip_tags((string) $html, '<'.implode('><', $allowed).'>');
+
+        // Strip event handlers and javascript:/data: URLs that survive strip_tags
+        // because they live in attributes of otherwise allowed tags.
+        $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+        $html = preg_replace('/<(\w+)\s[^>]*(?:javascript|data)\s*:\s*[^"\'>\s]+/i', '<$1', $html);
+
+        return (string) $html;
     }
 
     public function placeholder()
@@ -258,6 +322,7 @@ class LoopManifestoCard extends Component
 
         return view('livewire.loop-manifesto-card', [
             'manifesto' => $manifesto,
+            'manifestoHtml' => $this->renderManifesto($manifesto),
             'version' => $version,
             'canRead' => $canRead,
             'canManage' => $canManage,

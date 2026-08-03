@@ -81,7 +81,7 @@ class LoopManifestoCardTest extends TestCase
             ->assertSee(__('loops.manifesto_pitch'));
     }
 
-    public function test_moderator_can_designate_a_linked_article(): void
+    public function test_moderator_can_no_longer_designate(): void
     {
         $post = $this->linkedPost('Manifeste');
         $this->actingAs($this->moderator);
@@ -89,7 +89,11 @@ class LoopManifestoCardTest extends TestCase
         Livewire::test(LoopManifestoCard::class, ['loop' => $this->loop])
             ->call('designate', $post->id);
 
-        $this->assertSame($post->id, $this->loop->fresh()->manifesto_blog_post_id);
+        // TASK-1079: editing the Manifesto is reserved to the Loop owner, the
+        // scoped Organization admin and the super-admin. The Manifesto is the
+        // Loop's founding text, not day-to-day moderation, so a moderator no
+        // longer qualifies.
+        $this->assertNull($this->loop->fresh()->manifesto_blog_post_id);
     }
 
     public function test_regular_member_cannot_designate(): void

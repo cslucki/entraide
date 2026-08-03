@@ -1,9 +1,4 @@
 <div class="space-y-4">
-    <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __('loops.cards.manifesto.label') }}</p>
-        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('loops.cards.manifesto.description') }}</p>
-    </div>
-
     @if($errorMessage)
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200">{{ $errorMessage }}</div>
     @endif
@@ -42,8 +37,14 @@
                     {{ $manifesto->status === 'published' ? __('loops.manifesto_published') : __('loops.manifesto_draft') }}
                 </span>
             </div>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ \Illuminate\Support\Str::limit(strip_tags((string) ($manifesto->summary ?: $manifesto->content)), 240) }}</p>
-            <p class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500">
+            {{-- The Manifesto itself, rendered in full. A 240-character excerpt
+                 made the card pointless: this is the founding text, reading it
+                 is the whole purpose of opening the card. Sanitised on the way
+                 out — the content comes from the Blog editor. --}}
+            <div class="prose prose-sm mt-3 max-w-none text-gray-700 dark:prose-invert dark:text-gray-200">
+                {!! $manifestoHtml !!}
+            </div>
+            <p class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-gray-100 pt-3 text-[11px] text-gray-400 dark:border-gray-800 dark:text-gray-500">
                 @if($manifesto->user)<span>{{ __('loops.manifesto_by', ['name' => $manifesto->user->publicDisplayName()]) }}</span>@endif
                 <span>{{ __('loops.manifesto_updated', ['date' => $manifesto->updated_at?->isoFormat('D MMM Y')]) }}</span>
                 @if($version)<span class="rounded bg-gray-100 px-1.5 py-0.5 font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">v{{ $version }}</span>@endif
