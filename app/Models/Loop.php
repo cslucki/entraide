@@ -160,9 +160,33 @@ class Loop extends Model
      * transferred imperfectly or the owner left (edge case, handled
      * gracefully in views rather than enforced here).
      */
+    /** Every active owner. A Loop may have several; they all have equal rights. */
+    public function owners(): HasMany
+    {
+        return $this->hasMany(LoopMember::class)
+            ->where('role', 'owner')
+            ->where('status', 'active')
+            ->orderBy('joined_at');
+    }
+
+    /**
+     * @deprecated TASK-1079 CP5ter — display compatibility only.
+     *
+     * A Loop can have several owners and there is no business notion of a
+     * "primary owner". This relation exists solely so the screens written when
+     * a single owner was assumed keep rendering; it is ordered by joined_at so
+     * the value is at least deterministic instead of whichever row the database
+     * returned first.
+     *
+     * **Never use it to authorise anything** — LoopPermissionResolver is the
+     * only authority. New screens use owners().
+     */
     public function owner(): HasOne
     {
-        return $this->hasOne(LoopMember::class)->where('role', 'owner')->where('status', 'active');
+        return $this->hasOne(LoopMember::class)
+            ->where('role', 'owner')
+            ->where('status', 'active')
+            ->orderBy('joined_at');
     }
 
     public function messages(): HasMany

@@ -13,6 +13,7 @@ use App\Models\Referral;
 use App\Models\User;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\ChatLoop\ChatLoopAiService;
+use App\Services\LoopGovernanceService;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
 use App\Support\Tenancy\CurrentOrganization;
@@ -663,12 +664,15 @@ class LoopController extends Controller
                 ->with('info', __('loops.not_member'));
         }
 
-        if ($member->role === 'owner') {
-            return redirect($this->loopRoute('loops.show', $loop))
-                ->with('error', __('loops.owner_cannot_leave'));
-        }
+        // Through the governance service, never a direct mutation: a controller
+        // writing the row itself would sidestep the last-owner invariant. An
+        // owner may now leave as long as another active one remains.
+        $result = app(LoopGovernanceService::class)->leave($loop, $user->id);
 
-        $member->update(['status' => 'left']);
+        if ($result === LoopGovernanceService::RESULT_LAST_OWNER) {
+            return redirect($this->loopRoute('loops.show', $loop))
+                ->with('error', __('loops.last_owner_cannot_leave'));
+        }
 
         $orgSlug = request()->route('organization');
         $indexRoute = $orgSlug && Route::has('organization.loops.index')

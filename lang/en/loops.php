@@ -438,4 +438,6 @@ return [
     'type_invalid' => 'This Loop type does not exist.',
     'cards_linked' => 'Linked Cards',
     'invitations_sent_count' => 'Invitations',
+    'last_owner_cannot_leave' => 'You are the last active owner: appoint another owner before leaving this Loop.',
+    'members_role_facilitator' => 'Facilitator',
 ];

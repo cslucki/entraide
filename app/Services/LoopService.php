@@ -7,6 +7,7 @@ use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\Referral;
 use App\Models\User;
+use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -94,7 +95,15 @@ class LoopService
                 throw new \RuntimeException('User is already a member of this loop.');
             }
 
-            $existing->update(['status' => 'active', 'joined_at' => now()]);
+            // Reactivation must honour the role the caller asked for. It used to
+            // set status alone, so re-adding a former member "as owner" silently
+            // handed them back whatever role their old row happened to carry
+            // (TASK-1079 CP5ter).
+            $existing->update([
+                'status' => 'active',
+                'joined_at' => now(),
+                'role' => app(LoopRoleRegistry::class)->canonical($role),
+            ]);
 
             return $existing;
         }
@@ -153,13 +162,18 @@ class LoopService
         return ['added' => $added, 'skipped' => $skipped];
     }
 
+    /**
+     * Kept as the historical entry point, now delegating to the governance
+     * service. The blanket refusal for any owner is gone: an owner may be
+     * removed while another active one remains, and only the last is protected.
+     */
     public function removeMember(LoopMember $member): void
     {
-        if ($member->role === 'owner') {
-            throw new \RuntimeException('Cannot remove the owner of a loop.');
-        }
+        $result = app(LoopGovernanceService::class)->removeMember($member);
 
-        $member->update(['status' => 'left']);
+        if ($result === LoopGovernanceService::RESULT_LAST_OWNER) {
+            throw new \RuntimeException('Cannot remove the last active owner of a loop.');
+        }
     }
 
     public function addMember(Loop $loop, User $user, string $role = 'member'): LoopMember

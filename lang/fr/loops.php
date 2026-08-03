@@ -438,4 +438,6 @@ return [
     'type_invalid' => 'Ce type de Boucle n\'existe pas.',
     'cards_linked' => 'Cards liées',
     'invitations_sent_count' => 'Invitations',
+    'last_owner_cannot_leave' => 'Vous êtes le dernier propriétaire actif : nommez un autre propriétaire avant de quitter cette Boucle.',
+    'members_role_facilitator' => 'Animateur',
 ];
