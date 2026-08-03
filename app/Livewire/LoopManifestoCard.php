@@ -6,6 +6,7 @@ use App\Models\BlogPost;
 use App\Models\BlogSnapshot;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Services\LoopManifestoService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
@@ -15,6 +16,8 @@ class LoopManifestoCard extends Component
     public Loop $loop;
 
     public bool $choosing = false;
+
+    public bool $pickingSource = false;
 
     public ?string $errorMessage = null;
 
@@ -79,6 +82,80 @@ class LoopManifestoCard extends Component
 
         $this->loop->forceFill(['manifesto_blog_post_id' => null])->save();
         $this->choosing = false;
+    }
+
+    /**
+     * Publish the Manifesto — always an explicit human action (TASK-1079).
+     * Never triggered by an edit, never automatic.
+     */
+    public function publish(): void
+    {
+        $this->errorMessage = null;
+
+        if (! $this->canManageDesignation()) {
+            return;
+        }
+
+        if (! app(LoopManifestoService::class)->publish($this->loop)) {
+            $this->errorMessage = __('loops.manifesto_publish_impossible');
+        }
+
+        $this->loop->refresh();
+    }
+
+    /** Back to draft: leaves the public presentation immediately. */
+    public function unpublish(): void
+    {
+        $this->errorMessage = null;
+
+        if (! $this->canManageDesignation()) {
+            return;
+        }
+
+        app(LoopManifestoService::class)->unpublish($this->loop);
+        $this->loop->refresh();
+    }
+
+    /** Link a Dossiers document. No copy is ever made — see the service. */
+    public function attachSource(string $dossierFileId): void
+    {
+        $this->errorMessage = null;
+
+        if (! $this->canManageDesignation()) {
+            return;
+        }
+
+        $outcome = app(LoopManifestoService::class)
+            ->attachSource($this->loop, $dossierFileId, auth()->user());
+
+        if (! in_array($outcome['result'], [
+            LoopManifestoService::RESULT_ATTACHED,
+            LoopManifestoService::RESULT_ALREADY_ATTACHED,
+        ], true)) {
+            $this->errorMessage = __('loops.manifesto_source_refused');
+        }
+
+        $this->pickingSource = false;
+    }
+
+    /** Unlinks only: the document stays in Dossiers, untouched. */
+    public function detachSource(string $dossierFileId): void
+    {
+        if (! $this->canManageDesignation()) {
+            return;
+        }
+
+        app(LoopManifestoService::class)->detachSource($this->loop, $dossierFileId);
+    }
+
+    public function togglePickingSource(): void
+    {
+        if (! $this->canManageDesignation()) {
+            return;
+        }
+
+        $this->pickingSource = ! $this->pickingSource;
+        $this->errorMessage = null;
     }
 
     public function toggleChoosing(): void
@@ -187,6 +264,14 @@ class LoopManifestoCard extends Component
             'canCreate' => $canManage && Gate::allows('create', BlogPost::class),
             'candidates' => ($canManage && $this->choosing) ? $this->candidates() : collect(),
             'editorUrl' => $manifesto ? route('blog.edit', $manifesto) : null,
+            'sources' => $canRead ? app(LoopManifestoService::class)->sourcesFor($this->loop) : collect(),
+            'candidateFiles' => ($canManage && $this->pickingSource)
+                ? app(LoopManifestoService::class)->candidateFiles($this->loop, 50)
+                : collect(),
+            // Shown as a plain statement of what the outside world can see, so
+            // publishing is never a leap of faith.
+            'isPublic' => $this->loop->hasPublicManifesto(),
+            'loopIsPrivate' => $this->loop->visibility === 'private',
         ]);
     }
 }

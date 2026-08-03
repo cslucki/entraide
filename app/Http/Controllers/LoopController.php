@@ -498,9 +498,17 @@ class LoopController extends Controller
             ->where('status', LoopJoinRequest::STATUS_PENDING)
             ->first();
 
+        // Resolved here rather than in the view, so a private or unpublished
+        // Manifesto never reaches the response at all — not as markup, not in a
+        // meta tag, not anywhere in the DOM. hasPublicManifesto() requires both
+        // a non-private Loop and an explicitly published article; the Manifesto
+        // is never a fallback for a missing description.
+        $publicManifesto = $loop->hasPublicManifesto() ? $loop->manifesto : null;
+
         return view('loops.presentation', [
             'loop' => $loop,
             'pendingRequest' => $pendingRequest,
+            'publicManifesto' => $publicManifesto,
         ]);
     }
 
