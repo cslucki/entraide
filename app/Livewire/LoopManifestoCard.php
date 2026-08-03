@@ -7,6 +7,7 @@ use App\Models\BlogSnapshot;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Services\LoopManifestoService;
+use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
@@ -92,7 +93,7 @@ class LoopManifestoCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->canManageDesignation()) {
+        if (! $this->canPublish()) {
             return;
         }
 
@@ -108,7 +109,7 @@ class LoopManifestoCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->canManageDesignation()) {
+        if (! $this->canPublish()) {
             return;
         }
 
@@ -121,7 +122,7 @@ class LoopManifestoCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->canManageDesignation()) {
+        if (! $this->canManageSources()) {
             return;
         }
 
@@ -141,7 +142,7 @@ class LoopManifestoCard extends Component
     /** Unlinks only: the document stays in Dossiers, untouched. */
     public function detachSource(string $dossierFileId): void
     {
-        if (! $this->canManageDesignation()) {
+        if (! $this->canManageSources()) {
             return;
         }
 
@@ -214,63 +215,48 @@ class LoopManifestoCard extends Component
             ->first();
     }
 
-    /**
-     * Reading the Manifesto inside the workspace.
-     *
-     * Active members, the admin of the scoped Organization, and the platform
-     * super-admin. The Organization admin is included deliberately: they may
-     * edit the Manifesto (see canManageDesignation), and granting write without
-     * read would leave them staring at an empty card.
-     */
+    /** Reading the Manifesto inside the workspace, resolved centrally. */
     private function canRead(): bool
     {
         $user = auth()->user();
 
-        if (! $user || $user->isDeactivated()) {
-            return false;
-        }
-
-        if ($user->is_admin) {
-            return true;
-        }
-
-        if ($this->loop->organization_id === $user->organization_id
-            && $this->loop->organization?->admin_id === $user->id) {
-            return true;
-        }
-
-        return $this->activeMembership() !== null;
+        return $user !== null
+            && app(LoopPermissionResolver::class)->can($user, $this->loop, 'manifesto.view');
     }
 
     /**
-     * Who may edit the Manifesto (TASK-1079).
+     * Who may edit the Manifesto — now resolved centrally (CP5ter).
      *
-     * Deliberately narrow: the Loop owner, the admin of the scoped Organization,
-     * and the platform super-admin. A moderator used to qualify — the Manifesto
-     * is the Loop's founding text, not day-to-day moderation, so that was too
-     * wide. Everyone else reads only.
+     * Was an inline owner check. The rule is unchanged for owners, admins and
+     * members; what it gains is the facilitator, and the ability for a type or
+     * an Organization to vary it.
      */
     private function canManageDesignation(): bool
     {
         $user = auth()->user();
 
-        if (! $user || $user->isDeactivated()) {
-            return false;
-        }
+        return $user !== null
+            && app(LoopPermissionResolver::class)->can($user, $this->loop, 'manifesto.update');
+    }
 
-        if ($user->is_admin) {
-            return true;
-        }
+    /**
+     * Publishing is a separate capability: a facilitator edits the Manifesto
+     * but does not publish it by default, and that default is configurable.
+     */
+    private function canPublish(): bool
+    {
+        $user = auth()->user();
 
-        // Admin of the Organization this Loop belongs to — and only that one.
-        if ($this->loop->organization_id === $user->organization_id
-            && $this->loop->organization?->admin_id === $user->id) {
-            return true;
-        }
+        return $user !== null
+            && app(LoopPermissionResolver::class)->can($user, $this->loop, 'manifesto.publish');
+    }
 
-        $membership = $this->activeMembership();
+    private function canManageSources(): bool
+    {
+        $user = auth()->user();
 
-        return $membership !== null && $membership->role === 'owner';
+        return $user !== null
+            && app(LoopPermissionResolver::class)->can($user, $this->loop, 'manifesto.manage_sources');
     }
 
     /**
@@ -296,8 +282,6 @@ class LoopManifestoCard extends Component
 
         $html = strip_tags((string) $html, '<'.implode('><', $allowed).'>');
 
-        // Strip event handlers and javascript:/data: URLs that survive strip_tags
-        // because they live in attributes of otherwise allowed tags.
         $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
         $html = preg_replace('/<(\w+)\s[^>]*(?:javascript|data)\s*:\s*[^"\'>\s]+/i', '<$1', $html);
 
@@ -326,6 +310,8 @@ class LoopManifestoCard extends Component
             'version' => $version,
             'canRead' => $canRead,
             'canManage' => $canManage,
+            'canPublish' => $this->canPublish(),
+            'canManageSources' => $this->canManageSources(),
             'canCreate' => $canManage && Gate::allows('create', BlogPost::class),
             'candidates' => ($canManage && $this->choosing) ? $this->candidates() : collect(),
             'editorUrl' => $manifesto ? route('blog.edit', $manifesto) : null,

@@ -68,7 +68,7 @@
             @endif
         </div>
 
-        @if($canManage)
+        @if($canPublish)
             <div class="flex items-center gap-2">
                 @if($manifesto->status === 'published')
                     <button type="button" wire:click="unpublish" class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition hover:border-amber-300 hover:text-amber-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-amber-600 dark:hover:text-amber-300">
@@ -89,7 +89,7 @@
                 <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     {{ __('loops.manifesto_sources_title') }}
                 </h4>
-                @if($canManage)
+                @if($canManageSources)
                     <button type="button" wire:click="togglePickingSource" class="rounded-lg px-2 py-1 text-xs font-semibold text-violet-600 transition hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-900/20">
                         {{ $pickingSource ? __('loops.manifesto_sources_cancel') : __('loops.manifesto_sources_add') }}
                     </button>
@@ -114,7 +114,7 @@
                     <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M9 16.5v.75m3-3v3M15 12v5.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
                     <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-200">{{ $source->dossierFile->display_name }}</span>
                     <span class="shrink-0 text-[10px] text-gray-400">{{ $source->dossierFile->dossier?->name ?? '—' }}</span>
-                    @if($canManage)
+                    @if($canManageSources)
                         <button type="button" wire:click="detachSource('{{ $source->dossier_file_id }}')" class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
                             {{ __('loops.manifesto_sources_detach') }}
                         </button>

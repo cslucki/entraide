@@ -81,7 +81,7 @@ class LoopManifestoCardTest extends TestCase
             ->assertSee(__('loops.manifesto_pitch'));
     }
 
-    public function test_moderator_can_no_longer_designate(): void
+    public function test_a_legacy_moderator_designates_as_a_facilitator(): void
     {
         $post = $this->linkedPost('Manifeste');
         $this->actingAs($this->moderator);
@@ -89,11 +89,15 @@ class LoopManifestoCardTest extends TestCase
         Livewire::test(LoopManifestoCard::class, ['loop' => $this->loop])
             ->call('designate', $post->id);
 
-        // TASK-1079: editing the Manifesto is reserved to the Loop owner, the
-        // scoped Organization admin and the super-admin. The Manifesto is the
-        // Loop's founding text, not day-to-day moderation, so a moderator no
-        // longer qualifies.
-        $this->assertNull($this->loop->fresh()->manifesto_blog_post_id);
+        // Third state of this assertion, and the reasoning is worth recording.
+        // Originally a moderator could designate. CP5bis narrowed editing to
+        // owners because "moderation" was too wide a justification for touching
+        // the founding text. CP5ter introduces `facilitator` as the canonical
+        // role for exactly that responsibility, and `moderator` is now a legacy
+        // alias of it — so this capability returns, but named correctly and
+        // resolved centrally. Publishing remains a separate permission the
+        // facilitator does not hold by default.
+        $this->assertSame($post->id, $this->loop->fresh()->manifesto_blog_post_id);
     }
 
     public function test_regular_member_cannot_designate(): void
