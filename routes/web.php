@@ -61,6 +61,7 @@ use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LoopController;
+use App\Http\Controllers\LoopInvitationController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
@@ -210,6 +211,13 @@ Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.sho
 Route::get('/blog-invitations/{token}', [BlogInvitationController::class, 'show'])->name('blog.invite.show');
 Route::post('/blog-invitations/{token}/accept', [BlogInvitationController::class, 'accept'])->name('blog.invite.accept');
 
+// Loop invitation public routes (no auth required). The GET is strictly
+// read-only; `prepare` is a POST because it writes the token to the session
+// before handing over to login or registration, where the acceptance actually
+// happens. Accepting never rides on a GET.
+Route::get('/loop-invitations/{token}', [LoopInvitationController::class, 'show'])->name('loop-invitations.show');
+Route::post('/loop-invitations/{token}/prepare', [LoopInvitationController::class, 'prepare'])->middleware('throttle:20,1')->name('loop-invitations.prepare');
+
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
 Route::view('/aide', 'help')->name('help');
@@ -331,6 +339,12 @@ Route::middleware('auth')->group(function () {
         Route::delete('/join-requests/{joinRequest}', [LoopController::class, 'cancelJoinRequest'])->name('loop-join-requests.cancel');
         Route::post('/join-requests/{joinRequest}/accept', [LoopController::class, 'acceptJoinRequest'])->name('loop-join-requests.accept');
         Route::post('/join-requests/{joinRequest}/reject', [LoopController::class, 'rejectJoinRequest'])->name('loop-join-requests.reject');
+        // Targeted e-mail invitations (TASK-1077). Sending and revoking need the
+        // Loop, so they keep the nested shape; the recipient-facing routes are
+        // flat and public — see the group below.
+        Route::post('/loops/{loop}/invitations', [LoopInvitationController::class, 'store'])->middleware('throttle:10,1')->name('loops.invitations.store');
+        Route::post('/loop-invitations/{invitation}/revoke', [LoopInvitationController::class, 'revoke'])->name('loop-invitations.revoke');
+        Route::post('/loop-invitations/{token}/accept', [LoopInvitationController::class, 'accept'])->middleware('throttle:10,1')->name('loop-invitations.accept');
         Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
         Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
         Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');

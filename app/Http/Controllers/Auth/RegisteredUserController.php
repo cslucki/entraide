@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\LoopInvitationController;
 use App\Models\Country;
 use App\Models\PointLedger;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
+use App\Services\LoopInvitationService;
 use App\Services\ReferralService;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Auth\Events\Registered;
@@ -109,6 +111,13 @@ class RegisteredUserController extends Controller
                 );
             } catch (\RuntimeException) {
             }
+        }
+
+        // Same as on login: a Loop invitation parked before registration is
+        // consumed inside this POST, and the service re-checks that the address
+        // just registered is the one the invitation was issued to.
+        if ($outcome = app(LoopInvitationService::class)->resumeFromSession($user)) {
+            return app(LoopInvitationController::class)->redirectForOutcome($outcome);
         }
 
         return redirect()->intended($user->getLoginRedirectTarget());
