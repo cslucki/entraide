@@ -26,10 +26,16 @@ return [
     /*
      * Historical value predating typed Loops. Every existing Loop carries it.
      * Read as `general`, never offered in a form, never written to new rows.
+     *
+     * `system` was listed here in CP4 on speculation and has been removed: it
+     * appears on no Loop, in no factory and in no seeder — the `'type' =>
+     * 'system'` occurrences in the codebase all belong to `messages` and
+     * `loop_messages`. Its only mention as a Loop type is in the TASK-1072
+     * spec, as a value to *reject*. An unknown value already resolves to the
+     * default, so behaviour is unchanged. No speculative aliases.
      */
     'legacy_aliases' => [
         'custom' => 'general',
-        'system' => 'general',
     ],
 
     'types' => [
