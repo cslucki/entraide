@@ -50,6 +50,7 @@ class Organization extends Model
         'blog_naming',
         'transactions_naming',
         'loops_naming',
+        'loop_permissions',
         'feed_post_publish_mode',
         'theme_id',
         'locale',
@@ -66,6 +67,7 @@ class Organization extends Model
     protected function casts(): array
     {
         return [
+            'loop_permissions' => 'array',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
             'is_default' => 'boolean',
