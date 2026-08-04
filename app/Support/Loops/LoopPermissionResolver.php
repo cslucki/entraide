@@ -140,6 +140,13 @@ class LoopPermissionResolver
         $baseline = config('loop_permissions.role_defaults.'.$role, []);
         $allowed = in_array($permission, $baseline, true);
 
+        // A locked permission answers from the baseline alone. The config header
+        // says type overrides are ignored for them; without this guard it was
+        // only a comment, and a type could have moved a locked capability.
+        if ($this->settings->isLocked($permission)) {
+            return $allowed;
+        }
+
         $override = config('loop_permissions.type_overrides', [])[$type][$role] ?? [];
 
         if (in_array($permission, $override['grant'] ?? [], true)) {

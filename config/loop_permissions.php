@@ -215,29 +215,26 @@ return [
      * role absent from a listed type — inherits entirely.
      *
      * `grant` adds, `revoke` removes. Both are ignored for locked permissions.
+     *
+     * DELIBERATELY EMPTY. The engine is implemented, tested and administrable,
+     * but no business variation ships as a system default: the four types all
+     * inherit the role baseline for now.
+     *
+     * Two variations were written here on the way and removed after review,
+     * because each was a product decision nobody had taken:
+     *
+     *   - training granting manifesto.publish to the facilitator assumed every
+     *     facilitator of a training Loop is the teacher responsible for its
+     *     framing, which does not follow from the type;
+     *   - peer_support revoking loop_members.view from members assumed hiding
+     *     the roster is what protects a support group, when a private Loop
+     *     already protects its access and its content.
+     *
+     * Real differences will be configured through the administration matrix,
+     * where they are an explicit choice with an author — not a default nobody
+     * asked for. Adding one here later stays a one-file change.
      */
     'type_overrides' => [
-
-        /*
-         * Training: the facilitator is the teacher. The Manifesto carries the
-         * pedagogical framing, so publishing it is part of running the course
-         * rather than an ownership decision.
-         */
-        'training' => [
-            'facilitator' => [
-                'grant' => ['manifesto.publish'],
-            ],
-        ],
-
-        /*
-         * Peer support: a trusted setting. Members do not review who joins,
-         * and the conversation is moderated by facilitators and owners only —
-         * already the baseline, so nothing to declare for them here.
-         */
-        'peer_support' => [
-            'member' => [
-                'revoke' => ['loop_members.view'],
-            ],
-        ],
+        // e.g. 'training' => ['facilitator' => ['grant' => ['manifesto.publish']]],
     ],
 ];

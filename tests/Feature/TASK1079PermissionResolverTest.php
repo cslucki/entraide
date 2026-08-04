@@ -189,26 +189,95 @@ class TASK1079PermissionResolverTest extends TestCase
 
     // ── Variation par type ──────────────────────────────────────────────────
 
-    public function test_training_lets_the_facilitator_publish_the_manifesto(): void
+    public function test_no_business_variation_ships_as_a_system_default(): void
+    {
+        // CP5ter-C2: the engine stays, the speculative values do not. Two
+        // variations were written and removed after review — each was a product
+        // decision nobody had taken. Real differences will be configured through
+        // the administration matrix, where they have an author.
+        $this->assertSame([], config('loop_permissions.type_overrides'));
+    }
+
+    public function test_the_four_types_currently_inherit_the_same_baseline(): void
+    {
+        $resolver = $this->resolver();
+
+        foreach (array_keys(config('loop_permissions.permissions')) as $permission) {
+            foreach ([LoopRoleRegistry::OWNER, LoopRoleRegistry::FACILITATOR, LoopRoleRegistry::MEMBER] as $role) {
+                $reference = $resolver->systemValue('general', $role, $permission);
+
+                foreach (['project', 'training', 'peer_support'] as $type) {
+                    $this->assertSame(
+                        $reference,
+                        $resolver->systemValue($type, $role, $permission),
+                        "{$type}/{$role} must currently inherit {$permission}",
+                    );
+                }
+            }
+        }
+    }
+
+    public function test_the_type_override_engine_still_grants(): void
     {
         $facilitator = $this->memberWithRole('facilitator');
-
         $this->assertFalse($this->resolver()->can($facilitator, $this->loop, 'manifesto.publish'));
 
+        // Isolated test configuration, not a shipped default: the capability
+        // must remain implemented and administrable even while nothing uses it.
+        config(['loop_permissions.type_overrides' => [
+            'training' => ['facilitator' => ['grant' => ['manifesto.publish']]],
+        ]]);
         $this->loop->update(['type' => 'training']);
 
         $this->assertTrue($this->resolver()->can($facilitator, $this->loop->fresh(), 'manifesto.publish'));
     }
 
-    public function test_peer_support_hides_the_member_list_from_members(): void
+    public function test_the_type_override_engine_still_revokes(): void
     {
         $member = $this->memberWithRole('member');
-
         $this->assertTrue($this->resolver()->can($member, $this->loop, 'loop_members.view'));
 
+        config(['loop_permissions.type_overrides' => [
+            'peer_support' => ['member' => ['revoke' => ['loop_members.view']]],
+        ]]);
         $this->loop->update(['type' => 'peer_support']);
 
         $this->assertFalse($this->resolver()->can($member, $this->loop->fresh(), 'loop_members.view'));
+    }
+
+    public function test_a_type_override_never_moves_a_locked_permission(): void
+    {
+        $facilitator = $this->memberWithRole('facilitator');
+
+        config(['loop_permissions.type_overrides' => [
+            'general' => ['facilitator' => ['grant' => ['loops.manage_owners']]],
+        ]]);
+
+        // Locked answers from the baseline whatever a type declares.
+        $this->assertFalse($this->resolver()->can($facilitator, $this->loop->fresh(), 'loops.manage_owners'));
+    }
+
+    public function test_a_global_setting_varies_by_type(): void
+    {
+        $facilitator = $this->memberWithRole('facilitator');
+
+        // Set for `training` only; the Loop is `general`, so nothing changes.
+        $this->settings()->setGlobal('training', 'facilitator', 'manifesto.publish', true);
+        $this->assertFalse($this->resolver()->can($facilitator, $this->loop->fresh(), 'manifesto.publish'));
+
+        $this->loop->update(['type' => 'training']);
+        $this->assertTrue($this->resolver()->can($facilitator, $this->loop->fresh(), 'manifesto.publish'));
+    }
+
+    public function test_an_organization_override_varies_by_type(): void
+    {
+        $facilitator = $this->memberWithRole('facilitator');
+
+        $this->settings()->setOrganization($this->org, 'project', 'facilitator', 'manifesto.publish', true);
+        $this->assertFalse($this->resolver()->can($facilitator, $this->loop->fresh(), 'manifesto.publish'));
+
+        $this->loop->update(['type' => 'project']);
+        $this->assertTrue($this->resolver()->can($facilitator, $this->loop->fresh(), 'manifesto.publish'));
     }
 
     public function test_a_type_declaring_nothing_inherits_the_baseline_whole(): void
