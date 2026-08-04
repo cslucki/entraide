@@ -11,6 +11,7 @@ use App\Services\LoopPermissionSettingsService;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -313,6 +314,59 @@ class TASK1079GovernanceUiTest extends TestCase
             ->assertOk()
             ->assertSee($this->owner->publicDisplayName())
             ->assertSee($second->user->publicDisplayName());
+    }
+
+    // ── Affichages multi-owner ──────────────────────────────────────────────
+
+    public function test_the_catalogue_names_every_owner(): void
+    {
+        $second = $this->member();
+        app(LoopGovernanceService::class)->promoteToOwner($second);
+        // A second Loop keeps the catalogue on its list view rather than
+        // redirecting to the only Loop.
+        Loop::factory()->create(['organization_id' => $this->org->id, 'status' => 'active']);
+
+        $this->actingAs($this->owner)
+            ->get(route('loops.index'))
+            ->assertOk()
+            ->assertSee($this->owner->publicDisplayName())
+            ->assertSee($second->user->publicDisplayName());
+    }
+
+    public function test_beyond_two_owners_the_catalogue_summarises_without_ranking_them(): void
+    {
+        foreach (range(1, 3) as $i) {
+            app(LoopGovernanceService::class)->promoteToOwner($this->member());
+        }
+        Loop::factory()->create(['organization_id' => $this->org->id, 'status' => 'active']);
+
+        $html = $this->actingAs($this->owner)->get(route('loops.index'))->assertOk()->getContent();
+
+        // No owner is presented as the main one.
+        $this->assertStringNotContainsString('propriétaire principal', mb_strtolower($html));
+        $this->assertStringContainsString(
+            __('loops.governance_and_others', ['name' => $this->owner->publicDisplayName(), 'count' => 3]),
+            $html,
+        );
+    }
+
+    public function test_the_catalogue_does_not_query_owners_per_row(): void
+    {
+        foreach (range(1, 5) as $i) {
+            $loop = Loop::factory()->create(['organization_id' => $this->org->id, 'status' => 'active']);
+            LoopMember::factory()->owner()->create([
+                'loop_id' => $loop->id,
+                'user_id' => User::factory()->create(['organization_id' => $this->org->id])->id,
+                'joined_at' => now(),
+            ]);
+        }
+
+        DB::enableQueryLog();
+        $this->actingAs($this->owner)->get(route('loops.index'))->assertOk();
+        $count = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertLessThan(35, $count, "Query count {$count} suggests owners are loaded per row");
     }
 
     public function test_a_facilitator_gains_the_actions_once_the_organization_allows_it(): void

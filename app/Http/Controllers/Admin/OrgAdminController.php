@@ -141,7 +141,7 @@ class OrgAdminController extends Controller
         // to a dedicated page, so there is no reason to hydrate every member of
         // every Loop here. Counters are aggregated in SQL.
         $query = Loop::where('organization_id', $orgId)
-            ->with(['creator', 'owner.user', 'cards'])
+            ->with(['creator', 'owner.user', 'owners.user', 'cards'])
             ->withCount([
                 'activeMembers',
                 'invitations',

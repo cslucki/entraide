@@ -166,7 +166,7 @@ class LoopController extends Controller
         return Loop::query()
             ->where('organization_id', $organizationId)
             ->where('status', 'active')
-            ->with(['owner.user', 'categories'])
+            ->with(['owner.user', 'owners.user', 'categories'])
             ->withCount('activeMembers')
             ->withMax('messages as last_message_at', 'created_at')
             ->withExists(['members as is_member' => function ($q) use ($user) {
@@ -503,7 +503,7 @@ class LoopController extends Controller
     private function showPresentation(Loop $loop, $user): View
     {
         $loop->loadCount('activeMembers');
-        $loop->load(['owner.user', 'categories']);
+        $loop->load(['owner.user', 'owners.user', 'categories']);
 
         $pendingRequest = LoopJoinRequest::where('loop_id', $loop->id)
             ->where('user_id', $user->id)

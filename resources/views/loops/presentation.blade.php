@@ -7,6 +7,8 @@
             }
             return route('loops.'.$name, $params);
         };
+        // Legacy relation kept only to decide whether to show the block; the
+        // names themselves come from owners() (CP5ter).
         $ownerUser = $loop->owner?->user;
     @endphp
 
@@ -56,7 +58,7 @@
                             @if($ownerUser->avatar_url)
                                 <img src="{{ $ownerUser->avatar_url }}" alt="" class="h-5 w-5 rounded-full object-cover">
                             @endif
-                            {{ __('loops.presentation_animator') }} {{ $ownerUser->publicDisplayName() }}
+                            {{ __('loops.presentation_animator') }} <x-loops.owner-names :owners="$loop->owners" />
                         </span>
                     @endif
                 </div>

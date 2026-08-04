@@ -5,6 +5,8 @@
     $highlightedLoopId from loops/index.blade.php.
 --}}
 @php
+    // Multi-owner (CP5ter): several owners have equal standing, so the card
+    // names them rather than picking one as if it were the owner.
     $ownerUser = $item->owner?->user;
     $searchable = mb_strtolower($item->name.' '.($item->tagline ?? '').' '.($item->description ?? ''));
 
@@ -93,7 +95,7 @@
                         @if($ownerUser->avatar_url)
                             <img src="{{ $ownerUser->avatar_url }}" alt="" class="h-4 w-4 shrink-0 rounded-full object-cover">
                         @endif
-                        <span class="truncate">{{ $ownerUser->publicDisplayName() }}</span>
+                        <span class="truncate"><x-loops.owner-names :owners="$item->owners" /></span>
                     </span>
                     <span aria-hidden="true">·</span>
                 @endif
