@@ -82,6 +82,28 @@ return [
             ],
         ],
 
+        /*
+         * Coaching sits between the two: an accompaniment with objectives and a
+         * follow-up, not a project to deliver and not a plain conversation.
+         *
+         * Its preset is a starting point, not a decision written in stone —
+         * it is composed from /admin/loop-types without a deployment, which is
+         * exactly what that screen exists for.
+         */
+        'coaching' => [
+            'key' => 'coaching',
+            'label_key' => 'loops.types.coaching.label',
+            'description_key' => 'loops.types.coaching.description',
+            'icon' => 'compass',
+            'order' => 25,
+            'available' => true,
+            'cards' => [
+                'core.ai_summary',
+                'core.roadmap',
+                'core.members',
+            ],
+        ],
+
         'training' => [
             'key' => 'training',
             'label_key' => 'loops.types.training.label',

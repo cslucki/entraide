@@ -34,10 +34,11 @@ class TASK1079LoopTypeRegistryTest extends TestCase
 
     // ── Registry ────────────────────────────────────────────────────────────
 
-    public function test_the_four_business_types_are_available_and_ordered(): void
+    public function test_the_five_business_types_are_declared_and_ordered(): void
     {
+        // Dialogue, Projets, Coaching, Formation, Pair-Aidance.
         $this->assertSame(
-            ['general', 'project', 'training', 'peer_support'],
+            ['general', 'project', 'coaching', 'training', 'peer_support'],
             $this->registry()->keys(),
         );
     }
@@ -94,7 +95,7 @@ class TASK1079LoopTypeRegistryTest extends TestCase
 
     public function test_only_the_defined_types_may_be_chosen(): void
     {
-        $this->assertSame(['general', 'project'], $this->registry()->availableKeys());
+        $this->assertSame(['general', 'project', 'coaching'], $this->registry()->availableKeys());
         $this->assertFalse($this->registry()->isAvailable('training'));
         $this->assertFalse($this->registry()->isAvailable('peer_support'));
     }

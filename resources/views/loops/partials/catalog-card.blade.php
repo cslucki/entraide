@@ -26,10 +26,13 @@
 
     $isHighlighted = ($highlightedLoopId ?? null) === $item->id;
     $domainIds = $item->categories->pluck('id')->all();
+    $itemType = app(\App\Support\Loops\LoopTypeRegistry::class)->resolve($item->type);
 @endphp
 <article
+    data-type="{{ $itemType }}"
     x-show="(q === '' || {{ \Illuminate\Support\Js::from($searchable) }}.includes(q.toLowerCase()))
-            && (domain === '' || {{ \Illuminate\Support\Js::from($domainIds) }}.includes(domain))"
+            && (domain === '' || {{ \Illuminate\Support\Js::from($domainIds) }}.includes(domain))
+            && (type === '' || type === {{ \Illuminate\Support\Js::from($itemType) }})"
     @class([
         'group flex flex-col overflow-hidden rounded-2xl border bg-white transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-gray-800',
         'border-gray-200 hover:border-indigo-300 dark:border-gray-700 dark:hover:border-indigo-600' => ! $isHighlighted,
@@ -85,6 +88,14 @@
         @if($cardDescription)
             <p class="mt-1 line-clamp-2 text-sm leading-snug text-gray-500 dark:text-gray-400">{{ $cardDescription }}</p>
         @endif
+
+        {{-- Le type, discret mais présent : dans l'onglet « Toutes » on ne
+             saurait sinon pas ce qu'on regarde. --}}
+        <p class="mt-2 flex flex-wrap items-center gap-1.5">
+            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($item->type) }}
+            </span>
+        </p>
 
         <x-loops.domain-badges :loop="$item" class="mt-2" />
 
