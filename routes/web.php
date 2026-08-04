@@ -340,6 +340,11 @@ Route::middleware('auth')->group(function () {
         // controller only reserves the first two positional route slots — a third
         // nested {joinRequest} segment breaks that resolution. The Loop is resolved
         // from the request's own relation instead of a route segment.
+        // Flat, like the join-request routes above and for the same reason: a
+        // membership id is globally unique, and the union-typed
+        // $loopOrOrganization/$loop signature only reserves two positional
+        // slots — a third nested segment raises a TypeError (TASK-1075).
+        Route::put('/loop-members/{member}/role', [LoopController::class, 'updateMemberRole'])->name('loops.members.role');
         Route::delete('/join-requests/{joinRequest}', [LoopController::class, 'cancelJoinRequest'])->name('loop-join-requests.cancel');
         Route::post('/join-requests/{joinRequest}/accept', [LoopController::class, 'acceptJoinRequest'])->name('loop-join-requests.accept');
         Route::post('/join-requests/{joinRequest}/reject', [LoopController::class, 'rejectJoinRequest'])->name('loop-join-requests.reject');
@@ -571,6 +576,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/loops/{loop}/edit', [AdminLoopController::class, 'edit'])->name('loops.edit');
     Route::put('/loops/{loop}', [AdminLoopController::class, 'update'])->name('loops.update');
     Route::post('/loops/{loop}/members', [AdminLoopController::class, 'addMember'])->name('loops.members.add');
+    Route::put('/loops/{loop}/members/{member}/role', [AdminLoopController::class, 'updateMemberRole'])->name('loops.members.role');
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
     Route::put('/loops/{loop}/type', [AdminLoopController::class, 'updateType'])->name('loops.type.update');
@@ -879,6 +885,7 @@ Route::prefix('/org/{organization}')
                 Route::put('/loops/{loop}', [OrgAdminController::class, 'updateLoop'])->name('loops.update');
                 Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
                 Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
+                Route::put('/loops/{loop}/members/{member}/role', [OrgAdminController::class, 'updateLoopMemberRole'])->name('loops.members.role');
                 Route::delete('/loops/{loop}/members/{member}', [OrgAdminController::class, 'removeLoopMember'])->name('loops.members.remove');
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');

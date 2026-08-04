@@ -8,7 +8,9 @@ use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\LoopGovernanceService;
 use App\Services\LoopService;
+use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
@@ -293,18 +295,46 @@ class AdminLoopController extends Controller
                     ->where('organization_id', $loop->organization_id)
                     ->whereNull('banned_at'),
             ],
+            'role' => ['nullable', Rule::in(LoopRoleRegistry::CANONICAL)],
         ]);
 
         $userId = $request->input('user_id');
+        $role = (string) $request->input('role', LoopRoleRegistry::MEMBER);
 
         try {
-            $this->loopService->addMemberByUserId($loop, $userId);
+            $this->loopService->addMemberByUserId($loop, $userId, $role);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return redirect()->route('admin.loops.edit', $loop)
             ->with('success', 'Membre ajouté à la boucle.');
+    }
+
+    /**
+     * Change a member's role from the global admin.
+     *
+     * Every transition goes through the governance service, so the last-owner
+     * invariant is applied here exactly as everywhere else.
+     */
+    public function updateMemberRole(Request $request, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        $this->assertOrgAccess($loop);
+
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $role = (string) $request->input('role');
+
+        $result = app(LoopGovernanceService::class)->changeRole($member, $role);
+
+        return redirect()->route('admin.loops.edit', $loop)->with(
+            $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+            match ($result) {
+                LoopGovernanceService::RESULT_OK => __('loops.governance_changed'),
+                LoopGovernanceService::RESULT_LAST_OWNER => __('loops.governance_refused_last_owner'),
+                default => __('loops.governance_refused'),
+            },
+        );
     }
 
     public function removeMember(Loop $loop, LoopMember $member): RedirectResponse
@@ -315,14 +345,14 @@ class AdminLoopController extends Controller
             abort(404);
         }
 
-        try {
-            $this->loopService->removeMember($member);
-        } catch (\RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+        $result = app(LoopGovernanceService::class)->removeMember($member);
+
+        if ($result === LoopGovernanceService::RESULT_LAST_OWNER) {
+            return back()->with('error', __('loops.governance_refused_last_owner'));
         }
 
         return redirect()->route('admin.loops.edit', $loop)
-            ->with('success', 'Membre retiré de la boucle.');
+            ->with('success', __('loops.governance_removed'));
     }
 
     public function files(Loop $loop): View

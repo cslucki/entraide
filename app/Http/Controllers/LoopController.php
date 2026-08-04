@@ -16,6 +16,8 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
+use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -483,9 +485,18 @@ class LoopController extends Controller
 
         $loopInvitations = $canManageJoinRequests ? $this->loopInvitationsFor($loop) : collect();
 
+        // Governance controls follow the resolved permissions, never a role
+        // label read in Blade (TASK-1079 CP5ter).
+        $resolver = app(LoopPermissionResolver::class);
+        $governance = [
+            'owners' => $resolver->can($user, $loop, 'loops.manage_owners'),
+            'facilitators' => $resolver->can($user, $loop, 'loops.manage_facilitators'),
+            'remove' => $resolver->can($user, $loop, 'loop_members.remove'),
+        ];
+
         return view('loops.show', compact(
             'loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled',
-            'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations',
+            'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations', 'governance',
         ));
     }
 
@@ -763,6 +774,47 @@ class LoopController extends Controller
                 'title' => $data['title'],
                 'description' => $data['need'],
             ]);
+    }
+
+    /**
+     * Change a member's role from the workspace.
+     *
+     * Gated by the resolved permission, not by the actor's role label, and the
+     * transition itself goes through the governance service — so the last-owner
+     * invariant applies here exactly as in the admin screens.
+     */
+    public function updateMemberRole(Request $request, LoopMember $member): RedirectResponse
+    {
+        // The Loop comes from the membership's own relation, not from a route
+        // segment — see the routing comment.
+        $loop = $member->loop;
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        abort_if($loop === null || $loop->organization_id !== $organization->id, 404);
+
+        $targetRole = (string) $request->input('role');
+        $resolver = app(LoopPermissionResolver::class);
+
+        // Touching an owner — in either direction — requires the owner
+        // permission; facilitator transitions require the facilitator one.
+        $needsOwnerRight = $targetRole === 'owner'
+            || app(LoopRoleRegistry::class)->canonical($member->role) === 'owner';
+
+        $permission = $needsOwnerRight ? 'loops.manage_owners' : 'loops.manage_facilitators';
+
+        abort_unless($resolver->can($request->user(), $loop, $permission), 403);
+
+        $result = app(LoopGovernanceService::class)->changeRole($member, $targetRole);
+
+        return redirect($this->loopRoute('loops.show', $loop))->with(
+            $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+            match ($result) {
+                LoopGovernanceService::RESULT_OK => __('loops.governance_changed'),
+                LoopGovernanceService::RESULT_LAST_OWNER => __('loops.governance_refused_last_owner'),
+                default => __('loops.governance_refused'),
+            },
+        );
     }
 
     public function addMember(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse

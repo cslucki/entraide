@@ -21,10 +21,12 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\LoopGovernanceService;
 use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use App\Services\UserDataLifecycleRegistry;
+use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -289,6 +291,32 @@ class OrgAdminController extends Controller
             ]));
     }
 
+    /**
+     * Change a member's role from the Organization admin.
+     *
+     * Tenant-scoped twice over: the Loop must belong to this Organization, and
+     * the membership must belong to that Loop. Same governance service as the
+     * global screen — the business rule is not duplicated.
+     */
+    public function updateLoopMemberRole(Request $request, Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $result = app(LoopGovernanceService::class)->changeRole($member, (string) $request->input('role'));
+
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with(
+                $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+                match ($result) {
+                    LoopGovernanceService::RESULT_OK => __('loops.governance_changed'),
+                    LoopGovernanceService::RESULT_LAST_OWNER => __('loops.governance_refused_last_owner'),
+                    default => __('loops.governance_refused'),
+                },
+            );
+    }
+
     public function toggleLoopActive(Organization $organization, Loop $loop): RedirectResponse
     {
         abort_if($loop->organization_id !== $organization->id, 404);
@@ -313,13 +341,16 @@ class OrgAdminController extends Controller
                     ->where('organization_id', $organization->id)
                     ->whereNull('banned_at'),
             ],
+            'role' => ['nullable', Rule::in(LoopRoleRegistry::CANONICAL)],
         ]);
 
         $user = User::assignable()->findOrFail($data['user_id']);
+        // Checked again on the resolved model, not only through the validation
+        // rule: tenant strictness is not something to infer from a query scope.
         abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
 
         try {
-            app(LoopService::class)->addMemberByUserId($loop, $data['user_id']);
+            app(LoopService::class)->addMemberByUserId($loop, $data['user_id'], $data['role'] ?? LoopRoleRegistry::MEMBER);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

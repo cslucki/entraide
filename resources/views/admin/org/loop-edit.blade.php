@@ -110,30 +110,16 @@
         <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 sm:p-6">
             <h2 class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">Membres actifs</h2>
 
-            <ul class="mb-4 divide-y divide-gray-100 dark:divide-gray-700">
-                @forelse($currentLoop->activeMembers as $member)
-                    <li class="flex items-center gap-3 py-2">
-                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-600 dark:bg-violet-500/20 dark:text-violet-300">
-                            {{ mb_strtoupper(mb_substr($member->user?->publicDisplayName() ?? '?', 0, 1)) }}
-                        </span>
-                        <span class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-100">{{ $member->user?->publicDisplayName() ?? '—' }}</span>
-                        <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                            {{ __('loops.members_role_'.($member->role ?: 'member')) }}
-                        </span>
-                        @if($member->role !== 'owner')
-                            <form method="POST" action="{{ route('organization.admin.loops.members.remove', [$organization, $currentLoop, $member]) }}">
-                                @csrf @method('DELETE')
-                                <button type="submit" onclick="return confirm('{{ __('navigation.org_admin_confirm_remove_member') }}')"
-                                        class="rounded-lg px-2 py-1 text-xs font-medium text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
-                                    Retirer
-                                </button>
-                            </form>
-                        @endif
-                    </li>
-                @empty
-                    <li class="py-3 text-xs text-gray-400">Aucun membre actif.</li>
-                @endforelse
-            </ul>
+            <x-loops.governance-roster
+                class="mb-4"
+                :members="$currentLoop->activeMembers"
+                :role-route="fn($m) => route('organization.admin.loops.members.role', [$organization, $currentLoop, $m])"
+                :remove-route="fn($m) => route('organization.admin.loops.members.remove', [$organization, $currentLoop, $m])"
+                :can-manage-owners="true"
+                :can-manage-facilitators="true"
+                :can-remove="true"
+                :creator-id="$currentLoop->created_by"
+                :current-user-id="auth()->id()" />
 
             @if($candidates->isNotEmpty())
                 {{-- A searchable picker rather than a bare select: an Organization
@@ -155,6 +141,14 @@
                             </label>
                         @endforeach
                     </div>
+
+                    <label class="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('loops.governance_add_as') }}</label>
+                    <select name="role"
+                            class="mt-1 min-h-[44px] w-full rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 sm:w-auto">
+                        <option value="member">{{ __('loops.members_role_member') }}</option>
+                        <option value="facilitator">{{ __('loops.members_role_facilitator') }}</option>
+                        <option value="owner">{{ __('loops.members_role_owner') }}</option>
+                    </select>
 
                     <button type="submit" x-bind:disabled="picked === ''"
                             class="mt-3 inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white">
