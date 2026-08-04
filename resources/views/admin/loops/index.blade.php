@@ -93,8 +93,9 @@
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex gap-2 items-center">
-                            <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
-                            <a href="{{ route('loops.show', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
+                            <a href="{{ route('admin.loops.show', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Vue</a>
+                            <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Modifier</a>
+                            <a href="{{ $orgLoop->workspaceUrl() }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
                             <a href="{{ route('admin.loops.files', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Fichiers</a>
                             @if($orgLoop->isActive())
                             <form method="POST" action="{{ route('admin.loops.archive', $orgLoop) }}"

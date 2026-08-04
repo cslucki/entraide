@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BlogPost;
 use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopInvitation;
@@ -310,6 +311,83 @@ class TASK1079LoopAdminTest extends TestCase
                 'name' => 'Pirate', 'type' => 'project',
             ])
             ->assertForbidden();
+    }
+
+    // ── Page Vue et URL de workspace ────────────────────────────────────────
+
+    public function test_the_admin_overview_shows_everything_including_the_manifesto(): void
+    {
+        $loop = $this->loop(['name' => 'Boucle Vue']);
+        $this->registry()->applyPreset($loop);
+        $owner = User::factory()->create(['organization_id' => $this->org->id]);
+        LoopMember::factory()->owner()->create(['loop_id' => $loop->id, 'user_id' => $owner->id, 'joined_at' => now()]);
+
+        $manifesto = BlogPost::create([
+            'user_id' => $owner->id, 'organization_id' => $this->org->id,
+            'title' => 'Manifeste', 'slug' => 'manifeste-vue-'.uniqid(),
+            'content' => '<p>NOTRE-RAISON-DETRE</p>', 'status' => 'draft',
+        ]);
+        $loop->forceFill(['manifesto_blog_post_id' => $manifesto->id])->save();
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops.show', $loop))
+            ->assertOk()
+            ->assertSee('Boucle Vue')
+            ->assertSee('NOTRE-RAISON-DETRE')
+            ->assertSee(__('loops.governance_title'))
+            ->assertSee(__('loops.cards_linked'));
+    }
+
+    public function test_the_overview_sanitises_the_manifesto(): void
+    {
+        $loop = $this->loop();
+        $owner = User::factory()->create(['organization_id' => $this->org->id]);
+        $manifesto = BlogPost::create([
+            'user_id' => $owner->id, 'organization_id' => $this->org->id,
+            'title' => 'Manifeste', 'slug' => 'manifeste-xss-'.uniqid(),
+            'content' => '<p>Texte</p><script>alert(1)</script>', 'status' => 'draft',
+        ]);
+        $loop->forceFill(['manifesto_blog_post_id' => $manifesto->id])->save();
+
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.loops.show', $loop))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Texte', $html);
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringNotContainsString('alert(1)', $html);
+    }
+
+    public function test_the_overview_is_read_only(): void
+    {
+        $loop = $this->loop();
+        $member = User::factory()->create(['organization_id' => $this->org->id]);
+        LoopMember::factory()->create(['loop_id' => $loop->id, 'user_id' => $member->id, 'status' => 'active']);
+
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.loops.show', $loop))->assertOk()->getContent();
+
+        // Governance is displayed but nothing can be changed from here.
+        $this->assertStringNotContainsString(__('loops.governance_promote_owner'), $html);
+    }
+
+    public function test_the_workspace_url_is_scoped_to_the_loops_own_organization(): void
+    {
+        $otherOrg = Organization::factory()->create(['loops_enabled' => true, 'slug' => 'ailleurs']);
+        $foreignLoop = Loop::factory()->create(['organization_id' => $otherOrg->id, 'status' => 'active']);
+
+        // route('loops.show') would resolve against the *current* context, which
+        // is the admin's own Organization — the bug this fixes.
+        $this->assertStringContainsString('/org/ailleurs/loops/', $foreignLoop->workspaceUrl());
+        $this->assertStringContainsString($foreignLoop->id, $foreignLoop->workspaceUrl());
+    }
+
+    public function test_the_listing_links_to_the_scoped_workspace(): void
+    {
+        $otherOrg = Organization::factory()->create(['loops_enabled' => true, 'slug' => 'ailleurs2']);
+        $foreignLoop = Loop::factory()->create(['organization_id' => $otherOrg->id, 'status' => 'active']);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['organization_id' => 'all']))
+            ->assertOk()
+            ->assertSee($foreignLoop->workspaceUrl(), false);
     }
 
     // ── Changement de type : rien n'est jamais perdu ────────────────────────

@@ -68,7 +68,7 @@
                         <div class="flex flex-wrap items-center gap-2">
                             <a href="{{ route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $boucle->id]) }}"
                                class="text-xs font-semibold text-indigo-600 hover:underline">Modifier</a>
-                            <a href="{{ route('loops.show', $boucle) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
+                            <a href="{{ $boucle->workspaceUrl() }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
                         </div>
                         <form method="POST" action="{{ route('organization.admin.loops.toggle-active', [$organization, $boucle]) }}" class="mt-1 inline">
                             @csrf

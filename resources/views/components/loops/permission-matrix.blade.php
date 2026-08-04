@@ -37,9 +37,22 @@
     @foreach($modules as $module => $permissions)
         {{-- Collapsible so 24 permissions never land as one crushing wall. --}}
         <details open class="rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+            @php
+                // How many cells in this module carry an explicit setting, so a
+                // configured module is identifiable without opening it.
+                $configured = collect($permissions)
+                    ->flatMap(fn ($p) => array_values($p['cells']))
+                    ->filter(fn ($c) => $c['state'] !== 'inherited')
+                    ->count();
+            @endphp
             <summary class="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-gray-800 marker:text-gray-400 dark:text-gray-100">
                 {{ $moduleLabels[$module] ?? $module }}
                 <span class="ml-1 text-xs font-normal text-gray-400">({{ count($permissions) }})</span>
+                @if($configured)
+                    <span class="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                        {{ trans_choice('loops.permissions_configured_count', $configured, ['count' => $configured]) }}
+                    </span>
+                @endif
             </summary>
 
             {{-- Desktop --}}

@@ -9,6 +9,7 @@ use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopGovernanceService;
+use App\Services\LoopManifestoService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
@@ -241,6 +242,40 @@ class AdminLoopController extends Controller
 
         return redirect()->route('admin.loops.edit', $loop)
             ->with('success', 'Boucle créée avec succès.');
+    }
+
+    /**
+     * Read-only overview of a Loop from the admin.
+     *
+     * Everything that matters about a Loop on one page — identity, type, cards,
+     * governance, Manifesto, invitations — so an administrator can see what a
+     * Loop *is* without entering its workspace and without the risk of touching
+     * anything. Nothing here mutates.
+     */
+    public function show(Loop $loop): View
+    {
+        $this->assertOrgAccess($loop);
+
+        $loop->load([
+            'organization', 'creator', 'categories',
+            'owners.user', 'activeMembers.user', 'cards',
+            'manifesto.user',
+        ]);
+        $loop->loadCount([
+            'activeMembers',
+            'invitations',
+            'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
+        ]);
+
+        $registry = app(LoopTypeRegistry::class);
+
+        return view('admin.loops.show', [
+            'boucle' => $loop,
+            'typeLabel' => $registry->label($loop->type),
+            'presetCards' => $registry->cardsFor($loop->type),
+            'manifestoSources' => app(LoopManifestoService::class)->sourcesFor($loop),
+            'invitations' => $loop->invitations()->with('sender')->latest()->limit(10)->get(),
+        ]);
     }
 
     public function edit(Loop $loop): View

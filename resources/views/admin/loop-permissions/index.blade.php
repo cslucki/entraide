@@ -27,6 +27,12 @@
             <p class="pb-2 text-xs text-gray-400">{{ trans_choice('loops.permissions_affected_loops', $affectedLoops, ['count' => $affectedLoops]) }}</p>
         </form>
 
+        {{-- Honest about the current state: the types are wired but their own
+             cards do not exist yet, so they all inherit the same baseline. --}}
+        <p class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-300">
+            {{ __('loops.permissions_types_notice') }}
+        </p>
+
         <form method="POST" action="{{ route('admin.loop-permissions.update') }}">
             @csrf @method('PUT')
             <input type="hidden" name="type" value="{{ $type }}">
