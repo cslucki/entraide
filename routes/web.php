@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
+use App\Http\Controllers\Admin\AdminLoopTypeController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
@@ -498,6 +499,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Never per-Loop: there is no loop_id anywhere in this flow (TASK-1079).
     Route::get('/loop-permissions', [AdminLoopPermissionController::class, 'index'])->name('loop-permissions');
     Route::put('/loop-permissions', [AdminLoopPermissionController::class, 'update'])->name('loop-permissions.update');
+
+    // Composition des types de Boucles (super-admin). Le contrôleur refuse
+    // lui-même tout non super-admin : le groupe admin ne suffit pas.
+    Route::get('/loop-types', [AdminLoopTypeController::class, 'index'])->name('loop-types');
+    Route::put('/loop-types/{type}', [AdminLoopTypeController::class, 'update'])->name('loop-types.update');
+    Route::delete('/loop-types/{type}', [AdminLoopTypeController::class, 'reset'])->name('loop-types.reset');
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');

@@ -69,11 +69,42 @@ class TASK1079LoopTypeRegistryTest extends TestCase
         }
     }
 
-    public function test_every_type_includes_the_manifesto(): void
+    public function test_every_type_includes_the_members_card_and_is_never_empty(): void
     {
+        // The Manifesto used to be asserted here as universal. It is not any
+        // more: a Dialogue Loop is a conversation and carries Membres alone
+        // (CP5ter-E2). What still holds is that no type composes an empty
+        // workspace, and that every one of them knows its members.
         foreach ($this->registry()->keys() as $type) {
-            $this->assertContains('core.manifesto', $this->registry()->cardsFor($type));
+            $cards = $this->registry()->cardsFor($type);
+
+            $this->assertNotEmpty($cards, "Type {$type} composes an empty workspace");
+            $this->assertContains('core.members', $cards, "Type {$type} has no members card");
         }
+    }
+
+    public function test_the_two_defined_types_carry_exactly_what_was_specified(): void
+    {
+        $this->assertSame(['core.members'], $this->registry()->cardsFor('general'));
+        $this->assertEqualsCanonicalizing(
+            ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.members'],
+            $this->registry()->cardsFor('project'),
+        );
+    }
+
+    public function test_only_the_defined_types_may_be_chosen(): void
+    {
+        $this->assertSame(['general', 'project'], $this->registry()->availableKeys());
+        $this->assertFalse($this->registry()->isAvailable('training'));
+        $this->assertFalse($this->registry()->isAvailable('peer_support'));
+    }
+
+    public function test_a_loop_keeps_its_unavailable_type_in_the_choices(): void
+    {
+        // Otherwise reassigning anything else on the form would silently move a
+        // Formation Loop off its type just because it could not be displayed.
+        $this->assertArrayHasKey('training', $this->registry()->selectableFor('training'));
+        $this->assertArrayNotHasKey('training', $this->registry()->selectableFor('general'));
     }
 
     // ── Application du preset ───────────────────────────────────────────────

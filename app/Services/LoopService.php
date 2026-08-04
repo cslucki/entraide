@@ -16,9 +16,10 @@ use Illuminate\Support\Str;
 
 class LoopService
 {
-    public function createLoopForOrg(User $user, string $organizationId, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST): Loop
+    public function createLoopForOrg(User $user, string $organizationId, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST, ?string $type = null): Loop
     {
         $slug = $this->generateUniqueSlug($organizationId, $name);
+        $registry = app(LoopTypeRegistry::class);
 
         $loop = Loop::create([
             'organization_id' => $organizationId,
@@ -26,7 +27,7 @@ class LoopService
             'slug' => $slug,
             'description' => $description,
             'tagline' => $tagline,
-            'type' => app(LoopTypeRegistry::class)->default(),
+            'type' => $this->resolveCreationType($type),
             'status' => 'active',
             'visibility' => $visibility,
             'access_mode' => Loop::isValidAccessMode($accessMode) ? $accessMode : Loop::ACCESS_REQUEST,
@@ -35,10 +36,27 @@ class LoopService
 
         $this->addMember($loop, $user, 'owner');
 
+        // Was missing here while createLoop() had it: a Loop created from the
+        // admin came out with no cards at all and relied on the fallback.
+        $registry->applyPreset($loop);
+
         return $loop;
     }
 
-    public function createLoop(User $user, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST, ?string $coverImagePath = null): Loop
+    /**
+     * The type a new Loop starts on.
+     *
+     * A type withdrawn from the offer cannot be picked at creation — unlike a
+     * Loop that already carries one, there is nothing to preserve here.
+     */
+    private function resolveCreationType(?string $type): string
+    {
+        $registry = app(LoopTypeRegistry::class);
+
+        return $registry->isAvailable($type) ? $registry->resolve($type) : $registry->default();
+    }
+
+    public function createLoop(User $user, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST, ?string $coverImagePath = null, ?string $type = null): Loop
     {
         $orgId = $user->organization_id;
 
@@ -55,7 +73,7 @@ class LoopService
             'description' => $description,
             'tagline' => $tagline,
             'cover_image_path' => $coverImagePath,
-            'type' => app(LoopTypeRegistry::class)->default(),
+            'type' => $this->resolveCreationType($type),
             'status' => 'active',
             'visibility' => $visibility,
             'access_mode' => Loop::isValidAccessMode($accessMode) ? $accessMode : Loop::ACCESS_REQUEST,

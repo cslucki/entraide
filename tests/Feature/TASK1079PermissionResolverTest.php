@@ -48,6 +48,20 @@ class TASK1079PermissionResolverTest extends TestCase
         ]);
         app(LoopTypeRegistry::class)->applyPreset($this->loop);
 
+        // The whole card catalogue on the fixture, deliberately.
+        //
+        // What is under test here is the resolution chain, not composition:
+        // since CP5ter-E2 a Dialogue Loop carries Membres alone, so a fixture
+        // built from its preset would deny every manifesto and roadmap
+        // permission through the card gate and hide the very rules these tests
+        // exist to pin down. The gate itself has its own tests below.
+        foreach (array_keys(config('loop_cards.cards')) as $cardKey) {
+            LoopCard::firstOrCreate(
+                ['loop_id' => $this->loop->id, 'card_key' => $cardKey],
+                ['organization_id' => $this->org->id, 'enabled' => true],
+            );
+        }
+
         app()->instance('current_organization', $this->org);
     }
 

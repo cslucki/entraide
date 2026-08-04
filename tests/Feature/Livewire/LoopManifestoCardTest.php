@@ -52,11 +52,13 @@ class LoopManifestoCardTest extends TestCase
         app()->instance('current_organization', $this->organization);
         $this->service = new LoopService;
 
-        $this->loop = $this->service->createLoop($this->owner, 'Manifesto Loop');
+        // A Projets Loop: the Manifesto card belongs to that type since
+        // CP5ter-E2, and a Dialogue Loop legitimately has none.
+        $this->loop = $this->service->createLoop($this->owner, 'Manifesto Loop', type: 'project');
         $this->service->addMember($this->loop, $this->member, 'member');
         $this->service->addMember($this->loop, $this->moderator, 'moderator');
 
-        $this->otherLoop = $this->service->createLoop($this->crossUser, 'Other Loop');
+        $this->otherLoop = $this->service->createLoop($this->crossUser, 'Other Loop', type: 'project');
     }
 
     private function linkedPost(string $title = 'Doc'): BlogPost

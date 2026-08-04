@@ -14,6 +14,16 @@
 | there are applied; anything else is ignored rather than faked, so this file
 | can name a card ahead of its implementation without breaking a preset.
 |
+| `available` says whether a type may be *chosen* — in a creation form, or when
+| reassigning a Loop. An unavailable type is not deleted and not hidden: it
+| stays visible in the admin, it keeps whatever Loops already carry it, and it
+| simply cannot be picked. That is how a type under construction waits for its
+| cards without pretending to be finished.
+|
+| These are the DEFAULTS. The super-admin may change presets and availability
+| from /admin/loop-types without a deployment; overrides live in
+| loop_type_settings and are read through LoopTypeSettingsService.
+|
 | Applying a preset is additive and idempotent: missing cards are added, and
 | nothing is ever removed. A type is a starting point, not a cage.
 |
@@ -46,11 +56,14 @@ return [
             'description_key' => 'loops.types.general.description',
             'icon' => 'sparkles',
             'order' => 10,
+            'available' => true,
+            /*
+             * A Dialogue Loop is a conversation, nothing more: the ChatLoop and
+             * its members. No Manifesto, no Roadmap, no AI summary — those
+             * belong to a Loop that is building something.
+             */
             'cards' => [
-                'core.ai_summary',
-                'core.manifesto',
                 'core.members',
-                'core.roadmap',
             ],
         ],
 
@@ -60,11 +73,12 @@ return [
             'description_key' => 'loops.types.project.description',
             'icon' => 'map',
             'order' => 20,
+            'available' => true,
             'cards' => [
                 'core.ai_summary',
                 'core.manifesto',
-                'core.members',
                 'core.roadmap',
+                'core.members',
             ],
         ],
 
@@ -74,6 +88,11 @@ return [
             'description_key' => 'loops.types.training.description',
             'icon' => 'academic',
             'order' => 30,
+            /*
+             * Not offered anywhere: its pedagogical cards do not exist yet, and
+             * a type that ships nothing of its own is a promise, not a product.
+             */
+            'available' => false,
             /*
              * Pedagogical activity cards do not exist yet. Listing them here
              * would be pretending: the preset stays on what is really shipped,
@@ -92,6 +111,7 @@ return [
             'description_key' => 'loops.types.peer_support.description',
             'icon' => 'heart',
             'order' => 40,
+            'available' => false,
             /*
              * Help requests and resources are their own product decision
              * (TASK D of the TASK-1072 spec, still unwritten). Same rule:

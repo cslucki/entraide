@@ -83,12 +83,22 @@
                     <td class="px-4 py-3 hidden md:table-cell">
                         {{-- Inline form: changing the type applies the preset, which
                              only ever adds missing cards. Nothing is removed. --}}
+                        @php
+                            $registry = app(\App\Support\Loops\LoopTypeRegistry::class);
+                            $currentType = $registry->resolve($orgLoop->type);
+                            // Choices, plus whatever this Loop already carries: a
+                            // type withdrawn from the offer must not disappear from
+                            // the Loop that has it.
+                            $choices = $registry->selectableFor($orgLoop->type);
+                        @endphp
                         <form method="POST" action="{{ route('admin.loops.type.update', $orgLoop) }}">
                             @csrf @method('PUT')
                             <select name="type" onchange="this.form.submit()"
                                     class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-                                @foreach($loopTypes as $key => $definition)
-                                    <option value="{{ $key }}" @selected(app(\App\Support\Loops\LoopTypeRegistry::class)->resolve($orgLoop->type) === $key)>{{ __($definition['label_key']) }}</option>
+                                @foreach($choices as $key => $definition)
+                                    <option value="{{ $key }}" @selected($currentType === $key)>
+                                        {{ __($definition['label_key']) }}@unless($registry->isAvailable($key)) — {{ __('loops.types_admin_unavailable') }}@endunless
+                                    </option>
                                 @endforeach
                             </select>
                         </form>

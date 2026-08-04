@@ -4,6 +4,7 @@ namespace App\Support\Loops;
 
 use App\Models\Loop;
 use App\Models\LoopCard;
+use App\Services\LoopTypeSettingsService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -16,6 +17,55 @@ use Illuminate\Support\Facades\DB;
  */
 class LoopTypeRegistry
 {
+    /**
+     * Types that may be chosen — in a creation form, or when reassigning a
+     * Loop.
+     *
+     * An unavailable type is withheld from choices, never hidden from the
+     * admin and never taken away from the Loops that already carry it: it is a
+     * type under construction, not a deleted one.
+     *
+     * @return array<string, array<string, mixed>> keyed by type
+     */
+    public function available(): array
+    {
+        return array_filter($this->all(), fn ($_, $key) => $this->isAvailable($key), ARRAY_FILTER_USE_BOTH);
+    }
+
+    /** @return array<int, string> */
+    public function availableKeys(): array
+    {
+        return array_keys($this->available());
+    }
+
+    public function isAvailable(?string $type): bool
+    {
+        return $this->exists($type) && app(LoopTypeSettingsService::class)->isAvailable($type);
+    }
+
+    /**
+     * Types offered to someone, keeping whatever the Loop already carries.
+     *
+     * Reassigning a Loop must never silently move it off an unavailable type
+     * just because the form could not show it, so its current type stays in the
+     * list — marked, but present.
+     *
+     * @return array<string, array<string, mixed>> keyed by type
+     */
+    public function selectableFor(?string $currentType): array
+    {
+        $types = $this->available();
+        $current = $this->resolve($currentType);
+
+        if (! isset($types[$current]) && $this->exists($current)) {
+            $types[$current] = $this->all()[$current];
+        }
+
+        uasort($types, fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+
+        return $types;
+    }
+
     /** @return array<string, array<string, mixed>> keyed by type */
     public function all(): array
     {
@@ -82,12 +132,10 @@ class LoopTypeRegistry
      */
     public function cardsFor(?string $type): array
     {
-        $catalogue = array_keys(config('loop_cards.cards', []));
-
-        return array_values(array_intersect(
-            $this->definition($type)['cards'] ?? [],
-            $catalogue,
-        ));
+        // Through the settings service, never straight from config: the
+        // super-admin composes types from /admin/loop-types, and the saved
+        // preset is what a new Loop must be built from.
+        return app(LoopTypeSettingsService::class)->cardsFor($this->resolve($type));
     }
 
     /**

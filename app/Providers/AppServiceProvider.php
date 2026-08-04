@@ -52,6 +52,7 @@ use App\Services\Ai\Scenarios\ClarifyHelpRequestScenario;
 use App\Services\Ai\Scenarios\ServiceOfferMasterScenario;
 use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\Ai\SupervisionProviderResolver;
+use App\Services\LoopTypeSettingsService;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
 use Illuminate\Auth\Events\Login;
@@ -76,6 +77,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(RewardDispatcher::class);
         $this->app->singleton(SupervisionProviderResolver::class);
         $this->app->singleton(AdminAiInteractionPersistence::class);
+
+        // Singleton for its per-request memo: card presets are asked for on
+        // every workspace render, and a fresh instance per resolution would
+        // query loop_type_settings each time.
+        $this->app->singleton(LoopTypeSettingsService::class);
         $this->app->bind(AiProvider::class, function ($app) {
             return new ClarifyUserHelpRequestService(
                 $app->make(SupervisionProviderResolver::class),

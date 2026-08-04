@@ -56,7 +56,9 @@ class AdminLoopController extends Controller
             'loops' => $loops,
             'organizations' => $organizations,
             'selectedOrganizationId' => $selectedOrganizationId,
-            'loopTypes' => app(LoopTypeRegistry::class)->all(),
+            // Only what may be chosen. A Loop still on a withdrawn type keeps
+            // it in its own selector — see selectableFor() in the view.
+            'loopTypes' => app(LoopTypeRegistry::class)->available(),
         ]);
     }
 
@@ -74,6 +76,13 @@ class AdminLoopController extends Controller
 
         if (! $registry->exists($type)) {
             return back()->with('error', __('loops.type_invalid'));
+        }
+
+        // A type withdrawn from the choices cannot be assigned. Keeping the one
+        // the Loop already carries is not an assignment, so it stays allowed —
+        // otherwise saving anything else on the form would fail.
+        if (! $registry->isAvailable($type) && $registry->resolve($loop->type) !== $type) {
+            return back()->with('error', __('loops.type_unavailable'));
         }
 
         $loop->update(['type' => $type]);
@@ -159,7 +168,11 @@ class AdminLoopController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'email', 'organization_id']);
 
-            return view('admin.loops.create', compact('users', 'organizations'));
+            return view('admin.loops.create', [
+                'users' => $users,
+                'organizations' => $organizations,
+                'loopTypes' => app(LoopTypeRegistry::class)->available(),
+            ]);
         }
 
         $orgId = $user->organization_id;
@@ -173,7 +186,10 @@ class AdminLoopController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
-        return view('admin.loops.create', compact('users'));
+        return view('admin.loops.create', [
+            'users' => $users,
+            'loopTypes' => app(LoopTypeRegistry::class)->available(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -190,6 +206,7 @@ class AdminLoopController extends Controller
                     Rule::exists('users', 'id')->whereNull('banned_at'),
                 ],
                 'organization_id' => 'required|exists:organizations,id',
+                'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
             ]);
 
             $owner = User::assignable()->findOrFail($data['owner_id']);
@@ -204,6 +221,9 @@ class AdminLoopController extends Controller
                 $data['name'],
                 $data['description'] ?? null,
                 $data['visibility'],
+                null,
+                Loop::ACCESS_REQUEST,
+                $data['type'] ?? null,
             );
 
             return redirect()->route('admin.loops.edit', $loop)
@@ -226,6 +246,7 @@ class AdminLoopController extends Controller
                     ->where('organization_id', $orgId)
                     ->whereNull('banned_at'),
             ],
+            'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
         ]);
 
         $owner = User::assignable()->findOrFail($data['owner_id']);
@@ -239,6 +260,10 @@ class AdminLoopController extends Controller
             $data['name'],
             $data['description'] ?? null,
             $data['visibility'],
+            null,
+            Loop::ACCESS_REQUEST,
+            null,
+            $data['type'] ?? null,
         );
 
         return redirect()->route('admin.loops.edit', $loop)

@@ -18,6 +18,7 @@ use App\Services\LoopMessageService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -187,7 +188,10 @@ class LoopController extends Controller
         $this->assertUserBelongsToOrganization($organization);
         $this->authorize('create', [Loop::class, $organization]);
 
-        return view('loops.create', ['domains' => $this->organizationDomains($organization)]);
+        return view('loops.create', [
+            'domains' => $this->organizationDomains($organization),
+            'loopTypes' => app(LoopTypeRegistry::class)->available(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -204,6 +208,7 @@ class LoopController extends Controller
             'cover_image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'category_ids' => 'nullable|array|max:'.Loop::MAX_DOMAINS,
             'category_ids.*' => 'string',
+            'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
         ]);
 
         $loop = $this->loopService->createLoop(
@@ -213,6 +218,8 @@ class LoopController extends Controller
             'private',
             $data['tagline'] ?? null,
             $data['access_mode'] ?? Loop::ACCESS_REQUEST,
+            null,
+            $data['type'] ?? null,
         );
 
         $loop->categories()->sync($this->resolveDomainIds($organization, $data['category_ids'] ?? []));
