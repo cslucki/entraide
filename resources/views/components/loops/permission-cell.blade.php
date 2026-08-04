@@ -12,12 +12,12 @@
     dot and a worded badge — so the configured ones stand out and the inherited
     majority stays quiet. Colour is never the only signal.
 --}}
-@props(['permission', 'role', 'cell', 'stateLabels', 'scope' => 'global', 'mobile' => false])
+@props(['permission', 'role', 'cell', 'stateLabels', 'palette', 'scope' => 'global'])
 
 @php
     $name = "cells[{$permission['key']}][{$role}]";
-    $id = ($mobile ? 'm-' : '').Str::slug($permission['key'].'-'.$role);
-    $describedBy = ($mobile ? 'desc-m-' : 'desc-').Str::slug($permission['key']);
+    $id = Str::slug($permission['key'].'-'.$role);
+    $describedBy = 'desc-'.Str::slug($permission['key']);
 
     // "Inherited from the global setting" is only true when you are looking at
     // it from an Organization. On the global screen that value is not inherited
@@ -46,8 +46,10 @@
     <fieldset @class([
         'inline-flex flex-col gap-1.5 rounded-xl p-1.5 transition',
         // A configured cell is lifted out of the page; an inherited one stays
-        // deliberately quiet so the eye lands on what someone decided.
-        'bg-indigo-50/70 ring-1 ring-indigo-300 dark:bg-indigo-900/25 dark:ring-indigo-600' => $isConfigured,
+        // deliberately quiet so the eye lands on what someone decided. The
+        // colour is the role's own, so three neighbouring columns no longer
+        // highlight identically.
+        $palette['ring'] => $isConfigured,
     ])>
         <legend class="sr-only">{{ $permission['label'] }} — {{ __('loops.members_role_'.$role) }}</legend>
 
@@ -87,7 +89,7 @@
             </span>
 
             @if($isConfigured)
-                <span class="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                <span class="rounded px-1.5 py-0.5 font-semibold {{ $palette['badge'] }}">
                     {{ $sourceLabel }}
                 </span>
             @else

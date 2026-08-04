@@ -489,6 +489,8 @@ return [
     'governance_self_demote_confirm' => 'You will lose your owner rights on this Loop. Another owner or an administrator can give them back. Continue?',
     'governance_and_others' => ':name and :count other(s)',
     'permissions_source_global_own' => 'Explicit global setting',
+    'permissions_legend_title' => 'Role colour key',
+    'permissions_legend_hint' => "Colour indicates which role a setting belongs to; the permission itself is always spelled out.",
     'permissions_configured_count' => '{1} 1 active setting|[2,*] :count active settings',
     'permissions_types_notice' => 'The cards specific to each type are not defined yet: all four types currently inherit the same permission baseline. This screen is ready to carry their differences as soon as those cards exist.',
 ];

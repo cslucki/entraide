@@ -55,6 +55,45 @@ class TASK1079PermissionMatrixTest extends TestCase
         return '/org/'.$this->org->slug.'/admin/loop-permissions'.$suffix;
     }
 
+    // ── Ce qui est enregistré doit se voir ──────────────────────────────────
+
+    public function test_a_saved_setting_renders_exactly_one_checked_segment(): void
+    {
+        // The matrix used to render two copies of every cell — a desktop table
+        // and a mobile stack — sharing one radio `name`. Radios group by name,
+        // so the browser kept only the last copy checked and the visible
+        // desktop control showed no selection at all for a saved setting.
+        $this->settings()->setGlobal('general', 'facilitator', 'loops.update_identity', true);
+
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-permissions', ['type' => 'general']))
+            ->assertOk()
+            ->getContent();
+
+        $pattern = '/name="cells\[loops\.update_identity\]\[facilitator\]"[^>]*value="allowed"[^>]*\schecked\b/';
+        $this->assertSame(1, preg_match_all($pattern, $html), 'The saved value must be checked exactly once.');
+
+        // And exactly one input per state, so no hidden duplicate can steal it.
+        $inputs = preg_match_all('/name="cells\[loops\.update_identity\]\[facilitator\]"/', $html);
+        $this->assertSame(3, $inputs, 'One input per state, and only one set of them.');
+    }
+
+    public function test_each_role_carries_its_own_colour_on_a_configured_cell(): void
+    {
+        foreach (['owner' => 'violet', 'facilitator' => 'sky', 'member' => 'amber'] as $role => $colour) {
+            $this->settings()->setGlobal('general', $role, 'loops.update_identity', true);
+        }
+
+        $html = $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-permissions', ['type' => 'general']))
+            ->assertOk()
+            ->getContent();
+
+        foreach (['violet', 'sky', 'amber'] as $colour) {
+            $this->assertStringContainsString('ring-'.$colour.'-400', $html);
+        }
+    }
+
     // ── Matrice globale : accès ─────────────────────────────────────────────
 
     public function test_the_super_admin_reaches_the_global_matrix(): void

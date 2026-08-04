@@ -489,6 +489,8 @@ return [
     'governance_self_demote_confirm' => 'Vous allez perdre vos droits de propriétaire sur cette Boucle. Un autre propriétaire ou un administrateur pourra vous les rendre. Continuer ?',
     'governance_and_others' => ':name et :count autre(s)',
     'permissions_source_global_own' => 'Réglage global explicite',
+    'permissions_legend_title' => 'Code couleur des rôles',
+    'permissions_legend_hint' => "La couleur signale le rôle concerné ; l'autorisation reste écrite en toutes lettres.",
     'permissions_configured_count' => '{1} 1 réglage actif|[2,*] :count réglages actifs',
     'permissions_types_notice' => 'Les Cards propres à chaque type ne sont pas encore définies : les quatre types héritent aujourd\'hui du même socle de permissions. Cet écran est prêt à porter leurs différences dès que ces Cards existeront.',
 ];
