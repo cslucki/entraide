@@ -488,4 +488,5 @@ return [
     'governance_refused' => 'Action not possible.',
     'governance_self_demote_confirm' => 'You will lose your owner rights on this Loop. Another owner or an administrator can give them back. Continue?',
     'governance_and_others' => ':name and :count other(s)',
+    'permissions_source_global_own' => 'Explicit global setting',
 ];

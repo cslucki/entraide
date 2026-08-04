@@ -488,4 +488,5 @@ return [
     'governance_refused' => 'Action impossible.',
     'governance_self_demote_confirm' => 'Vous allez perdre vos droits de propriétaire sur cette Boucle. Un autre propriétaire ou un administrateur pourra vous les rendre. Continuer ?',
     'governance_and_others' => ':name et :count autre(s)',
+    'permissions_source_global_own' => 'Réglage global explicite',
 ];

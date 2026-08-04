@@ -14,15 +14,15 @@ use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
- * The permission matrices, global and Organization-scoped.
+ * The global permission matrix — super-admin only.
  *
- * One controller for both because the screens differ only in which layer they
- * write to and how much they may change — the way a cell is built, the value it
- * shows and where that value comes from are identical, and duplicating that
- * would let the two drift.
+ * An Organization-scoped screen existed briefly and was removed on review: this
+ * is a platform-level tool, not something an Organization administers. The
+ * per-Organization override *layer* stays in the resolver and its storage, so
+ * the capability is intact and tested; only the screen is gone.
  *
- * Neither screen ever configures an individual Loop: there is no loop_id
- * anywhere in this flow.
+ * The matrix never configures an individual Loop: there is no loop_id anywhere
+ * in this flow.
  */
 class AdminLoopPermissionController extends Controller
 {
@@ -60,35 +60,6 @@ class AdminLoopPermissionController extends Controller
 
         return redirect()
             ->route('admin.loop-permissions', ['type' => $type])
-            ->with('success', __('loops.permissions_saved'));
-    }
-
-    // ── Matrice Organization ────────────────────────────────────────────────
-
-    public function orgIndex(Request $request, Organization $organization): View
-    {
-        $this->assertOrganizationAdmin($request, $organization);
-
-        $type = $this->resolveType($request);
-
-        return view('admin.loop-permissions.organization', $this->matrixData($type, $organization) + [
-            'organization' => $organization,
-            'affectedLoops' => $this->countLoopsOfType($type, $organization),
-        ]);
-    }
-
-    public function orgUpdate(Request $request, Organization $organization): RedirectResponse
-    {
-        $this->assertOrganizationAdmin($request, $organization);
-
-        $type = $this->resolveType($request);
-
-        $this->applyChanges($request, fn (string $role, string $permission, ?bool $value) => $value === null
-            ? $this->settings->clearOrganization($organization, $type, $role, $permission)
-            : $this->settings->setOrganization($organization, $type, $role, $permission, $value));
-
-        return redirect()
-            ->route('organization.admin.loop-permissions', ['organization' => $organization->slug, 'type' => $type])
             ->with('success', __('loops.permissions_saved'));
     }
 
@@ -204,17 +175,5 @@ class AdminLoopPermissionController extends Controller
             ->when($organization, fn ($q) => $q->where('organization_id', $organization->id))
             ->whereIn('type', array_merge([$type], $aliases))
             ->count();
-    }
-
-    private function assertOrganizationAdmin(Request $request, Organization $organization): void
-    {
-        $user = $request->user();
-
-        // Tenant strict: an Organization admin only ever reaches their own.
-        abort_unless(
-            $user && ! $user->isDeactivated()
-                && ($user->is_admin || ($user->organization_id === $organization->id && $organization->admin_id === $user->id)),
-            403,
-        );
     }
 }

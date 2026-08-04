@@ -16,9 +16,14 @@
     $id = ($mobile ? 'm-' : '').Str::slug($permission['key'].'-'.$role);
     $describedBy = ($mobile ? 'desc-m-' : 'desc-').Str::slug($permission['key']);
 
+    // "Inherited from the global setting" is only true when you are looking at
+    // it from an Organization. On the global screen itself that value is not
+    // inherited — it *is* the setting, and calling it inherited is misleading.
     $sourceLabel = match ($cell['source']) {
         'organization' => __('loops.permissions_source_organization'),
-        'global' => __('loops.permissions_source_global'),
+        'global' => $scope === 'organization'
+            ? __('loops.permissions_source_global')
+            : __('loops.permissions_source_global_own'),
         default => __('loops.permissions_source_system'),
     };
 @endphp
