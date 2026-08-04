@@ -25,7 +25,9 @@
                 <span>{{ $currentLoop->active_members_count }} membre{{ $currentLoop->active_members_count !== 1 ? 's' : '' }}</span>
                 <span>· {{ $currentLoop->invitations_count }} {{ mb_strtolower(__('loops.invitations_sent_count')) }}@if($currentLoop->pending_invitations_count) ({{ $currentLoop->pending_invitations_count }} en attente)@endif</span>
                 <span>· {{ $currentLoop->visibility }}</span>
-                <a href="{{ $currentLoop->workspaceUrl() }}" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">· Ouvrir le workspace</a>
+                @can('viewWorkspace', $currentLoop)
+                    <a href="{{ $currentLoop->workspaceUrl() }}" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">· Ouvrir le workspace</a>
+                @endcan
             </p>
         </div>
 

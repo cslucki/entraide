@@ -379,7 +379,7 @@ class TASK1079LoopAdminTest extends TestCase
         $this->assertStringContainsString($foreignLoop->id, $foreignLoop->workspaceUrl());
     }
 
-    public function test_the_listing_links_to_the_scoped_workspace(): void
+    public function test_the_listing_opens_the_overview_from_the_loop_name(): void
     {
         $otherOrg = Organization::factory()->create(['loops_enabled' => true, 'slug' => 'ailleurs2']);
         $foreignLoop = Loop::factory()->create(['organization_id' => $otherOrg->id, 'status' => 'active']);
@@ -387,7 +387,50 @@ class TASK1079LoopAdminTest extends TestCase
         $this->actingAs($this->superAdmin)
             ->get(route('admin.loops', ['organization_id' => 'all']))
             ->assertOk()
-            ->assertSee($foreignLoop->workspaceUrl(), false);
+            ->assertSee(route('admin.loops.show', $foreignLoop), false)
+            // The workspace needs an active membership and has no super-admin
+            // bypass, so offering it from the listing only produced a 404.
+            ->assertDontSee($foreignLoop->workspaceUrl(), false);
+    }
+
+    public function test_the_overview_offers_the_workspace_only_to_a_member(): void
+    {
+        $loop = $this->loop(['name' => 'Boucle Passage']);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops.show', $loop))
+            ->assertOk()
+            ->assertDontSee($loop->workspaceUrl(), false);
+
+        LoopMember::factory()->owner()->create([
+            'loop_id' => $loop->id, 'user_id' => $this->superAdmin->id, 'joined_at' => now(),
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops.show', $loop))
+            ->assertOk()
+            ->assertSee($loop->workspaceUrl(), false);
+    }
+
+    public function test_the_overview_lists_the_cards_of_a_loop_that_predates_the_cards_table(): void
+    {
+        // No row in loop_cards: the Loop falls back to its type preset, and the
+        // overview used to read the raw relation and show nothing at all while
+        // the workspace rendered four cards.
+        $loop = $this->loop(['type' => 'project']);
+        $member = User::factory()->create(['organization_id' => $this->org->id]);
+        LoopMember::factory()->owner()->create(['loop_id' => $loop->id, 'user_id' => $member->id, 'joined_at' => now()]);
+
+        $this->assertSame(0, $loop->cards()->count());
+
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.loops.show', $loop))->assertOk()->getContent();
+
+        foreach ($this->registry()->cardsFor('project') as $key) {
+            $this->assertStringContainsString(__(config('loop_cards.cards')[$key]['label_key']), $html);
+        }
+
+        // And a glance at what they hold, not just their names.
+        $this->assertStringContainsString('1 membre', $html);
     }
 
     // ── Changement de type : rien n'est jamais perdu ────────────────────────

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopMember;
+use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopGovernanceService;
@@ -273,8 +274,26 @@ class AdminLoopController extends Controller
             'boucle' => $loop,
             'typeLabel' => $registry->label($loop->type),
             'presetCards' => $registry->cardsFor($loop->type),
+            // activeCardsFor(), not the raw relation: Loops predating the
+            // loop_cards table fall back to their type preset, so reading the
+            // relation showed them as having no cards while the workspace
+            // rendered four.
+            'activeCards' => $registry->activeCardsFor($loop),
+            'cardCatalogue' => config('loop_cards.cards', []),
+            // A glance at what each card actually holds, so the overview answers
+            // "what is in this Loop" without opening the workspace.
+            'cardPreview' => [
+                'core.members' => $loop->active_members_count,
+                'core.roadmap' => LoopRoadmapItem::where('loop_id', $loop->id)->count(),
+                'core.manifesto' => $loop->manifesto?->title,
+                'core.ai_summary' => $loop->messages()->count(),
+            ],
             'manifestoSources' => app(LoopManifestoService::class)->sourcesFor($loop),
             'invitations' => $loop->invitations()->with('sender')->latest()->limit(10)->get(),
+            // The workspace requires an active membership and deliberately has
+            // no super-admin bypass (TASK-1073/1074), so the link is offered
+            // only when it would actually open — it used to 404.
+            'canEnterWorkspace' => auth()->user()?->can('viewWorkspace', $loop) ?? false,
         ]);
     }
 

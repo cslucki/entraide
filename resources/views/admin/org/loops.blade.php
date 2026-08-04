@@ -68,7 +68,12 @@
                         <div class="flex flex-wrap items-center gap-2">
                             <a href="{{ route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $boucle->id]) }}"
                                class="text-xs font-semibold text-indigo-600 hover:underline">Modifier</a>
-                            <a href="{{ $boucle->workspaceUrl() }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
+                            {{-- The workspace requires an active membership, with no
+                                 administrator bypass: offered to a non-member it only
+                                 produced a 404. --}}
+                            @can('viewWorkspace', $boucle)
+                                <a href="{{ $boucle->workspaceUrl() }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
+                            @endcan
                         </div>
                         <form method="POST" action="{{ route('organization.admin.loops.toggle-active', [$organization, $boucle]) }}" class="mt-1 inline">
                             @csrf

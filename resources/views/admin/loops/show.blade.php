@@ -21,8 +21,10 @@
                    class="inline-flex min-h-[44px] items-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700">Modifier</a>
                 {{-- Org-scoped: a Loop of another Organization must not resolve
                      against the admin's own. --}}
-                <a href="{{ $boucle->workspaceUrl() }}"
-                   class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">Workspace</a>
+                @if($canEnterWorkspace)
+                    <a href="{{ $boucle->workspaceUrl() }}"
+                       class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">Workspace</a>
+                @endif
             </div>
         </div>
 
@@ -45,7 +47,7 @@
             @foreach([
                 ['Membres actifs', $boucle->active_members_count],
                 [__('loops.invitations_sent_count'), $boucle->invitations_count.($boucle->pending_invitations_count ? ' ('.$boucle->pending_invitations_count.' en attente)' : '')],
-                [__('loops.cards_linked'), $boucle->cards->where('enabled', true)->count()],
+                [__('loops.cards_linked'), count($activeCards)],
             ] as [$label, $value])
                 <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
                     <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{{ $label }}</p>
@@ -115,16 +117,32 @@
             <p class="mt-3 text-xs text-gray-400">Lecture seule — les actions sont sur la page Modifier.</p>
         </section>
 
-        {{-- Cards --}}
+        {{-- Cards, avec un aperçu de ce qu'elles contiennent --}}
         <section class="mb-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
             <h2 class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.cards_linked') }}</h2>
-            @forelse($boucle->cards->where('enabled', true) as $card)
-                <span class="mr-2 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                    {{ $card->label() }}
-                    @if(in_array($card->card_key, $presetCards, true))
-                        <span class="rounded bg-indigo-100 px-1 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">socle</span>
+
+            @forelse($activeCards as $key)
+                @php
+                    $definition = $cardCatalogue[$key] ?? null;
+                    $preview = $cardPreview[$key] ?? null;
+                @endphp
+                <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-100 px-3 py-2 last:mb-0 dark:border-gray-700">
+                    <span class="text-sm font-medium text-gray-800 dark:text-gray-100">
+                        {{ $definition ? __($definition['label_key']) : $key }}
+                    </span>
+                    @if(in_array($key, $presetCards, true))
+                        <span class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">socle</span>
                     @endif
-                </span>
+                    <span class="min-w-0 flex-1 truncate text-xs text-gray-500 dark:text-gray-400">
+                        @switch($key)
+                            @case('core.members') {{ $preview }} membre{{ $preview !== 1 ? 's' : '' }} @break
+                            @case('core.roadmap') {{ $preview }} élément{{ $preview !== 1 ? 's' : '' }} @break
+                            @case('core.manifesto') {{ $preview ?: 'Aucun Manifeste désigné' }} @break
+                            @case('core.ai_summary') {{ $preview }} message{{ $preview !== 1 ? 's' : '' }} dans ChatLoop @break
+                            @default {{ $definition ? __($definition['description_key']) : '—' }}
+                        @endswitch
+                    </span>
+                </div>
             @empty
                 <p class="text-xs text-gray-400">—</p>
             @endforelse

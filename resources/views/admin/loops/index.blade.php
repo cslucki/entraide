@@ -41,7 +41,9 @@
                          viewport and the Actions column fell off the screen. --}}
                     <td class="px-4 py-3">
                         <div class="min-w-0 max-w-md">
-                            <p class="truncate font-medium text-gray-900 dark:text-gray-100">{{ $orgLoop->name }}</p>
+                            <a href="{{ route('admin.loops.show', $orgLoop) }}"
+                               class="block truncate font-medium text-gray-900 transition hover:text-indigo-600 hover:underline dark:text-gray-100 dark:hover:text-indigo-400"
+                               title="Voir la Boucle">{{ $orgLoop->name }}</a>
                             @if($orgLoop->description)
                                 <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ Str::limit($orgLoop->description, 70) }}</p>
                             @endif
@@ -93,9 +95,11 @@
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex gap-2 items-center">
-                            <a href="{{ route('admin.loops.show', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Vue</a>
-                            <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Modifier</a>
-                            <a href="{{ $orgLoop->workspaceUrl() }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
+                            {{-- The name itself opens the overview; the Actions column
+                                 keeps only what acts. Workspace is gone from here: it
+                                 needs an active membership and 404'd for an admin who
+                                 is not one. --}}
+                            <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
                             <a href="{{ route('admin.loops.files', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Fichiers</a>
                             @if($orgLoop->isActive())
                             <form method="POST" action="{{ route('admin.loops.archive', $orgLoop) }}"
