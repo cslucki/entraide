@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
+use App\Http\Controllers\Admin\AdminLoopPermissionController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
@@ -488,6 +489,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/email-logs/{emailLog}', [AdminEmailLogsController::class, 'show'])->name('email-logs.show');
 
     // System email templates (notifications overrides)
+    // Loop permission matrix — global settings by type x role x permission.
+    // Never per-Loop: there is no loop_id anywhere in this flow (TASK-1079).
+    Route::get('/loop-permissions', [AdminLoopPermissionController::class, 'index'])->name('loop-permissions');
+    Route::put('/loop-permissions', [AdminLoopPermissionController::class, 'update'])->name('loop-permissions.update');
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
@@ -868,6 +873,8 @@ Route::prefix('/org/{organization}')
 
                 // Community
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
+                Route::get('/loop-permissions', [AdminLoopPermissionController::class, 'orgIndex'])->name('loop-permissions');
+                Route::put('/loop-permissions', [AdminLoopPermissionController::class, 'orgUpdate'])->name('loop-permissions.update');
                 Route::get('/loops/{loop}/edit', [OrgAdminController::class, 'editLoop'])->name('loops.edit');
                 Route::put('/loops/{loop}', [OrgAdminController::class, 'updateLoop'])->name('loops.update');
                 Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
