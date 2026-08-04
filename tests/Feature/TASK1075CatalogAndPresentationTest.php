@@ -169,7 +169,10 @@ class TASK1075CatalogAndPresentationTest extends TestCase
         $this->assertSame('open', $loop->access_mode);
         $this->assertNotNull($loop->cover_image_path);
         Storage::disk('public')->assertExists($loop->cover_image_path);
-        $this->assertSame('custom', $loop->type);
+        // TASK-1079: new Loops are born with a real business type instead of the
+        // historical `custom` placeholder. Existing rows keep `custom`, read as
+        // `general` by the registry — no backfill.
+        $this->assertSame('general', $loop->type);
         $this->assertSame('private', $loop->visibility);
     }
 

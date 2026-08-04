@@ -95,42 +95,31 @@
                             @endforeach
                         </select>
                     </div>
+                    <div>
+                        <label for="add_role" class="block text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('loops.governance_add_as') }}</label>
+                        <select name="role" id="add_role"
+                                class="mt-1 min-h-[44px] rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                            <option value="member">{{ __('loops.members_role_member') }}</option>
+                            <option value="facilitator">{{ __('loops.members_role_facilitator') }}</option>
+                            <option value="owner">{{ __('loops.members_role_owner') }}</option>
+                        </select>
+                    </div>
                     <button type="submit"
-                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition whitespace-nowrap">
+                        class="min-h-[44px] px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition whitespace-nowrap">
                         Ajouter
                     </button>
                 </form>
 
-                {{-- Liste des membres --}}
-                <div class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @forelse($boucle->members as $member)
-                    <div class="py-3 flex items-center gap-3">
-                        <img src="{{ $member->user->avatar_url }}" class="w-8 h-8 rounded-full flex-shrink-0" alt="">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $member->user->fullName }}</p>
-                            <p class="text-xs text-gray-500">
-                                {{ match($member->role) { 'owner' => 'Propriétaire', 'moderator' => 'Modérateur', default => 'Membre' } }}
-                                @if($member->joined_at)
-                                · {{ $member->joined_at->diffForHumans() }}
-                                @endif
-                            </p>
-                        </div>
-                        <span class="text-xs px-2 py-0.5 rounded-full
-                            {{ $member->status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' }}">
-                            {{ $member->status === 'active' ? 'Actif' : ($member->status === 'invited' ? 'Invité' : 'Parti') }}
-                        </span>
-                        @if($member->role !== 'owner')
-                        <form method="POST" action="{{ route('admin.loops.members.remove', [$boucle, $member]) }}"
-                              onsubmit="return confirm('Retirer {{ addslashes($member->user->fullName) }} de la boucle ?')">
-                            @csrf @method('DELETE')
-                            <button class="text-xs text-red-500 hover:underline">Retirer</button>
-                        </form>
-                        @endif
-                    </div>
-                    @empty
-                    <p class="py-4 text-sm text-gray-400 text-center">Aucun membre.</p>
-                    @endforelse
-                </div>
+                {{-- Gouvernance : propriétaires, Animateurs, membres --}}
+                <x-loops.governance-roster
+                    :members="$boucle->members->where('status', 'active')"
+                    :role-route="fn($m) => route('admin.loops.members.role', [$boucle, $m])"
+                    :remove-route="fn($m) => route('admin.loops.members.remove', [$boucle, $m])"
+                    :can-manage-owners="true"
+                    :can-manage-facilitators="true"
+                    :can-remove="true"
+                    :creator-id="$boucle->created_by"
+                    :current-user-id="auth()->id()" />
             </div>
 
             {{-- Status / Archive / Restore --}}

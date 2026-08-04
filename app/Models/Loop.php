@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
 class Loop extends Model
@@ -160,9 +161,76 @@ class Loop extends Model
      * transferred imperfectly or the owner left (edge case, handled
      * gracefully in views rather than enforced here).
      */
+    /**
+     * Manifesto body, sanitised for display.
+     *
+     * Same allowlist as the workspace card: the Blog editor sanitises on save,
+     * but the starter content is inserted directly, and an admin page is not the
+     * place to trust that either.
+     */
+    public function manifestoHtmlForAdmin(): string
+    {
+        $manifesto = $this->manifesto;
+
+        if (! $manifesto) {
+            return '';
+        }
+
+        $allowed = ['h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 'br', 'a', 'code', 'pre', 'blockquote'];
+
+        $html = preg_replace('#<(script|style|template)\b[^>]*>.*?</\1>#is', '', (string) $manifesto->content);
+        $html = strip_tags((string) $html, '<'.implode('><', $allowed).'>');
+        $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
+
+        return (string) preg_replace('/<(\w+)\s[^>]*(?:javascript|data)\s*:\s*[^"\'>\s]+/i', '<$1', $html);
+    }
+
+    /**
+     * Absolute URL of this Loop's workspace, scoped to its own Organization.
+     *
+     * `route('loops.show', $loop)` resolves the Organization from the *current*
+     * request context, which is wrong anywhere a Loop of another Organization is
+     * listed — the platform admin browsing every Loop is exactly that case, and
+     * the link landed on their own Organization instead.
+     */
+    public function workspaceUrl(): string
+    {
+        $slug = $this->organization?->slug;
+
+        if ($slug && Route::has('organization.loops.show')) {
+            return route('organization.loops.show', ['organization' => $slug, 'loop' => $this->id]);
+        }
+
+        return route('loops.show', $this);
+    }
+
+    /** Every active owner. A Loop may have several; they all have equal rights. */
+    public function owners(): HasMany
+    {
+        return $this->hasMany(LoopMember::class)
+            ->where('role', 'owner')
+            ->where('status', 'active')
+            ->orderBy('joined_at');
+    }
+
+    /**
+     * @deprecated TASK-1079 CP5ter — display compatibility only.
+     *
+     * A Loop can have several owners and there is no business notion of a
+     * "primary owner". This relation exists solely so the screens written when
+     * a single owner was assumed keep rendering; it is ordered by joined_at so
+     * the value is at least deterministic instead of whichever row the database
+     * returned first.
+     *
+     * **Never use it to authorise anything** — LoopPermissionResolver is the
+     * only authority. New screens use owners().
+     */
     public function owner(): HasOne
     {
-        return $this->hasOne(LoopMember::class)->where('role', 'owner')->where('status', 'active');
+        return $this->hasOne(LoopMember::class)
+            ->where('role', 'owner')
+            ->where('status', 'active')
+            ->orderBy('joined_at');
     }
 
     public function messages(): HasMany
@@ -198,6 +266,36 @@ class Loop extends Model
      * The designated primary Manifesto (a BlogPost). Null if none is designated
      * or if the designated post has been (soft) deleted (SoftDeletes scope).
      */
+    /** Targeted e-mail invitations sent for this Loop (TASK-1077). */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(LoopInvitation::class);
+    }
+
+    /** Cards enabled on this Loop (TASK-1079); the catalogue lives in config. */
+    public function cards(): HasMany
+    {
+        return $this->hasMany(LoopCard::class);
+    }
+
+    /** Dossiers documents linked as sources of this Loop's Manifesto. */
+    public function manifestoSources(): HasMany
+    {
+        return $this->hasMany(LoopManifestoSource::class);
+    }
+
+    /**
+     * The Manifesto is only public material once a human published it, and only
+     * on a Loop that is not private. Confidentiality of the Loop always wins:
+     * this is never a fallback for a missing description.
+     */
+    public function hasPublicManifesto(): bool
+    {
+        return $this->visibility !== 'private'
+            && $this->manifesto !== null
+            && $this->manifesto->status === 'published';
+    }
+
     public function manifesto(): BelongsTo
     {
         return $this->belongsTo(BlogPost::class, 'manifesto_blog_post_id');

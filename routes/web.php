@@ -18,6 +18,8 @@ use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
+use App\Http\Controllers\Admin\AdminLoopPermissionController;
+use App\Http\Controllers\Admin\AdminLoopTypeController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
@@ -339,6 +341,11 @@ Route::middleware('auth')->group(function () {
         // controller only reserves the first two positional route slots — a third
         // nested {joinRequest} segment breaks that resolution. The Loop is resolved
         // from the request's own relation instead of a route segment.
+        // Flat, like the join-request routes above and for the same reason: a
+        // membership id is globally unique, and the union-typed
+        // $loopOrOrganization/$loop signature only reserves two positional
+        // slots — a third nested segment raises a TypeError (TASK-1075).
+        Route::put('/loop-members/{member}/role', [LoopController::class, 'updateMemberRole'])->name('loops.members.role');
         Route::delete('/join-requests/{joinRequest}', [LoopController::class, 'cancelJoinRequest'])->name('loop-join-requests.cancel');
         Route::post('/join-requests/{joinRequest}/accept', [LoopController::class, 'acceptJoinRequest'])->name('loop-join-requests.accept');
         Route::post('/join-requests/{joinRequest}/reject', [LoopController::class, 'rejectJoinRequest'])->name('loop-join-requests.reject');
@@ -488,6 +495,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/email-logs/{emailLog}', [AdminEmailLogsController::class, 'show'])->name('email-logs.show');
 
     // System email templates (notifications overrides)
+    // Loop permission matrix — global settings by type x role x permission.
+    // Never per-Loop: there is no loop_id anywhere in this flow (TASK-1079).
+    Route::get('/loop-permissions', [AdminLoopPermissionController::class, 'index'])->name('loop-permissions');
+    Route::put('/loop-permissions', [AdminLoopPermissionController::class, 'update'])->name('loop-permissions.update');
+
+    // Composition des types de Boucles (super-admin). Le contrôleur refuse
+    // lui-même tout non super-admin : le groupe admin ne suffit pas.
+    Route::get('/loop-types', [AdminLoopTypeController::class, 'index'])->name('loop-types');
+    Route::put('/loop-types/{type}', [AdminLoopTypeController::class, 'update'])->name('loop-types.update');
+    Route::delete('/loop-types/{type}', [AdminLoopTypeController::class, 'reset'])->name('loop-types.reset');
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
@@ -563,11 +580,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/loops', [AdminLoopController::class, 'index'])->name('loops');
     Route::get('/loops/create', [AdminLoopController::class, 'create'])->name('loops.create');
     Route::post('/loops', [AdminLoopController::class, 'store'])->name('loops.store');
+    Route::get('/loops/{loop}', [AdminLoopController::class, 'show'])->name('loops.show');
     Route::get('/loops/{loop}/edit', [AdminLoopController::class, 'edit'])->name('loops.edit');
     Route::put('/loops/{loop}', [AdminLoopController::class, 'update'])->name('loops.update');
     Route::post('/loops/{loop}/members', [AdminLoopController::class, 'addMember'])->name('loops.members.add');
+    Route::put('/loops/{loop}/members/{member}/role', [AdminLoopController::class, 'updateMemberRole'])->name('loops.members.role');
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
+    Route::put('/loops/{loop}/type', [AdminLoopController::class, 'updateType'])->name('loops.type.update');
     Route::post('/loops/{loop}/archive', [AdminLoopController::class, 'archive'])->name('loops.archive');
     Route::post('/loops/{loop}/restore', [AdminLoopController::class, 'restore'])->name('loops.restore');
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
@@ -867,8 +887,11 @@ Route::prefix('/org/{organization}')
 
                 // Community
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
+                Route::get('/loops/{loop}/edit', [OrgAdminController::class, 'editLoop'])->name('loops.edit');
+                Route::put('/loops/{loop}', [OrgAdminController::class, 'updateLoop'])->name('loops.update');
                 Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
                 Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
+                Route::put('/loops/{loop}/members/{member}/role', [OrgAdminController::class, 'updateLoopMemberRole'])->name('loops.members.role');
                 Route::delete('/loops/{loop}/members/{member}', [OrgAdminController::class, 'removeLoopMember'])->name('loops.members.remove');
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');

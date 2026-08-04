@@ -38,7 +38,9 @@ class LoopCreationTest extends TestCase
         $this->assertEquals('A description', $loop->description);
         $this->assertEquals($this->organization->id, $loop->organization_id);
         $this->assertEquals($this->user->id, $loop->created_by);
-        $this->assertEquals('custom', $loop->type);
+        // TASK-1079: new Loops carry a real business type. Pre-existing rows keep
+        // `custom`, which the registry reads as `general` — no backfill.
+        $this->assertEquals('general', $loop->type);
         $this->assertEquals('active', $loop->status);
     }
 

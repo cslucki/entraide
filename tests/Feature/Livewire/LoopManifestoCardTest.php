@@ -52,11 +52,13 @@ class LoopManifestoCardTest extends TestCase
         app()->instance('current_organization', $this->organization);
         $this->service = new LoopService;
 
-        $this->loop = $this->service->createLoop($this->owner, 'Manifesto Loop');
+        // A Projets Loop: the Manifesto card belongs to that type since
+        // CP5ter-E2, and a Dialogue Loop legitimately has none.
+        $this->loop = $this->service->createLoop($this->owner, 'Manifesto Loop', type: 'project');
         $this->service->addMember($this->loop, $this->member, 'member');
         $this->service->addMember($this->loop, $this->moderator, 'moderator');
 
-        $this->otherLoop = $this->service->createLoop($this->crossUser, 'Other Loop');
+        $this->otherLoop = $this->service->createLoop($this->crossUser, 'Other Loop', type: 'project');
     }
 
     private function linkedPost(string $title = 'Doc'): BlogPost
@@ -81,7 +83,7 @@ class LoopManifestoCardTest extends TestCase
             ->assertSee(__('loops.manifesto_pitch'));
     }
 
-    public function test_moderator_can_designate_a_linked_article(): void
+    public function test_a_legacy_moderator_designates_as_a_facilitator(): void
     {
         $post = $this->linkedPost('Manifeste');
         $this->actingAs($this->moderator);
@@ -89,6 +91,14 @@ class LoopManifestoCardTest extends TestCase
         Livewire::test(LoopManifestoCard::class, ['loop' => $this->loop])
             ->call('designate', $post->id);
 
+        // Third state of this assertion, and the reasoning is worth recording.
+        // Originally a moderator could designate. CP5bis narrowed editing to
+        // owners because "moderation" was too wide a justification for touching
+        // the founding text. CP5ter introduces `facilitator` as the canonical
+        // role for exactly that responsibility, and `moderator` is now a legacy
+        // alias of it — so this capability returns, but named correctly and
+        // resolved centrally. Publishing remains a separate permission the
+        // facilitator does not hold by default.
         $this->assertSame($post->id, $this->loop->fresh()->manifesto_blog_post_id);
     }
 

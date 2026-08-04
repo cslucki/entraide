@@ -9,6 +9,7 @@ use App\Models\LoopRoadmapItemMessage;
 use App\Models\LoopRoadmapLabel;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -935,7 +936,12 @@ class LoopRoadmapCard extends Component
 
         $membership = $this->activeMembership();
 
-        return $membership !== null && in_array($membership->role, ['owner', 'moderator'], true);
+        // Resolved centrally (CP5ter): the facilitator replaces the never-used
+        // moderator, and a type or an Organization can vary the rule.
+        $user = auth()->user();
+
+        return $user !== null
+            && app(LoopPermissionResolver::class)->can($user, $this->loop, 'roadmap.manage');
     }
 
     /** Adding a not-yet-member Org user to the Loop is reserved to privileged users. */

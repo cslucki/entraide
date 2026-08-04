@@ -8,6 +8,7 @@ use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\LoginLog;
 use App\Models\Loop;
+use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
@@ -20,10 +21,13 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\LoopGovernanceService;
 use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use App\Services\UserDataLifecycleRegistry;
+use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -133,7 +137,16 @@ class OrgAdminController extends Controller
     public function loops(Request $request, Organization $organization): View
     {
         $orgId = $organization->id;
-        $query = Loop::where('organization_id', $orgId)->with(['creator', 'activeMembers.user']);
+        // A listing, nothing more (TASK-1079): editing and member management moved
+        // to a dedicated page, so there is no reason to hydrate every member of
+        // every Loop here. Counters are aggregated in SQL.
+        $query = Loop::where('organization_id', $orgId)
+            ->with(['creator', 'owner.user', 'owners.user', 'cards'])
+            ->withCount([
+                'activeMembers',
+                'invitations',
+                'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
+            ]);
 
         if ($request->filled('search')) {
             $query->where('name', 'like', '%'.$request->search.'%');
@@ -152,6 +165,7 @@ class OrgAdminController extends Controller
         return view('admin.org.loops', [
             'organization' => $organization,
             'loops' => $loops,
+            'loopTypes' => app(LoopTypeRegistry::class)->all(),
         ]);
     }
 
@@ -200,6 +214,109 @@ class OrgAdminController extends Controller
         ]);
     }
 
+    /**
+     * Edit a Loop from the Organization admin: name, description, type.
+     *
+     * Strictly tenant-scoped, and deliberately narrow — the full editing
+     * surface stays in LoopController rather than being duplicated here.
+     */
+    /**
+     * Dedicated edit page for one Loop.
+     *
+     * Everything that acts on a Loop lives here rather than being crammed into
+     * the listing table: identity, type and its card composition, members, and
+     * the invitation figures.
+     */
+    public function editLoop(Organization $organization, Loop $loop): View
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $registry = app(LoopTypeRegistry::class);
+
+        $loop->load(['creator', 'owner.user', 'activeMembers.user', 'cards']);
+        $loop->loadCount([
+            'activeMembers',
+            'invitations',
+            'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
+        ]);
+
+        $memberIds = $loop->activeMembers->pluck('user_id');
+
+        return view('admin.org.loop-edit', [
+            'organization' => $organization,
+            'loop' => $loop,
+            'loopTypes' => $registry->all(),
+            'currentType' => $registry->resolve($loop->type),
+            // What the type prescribes, so the admin can tell the baseline apart
+            // from what this Loop added on its own.
+            'presetCards' => $registry->cardsFor($loop->type),
+            'candidates' => User::assignable()
+                ->where('organization_id', $organization->id)
+                ->whereNotIn('id', $memberIds)
+                ->orderBy('name')
+                ->get(['id', 'name', 'first_name', 'email']),
+        ]);
+    }
+
+    public function updateLoop(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $registry = app(LoopTypeRegistry::class);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'type' => ['required', 'string'],
+        ]);
+
+        if (! $registry->exists($data['type'])) {
+            return back()->with('error', __('loops.type_invalid'));
+        }
+
+        $loop->update([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'type' => $data['type'],
+        ]);
+
+        $added = $registry->applyPreset($loop->fresh());
+
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with('success', $added === []
+            ? __('loops.type_changed_no_card')
+            : __('loops.type_changed', [
+                'cards' => collect($added)->map(fn ($k) => $registry->cardLabel($k))->implode(', '),
+            ]));
+    }
+
+    /**
+     * Change a member's role from the Organization admin.
+     *
+     * Tenant-scoped twice over: the Loop must belong to this Organization, and
+     * the membership must belong to that Loop. Same governance service as the
+     * global screen — the business rule is not duplicated.
+     */
+    public function updateLoopMemberRole(Request $request, Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $result = app(LoopGovernanceService::class)->changeRole($member, (string) $request->input('role'));
+
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with(
+                $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+                match ($result) {
+                    LoopGovernanceService::RESULT_OK => __('loops.governance_changed'),
+                    LoopGovernanceService::RESULT_LAST_OWNER => __('loops.governance_refused_last_owner'),
+                    default => __('loops.governance_refused'),
+                },
+            );
+    }
+
     public function toggleLoopActive(Organization $organization, Loop $loop): RedirectResponse
     {
         abort_if($loop->organization_id !== $organization->id, 404);
@@ -224,13 +341,16 @@ class OrgAdminController extends Controller
                     ->where('organization_id', $organization->id)
                     ->whereNull('banned_at'),
             ],
+            'role' => ['nullable', Rule::in(LoopRoleRegistry::CANONICAL)],
         ]);
 
         $user = User::assignable()->findOrFail($data['user_id']);
+        // Checked again on the resolved model, not only through the validation
+        // rule: tenant strictness is not something to infer from a query scope.
         abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
 
         try {
-            app(LoopService::class)->addMemberByUserId($loop, $data['user_id']);
+            app(LoopService::class)->addMemberByUserId($loop, $data['user_id'], $data['role'] ?? LoopRoleRegistry::MEMBER);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

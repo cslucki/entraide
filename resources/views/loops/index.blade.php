@@ -29,6 +29,21 @@
         $highlightedLoopId = request()->query('updated');
         $mine = $loops->where('is_member', true)->values();
         $discover = $loops->where('is_member', false)->values();
+
+        // Onglets par type, sur le modèle d'Explorer mais filtrés côté client :
+        // la page filtre déjà la recherche et les domaines sans aller-retour
+        // serveur, et un onglet qui recharge la page perdrait ces deux réglages.
+        $typeRegistry = app(\App\Support\Loops\LoopTypeRegistry::class);
+        $countByType = $loops->countBy(fn ($l) => $typeRegistry->resolve($l->type));
+
+        // Tous les types proposables, plus ceux qu'une Boucle listée porte
+        // encore alors qu'ils ont été retirés de l'offre : sinon ces Boucles
+        // seraient visibles dans « Toutes » et introuvables ailleurs.
+        $tabTypes = collect($typeRegistry->all())
+            ->filter(fn ($d, $key) => $typeRegistry->isAvailable($key) || ($countByType[$key] ?? 0) > 0);
+
+        $mineByType = $mine->countBy(fn ($l) => $typeRegistry->resolve($l->type));
+        $discoverByType = $discover->countBy(fn ($l) => $typeRegistry->resolve($l->type));
     @endphp
 
     <x-slot name="headingActions">
@@ -43,7 +58,7 @@
         @endif
     </x-slot>
 
-    <div x-data="{ q: '', domain: '' }">
+    <div x-data="{ q: '', domain: '', type: '' }">
         <div class="flex items-center justify-between gap-3 mb-6 md:block">
             <p class="text-gray-500 dark:text-gray-400 text-sm">{{ __('loops.collaboration_spaces') }}</p>
             @if($canCreate)
@@ -100,6 +115,31 @@
                 @endif
             </div>
         @else
+            {{-- Onglets de types. Même grammaire visuelle qu'Explorer :
+                 soulignement indigo pour l'onglet actif, rien d'autre. --}}
+            @if($tabTypes->isNotEmpty())
+                <div class="mb-6 -mx-4 overflow-x-auto border-b border-gray-200 px-4 no-scrollbar dark:border-gray-700">
+                    <div class="flex min-w-max">
+                        <button type="button" @click="type = ''"
+                                :class="type === '' ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+                                class="px-5 py-3 text-sm font-medium transition">
+                            {{ __('loops.types_tab_all') }}
+                            <span class="ml-1 text-xs font-normal opacity-70">{{ $loops->count() }}</span>
+                        </button>
+                        @foreach($tabTypes as $key => $definition)
+                            <button type="button" @click="type = '{{ $key }}'"
+                                    :class="type === '{{ $key }}' ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+                                    class="px-5 py-3 text-sm font-medium whitespace-nowrap transition">
+                                {{ __($definition['label_key']) }}
+                                <span class="ml-1 text-xs font-normal opacity-70">{{ $countByType[$key] ?? 0 }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <style>.no-scrollbar::-webkit-scrollbar { display: none; }</style>
+
             @php $catalogDomains = $filterDomains ?? collect(); @endphp
             @if($loops->count() > 6 || $catalogDomains->isNotEmpty())
                 <div class="mb-6 flex flex-wrap items-center gap-3">
@@ -129,7 +169,8 @@
             @endif
 
             @if($mine->isNotEmpty())
-                <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.my_loops_title') }}</h2>
+                <h2 x-show="type === '' || ({{ \Illuminate\Support\Js::from($mineByType) }}[type] ?? 0) > 0"
+                    class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.my_loops_title') }}</h2>
                 <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     @foreach($mine as $item)
                         @include('loops.partials.catalog-card', ['item' => $item])
@@ -137,8 +178,25 @@
                 </div>
             @endif
 
+            {{-- Un onglet vide ne doit pas être une page blanche. --}}
+            <div x-show="type !== '' && ({{ \Illuminate\Support\Js::from($countByType) }}[type] ?? 0) === 0"
+                 x-cloak
+                 class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center dark:border-gray-600 dark:bg-gray-800">
+                <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('loops.types_tab_empty') }}</p>
+                @if($canCreate)
+                    <a href="{{ $loopsCreateHref }}"
+                       class="mt-4 inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-medium text-white transition hover:bg-indigo-700">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        {{ __('loops.new') }}
+                    </a>
+                @endif
+            </div>
+
             @if($discover->isNotEmpty())
-                <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.discover_title') }}</h2>
+                <h2 x-show="type === '' || ({{ \Illuminate\Support\Js::from($discoverByType) }}[type] ?? 0) > 0"
+                    class="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.discover_title') }}</h2>
                 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     @foreach($discover as $item)
                         @include('loops.partials.catalog-card', ['item' => $item])

@@ -7,6 +7,8 @@
             }
             return route('loops.'.$name, $params);
         };
+        // Legacy relation kept only to decide whether to show the block; the
+        // names themselves come from owners() (CP5ter).
         $ownerUser = $loop->owner?->user;
     @endphp
 
@@ -56,7 +58,7 @@
                             @if($ownerUser->avatar_url)
                                 <img src="{{ $ownerUser->avatar_url }}" alt="" class="h-5 w-5 rounded-full object-cover">
                             @endif
-                            {{ __('loops.presentation_animator') }} {{ $ownerUser->publicDisplayName() }}
+                            {{ __('loops.presentation_animator') }} <x-loops.owner-names :owners="$loop->owners" />
                         </span>
                     @endif
                 </div>
@@ -65,6 +67,26 @@
 
                 @if($loop->description)
                     <p class="mb-6 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $loop->description }}</p>
+                @endif
+
+                {{-- Manifesto: only ever rendered when the controller resolved a
+                     genuinely public one — published, on a non-private Loop. The
+                     linked Dossiers documents are never surfaced here. --}}
+                @if($publicManifesto ?? null)
+                    @php($manifestoText = trim(strip_tags((string) ($publicManifesto->summary ?: $publicManifesto->content))))
+                    <section class="mb-6 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 dark:border-violet-900/40 dark:bg-violet-900/10">
+                        <h2 class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M6.75 2.994v2.25a2.25 2.25 0 0 1-2.25 2.25H2.25m11.4-3.75 4.6 4.6"/></svg>
+                            {{ __('loops.manifesto_public_title') }}
+                        </h2>
+                        <p class="mt-2 whitespace-pre-line text-sm leading-6 text-gray-700 dark:text-gray-200">{{ \Illuminate\Support\Str::limit($manifestoText, 420) }}</p>
+                        @if(mb_strlen($manifestoText) > 420)
+                            <a href="{{ route('blog.show', $publicManifesto->slug) }}" class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300">
+                                {{ __('loops.manifesto_public_read_more') }}
+                                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+                            </a>
+                        @endif
+                    </section>
                 @endif
 
                 {{-- CTA --}}

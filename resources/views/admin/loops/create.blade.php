@@ -37,6 +37,8 @@
                     @error('description')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                 </div>
 
+                <x-loops.type-picker :types="$loopTypes" :selected="old('type')" />
+
                 <div>
                     <label for="visibility" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Visibilité</label>
                     <select name="visibility" id="visibility" required

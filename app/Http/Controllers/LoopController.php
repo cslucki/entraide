@@ -13,8 +13,12 @@ use App\Models\Referral;
 use App\Models\User;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\ChatLoop\ChatLoopAiService;
+use App\Services\LoopGovernanceService;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
+use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -163,7 +167,7 @@ class LoopController extends Controller
         return Loop::query()
             ->where('organization_id', $organizationId)
             ->where('status', 'active')
-            ->with(['owner.user', 'categories'])
+            ->with(['owner.user', 'owners.user', 'categories'])
             ->withCount('activeMembers')
             ->withMax('messages as last_message_at', 'created_at')
             ->withExists(['members as is_member' => function ($q) use ($user) {
@@ -184,7 +188,10 @@ class LoopController extends Controller
         $this->assertUserBelongsToOrganization($organization);
         $this->authorize('create', [Loop::class, $organization]);
 
-        return view('loops.create', ['domains' => $this->organizationDomains($organization)]);
+        return view('loops.create', [
+            'domains' => $this->organizationDomains($organization),
+            'loopTypes' => app(LoopTypeRegistry::class)->available(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -201,6 +208,7 @@ class LoopController extends Controller
             'cover_image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'category_ids' => 'nullable|array|max:'.Loop::MAX_DOMAINS,
             'category_ids.*' => 'string',
+            'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
         ]);
 
         $loop = $this->loopService->createLoop(
@@ -210,6 +218,8 @@ class LoopController extends Controller
             'private',
             $data['tagline'] ?? null,
             $data['access_mode'] ?? Loop::ACCESS_REQUEST,
+            null,
+            $data['type'] ?? null,
         );
 
         $loop->categories()->sync($this->resolveDomainIds($organization, $data['category_ids'] ?? []));
@@ -482,25 +492,42 @@ class LoopController extends Controller
 
         $loopInvitations = $canManageJoinRequests ? $this->loopInvitationsFor($loop) : collect();
 
+        // Governance controls follow the resolved permissions, never a role
+        // label read in Blade (TASK-1079 CP5ter).
+        $resolver = app(LoopPermissionResolver::class);
+        $governance = [
+            'owners' => $resolver->can($user, $loop, 'loops.manage_owners'),
+            'facilitators' => $resolver->can($user, $loop, 'loops.manage_facilitators'),
+            'remove' => $resolver->can($user, $loop, 'loop_members.remove'),
+        ];
+
         return view('loops.show', compact(
             'loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled',
-            'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations',
+            'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations', 'governance',
         ));
     }
 
     private function showPresentation(Loop $loop, $user): View
     {
         $loop->loadCount('activeMembers');
-        $loop->load(['owner.user', 'categories']);
+        $loop->load(['owner.user', 'owners.user', 'categories']);
 
         $pendingRequest = LoopJoinRequest::where('loop_id', $loop->id)
             ->where('user_id', $user->id)
             ->where('status', LoopJoinRequest::STATUS_PENDING)
             ->first();
 
+        // Resolved here rather than in the view, so a private or unpublished
+        // Manifesto never reaches the response at all — not as markup, not in a
+        // meta tag, not anywhere in the DOM. hasPublicManifesto() requires both
+        // a non-private Loop and an explicitly published article; the Manifesto
+        // is never a fallback for a missing description.
+        $publicManifesto = $loop->hasPublicManifesto() ? $loop->manifesto : null;
+
         return view('loops.presentation', [
             'loop' => $loop,
             'pendingRequest' => $pendingRequest,
+            'publicManifesto' => $publicManifesto,
         ]);
     }
 
@@ -655,12 +682,15 @@ class LoopController extends Controller
                 ->with('info', __('loops.not_member'));
         }
 
-        if ($member->role === 'owner') {
-            return redirect($this->loopRoute('loops.show', $loop))
-                ->with('error', __('loops.owner_cannot_leave'));
-        }
+        // Through the governance service, never a direct mutation: a controller
+        // writing the row itself would sidestep the last-owner invariant. An
+        // owner may now leave as long as another active one remains.
+        $result = app(LoopGovernanceService::class)->leave($loop, $user->id);
 
-        $member->update(['status' => 'left']);
+        if ($result === LoopGovernanceService::RESULT_LAST_OWNER) {
+            return redirect($this->loopRoute('loops.show', $loop))
+                ->with('error', __('loops.last_owner_cannot_leave'));
+        }
 
         $orgSlug = request()->route('organization');
         $indexRoute = $orgSlug && Route::has('organization.loops.index')
@@ -751,6 +781,47 @@ class LoopController extends Controller
                 'title' => $data['title'],
                 'description' => $data['need'],
             ]);
+    }
+
+    /**
+     * Change a member's role from the workspace.
+     *
+     * Gated by the resolved permission, not by the actor's role label, and the
+     * transition itself goes through the governance service — so the last-owner
+     * invariant applies here exactly as in the admin screens.
+     */
+    public function updateMemberRole(Request $request, LoopMember $member): RedirectResponse
+    {
+        // The Loop comes from the membership's own relation, not from a route
+        // segment — see the routing comment.
+        $loop = $member->loop;
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        abort_if($loop === null || $loop->organization_id !== $organization->id, 404);
+
+        $targetRole = (string) $request->input('role');
+        $resolver = app(LoopPermissionResolver::class);
+
+        // Touching an owner — in either direction — requires the owner
+        // permission; facilitator transitions require the facilitator one.
+        $needsOwnerRight = $targetRole === 'owner'
+            || app(LoopRoleRegistry::class)->canonical($member->role) === 'owner';
+
+        $permission = $needsOwnerRight ? 'loops.manage_owners' : 'loops.manage_facilitators';
+
+        abort_unless($resolver->can($request->user(), $loop, $permission), 403);
+
+        $result = app(LoopGovernanceService::class)->changeRole($member, $targetRole);
+
+        return redirect($this->loopRoute('loops.show', $loop))->with(
+            $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+            match ($result) {
+                LoopGovernanceService::RESULT_OK => __('loops.governance_changed'),
+                LoopGovernanceService::RESULT_LAST_OWNER => __('loops.governance_refused_last_owner'),
+                default => __('loops.governance_refused'),
+            },
+        );
     }
 
     public function addMember(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse

@@ -6,6 +6,7 @@ use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\BlogSnapshot;
 use App\Models\Category;
+use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Tag;
 use App\Services\BlogAiService;
@@ -146,6 +147,8 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
+        $this->assertPrivateLoopManifestoIsReadable($post);
+
         $post->increment('views_count');
         $post->load(['user', 'category', 'tags', 'comments.user', 'comments.replies.user'])
             ->loadCount('likes');
@@ -163,6 +166,40 @@ class BlogController extends Controller implements HasMiddleware
         [$headers, $postContent] = $this->extractPublishedToc($post);
 
         return view('blog.show', compact('post', 'relatedPosts', 'isLiked', 'headers', 'postContent'));
+    }
+
+    /**
+     * A published article is normally readable by the whole Organization. That
+     * is wrong for one case (TASK-1079): an article designated as the Manifesto
+     * of a *private* Loop. Publishing it makes it visible on that Loop's
+     * presentation page, but the Loop's confidentiality must extend to the
+     * article itself — otherwise the direct /blog/{slug} URL walks straight
+     * around it.
+     *
+     * Only active members of that Loop, and platform super-admins, may read it.
+     */
+    private function assertPrivateLoopManifestoIsReadable(BlogPost $post): void
+    {
+        $loop = Loop::where('manifesto_blog_post_id', $post->id)
+            ->where('visibility', 'private')
+            ->first();
+
+        if (! $loop) {
+            return;
+        }
+
+        $user = auth()->user();
+
+        if ($user?->is_admin) {
+            return;
+        }
+
+        $isMember = $user && LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        abort_unless($isMember, 404);
     }
 
     public function orgShow(string $org, BlogPost $post): View

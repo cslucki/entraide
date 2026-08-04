@@ -9,6 +9,7 @@ use App\Models\Reaction;
 use App\Models\User;
 use App\Services\LoopMessageService;
 use App\Services\UrlPreviewService;
+use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -593,7 +594,11 @@ class LoopChat extends Component
             ->where('status', 'active')
             ->value('role');
 
-        return in_array($role, ['owner', 'moderator'], true);
+        // Resolved centrally (CP5ter).
+        $user = auth()->user();
+
+        return $user !== null
+            && app(LoopPermissionResolver::class)->can($user, $this->loop, 'chatloop.manage');
     }
 
     private function requestedByNames(Collection $messages): array
