@@ -332,6 +332,11 @@ Route::middleware('auth')->group(function () {
         Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
         Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
         Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
+        // Archivage par le proprietaire (TASK-1086). Distinct de loops.update :
+        // celle-ci refuse une Boucle archivee, ce qui rendrait la reactivation
+        // inaccessible a la seule personne censee pouvoir la demander.
+        Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
+        Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
         Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
         Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
         Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');
@@ -718,6 +723,11 @@ Route::prefix('/org/{organization}')
                 Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
                 Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
                 Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
+                // Archivage par le proprietaire (TASK-1086). Distinct de loops.update :
+                // celle-ci refuse une Boucle archivee, ce qui rendrait la reactivation
+                // inaccessible a la seule personne censee pouvoir la demander.
+                Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
+                Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
                 Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
                 Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
                 Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');

@@ -16,6 +16,7 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
+use App\Services\Loops\LoopLifecycleService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
@@ -142,7 +143,12 @@ class LoopController extends Controller
         // Multi-loop mode: show list, redirect if single accessible loop
         $loops = $this->getAccessibleLoopsQuery($organizationId, $user)->get();
 
-        if ($loops->count() === 1) {
+        // Les Boucles archivees, pour ceux qui ont le droit de les revoir. Elles
+        // ne sont pas melees aux actives : l'archive est une seconde liste, pas
+        // une ligne grisee au milieu du catalogue.
+        $archivedLoops = $this->archivedLoopsFor($organizationId, $user);
+
+        if ($loops->count() === 1 && $archivedLoops->isEmpty()) {
             return redirect($this->loopRoute('loops.show', $loops->first()));
         }
 
@@ -153,7 +159,31 @@ class LoopController extends Controller
         $filterDomains = $loops->pluck('categories')->flatten()->unique('id')
             ->sortBy(fn ($c) => $c->displayName('loops'))->values();
 
-        return view('loops.index', compact('loops', 'filterDomains'))->with('canCreate', $canCreate);
+        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops'))->with('canCreate', $canCreate);
+    }
+
+    /**
+     * Les Boucles archivees que cette personne peut encore consulter.
+     *
+     * `loops.archive` sert de critere : qui peut archiver peut relire ce qu'il a
+     * archive. Un membre simple n'en voit aucune — pour lui, la Boucle a
+     * simplement quitte la liste.
+     *
+     * @return \Illuminate\Support\Collection<int, Loop>
+     */
+    private function archivedLoopsFor(string $organizationId, $user): \Illuminate\Support\Collection
+    {
+        $resolver = app(LoopPermissionResolver::class);
+
+        return Loop::query()
+            ->where('organization_id', $organizationId)
+            ->where('status', 'archived')
+            ->with('owners.user')
+            ->withCount('activeMembers')
+            ->latest('archived_at')
+            ->get()
+            ->filter(fn (Loop $loop) => $resolver->can($user, $loop, 'loops.archive'))
+            ->values();
     }
 
     /**
@@ -507,6 +537,11 @@ class LoopController extends Controller
             'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations', 'governance',
         ) + [
             'workspaceCards' => $this->workspaceCardsFor($loop, $user),
+            // Le cycle de vie : qui peut archiver, et ce que l'archivage
+            // toucherait. Calcule ici pour que la modale annonce des chiffres
+            // reels plutot qu'une formule vague.
+            'canArchiveLoop' => app(LoopLifecycleService::class)->canArchive($user, $loop),
+            'archiveImpact' => app(LoopLifecycleService::class)->impactOf($loop),
             // La vue rend chaque Card depuis le registre : plus aucune condition
             // sur une cle de Card dans le Blade.
             'cardRegistry' => app(LoopCardRegistry::class),
@@ -539,6 +574,56 @@ class LoopController extends Controller
         }
 
         return app(LoopCardRegistry::class)->workspaceCardsFor($loop, $user);
+    }
+
+    /**
+     * Archiver sa propre Boucle, depuis le workspace.
+     *
+     * Distincte de update() : la garde de LoopPolicy::update refuse une Boucle
+     * archivee, ce qui rendrait la reactivation inaccessible a la seule
+     * personne censee pouvoir la demander. L'autorisation vient du resolveur,
+     * via `loops.archive`.
+     */
+    public function archive(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $result = app(LoopLifecycleService::class)->archive($request->user(), $loop);
+
+        abort_if($result === LoopLifecycleService::RESULT_DENIED, 403);
+
+        return redirect()
+            ->route('organization.loops.show', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with(
+                $result === LoopLifecycleService::RESULT_OK ? 'success' : 'error',
+                $result === LoopLifecycleService::RESULT_OK
+                    ? __('loops.archive_done')
+                    : __('loops.archive_already'),
+            );
+    }
+
+    public function reactivate(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $result = app(LoopLifecycleService::class)->reactivate($request->user(), $loop);
+
+        abort_if($result === LoopLifecycleService::RESULT_DENIED, 403);
+
+        return redirect()
+            ->route('organization.loops.show', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with(
+                $result === LoopLifecycleService::RESULT_OK ? 'success' : 'error',
+                $result === LoopLifecycleService::RESULT_OK
+                    ? __('loops.reactivate_done')
+                    : __('loops.reactivate_already'),
+            );
     }
 
     private function showPresentation(Loop $loop, $user): View

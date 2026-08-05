@@ -39,6 +39,8 @@ class Loop extends Model
         'cover_image_path',
         'type',
         'status',
+        'archived_at',
+        'archived_by',
         'visibility',
         'access_mode',
         'created_by',
@@ -51,6 +53,7 @@ class Loop extends Model
         return [
             'type' => 'string',
             'status' => 'string',
+            'archived_at' => 'datetime',
             'visibility' => 'string',
             'access_mode' => 'string',
         ];

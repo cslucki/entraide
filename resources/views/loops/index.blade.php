@@ -204,5 +204,34 @@
                 </div>
             @endif
         @endif
+
+        @if(($archivedLoops ?? collect())->isNotEmpty())
+            {{-- Les archives, repliees par defaut. Une seconde liste et non des
+                 lignes grisees dans le catalogue : une Boucle archivee n'est pas
+                 une Boucle active en moins bien, c'est autre chose. --}}
+            <details class="mt-10 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                <summary class="cursor-pointer list-none text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    {{ __('loops.archived_filter') }} ({{ $archivedLoops->count() }})
+                </summary>
+                <ul class="mt-3 space-y-2">
+                    @foreach($archivedLoops as $archived)
+                        <li class="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 dark:border-gray-700">
+                            <a href="{{ $archived->workspaceUrl() }}"
+                               class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 hover:underline dark:text-gray-100">
+                                {{ $archived->name }}
+                            </a>
+                            <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                {{ __('loops.archive_badge') }}
+                            </span>
+                            @if($archived->archived_at)
+                                <span class="shrink-0 text-[11px] text-gray-400 dark:text-gray-500">
+                                    {{ __('loops.archived_since', ['date' => $archived->archived_at->isoFormat('LL')]) }}
+                                </span>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            </details>
+        @endif
     </div>
 </x-page>

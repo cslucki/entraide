@@ -247,7 +247,24 @@
                     </svg>
                 </a>
             @endcan
+            @if($canArchiveLoop ?? false)
+                {{-- Archiver / reactiver. Hors du @can('update') : cette ability
+                     refuse une Boucle archivee, et la reactivation doit rester
+                     accessible a la personne qui l'a archivee. --}}
+                <button type="button" x-on:click="$dispatch('open-loop-archive')"
+                        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 transition hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/70"
+                        aria-label="{{ $currentLoop->isArchived() ? __('loops.reactivate_action') : __('loops.archive_action') }}"
+                        title="{{ $currentLoop->isArchived() ? __('loops.reactivate_action') : __('loops.archive_action') }}">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
+                    </svg>
+                </button>
+            @endif
         </div>
+
+        @if($canArchiveLoop ?? false)
+            @include('loops.partials.archive-modal', ['impact' => $archiveImpact ?? []])
+        @endif
 
         {{-- Session messages --}}
         @if(session('success') && session('success') !== 'Message envoyé.')
@@ -272,6 +289,25 @@
         {{-- The workspace tool bar ("Lancer" + tools) is the INTERNAL header of the
              left ChatLoop card — see the .chatloop-thread-panel below — not a global
              strip above the workspace. --}}
+
+        @if($currentLoop->isArchived())
+            {{-- Une Boucle archivee reste ouverte a ceux qui pouvaient la voir.
+                 Le bandeau dit ce qui a change et ce qui n'a pas change : plus de
+                 contribution, mais rien de perdu. Sans lui, les boutons refuses
+                 par le serveur passeraient pour des pannes. --}}
+            <div class="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-800/60 dark:bg-amber-900/20">
+                <p class="flex flex-wrap items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/></svg>
+                    {{ __('loops.archive_banner_title') }}
+                    @if($currentLoop->archived_at)
+                        <span class="text-xs font-normal text-amber-700 dark:text-amber-300">
+                            {{ __('loops.archived_since', ['date' => $currentLoop->archived_at->isoFormat('LL')]) }}
+                        </span>
+                    @endif
+                </p>
+                <p class="mt-1 text-xs leading-5 text-amber-800 dark:text-amber-200/90">{{ __('loops.archive_banner_body') }}</p>
+            </div>
+        @endif
 
         {{-- Workspace: neutral parent, two sibling cards (chat | splitter | side) --}}
         <section
@@ -365,17 +401,25 @@
                         <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
                             @foreach($workspaceCards as $card)
                                 <section x-show="activeCard === @js($card['key'])" x-cloak class="space-y-5">
-                                    @php($cardComponent = $cardRegistry->componentFor($card['key']))
-                                    @php($cardView = $cardRegistry->viewFor($card['key']))
                                     {{-- Rendu pilote par le registre : plus aucune condition sur
                                          une cle de Card ici. Une Card sans composant ni vue ne
                                          rend rien plutot que d'ouvrir sur le vide, et aucune
                                          chaine fournie par un utilisateur n'atteint Livewire —
-                                         le nom vient du catalogue, verifie par le registre. --}}
-                                    @if($cardComponent)
-                                        @livewire($cardComponent, ['loop' => $currentLoop], key($card['key'].'-'.$currentLoop->id))
-                                    @elseif($cardView)
-                                        @include($cardView, ['card' => $card])
+                                         le nom vient du catalogue, verifie par le registre.
+
+                                         Le registre est interroge directement, sans passer par
+                                         une variable locale : la forme en ligne de la directive
+                                         PHP compile mal quand l'expression contient des
+                                         crochets, et laissait une balise ouverte jamais
+                                         refermee qui desarticulait tout le fichier a partir de
+                                         ce point. Le nom de cette directive n'est pas ecrit ici
+                                         non plus — les blocs bruts sont extraits avant que les
+                                         commentaires ne soient retires, donc le citer suffisait
+                                         a reproduire le defaut. --}}
+                                    @if($cardRegistry->componentFor($card['key']))
+                                        @livewire($cardRegistry->componentFor($card['key']), ['loop' => $currentLoop], key($card['key'].'-'.$currentLoop->id))
+                                    @elseif($cardRegistry->viewFor($card['key']))
+                                        @include($cardRegistry->viewFor($card['key']), ['card' => $card])
                                     @endif
                                 </section>
                             @endforeach
