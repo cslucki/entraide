@@ -173,9 +173,7 @@ class LoopTypeRegistry
      */
     public function cardLabel(string $cardKey): string
     {
-        $definition = config('loop_cards.cards', [])[$cardKey] ?? null;
-
-        return $definition ? __($definition['label_key']) : $cardKey;
+        return app(LoopCardRegistry::class)->label($cardKey);
     }
 
     /**
@@ -235,11 +233,11 @@ class LoopTypeRegistry
             $keys = $this->cardsFor($loop->type);
         }
 
-        $catalogue = config('loop_cards.cards', []);
+        $registry = app(LoopCardRegistry::class);
 
         return collect($keys)
-            ->filter(fn ($k) => isset($catalogue[$k]))
-            ->sortBy(fn ($k) => $catalogue[$k]['order'] ?? 0)
+            ->filter(fn ($k) => $registry->exists($k))
+            ->sortBy(fn ($k) => $registry->get($k)['order'] ?? 0)
             ->values()
             ->all();
     }

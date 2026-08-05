@@ -49,6 +49,18 @@ class LoopPermissionSettingsService
     }
 
     /**
+     * True when this capability only consults, and so survives archiving.
+     *
+     * Absent means "write": a capability added to the catalogue without the flag
+     * is denied on an archived Loop rather than allowed. See the note above the
+     * catalogue in config/loop_permissions.php.
+     */
+    public function isReadOnly(string $permission): bool
+    {
+        return (bool) ($this->permissions()[$permission]['read'] ?? false);
+    }
+
+    /**
      * Card this permission depends on, if any.
      *
      * Array access, never config() dot-notation: card keys contain a dot

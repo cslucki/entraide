@@ -12,7 +12,9 @@ use App\Models\User;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopManifestoService;
 use App\Services\Loops\LoopCardCompositionService;
+use App\Services\Loops\LoopLifecycleService;
 use App\Services\LoopService;
+use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
@@ -129,34 +131,36 @@ class AdminLoopController extends Controller
         return back()->with('success', __($data['enabled'] ? 'loops.cards_enabled' : 'loops.cards_disabled'));
     }
 
-    public function archive(Loop $loop): RedirectResponse
+    public function archive(Request $request, Loop $loop): RedirectResponse
     {
         $this->assertOrgAccess($loop);
 
-        if ($loop->isArchived()) {
-            return redirect()->route('admin.loops.edit', $loop)
-                ->with('error', 'Cette boucle est déjà archivée.');
-        }
+        $result = app(LoopLifecycleService::class)->archive($request->user(), $loop);
 
-        $this->loopService->archiveLoop($loop);
+        abort_if($result === LoopLifecycleService::RESULT_DENIED, 403);
 
-        return redirect()->route('admin.loops.edit', $loop)
-            ->with('success', 'Boucle archivée.');
+        return redirect()->route('admin.loops.edit', $loop)->with(
+            $result === LoopLifecycleService::RESULT_OK ? 'success' : 'error',
+            $result === LoopLifecycleService::RESULT_OK
+                ? __('loops.archive_done')
+                : __('loops.archive_already'),
+        );
     }
 
-    public function restore(Loop $loop): RedirectResponse
+    public function restore(Request $request, Loop $loop): RedirectResponse
     {
         $this->assertOrgAccess($loop);
 
-        if ($loop->isActive()) {
-            return redirect()->route('admin.loops.edit', $loop)
-                ->with('error', 'Cette boucle est déjà active.');
-        }
+        $result = app(LoopLifecycleService::class)->reactivate($request->user(), $loop);
 
-        $this->loopService->restoreLoop($loop);
+        abort_if($result === LoopLifecycleService::RESULT_DENIED, 403);
 
-        return redirect()->route('admin.loops.edit', $loop)
-            ->with('success', 'Boucle réactivée.');
+        return redirect()->route('admin.loops.edit', $loop)->with(
+            $result === LoopLifecycleService::RESULT_OK ? 'success' : 'error',
+            $result === LoopLifecycleService::RESULT_OK
+                ? __('loops.reactivate_done')
+                : __('loops.reactivate_already'),
+        );
     }
 
     private function isSuperAdmin(): bool
@@ -339,7 +343,7 @@ class AdminLoopController extends Controller
             // rendered four.
             'activeCards' => $registry->activeCardsFor($loop),
             'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
-            'cardCatalogue' => config('loop_cards.cards', []),
+            'cardCatalogue' => app(LoopCardRegistry::class)->manageableCatalogue(),
             // A glance at what each card actually holds, so the overview answers
             // "what is in this Loop" without opening the workspace.
             'cardPreview' => [

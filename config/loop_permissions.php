@@ -48,6 +48,16 @@ return [
      * card being active, and is never inferred from the permission name — a
      * structural capability such as loops.manage_owners depends on none. Keys
      * are validated against config/loop_cards.php.
+     *
+     * `read` marks a capability that only consults. It is what an archived Loop
+     * still allows: the resolver refuses every other capability once a Loop is
+     * archived, super-admin included, with `loops.archive` as the single
+     * exception — it is what reactivates.
+     *
+     * The default is deliberately the strict one. A capability added later
+     * without `read` is treated as a write and denied on an archived Loop:
+     * forgetting the flag costs a false refusal, never a silent write into an
+     * archive.
      */
     'permissions' => [
 
@@ -55,6 +65,7 @@ return [
         'loops.view' => [
             'module' => 'loops', 'label_fr' => 'Consulter la Boucle', 'label_en' => 'View the Loop',
             'description' => 'Accéder au workspace de la Boucle.', 'locked' => false,
+            'read' => true,
         ],
         'loops.update_identity' => [
             'module' => 'loops', 'label_fr' => 'Modifier l\'identité', 'label_en' => 'Edit identity',
@@ -86,6 +97,7 @@ return [
         'loop_members.view' => [
             'module' => 'members', 'label_fr' => 'Voir les membres', 'label_en' => 'View members',
             'description' => 'Consulter la liste des membres de la Boucle.', 'locked' => false,
+            'read' => true,
             'requires_card' => 'core.members',
         ],
         'loop_members.invite' => [
@@ -113,6 +125,7 @@ return [
         'manifesto.view' => [
             'module' => 'manifesto', 'label_fr' => 'Consulter le Manifeste', 'label_en' => 'View the Manifesto',
             'description' => 'Lire le texte fondateur.', 'locked' => false,
+            'read' => true,
             'requires_card' => 'core.manifesto',
         ],
         'manifesto.update' => [
@@ -136,6 +149,7 @@ return [
         'roadmap.view' => [
             'module' => 'roadmap', 'label_fr' => 'Consulter la Roadmap', 'label_en' => 'View the roadmap',
             'description' => 'Voir les éléments de la feuille de route.', 'locked' => false,
+            'read' => true,
             'requires_card' => 'core.roadmap',
         ],
         'roadmap.manage' => [
@@ -148,6 +162,7 @@ return [
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
+            'read' => true,
         ],
         'chatloop.post' => [
             'module' => 'chatloop', 'label_fr' => 'Publier dans ChatLoop', 'label_en' => 'Post in ChatLoop',
@@ -162,6 +177,7 @@ return [
         'invitations.view' => [
             'module' => 'invitations', 'label_fr' => 'Voir les invitations', 'label_en' => 'View invitations',
             'description' => 'Consulter les invitations émises pour la Boucle.', 'locked' => false,
+            'read' => true,
         ],
         'invitations.revoke' => [
             'module' => 'invitations', 'label_fr' => 'Révoquer une invitation', 'label_en' => 'Revoke an invitation',
@@ -175,8 +191,18 @@ return [
      */
     'role_defaults' => [
 
+        /*
+         * Le proprietaire mene sa Boucle : il l'archive, la reactive, en change
+         * le type, nomme ses pairs. Il ne configure pas ses Cards.
+         *
+         * `loops.manage_cards` lui etait accordee depuis TASK-1079 alors que ses
+         * deux seuls consommateurs sont des ecrans administratifs — la matrice
+         * annoncait donc un droit que l'interface ne donnait pas. La composition
+         * locale reste au SuperAdmin et a l'Admin d'Organization (TASK-1083), qui
+         * l'obtiennent par les etapes 3 et 4 du resolveur et non par ce socle.
+         */
         'owner' => [
-            'loops.view', 'loops.update_identity', 'loops.change_type', 'loops.manage_cards',
+            'loops.view', 'loops.update_identity', 'loops.change_type',
             'loops.archive', 'loops.manage_owners', 'loops.manage_facilitators',
             'loop_members.view', 'loop_members.invite', 'loop_members.add', 'loop_members.remove',
             'loop_members.review_join_requests', 'loop_members.change_role',

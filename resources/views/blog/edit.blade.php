@@ -94,6 +94,13 @@
 
                          Un badge apparait des qu'un lien existe, et le badge ouvre
                          le meme pop-up que le bouton : on clique la ou on regarde. --}}
+                    {{-- Une barre de boutons, sans badge.
+
+                         Le nom du Dossier et l'appartenance a la serie ont ete
+                         essayes en badge texte puis en pastille : le premier
+                         allongeait la barre, le second n'apprenait pas
+                         grand-chose. L'etat vit dans les pop-ups, ou on a la
+                         place de le lire. --}}
                     <div class="mb-6 flex flex-wrap items-center gap-2">
                         <button type="button" @click="$store.editorPanels.toggle('boucle')"
                                 :class="$store.editorPanels.isOpen('boucle') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
@@ -102,37 +109,12 @@
                             {{ __('blog.sidebar_boucle') }}
                         </button>
 
-                        <template x-if="$store.editorPanels.loopName">
-                            <button type="button" @click="$store.editorPanels.toggle('boucle')"
-                                    class="inline-flex max-w-[14rem] min-h-[38px] items-center rounded-lg bg-red-50 px-2.5 text-xs font-medium text-red-700 transition hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
-                                    :title="$store.editorPanels.loopName">
-                                <span class="truncate" x-text="$store.editorPanels.loopName"></span>
-                            </button>
-                        </template>
-
                         <button type="button" @click="$store.editorPanels.toggle('dossier')"
                                 :class="$store.editorPanels.isOpen('dossier') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
                                 class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
                             <svg class="h-3.5 w-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
                             {{ __('blog.sidebar_dossier') }}
                         </button>
-
-                        <template x-if="$store.editorPanels.dossierName">
-                            <span class="inline-flex items-center gap-1.5">
-                                <button type="button" @click="$store.editorPanels.toggle('dossier')"
-                                        class="inline-flex max-w-[14rem] min-h-[38px] items-center rounded-lg bg-amber-50 px-2.5 text-xs font-medium text-amber-800 transition hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
-                                        :title="$store.editorPanels.dossierName">
-                                    <span class="truncate" x-text="$store.editorPanels.dossierName"></span>
-                                </button>
-                                {{-- Le second badge, a droite de celui du Dossier :
-                                     une serie est une fonctionnalite du Dossier. --}}
-                                <template x-if="$store.editorPanels.inSeries">
-                                    <button type="button" @click="$store.editorPanels.toggle('dossier')"
-                                            class="inline-flex min-h-[38px] items-center rounded-lg bg-indigo-50 px-2.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300"
-                                            x-text="$store.editorPanels.seriesIsRoot ? @js(__('blog.dossier_series_root')) : @js(__('blog.dossier_series_annex'))"></button>
-                                </template>
-                            </span>
-                        </template>
 
                         <button type="button" @click="$store.editorPanels.toggle('todo')"
                                 :class="$store.editorPanels.isOpen('todo') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"

@@ -9,6 +9,7 @@ use App\Models\LoopRoadmapItemMessage;
 use App\Models\LoopRoadmapLabel;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Services\Loops\LoopLifecycleService;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -70,7 +71,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return;
         }
 
@@ -128,7 +129,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin() || ! LoopRoadmapItem::isValidStatus($status)) {
+        if (! $this->canWrite() || ! LoopRoadmapItem::isValidStatus($status)) {
             return;
         }
 
@@ -158,7 +159,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return;
         }
 
@@ -378,7 +379,7 @@ class LoopRoadmapCard extends Component
     /** Re-scope an archived item to this Organization + Loop. */
     private function resolveTrashedItem(string $id): ?LoopRoadmapItem
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return null;
         }
 
@@ -465,7 +466,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return;
         }
 
@@ -640,7 +641,7 @@ class LoopRoadmapCard extends Component
     /** Re-scope a message to this Organization + Loop. Requires active membership. */
     private function resolveMessage(string $messageId): ?LoopRoadmapItemMessage
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return null;
         }
 
@@ -653,7 +654,7 @@ class LoopRoadmapCard extends Component
     /** Re-scope a label to this Organization + Loop. Never trust a browser id. */
     private function resolveLabel(string $labelId): ?LoopRoadmapLabel
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return null;
         }
 
@@ -683,7 +684,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin() || ! LoopRoadmapItem::isValidStatus($status)) {
+        if (! $this->canWrite() || ! LoopRoadmapItem::isValidStatus($status)) {
             $this->errorMessage = __('loops.roadmap_reorder_failed');
 
             return;
@@ -722,7 +723,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()
+        if (! $this->canWrite()
             || ! LoopRoadmapItem::isValidStatus($sourceStatus)
             || ! LoopRoadmapItem::isValidStatus($targetStatus)
             || $sourceStatus === $targetStatus) {
@@ -802,7 +803,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return;
         }
 
@@ -888,7 +889,7 @@ class LoopRoadmapCard extends Component
      */
     private function resolveItem(string $id): ?LoopRoadmapItem
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return null;
         }
 
@@ -912,6 +913,20 @@ class LoopRoadmapCard extends Component
             ->where('user_id', $user->id)
             ->where('status', 'active')
             ->first();
+    }
+
+    /**
+     * Membership, plus the Loop still accepting contributions.
+     *
+     * Split from isMemberOrAdmin() rather than folded into it: that one also
+     * answers "may this person see the board", and an archived Loop stays
+     * readable. Every write guard in this component calls this instead, so the
+     * read/write line is drawn once.
+     */
+    private function canWrite(): bool
+    {
+        return $this->isMemberOrAdmin()
+            && app(LoopLifecycleService::class)->isWritable($this->loop);
     }
 
     private function isMemberOrAdmin(): bool
@@ -952,7 +967,7 @@ class LoopRoadmapCard extends Component
 
     private function canModify(LoopRoadmapItem $item): bool
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return false;
         }
 

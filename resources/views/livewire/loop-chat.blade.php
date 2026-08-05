@@ -187,7 +187,7 @@
         </x-slot:messages>
     </x-conversation.message-list>
 
-    @if($isMember && config('ai.chatloop.enabled', true))
+    @if($isMember && $canContribute && config('ai.chatloop.enabled', true))
         @php $clarificationEnabled = \App\Models\AiConfig::get('clarification_enabled', false); @endphp
         <div class="flex-shrink-0 flex flex-wrap items-center gap-2 px-3 pt-2" x-data="{ askOpen: false, asking: false }">
             <button
@@ -236,7 +236,18 @@
         </div>
     @endif
 
-    @if($isMember)
+    @if($isMember && ! $canContribute)
+        {{-- Boucle archivee : on retire le champ plutot que de laisser ecrire un
+             message que le serveur refusera sans rien dire. La conversation
+             reste entierement lisible au-dessus. --}}
+        <div class="flex-shrink-0 px-3 pb-3 pt-2">
+            <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-center text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200">
+                {{ __('loops.archive_read_only') }}
+            </p>
+        </div>
+    @endif
+
+    @if($isMember && $canContribute)
         <x-conversation.composer
             model="body"
             :placeholder="__('messages.write_message')"

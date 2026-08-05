@@ -247,7 +247,24 @@
                     </svg>
                 </a>
             @endcan
+            @if($canArchiveLoop ?? false)
+                {{-- Archiver / reactiver. Hors du @can('update') : cette ability
+                     refuse une Boucle archivee, et la reactivation doit rester
+                     accessible a la personne qui l'a archivee. --}}
+                <button type="button" x-on:click="$dispatch('open-loop-archive')"
+                        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 transition hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/70"
+                        aria-label="{{ $currentLoop->isArchived() ? __('loops.reactivate_action') : __('loops.archive_action') }}"
+                        title="{{ $currentLoop->isArchived() ? __('loops.reactivate_action') : __('loops.archive_action') }}">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
+                    </svg>
+                </button>
+            @endif
         </div>
+
+        @if($canArchiveLoop ?? false)
+            @include('loops.partials.archive-modal', ['impact' => $archiveImpact ?? []])
+        @endif
 
         {{-- Session messages --}}
         @if(session('success') && session('success') !== 'Message envoyé.')
@@ -272,6 +289,25 @@
         {{-- The workspace tool bar ("Lancer" + tools) is the INTERNAL header of the
              left ChatLoop card — see the .chatloop-thread-panel below — not a global
              strip above the workspace. --}}
+
+        @if($currentLoop->isArchived())
+            {{-- Une Boucle archivee reste ouverte a ceux qui pouvaient la voir.
+                 Le bandeau dit ce qui a change et ce qui n'a pas change : plus de
+                 contribution, mais rien de perdu. Sans lui, les boutons refuses
+                 par le serveur passeraient pour des pannes. --}}
+            <div class="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-800/60 dark:bg-amber-900/20">
+                <p class="flex flex-wrap items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/></svg>
+                    {{ __('loops.archive_banner_title') }}
+                    @if($currentLoop->archived_at)
+                        <span class="text-xs font-normal text-amber-700 dark:text-amber-300">
+                            {{ __('loops.archived_since', ['date' => $currentLoop->archived_at->isoFormat('LL')]) }}
+                        </span>
+                    @endif
+                </p>
+                <p class="mt-1 text-xs leading-5 text-amber-800 dark:text-amber-200/90">{{ __('loops.archive_banner_body') }}</p>
+            </div>
+        @endif
 
         {{-- Workspace: neutral parent, two sibling cards (chat | splitter | side) --}}
         <section
@@ -365,99 +401,25 @@
                         <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
                             @foreach($workspaceCards as $card)
                                 <section x-show="activeCard === @js($card['key'])" x-cloak class="space-y-5">
-                                    @if($card['key'] === 'core.ai_summary')
-                                        <livewire:loop-ai-summary-card :loop="$currentLoop" :key="'loop-ai-summary-'.$currentLoop->id" lazy />
-                                    @elseif($card['key'] === 'core.manifesto')
-                                        {{-- Manifesto — designated primary BlogPost (lazy Livewire card) --}}
-                                        <livewire:loop-manifesto-card :loop="$currentLoop" :key="'loop-manifesto-'.$currentLoop->id" lazy />
-                                    @elseif($card['key'] === 'core.roadmap')
-                                        {{-- Roadmap — persistent (loop_roadmap_items), lazy Livewire card --}}
-                                        <livewire:loop-roadmap-card :loop="$currentLoop" :key="'loop-roadmap-'.$currentLoop->id" lazy />
-                                    @elseif($card['key'] === 'core.members')
-                                        {{-- Members list + email invitation --}}
-                                        <div class="space-y-4">
-                                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
-                                                <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __($card['label_key']) }}</p>
-                                                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('loops.members_count', ['count' => $loopMembers->count()]) }}</p>
-                                            </div>
+                                    {{-- Rendu pilote par le registre : plus aucune condition sur
+                                         une cle de Card ici. Une Card sans composant ni vue ne
+                                         rend rien plutot que d'ouvrir sur le vide, et aucune
+                                         chaine fournie par un utilisateur n'atteint Livewire —
+                                         le nom vient du catalogue, verifie par le registre.
 
-                                            @if(($canManageJoinRequests ?? false) && $pendingJoinRequests->isNotEmpty())
-                                                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-900/10">
-                                                    <p class="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                                                        {{ __('loops.join_requests_title') }}
-                                                        <span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">{{ $pendingJoinRequests->count() }}</span>
-                                                    </p>
-                                                    <ul class="space-y-2">
-                                                        @foreach($pendingJoinRequests as $joinRequest)
-                                                            @php $rUser = $joinRequest->user; @endphp
-                                                            <li class="rounded-xl border border-amber-200 bg-white p-3 dark:border-amber-800/50 dark:bg-gray-900">
-                                                                <div class="flex items-center gap-2">
-                                                                    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">{{ mb_strtoupper(mb_substr($rUser?->publicDisplayName() ?? '?', 0, 1)) }}</span>
-                                                                    <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{{ $rUser?->publicDisplayName() ?? '—' }}</span>
-                                                                    <span class="shrink-0 text-[11px] text-gray-400 dark:text-gray-500">{{ $joinRequest->created_at->diffForHumans() }}</span>
-                                                                </div>
-                                                                <p class="mt-1.5 text-xs leading-5 text-gray-600 dark:text-gray-300">{{ $joinRequest->message ?: __('loops.join_requests_no_message') }}</p>
-                                                                <div class="mt-2.5 flex gap-2">
-                                                                    <form method="POST" action="{{ route('loop-join-requests.accept', $joinRequest) }}" class="flex-1">
-                                                                        @csrf
-                                                                        <button type="submit" class="w-full rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">
-                                                                            {{ __('loops.join_requests_accept') }}
-                                                                        </button>
-                                                                    </form>
-                                                                    <form method="POST" action="{{ route('loop-join-requests.reject', $joinRequest) }}" class="flex-1">
-                                                                        @csrf
-                                                                        <button type="submit" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
-                                                                            {{ __('loops.join_requests_reject') }}
-                                                                        </button>
-                                                                    </form>
-                                                                </div>
-                                                            </li>
-                                                        @endforeach
-                                                    </ul>
-                                                </div>
-                                            @endif
-
-                                            @if($loopMembers->isEmpty())
-                                                <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-                                                    {{ __($card['empty_title_key']) }}
-                                                </div>
-                                            @else
-                                                {{-- Governance roster: owners, facilitators, members,
-                                                     with the same named actions as both admin screens.
-                                                     Availability comes from the resolved permissions. --}}
-                                                <x-loops.governance-roster
-                                                    :members="$loopMembers"
-                                                    :role-route="fn($m) => route('loops.members.role', $m)"
-                                                    :remove-route="null"
-                                                    :can-manage-owners="$governance['owners'] ?? false"
-                                                    :can-manage-facilitators="$governance['facilitators'] ?? false"
-                                                    :can-remove="false"
-                                                    :creator-id="$currentLoop->created_by"
-                                                    :current-user-id="auth()->id()" />
-                                            @endif
-
-                                            <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-                                                <p class="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
-                                                    <svg class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
-                                                    {{ __('loops.members_invite_title') }}
-                                                </p>
-                                                {{-- Targeted at THIS Loop (TASK-1077): the generic referral form that used
-                                                     to live here mailed a signup link that joined no Loop at all. --}}
-                                                <form method="POST" action="{{ $loopInvitationAction }}" class="mt-3 space-y-2">
-                                                    @csrf
-                                                    <input type="email" name="email" required placeholder="{{ __('loops.members_invite_email_placeholder') }}"
-                                                           class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
-                                                    <input type="text" name="name" maxlength="255" placeholder="{{ __('loops.members_invite_name_placeholder') }}"
-                                                           class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
-                                                    <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700">
-                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>
-                                                        {{ __('loops.members_invite_submit') }}
-                                                    </button>
-                                                </form>
-
-                                                <x-loops.invitation-list :invitations="$loopInvitations ?? collect()" class="mt-4 border-t border-gray-100 pt-3 dark:border-gray-700" />
-                                            </div>
-                                        </div>
+                                         Le registre est interroge directement, sans passer par
+                                         une variable locale : la forme en ligne de la directive
+                                         PHP compile mal quand l'expression contient des
+                                         crochets, et laissait une balise ouverte jamais
+                                         refermee qui desarticulait tout le fichier a partir de
+                                         ce point. Le nom de cette directive n'est pas ecrit ici
+                                         non plus — les blocs bruts sont extraits avant que les
+                                         commentaires ne soient retires, donc le citer suffisait
+                                         a reproduire le defaut. --}}
+                                    @if($cardRegistry->componentFor($card['key']))
+                                        @livewire($cardRegistry->componentFor($card['key']), ['loop' => $currentLoop], key($card['key'].'-'.$currentLoop->id))
+                                    @elseif($cardRegistry->viewFor($card['key']))
+                                        @include($cardRegistry->viewFor($card['key']), ['card' => $card])
                                     @endif
                                 </section>
                             @endforeach
