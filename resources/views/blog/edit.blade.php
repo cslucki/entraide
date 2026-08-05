@@ -94,62 +94,27 @@
 
                          Un badge apparait des qu'un lien existe, et le badge ouvre
                          le meme pop-up que le bouton : on clique la ou on regarde. --}}
-                    {{-- Chaque bouton est une colonne : les pictos au-dessus, le
-                         bouton en dessous.
+                    {{-- Une barre de boutons, sans badge.
 
-                         Des pictos et non des badges texte : le nom d'un Dossier
-                         allongeait la barre et devait etre abrege pour tenir, ce
-                         qui le rendait de toute facon illisible. Un point de
-                         couleur dit « ce lien existe » d'un coup d'oeil, et le
-                         nom entier vit dans l'infobulle et dans le pop-up, ou on
-                         a la place de le lire. --}}
-                    <div class="mb-6 flex flex-wrap items-end gap-2">
-                        <div class="flex flex-col items-start gap-1">
-                            <template x-if="$store.editorPanels.loopName">
-                                <button type="button" @click="$store.editorPanels.toggle('boucle')"
-                                        class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-100 text-red-600 transition hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/70"
-                                        :title="$store.editorPanels.loopName"
-                                        :aria-label="$store.editorPanels.loopName">
-                                    <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-                                </button>
-                            </template>
-                            <button type="button" @click="$store.editorPanels.toggle('boucle')"
-                                    :class="$store.editorPanels.isOpen('boucle') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
-                                    class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
-                                <svg class="h-3.5 w-3.5 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                                {{ __('blog.sidebar_boucle') }}
-                            </button>
-                        </div>
+                         Le nom du Dossier et l'appartenance a la serie ont ete
+                         essayes en badge texte puis en pastille : le premier
+                         allongeait la barre, le second n'apprenait pas
+                         grand-chose. L'etat vit dans les pop-ups, ou on a la
+                         place de le lire. --}}
+                    <div class="mb-6 flex flex-wrap items-center gap-2">
+                        <button type="button" @click="$store.editorPanels.toggle('boucle')"
+                                :class="$store.editorPanels.isOpen('boucle') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <svg class="h-3.5 w-3.5 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                            {{ __('blog.sidebar_boucle') }}
+                        </button>
 
-                        <div class="flex flex-col items-start gap-1">
-                            {{-- Deux pictos : le Dossier existe, et l'article est
-                                 dans sa serie. Le second porte des barres
-                                 empilees — une serie est une suite. --}}
-                            <template x-if="$store.editorPanels.dossierName">
-                                <span class="flex items-center gap-1">
-                                    <button type="button" @click="$store.editorPanels.toggle('dossier')"
-                                            class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-100 text-amber-700 transition hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/70"
-                                            :title="$store.editorPanels.dossierName"
-                                            :aria-label="$store.editorPanels.dossierName">
-                                        <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-                                    </button>
-                                    <template x-if="$store.editorPanels.inSeries">
-                                        <button type="button" @click="$store.editorPanels.toggle('dossier')"
-                                                class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 transition hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-900/70"
-                                                :title="$store.editorPanels.seriesIsRoot ? @js(__('blog.dossier_series_root')) : @js(__('blog.dossier_series_annex'))"
-                                                :aria-label="$store.editorPanels.seriesIsRoot ? @js(__('blog.dossier_series_root')) : @js(__('blog.dossier_series_annex'))">
-                                            <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
-                                        </button>
-                                    </template>
-                                </span>
-                            </template>
-                            <button type="button" @click="$store.editorPanels.toggle('dossier')"
-                                    :class="$store.editorPanels.isOpen('dossier') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
-                                    class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
-                                <svg class="h-3.5 w-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
-                                {{ __('blog.sidebar_dossier') }}
-                            </button>
-                        </div>
+                        <button type="button" @click="$store.editorPanels.toggle('dossier')"
+                                :class="$store.editorPanels.isOpen('dossier') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <svg class="h-3.5 w-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                            {{ __('blog.sidebar_dossier') }}
+                        </button>
 
                         <button type="button" @click="$store.editorPanels.toggle('todo')"
                                 :class="$store.editorPanels.isOpen('todo') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
