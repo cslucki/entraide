@@ -94,18 +94,23 @@
 
                          Un badge apparait des qu'un lien existe, et le badge ouvre
                          le meme pop-up que le bouton : on clique la ou on regarde. --}}
-                    {{-- Chaque bouton est une colonne : le badge au-dessus, le
-                         bouton en dessous. Les badges etaient a cote des boutons
-                         et allongeaient la barre a chaque lien ; au-dessus, ils
-                         se lisent comme l'etiquette de leur propre bouton et la
-                         barre garde sa largeur. --}}
+                    {{-- Chaque bouton est une colonne : les pictos au-dessus, le
+                         bouton en dessous.
+
+                         Des pictos et non des badges texte : le nom d'un Dossier
+                         allongeait la barre et devait etre abrege pour tenir, ce
+                         qui le rendait de toute facon illisible. Un point de
+                         couleur dit « ce lien existe » d'un coup d'oeil, et le
+                         nom entier vit dans l'infobulle et dans le pop-up, ou on
+                         a la place de le lire. --}}
                     <div class="mb-6 flex flex-wrap items-end gap-2">
                         <div class="flex flex-col items-start gap-1">
                             <template x-if="$store.editorPanels.loopName">
                                 <button type="button" @click="$store.editorPanels.toggle('boucle')"
-                                        class="inline-flex max-w-[10rem] items-center justify-center rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-red-700 transition hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
-                                        :title="$store.editorPanels.loopName">
-                                    <span class="truncate" x-text="$store.editorPanels.shortName($store.editorPanels.loopName)"></span>
+                                        class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-100 text-red-600 transition hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/70"
+                                        :title="$store.editorPanels.loopName"
+                                        :aria-label="$store.editorPanels.loopName">
+                                    <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                                 </button>
                             </template>
                             <button type="button" @click="$store.editorPanels.toggle('boucle')"
@@ -117,20 +122,24 @@
                         </div>
 
                         <div class="flex flex-col items-start gap-1">
-                            {{-- Les deux badges du Dossier au-dessus de son bouton :
-                                 le nom, puis l'appartenance a la serie. Cote a cote
-                                 s'ils tiennent, l'un sous l'autre sinon. --}}
+                            {{-- Deux pictos : le Dossier existe, et l'article est
+                                 dans sa serie. Le second porte des barres
+                                 empilees — une serie est une suite. --}}
                             <template x-if="$store.editorPanels.dossierName">
-                                <span class="flex flex-wrap items-center gap-1">
+                                <span class="flex items-center gap-1">
                                     <button type="button" @click="$store.editorPanels.toggle('dossier')"
-                                            class="inline-flex max-w-[10rem] items-center justify-center rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-amber-800 transition hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
-                                            :title="$store.editorPanels.dossierName">
-                                        <span class="truncate" x-text="$store.editorPanels.shortName($store.editorPanels.dossierName)"></span>
+                                            class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-100 text-amber-700 transition hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/70"
+                                            :title="$store.editorPanels.dossierName"
+                                            :aria-label="$store.editorPanels.dossierName">
+                                        <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                                     </button>
                                     <template x-if="$store.editorPanels.inSeries">
                                         <button type="button" @click="$store.editorPanels.toggle('dossier')"
-                                                class="inline-flex items-center justify-center rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300"
-                                                x-text="$store.editorPanels.seriesIsRoot ? @js(__('blog.dossier_series_root')) : @js(__('blog.dossier_series_annex'))"></button>
+                                                class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 transition hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-900/70"
+                                                :title="$store.editorPanels.seriesIsRoot ? @js(__('blog.dossier_series_root')) : @js(__('blog.dossier_series_annex'))"
+                                                :aria-label="$store.editorPanels.seriesIsRoot ? @js(__('blog.dossier_series_root')) : @js(__('blog.dossier_series_annex'))">
+                                            <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
+                                        </button>
                                     </template>
                                 </span>
                             </template>
