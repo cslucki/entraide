@@ -90,20 +90,51 @@ class DossierSeriesController extends Controller
         $this->ensureBlogPostBelongsToDossier($post, $dossier);
 
         if ($series->root_blog_post_id !== $post->id) {
+            // Root of ANOTHER series: taking it would empty that one.
             if (ArticleSeries::where('root_blog_post_id', $post->id)->where('id', '!=', $series->id)->exists()) {
                 throw ValidationException::withMessages([
                     'root_blog_post_id' => __('dossiers.article_is_series_root'),
                 ]);
             }
 
-            if (ArticleSeriesItem::where('blog_post_id', $post->id)->exists()) {
+            // An annexe of ANOTHER series is still refused — but an annexe of
+            // *this* one is exactly what promoting a root means, and refusing
+            // it was the reason "change root" could never do anything.
+            $foreignAnnex = ArticleSeriesItem::where('blog_post_id', $post->id)
+                ->where('article_series_id', '!=', $series->id)
+                ->exists();
+
+            if ($foreignAnnex) {
                 throw ValidationException::withMessages([
                     'root_blog_post_id' => __('dossiers.article_is_series_annex'),
                 ]);
             }
         }
 
-        $series->update(['root_blog_post_id' => $post->id]);
+        $formerRootId = $series->root_blog_post_id;
+
+        DB::transaction(function () use ($series, $post, $formerRootId) {
+            // The promoted article stops being an annexe of its own series.
+            ArticleSeriesItem::where('article_series_id', $series->id)
+                ->where('blog_post_id', $post->id)
+                ->delete();
+
+            $series->update(['root_blog_post_id' => $post->id]);
+
+            // The former root becomes the first annexe rather than falling out
+            // of the series: nothing a human put there is ever dropped.
+            if ($formerRootId && $formerRootId !== $post->id) {
+                ArticleSeriesItem::where('article_series_id', $series->id)->increment('position');
+
+                ArticleSeriesItem::create([
+                    'organization_id' => $series->organization_id,
+                    'article_series_id' => $series->id,
+                    'blog_post_id' => $formerRootId,
+                    'position' => 0,
+                    'added_by' => auth()->id(),
+                ]);
+            }
+        });
 
         return response()->json([
             'series' => $series->fresh()->load('rootBlogPost'),

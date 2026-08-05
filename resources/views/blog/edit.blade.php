@@ -456,6 +456,9 @@
                         i18n: {
                             sidebar: @js(__('blog.sidebar_dossier')),
                             notClassified: @js(__('blog.dossier_not_classified')),
+                            openDossier: @js(__('blog.dossier_open')),
+                            seriesRoot: @js(__('blog.dossier_series_root')),
+                            seriesAnnex: @js(__('blog.dossier_series_annex')),
                             selectPlaceholder: @js(__('blog.dossier_select_placeholder')),
                             classify: @js(__('blog.dossier_classify')),
                             move: @js(__('blog.dossier_move')),
@@ -525,13 +528,33 @@
                         <template x-if="!loading && currentDossier">
                             <div class="rounded-lg border border-amber-100 bg-amber-50/60 p-2 dark:border-amber-900/60 dark:bg-amber-950/10">
                                 <div class="flex items-center justify-between gap-2">
-                                    <span class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="currentDossier.name"></span>
+                                    {{-- Le nom ouvre le Dossier. Sans ce lien il fallait
+                                         repasser par « Mes dossiers » et le retrouver. --}}
+                                    <a :href="currentDossier.url" target="_blank" rel="noopener"
+                                       class="inline-flex min-w-0 items-center gap-1 truncate text-xs font-semibold text-gray-800 underline-offset-2 transition hover:text-amber-700 hover:underline dark:text-gray-100 dark:hover:text-amber-300"
+                                       :title="i18n.openDossier">
+                                        <span class="truncate" x-text="currentDossier.name"></span>
+                                        <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>
+                                        </svg>
+                                    </a>
                                     <button type="button" @click="detach()"
                                         class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition disabled:opacity-50"
                                         :disabled="saving">
                                         <span x-text="i18n.detach"></span>
                                     </button>
                                 </div>
+
+                                {{-- La Serie est une fonctionnalite du Dossier : sans cette
+                                     mention, l'auteur n'a aucun moyen de savoir qu'il ecrit
+                                     dans une serie, ni laquelle. --}}
+                                <template x-if="currentDossier.series">
+                                    <p class="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300">
+                                        <span class="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                                              x-text="currentDossier.series.is_root ? i18n.seriesRoot : i18n.seriesAnnex"></span>
+                                        <span class="min-w-0 truncate" x-text="currentDossier.series.root_title"></span>
+                                    </p>
+                                </template>
                                 <div class="mt-1.5 flex gap-2">
                                     <select x-model="selectedDossierId"
                                         class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-amber-500">

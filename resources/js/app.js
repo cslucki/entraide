@@ -2208,6 +2208,41 @@ function registerDossierContentsCard() {
                 .finally(() => { this.saving = false; });
         },
 
+        /**
+         * Promote an article of the series to root.
+         *
+         * The former root is not dropped — the server moves it to the first
+         * annexe slot — so nothing a human placed in the series is ever lost.
+         * Available on every article of the series, which is where people look
+         * for it; the old "change root" entry in the series menu did nothing at
+         * all and has been removed.
+         */
+        promoteToRoot(entry) {
+            if (!entry || this.saving) return;
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series`;
+            fetch(url, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ root_blog_post_id: entry.blog_post_id }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showError(data.message || data.root_blog_post_id?.[0] || 'Error');
+                        return;
+                    }
+                    this.showSuccess(data.message || this.i18n.seriesRootUpdated);
+                    this.openMenuId = null;
+                    // Reload rather than reshuffle by hand: the server has just
+                    // moved two articles and renumbered every position, and
+                    // guessing that here is how lists drift out of step.
+                    window.location.reload();
+                })
+                .catch(() => this.showError('Error'))
+                .finally(() => { this.saving = false; });
+        },
+
         addToSeries(entry, dropIndex) {
             if (!entry) return;
             const previousUngrouped = [...this.ungrouped];

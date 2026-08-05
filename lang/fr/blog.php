@@ -534,4 +534,7 @@ return [
     'preview' => 'Prévisualiser',
     'preview_close' => 'Fermer',
     'preview_continue' => 'Continuer la rédaction',
+    'dossier_open' => 'Ouvrir le Dossier',
+    'dossier_series_root' => 'Racine de série',
+    'dossier_series_annex' => 'Dans une série',
 ];

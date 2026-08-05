@@ -4,9 +4,13 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\BlogSnapshotController;
+use App\Models\ArticleSeries;
+use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\BlogSnapshot;
 use App\Models\Category;
+use App\Models\Dossier;
+use App\Models\DossierBlogPost;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
@@ -244,6 +248,176 @@ class TASK1084ArticleEditorTest extends TestCase
         $loop->forceFill(['manifesto_blog_post_id' => $doc->id])->save();
 
         $this->assertStringContainsString('<h1>Racine</h1>', $loop->fresh()->manifestoHtmlForAdmin());
+    }
+
+    // ── Série : promouvoir une annexe en racine ─────────────────────────────
+
+    public function test_an_annex_can_be_promoted_to_root(): void
+    {
+        // This is what "change root" was supposed to do and never did: the
+        // endpoint refused any article already an annexe of the series, which
+        // is precisely every candidate.
+        [$dossier, $series, $annex, $formerRoot] = $this->seriesFixture();
+
+        $this->actingAs($this->author)
+            ->patchJson(route('organization.dossiers.series.update', [
+                'organization' => $this->org->slug, 'dossier' => $dossier->id,
+            ]), ['root_blog_post_id' => $annex->id])
+            ->assertOk();
+
+        $this->assertSame($annex->id, $series->fresh()->root_blog_post_id);
+    }
+
+    public function test_the_former_root_becomes_the_first_annex(): void
+    {
+        // Nothing a human placed in the series is ever dropped.
+        [$dossier, $series, $annex, $formerRoot] = $this->seriesFixture();
+
+        $this->actingAs($this->author)
+            ->patchJson(route('organization.dossiers.series.update', [
+                'organization' => $this->org->slug, 'dossier' => $dossier->id,
+            ]), ['root_blog_post_id' => $annex->id])
+            ->assertOk();
+
+        $this->assertDatabaseHas('article_series_items', [
+            'article_series_id' => $series->id,
+            'blog_post_id' => $formerRoot->id,
+            'position' => 0,
+        ]);
+
+        // And the promoted one is no longer an annexe of its own series.
+        $this->assertDatabaseMissing('article_series_items', [
+            'article_series_id' => $series->id,
+            'blog_post_id' => $annex->id,
+        ]);
+    }
+
+    public function test_an_article_outside_the_dossier_cannot_become_root(): void
+    {
+        [$dossier] = $this->seriesFixture();
+        $outsider = $this->article();
+
+        $this->actingAs($this->author)
+            ->patchJson(route('organization.dossiers.series.update', [
+                'organization' => $this->org->slug, 'dossier' => $dossier->id,
+            ]), ['root_blog_post_id' => $outsider->id])
+            ->assertNotFound();
+    }
+
+    /** @return array{0:Dossier,1:ArticleSeries,2:BlogPost,3:BlogPost} */
+    private function seriesFixture(): array
+    {
+        $dossier = Dossier::create([
+            'organization_id' => $this->org->id, 'owner_id' => $this->author->id,
+            'name' => 'Dossier serie', 'visibility' => 'private',
+        ]);
+
+        $root = $this->article();
+        $annex = $this->article();
+
+        foreach ([$root, $annex] as $i => $post) {
+            DossierBlogPost::create([
+                'organization_id' => $this->org->id, 'dossier_id' => $dossier->id,
+                'blog_post_id' => $post->id, 'position' => $i,
+            ]);
+        }
+
+        $series = ArticleSeries::create([
+            'organization_id' => $this->org->id, 'dossier_id' => $dossier->id,
+            'root_blog_post_id' => $root->id, 'created_by' => $this->author->id,
+        ]);
+
+        ArticleSeriesItem::create([
+            'organization_id' => $this->org->id, 'article_series_id' => $series->id,
+            'blog_post_id' => $annex->id, 'position' => 0,
+        ]);
+
+        return [$dossier, $series, $annex, $root];
+    }
+
+    public function test_leaving_a_dossier_also_leaves_its_series(): void
+    {
+        // The visible symptom was a refusal that made no sense: "this article is
+        // already the root of a series" on an article sitting alone in a
+        // brand-new Dossier — because it was still the root of the Series it
+        // had been moved out of.
+        [$dossier, $series, $annex, $root] = $this->seriesFixture();
+
+        $this->actingAs($this->author)
+            ->deleteJson(route('organization.blog.dossier.detach', [
+                'organization' => $this->org->slug, 'post' => $annex->slug,
+            ]))
+            ->assertOk();
+
+        $this->assertDatabaseMissing('article_series_items', [
+            'article_series_id' => $series->id, 'blog_post_id' => $annex->id,
+        ]);
+    }
+
+    public function test_removing_the_root_promotes_the_next_article_rather_than_dropping_the_series(): void
+    {
+        // A Series that loses its root still holds what someone put in it.
+        [$dossier, $series, $annex, $root] = $this->seriesFixture();
+
+        $this->actingAs($this->author)
+            ->deleteJson(route('organization.blog.dossier.detach', [
+                'organization' => $this->org->slug, 'post' => $root->slug,
+            ]))
+            ->assertOk();
+
+        $this->assertSame($annex->id, $series->fresh()?->root_blog_post_id);
+    }
+
+    public function test_a_series_left_with_nothing_is_removed(): void
+    {
+        [$dossier, $series, $annex, $root] = $this->seriesFixture();
+
+        foreach ([$annex, $root] as $post) {
+            $this->actingAs($this->author)->deleteJson(route('organization.blog.dossier.detach', [
+                'organization' => $this->org->slug, 'post' => $post->slug,
+            ]));
+        }
+
+        $this->assertNull($series->fresh());
+    }
+
+    // ── Card Dossier de l'éditeur ───────────────────────────────────────────
+
+    public function test_the_editor_card_carries_the_dossier_url_and_the_series(): void
+    {
+        // Reaching the Dossier meant going back to "Mes dossiers" and hunting;
+        // and nothing told the writer they were inside a series.
+        [$dossier, $series, $annex, $root] = $this->seriesFixture();
+
+        $this->actingAs($this->author)
+            ->getJson(route('organization.blog.dossier.current', [
+                'organization' => $this->org->slug, 'post' => $annex->slug,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('dossier.id', $dossier->id)
+            ->assertJsonPath('dossier.series.is_root', false)
+            ->assertJsonPath('dossier.series.root_title', $root->title)
+            ->assertJsonStructure(['dossier' => ['url']]);
+    }
+
+    public function test_an_article_outside_any_series_reports_none(): void
+    {
+        $dossier = Dossier::create([
+            'organization_id' => $this->org->id, 'owner_id' => $this->author->id,
+            'name' => 'Sans serie', 'visibility' => 'private',
+        ]);
+        $post = $this->article();
+        DossierBlogPost::create([
+            'organization_id' => $this->org->id, 'dossier_id' => $dossier->id,
+            'blog_post_id' => $post->id, 'position' => 0,
+        ]);
+
+        $this->actingAs($this->author)
+            ->getJson(route('organization.blog.dossier.current', [
+                'organization' => $this->org->slug, 'post' => $post->slug,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('dossier.series', null);
     }
 
     // ── Non-régression documents racine ─────────────────────────────────────
