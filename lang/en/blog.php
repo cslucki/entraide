@@ -531,4 +531,7 @@ return [
     'dossier_create_error' => 'Failed to create the folder.',
     'dossier_article_not_saved' => 'Save the article first, then classify it.',
     'dossier_move_error' => 'Failed to move the article.',
+    'preview' => 'Preview',
+    'preview_close' => 'Close',
+    'preview_continue' => 'Continue writing',
 ];

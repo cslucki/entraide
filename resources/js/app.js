@@ -557,6 +557,10 @@ function registerBlogEditor() {
                 italic: editor.isActive('italic'),
                 underline: editor.isActive('underline'),
                 heading1: editor.isActive('heading', { level: 1 }),
+                // H1 exposed since TASK-1084: Markdown pasted from an LLM
+                // almost always opens with one, so the toolbar has to be able
+                // to show it and to set it.
+                heading1: editor.isActive('heading', { level: 1 }),
                 heading2: editor.isActive('heading', { level: 2 }),
                 heading3: editor.isActive('heading', { level: 3 }),
                 heading4: editor.isActive('heading', { level: 4 }),
@@ -623,6 +627,7 @@ function registerBlogEditor() {
                 case 'toggleBold': chain.toggleBold().run(); break;
                 case 'toggleItalic': chain.toggleItalic().run(); break;
                 case 'toggleUnderline': chain.toggleUnderline().run(); break;
+                case 'toggleH1': chain.toggleHeading({ level: 1 }).run(); break;
                 case 'toggleH1': chain.toggleHeading({ level: 1 }).run(); break;
                 case 'toggleH2': chain.toggleHeading({ level: 2 }).run(); break;
                 case 'toggleH3': chain.toggleHeading({ level: 3 }).run(); break;

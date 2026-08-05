@@ -531,4 +531,7 @@ return [
     'dossier_create_error' => 'Échec de la création du dossier.',
     'dossier_article_not_saved' => 'Enregistrez l’article avant de le classer.',
     'dossier_move_error' => 'Échec du déplacement de l’article.',
+    'preview' => 'Prévisualiser',
+    'preview_close' => 'Fermer',
+    'preview_continue' => 'Continuer la rédaction',
 ];
