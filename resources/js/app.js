@@ -1704,6 +1704,7 @@ function registerBlogDossierCard() {
                 .then(r => r.json())
                 .then(data => {
                     this.currentDossier = data.dossier || null;
+                    this.publishBadge();
                     this.loading = false;
                 })
                 .catch(() => {
@@ -1719,6 +1720,22 @@ function registerBlogDossierCard() {
                     this.dossiers = data.dossiers || [];
                 })
                 .catch(() => {});
+        },
+
+        /**
+         * Reflete l'etat courant dans la barre d'outils de l'article.
+         *
+         * Seule cette Card sait s'il y a un Dossier lie, comment il s'appelle et
+         * si l'article appartient a une serie — la barre, elle, ne fait
+         * qu'afficher.
+         */
+        publishBadge() {
+            const store = window.Alpine?.store('editorPanels');
+            if (!store) return;
+            store.dossierName = this.currentDossier?.name || null;
+            store.dossierUrl = this.currentDossier?.url || null;
+            store.inSeries = !!this.currentDossier?.series;
+            store.seriesIsRoot = !!this.currentDossier?.series?.is_root;
         },
 
         classify() {
@@ -1738,6 +1755,7 @@ function registerBlogDossierCard() {
                         return;
                     }
                     this.currentDossier = data.dossier || null;
+                    this.publishBadge();
                     this.selectedDossierId = '';
                     this.success = data.message || this.i18n.classified;
                     setTimeout(() => { this.success = ''; }, 3000);
@@ -1874,6 +1892,10 @@ function registerDossierContentsCard() {
         message: '',
         messageType: 'success',
         showAddModal: false,
+        // Creer une serie sur un Dossier vide : le premier article attache
+        // devient sa racine (voir attachArticle).
+        pendingSeriesRoot: false,
+        showChooseRootModal: false,
         addSearchQuery: '',
         addSearchResults: [],
         addSearching: false,
@@ -1907,35 +1929,16 @@ function registerDossierContentsCard() {
                 if (ev.key === 'Escape') {
                     if (this.showDetachModal) { this.showDetachModal = false; this.detachEntry = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="detach-article-title"]'); }); }
                     else if (this.showAddModal) { this.closeAddModal(); }
+                    else if (this.showChooseRootModal) { this.showChooseRootModal = false; }
                     else if (this.showDeleteSeriesModal) { this.showDeleteSeriesModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-series-title"]'); }); }
                     else { this.openMenuId = null; this.showSeriesMenu = false; }
                 }
             });
 
-            const groupOptions = {
-                name: 'dossier-articles',
-                put: true,
-                pull: true,
-            };
-
-            this.$nextTick(() => {
-                if (!this.canManageArticles) return;
-
-                const commonSortable = {
-                    group: groupOptions,
-                    handle: '.drag-handle',
-                    filter: '[data-no-drag]',
-                    animation: 150,
-                    onEnd: (evt) => this.onDragEnd(evt),
-                };
-
-                if (this.$refs.ungroupedContainer) {
-                    this.sortables.push(Sortable.create(this.$refs.ungroupedContainer, commonSortable));
-                }
-                if (this.$refs.annexesContainer) {
-                    this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
-                }
-            });
+            // Une seule definition des zones de glisser-deposer. Le demarrage
+            // en avait une copie a lui, et la zone racine ajoutee ici n'y
+            // serait jamais apparue avant un premier ajout d'annexe.
+            this.$nextTick(() => this.initSortables());
 
             this.$watch('searchQuery', (val) => {
                 this.sortables.forEach(s => s.option('disabled', val.trim().length > 0));
@@ -1967,11 +1970,48 @@ function registerDossierContentsCard() {
             if (this.$refs.annexesContainer) {
                 this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
             }
+            // Deposer un article sur la racine le promeut. La zone accepte mais
+            // ne cede rien (`pull: false`) et ne se trie pas : elle ne contient
+            // qu'un article, et c'est justement celui qu'on remplace.
+            if (this.$refs.seriesRootContainer) {
+                this.sortables.push(Sortable.create(this.$refs.seriesRootContainer, {
+                    group: { name: 'dossier-articles', put: true, pull: false },
+                    sort: false,
+                    handle: '.drag-handle',
+                    // Pas de `filter` ici : il ferait ignorer la carte racine
+                    // comme cible d'insertion, et le depot ne prendrait que sur
+                    // les quelques pixels de marge autour d'elle. `pull: false`
+                    // suffit a empecher de la sortir de la zone.
+                    animation: 150,
+                    onAdd: (evt) => this.onDropOnRoot(evt),
+                }));
+            }
+        },
+
+        /**
+         * Sortable a deja deplace l'element dans le DOM ; on le remet ou il
+         * etait et on laisse le serveur trancher. Sans cela, un refus laisserait
+         * deux articles dans la zone racine.
+         */
+        onDropOnRoot(evt) {
+            const movedId = evt.item.getAttribute('data-article-id');
+            evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
+            if (!movedId) return;
+
+            const entry = this.ungrouped.find(e => String(e.blog_post_id) === movedId)
+                || this.seriesItems.find(e => String(e.blog_post_id) === movedId);
+
+            if (entry) this.promoteToRoot(entry);
         },
 
         onDragEnd(evt) {
             const movedId = evt.item.getAttribute('data-article-id');
             if (!movedId) return;
+
+            // Un depot sur la racine emet onAdd (zone racine) *et* onEnd (zone
+            // d'origine). Sans cette sortie, l'article etait promu racine puis
+            // rajoute en annexe : racine et annexe a la fois.
+            if (evt.to === this.$refs.seriesRootContainer) return;
 
             const fromUngrouped = evt.from === this.$refs.ungroupedContainer;
             const toUngrouped = evt.to === this.$refs.ungroupedContainer;
@@ -2129,6 +2169,7 @@ function registerDossierContentsCard() {
 
         closeAddModal() {
             this.showAddModal = false;
+            this.pendingSeriesRoot = false;
             this.addSearchQuery = '';
             this.addSearchResults = [];
             this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="add-article-title"]'); });
@@ -2170,13 +2211,55 @@ function registerDossierContentsCard() {
                         position: entry.position,
                         blog_post: normalizeArticle(bp),
                     });
+
+                    // Demande en attente depuis createSeries() sur un Dossier
+                    // vide : cet article est le premier, il en est la racine.
+                    // Lu avant closeAddModal(), qui purge le drapeau.
+                    const wantsRoot = this.pendingSeriesRoot && !this.hasSeries;
+
                     this.closeAddModal();
                     this.showSuccess(data.message);
+
+                    if (wantsRoot) {
+                        this.setAsRoot(this.ungrouped[this.ungrouped.length - 1]);
+                    }
                 } else {
                     this.showError(data.message || 'Error');
                 }
             } catch { this.showError('Network error'); }
             finally { this.adding = false; }
+        },
+
+        /**
+         * Creer une serie, depuis un bouton plutot que depuis le menu cache
+         * d'un article.
+         *
+         * Une serie ne peut pas exister sans racine — `article_series.
+         * root_blog_post_id` est NOT NULL — donc creer une serie, c'est
+         * toujours designer un article. Le bouton evite la question quand elle
+         * n'a qu'une reponse possible : Dossier vide, on demande d'abord un
+         * article ; un seul article, c'est lui ; plusieurs, on choisit.
+         */
+        createSeries() {
+            if (this.hasSeries || this.saving) return;
+
+            if (this.ungrouped.length === 0) {
+                this.pendingSeriesRoot = true;
+                this.openAddArticleModal();
+                return;
+            }
+
+            if (this.ungrouped.length === 1) {
+                this.setAsRoot(this.ungrouped[0]);
+                return;
+            }
+
+            this.showChooseRootModal = true;
+        },
+
+        chooseRoot(entry) {
+            this.showChooseRootModal = false;
+            this.setAsRoot(entry);
         },
 
         setAsRoot(entry) {
@@ -2203,6 +2286,9 @@ function registerDossierContentsCard() {
                     this.ungrouped = this.ungrouped.filter(e => e.blog_post_id !== entry.blog_post_id);
                     this.showSuccess(this.i18n.seriesCreated || 'Series created');
                     this.openMenuId = null;
+                    // La zone racine vient d'apparaitre : sans cela elle
+                    // n'accepterait aucun depot avant un rechargement.
+                    this.$nextTick(() => this.initSortables());
                 })
                 .catch(() => this.showError('Error'))
                 .finally(() => { this.saving = false; });
@@ -3436,11 +3522,29 @@ function registerBlogLoopCard() {
         storeMessageUrlBase: config.storeMessageUrlBase || '',
         userLoops: config.userLoops || [],
         linkedLoops: config.linkedLoops || [],
+
+        /** Nom de la Boucle liee, pour le badge de la barre. */
+        publishBadge() {
+            const store = window.Alpine?.store('editorPanels');
+            if (!store) return;
+            const first = this.linkedLoops?.[0];
+            store.loopName = first
+                ? (this.linkedLoops.length > 1 ? `${first.name} +${this.linkedLoops.length - 1}` : first.name)
+                : null;
+        },
+
         i18n: config.i18n || {},
         messageDrafts: {},
         sendingMessage: '',
         _pollInterval: null,
         _fingerprint: '',
+
+        init() {
+            // Le badge de la barre est alimente des l'ouverture de la page, puis
+            // a chaque liaison ou deliaison.
+            this.publishBadge();
+            this.$watch('linkedLoops', () => this.publishBadge());
+        },
 
         get availableLoops() {
             const linkedIds = new Set(this.linkedLoops.map(l => l.id));
@@ -5455,6 +5559,43 @@ if (window.Alpine) {
 }
 
 let editor = null;
+
+/**
+ * Which editor panel is open, if any.
+ *
+ * Four sidebar cards — Boucle, Dossier, Liste de taches, Co-ecriture — moved out
+ * of the stacked column and into a button bar above the article. They kept
+ * their own Alpine state entirely: only their container changed, from a
+ * collapsible box to a modal. That is why this store holds nothing but the
+ * name of the open panel, plus the labels the badges need.
+ *
+ * The badges are published by the cards themselves, because only they know
+ * whether a link exists and what it is called.
+ */
+document.addEventListener('alpine:init', () => {
+    window.Alpine.store('editorPanels', {
+        open: null,
+
+        // Filled by the cards. Null means "no link", and the bar shows no badge.
+        loopName: null,
+        dossierName: null,
+        dossierUrl: null,
+        inSeries: false,
+        seriesIsRoot: false,
+
+        toggle(name) {
+            this.open = this.open === name ? null : name;
+        },
+
+        close() {
+            this.open = null;
+        },
+
+        isOpen(name) {
+            return this.open === name;
+        },
+    });
+});
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();

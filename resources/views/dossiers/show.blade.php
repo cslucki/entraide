@@ -215,7 +215,14 @@
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.contents_tab') }}</h2>
                             <template x-if="canManageArticles">
-                                <button @click="openAddArticleModal()" type="button" class="w-full whitespace-nowrap rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:w-auto">{{ __('dossiers.add_article') }}</button>
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                    {{-- Creer une serie n'etait accessible que par le menu
+                                         a trois points d'un article : personne ne l'y
+                                         trouvait. --}}
+                                    <button x-show="!hasSeries" @click="createSeries()" type="button" :disabled="saving"
+                                            class="w-full whitespace-nowrap rounded-lg border border-indigo-300 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/40 sm:w-auto">{{ __('dossiers.series_create') }}</button>
+                                    <button @click="openAddArticleModal()" type="button" class="w-full whitespace-nowrap rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:w-auto">{{ __('dossiers.add_article') }}</button>
+                                </div>
                             </template>
                         </div>
                         {{-- Search row --}}
@@ -339,7 +346,9 @@
                                 {{-- Root article --}}
                                 <template x-if="seriesRoot">
                                     <div class="border-t border-indigo-200 dark:border-indigo-900/60">
-                                        <div class="px-4 py-3">
+                                        {{-- Zone de depot : glisser un article ici le promeut
+                                             racine. Voir onDropOnRoot(). --}}
+                                        <div class="px-4 py-3" x-ref="seriesRootContainer">
                                             <div class="flex items-start justify-between gap-3 rounded-xl bg-white px-3 py-3 dark:bg-gray-800 sm:py-2" data-no-drag :data-article-id="seriesRoot.blogPostId">
                                                 <div class="flex items-start gap-2 min-w-0 flex-1">
                                                     {{-- No drag handle for root --}}
@@ -539,8 +548,14 @@
                                                         <template x-if="hasSeries">
                                                             <button @click="addToSeries(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.addToSeries"></button>
                                                         </template>
+                                                        {{-- Avec ou sans serie, designer la racine part
+                                                             du meme menu : sans serie on la cree, avec
+                                                             serie on remplace sa racine. --}}
                                                         <template x-if="!hasSeries && canManageArticles">
                                                             <button @click="setAsRoot(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.setRoot"></button>
+                                                        </template>
+                                                        <template x-if="hasSeries && canManageArticles">
+                                                            <button @click="promoteToRoot(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.setRoot"></button>
                                                         </template>
                                                         <button @click="confirmDetach(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.removeFromFolder"></button>
                                                     </div>
@@ -557,6 +572,33 @@
                     <template x-if="!hasSeries && filteredUngrouped.length === 0">
                         <div class="mt-6 rounded-2xl border border-dashed border-gray-300 px-5 py-10 text-center dark:border-gray-700">
                             <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.articles_empty_body') }}</p>
+                        </div>
+                    </template>
+
+                    {{-- Choix de la racine : le Dossier contient deja plusieurs
+                         articles, la question n'a pas de reponse evidente. --}}
+                    <template x-if="showChooseRootModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                             @click.self="showChooseRootModal = false"
+                             role="dialog" aria-modal="true" aria-labelledby="choose-root-title">
+                            <div class="w-full max-w-lg rounded-2xl bg-white shadow-xl dark:bg-gray-800">
+                                <div class="border-b border-gray-200 px-5 py-3 dark:border-gray-700">
+                                    <h3 id="choose-root-title" class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.series_choose_root_title') }}</h3>
+                                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.series_choose_root_help') }}</p>
+                                </div>
+                                <div class="max-h-80 space-y-1 overflow-y-auto px-3 py-3">
+                                    <template x-for="entry in ungrouped" :key="entry.id">
+                                        <button type="button" @click="chooseRoot(entry)" :disabled="saving"
+                                                class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-gray-800 transition hover:bg-indigo-50 disabled:opacity-50 dark:text-gray-100 dark:hover:bg-indigo-950/40">
+                                            <span class="min-w-0 flex-1 truncate" x-text="entry.blog_post?.title"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                                <div class="flex justify-end border-t border-gray-200 px-5 py-3 dark:border-gray-700">
+                                    <button type="button" @click="showChooseRootModal = false"
+                                            class="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 dark:border-gray-600 dark:text-gray-300">{{ __('dossiers.cancel') }}</button>
+                                </div>
+                            </div>
                         </div>
                     </template>
 

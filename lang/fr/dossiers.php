@@ -129,6 +129,8 @@ return [
     'series_empty_body' => 'Crée une série pour structurer tes articles avec une racine et des annexes.',
     'series_create' => 'Créer la série',
     'series_created' => 'Série créée.',
+    'series_choose_root_title' => 'Quel article ouvre la série ?',
+    'series_choose_root_help' => 'Les autres articles du Dossier pourront être ajoutés ensuite comme annexes.',
     'series_root' => 'Article racine',
     'series_root_label' => 'Article racine',
     'series_root_empty' => 'Aucun article racine',

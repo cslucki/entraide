@@ -83,17 +83,52 @@ class BlogDossierApiController extends Controller
      *
      * @return array<string, mixed>
      */
+    /**
+     * The Series as a reader meets it: root first, then annexes in order.
+     *
+     * `slug` can be missing on a draft that has never been saved; such an
+     * article gets no link rather than a broken one.
+     */
+    private function seriesArticles(ArticleSeries $series, $annexes, $currentBlogPostId, $organization): array
+    {
+        $rows = collect();
+
+        if ($series->rootBlogPost) {
+            $rows->push([$series->rootBlogPost, true]);
+        }
+
+        foreach ($annexes as $annexe) {
+            if ($annexe->blogPost) {
+                $rows->push([$annexe->blogPost, false]);
+            }
+        }
+
+        return $rows->map(fn (array $row) => [
+            'id' => $row[0]->id,
+            'title' => $row[0]->title,
+            'is_root' => $row[1],
+            'is_current' => $row[0]->id === $currentBlogPostId,
+            'url' => $row[0]->slug ? route('organization.blog.edit', [
+                'organization' => $organization->slug,
+                'post' => $row[0]->slug,
+            ]) : null,
+        ])->values()->all();
+    }
+
     private function dossierPayload(DossierBlogPost $entry, $organization): array
     {
         $series = ArticleSeries::where('dossier_id', $entry->dossier_id)
-            ->with('rootBlogPost:id,title')
+            ->with('rootBlogPost:id,title,slug')
             ->first();
+
+        $annexes = $series === null ? collect() : ArticleSeriesItem::where('article_series_id', $series->id)
+            ->with('blogPost:id,title,slug')
+            ->orderBy('position')
+            ->get();
 
         $inSeries = $series !== null && (
             $series->root_blog_post_id === $entry->blog_post_id
-            || ArticleSeriesItem::where('article_series_id', $series->id)
-                ->where('blog_post_id', $entry->blog_post_id)
-                ->exists()
+            || $annexes->contains('blog_post_id', $entry->blog_post_id)
         );
 
         return [
@@ -107,6 +142,9 @@ class BlogDossierApiController extends Controller
             'series' => $inSeries ? [
                 'root_title' => $series->rootBlogPost?->title,
                 'is_root' => $series->root_blog_post_id === $entry->blog_post_id,
+                // La serie entiere, pour que l'auteur voie de quoi son texte
+                // fait partie sans quitter l'editeur.
+                'articles' => $this->seriesArticles($series, $annexes, $entry->blog_post_id, $organization),
             ] : null,
         ];
     }
