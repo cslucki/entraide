@@ -6,6 +6,7 @@ use App\Events\LoopMessageCreated;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\LoopEvent;
 use App\Models\LoopPoll;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -115,6 +116,54 @@ class LoopMessageService
                     'event' => $event,
                     'poll_id' => $poll->id,
                     'question' => $poll->question,
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * Annoncer dans ChatLoop qu'une rencontre est proposee, deplacee ou annulee.
+     *
+     * Meme motif que sendPollEventMessage(), et pour la meme raison : ChatLoop
+     * reste le centre vivant de la Boucle, donc ce qui s'y passe ailleurs doit y
+     * laisser une trace lisible. Trois evenements seulement, et jamais un par
+     * reponse — une Boucle qui organise une reunion a dix n'a pas besoin de dix
+     * lignes.
+     *
+     * @param  'created'|'updated'|'cancelled'  $event
+     */
+    public function sendEventMessage(Loop $loop, User $sender, LoopEvent $event, string $eventKind): LoopMessage
+    {
+        $this->assertCanSend($loop, $sender);
+
+        $body = match ($eventKind) {
+            'cancelled' => __('events.chat_cancelled', ['title' => $event->title]),
+            'updated' => __('events.chat_updated', ['title' => $event->title]),
+            default => __('events.chat_created', ['title' => $event->title]),
+        };
+
+        return DB::transaction(function () use ($loop, $sender, $event, $eventKind, $body) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+                'type' => 'loop_event',
+                'metadata' => [
+                    'event' => $eventKind,
+                    'event_id' => $event->id,
+                    'title' => $event->title,
+                    // Une date absolue en UTC plus le fuseau : le message reste
+                    // juste meme relu depuis un autre continent.
+                    'starts_at' => $event->starts_at?->toIso8601String(),
+                    'timezone' => $event->timezone,
+                    'format' => $event->format,
                 ],
                 'organization_id' => $loop->organization_id,
             ]);

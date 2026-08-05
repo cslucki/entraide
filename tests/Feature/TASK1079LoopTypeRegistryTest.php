@@ -86,10 +86,13 @@ class TASK1079LoopTypeRegistryTest extends TestCase
 
     public function test_the_two_defined_types_carry_exactly_what_was_specified(): void
     {
+        // Le socle Dialogue grandit a chaque Card metier ; ce qui compte est
+        // qu'il porte toujours les membres et qu'il vienne de la configuration.
         $this->assertEqualsCanonicalizing(
-            ['core.members', 'core.polls'],
+            config('loop_types.types.general.cards'),
             $this->registry()->cardsFor('general'),
         );
+        $this->assertContains('core.members', $this->registry()->cardsFor('general'));
         $this->assertEqualsCanonicalizing(
             ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.members'],
             $this->registry()->cardsFor('project'),

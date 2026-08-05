@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'agenda' => 'Agenda',
+    'agenda_hint' => 'Meetings',
     'exchanges' => 'Exchanges',
     'directory' => 'Directory',
     'blog' => 'Blog',

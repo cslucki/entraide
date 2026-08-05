@@ -62,6 +62,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\LoopInvitationController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
@@ -328,6 +329,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+        // L'agenda de l'Organization : lecture seule, il agrege ce qui a ete
+        // organise dans les Boucles. Declare avant /loops/{loop} n'est pas
+        // necessaire — le segment differe — mais reste groupe avec elles.
+        Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
         Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
         Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
         Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
@@ -719,6 +724,10 @@ Route::prefix('/org/{organization}')
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+                // L'agenda de l'Organization : lecture seule, il agrege ce qui a ete
+                // organise dans les Boucles. Declare avant /loops/{loop} n'est pas
+                // necessaire — le segment differe — mais reste groupe avec elles.
+                Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
                 Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
                 Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
                 Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');

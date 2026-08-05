@@ -193,6 +193,13 @@ return [
     'ai_summary_requested_by' => 'Requested by :name',
     'ai_summary_rate_limited' => 'Too many summary requests. Try again in a minute.',
     'cards' => [
+        'events' => [
+            'label' => 'Events',
+            'description' => 'Organise the Loop\'s meetings and know who is coming.',
+            'empty_title' => 'No event yet',
+            'empty_body' => 'Propose a meeting to the members of this Loop: they say whether they are coming, and it appears in the agenda.',
+            'action' => 'Propose an event',
+        ],
         'polls' => [
             'label' => 'Polls',
             'description' => 'Ask the members a question and gather their answers.',

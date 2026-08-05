@@ -79,6 +79,7 @@ return [
             'cards' => [
                 'core.members',
                 'core.polls',
+                'core.events',
             ],
         ],
 

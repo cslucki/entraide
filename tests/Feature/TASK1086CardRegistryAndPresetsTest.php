@@ -71,23 +71,24 @@ class TASK1086CardRegistryAndPresetsTest extends TestCase
 
     public function test_the_registry_renders_every_declared_card_in_order(): void
     {
-        // Fige l'ORDRE et le fait que tout ce qui est declare soit rendu, pas la
-        // liste elle-meme : celle-ci grandit a chaque Card metier, et un test qui
-        // la recopie oblige a le corriger sans rien apprendre. `core.polls` est
-        // arrivee en TASK-1087, entre Roadmap (30) et Membres (40).
-        $this->assertSame(
-            ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.polls', 'core.members'],
-            $this->registry()->renderableKeys(),
-        );
+        // Ce test ne recopie PAS la liste des Cards. Il l'a fait deux fois, et
+        // il a fallu le corriger a chaque Card metier sans jamais rien
+        // apprendre. Il fige desormais ce qui doit rester vrai quoi qu'on
+        // ajoute : les quatre Cards fondatrices sont la, tout ce qui est
+        // declare rendu sort dans l'ordre du catalogue, et cet ordre est
+        // strictement croissant.
+        $keys = $this->registry()->renderableKeys();
 
-        $orders = array_map(
-            fn ($key) => $this->registry()->get($key)['order'],
-            $this->registry()->renderableKeys(),
-        );
+        foreach (['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.members'] as $founding) {
+            $this->assertContains($founding, $keys);
+        }
+
+        $orders = array_map(fn ($key) => $this->registry()->get($key)['order'], $keys);
 
         $sorted = $orders;
         sort($sorted);
         $this->assertSame($sorted, $orders, 'Les Cards doivent sortir dans l\'ordre du catalogue.');
+        $this->assertSame(count($orders), count(array_unique($orders)), 'Deux Cards ne peuvent pas partager un ordre.');
     }
 
     public function test_no_divergent_list_of_rendered_cards_survives(): void
