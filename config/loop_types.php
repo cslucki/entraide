@@ -67,12 +67,18 @@ return [
             'order' => 10,
             'available' => true,
             /*
-             * A Dialogue Loop is a conversation, nothing more: the ChatLoop and
-             * its members. No Manifesto, no Roadmap, no AI summary — those
-             * belong to a Loop that is building something.
+             * A Dialogue Loop is a conversation: the ChatLoop, its members, and
+             * — since TASK-1087 — the Polls that let that conversation decide
+             * something. No Manifesto, no Roadmap, no AI summary: those belong
+             * to a Loop that is building something.
+             *
+             * Polls join this preset alone. Every other type can switch the Card
+             * on locally; none gets it by default, because a Card nobody asked
+             * for is a button in the way.
              */
             'cards' => [
                 'core.members',
+                'core.polls',
             ],
         ],
 

@@ -193,6 +193,13 @@ return [
     'ai_summary_requested_by' => 'Requested by :name',
     'ai_summary_rate_limited' => 'Too many summary requests. Try again in a minute.',
     'cards' => [
+        'polls' => [
+            'label' => 'Polls',
+            'description' => 'Ask the members a question and gather their answers.',
+            'empty_title' => 'No poll yet',
+            'empty_body' => 'Ask the members of this Loop a question: they answer, and the result reads at a glance.',
+            'action' => 'Create a poll',
+        ],
         'ai_summary' => [
             'label' => 'AI Summary',
             'description' => 'Condenses the useful exchanges in this Loop.',

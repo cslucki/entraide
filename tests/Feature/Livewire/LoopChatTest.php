@@ -1233,10 +1233,12 @@ class LoopChatTest extends TestCase
             ->sortBy('order')
             ->values();
 
+        // La Card Sondage est arrivee en TASK-1087, entre Roadmap et Membres.
         $this->assertSame([
             'core.ai_summary',
             'core.manifesto',
             'core.roadmap',
+            'core.polls',
             'core.members',
         ], $cards->pluck('key')->all());
 

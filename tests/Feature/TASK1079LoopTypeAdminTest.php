@@ -92,7 +92,12 @@ class TASK1079LoopTypeAdminTest extends TestCase
 
     public function test_the_two_defined_types_ship_the_specified_cards(): void
     {
-        $this->assertSame(['core.members'], $this->settings()->cardsFor('general'));
+        // Le socle Dialogue a gagne la Card Sondage en TASK-1087 : une Boucle
+        // de conversation peut desormais decider quelque chose.
+        $this->assertEqualsCanonicalizing(
+            ['core.members', 'core.polls'],
+            $this->settings()->cardsFor('general'),
+        );
         $this->assertEqualsCanonicalizing(
             ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.members'],
             $this->settings()->cardsFor('project'),
@@ -117,7 +122,9 @@ class TASK1079LoopTypeAdminTest extends TestCase
     public function test_a_preset_equal_to_the_default_stores_no_override(): void
     {
         $this->actingAs($this->superAdmin)
-            ->put(route('admin.loop-types.update', 'general'), ['cards' => ['core.members'], 'available' => 1]);
+            ->put(route('admin.loop-types.update', 'general'), [
+                'cards' => ['core.members', 'core.polls'], 'available' => 1,
+            ]);
 
         // Sparse storage: saving the default is not a customisation, and a
         // later change to config/loop_types.php must still flow through.
@@ -133,6 +140,8 @@ class TASK1079LoopTypeAdminTest extends TestCase
                 'available' => 1,
             ]);
 
+        // Seule la cle inconnue est retiree ; le reste du socle est celui qu'on
+        // a poste, pas le defaut.
         $this->assertSame(['core.members'], $this->registry()->cardsFor('general'));
     }
 
@@ -155,7 +164,11 @@ class TASK1079LoopTypeAdminTest extends TestCase
             ->put(route('admin.loop-types.update', 'general'), ['cards' => [], 'available' => 1])
             ->assertSessionHasErrors('cards');
 
-        $this->assertSame(['core.members'], $this->registry()->cardsFor('general'));
+        // Refuse : le socle configure est intact.
+        $this->assertEqualsCanonicalizing(
+            ['core.members', 'core.polls'],
+            $this->registry()->cardsFor('general'),
+        );
     }
 
     public function test_returning_to_defaults_drops_the_override(): void
@@ -168,7 +181,10 @@ class TASK1079LoopTypeAdminTest extends TestCase
             ->assertRedirect(route('admin.loop-types'));
 
         $this->assertFalse($this->settings()->isCustomised('general'));
-        $this->assertSame(['core.members'], $this->registry()->cardsFor('general'));
+        $this->assertEqualsCanonicalizing(
+            ['core.members', 'core.polls'],
+            $this->registry()->cardsFor('general'),
+        );
     }
 
     // ── Rien n'est rétroactif ───────────────────────────────────────────────
@@ -273,7 +289,10 @@ class TASK1079LoopTypeAdminTest extends TestCase
         $loop = Loop::where('name', 'Ma Boucle Dialogue')->firstOrFail();
 
         $this->assertSame('general', $loop->type);
-        $this->assertSame(['core.members'], $loop->cards()->pluck('card_key')->all());
+        $this->assertEqualsCanonicalizing(
+            ['core.members', 'core.polls'],
+            $loop->cards()->pluck('card_key')->all(),
+        );
     }
 
     public function test_an_unavailable_type_is_refused_at_creation(): void
