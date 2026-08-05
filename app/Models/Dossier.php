@@ -25,9 +25,17 @@ class Dossier extends Model
     protected $fillable = [
         'organization_id',
         'owner_id',
+        'loop_id',
+        'root_blog_post_id',
         'name',
         'visibility',
     ];
+
+    /** True when this Dossier is held by a Loop rather than by a person. */
+    public function isLoopDossier(): bool
+    {
+        return $this->loop_id !== null;
+    }
 
     public function organization(): BelongsTo
     {
@@ -37,6 +45,16 @@ class Dossier extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function loop(): BelongsTo
+    {
+        return $this->belongsTo(Loop::class);
+    }
+
+    public function rootBlogPost(): BelongsTo
+    {
+        return $this->belongsTo(BlogPost::class, 'root_blog_post_id');
     }
 
     public function dossierBlogPosts(): HasMany
@@ -87,8 +105,19 @@ class Dossier extends Model
         return $member?->role;
     }
 
+    /**
+     * Visibility derived from membership — for personal Dossiers only.
+     *
+     * A Loop's Dossier takes its confidentiality from the Loop, and holds no
+     * rows in dossier_members at all, so deriving anything from them would
+     * flip it to private on every call.
+     */
     public function syncVisibility(): void
     {
+        if ($this->isLoopDossier()) {
+            return;
+        }
+
         $hasMembers = $this->dossierMembers()->exists();
 
         $this->update([

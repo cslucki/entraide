@@ -44,9 +44,12 @@ class LoopManifestoTest extends TestCase
         return $post;
     }
 
-    public function test_manifesto_is_null_by_default(): void
+    public function test_a_loop_always_has_a_root_document(): void
     {
-        $this->assertNull($this->loop->manifesto);
+        // Reversed by TASK-1082: a Loop is created with its root document, so
+        // the designation is never null. "No document" is no longer a state the
+        // product can reach.
+        $this->assertNotNull($this->loop->fresh()->manifesto);
     }
 
     public function test_manifesto_relation_returns_the_designated_post(): void

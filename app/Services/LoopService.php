@@ -7,6 +7,7 @@ use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\Loops\LoopRootDocumentService;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Database\Eloquent\Collection;
@@ -39,6 +40,8 @@ class LoopService
         // Was missing here while createLoop() had it: a Loop created from the
         // admin came out with no cards at all and relied on the fallback.
         $registry->applyPreset($loop);
+
+        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $user);
 
         return $loop;
     }
@@ -85,6 +88,11 @@ class LoopService
         // The type's card preset defines the Loop's starting composition
         // (TASK-1079). Additive and idempotent — see LoopTypeRegistry.
         app(LoopTypeRegistry::class)->applyPreset($loop);
+
+        // Root Dossier and root document (TASK-1082). A Loop is never created
+        // without them: the whole creation fails rather than leaving a Loop
+        // whose card would show "no document".
+        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $user);
 
         return $loop;
     }

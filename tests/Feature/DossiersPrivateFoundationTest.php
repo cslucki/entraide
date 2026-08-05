@@ -181,12 +181,15 @@ class DossiersPrivateFoundationTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_dossiers_do_not_use_loop_or_community_columns_or_relations(): void
+    public function test_dossiers_never_use_community_columns_or_relations(): void
     {
-        $this->assertFalse(Schema::hasColumn('dossiers', 'loop_id'));
+        // `loop_id` was asserted absent here until TASK-1082, which gives every
+        // Loop a root Dossier by explicit decision. What must stay out is
+        // Community: it is a frozen legacy debt, and no new code may lean on it.
         $this->assertFalse(Schema::hasColumn('dossiers', 'community_id'));
+        $this->assertFalse(method_exists(Dossier::class, 'community'));
+        // A Dossier belongs to at most one Loop — never to several.
         $this->assertFalse(method_exists(Dossier::class, 'loops'));
-        $this->assertFalse(method_exists(Dossier::class, 'loop'));
     }
 
     private function dossier(Organization $organization, User $owner, string $name): Dossier

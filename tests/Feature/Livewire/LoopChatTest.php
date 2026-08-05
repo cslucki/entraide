@@ -1202,10 +1202,12 @@ class LoopChatTest extends TestCase
         $this->actingAs($admin)
             ->get(route('loops.show', $publicLoop))
             ->assertOk()
-            ->assertDontSee(__('loops.cards_bar_label'))
-            ->assertDontSee(__('loops.cards.ai_summary.label'))
-            ->assertDontSee(__('loops.cards.manifesto.label'))
-            ->assertDontSee(__('loops.cards.roadmap.label'))
+            // Assert on the workspace shell itself. The card labels are no
+            // longer a safe proxy: since TASK-1082 a public Loop's presentation
+            // legitimately shows its root document, whose title carries the
+            // type's label.
+            ->assertDontSeeHtml('data-loop-workspace-shell')
+            ->assertDontSeeHtml('data-loop-workspace-panel')
             ->assertSee(__('loops.presentation_locked_title'));
     }
 
@@ -1216,10 +1218,12 @@ class LoopChatTest extends TestCase
         $this->actingAs($this->nonMember)
             ->get(route('loops.show', $publicLoop))
             ->assertOk()
-            ->assertDontSee(__('loops.cards_bar_label'))
-            ->assertDontSee(__('loops.cards.ai_summary.label'))
-            ->assertDontSee(__('loops.cards.manifesto.label'))
-            ->assertDontSee(__('loops.cards.roadmap.label'))
+            // Assert on the workspace shell itself. The card labels are no
+            // longer a safe proxy: since TASK-1082 a public Loop's presentation
+            // legitimately shows its root document, whose title carries the
+            // type's label.
+            ->assertDontSeeHtml('data-loop-workspace-shell')
+            ->assertDontSeeHtml('data-loop-workspace-panel')
             ->assertSee(__('loops.presentation_locked_title'));
     }
 
