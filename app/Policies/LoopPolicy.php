@@ -49,6 +49,20 @@ class LoopPolicy
             return false;
         }
 
+        // Une Boucle archivee ne se modifie plus.
+        //
+        // Cette ability est le goulot de plusieurs ecritures qui n'interrogent
+        // pas le resolveur : l'identite de la Boucle, ses invitations, et — via
+        // DossierPolicy::update, qui delegue ici pour un Dossier de Boucle — le
+        // document racine et les fichiers du Dossier racine. La garde est donc
+        // posee une fois ici plutot que quatre fois plus loin.
+        //
+        // Archiver et reactiver ne passent pas par la : ils demandent
+        // `loops.archive` au resolveur, qui les laisse seuls traverser.
+        if ($loop->isArchived()) {
+            return false;
+        }
+
         if ($user->organization_id !== $loop->organization_id) {
             return false;
         }

@@ -8,6 +8,7 @@ use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopMember;
 use App\Models\LoopRoadmapItem;
+use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Facades\DB;
 
@@ -43,10 +44,7 @@ class LoopCardCompositionService
      */
     public function manageableKeys(): array
     {
-        return array_values(array_intersect(
-            array_keys(config('loop_cards.cards', [])),
-            config('loop_cards.rendered', array_keys(config('loop_cards.cards', []))),
-        ));
+        return app(LoopCardRegistry::class)->manageableKeys();
     }
 
     /**
@@ -56,6 +54,7 @@ class LoopCardCompositionService
      */
     public function compositionFor(Loop $loop): array
     {
+        $registry = app(LoopCardRegistry::class);
         $preset = $this->types->cardsFor($loop->type);
         $rows = LoopCard::where('loop_id', $loop->id)->get()->keyBy('card_key');
         $catalogue = config('loop_cards.cards', []);
@@ -81,7 +80,9 @@ class LoopCardCompositionService
                 },
                 'in_preset' => $inPreset,
                 // Never disable the last thing that makes a workspace usable.
-                'protected' => $key === 'core.members',
+                // Declared by the catalogue, not hard-coded here: a second
+                // required Card would otherwise have to be remembered twice.
+                'protected' => $registry->isRequired($key),
                 'data_count' => $this->dataCount($loop, $key),
             ];
         }
@@ -128,8 +129,8 @@ class LoopCardCompositionService
     {
         $this->assertManageable($key);
 
-        if ($key === 'core.members') {
-            throw new \RuntimeException('The members card cannot be switched off.');
+        if (app(LoopCardRegistry::class)->isRequired($key)) {
+            throw new \RuntimeException('This card is required and cannot be switched off.');
         }
 
         DB::transaction(function () use ($loop, $key) {

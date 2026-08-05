@@ -22,6 +22,7 @@ use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
 use App\Services\LoopGovernanceService;
+use App\Services\Loops\LoopLifecycleService;
 use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
@@ -351,15 +352,30 @@ class OrgAdminController extends Controller
             );
     }
 
-    public function toggleLoopActive(Organization $organization, Loop $loop): RedirectResponse
+    /**
+     * Archiver ou reactiver une Boucle depuis l'administration d'Organization.
+     *
+     * La mutation elle-meme a quitte ce controleur : elle vit dans
+     * LoopLifecycleService, avec les trois autres ecrans qui la faisaient chacun
+     * a leur maniere. Celui-ci ne verifiait aucune permission — il la demande
+     * desormais comme tout le monde.
+     */
+    public function toggleLoopActive(Request $request, Organization $organization, Loop $loop): RedirectResponse
     {
         abort_if($loop->organization_id !== $organization->id, 404);
 
-        $loop->update([
-            'status' => $loop->isActive() ? 'archived' : 'active',
-        ]);
+        $lifecycle = app(LoopLifecycleService::class);
+        $wasActive = $loop->isActive();
 
-        $action = $loop->isActive() ? 'reactivated' : 'archived';
+        $result = $wasActive
+            ? $lifecycle->archive($request->user(), $loop)
+            : $lifecycle->reactivate($request->user(), $loop);
+
+        if ($result === LoopLifecycleService::RESULT_DENIED) {
+            abort(403);
+        }
+
+        $action = $wasActive ? 'archived' : 'reactivated';
 
         return back()->with('success', __("navigation.org_admin_loop_{$action}"));
     }

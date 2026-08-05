@@ -16,6 +16,7 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
+use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
@@ -504,38 +505,21 @@ class LoopController extends Controller
         return view('loops.show', compact(
             'loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled',
             'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations', 'governance',
-        ) + ['workspaceCards' => $this->workspaceCardsFor($loop, $user)]);
+        ) + [
+            'workspaceCards' => $this->workspaceCardsFor($loop, $user),
+            // La vue rend chaque Card depuis le registre : plus aucune condition
+            // sur une cle de Card dans le Blade.
+            'cardRegistry' => app(LoopCardRegistry::class),
+        ]);
     }
-
-    /**
-     * Card keys the workspace knows how to render.
-     *
-     * This mirrors the branch chain in loops/show.blade.php and must be kept in
-     * step with it. A card active on a Loop but absent from this list would open
-     * an empty panel, which is worse than not offering it at all — so it is
-     * filtered out rather than displayed. A dynamic component resolver would
-     * remove the duplication and is deliberately out of scope here.
-     */
-    private const RENDERED_CARDS = [
-        'core.ai_summary',
-        'core.manifesto',
-        'core.roadmap',
-        'core.members',
-    ];
 
     /**
      * The cards a given user actually sees in a given Loop's workspace.
      *
-     * Resolved here rather than in the view, which used to build the list from
-     * the global catalogue filtered on `default_enabled` — so every Loop showed
-     * every card regardless of its own composition, and three of them opened on
-     * an empty panel because `requires_card` denied the read.
-     *
-     * Three filters, in this order:
-     *   1. the Loop's effective composition, from activeCardsFor() — which also
-     *      falls back to the type preset for Loops predating loop_cards ;
-     *   2. the read permission, so nothing is offered that the resolver refuses ;
-     *   3. the existence of a renderer, so no button opens on nothing.
+     * The three filters — composition, renderer, read permission — now live in
+     * LoopCardRegistry, with the catalogue that declares them. This method keeps
+     * only what is genuinely about *this screen*: who is entitled to see a
+     * workspace at all.
      *
      * Read-only: nothing here writes to loop_cards.
      *
@@ -554,39 +538,7 @@ class LoopController extends Controller
             return collect();
         }
 
-        // Eager-load once: activeCardsFor() uses the loaded relation when it is
-        // there, and the resolver calls it again for every card it gates. Without
-        // this the workspace re-queried loop_cards on each permission check.
-        $loop->loadMissing('cards');
-
-        $catalogue = config('loop_cards.cards', []);
-        $resolver = app(LoopPermissionResolver::class);
-
-        // Array access, never config() dot-notation: card keys contain a dot.
-        return collect(app(LoopTypeRegistry::class)->activeCardsFor($loop))
-            ->filter(fn ($key) => in_array($key, self::RENDERED_CARDS, true) && isset($catalogue[$key]))
-            ->filter(fn ($key) => $this->cardIsReadableBy($resolver, $user, $loop, $key))
-            ->map(fn ($key) => $catalogue[$key])
-            ->values();
-    }
-
-    /**
-     * Whether a card's own content is readable, so it is never offered in vain.
-     *
-     * A card whose module declares no view permission is readable by any active
-     * member — the composition alone decides. Only the cards that really gate
-     * their content are checked.
-     */
-    private function cardIsReadableBy(LoopPermissionResolver $resolver, User $user, Loop $loop, string $key): bool
-    {
-        $permission = match ($key) {
-            'core.manifesto' => 'manifesto.view',
-            'core.roadmap' => 'roadmap.view',
-            'core.members' => 'loop_members.view',
-            default => null,
-        };
-
-        return $permission === null || $resolver->can($user, $loop, $permission);
+        return app(LoopCardRegistry::class)->workspaceCardsFor($loop, $user);
     }
 
     private function showPresentation(Loop $loop, $user): View

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\LoopTypeSetting;
+use App\Support\Loops\LoopCardRegistry;
 
 /**
  * The only place that reads or writes what a Loop type is made of.
@@ -131,12 +132,12 @@ class LoopTypeSettingsService
      */
     private function normalizeCards(array $cards): array
     {
-        $catalogue = config('loop_cards.cards', []);
+        $registry = app(LoopCardRegistry::class);
 
         return collect($cards)
-            ->filter(fn ($key) => is_string($key) && isset($catalogue[$key]))
+            ->filter(fn ($key) => is_string($key) && $registry->exists($key))
             ->unique()
-            ->sortBy(fn ($key) => $catalogue[$key]['order'] ?? 0)
+            ->sortBy(fn ($key) => $registry->get($key)['order'] ?? 0)
             ->values()
             ->all();
     }

@@ -8,6 +8,7 @@ use App\Models\LoopMessage;
 use App\Models\Reaction;
 use App\Models\User;
 use App\Services\LoopMessageService;
+use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
@@ -110,6 +111,24 @@ class LoopChat extends Component
         }
     }
 
+    /**
+     * Whether this person may add to the conversation right now.
+     *
+     * Was six copies of the same three conditions. The fourth — an archived Loop
+     * is read-only — would have had to be added to all six, and the next
+     * contributor would have had five chances to forget it.
+     *
+     * Reading is unaffected: `$isMember` still gates what the panel shows, so an
+     * archived Loop keeps its history visible to the people who could see it.
+     */
+    private function canContribute(?User $user): bool
+    {
+        return $user !== null
+            && ! $user->isDeactivated()
+            && $this->isMember
+            && app(LoopLifecycleService::class)->isWritable($this->loop);
+    }
+
     public function sendMessage(LoopMessageService $service): void
     {
         $this->validate([
@@ -120,7 +139,7 @@ class LoopChat extends Component
         ]);
 
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 
@@ -164,7 +183,7 @@ class LoopChat extends Component
     public function pinMessage(string $messageId): void
     {
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 
@@ -245,7 +264,7 @@ class LoopChat extends Component
     public function editMessage(string $messageId): void
     {
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 
@@ -275,7 +294,7 @@ class LoopChat extends Component
         ]);
 
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember || $this->editingMessageId === null) {
+        if (! $this->canContribute($user) || $this->editingMessageId === null) {
             return;
         }
 
@@ -332,7 +351,7 @@ class LoopChat extends Component
     public function unpinMessage(): void
     {
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 
@@ -344,7 +363,7 @@ class LoopChat extends Component
     public function toggleReaction(string $messageId, string $reactionType): void
     {
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 

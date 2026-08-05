@@ -65,6 +65,16 @@ class LoopPermissionResolver
             return false;
         }
 
+        // Boucle archivee : lecture seule, pour tout le monde.
+        //
+        // Placee *avant* les autorites des etapes 3 et 4, sinon un super-admin
+        // ecrirait dans une archive sans le vouloir. C'est le seul endroit ou
+        // une autorite plateforme est refusee, et c'est assume : l'archive est
+        // un etat du contenu, pas une question de rang.
+        if (! $this->writeIsAllowedOnArchivedLoop($loop, $permission)) {
+            return false;
+        }
+
         // 3 — platform authority.
         if ($user->is_admin) {
             return true;
@@ -158,6 +168,33 @@ class LoopPermissionResolver
         }
 
         return $allowed;
+    }
+
+    /**
+     * An archived Loop reads; it does not receive.
+     *
+     * The rule is one line of policy: a Loop that is not archived allows
+     * everything it allowed before, and an archived one allows only what the
+     * catalogue declares `read`, plus `loops.archive` — which is the very thing
+     * that brings it back.
+     *
+     * The default is the strict one on purpose. Every future capability is a
+     * write until someone marks it a read, so the failure mode of forgetting is
+     * a refusal a user will report, not a silent write into an archive nobody
+     * notices. That is the whole point of putting this here rather than in
+     * twenty controllers.
+     */
+    private function writeIsAllowedOnArchivedLoop(Loop $loop, string $permission): bool
+    {
+        if (! $loop->isArchived()) {
+            return true;
+        }
+
+        if ($permission === 'loops.archive') {
+            return true;
+        }
+
+        return $this->settings->isReadOnly($permission);
     }
 
     /**
