@@ -28,12 +28,15 @@
     $loopInvitationAction = ($_org && request()->routeIs('organization.*') && Route::has('organization.loops.invitations.store'))
         ? route('organization.loops.invitations.store', ['organization' => $_org, 'loop' => $currentLoop])
         : route('loops.invitations.store', $currentLoop);
-    $canUseWorkspaceCards = $isMember || (bool) auth()->user()?->is_admin;
-    $workspaceCards = collect(config('loop_cards.cards', []))
-        ->filter(fn ($card) => (bool) ($card['default_enabled'] ?? false))
-        ->when(! $canUseWorkspaceCards, fn ($cards) => $cards->filter(fn () => false))
-        ->sortBy('order')
-        ->values();
+    // $workspaceCards is resolved by LoopController::show(). It used to be built
+    // here from the global catalogue filtered on `default_enabled`, so every Loop
+    // showed every card whatever its own composition — and three of them opened
+    // on an empty panel because `requires_card` denied the read. The view no
+    // longer decides what a Loop contains.
+    //
+    // Order comes from the catalogue (`order`), applied by activeCardsFor():
+    // `loop_cards` carries no position column, so there is no per-Loop ordering
+    // to preserve.
 @endphp
 
 @push('head')
