@@ -5594,6 +5594,23 @@ document.addEventListener('alpine:init', () => {
         isOpen(name) {
             return this.open === name;
         },
+
+        /**
+         * Le nom tel que le badge le porte : quinze lettres, puis une ellipse.
+         *
+         * Les badges sont passes au-dessus des boutons, ou ils partagent la
+         * largeur d'un bouton. Un nom de Dossier long y poussait la barre en
+         * vrac ; on l'abrege ici plutot que de compter sur `truncate`, pour que
+         * la barre garde la meme allure quel que soit le nom. Le nom entier
+         * reste dans l'infobulle.
+         */
+        shortName(name) {
+            if (typeof name !== 'string') return '';
+
+            const trimmed = name.trim();
+
+            return trimmed.length > 15 ? trimmed.slice(0, 15).trimEnd() + '…' : trimmed;
+        },
     });
 });
 
