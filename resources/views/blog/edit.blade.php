@@ -528,6 +528,8 @@
                             openDossier: @js(__('blog.dossier_open')),
                             seriesRoot: @js(__('blog.dossier_series_root')),
                             seriesAnnex: @js(__('blog.dossier_series_annex')),
+                            seriesRootShort: @js(__('blog.dossier_series_root_short')),
+                            seriesCurrent: @js(__('blog.dossier_series_current')),
                             selectPlaceholder: @js(__('blog.dossier_select_placeholder')),
                             classify: @js(__('blog.dossier_classify')),
                             move: @js(__('blog.dossier_move')),
@@ -618,11 +620,42 @@
                                      mention, l'auteur n'a aucun moyen de savoir qu'il ecrit
                                      dans une serie, ni laquelle. --}}
                                 <template x-if="currentDossier.series">
-                                    <p class="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300">
-                                        <span class="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
-                                              x-text="currentDossier.series.is_root ? i18n.seriesRoot : i18n.seriesAnnex"></span>
-                                        <span class="min-w-0 truncate" x-text="currentDossier.series.root_title"></span>
-                                    </p>
+                                    <div class="mt-1">
+                                        <p class="flex flex-wrap items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300">
+                                            <span class="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                                                  x-text="currentDossier.series.is_root ? i18n.seriesRoot : i18n.seriesAnnex"></span>
+                                            <span class="min-w-0 truncate" x-text="currentDossier.series.root_title"></span>
+                                        </p>
+
+                                        {{-- Toute la serie, pas seulement sa racine.
+                                             L'auteur ecrit une partie d'un ensemble : il doit
+                                             pouvoir voir cet ensemble et passer d'un texte a
+                                             l'autre sans repasser par le Dossier. --}}
+                                        {{-- Une serie reduite au seul article courant n'apprend
+                                             rien : la liste ne s'affiche qu'a partir de deux. --}}
+                                        <ul x-show="(currentDossier.series.articles || []).length > 1"
+                                            class="mt-1.5 space-y-0.5 border-t border-amber-100 pt-1.5 dark:border-amber-900/60">
+                                            <template x-for="article in currentDossier.series.articles" :key="article.id">
+                                                <li>
+                                                    {{-- `:href` a null retire l'attribut : un <a> sans
+                                                         href n'est ni cliquable ni focusable, ce qui est
+                                                         exactement le comportement voulu pour l'article
+                                                         courant et pour un brouillon sans slug. --}}
+                                                    <a :href="article.url && !article.is_current ? article.url : null"
+                                                       class="flex items-center gap-1.5 rounded px-1 py-0.5 text-[11px]"
+                                                       :class="article.is_current
+                                                            ? 'font-semibold text-amber-800 dark:text-amber-200'
+                                                            : 'text-gray-600 transition hover:bg-amber-100/60 hover:text-amber-800 dark:text-gray-300 dark:hover:bg-amber-900/20 dark:hover:text-amber-200'">
+                                                        <span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide"
+                                                              :class="article.is_root ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-400'"
+                                                              x-text="article.is_root ? i18n.seriesRootShort : '·'"></span>
+                                                        <span class="min-w-0 truncate" x-text="article.title"></span>
+                                                        <span x-show="article.is_current" class="shrink-0 text-[9px] text-amber-600 dark:text-amber-300" x-text="i18n.seriesCurrent"></span>
+                                                    </a>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
                                 </template>
                                 <div class="mt-1.5 flex gap-2">
                                     <select x-model="selectedDossierId"
