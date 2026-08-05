@@ -76,28 +76,39 @@ class DossierSharingTest extends TestCase
 
     // --- Visibility ---
 
-    public function test_dossier_becomes_shared_when_member_added(): void
+    public function test_adding_a_member_does_not_change_the_chosen_audience(): void
     {
+        // Reversed by TASK-1082 CP4, and the reasoning is worth recording.
+        // `visibility` used to be rewritten to `shared` the moment a member
+        // appeared — which is why it looked like a setting and behaved like a
+        // computed field, and why nobody could ever keep a chosen value.
+        //
+        // Inviting someone to a private Dossier is not a change of audience.
+        // The Dossier stays private; the invited person gets in through
+        // dossier_members, which is exactly what that table is for.
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->assertEquals(Dossier::VISIBILITY_PRIVATE, $dossier->visibility);
 
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
         $dossier->refresh();
-        $this->assertEquals(Dossier::VISIBILITY_SHARED, $dossier->visibility);
+        $this->assertEquals(Dossier::VISIBILITY_PRIVATE, $dossier->visibility);
+        // Asserted through the membership itself: this file does not bind a
+        // current Organization, and the policy needs one.
+        $this->assertTrue($dossier->isMember($this->readerA->id));
     }
 
-    public function test_dossier_reverts_to_private_when_last_member_removed(): void
+    public function test_removing_the_last_member_leaves_the_audience_alone(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $m = $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
-        $dossier->refresh();
-        $this->assertEquals(Dossier::VISIBILITY_SHARED, $dossier->visibility);
 
         $m->delete();
         $dossier->syncVisibility();
         $dossier->refresh();
+
         $this->assertEquals(Dossier::VISIBILITY_PRIVATE, $dossier->visibility);
+        $this->assertFalse($dossier->isMember($this->readerA->id));
     }
 
     public function test_is_member_returns_true_for_added_user(): void

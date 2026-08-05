@@ -17,13 +17,63 @@ class DossierPolicy
             && ! $user->banned_at;
     }
 
+    /**
+     * Reading a Dossier, across the three modalities.
+     *
+     * Evaluated on every read, never cached and never duplicated into a column:
+     * a Loop that becomes private takes its Dossier with it on the very next
+     * request, with no synchronisation to go wrong.
+     */
     public function view(User $user, Dossier $dossier): bool
     {
         if ($this->isOwner($user, $dossier)) {
             return true;
         }
 
-        return $this->isMember($user, $dossier);
+        // Explicitly invited people, whatever the modality.
+        if ($this->isMember($user, $dossier)) {
+            return true;
+        }
+
+        // Tenant first: nothing below may cross an Organization boundary.
+        $organization = currentOrganization();
+
+        if ($organization === null
+            || $dossier->organization_id !== $organization->id
+            || $user->organization_id !== $organization->id
+            || $user->banned_at) {
+            return false;
+        }
+
+        // A root Dossier has no audience of its own: it is its Loop's.
+        if ($dossier->isLoopDossier()) {
+            return $dossier->loop !== null && $user->can('viewWorkspace', $dossier->loop);
+        }
+
+        if ($dossier->visibility === Dossier::VISIBILITY_ORGANIZATION) {
+            return true;
+        }
+
+        if ($dossier->visibility === Dossier::VISIBILITY_LOOP && $dossier->sharedWithLoop) {
+            return $user->can('viewWorkspace', $dossier->sharedWithLoop);
+        }
+
+        return false;
+    }
+
+    /**
+     * Choosing the audience — refused outright on a root Dossier.
+     *
+     * Its visibility is its Loop's, so offering the control at all would be a
+     * lie. The refusal is on the server, not merely a hidden field.
+     */
+    public function updateVisibility(User $user, Dossier $dossier): bool
+    {
+        if ($dossier->isLoopDossier()) {
+            return false;
+        }
+
+        return $this->isOwner($user, $dossier);
     }
 
     public function create(User $user): bool
@@ -33,6 +83,13 @@ class DossierPolicy
 
     public function update(User $user, Dossier $dossier): bool
     {
+        // A root Dossier has no personal owner, so isOwner() would lock
+        // everyone out — including the people who run the Loop. Its editors are
+        // those who may edit the Loop's identity.
+        if ($dossier->isLoopDossier()) {
+            return $dossier->loop !== null && $user->can('update', $dossier->loop);
+        }
+
         if ($this->isOwner($user, $dossier)) {
             return true;
         }
