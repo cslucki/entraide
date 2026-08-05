@@ -176,7 +176,9 @@ class Loop extends Model
             return '';
         }
 
-        $allowed = ['h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 'br', 'a', 'code', 'pre', 'blockquote'];
+        // h1 included since TASK-1084 — a root document written from a
+        // Markdown paste opens with one.
+        $allowed = ['h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 'br', 'a', 'code', 'pre', 'blockquote'];
 
         $html = preg_replace('#<(script|style|template)\b[^>]*>.*?</\1>#is', '', (string) $manifesto->content);
         $html = strip_tags((string) $html, '<'.implode('><', $allowed).'>');

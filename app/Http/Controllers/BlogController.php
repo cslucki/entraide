@@ -36,7 +36,12 @@ class BlogController extends Controller implements HasMiddleware
     }
 
     private const ALLOWED_HTML_TAGS = [
-        'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
+        // h1 added by TASK-1084. Its absence was silent and hard to see: the
+        // editor produced a proper <h1>, and strip_tags() removed the tag while
+        // keeping its text — so a level-1 title came back as an ordinary
+        // paragraph after saving, with nothing to indicate why. Documents
+        // pasted from an LLM almost always open with one.
+        'h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
         'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code', 'pre',
         'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
         'caption', 'col', 'colgroup',

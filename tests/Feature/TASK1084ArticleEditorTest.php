@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogSnapshotController;
 use App\Models\BlogPost;
 use App\Models\BlogSnapshot;
 use App\Models\Category;
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -202,6 +205,45 @@ class TASK1084ArticleEditorTest extends TestCase
 
         $this->assertSame($before, $post->fresh()->only(['title', 'content', 'status', 'published_at']));
         $this->assertSame(0, BlogSnapshot::where('blog_post_id', $post->id)->count());
+    }
+
+    // ── Le titre de niveau 1 survit à l'enregistrement ──────────────────────
+
+    public function test_a_level_one_title_survives_saving(): void
+    {
+        // The bug this pins down was silent: the editor produced a proper <h1>,
+        // the allowlist did not contain it, and strip_tags() removed the tag
+        // while keeping its text. A level-1 title came back as an ordinary
+        // paragraph after saving, with nothing on screen to explain why.
+        $post = $this->article();
+
+        $this->actingAs($this->author)
+            ->put(route('blog.update', $post->slug), [
+                'title' => $post->title,
+                'summary' => 'Un resume',
+                'content' => '<h1>Titre de niveau 1</h1><p>Du texte.</p>',
+                'status' => 'draft',
+            ]);
+
+        $this->assertStringContainsString('<h1>Titre de niveau 1</h1>', $post->fresh()->content);
+    }
+
+    public function test_every_html_allowlist_accepts_h1(): void
+    {
+        // Four allowlists guard article HTML, and the level-1 title has to pass
+        // all of them: miss one and the tag is dropped at that step only —
+        // saving, restoring a snapshot, or rendering a Loop root document.
+        $reflect = fn (string $class, string $const) => (new \ReflectionClass($class))->getConstant($const);
+
+        $this->assertContains('h1', $reflect(BlogController::class, 'ALLOWED_HTML_TAGS'));
+        $this->assertContains('h1', $reflect(BlogSnapshotController::class, 'ALLOWED_HTML_TAGS'));
+
+        // The two Loop-side allowlists are inline; assert on their behaviour.
+        $loop = Loop::factory()->create(['organization_id' => $this->org->id, 'status' => 'active']);
+        $doc = $this->article(['content' => '<h1>Racine</h1><p>Corps.</p>']);
+        $loop->forceFill(['manifesto_blog_post_id' => $doc->id])->save();
+
+        $this->assertStringContainsString('<h1>Racine</h1>', $loop->fresh()->manifestoHtmlForAdmin());
     }
 
     // ── Non-régression documents racine ─────────────────────────────────────
