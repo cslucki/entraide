@@ -348,6 +348,13 @@
                     <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="rounded-lg border border-gray-300 px-3 py-2 text-center text-xs leading-snug text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 sm:px-6 sm:text-sm">
                         {{ __('blog.btn_cancel') }}
                     </a>
+                    {{-- Snapshot : meme forme qu'« Annuler », une autre couleur.
+                         `type="button"` est indispensable — dans un <form>, un
+                         bouton sans type soumet l'article. --}}
+                    <button type="button" @click="$store.editorPanels.toggle('snapshot')"
+                            class="rounded-lg border border-violet-300 px-3 py-2 text-center text-xs leading-snug text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40 sm:px-6 sm:text-sm">
+                        {{ __('blog.sidebar_snapshot') }}
+                    </button>
                 </div>
             </form>
 
@@ -1169,6 +1176,121 @@
                 </div>
                 {{-- /Questionner selection card --}}
 
+        {{-- Explorer notes card --}}
+        <div
+            x-data="blogExplorerCard({
+                indexUrl: @js($_blogRoute('explorer.notes.index', ['post' => $post])),
+                updateUrlBase: @js($_blogRoute('explorer.notes.update', ['post' => $post, 'note' => '__NOTE_ID__'])),
+                destroyUrlBase: @js($_blogRoute('explorer.notes.destroy', ['post' => $post, 'note' => '__NOTE_ID__'])),
+                csrfToken: @js(csrf_token()),
+                i18n: {
+                    loadError: @js(__('blog.explorer_note_save_error')),
+                    noteSaved: @js(__('blog.explorer_note_saved')),
+                    noteSaveError: @js(__('blog.explorer_note_save_error')),
+                    noteDeleted: @js(__('blog.explorer_note_deleted')),
+                    deleteError: @js(__('blog.explorer_note_delete_error')),
+                    noNotes: @js(__('blog.explorer_no_notes')),
+                    sidebarTitle: @js(__('blog.sidebar_notes')),
+                    noteFrom: @js(__('blog.explorer_note_from')),
+                    notePlaceholder: @js(__('blog.explorer_note_placeholder')),
+                    btnEdit: @js(__('blog.explorer_note_edit')),
+                    btnSave: @js(__('blog.explorer_note_save')),
+                    btnCancel: @js(__('blog.explorer_note_cancel')),
+                    btnDelete: @js(__('blog.explorer_note_delete')),
+                    deleteConfirm: @js(__('blog.explorer_note_delete_confirm')),
+                },
+            })"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+        >
+            <button
+                @click="toggle()"
+                class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+            >
+                <span class="flex items-center gap-1.5">
+                    <svg class="w-3 h-3 text-purple-500 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.8 9.8 0 01-3.55-.644L3 21l1.395-3.72A7.95 7.95 0 013 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
+                    </svg>
+                    <span x-text="i18n.sidebarTitle || 'Notes'"></span>
+                </span>
+                <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto">
+                <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                <template x-if="loading && notes.length === 0">
+                    <div class="flex items-center justify-center py-4">
+                        <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    </div>
+                </template>
+
+                <template x-if="!loading && notes.length === 0">
+                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noNotes || 'Aucune note.'"></p>
+                </template>
+
+                <template x-for="note in notes" :key="note.id">
+                    <div class="rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50 group transition" :class="highlightedId === note.id ? 'ring-2 ring-purple-400 bg-purple-50/70 dark:bg-purple-900/20' : ''">
+                        <div class="flex items-start justify-between gap-2">
+                            <button type="button" @click="openNote(note)" class="min-w-0 flex-1 text-left">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1" x-text="(i18n.noteFrom || 'Note du :date').replace(':date', note.created_at || '') + (note.user_name ? ' · ' + note.user_name : '')"></p>
+                                <p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3" x-text="truncate(note.note_content, 150)"></p>
+                            </button>
+                            <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(note.id)" :disabled="deletingId === note.id"
+                                class="shrink-0 text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                                :title="i18n.btnDelete || 'Supprimer'">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <div x-show="selectedNote" x-cloak class="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 md:items-center" @keydown.escape.window="closeNoteModal()">
+                <div class="flex h-[82dvh] max-h-[82dvh] w-full flex-col rounded-t-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:mx-4 md:max-w-[860px] md:rounded-xl" @click.stop>
+                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+                        <div>
+                            <h3 class="text-base font-bold text-gray-900 dark:text-gray-100" x-text="i18n.sidebarTitle || 'Questionnements'"></h3>
+                            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400" x-text="selectedNote ? (i18n.noteFrom || 'Note du :date').replace(':date', selectedNote.created_at || '') : ''"></p>
+                        </div>
+                        <button type="button" @click="closeNoteModal()" class="text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-300">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto bg-slate-50/80 p-5 dark:bg-gray-900/40">
+                        <template x-if="selectedNote && !editingNote">
+                            <article class="bp-questioning-reader mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800/95" x-html="renderQuestioning(selectedNote.note_content)"></article>
+                        </template>
+                        <template x-if="selectedNote && editingNote">
+                            <div class="rounded-lg border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800">
+                                <div class="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/60">
+                                    <button type="button" @click="noteCommand('bold')" :class="isNoteActive('bold') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">B</button>
+                                    <button type="button" @click="noteCommand('italic')" :class="isNoteActive('italic') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs italic hover:bg-gray-100 dark:hover:bg-gray-700">I</button>
+                                    <span class="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700"></span>
+                                    <button type="button" @click="noteCommand('heading3')" :class="isNoteActive('heading', { level: 3 }) ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">Titre</button>
+                                    <button type="button" @click="noteCommand('bulletList')" :class="isNoteActive('bulletList') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Liste</button>
+                                </div>
+                                <div x-ref="questionEditor" class="bp-note-editor min-h-[420px] px-4 py-3 text-sm leading-relaxed text-gray-900 dark:text-gray-100"></div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="flex items-center justify-between border-t border-gray-100 px-5 py-3 dark:border-gray-700">
+                        <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(selectedNote.id)" :disabled="!selectedNote || deletingId === selectedNote?.id || savingNote" class="px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20" x-text="i18n.btnDelete || 'Supprimer'"></button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" x-show="!editingNote" @click="startEditNote()" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700" x-text="i18n.btnEdit || 'Modifier'"></button>
+                            <button type="button" x-show="editingNote" @click="cancelEditNote()" :disabled="savingNote" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-700" x-text="i18n.btnCancel || 'Annuler'"></button>
+                            <button type="button" x-show="editingNote" @click="saveSelectedNote()" :disabled="savingNote" class="rounded-lg bg-purple-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-purple-700 disabled:opacity-50" x-text="savingNote ? '...' : (i18n.btnSave || 'Enregistrer')"></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{-- /Explorer notes card --}}
+
                 {{-- Annotations card --}}
                 <div
                     x-data="blogAnnotationCard({
@@ -1876,6 +1998,8 @@
 
         {{-- /Co-authors card --}}
 
+        {{-- snapshot : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+        <x-editor-panel name="snapshot" :title="__('blog.sidebar_snapshot')" width="max-w-2xl">
         {{-- Snapshot card --}}
         <div
             x-data="blogSnapshotCard({
@@ -1894,6 +2018,7 @@
             class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
         >
             <button
+                x-show="false"
                 @click="toggle()"
                 class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
             >
@@ -1912,7 +2037,7 @@
                 </svg>
             </button>
 
-            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+            <div x-show="true" class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
                 {{-- Success message --}}
                 <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
                 {{-- Error message --}}
@@ -2079,121 +2204,7 @@
             </div>
         </div>
         {{-- /Snapshot card --}}
-
-        {{-- Explorer notes card --}}
-        <div
-            x-data="blogExplorerCard({
-                indexUrl: @js($_blogRoute('explorer.notes.index', ['post' => $post])),
-                updateUrlBase: @js($_blogRoute('explorer.notes.update', ['post' => $post, 'note' => '__NOTE_ID__'])),
-                destroyUrlBase: @js($_blogRoute('explorer.notes.destroy', ['post' => $post, 'note' => '__NOTE_ID__'])),
-                csrfToken: @js(csrf_token()),
-                i18n: {
-                    loadError: @js(__('blog.explorer_note_save_error')),
-                    noteSaved: @js(__('blog.explorer_note_saved')),
-                    noteSaveError: @js(__('blog.explorer_note_save_error')),
-                    noteDeleted: @js(__('blog.explorer_note_deleted')),
-                    deleteError: @js(__('blog.explorer_note_delete_error')),
-                    noNotes: @js(__('blog.explorer_no_notes')),
-                    sidebarTitle: @js(__('blog.sidebar_notes')),
-                    noteFrom: @js(__('blog.explorer_note_from')),
-                    notePlaceholder: @js(__('blog.explorer_note_placeholder')),
-                    btnEdit: @js(__('blog.explorer_note_edit')),
-                    btnSave: @js(__('blog.explorer_note_save')),
-                    btnCancel: @js(__('blog.explorer_note_cancel')),
-                    btnDelete: @js(__('blog.explorer_note_delete')),
-                    deleteConfirm: @js(__('blog.explorer_note_delete_confirm')),
-                },
-            })"
-            class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
-        >
-            <button
-                @click="toggle()"
-                class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
-            >
-                <span class="flex items-center gap-1.5">
-                    <svg class="w-3 h-3 text-purple-500 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.8 9.8 0 01-3.55-.644L3 21l1.395-3.72A7.95 7.95 0 013 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
-                    </svg>
-                    <span x-text="i18n.sidebarTitle || 'Notes'"></span>
-                </span>
-                <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                </svg>
-            </button>
-
-            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto">
-                <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
-                <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
-
-                <template x-if="loading && notes.length === 0">
-                    <div class="flex items-center justify-center py-4">
-                        <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    </div>
-                </template>
-
-                <template x-if="!loading && notes.length === 0">
-                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noNotes || 'Aucune note.'"></p>
-                </template>
-
-                <template x-for="note in notes" :key="note.id">
-                    <div class="rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50 group transition" :class="highlightedId === note.id ? 'ring-2 ring-purple-400 bg-purple-50/70 dark:bg-purple-900/20' : ''">
-                        <div class="flex items-start justify-between gap-2">
-                            <button type="button" @click="openNote(note)" class="min-w-0 flex-1 text-left">
-                                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1" x-text="(i18n.noteFrom || 'Note du :date').replace(':date', note.created_at || '') + (note.user_name ? ' · ' + note.user_name : '')"></p>
-                                <p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3" x-text="truncate(note.note_content, 150)"></p>
-                            </button>
-                            <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(note.id)" :disabled="deletingId === note.id"
-                                class="shrink-0 text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                                :title="i18n.btnDelete || 'Supprimer'">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                </template>
-            </div>
-
-            <div x-show="selectedNote" x-cloak class="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 md:items-center" @keydown.escape.window="closeNoteModal()">
-                <div class="flex h-[82dvh] max-h-[82dvh] w-full flex-col rounded-t-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:mx-4 md:max-w-[860px] md:rounded-xl" @click.stop>
-                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
-                        <div>
-                            <h3 class="text-base font-bold text-gray-900 dark:text-gray-100" x-text="i18n.sidebarTitle || 'Questionnements'"></h3>
-                            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400" x-text="selectedNote ? (i18n.noteFrom || 'Note du :date').replace(':date', selectedNote.created_at || '') : ''"></p>
-                        </div>
-                        <button type="button" @click="closeNoteModal()" class="text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-300">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
-                    </div>
-
-                    <div class="flex-1 overflow-y-auto bg-slate-50/80 p-5 dark:bg-gray-900/40">
-                        <template x-if="selectedNote && !editingNote">
-                            <article class="bp-questioning-reader mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800/95" x-html="renderQuestioning(selectedNote.note_content)"></article>
-                        </template>
-                        <template x-if="selectedNote && editingNote">
-                            <div class="rounded-lg border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800">
-                                <div class="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/60">
-                                    <button type="button" @click="noteCommand('bold')" :class="isNoteActive('bold') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">B</button>
-                                    <button type="button" @click="noteCommand('italic')" :class="isNoteActive('italic') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs italic hover:bg-gray-100 dark:hover:bg-gray-700">I</button>
-                                    <span class="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700"></span>
-                                    <button type="button" @click="noteCommand('heading3')" :class="isNoteActive('heading', { level: 3 }) ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">Titre</button>
-                                    <button type="button" @click="noteCommand('bulletList')" :class="isNoteActive('bulletList') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Liste</button>
-                                </div>
-                                <div x-ref="questionEditor" class="bp-note-editor min-h-[420px] px-4 py-3 text-sm leading-relaxed text-gray-900 dark:text-gray-100"></div>
-                            </div>
-                        </template>
-                    </div>
-
-                    <div class="flex items-center justify-between border-t border-gray-100 px-5 py-3 dark:border-gray-700">
-                        <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(selectedNote.id)" :disabled="!selectedNote || deletingId === selectedNote?.id || savingNote" class="px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20" x-text="i18n.btnDelete || 'Supprimer'"></button>
-                        <div class="flex items-center gap-2">
-                            <button type="button" x-show="!editingNote" @click="startEditNote()" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700" x-text="i18n.btnEdit || 'Modifier'"></button>
-                            <button type="button" x-show="editingNote" @click="cancelEditNote()" :disabled="savingNote" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-700" x-text="i18n.btnCancel || 'Annuler'"></button>
-                            <button type="button" x-show="editingNote" @click="saveSelectedNote()" :disabled="savingNote" class="rounded-lg bg-purple-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-purple-700 disabled:opacity-50" x-text="savingNote ? '...' : (i18n.btnSave || 'Enregistrer')"></button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {{-- /Explorer notes card --}}
+        </x-editor-panel>
 
     </aside>
 
