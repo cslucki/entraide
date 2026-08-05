@@ -456,6 +456,9 @@ class LoopChat extends Component
         $requestedByNames = $this->requestedByNames($messages);
         $aiRoute = $this->aiRoute();
         $canDeleteMessages = $this->canDeleteDisplayedMessages();
+        // La vue retire le compositeur plutot que d'accepter un message que
+        // sendMessage() refusera : un refus silencieux passe pour une panne.
+        $canContribute = $this->canContribute(auth()->user());
 
         return view('livewire.loop-chat', compact(
             'messages',
@@ -465,6 +468,7 @@ class LoopChat extends Component
             'requestedByNames',
             'aiRoute',
             'canDeleteMessages',
+            'canContribute',
         ));
     }
 
