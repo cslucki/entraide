@@ -588,6 +588,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
     Route::put('/loops/{loop}/type', [AdminLoopController::class, 'updateType'])->name('loops.type.update');
+    // Composition locale des Cards (TASK-1083). Le controleur verifie
+    // loops.manage_cards ; la permission existait depuis TASK-1079 sans aucun
+    // consommateur.
+    Route::put('/loops/{loop}/cards', [AdminLoopController::class, 'updateCards'])->name('loops.cards.update');
     Route::post('/loops/{loop}/archive', [AdminLoopController::class, 'archive'])->name('loops.archive');
     Route::post('/loops/{loop}/restore', [AdminLoopController::class, 'restore'])->name('loops.restore');
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
@@ -889,6 +893,7 @@ Route::prefix('/org/{organization}')
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
                 Route::get('/loops/{loop}/edit', [OrgAdminController::class, 'editLoop'])->name('loops.edit');
                 Route::put('/loops/{loop}', [OrgAdminController::class, 'updateLoop'])->name('loops.update');
+                Route::put('/loops/{loop}/cards', [OrgAdminController::class, 'updateLoopCards'])->name('loops.cards.update');
                 Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
                 Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
                 Route::put('/loops/{loop}/members/{member}/role', [OrgAdminController::class, 'updateLoopMemberRole'])->name('loops.members.role');

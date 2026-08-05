@@ -90,23 +90,11 @@
             </form>
         </section>
 
-        {{-- Cards liées --}}
-        <section class="mb-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 sm:p-6">
-            <h2 class="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.cards_linked') }}</h2>
-            <p class="mb-3 text-xs text-gray-400">
-                Les Cards marquées « socle » viennent du type. Les autres ont été ajoutées pour cette Boucle et sont conservées quel que soit le type.
-            </p>
-            @forelse($currentLoop->cards->where('enabled', true) as $card)
-                <span class="mr-2 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                    {{ $card->label() }}
-                    @if(in_array($card->card_key, $presetCards, true))
-                        <span class="rounded bg-indigo-100 px-1 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">socle</span>
-                    @endif
-                </span>
-            @empty
-                <p class="text-xs text-gray-400">Aucune Card. Enregistrez le type pour appliquer son socle.</p>
-            @endforelse
-        </section>
+        {{-- Composition locale des Cards, partagee avec l'admin plateforme --}}
+        <div class="mb-6">
+            <x-loops.card-composition :loop="$currentLoop" :composition="$composition"
+                :action="route('organization.admin.loops.cards.update', ['organization' => $organization->slug, 'loop' => $currentLoop->id])" />
+        </div>
 
         {{-- Membres --}}
         <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 sm:p-6">
