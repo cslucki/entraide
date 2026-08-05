@@ -557,6 +557,10 @@ function registerBlogEditor() {
                 italic: editor.isActive('italic'),
                 underline: editor.isActive('underline'),
                 heading1: editor.isActive('heading', { level: 1 }),
+                // H1 exposed since TASK-1084: Markdown pasted from an LLM
+                // almost always opens with one, so the toolbar has to be able
+                // to show it and to set it.
+                heading1: editor.isActive('heading', { level: 1 }),
                 heading2: editor.isActive('heading', { level: 2 }),
                 heading3: editor.isActive('heading', { level: 3 }),
                 heading4: editor.isActive('heading', { level: 4 }),
@@ -623,6 +627,7 @@ function registerBlogEditor() {
                 case 'toggleBold': chain.toggleBold().run(); break;
                 case 'toggleItalic': chain.toggleItalic().run(); break;
                 case 'toggleUnderline': chain.toggleUnderline().run(); break;
+                case 'toggleH1': chain.toggleHeading({ level: 1 }).run(); break;
                 case 'toggleH1': chain.toggleHeading({ level: 1 }).run(); break;
                 case 'toggleH2': chain.toggleHeading({ level: 2 }).run(); break;
                 case 'toggleH3': chain.toggleHeading({ level: 3 }).run(); break;
@@ -2198,6 +2203,41 @@ function registerDossierContentsCard() {
                     this.ungrouped = this.ungrouped.filter(e => e.blog_post_id !== entry.blog_post_id);
                     this.showSuccess(this.i18n.seriesCreated || 'Series created');
                     this.openMenuId = null;
+                })
+                .catch(() => this.showError('Error'))
+                .finally(() => { this.saving = false; });
+        },
+
+        /**
+         * Promote an article of the series to root.
+         *
+         * The former root is not dropped — the server moves it to the first
+         * annexe slot — so nothing a human placed in the series is ever lost.
+         * Available on every article of the series, which is where people look
+         * for it; the old "change root" entry in the series menu did nothing at
+         * all and has been removed.
+         */
+        promoteToRoot(entry) {
+            if (!entry || this.saving) return;
+            this.saving = true;
+            const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series`;
+            fetch(url, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ root_blog_post_id: entry.blog_post_id }),
+            })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        this.showError(data.message || data.root_blog_post_id?.[0] || 'Error');
+                        return;
+                    }
+                    this.showSuccess(data.message || this.i18n.seriesRootUpdated);
+                    this.openMenuId = null;
+                    // Reload rather than reshuffle by hand: the server has just
+                    // moved two articles and renumbered every position, and
+                    // guessing that here is how lists drift out of step.
+                    window.location.reload();
                 })
                 .catch(() => this.showError('Error'))
                 .finally(() => { this.saving = false; });

@@ -297,7 +297,8 @@ class LoopManifestoCard extends Component
             return '';
         }
 
-        $allowed = ['h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 'br', 'a', 'code', 'pre', 'blockquote'];
+        // Same allowlist as Loop::manifestoHtmlForAdmin(), h1 included.
+        $allowed = ['h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 'br', 'a', 'code', 'pre', 'blockquote'];
 
         // Whole blocks first: strip_tags removes the tags but keeps their text,
         // so a <script> would survive as visible "alert(1)" gibberish. Inert,

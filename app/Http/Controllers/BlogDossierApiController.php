@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ArticleSeries;
+use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BlogDossierApiController extends Controller
 {
@@ -27,12 +30,85 @@ class BlogDossierApiController extends Controller
         }
 
         return response()->json([
-            'dossier' => [
-                'id' => $entry->dossier->id,
-                'name' => $entry->dossier->name,
-                'position' => $entry->position,
-            ],
+            'dossier' => $this->dossierPayload($entry, $organization),
         ]);
+    }
+
+    /**
+     * Remove every trace of an article from a Dossier's Series.
+     *
+     * Promoting the first annexe rather than deleting the Series: a Series that
+     * loses its root still holds the articles someone put in it, and dropping
+     * them would destroy work. Only a Series left with nothing at all goes.
+     */
+    private function detachFromSeries(string $dossierId, string $blogPostId): void
+    {
+        $series = ArticleSeries::where('dossier_id', $dossierId)->first();
+
+        if (! $series) {
+            return;
+        }
+
+        DB::transaction(function () use ($series, $blogPostId) {
+            ArticleSeriesItem::where('article_series_id', $series->id)
+                ->where('blog_post_id', $blogPostId)
+                ->delete();
+
+            if ($series->root_blog_post_id !== $blogPostId) {
+                return;
+            }
+
+            $next = ArticleSeriesItem::where('article_series_id', $series->id)
+                ->orderBy('position')
+                ->first();
+
+            if (! $next) {
+                $series->delete();
+
+                return;
+            }
+
+            $series->update(['root_blog_post_id' => $next->blog_post_id]);
+            $next->delete();
+        });
+    }
+
+    /**
+     * What the editor's Dossier card needs to be useful.
+     *
+     * Beyond the name, it now carries the URL of the Dossier itself — reaching
+     * it meant going back to "Mes dossiers" and hunting — and the Series this
+     * article belongs to, if any, since a Series is a feature of the Dossier
+     * and the writer has no other way of knowing they are inside one.
+     *
+     * @return array<string, mixed>
+     */
+    private function dossierPayload(DossierBlogPost $entry, $organization): array
+    {
+        $series = ArticleSeries::where('dossier_id', $entry->dossier_id)
+            ->with('rootBlogPost:id,title')
+            ->first();
+
+        $inSeries = $series !== null && (
+            $series->root_blog_post_id === $entry->blog_post_id
+            || ArticleSeriesItem::where('article_series_id', $series->id)
+                ->where('blog_post_id', $entry->blog_post_id)
+                ->exists()
+        );
+
+        return [
+            'id' => $entry->dossier->id,
+            'name' => $entry->dossier->name,
+            'position' => $entry->position,
+            'url' => route('organization.dossiers.show', [
+                'organization' => $organization->slug,
+                'dossier' => $entry->dossier->id,
+            ]),
+            'series' => $inSeries ? [
+                'root_title' => $series->rootBlogPost?->title,
+                'is_root' => $series->root_blog_post_id === $entry->blog_post_id,
+            ] : null,
+        ];
     }
 
     public function listDossiers(Request $request): JsonResponse
@@ -123,6 +199,17 @@ class BlogDossierApiController extends Controller
 
         if (! $deleted) {
             return response()->json(['message' => __('dossiers.article_not_attached')], 422);
+        }
+
+        // Leaving a Dossier also leaves its Series.
+        //
+        // Without this, an article moved to another Dossier stayed the root or
+        // an annexe of the Series it came from — a Series whose root was no
+        // longer even in its own Dossier. The visible symptom was a refusal
+        // that made no sense: "this article is already the root of a series"
+        // on an article sitting alone in a brand-new Dossier.
+        if ($entry) {
+            $this->detachFromSeries($entry->dossier_id, $post->id);
         }
 
         if ($entry) {

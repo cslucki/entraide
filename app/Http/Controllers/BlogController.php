@@ -36,7 +36,12 @@ class BlogController extends Controller implements HasMiddleware
     }
 
     private const ALLOWED_HTML_TAGS = [
-        'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
+        // h1 added by TASK-1084. Its absence was silent and hard to see: the
+        // editor produced a proper <h1>, and strip_tags() removed the tag while
+        // keeping its text — so a level-1 title came back as an ordinary
+        // paragraph after saving, with nothing to indicate why. Documents
+        // pasted from an LLM almost always open with one.
+        'h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
         'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code', 'pre',
         'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
         'caption', 'col', 'colgroup',
@@ -560,10 +565,13 @@ class BlogController extends Controller implements HasMiddleware
         $request->validate([
             'title' => 'required|string|max:255',
             'summary' => 'required|string|max:500',
-            'category_id' => 'required|uuid|exists:categories,id',
+            // Optional since TASK-1084: an article without a category is a
+            // perfectly ordinary article, and 89 of them already existed.
+            'category_id' => 'nullable|uuid|exists:categories,id',
         ]);
 
-        if (! Category::where('id', $request->input('category_id'))->where('organization_id', $organization->id)->exists()) {
+        if ($request->filled('category_id')
+            && ! Category::where('id', $request->input('category_id'))->where('organization_id', $organization->id)->exists()) {
             return response()->json(['error' => __('blog.validation_category_invalid')], 422);
         }
 
@@ -977,7 +985,9 @@ class BlogController extends Controller implements HasMiddleware
             'image' => ['nullable', 'image', 'max:5120', 'mimes:jpeg,png,webp,gif'],
             'remove_image' => ['nullable', 'boolean'],
             'status' => ['required', Rule::in($allowedStatuses)],
-            'category_id' => [$isPublished ? 'required' : 'nullable', 'uuid', 'exists:categories,id'],
+            // Optional whatever the status: publishing an article is not a
+            // reason to invent a category for it.
+            'category_id' => ['nullable', 'uuid', 'exists:categories,id'],
             'tags' => ['nullable', 'string'],
             'meta_title' => ['nullable', 'string', 'max:255'],
             'meta_description' => ['nullable', 'string', 'max:320'],
