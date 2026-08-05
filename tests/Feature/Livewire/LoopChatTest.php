@@ -47,7 +47,11 @@ class LoopChatTest extends TestCase
         $this->crossUser = User::factory()->create(['organization_id' => $this->otherOrganization->id]);
 
         $this->service = new LoopService;
-        $this->loop = $this->service->createLoop($this->member, 'Test Chat Loop');
+        // A Projets Loop: this file exercises the workspace shell and its cards,
+        // and since TASK-1079 a Dialogue Loop composes Membres alone. Creating
+        // it as `general` here would test the shell with a single card and hide
+        // what these assertions exist to check.
+        $this->loop = $this->service->createLoop($this->member, 'Test Chat Loop', type: 'project');
 
         app()->instance('current_organization', $this->organization);
     }
