@@ -1704,6 +1704,7 @@ function registerBlogDossierCard() {
                 .then(r => r.json())
                 .then(data => {
                     this.currentDossier = data.dossier || null;
+                    this.publishBadge();
                     this.loading = false;
                 })
                 .catch(() => {
@@ -1719,6 +1720,22 @@ function registerBlogDossierCard() {
                     this.dossiers = data.dossiers || [];
                 })
                 .catch(() => {});
+        },
+
+        /**
+         * Reflete l'etat courant dans la barre d'outils de l'article.
+         *
+         * Seule cette Card sait s'il y a un Dossier lie, comment il s'appelle et
+         * si l'article appartient a une serie — la barre, elle, ne fait
+         * qu'afficher.
+         */
+        publishBadge() {
+            const store = window.Alpine?.store('editorPanels');
+            if (!store) return;
+            store.dossierName = this.currentDossier?.name || null;
+            store.dossierUrl = this.currentDossier?.url || null;
+            store.inSeries = !!this.currentDossier?.series;
+            store.seriesIsRoot = !!this.currentDossier?.series?.is_root;
         },
 
         classify() {
@@ -1738,6 +1755,7 @@ function registerBlogDossierCard() {
                         return;
                     }
                     this.currentDossier = data.dossier || null;
+                    this.publishBadge();
                     this.selectedDossierId = '';
                     this.success = data.message || this.i18n.classified;
                     setTimeout(() => { this.success = ''; }, 3000);
@@ -3436,11 +3454,29 @@ function registerBlogLoopCard() {
         storeMessageUrlBase: config.storeMessageUrlBase || '',
         userLoops: config.userLoops || [],
         linkedLoops: config.linkedLoops || [],
+
+        /** Nom de la Boucle liee, pour le badge de la barre. */
+        publishBadge() {
+            const store = window.Alpine?.store('editorPanels');
+            if (!store) return;
+            const first = this.linkedLoops?.[0];
+            store.loopName = first
+                ? (this.linkedLoops.length > 1 ? `${first.name} +${this.linkedLoops.length - 1}` : first.name)
+                : null;
+        },
+
         i18n: config.i18n || {},
         messageDrafts: {},
         sendingMessage: '',
         _pollInterval: null,
         _fingerprint: '',
+
+        init() {
+            // Le badge de la barre est alimente des l'ouverture de la page, puis
+            // a chaque liaison ou deliaison.
+            this.publishBadge();
+            this.$watch('linkedLoops', () => this.publishBadge());
+        },
 
         get availableLoops() {
             const linkedIds = new Set(this.linkedLoops.map(l => l.id));
@@ -5455,6 +5491,43 @@ if (window.Alpine) {
 }
 
 let editor = null;
+
+/**
+ * Which editor panel is open, if any.
+ *
+ * Four sidebar cards — Boucle, Dossier, Liste de taches, Co-ecriture — moved out
+ * of the stacked column and into a button bar above the article. They kept
+ * their own Alpine state entirely: only their container changed, from a
+ * collapsible box to a modal. That is why this store holds nothing but the
+ * name of the open panel, plus the labels the badges need.
+ *
+ * The badges are published by the cards themselves, because only they know
+ * whether a link exists and what it is called.
+ */
+document.addEventListener('alpine:init', () => {
+    window.Alpine.store('editorPanels', {
+        open: null,
+
+        // Filled by the cards. Null means "no link", and the bar shows no badge.
+        loopName: null,
+        dossierName: null,
+        dossierUrl: null,
+        inSeries: false,
+        seriesIsRoot: false,
+
+        toggle(name) {
+            this.open = this.open === name ? null : name;
+        },
+
+        close() {
+            this.open = null;
+        },
+
+        isOpen(name) {
+            return this.open === name;
+        },
+    });
+});
 
 document.addEventListener('alpine:init', () => {
     registerAlpineStores();

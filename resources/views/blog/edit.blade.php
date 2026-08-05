@@ -85,7 +85,70 @@
             <div class="flex-1 min-w-0">
 
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('blog.heading_edit') }}</h1>
+                    {{-- Barre d'outils de l'article.
+
+                         Le titre « Modifier l'article » a disparu : on devine
+                         qu'on edite. A sa place, les quatre Cards qui encombraient
+                         la colonne laterale — Boucle, Dossier, Taches, Co-auteurs —
+                         deviennent des boutons qui ouvrent chacun un pop-up.
+
+                         Un badge apparait des qu'un lien existe, et le badge ouvre
+                         le meme pop-up que le bouton : on clique la ou on regarde. --}}
+                    <div class="mb-6 flex flex-wrap items-center gap-2">
+                        <button type="button" @click="$store.editorPanels.toggle('boucle')"
+                                :class="$store.editorPanels.isOpen('boucle') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <svg class="h-3.5 w-3.5 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                            {{ __('blog.sidebar_boucle') }}
+                        </button>
+
+                        <template x-if="$store.editorPanels.loopName">
+                            <button type="button" @click="$store.editorPanels.toggle('boucle')"
+                                    class="inline-flex max-w-[14rem] min-h-[38px] items-center rounded-lg bg-red-50 px-2.5 text-xs font-medium text-red-700 transition hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
+                                    :title="$store.editorPanels.loopName">
+                                <span class="truncate" x-text="$store.editorPanels.loopName"></span>
+                            </button>
+                        </template>
+
+                        <button type="button" @click="$store.editorPanels.toggle('dossier')"
+                                :class="$store.editorPanels.isOpen('dossier') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <svg class="h-3.5 w-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                            {{ __('blog.sidebar_dossier') }}
+                        </button>
+
+                        <template x-if="$store.editorPanels.dossierName">
+                            <span class="inline-flex items-center gap-1.5">
+                                <button type="button" @click="$store.editorPanels.toggle('dossier')"
+                                        class="inline-flex max-w-[14rem] min-h-[38px] items-center rounded-lg bg-amber-50 px-2.5 text-xs font-medium text-amber-800 transition hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
+                                        :title="$store.editorPanels.dossierName">
+                                    <span class="truncate" x-text="$store.editorPanels.dossierName"></span>
+                                </button>
+                                {{-- Le second badge, a droite de celui du Dossier :
+                                     une serie est une fonctionnalite du Dossier. --}}
+                                <template x-if="$store.editorPanels.inSeries">
+                                    <button type="button" @click="$store.editorPanels.toggle('dossier')"
+                                            class="inline-flex min-h-[38px] items-center rounded-lg bg-indigo-50 px-2.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300"
+                                            x-text="$store.editorPanels.seriesIsRoot ? @js(__('blog.dossier_series_root')) : @js(__('blog.dossier_series_annex'))"></button>
+                                </template>
+                            </span>
+                        </template>
+
+                        <button type="button" @click="$store.editorPanels.toggle('todo')"
+                                :class="$store.editorPanels.isOpen('todo') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <svg class="h-3.5 w-3.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+                            {{ __('blog.sidebar_todo') }}
+                        </button>
+
+                        <button type="button" @click="$store.editorPanels.toggle('coauthors')"
+                                :class="$store.editorPanels.isOpen('coauthors') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700"
+                                :title="@js(__('blog.sidebar_co_ecriture'))">
+                            <svg class="h-3.5 w-3.5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>
+                            {{ __('blog.sidebar_co_ecriture') }}
+                        </button>
+                    </div>
 
             <form action="{{ $_blogRoute('update', ['post' => $post]) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 @csrf @method('PUT')
@@ -314,6 +377,8 @@
         :style="isDesktop ? `width: ${width}px` : ''"
         class="flex w-full shrink-0 flex-col space-y-2 md:w-auto"
     >
+                {{-- boucle : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+                <x-editor-panel name="boucle" :title="__('blog.sidebar_boucle')" width="max-w-2xl">
                 {{-- Boucle card --}}
                 <div
                     x-data="blogLoopCard({
@@ -343,7 +408,7 @@
                     class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 >
                     <button
-                        @click="toggle()"
+                        x-show="false" @click="toggle()"
                         class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
                     >
                         <span class="flex items-center gap-1.5">
@@ -444,6 +509,10 @@
                     </div>
                 </div>
                 {{-- /Boucle card --}}
+                </x-editor-panel>
+
+                {{-- dossier : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+                <x-editor-panel name="dossier" :title="__('blog.sidebar_dossier')" width="max-w-2xl">
 
                 {{-- Dossier card --}}
                 <div
@@ -482,7 +551,7 @@
                     class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 >
                     <button
-                        @click="toggle()"
+                        x-show="false" @click="toggle()"
                         class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
                     >
                         <span class="flex items-center gap-1.5">
@@ -600,6 +669,10 @@
                     </div>
                 </div>
                 {{-- /Dossier card --}}
+                </x-editor-panel>
+
+                {{-- todo : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+                <x-editor-panel name="todo" :title="__('blog.sidebar_todo')" width="max-w-2xl">
 
                 {{-- Todo card --}}
                 <div
@@ -653,7 +726,7 @@
                     class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 >
                     <button
-                        @click="toggle()"
+                        x-show="false" @click="toggle()"
                         class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
                     >
                         <span class="flex items-center gap-1.5">
@@ -873,6 +946,8 @@
                         </template>
                     </div>
                 </div>
+                </x-editor-panel>
+
                 {{-- /Todo card --}}
 
                 {{-- Plan card --}}
@@ -1538,6 +1613,8 @@
         </div>
     </div>
 
+    {{-- coauthors : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+    <x-editor-panel name="coauthors" :title="__('blog.sidebar_co_ecriture')" width="max-w-xl">
     {{-- Co-authors card --}}
         <div
             x-data="blogCoAuthorCard({
@@ -1567,7 +1644,7 @@
             class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
         >
             <button
-                @click="toggle()"
+                x-show="false" @click="toggle()"
                 class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
             >
                 <span class="flex items-center gap-1.5">
@@ -1762,6 +1839,8 @@
                 <p class="text-[10px] leading-4 text-gray-400 dark:text-gray-500" x-text="i18n.hint"></p>
             </div>
         </div>
+    </x-editor-panel>
+
         {{-- /Co-authors card --}}
 
         {{-- Snapshot card --}}
