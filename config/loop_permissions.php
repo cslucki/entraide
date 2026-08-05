@@ -173,6 +173,38 @@ return [
             'description' => 'Épingler, masquer ou supprimer un message.', 'locked' => false,
         ],
 
+        // ── Sondages ────────────────────────────────────────────────────────
+        //
+        // `requires_card` fait tout le travail de la Card desactivee : sans la
+        // Card, ces quatre capacites sont refusees, y compris sur une route
+        // appelee directement. Aucun `if` n'est ajoute nulle part.
+        'polls.view' => [
+            'module' => 'polls', 'label_fr' => 'Consulter les Sondages', 'label_en' => 'View polls',
+            'description' => 'Voir les Sondages de la Boucle et leurs resultats selon les regles de visibilite.',
+            'locked' => false,
+            // La seule lecture : la seule qui survive a l'archivage.
+            'read' => true,
+            'requires_card' => 'core.polls',
+        ],
+        'polls.create' => [
+            'module' => 'polls', 'label_fr' => 'Creer un Sondage', 'label_en' => 'Create a poll',
+            'description' => 'Poser une question aux membres. Tout membre actif le peut par defaut.',
+            'locked' => false,
+            'requires_card' => 'core.polls',
+        ],
+        'polls.vote' => [
+            'module' => 'polls', 'label_fr' => 'Voter', 'label_en' => 'Vote',
+            'description' => 'Repondre a un Sondage ouvert, et changer d\'avis tant qu\'il l\'est.',
+            'locked' => false,
+            'requires_card' => 'core.polls',
+        ],
+        'polls.manage' => [
+            'module' => 'polls', 'label_fr' => 'Gerer tous les Sondages', 'label_en' => 'Manage all polls',
+            'description' => 'Modifier, cloturer ou supprimer un Sondage dont on n\'est pas l\'auteur. Chacun garde la main sur les siens.',
+            'locked' => false,
+            'requires_card' => 'core.polls',
+        ],
+
         // ── Invitations ─────────────────────────────────────────────────────
         'invitations.view' => [
             'module' => 'invitations', 'label_fr' => 'Voir les invitations', 'label_en' => 'View invitations',
@@ -210,6 +242,7 @@ return [
             'roadmap.view', 'roadmap.manage',
             'chatloop.view', 'chatloop.post', 'chatloop.manage',
             'invitations.view', 'invitations.revoke',
+            'polls.view', 'polls.create', 'polls.vote', 'polls.manage',
         ],
 
         /*
@@ -225,14 +258,22 @@ return [
             'roadmap.view', 'roadmap.manage',
             'chatloop.view', 'chatloop.post', 'chatloop.manage',
             'invitations.view', 'invitations.revoke',
+            'polls.view', 'polls.create', 'polls.vote', 'polls.manage',
         ],
 
+        /*
+         * Le membre pose ses questions et vote comme les autres : un Sondage est
+         * un outil de conversation, pas une prerogative. Il garde la main sur
+         * les siens — `polls.create` suffit a les modifier et a les clore — mais
+         * ne touche pas a ceux des autres, faute de `polls.manage`.
+         */
         'member' => [
             'loops.view',
             'loop_members.view',
             'manifesto.view',
             'roadmap.view',
             'chatloop.view', 'chatloop.post',
+            'polls.view', 'polls.create', 'polls.vote',
         ],
     ],
 

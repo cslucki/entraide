@@ -69,12 +69,25 @@ class TASK1086CardRegistryAndPresetsTest extends TestCase
 
     // ── Le registre est la seule declaration ────────────────────────────────
 
-    public function test_the_registry_renders_the_four_existing_cards(): void
+    public function test_the_registry_renders_every_declared_card_in_order(): void
     {
+        // Fige l'ORDRE et le fait que tout ce qui est declare soit rendu, pas la
+        // liste elle-meme : celle-ci grandit a chaque Card metier, et un test qui
+        // la recopie oblige a le corriger sans rien apprendre. `core.polls` est
+        // arrivee en TASK-1087, entre Roadmap (30) et Membres (40).
         $this->assertSame(
-            ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.members'],
+            ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.polls', 'core.members'],
             $this->registry()->renderableKeys(),
         );
+
+        $orders = array_map(
+            fn ($key) => $this->registry()->get($key)['order'],
+            $this->registry()->renderableKeys(),
+        );
+
+        $sorted = $orders;
+        sort($sorted);
+        $this->assertSame($sorted, $orders, 'Les Cards doivent sortir dans l\'ordre du catalogue.');
     }
 
     public function test_no_divergent_list_of_rendered_cards_survives(): void

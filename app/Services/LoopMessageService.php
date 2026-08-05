@@ -6,6 +6,7 @@ use App\Events\LoopMessageCreated;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\LoopPoll;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -71,6 +72,49 @@ class LoopMessageService
                     'expected_help_type' => $expectedHelpType,
                     'deadline' => $deadline,
                     'urgency' => $urgency,
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * Annoncer dans ChatLoop qu'un Sondage a ete pose ou clos.
+     *
+     * Suit exactement le motif de sendHelpRequestMessage() : un `type` propre et
+     * un `metadata` structure, que la vue reconnait pour rendre autre chose
+     * qu'une bulle de conversation. Aucune seconde architecture de messages
+     * systeme n'a ete inventee — celle-ci existait, elle sert.
+     *
+     * Deux evenements seulement, jamais un par vote : une Boucle qui vote a
+     * vingt n'a pas besoin de vingt lignes dans sa conversation.
+     *
+     * @param  'created'|'closed'  $event
+     */
+    public function sendPollEventMessage(Loop $loop, User $sender, LoopPoll $poll, string $event): LoopMessage
+    {
+        $this->assertCanSend($loop, $sender);
+
+        $body = $event === 'closed'
+            ? __('polls.chat_closed', ['question' => $poll->question])
+            : __('polls.chat_created', ['question' => $poll->question]);
+
+        return DB::transaction(function () use ($loop, $sender, $poll, $event, $body) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+                'type' => 'poll_event',
+                'metadata' => [
+                    'event' => $event,
+                    'poll_id' => $poll->id,
+                    'question' => $poll->question,
                 ],
                 'organization_id' => $loop->organization_id,
             ]);

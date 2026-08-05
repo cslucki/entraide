@@ -209,6 +209,15 @@
             }"
             x-effect="document.body.style.overflow = activeCard && window.matchMedia('(max-width: 1023px)').matches ? 'hidden' : ''"
             @keydown.escape.window="closeCard()"
+            {{-- Ouvrir une Card depuis ailleurs — le message ChatLoop qui annonce
+                 un Sondage, par exemple. Le nom de la Card est compare a celles
+                 que le workspace rend deja : un evenement portant une cle
+                 inconnue n'ouvre rien. --}}
+            @bp-open-loop-card.window="
+                if ($event.detail?.card && @js($workspaceCards->pluck('key')).includes($event.detail.card)) {
+                    activeCard = $event.detail.card; focus = 'none';
+                }
+            "
             x-bind:data-resizing="resizing ? 'true' : 'false'"
             class="loops-show-container h-dvh flex flex-col bg-gray-100 dark:bg-gray-950"
             data-loop-workspace-shell

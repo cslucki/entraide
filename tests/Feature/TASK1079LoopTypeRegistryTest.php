@@ -86,7 +86,10 @@ class TASK1079LoopTypeRegistryTest extends TestCase
 
     public function test_the_two_defined_types_carry_exactly_what_was_specified(): void
     {
-        $this->assertSame(['core.members'], $this->registry()->cardsFor('general'));
+        $this->assertEqualsCanonicalizing(
+            ['core.members', 'core.polls'],
+            $this->registry()->cardsFor('general'),
+        );
         $this->assertEqualsCanonicalizing(
             ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.members'],
             $this->registry()->cardsFor('project'),

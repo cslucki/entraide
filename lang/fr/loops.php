@@ -193,6 +193,13 @@ return [
     'ai_summary_requested_by' => 'Demandé par :name',
     'ai_summary_rate_limited' => 'Trop de demandes de résumé. Réessaie dans une minute.',
     'cards' => [
+        'polls' => [
+            'label' => 'Sondages',
+            'description' => 'Pose une question aux membres et recueille leurs réponses.',
+            'empty_title' => 'Aucun sondage',
+            'empty_body' => 'Pose une question aux membres de cette Boucle : ils répondront, et le résultat se lira d\'un coup d\'œil.',
+            'action' => 'Créer un sondage',
+        ],
         'ai_summary' => [
             'label' => 'Résumé IA',
             'description' => 'Condense les échanges utiles de cette Boucle.',

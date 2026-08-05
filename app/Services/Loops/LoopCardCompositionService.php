@@ -7,6 +7,7 @@ use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopMember;
+use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
@@ -156,6 +157,7 @@ class LoopCardCompositionService
             'core.roadmap' => LoopRoadmapItem::where('loop_id', $loop->id)->count(),
             'core.ai_summary' => $loop->messages()->where('type', 'ai')->count(),
             'core.manifesto' => $this->rootDocumentExists($loop) ? 1 : 0,
+            'core.polls' => LoopPoll::where('loop_id', $loop->id)->count(),
             default => null,
         };
     }
