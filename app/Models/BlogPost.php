@@ -35,11 +35,14 @@ class BlogPost extends Model
         'meta_title',
         'meta_description',
         'show_toc',
+        'audience',
+        'listed_in_blog',
         'toc_max_level',
         'toc_navigation_enabled',
     ];
 
     protected $casts = [
+        'listed_in_blog' => 'boolean',
         'published_at' => 'datetime',
         'views_count' => 'integer',
         'read_time' => 'integer',
@@ -146,7 +149,34 @@ class BlogPost extends Model
         return Storage::disk('public')->url($this->image);
     }
 
+    /** Who may read an article — orthogonal to its editorial status. */
+    public const AUDIENCE_PUBLIC = 'public';
+
+    public const AUDIENCE_ORGANIZATION = 'organization';
+
+    /** Access governed by the associated Loop's own rules. */
+    public const AUDIENCE_LOOP = 'loop';
+
+    public const AUDIENCES = [self::AUDIENCE_PUBLIC, self::AUDIENCE_ORGANIZATION, self::AUDIENCE_LOOP];
+
+    /**
+     * Published articles that belong in the Blog.
+     *
+     * `listed_in_blog` is deliberately part of this scope rather than a filter
+     * every caller must remember: a Loop's root document is published and
+     * perfectly readable, but it is not a blog article and must never surface
+     * in a listing, a feed, a related-posts block or a sitemap.
+     */
     public function scopePublished($query)
+    {
+        return $query->where('status', 'published')
+            ->whereNotNull('published_at')
+            ->where('published_at', '<=', now())
+            ->where('listed_in_blog', true);
+    }
+
+    /** Every published article, listed or not — for direct access paths. */
+    public function scopePubliclyReadable($query)
     {
         return $query->where('status', 'published')
             ->whereNotNull('published_at')

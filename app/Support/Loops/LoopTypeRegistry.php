@@ -124,6 +124,33 @@ class LoopTypeRegistry
     }
 
     /**
+     * The name this type gives to the root document.
+     *
+     * Same concept everywhere, different word: Manifeste for a project, Cadre
+     * du dialogue for a Dialogue Loop, Programme for a Formation. Read here so
+     * that no controller and no view ever branches on $loop->type.
+     */
+    public function rootDocumentLabel(?string $type): string
+    {
+        $key = $this->definition($type)['root_document_label_key'] ?? null;
+
+        return $key ? __($key) : __('loops.root_document.general');
+    }
+
+    /**
+     * Translation keys of the sections the starting template lays out.
+     *
+     * A template, not a form: none of these sections has to be filled in for
+     * the document to be usable.
+     *
+     * @return array<int, string>
+     */
+    public function rootDocumentSections(?string $type): array
+    {
+        return $this->definition($type)['root_document_sections'] ?? [];
+    }
+
+    /**
      * Card keys a type prescribes, filtered to those the card catalogue really
      * ships. A preset may name a card ahead of its implementation; it simply
      * has no effect until that card exists.

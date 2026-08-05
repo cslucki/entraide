@@ -7,6 +7,7 @@ use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Dossier;
+use App\Models\Loop;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use Illuminate\Http\JsonResponse;
@@ -170,6 +171,16 @@ class DossierController extends Controller
 
         return view('dossiers.edit', [
             'dossier' => $dossier,
+            // Only Loops of this Organization, and only those the user can
+            // actually enter — offering a Loop they cannot reach would share a
+            // Dossier into a room they cannot see.
+            'shareableLoops' => $dossier->isLoopDossier() ? collect() : Loop::query()
+                ->where('organization_id', $dossier->organization_id)
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get(['id', 'name', 'visibility'])
+                ->filter(fn ($loop) => $request->user()->can('viewWorkspace', $loop))
+                ->values(),
         ]);
     }
 
@@ -180,15 +191,42 @@ class DossierController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('update', $dossier);
 
+        // A root Dossier's audience belongs to its Loop. Refused on the server,
+        // not merely hidden in the form.
+        if ($dossier->isLoopDossier() && $request->filled('visibility')) {
+            abort(403, __('dossiers.visibility_inherited_readonly'));
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'owner_id' => ['prohibited'],
-            'visibility' => ['nullable', Rule::in([Dossier::VISIBILITY_PRIVATE])],
+            'visibility' => ['nullable', Rule::in(Dossier::VISIBILITIES)],
+            'shared_with_loop_id' => ['nullable', 'string'],
         ]);
+
+        $visibility = $data['visibility'] ?? $dossier->visibility;
+        $sharedLoopId = null;
+
+        if ($visibility === Dossier::VISIBILITY_LOOP) {
+            // Sharing with a Loop requires a Loop, and it must belong to the
+            // same Organization — a Dossier never reaches across a tenant.
+            $loop = Loop::where('id', $data['shared_with_loop_id'] ?? null)
+                ->where('organization_id', $dossier->organization_id)
+                ->first();
+
+            if (! $loop) {
+                return back()->withErrors(['shared_with_loop_id' => __('dossiers.visibility_loop_required')]);
+            }
+
+            $sharedLoopId = $loop->id;
+        }
 
         $dossier->update([
             'name' => $data['name'],
-            'visibility' => Dossier::VISIBILITY_PRIVATE,
+            'visibility' => $visibility,
+            // Any modality other than `loop` clears the sharing outright, so a
+            // stale reference can never grant access.
+            'shared_with_loop_id' => $sharedLoopId,
         ]);
 
         if ($request->expectsJson()) {

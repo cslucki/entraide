@@ -1,0 +1,85 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\Dossier;
+use App\Models\Loop;
+use App\Services\Loops\LoopRootDocumentService;
+use Illuminate\Console\Command;
+
+/**
+ * Give every existing Loop its root Dossier and root document.
+ *
+ * Deliberately simple: the installed base is small, so this is a loop over
+ * Loops calling the same service the creation flow uses — not a migration
+ * engine. Idempotent, so it can be run again safely, and `--dry-run` reports
+ * what it would do without writing anything.
+ *
+ * Never destructive: an existing designated article is adopted, moved into the
+ * root Dossier and kept with its content, its history and its author. Nothing
+ * is deleted, and no status is rewritten beyond the audience and the Blog flag
+ * that make it a Loop document.
+ */
+class LoopsBackfillRootDocuments extends Command
+{
+    protected $signature = 'loops:backfill-root-documents
+                            {--dry-run : Report what would change, write nothing}
+                            {--organization= : Restrict to one Organization id}';
+
+    protected $description = 'Create the root Dossier and root document of every Loop that lacks them';
+
+    public function handle(LoopRootDocumentService $service): int
+    {
+        $dryRun = (bool) $this->option('dry-run');
+
+        $loops = Loop::query()
+            ->when($this->option('organization'), fn ($q, $id) => $q->where('organization_id', $id))
+            ->orderBy('created_at')
+            ->get();
+
+        $withDossier = Dossier::whereNotNull('loop_id')->pluck('loop_id')->all();
+
+        $report = ['analysees' => $loops->count(), 'dossiers' => 0, 'documents' => 0, 'reutilises' => 0, 'inchangees' => 0, 'erreurs' => 0];
+
+        $this->line($dryRun ? 'Simulation — rien ne sera ecrit.' : 'Application.');
+        $this->newLine();
+
+        foreach ($loops as $loop) {
+            $hasDossier = in_array($loop->id, $withDossier, true);
+            $dossier = $hasDossier ? Dossier::where('loop_id', $loop->id)->first() : null;
+
+            if ($dossier && $dossier->root_blog_post_id) {
+                $report['inchangees']++;
+
+                continue;
+            }
+
+            $reusing = (bool) $loop->manifesto_blog_post_id;
+
+            if ($dryRun) {
+                $hasDossier ? null : $report['dossiers']++;
+                $reusing ? $report['reutilises']++ : $report['documents']++;
+                $this->line(sprintf('  %-30s %s', mb_substr($loop->name, 0, 30), $reusing ? 'adopterait son article existant' : 'creerait un document'));
+
+                continue;
+            }
+
+            try {
+                $service->ensureRootDocument($loop);
+                $hasDossier ? null : $report['dossiers']++;
+                $reusing ? $report['reutilises']++ : $report['documents']++;
+            } catch (\Throwable $e) {
+                $report['erreurs']++;
+                $this->error(sprintf('  %-30s %s', mb_substr($loop->name, 0, 30), $e->getMessage()));
+            }
+        }
+
+        $this->newLine();
+        $this->table(
+            ['Boucles analysees', 'Dossiers crees', 'Documents crees', 'Articles adoptes', 'Deja en place', 'Erreurs'],
+            [[$report['analysees'], $report['dossiers'], $report['documents'], $report['reutilises'], $report['inchangees'], $report['erreurs']]],
+        );
+
+        return $report['erreurs'] > 0 ? self::FAILURE : self::SUCCESS;
+    }
+}

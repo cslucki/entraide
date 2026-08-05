@@ -51,6 +51,15 @@ return [
     'types' => [
 
         'general' => [
+            // Le document racine porte un nom different selon le type,
+            // mais reste le meme concept. Lu par le registry, jamais
+            // par une condition sur $loop->type.
+            'root_document_label_key' => 'loops.root_document.general',
+            'root_document_sections' => [
+                'loops.root_document_sections.why',
+                'loops.root_document_sections.how',
+                'loops.root_document_sections.principles',
+            ],
             'key' => 'general',
             'label_key' => 'loops.types.general.label',
             'description_key' => 'loops.types.general.description',
@@ -68,6 +77,18 @@ return [
         ],
 
         'project' => [
+            // Le document racine porte un nom different selon le type,
+            // mais reste le meme concept. Lu par le registry, jamais
+            // par une condition sur $loop->type.
+            'root_document_label_key' => 'loops.root_document.project',
+            'root_document_sections' => [
+                'loops.root_document_sections.why',
+                'loops.root_document_sections.goals',
+                'loops.root_document_sections.audience',
+                'loops.root_document_sections.how',
+                'loops.root_document_sections.principles',
+                'loops.root_document_sections.next',
+            ],
             'key' => 'project',
             'label_key' => 'loops.types.project.label',
             'description_key' => 'loops.types.project.description',
@@ -91,6 +112,15 @@ return [
          * exactly what that screen exists for.
          */
         'coaching' => [
+            // Le document racine porte un nom different selon le type,
+            // mais reste le meme concept. Lu par le registry, jamais
+            // par une condition sur $loop->type.
+            'root_document_label_key' => 'loops.root_document.coaching',
+            'root_document_sections' => [
+                'loops.root_document_sections.why',
+                'loops.root_document_sections.goals',
+                'loops.root_document_sections.how',
+            ],
             'key' => 'coaching',
             'label_key' => 'loops.types.coaching.label',
             'description_key' => 'loops.types.coaching.description',
@@ -105,6 +135,16 @@ return [
         ],
 
         'training' => [
+            // Le document racine porte un nom different selon le type,
+            // mais reste le meme concept. Lu par le registry, jamais
+            // par une condition sur $loop->type.
+            'root_document_label_key' => 'loops.root_document.training',
+            'root_document_sections' => [
+                'loops.root_document_sections.why',
+                'loops.root_document_sections.goals',
+                'loops.root_document_sections.how',
+                'loops.root_document_sections.next',
+            ],
             'key' => 'training',
             'label_key' => 'loops.types.training.label',
             'description_key' => 'loops.types.training.description',
@@ -128,6 +168,15 @@ return [
         ],
 
         'peer_support' => [
+            // Le document racine porte un nom different selon le type,
+            // mais reste le meme concept. Lu par le registry, jamais
+            // par une condition sur $loop->type.
+            'root_document_label_key' => 'loops.root_document.peer_support',
+            'root_document_sections' => [
+                'loops.root_document_sections.why',
+                'loops.root_document_sections.principles',
+                'loops.root_document_sections.how',
+            ],
             'key' => 'peer_support',
             'label_key' => 'loops.types.peer_support.label',
             'description_key' => 'loops.types.peer_support.description',
