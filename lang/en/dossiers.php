@@ -129,6 +129,8 @@ return [
     'series_empty_body' => 'Create a series to structure articles with a root and annexes.',
     'series_create' => 'Create series',
     'series_created' => 'Series created.',
+    'series_choose_root_title' => 'Which article opens the series?',
+    'series_choose_root_help' => 'The other articles of the Dossier can be added afterwards as annexes.',
     'series_root' => 'Root article',
     'series_root_label' => 'Root article',
     'series_root_empty' => 'No root article',

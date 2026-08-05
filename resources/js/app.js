@@ -1892,6 +1892,10 @@ function registerDossierContentsCard() {
         message: '',
         messageType: 'success',
         showAddModal: false,
+        // Creer une serie sur un Dossier vide : le premier article attache
+        // devient sa racine (voir attachArticle).
+        pendingSeriesRoot: false,
+        showChooseRootModal: false,
         addSearchQuery: '',
         addSearchResults: [],
         addSearching: false,
@@ -1925,35 +1929,16 @@ function registerDossierContentsCard() {
                 if (ev.key === 'Escape') {
                     if (this.showDetachModal) { this.showDetachModal = false; this.detachEntry = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="detach-article-title"]'); }); }
                     else if (this.showAddModal) { this.closeAddModal(); }
+                    else if (this.showChooseRootModal) { this.showChooseRootModal = false; }
                     else if (this.showDeleteSeriesModal) { this.showDeleteSeriesModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-series-title"]'); }); }
                     else { this.openMenuId = null; this.showSeriesMenu = false; }
                 }
             });
 
-            const groupOptions = {
-                name: 'dossier-articles',
-                put: true,
-                pull: true,
-            };
-
-            this.$nextTick(() => {
-                if (!this.canManageArticles) return;
-
-                const commonSortable = {
-                    group: groupOptions,
-                    handle: '.drag-handle',
-                    filter: '[data-no-drag]',
-                    animation: 150,
-                    onEnd: (evt) => this.onDragEnd(evt),
-                };
-
-                if (this.$refs.ungroupedContainer) {
-                    this.sortables.push(Sortable.create(this.$refs.ungroupedContainer, commonSortable));
-                }
-                if (this.$refs.annexesContainer) {
-                    this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
-                }
-            });
+            // Une seule definition des zones de glisser-deposer. Le demarrage
+            // en avait une copie a lui, et la zone racine ajoutee ici n'y
+            // serait jamais apparue avant un premier ajout d'annexe.
+            this.$nextTick(() => this.initSortables());
 
             this.$watch('searchQuery', (val) => {
                 this.sortables.forEach(s => s.option('disabled', val.trim().length > 0));
@@ -1985,11 +1970,48 @@ function registerDossierContentsCard() {
             if (this.$refs.annexesContainer) {
                 this.sortables.push(Sortable.create(this.$refs.annexesContainer, commonSortable));
             }
+            // Deposer un article sur la racine le promeut. La zone accepte mais
+            // ne cede rien (`pull: false`) et ne se trie pas : elle ne contient
+            // qu'un article, et c'est justement celui qu'on remplace.
+            if (this.$refs.seriesRootContainer) {
+                this.sortables.push(Sortable.create(this.$refs.seriesRootContainer, {
+                    group: { name: 'dossier-articles', put: true, pull: false },
+                    sort: false,
+                    handle: '.drag-handle',
+                    // Pas de `filter` ici : il ferait ignorer la carte racine
+                    // comme cible d'insertion, et le depot ne prendrait que sur
+                    // les quelques pixels de marge autour d'elle. `pull: false`
+                    // suffit a empecher de la sortir de la zone.
+                    animation: 150,
+                    onAdd: (evt) => this.onDropOnRoot(evt),
+                }));
+            }
+        },
+
+        /**
+         * Sortable a deja deplace l'element dans le DOM ; on le remet ou il
+         * etait et on laisse le serveur trancher. Sans cela, un refus laisserait
+         * deux articles dans la zone racine.
+         */
+        onDropOnRoot(evt) {
+            const movedId = evt.item.getAttribute('data-article-id');
+            evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
+            if (!movedId) return;
+
+            const entry = this.ungrouped.find(e => String(e.blog_post_id) === movedId)
+                || this.seriesItems.find(e => String(e.blog_post_id) === movedId);
+
+            if (entry) this.promoteToRoot(entry);
         },
 
         onDragEnd(evt) {
             const movedId = evt.item.getAttribute('data-article-id');
             if (!movedId) return;
+
+            // Un depot sur la racine emet onAdd (zone racine) *et* onEnd (zone
+            // d'origine). Sans cette sortie, l'article etait promu racine puis
+            // rajoute en annexe : racine et annexe a la fois.
+            if (evt.to === this.$refs.seriesRootContainer) return;
 
             const fromUngrouped = evt.from === this.$refs.ungroupedContainer;
             const toUngrouped = evt.to === this.$refs.ungroupedContainer;
@@ -2147,6 +2169,7 @@ function registerDossierContentsCard() {
 
         closeAddModal() {
             this.showAddModal = false;
+            this.pendingSeriesRoot = false;
             this.addSearchQuery = '';
             this.addSearchResults = [];
             this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="add-article-title"]'); });
@@ -2188,13 +2211,55 @@ function registerDossierContentsCard() {
                         position: entry.position,
                         blog_post: normalizeArticle(bp),
                     });
+
+                    // Demande en attente depuis createSeries() sur un Dossier
+                    // vide : cet article est le premier, il en est la racine.
+                    // Lu avant closeAddModal(), qui purge le drapeau.
+                    const wantsRoot = this.pendingSeriesRoot && !this.hasSeries;
+
                     this.closeAddModal();
                     this.showSuccess(data.message);
+
+                    if (wantsRoot) {
+                        this.setAsRoot(this.ungrouped[this.ungrouped.length - 1]);
+                    }
                 } else {
                     this.showError(data.message || 'Error');
                 }
             } catch { this.showError('Network error'); }
             finally { this.adding = false; }
+        },
+
+        /**
+         * Creer une serie, depuis un bouton plutot que depuis le menu cache
+         * d'un article.
+         *
+         * Une serie ne peut pas exister sans racine — `article_series.
+         * root_blog_post_id` est NOT NULL — donc creer une serie, c'est
+         * toujours designer un article. Le bouton evite la question quand elle
+         * n'a qu'une reponse possible : Dossier vide, on demande d'abord un
+         * article ; un seul article, c'est lui ; plusieurs, on choisit.
+         */
+        createSeries() {
+            if (this.hasSeries || this.saving) return;
+
+            if (this.ungrouped.length === 0) {
+                this.pendingSeriesRoot = true;
+                this.openAddArticleModal();
+                return;
+            }
+
+            if (this.ungrouped.length === 1) {
+                this.setAsRoot(this.ungrouped[0]);
+                return;
+            }
+
+            this.showChooseRootModal = true;
+        },
+
+        chooseRoot(entry) {
+            this.showChooseRootModal = false;
+            this.setAsRoot(entry);
         },
 
         setAsRoot(entry) {
@@ -2221,6 +2286,9 @@ function registerDossierContentsCard() {
                     this.ungrouped = this.ungrouped.filter(e => e.blog_post_id !== entry.blog_post_id);
                     this.showSuccess(this.i18n.seriesCreated || 'Series created');
                     this.openMenuId = null;
+                    // La zone racine vient d'apparaitre : sans cela elle
+                    // n'accepterait aucun depot avant un rechargement.
+                    this.$nextTick(() => this.initSortables());
                 })
                 .catch(() => this.showError('Error'))
                 .finally(() => { this.saving = false; });
