@@ -148,6 +148,12 @@
             @endforelse
         </section>
 
+        {{-- Composition locale des Cards --}}
+        <div class="mb-5">
+            <x-loops.card-composition :loop="$boucle" :composition="$composition"
+                :action="route('admin.loops.cards.update', $boucle)" />
+        </div>
+
         {{-- Invitations --}}
         @if($invitations->isNotEmpty())
             <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">

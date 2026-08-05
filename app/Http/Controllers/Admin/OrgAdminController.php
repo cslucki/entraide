@@ -22,10 +22,12 @@ use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
 use App\Services\LoopGovernanceService;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use App\Services\UserDataLifecycleRegistry;
+use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Http\RedirectResponse;
@@ -250,12 +252,44 @@ class OrgAdminController extends Controller
             // What the type prescribes, so the admin can tell the baseline apart
             // from what this Loop added on its own.
             'presetCards' => $registry->cardsFor($loop->type),
+            'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
             'candidates' => User::assignable()
                 ->where('organization_id', $organization->id)
                 ->whereNotIn('id', $memberIds)
                 ->orderBy('name')
                 ->get(['id', 'name', 'first_name', 'email']),
         ]);
+    }
+
+    /**
+     * Turn one card on or off, within this Organization only.
+     *
+     * The tenant check comes first and is not negotiable: a forged Loop id from
+     * another Organization is a 404 before anything else is read. The same
+     * service as the platform admin does the writing — the business rules live
+     * in one place, not in two controllers.
+     */
+    public function updateLoopCards(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_unless(app(LoopPermissionResolver::class)->can($request->user(), $loop, 'loops.manage_cards'), 403);
+
+        $data = $request->validate([
+            'card_key' => 'required|string',
+            'enabled' => 'required|boolean',
+        ]);
+
+        $service = app(LoopCardCompositionService::class);
+
+        try {
+            $data['enabled']
+                ? $service->enable($loop, $data['card_key'])
+                : $service->disable($loop, $data['card_key']);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __($data['enabled'] ? 'loops.cards_enabled' : 'loops.cards_disabled'));
     }
 
     public function updateLoop(Request $request, Organization $organization, Loop $loop): RedirectResponse

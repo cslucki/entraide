@@ -11,7 +11,9 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopManifestoService;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
+use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\DefaultOrganizationResolver;
@@ -93,6 +95,38 @@ class AdminLoopController extends Controller
             : __('loops.type_changed', [
                 'cards' => collect($added)->map(fn ($k) => $registry->cardLabel($k))->implode(', '),
             ]));
+    }
+
+    /**
+     * Turn one card on or off for one Loop.
+     *
+     * The permission is `loops.manage_cards`, declared since TASK-1079 and
+     * until now without a single consumer. Every write goes through
+     * LoopCardCompositionService: nothing here touches LoopCard directly.
+     */
+    public function updateCards(Request $request, Loop $loop): RedirectResponse
+    {
+        // Tenant-scoped even for a super-admin: the write always resolves
+        // through the Loop's own Organization.
+        $this->assertOrgAccess($loop);
+        abort_unless(app(LoopPermissionResolver::class)->can($request->user(), $loop, 'loops.manage_cards'), 403);
+
+        $data = $request->validate([
+            'card_key' => 'required|string',
+            'enabled' => 'required|boolean',
+        ]);
+
+        $service = app(LoopCardCompositionService::class);
+
+        try {
+            $data['enabled']
+                ? $service->enable($loop, $data['card_key'])
+                : $service->disable($loop, $data['card_key']);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __($data['enabled'] ? 'loops.cards_enabled' : 'loops.cards_disabled'));
     }
 
     public function archive(Loop $loop): RedirectResponse
@@ -304,6 +338,7 @@ class AdminLoopController extends Controller
             // relation showed them as having no cards while the workspace
             // rendered four.
             'activeCards' => $registry->activeCardsFor($loop),
+            'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
             'cardCatalogue' => config('loop_cards.cards', []),
             // A glance at what each card actually holds, so the overview answers
             // "what is in this Loop" without opening the workspace.

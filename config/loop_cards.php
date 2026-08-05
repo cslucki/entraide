@@ -1,6 +1,23 @@
 <?php
 
 return [
+
+    /*
+     * Card keys the workspace can actually render.
+     *
+     * This mirrors the branch chain in loops/show.blade.php and the
+     * RENDERED_CARDS constant introduced by TASK-1081. A card in the catalogue
+     * but absent here is declared and not yet built: it must never be offered
+     * for activation, because switching it on would add a button that opens on
+     * nothing.
+     */
+    'rendered' => [
+        'core.ai_summary',
+        'core.manifesto',
+        'core.roadmap',
+        'core.members',
+    ],
+
     'cards' => [
         'core.ai_summary' => [
             'key' => 'core.ai_summary',
