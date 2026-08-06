@@ -7,6 +7,12 @@
     Actions are named after what they do — "Make owner", "Back to member" — not
     a technical role field auto-submitted on change. Availability comes from the
     caller's resolved permissions, never from reading a role label in Blade.
+
+    Densite : une personne tient sur une ligne. Les trois listes separees, leurs
+    titres et leur tiret quand elles etaient vides coutaient une demi-hauteur
+    d'ecran ; le role se lit maintenant sur la ligne, et les actions — rarement
+    utilisees, jamais urgentes — attendent dans un menu au lieu d'etaler deux
+    boutons larges en face de chaque nom.
 --}}
 @props([
     'members',            // Collection<LoopMember>, active
@@ -22,116 +28,145 @@
 @php
     $roles = app(\App\Support\Loops\LoopRoleRegistry::class);
 
-    $grouped = $members->groupBy(fn ($m) => $roles->canonical($m->role));
-    $ownerCount = $grouped->get(\App\Support\Loops\LoopRoleRegistry::OWNER, collect())->count();
+    $OWNER = \App\Support\Loops\LoopRoleRegistry::OWNER;
+    $FACILITATOR = \App\Support\Loops\LoopRoleRegistry::FACILITATOR;
+    $MEMBER = \App\Support\Loops\LoopRoleRegistry::MEMBER;
 
-    $sections = [
-        \App\Support\Loops\LoopRoleRegistry::OWNER => __('loops.governance_owners'),
-        \App\Support\Loops\LoopRoleRegistry::FACILITATOR => __('loops.governance_facilitators'),
-        \App\Support\Loops\LoopRoleRegistry::MEMBER => __('loops.governance_members'),
+    $grouped = $members->groupBy(fn ($m) => $roles->canonical($m->role));
+    $ownerCount = $grouped->get($OWNER, collect())->count();
+
+    // Un seul flux, gouvernance d'abord : on lit qui decide avant qui participe.
+    $rank = [$OWNER => 0, $FACILITATOR => 1, $MEMBER => 2];
+    $ordered = $members
+        ->sortBy(fn ($m) => [$rank[$roles->canonical($m->role)] ?? 3, mb_strtolower($m->user?->publicDisplayName() ?? '')])
+        ->values();
+
+    $chips = [
+        $OWNER => ['label' => __('loops.members_role_owner'), 'class' => 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200'],
+        $FACILITATOR => ['label' => __('loops.members_role_facilitator'), 'class' => 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200'],
     ];
 @endphp
 
-<div {{ $attributes->merge(['class' => 'space-y-5']) }}>
-    @foreach($sections as $role => $heading)
-        @php $bucket = $grouped->get($role, collect()); @endphp
+<div {{ $attributes->merge(['class' => 'space-y-3']) }}>
 
-        <section>
-            <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                {{ $heading }}
-                <span class="font-normal text-gray-400">({{ $bucket->count() }})</span>
-            </h3>
+    @if($ordered->isEmpty())
+        <p class="text-xs text-gray-400">—</p>
+    @else
+        <ul class="divide-y divide-gray-100 dark:divide-gray-800">
+            @foreach($ordered as $member)
+                @php
+                    $role = $roles->canonical($member->role);
+                    $isLastOwner = $role === $OWNER && $ownerCount === 1;
+                    $isSelf = $currentUserId !== null && $member->user_id === $currentUserId;
 
-            @if($bucket->isEmpty())
-                <p class="text-xs text-gray-400">—</p>
-            @else
-                <ul class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @foreach($bucket as $member)
-                        @php
-                            $isLastOwner = $role === \App\Support\Loops\LoopRoleRegistry::OWNER && $ownerCount === 1;
-                            $isSelf = $currentUserId !== null && $member->user_id === $currentUserId;
-                        @endphp
-                        <li class="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
-                            {{-- La photo quand elle existe, les initiales sinon.
-                                 Ce trombinoscope dessinait sa propre pastille a
-                                 une lettre et ignorait donc les avatars deposes. --}}
-                            <x-user-avatar :user="$member->user" size="md" />
+                    // Ce qui serait propose : si rien ne l'est, pas de menu.
+                    $canPromoteOwner = $role !== $OWNER && $canManageOwners;
+                    $canPromoteFacilitator = $role === $MEMBER && $canManageFacilitators;
+                    $canDemoteOwner = $role === $OWNER && $canManageOwners && ! $isLastOwner;
+                    $canDemoteFacilitator = $role === $FACILITATOR && $canManageFacilitators;
+                    $canDrop = $canRemove && $removeRoute && ! $isLastOwner;
+                    $hasActions = $canPromoteOwner || $canPromoteFacilitator || $canDemoteOwner || $canDemoteFacilitator || $canDrop;
+                @endphp
 
-                            <span class="min-w-0 flex-1">
-                                <span class="block truncate text-sm font-medium text-gray-800 dark:text-gray-100">
-                                    {{ $member->user?->publicDisplayName() ?? '—' }}
-                                </span>
-                                <span class="flex flex-wrap items-center gap-x-2 text-[11px] text-gray-400">
-                                    @if($creatorId && $member->user_id === $creatorId)
-                                        <span>{{ __('loops.governance_creator') }}</span>
-                                    @endif
-                                    @if($roles->isLegacyAlias($member->role))
-                                        <span class="rounded bg-gray-100 px-1 dark:bg-gray-700">{{ $member->role }}</span>
-                                    @endif
-                                    @if($isLastOwner)
-                                        <span class="text-amber-600 dark:text-amber-400">{{ __('loops.governance_last_owner_short') }}</span>
-                                    @endif
-                                </span>
+                <li class="flex items-center gap-2.5 py-1.5">
+                    <x-user-avatar :user="$member->user" size="sm" />
+
+                    <span class="min-w-0 flex-1">
+                        <span class="flex items-center gap-1.5">
+                            <span class="truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                                {{ $member->user?->publicDisplayName() ?? '—' }}
                             </span>
+                            @isset($chips[$role])
+                                <span class="shrink-0 rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-wide {{ $chips[$role]['class'] }}">
+                                    {{ $chips[$role]['label'] }}
+                                </span>
+                            @endisset
+                        </span>
 
-                            {{-- Actions, named. Nothing is offered that the
-                                 invariant would refuse anyway. --}}
-                            <span class="flex flex-wrap items-center gap-1.5">
-                                @if($role !== \App\Support\Loops\LoopRoleRegistry::OWNER && $canManageOwners)
-                                    <x-loops.governance-action
-                                        :action="$roleRoute($member)"
-                                        role="owner"
+                        @php
+                            $notes = [];
+                            if ($creatorId && $member->user_id === $creatorId) {
+                                $notes[] = __('loops.governance_creator');
+                            }
+                            if ($roles->isLegacyAlias($member->role)) {
+                                $notes[] = $member->role;
+                            }
+                            if ($isLastOwner) {
+                                $notes[] = __('loops.governance_last_owner_short');
+                            }
+                        @endphp
+                        @if($notes !== [])
+                            <span class="block truncate text-[10px] leading-tight text-gray-400">{{ implode(' · ', $notes) }}</span>
+                        @endif
+                    </span>
+
+                    @if($hasActions)
+                        {{-- Les actions de gouvernance se prennent rarement et
+                             jamais dans l'urgence : elles n'ont pas a occuper
+                             une ligne en face de chaque nom. --}}
+                        <div x-data="{ open: false }" class="relative shrink-0"
+                             x-on:keydown.escape.window="open = false">
+                            <button type="button"
+                                    x-on:click="open = ! open"
+                                    x-bind:aria-expanded="open ? 'true' : 'false'"
+                                    class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                                    aria-label="{{ __('loops.governance_actions_for', ['name' => $member->user?->publicDisplayName() ?? '—']) }}">
+                                <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                    <path d="M10 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/>
+                                </svg>
+                            </button>
+
+                            <div x-show="open" x-cloak
+                                 x-on:click.outside="open = false"
+                                 x-transition.opacity.duration.120ms
+                                 class="absolute right-0 top-9 z-30 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+
+                                @if($canPromoteOwner)
+                                    <x-loops.governance-action :action="$roleRoute($member)" role="owner"
                                         :label="__('loops.governance_promote_owner')" />
                                 @endif
 
-                                @if($role === \App\Support\Loops\LoopRoleRegistry::MEMBER && $canManageFacilitators)
-                                    <x-loops.governance-action
-                                        :action="$roleRoute($member)"
-                                        role="facilitator"
+                                @if($canPromoteFacilitator)
+                                    <x-loops.governance-action :action="$roleRoute($member)" role="facilitator"
                                         :label="__('loops.governance_promote_facilitator')" />
                                 @endif
 
-                                @if($role === \App\Support\Loops\LoopRoleRegistry::OWNER && $canManageOwners && ! $isLastOwner)
-                                    <x-loops.governance-action
-                                        :action="$roleRoute($member)"
-                                        role="facilitator"
+                                @if($canDemoteOwner)
+                                    <x-loops.governance-action :action="$roleRoute($member)" role="facilitator"
                                         :label="__('loops.governance_demote_facilitator')"
                                         :confirm="$isSelf ? __('loops.governance_self_demote_confirm') : null" />
-                                    <x-loops.governance-action
-                                        :action="$roleRoute($member)"
-                                        role="member"
+                                    <x-loops.governance-action :action="$roleRoute($member)" role="member"
                                         :label="__('loops.governance_demote_member')"
                                         :confirm="$isSelf ? __('loops.governance_self_demote_confirm') : null" />
                                 @endif
 
-                                @if($role === \App\Support\Loops\LoopRoleRegistry::FACILITATOR && $canManageFacilitators)
-                                    <x-loops.governance-action
-                                        :action="$roleRoute($member)"
-                                        role="member"
+                                @if($canDemoteFacilitator)
+                                    <x-loops.governance-action :action="$roleRoute($member)" role="member"
                                         :label="__('loops.governance_demote_member')" />
                                 @endif
 
-                                @if($canRemove && $removeRoute && ! $isLastOwner)
+                                @if($canDrop)
                                     <form method="POST" action="{{ $removeRoute($member) }}"
-                                          onsubmit="return confirm('{{ __('loops.governance_remove') }} ?')">
+                                          onsubmit="return confirm('{{ __('loops.governance_remove') }} ?')"
+                                          class="mt-1 border-t border-gray-100 pt-1 dark:border-gray-800">
                                         @csrf @method('DELETE')
                                         <button type="submit"
-                                                class="min-h-[44px] rounded-lg px-2 text-xs font-medium text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                                                class="w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
                                             {{ __('loops.governance_remove') }}
                                         </button>
                                     </form>
                                 @endif
-                            </span>
-                        </li>
-                    @endforeach
-                </ul>
-            @endif
-        </section>
-    @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </li>
+            @endforeach
+        </ul>
+    @endif
 
     {{-- Said once for the whole roster, not repeated on every row. --}}
     @if($ownerCount === 1)
-        <p class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+        <p class="rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-snug text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
             {{ __('loops.governance_last_owner') }}
         </p>
     @endif

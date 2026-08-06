@@ -624,6 +624,7 @@ return [
     'governance_promote_facilitator' => 'Make facilitator',
     'governance_demote_facilitator' => 'Back to facilitator',
     'governance_demote_member' => 'Back to member',
+    'governance_actions_for' => 'Actions for :name',
     'governance_remove' => 'Remove from the Loop',
     'governance_last_owner' => 'Last active owner — appoint another owner before changing this role or removing them.',
     'governance_last_owner_short' => 'Last active owner',

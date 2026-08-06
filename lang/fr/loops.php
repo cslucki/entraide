@@ -626,6 +626,7 @@ return [
     'governance_promote_facilitator' => 'Nommer animateur',
     'governance_demote_facilitator' => 'Repasser animateur',
     'governance_demote_member' => 'Repasser membre',
+    'governance_actions_for' => 'Actions pour :name',
     'governance_remove' => 'Retirer de la Boucle',
     'governance_last_owner' => 'Dernier propriétaire actif — nommez un autre propriétaire avant de modifier son rôle ou de le retirer.',
     'governance_last_owner_short' => 'Dernier propriétaire actif',
