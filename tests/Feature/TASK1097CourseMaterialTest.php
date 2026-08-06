@@ -52,9 +52,34 @@ class TASK1097CourseMaterialTest extends TestCase
         $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
 
         $this->loops = new LoopService;
-        $this->loop = $this->loops->createLoop($this->owner, 'Formation test', type: 'training');
+        $this->loop = $this->trainingLoop('Formation test');
 
         app()->instance('current_organization', $this->org);
+    }
+
+    /**
+     * Une Boucle Formation.
+     *
+     * Le type n'est pas **offert** — la matrice lui prevoit trois Cards, cette
+     * tache en livre une — donc `createLoop()` ne l'accepte pas au formulaire.
+     * Le type est pose ensuite, et le preset applique : c'est exactement l'etat
+     * d'une Boucle Formation existante, celle que `TASK1079LoopTypeRegistryTest`
+     * protege en verifiant qu'elle garde son type indisponible.
+     */
+    private function trainingLoop(string $nom): Loop
+    {
+        $loop = $this->loops->createLoop($this->owner, $nom);
+
+        $loop->forceFill(['type' => 'training'])->save();
+
+        // Les Cards du type precedent sont retirees avant d'appliquer celui-ci :
+        // `applyPreset()` ajoute ce qui manque sans retirer ce qui reste, et la
+        // Boucle aurait sinon compose les deux presets a la fois — un etat qui
+        // aurait fait passer les assertions pour la mauvaise raison.
+        \App\Models\LoopCard::where('loop_id', $loop->id)->delete();
+        app(LoopTypeRegistry::class)->applyPreset($loop->fresh());
+
+        return $loop->fresh();
     }
 
     private function service(): CourseMaterialService
@@ -360,7 +385,7 @@ class TASK1097CourseMaterialTest extends TestCase
 
     public function test_a_module_of_another_loop_is_never_reachable(): void
     {
-        $autre = $this->loops->createLoop($this->owner, 'Autre formation', type: 'training');
+        $autre = $this->trainingLoop('Autre formation');
         $moduleVoisin = $this->service()->createModule($autre, $this->owner, 'Chez le voisin');
 
         // L'identifiant est reel et la personne a tous les droits dans sa

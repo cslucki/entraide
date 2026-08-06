@@ -163,11 +163,21 @@ return [
             'icon' => 'academic',
             'order' => 30,
             /*
-             * Offert desormais : le type embarque sa propre Card, le Support de
-             * cours. Il ne promet plus, il livre — c'etait la condition posee
-             * ici meme quand il etait retenu.
+             * Toujours pas offert, et c'est volontaire.
+             *
+             * Le type embarque desormais **une** Card qui lui est propre, le
+             * Support de cours (TASK-1097). Mais la matrice canonique lui en
+             * prevoit trois : Support de cours, Progression, et Travaux a
+             * rendre ou QCM. Ouvrir le type maintenant reviendrait a proposer
+             * une Formation a laquelle il manque les deux tiers de ce qui la
+             * distingue.
+             *
+             * La condition posee ici — livrer plutot que promettre — n'est donc
+             * qu'au tiers remplie. L'ouverture est une decision de produit a
+             * part entiere, a prendre quand les trois Cards existent, et non un
+             * effet de bord de la premiere.
              */
-            'available' => true,
+            'available' => false,
             /*
              * Progression, Travaux a rendre et QCM restent absents : ce sont
              * d'autres Cards de la matrice, et les lister avant de les livrer
