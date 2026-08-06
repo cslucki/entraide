@@ -464,6 +464,15 @@ class LoopEventsCard extends Component
     {
         try {
             app(LoopMessageService::class)->sendEventMessage($this->loop, $this->user(), $event, $kind);
+
+            // Apres l'envoi, et dans le try : un message qui n'est pas parti ne
+            // doit pas faire rafraichir un fil ou il n'y a rien de neuf.
+            //
+            // Meme nom d'evenement que la Card Sondage. ChatLoop rattrapait deja
+            // ces messages au battement suivant de son `wire:poll.3s` ; ceci
+            // supprime l'attente, sans remplacer le sondage periodique, qui sert
+            // les messages des autres.
+            $this->dispatch('loop-activity-published', loopId: $this->loop->id);
         } catch (\Throwable $e) {
             report($e);
         }
