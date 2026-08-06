@@ -428,12 +428,18 @@ class LoopPollsCard extends Component
      *
      * Le message est un accessoire : s'il echoue, le Sondage reste. On le laisse
      * donc hors de la transaction du service, et on avale l'erreur.
+     *
+     * L'evenement part **apres** l'envoi et **dans** le try : un message qui
+     * n'est pas parti ne doit pas faire rafraichir un fil ou il n'y a rien de
+     * neuf.
      */
     private function announceCreation(LoopPoll $poll): void
     {
         try {
             app(\App\Services\LoopMessageService::class)
                 ->sendPollEventMessage($this->loop, $this->user(), $poll, 'created');
+
+            $this->announcePublished();
         } catch (\Throwable) {
             // Silencieux : l'utilisateur a pose sa question, c'est l'essentiel.
         }
@@ -444,7 +450,26 @@ class LoopPollsCard extends Component
         try {
             app(\App\Services\LoopMessageService::class)
                 ->sendPollEventMessage($this->loop, $this->user(), $poll, 'closed');
+
+            $this->announcePublished();
         } catch (\Throwable) {
         }
+    }
+
+    /**
+     * Dire au fil voisin qu'il a quelque chose de neuf a montrer.
+     *
+     * ChatLoop rattrapait deja ces messages, mais au battement suivant de son
+     * `wire:poll.3s` : jusqu'a trois secondes pendant lesquelles on croit que
+     * son geste n'a rien fait. L'evenement supprime l'attente, il ne remplace
+     * pas le sondage periodique — celui-ci sert les messages des autres, que
+     * rien ici ne peut annoncer.
+     *
+     * Un seul nom, transverse : Decisions, Engagements ou Formation s'en
+     * serviront tels quels, sans qu'aucun bus generique soit necessaire.
+     */
+    private function announcePublished(): void
+    {
+        $this->dispatch('loop-activity-published', loopId: $this->loop->id);
     }
 }

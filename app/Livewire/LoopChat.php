@@ -14,6 +14,7 @@ use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\On;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
@@ -416,6 +417,30 @@ class LoopChat extends Component
         Storage::disk('public')->put($relativePath, (string) $img->encode(new WebpEncoder(quality: 80)));
 
         return $relativePath;
+    }
+
+    /**
+     * Une Card voisine vient de publier une activite dans ce fil.
+     *
+     * La methode ne fait **rien** : le seul fait d'avoir ete appelee provoque un
+     * nouveau rendu, et `render()` appelle deja `syncNewerMessages()`, qui
+     * ramene ce qui est plus recent et dedoublonne par identifiant. Y ajouter
+     * une requete reviendrait a ecrire deux fois la meme regle.
+     *
+     * ChatLoop rattrapait deja ces messages au battement suivant de son
+     * `wire:poll.3s`. Ce que l'evenement supprime, c'est l'attente — pas une
+     * absence. Le sondage periodique reste : il sert les messages des autres
+     * personnes, qu'aucune Card locale ne peut annoncer.
+     *
+     * L'identifiant de Boucle est verifie : plusieurs Boucles peuvent vivre
+     * dans un meme onglet, et un fil ne se rafraichit que pour la sienne.
+     */
+    #[On('loop-activity-published')]
+    public function onLoopActivityPublished(?string $loopId = null): void
+    {
+        if ($loopId !== null && $loopId !== $this->loop->id) {
+            $this->skipRender();
+        }
     }
 
     public function render()
