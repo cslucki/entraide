@@ -53,14 +53,26 @@ outils ne dit plus rien : elle donne une boîte à outils au lieu d'une intentio
 partout ; les nommer dans la grille reviendrait à répéter la même chose sept fois
 et à noyer les trois qui comptent.
 
-### Une correspondance à établir
+**Manifeste et Membres restent techniquement déclarés dans le registre actuel**,
+avec leurs permissions et `core.members` toujours requise. Seule leur présentation
+change, et **aucune modification du workspace n'est faite par cette tâche**.
 
-Le code porte aujourd'hui la clé `general`, libellée **« Dialogue »**. La matrice
-l'appelle **« Communauté »**. Il s'agit très probablement du même preset sous deux
-noms. Ce n'est pas une décision de cette spécification — mais la tâche qui
-touchera aux presets devra trancher le libellé plutôt que créer une seconde clé.
-`peer_support` (« Pair-Aidance ») et `coaching` existent déjà ; `Réseautage` et
-`Rédaction` n'ont aujourd'hui aucune clé.
+### Le libellé « Communauté » — décision arrêtée
+
+Le code porte la clé `general`, libellée aujourd'hui **« Dialogue »**.
+
+**La clé technique `general` est conservée. Le libellé utilisateur cible devient
+« Communauté ».** Aucune clé `community` ne doit être créée : ce serait un second
+preset là où il n'y en a qu'un, et il faudrait ensuite migrer les Boucles
+existantes pour rien.
+
+Le changement de libellé touche `lang/fr/loops.php` et `lang/en/loops.php` : c'est
+du code, donc **hors de cette tâche documentaire**. Il sera fait par la tâche
+d'interface ou de presets.
+
+`peer_support` (« Pair-Aidance ») et `coaching` existent déjà. **`Réseautage` et
+`Rédaction` n'ont aujourd'hui aucune clé** — leur création relèvera de la tâche
+qui traitera ces presets, pas de celle-ci.
 
 ---
 
@@ -154,14 +166,14 @@ Formation ne doit pas être l'occasion de la briser :** aucun `if ($loop->type =
 ### Stagiaire — membre de la Boucle
 
 Consulte le Programme et les contenus qui lui sont ouverts. Marque une séquence
-terminée. Remet un Travail. Répond à une Évaluation. Voit sa progression et sa
+terminée. Remet un Travail. Répond à un QCM. Voit sa progression et sa
 prochaine étape. Reçoit une demande de reprise.
 
 Il ne voit **jamais** la progression nominative des autres.
 
 ### Formateur — animateur de la Boucle
 
-Construit le parcours, publie les contenus, crée Travaux et Évaluations, voit la
+Construit le parcours, publie les contenus, crée Travaux et QCM, voit la
 progression de chacun, valide ou refuse, débloque manuellement, commente une
 remise, archive un contenu.
 
@@ -196,7 +208,7 @@ Autorité plateforme. **Aucun rôle pédagogique automatique.**
 | Publier un contenu | non | oui | oui | non | non |
 | Marquer **sa** séquence terminée | oui | oui | oui | — | — |
 | Remettre un Travail | oui | oui | oui | — | — |
-| Répondre à une Évaluation | oui | oui | oui | — | — |
+| Répondre à un QCM | oui | oui | oui | — | — |
 | Voir **sa** progression | oui | oui | oui | — | — |
 | Voir la progression de **tous** | non | oui | oui | non | non |
 | Valider une étape | non | oui | oui | non | non |
@@ -237,19 +249,47 @@ d'outils illisible dès la troisième semaine.
 
 ### Travail — ce qu'on rend
 
-Énoncé, consignes, date limite facultative, pièce jointe d'énoncé. Côté
+Énoncé, consignes, **date limite facultative**, pièce jointe d'énoncé. Côté
 stagiaire : réponse texte, fichier ou image, état de remise, retour du formateur,
 validation, demande de reprise.
 
-### Évaluation — ce qui se corrige tout seul
+**Le Travail est le seul objet à porter une date limite** dans le MVP. Ni Module
+ni Séquence n'en ont : une échéance générale appellerait rappels, retards et
+pénalités, un chantier sans demande. Les séances, ateliers et rendez-vous
+pédagogiques passent par la **Card Événements**, déjà livrée — avec ses formats,
+ses fuseaux et sa présence.
+
+### QCM — ce qui se corrige tout seul
 
 MVP : choix unique, choix multiple, vrai/faux. Score, seuil de réussite, nombre
 de tentatives, correction automatique, validation manuelle facultative.
 
-**Une Évaluation n'est pas un Sondage** et ne doit pas partager son modèle. Un
-Sondage n'a pas de bonne réponse, pas de score, pas de tentative, et il est
-nominatif par construction. Ce qui se réutilise est la *forme* — une question, des
-options, une réponse par personne — pas les tables.
+**Un QCM est informatif ou bloquant, au choix du formateur, QCM par QCM.**
+Informatif, il situe ; bloquant, il conditionne le passage — l'échec ferme la
+suite, la réussite satisfait la condition. Dans les deux cas le formateur peut
+valider ou débloquer à la main, et **l'IA ne débloque jamais**.
+
+**Un QCM n'est pas un Sondage** et ne doit pas partager son modèle. Un Sondage n'a
+pas de bonne réponse, pas de score, pas de tentative, et il est nominatif par
+construction. Ce qui se réutilise est la *forme* — une question, des options, une
+réponse par personne — pas les tables.
+
+### Ce que le stagiaire voit après une tentative
+
+**Immédiatement, toujours :** son score, et s'il a réussi ou échoué.
+
+**Le détail des bonnes réponses est réglé par le formateur**, par QCM, parmi
+trois options :
+
+| Réglage | Quand le détail apparaît |
+|---|---|
+| Immédiat | dès la première tentative |
+| Après la dernière tentative | quand il n'en reste plus |
+| Après clôture ou validation | quand le formateur l'ouvre |
+
+Trois valeurs, pas un moteur. Le score immédiat est ce que tout le monde attend ;
+le détail immédiat rendrait les tentatives multiples sans objet et circulerait
+d'un stagiaire à l'autre.
 
 ### Ressource — ce qu'on consulte
 
@@ -306,15 +346,37 @@ a beaucoup bougé. **Proposer.** Le formateur décide, toujours.
 Les règles imaginables sont nombreuses. Un moteur générique serait la faute à ne
 pas commettre : il coûte cher, se teste mal, et personne n'en utilise le dixième.
 
-**Retenu pour le MVP, quatre règles :**
+### Le parcours est séquentiel par défaut
 
-1. **Disponible d'emblée** — le défaut.
-2. **Après l'étape précédente** — l'ordre séquentiel, facultatif par module.
-3. **Après réussite d'une Évaluation** — le verrou pédagogique.
+**Décision arrêtée.** Un Module reste fermé tant que les conditions du précédent
+ne sont pas satisfaites :
+
+> Module 1 → réussite ou validation humaine → Module 2
+
+Une Formation peut être configurée en **parcours libre** — tout ouvert d'emblée —
+mais ce n'est pas le défaut.
+
+*Ce que cela change par rapport à ma recommandation initiale.* J'avais proposé
+l'inverse, par crainte de frustrer. La décision retenue est celle d'une formation
+qui **conduit** quelqu'un quelque part plutôt que de l'abandonner devant une
+bibliothèque : c'est ce qui distingue un parcours d'un dossier de documents, et
+c'est cohérent avec le troisième emplacement obligatoire — on rend quelque chose,
+donc il y a un avant et un après.
+
+La contrepartie est traitée en §12 : **tout reste visible**, seul le contenu
+détaillé est fermé. Une étape verrouillée qu'on voit venir n'est pas un mur, c'est
+un plan.
+
+### Les quatre règles du MVP
+
+1. **Après l'étape précédente** — **le défaut**, activé pour toute Formation
+   nouvelle.
+2. **Disponible d'emblée** — le mode parcours libre, choisi explicitement.
+3. **Après réussite d'un QCM** — le verrou pédagogique, configurable par QCM.
 4. **Déblocage manuel du formateur** — qui prime toujours.
 
-**Reporté :** disponibilité à une date, après validation manuelle systématique,
-combinaisons booléennes, prérequis croisés entre modules.
+**Reporté :** disponibilité à une date sur un Module ou une Séquence, validation
+manuelle systématique, combinaisons booléennes, prérequis croisés entre modules.
 
 ### Priorité quand plusieurs règles s'appliquent
 
@@ -325,6 +387,9 @@ Sinon : une étape est disponible quand **toutes** ses conditions sont remplies.
 Le « et » plutôt que le « ou » — plus prévisible à expliquer, et l'erreur qu'il
 produit (une étape fermée à tort) se corrige d'un clic, alors que l'inverse
 (ouverte à tort) ne se rattrape pas.
+
+**L'IA ne débloque jamais.** Elle pourra suggérer, pré-évaluer, résumer. La
+décision d'ouvrir une étape à quelqu'un appartient au formateur, sans exception.
 
 ---
 
@@ -359,7 +424,7 @@ Une séquence déclare si elle exige une validation. Sans cela, `completed` term
 |---|---|
 | `available` → `in_progress` | première ouverture de la séquence |
 | `in_progress` → `completed` | le stagiaire clique « J'ai terminé » |
-| `in_progress` → `submitted` | remise d'un Travail, ou tentative d'Évaluation |
+| `in_progress` → `submitted` | remise d'un Travail, ou tentative de QCM |
 | `submitted` → `validated` | le formateur approuve |
 | `submitted` → `redo` | le formateur demande une reprise |
 | `redo` → `in_progress` | le stagiaire reprend |
@@ -480,8 +545,21 @@ Elle montre : un pourcentage indicatif, les modules terminés, le module en cour
 la prochaine séquence, les travaux à rendre, les QCM disponibles, ce qui est
 bloqué **et pourquoi**, et un bouton d'action principal.
 
-**« Et pourquoi » n'est pas décoratif.** Une étape grisée sans explication est
-une impasse ; « disponible après le module 2 » est une consigne.
+### Tout le parcours reste visible
+
+**Décision arrêtée.** Le stagiaire voit **tous** les Modules, **toutes** les
+Séquences principales, leur état, ce qui est disponible, ce qui est bloqué, **la
+raison du blocage** et **la condition d'ouverture**.
+
+Ce qu'il ne voit pas : le **contenu détaillé** d'une Séquence bloquée. La
+structure se comprend ; les règles d'accès ne se contournent pas.
+
+**C'est ce qui rend le parcours séquentiel supportable.** Un verrou qu'on voit
+venir, avec sa condition écrite, est un plan. Un verrou sans explication est une
+impasse — et une étape simplement absente n'est rien du tout.
+
+« Disponible après avoir réussi le QCM du module 2 » est une consigne. C'est ce
+que la Card doit écrire, pas « indisponible ».
 
 ---
 
@@ -527,7 +605,7 @@ monde — un stagiaire en difficulté n'a pas à l'être en public.
 ## 15. Sondages et Événements
 
 **Sondage** — recueillir un avis, choisir un horaire, vérifier une compréhension
-informelle. Il ne devient pas une Évaluation : pas de bonne réponse, pas de score,
+informelle. Il ne devient pas un QCM : pas de bonne réponse, pas de score,
 pas de tentative, et il est nominatif.
 
 **Événement** — classe en ligne, atelier, séance physique, permanence,
@@ -580,9 +658,9 @@ Conceptuel. **Aucune migration n'accompagne ce document.**
 | `TrainingProgress` | l'état d'une personne sur une séquence | oui | oui | **T2** |
 | `TrainingAssignment` | l'énoncé d'un Travail | via séquence | — | **T3** |
 | `TrainingSubmission` | ce qu'une personne a rendu | oui | — | **T3** |
-| `TrainingAssessment` | une Évaluation | via séquence | — | **T3** |
-| `TrainingQuestion` | une question et ses options | via évaluation | — | **T3** |
-| `TrainingAttempt` | une tentative | oui | — | **T3** |
+| `TrainingAssessment` | un QCM | via séquence | — | **T4** |
+| `TrainingQuestion` | une question et ses options | via QCM | — | **T4** |
+| `TrainingAttempt` | une tentative | oui | — | **T4** |
 | ~~`TrainingResource`~~ | **abandonné** — le Dossier racine range déjà | — | — | non |
 
 ### Ce qui n'existera pas
@@ -660,10 +738,45 @@ différentes, *quand* chacun ouvre « Progression », *alors* chacun voit son
 propre état et **jamais** celui de l'autre.
 
 **Terminer.** *Quand* un stagiaire clique « J'ai terminé », *alors* son état passe
-`completed` et la séquence suivante devient disponible si la règle 2 s'applique.
+`completed` et la séquence suivante devient disponible.
+
+**Séquentiel par défaut.** *Étant donné* une Formation nouvellement créée sans
+réglage particulier, *quand* un stagiaire ouvre le parcours, *alors* seul le
+premier module est accessible et les suivants sont fermés.
+
+**Parcours libre.** *Étant donné* une Formation configurée en parcours libre,
+*quand* un stagiaire l'ouvre, *alors* tout est accessible d'emblée.
+
+**Voir sans pouvoir entrer.** *Étant donné* un module fermé, *quand* un stagiaire
+regarde le parcours, *alors* il voit son titre, son état, la raison du blocage et
+la condition d'ouverture — **et pas** son contenu détaillé, y compris par une
+route directe.
+
+**Un QCM bloquant.** *Étant donné* un QCM configuré comme condition de passage,
+*quand* un stagiaire échoue, *alors* la suite reste fermée ; *quand* il réussit,
+*alors* la condition est satisfaite.
+
+**Un QCM informatif.** *Étant donné* un QCM configuré comme informatif, *quand*
+un stagiaire échoue, *alors* la suite reste ouverte.
+
+**Le score, tout de suite.** *Quand* un stagiaire termine une tentative, *alors*
+il voit son score et sa réussite ou son échec, quel que soit le réglage de
+correction.
+
+**Le détail, selon le réglage.** *Étant donné* un QCM réglé sur « après la
+dernière tentative », *quand* il reste des tentatives, *alors* le détail des
+bonnes réponses n'est pas montré.
+
+**Une date limite sur un Travail.** *Étant donné* un Travail avec échéance,
+*quand* elle est dépassée, *alors* la remise est **signalée en retard sans être
+refusée**.
+
+> Point mineur à confirmer au moment de la tranche 3 : une échéance qui ferme la
+> remise appellerait une procédure de dérogation. Signaler suffit, et laisse au
+> formateur le dernier mot — ce qui est la ligne de toute cette spécification.
 
 **Débloquer.** *Quand* un formateur débloque manuellement, *alors* l'étape s'ouvre
-**même si** une règle automatique la fermait.
+**même si** une règle automatique la fermait — y compris un QCM échoué.
 
 **Reprendre.** *Quand* un formateur demande une reprise, *alors* l'état passe
 `redo`, l'historique est conservé, et le stagiaire peut re-remettre.
@@ -691,80 +804,77 @@ conservées, les routes directes refusées, et la réactivation retrouve tout.
 
 ---
 
-## 20. Ce que je recommande, et ce que je vous demande
+## 20. Les six décisions produit — arrêtées
 
-Six décisions changent le produit. Pour chacune : ma recommandation, et pourquoi.
+Validées par Cyril le 2026-08-06. Elles ne sont plus ouvertes ; elles sont ici
+avec leur raison, pour que les tâches d'implémentation n'aient pas à les
+redécouvrir.
 
-**Aucune ne remet en cause la matrice des Cards.** Elles portent sur le
-comportement du parcours — ce qui s'ouvre quand, ce qui se voit, ce qui bloque —
-pas sur la composition du preset, qui est arrêtée. Elles doivent être tranchées
-avant la première tâche d'implémentation, faute de quoi celle-ci construirait sur
-des hypothèses.
+### D1 — Une Formation est une session
 
-### Q1 — Une Formation est-elle une session ou un modèle réutilisable ?
+Une Boucle Formation représente une **session réelle** : ses stagiaires, son
+formateur, ses dates éventuelles, sa progression, ses Travaux, ses QCM.
 
-**Recommandation : une session.** Une Boucle Formation est un groupe qui suit un
-parcours à un moment donné. Refaire la formation l'an prochain, c'est une nouvelle
-Boucle.
+**Le modèle réutilisable, c'est le type `training` et son preset.** Refaire la
+formation l'an prochain, c'est une nouvelle Boucle créée depuis le même preset.
+Aucune notion de « modèle de formation » distincte dans le MVP.
 
-*Pourquoi.* Un modèle réutilisable implique duplication, versions, et
-désynchronisation entre le modèle et ses instances. C'est un chantier entier. Et
-dupliquer une Boucle est un besoin générique qui servirait aussi ailleurs — à
-traiter comme tel, plus tard.
+*Ce que cela évite :* duplication, versions, et désynchronisation entre un modèle
+et ses instances — un chantier entier pour un besoin que le preset couvre déjà.
 
-**Ce que je vous demande :** confirmez qu'une Formation = un groupe, une session.
+### D2 — Le parcours est séquentiel par défaut
 
-### Q2 — Les modules sont-ils séquentiels par défaut ?
+Les Modules s'enchaînent : le suivant reste fermé tant que les conditions du
+précédent ne sont pas satisfaites.
 
-**Recommandation : non.** Tout est ouvert d'emblée ; le formateur active l'ordre
-séquentiel s'il le veut, par module.
+> Module 1 → réussite ou validation humaine → Module 2
 
-*Pourquoi.* Un parcours verrouillé par défaut surprend et frustre — beaucoup de
-formations d'adultes s'explorent librement. L'inverse ne surprend personne.
+Le formateur peut débloquer manuellement. Une Formation peut être configurée en
+**parcours libre**. Aucune logique directe sur `$loop->type`.
 
-**Ce que je vous demande :** ouvert par défaut, ou verrouillé par défaut ?
+*Cette décision renverse ma recommandation initiale*, qui proposait l'ouverture
+par défaut. Elle est la bonne : une formation **conduit** quelqu'un quelque part,
+et c'est ce qui la distingue d'une bibliothèque. La frustration que je redoutais
+est traitée par D3 — on voit le chemin, même fermé.
 
-### Q3 — Un stagiaire voit-il la structure entière, ou seulement ce qui lui est ouvert ?
+### D3 — Toute la structure reste visible
 
-**Recommandation : il voit toute la structure, avec les étapes fermées marquées et
-leur raison.**
+Le stagiaire voit tous les Modules, toutes les Séquences principales, leur état,
+ce qui est ouvert, ce qui est bloqué, **la raison** et **la condition
+d'ouverture**.
 
-*Pourquoi.* Savoir où l'on va fait partie de l'apprentissage. Masquer la suite
-donne l'impression d'un couloir. Et « disponible après le module 2 » est une
-consigne, là où une étape absente n'est rien.
+Il ne voit pas le **contenu détaillé** d'une Séquence bloquée.
 
-**Ce que je vous demande :** structure entière visible, ou révélation
-progressive ?
+*L'objectif :* comprendre le parcours sans pouvoir contourner les règles d'accès.
 
-### Q4 — Faut-il des dates limites au premier MVP ?
+### D4 — Les dates limites ne concernent que les Travaux
 
-**Recommandation : non, sauf sur les Travaux.**
+Un Travail peut porter une échéance. Ni Module ni Séquence n'en portent dans le
+MVP.
 
-*Pourquoi.* Une date limite sur un Travail est attendue par tout le monde. Sur un
-module, elle appelle rappels, retards, pénalités — un chantier qui n'a pas encore
-de demande.
+Les séances, ateliers et rendez-vous pédagogiques passent par la **Card
+Événements**, déjà livrée.
 
-**Ce que je vous demande :** confirmez de reporter les dates de module.
+*Ce que cela évite :* rappels, retards, pénalités — une mécanique entière que
+personne n'a demandée.
 
-### Q5 — Un QCM raté bloque-t-il automatiquement la suite ?
+### D5 — Un QCM est informatif ou bloquant, au choix
 
-**Recommandation : non par défaut ; le formateur l'active par QCM.**
+Configuré **QCM par QCM**. Bloquant, l'échec ferme la suite et la réussite
+satisfait la condition. Le formateur peut toujours valider ou débloquer à la
+main.
 
-*Pourquoi.* Bloquer par défaut transforme chaque QCM en examen. Beaucoup servent
-à s'auto-situer, pas à filtrer. Mais quand un prérequis est réel, le verrou doit
-exister.
+**L'IA ne débloque jamais.** Elle suggère, pré-évalue, résume. La validation
+humaine reste prioritaire, sans exception.
 
-**Ce que je vous demande :** confirmez le blocage optionnel, décidé par QCM.
+### D6 — Score immédiat, correction réglable
 
-### Q6 — Le stagiaire voit-il la correction détaillée immédiatement ?
+Après une tentative, le stagiaire voit **toujours** son score et sa réussite ou
+son échec.
 
-**Recommandation : le score tout de suite, le détail selon un réglage du
-formateur** — immédiat, après la dernière tentative, ou jamais.
-
-*Pourquoi.* Le score immédiat est ce qu'on attend. Le détail immédiat rend les
-tentatives multiples sans objet, et circule d'un stagiaire à l'autre.
-
-**Ce que je vous demande :** confirmez score immédiat + détail réglable.
+Le détail des bonnes réponses suit un réglage du formateur : immédiat, après la
+dernière tentative, ou après clôture/validation. **Trois valeurs, pas un
+moteur.**
 
 ---
 
