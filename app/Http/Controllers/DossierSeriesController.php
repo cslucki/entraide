@@ -144,6 +144,17 @@ class DossierSeriesController extends Controller
                     'added_by' => auth()->id(),
                 ]);
             }
+
+            // Renumeroter comme le fait un retrait. L'ordre etait deja juste —
+            // `orderBy('position')` ne demande pas la continuite — mais la
+            // promotion laissait des trous (0, 3, 4, 5) parce qu'elle
+            // incremente tout puis libere un rang. Deux mecaniques de
+            // numerotation differentes dans le meme objet finissent par se
+            // contredire.
+            ArticleSeriesItem::where('article_series_id', $series->id)
+                ->orderBy('position')
+                ->get()
+                ->each(fn ($row, $i) => $row->forceFill(['position' => $i])->save());
         });
 
         return response()->json([

@@ -894,4 +894,32 @@ class DossierSeriesTest extends TestCase
 
         return [$dossier, $series, $root, $annex];
     }
+
+    public function test_positions_stay_contiguous_after_a_promotion(): void
+    {
+        // La promotion incremente tout puis libere un rang : sans
+        // renumerotation elle laissait des trous (0, 3, 4, 5). L'ordre etait
+        // juste, mais deux mecaniques de numerotation dans le meme objet
+        // finissent par se contredire.
+        [$dossier, $series, $root, $a] = $this->seriesWithAnnex();
+
+        foreach (['B', 'C'] as $n) {
+            $p = $this->blogPost($this->orgA, $this->ownerA, "Annexe {$n}");
+            $this->attach($dossier, $p, $this->ownerA, 9);
+            $this->actingAs($this->ownerA)->postJson(
+                $this->orgRoute('dossiers.series.annexes.store', $dossier), ['blog_post_id' => $p->id]
+            )->assertOk();
+        }
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $a->id,
+            ])
+            ->assertOk();
+
+        $positions = ArticleSeriesItem::where('article_series_id', $series->id)
+            ->orderBy('position')->pluck('position')->all();
+
+        $this->assertSame(range(0, count($positions) - 1), $positions);
+    }
 }
