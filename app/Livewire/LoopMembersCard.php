@@ -33,23 +33,38 @@ use Livewire\Component;
  */
 class LoopMembersCard extends Component
 {
-    public const TAB_MEMBERS = 'members';
+    /** Les segments du trombinoscope. Pas de « proprietaires » : il n'y en a
+     *  qu'un, un filtre pour un seul nom n'est pas un filtre. */
+    public const SEGMENT_ALL = 'all';
 
-    public const TAB_INVITATIONS = 'invitations';
+    public const SEGMENT_MEMBERS = 'members';
+
+    public const SEGMENT_FACILITATORS = 'facilitators';
 
     public Loop $loop;
 
-    public string $tab = self::TAB_MEMBERS;
+    public string $segment = self::SEGMENT_ALL;
 
     /**
-     * Tout d'un coup, sans onglets.
+     * Tout deplie, sans les fenetres.
      *
-     * Les onglets servent le panneau lateral du workspace, ou la place manque.
+     * Les fenetres servent le panneau lateral du workspace, ou la place manque.
      * L'ecran qui suit la creation d'une Boucle est une page entiere dont le
-     * sujet est justement « qui va la rejoindre » : y cacher les invitations
-     * derriere un onglet ferait perdre ce qu'on vient d'y faire.
+     * sujet est justement « qui va la rejoindre » : l'ajout et les invitations
+     * y sont poses a plat.
      */
     public bool $flat = false;
+
+    /**
+     * Les fenetres.
+     *
+     * Leur etat est tenu par le serveur et non par Alpine : c'est ce qui garantit
+     * qu'a chaque ouverture comme a chaque fermeture le composant se re-rende, et
+     * donc que la liste montre l'etat reel plutot qu'un souvenir.
+     */
+    public bool $showAddModal = false;
+
+    public bool $showInvitationsModal = false;
 
     /** Le champ unique : un nom a filtrer, ou une adresse a inviter. */
     public string $search = '';
@@ -58,12 +73,9 @@ class LoopMembersCard extends Component
     public array $selected = [];
 
     /**
-     * L'ajout est le geste courant : il est ouvert d'entree et pose en premier.
-     * L'invitation par courriel, plus rare et plus lente, attend qu'on la
-     * demande.
+     * Dans la fenetre d'ajout, le formulaire d'invitation ne se montre que
+     * lorsqu'on en a besoin : l'adresse tapee ne designe personne d'ici.
      */
-    public bool $openPicker = true;
-
     public bool $openEmail = false;
 
     public string $inviteEmail = '';
@@ -123,16 +135,52 @@ class LoopMembersCard extends Component
 
     // ── Navigation ──────────────────────────────────────────────────────────
 
-    public function selectTab(string $tab): void
+    public function selectSegment(string $segment): void
     {
-        $this->tab = $tab === self::TAB_INVITATIONS ? self::TAB_INVITATIONS : self::TAB_MEMBERS;
-        $this->clearMessages();
+        $this->segment = in_array($segment, [self::SEGMENT_MEMBERS, self::SEGMENT_FACILITATORS], true)
+            ? $segment
+            : self::SEGMENT_ALL;
     }
 
-    public function togglePicker(): void
+    public function openAdd(): void
     {
-        $this->openPicker = ! $this->openPicker;
+        $this->clearMessages();
+        $this->resetAddForm();
+        $this->showAddModal = true;
+    }
+
+    /**
+     * Fermer, c'est revenir a une liste juste.
+     *
+     * Le passage par le serveur est le point : la fenetre se referme et le
+     * trombinoscope est re-rendu dans la meme reponse. Une fermeture purement
+     * cote navigateur laisserait a l'ecran la liste d'avant l'ajout.
+     */
+    public function closeAdd(): void
+    {
+        $this->showAddModal = false;
+        $this->resetAddForm();
+    }
+
+    public function openInvitations(): void
+    {
+        $this->clearMessages();
+        $this->showInvitationsModal = true;
+    }
+
+    public function closeInvitations(): void
+    {
+        $this->showInvitationsModal = false;
+    }
+
+    private function resetAddForm(): void
+    {
+        $this->search = '';
         $this->selected = [];
+        $this->openEmail = false;
+        $this->inviteEmail = '';
+        $this->inviteName = '';
+        $this->resetValidation();
     }
 
     /**
@@ -145,11 +193,6 @@ class LoopMembersCard extends Component
     public function updatedSearch(): void
     {
         $this->selected = [];
-    }
-
-    public function toggleEmail(): void
-    {
-        $this->openEmail = ! $this->openEmail;
     }
 
     /**
@@ -196,10 +239,19 @@ class LoopMembersCard extends Component
         if ($result['added'] === 0) {
             $this->justAdded = [];
             $this->errorMessage = __('loops.members_add_none');
+            $this->selected = [];
+            $this->search = '';
+
+            return;
         }
 
-        $this->selected = [];
-        $this->search = '';
+        // Le geste est fait : on rend la main a la liste, ou les arrivants sont
+        // deja la et signales. Rester dans la fenetre obligerait a la fermer
+        // pour constater le resultat.
+        $justAdded = $this->justAdded;
+        $this->showAddModal = false;
+        $this->resetAddForm();
+        $this->justAdded = $justAdded;
 
         $this->dispatch('loop-members-changed');
     }
@@ -226,11 +278,12 @@ class LoopMembersCard extends Component
 
         $mailer->send($invitation);
 
+        // L'invitation partie, la fenetre n'a plus de raison d'etre ouverte :
+        // ce qui vient d'etre fait se lit sur la Card, pas dans un formulaire
+        // vide.
         $this->noticeMessage = __('loops.invitation_sent', ['email' => $invitation->recipient_email]);
-        $this->inviteEmail = '';
-        $this->inviteName = '';
-        $this->openEmail = false;
-        $this->tab = self::TAB_INVITATIONS;
+        $this->showAddModal = false;
+        $this->resetAddForm();
     }
 
     // ── Lectures ────────────────────────────────────────────────────────────
@@ -310,8 +363,24 @@ class LoopMembersCard extends Component
         $resolver = app(LoopPermissionResolver::class);
         $user = auth()->user();
 
+        $members = $this->members();
+        $roles = app(\App\Support\Loops\LoopRoleRegistry::class);
+
+        $counts = [
+            self::SEGMENT_MEMBERS => $members->filter(fn ($m) => $roles->canonical($m->role) === \App\Support\Loops\LoopRoleRegistry::MEMBER)->count(),
+            self::SEGMENT_FACILITATORS => $members->filter(fn ($m) => $roles->canonical($m->role) === \App\Support\Loops\LoopRoleRegistry::FACILITATOR)->count(),
+        ];
+
+        $shown = match ($this->segment) {
+            self::SEGMENT_MEMBERS => $members->filter(fn ($m) => $roles->canonical($m->role) === \App\Support\Loops\LoopRoleRegistry::MEMBER)->values(),
+            self::SEGMENT_FACILITATORS => $members->filter(fn ($m) => $roles->canonical($m->role) === \App\Support\Loops\LoopRoleRegistry::FACILITATOR)->values(),
+            default => $members,
+        };
+
         return view('livewire.loop-members-card', [
-            'members' => $this->members(),
+            'members' => $members,
+            'shownMembers' => $shown,
+            'segmentCounts' => $counts,
             'candidates' => $candidates,
             'invitations' => $this->invitations(),
             'joinRequests' => $this->joinRequests(),
