@@ -371,6 +371,11 @@ class OrgAdminController extends Controller
     public function configureLoop(Request $request, Organization $organization, Loop $loop): View
     {
         abort_if($loop->organization_id !== $organization->id, 404);
+        // Second verrou : le middleware du prefixe admin refuse deja quelqu'un
+        // d'une autre Organization. On ne s'en remet pas a lui seul — la
+        // strictesse tenant ne se deduit pas d'une couche qu'on ne controle pas
+        // depuis ici.
+        abort_if($request->user()?->organization_id !== $organization->id, 404);
 
         $configurator = app(LoopPresetConfigurator::class);
 

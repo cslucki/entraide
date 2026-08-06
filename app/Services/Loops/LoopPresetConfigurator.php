@@ -87,7 +87,7 @@ class LoopPresetConfigurator
         $rows = LoopCard::where('loop_id', $loop->id)->get()->keyBy('card_key');
         $preset = $this->types->cardsFor($loop->type);
 
-        $entry = function (string $key) use ($active, $rows, $preset): array {
+        $entry = function (string $key) use ($loop, $active, $rows, $preset): array {
             $row = $rows->get($key);
 
             return [
