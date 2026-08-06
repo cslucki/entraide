@@ -39,12 +39,16 @@ class LoopEvent extends Model
     public const STATUS_CANCELLED = 'cancelled';
 
     /**
-     * Les fuseaux proposes dans le formulaire.
+     * Les fuseaux offerts d'emblee dans le menu.
      *
-     * Une liste bornee et non les ~400 identifiants IANA : ce produit s'adresse
-     * a un public francophone, et un menu de quatre cents lignes n'aide
-     * personne. Le stockage accepte n'importe quel identifiant valide, donc
-     * elargir cette liste plus tard ne casse rien.
+     * Une liste courte et non les ~400 identifiants IANA : un menu de quatre
+     * cents lignes sans recherche n'aide personne. Elle ne prétend pas couvrir
+     * le monde — c'est timezoneOptions() qui s'en charge, en y ajoutant le
+     * fuseau detecte quand il n'y figure pas. Quelqu'un a Antananarivo trouve
+     * donc le sien, meme s'il n'est pas ecrit ici.
+     *
+     * Le stockage accepte n'importe quel identifiant IANA valide : allonger
+     * cette liste plus tard ne casse rien.
      */
     public const TIMEZONES = [
         'Europe/Paris',
@@ -54,19 +58,28 @@ class LoopEvent extends Model
         'America/Montreal',
         'America/New_York',
         'America/Chicago',
+        'America/Los_Angeles',
         'Africa/Dakar',
+        'Africa/Abidjan',
+        'Indian/Antananarivo',
         'Indian/Reunion',
         'UTC',
     ];
 
     /**
-     * Le fuseau propose par defaut.
+     * Le dernier recours, quand plus rien d'autre ne repond.
      *
-     * `config('app.timezone')` vaut `UTC` dans ce projet, ce qui serait un
-     * defaut absurde a montrer a quelqu'un qui organise une reunion a Paris. Le
-     * stockage reste en UTC ; c'est l'affichage qui est en cause.
+     * Ce n'est PAS le defaut du formulaire : celui-ci vient du navigateur, via
+     * resolveTimezone(). Cette constante n'est atteinte que si le navigateur ne
+     * dit rien et que la timezone applicative est un UTC generique — auquel cas
+     * il faut bien choisir quelque chose, et le pilote actuel est francophone.
+     *
+     * Ecrire ce nom en dur comme valeur initiale serait un choix francais dans
+     * un produit qui s'adresse a des Organizations de plusieurs continents :
+     * quelqu'un a Dallas ou a Antananarivo verrait ses horaires decales sans
+     * qu'on le lui dise.
      */
-    public const DEFAULT_TIMEZONE = 'Europe/Paris';
+    public const FALLBACK_TIMEZONE = 'Europe/Paris';
 
     protected $fillable = [
         'organization_id', 'loop_id', 'created_by',
@@ -149,5 +162,73 @@ class LoopEvent extends Model
     public function hasResponses(): bool
     {
         return $this->responses()->exists();
+    }
+
+    /**
+     * Le fuseau a proposer, dans l'ordre des sources qui savent quelque chose.
+     *
+     *   1. ce qui est deja dans le formulaire — un choix fait a la main, ou une
+     *      valeur restauree apres une erreur de validation, ne se remplace pas ;
+     *   2. ce que le navigateur declare — la seule source qui sache reellement
+     *      ou se trouve la personne, faute de preference enregistree ;
+     *   3. la timezone applicative, si elle dit autre chose qu'« UTC » ;
+     *   4. le dernier recours.
+     *
+     * Chaque candidat est verifie contre les identifiants IANA de PHP : le
+     * navigateur est une source, jamais une autorite.
+     */
+    public static function resolveTimezone(?string $current = null, ?string $detected = null): string
+    {
+        foreach ([$current, $detected, config('app.timezone')] as $candidate) {
+            if (! is_string($candidate)) {
+                continue;
+            }
+
+            $candidate = trim($candidate);
+
+            // Un UTC generique n'est pas un lieu : c'est l'absence de reponse.
+            if ($candidate === '' || strtoupper($candidate) === 'UTC' || strtoupper($candidate) === 'GMT') {
+                continue;
+            }
+
+            if (self::isValidTimezone($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return self::FALLBACK_TIMEZONE;
+    }
+
+    /**
+     * Un identifiant IANA reconnu par ce PHP, et rien d'autre.
+     *
+     * Refuse donc un decalage brut (`+02:00`), un sigle (`CEST`), une chaine
+     * inventee, et la chaine vide. La liste vient de PHP, jamais du client.
+     */
+    public static function isValidTimezone(?string $timezone): bool
+    {
+        return is_string($timezone)
+            && $timezone !== ''
+            && in_array($timezone, timezone_identifiers_list(), true);
+    }
+
+    /**
+     * Les fuseaux a offrir dans le menu.
+     *
+     * La liste bornee, plus celui qu'on s'apprete a montrer s'il n'y figure pas :
+     * sans cela, une personne a Antananarivo verrait son propre fuseau detecte
+     * puis absent du menu, donc impossible a retrouver apres l'avoir quitte.
+     *
+     * @return array<int, string>
+     */
+    public static function timezoneOptions(?string $selected = null): array
+    {
+        $options = self::TIMEZONES;
+
+        if (self::isValidTimezone($selected) && ! in_array($selected, $options, true)) {
+            array_unshift($options, $selected);
+        }
+
+        return $options;
     }
 }

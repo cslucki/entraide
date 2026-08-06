@@ -39,7 +39,7 @@ return [
     'starts_at' => 'Début',
     'ends_at' => 'Fin (facultatif)',
     'timezone' => 'Fuseau horaire',
-    'timezone_hint' => 'Les horaires sont enregistrés dans ce fuseau.',
+    'timezone_hint' => 'Détecté depuis votre appareil. Vérifiez-le si la rencontre a lieu dans une autre zone.',
     'location' => 'Lieu',
     'location_placeholder' => 'Adresse ou nom du lieu',
     'meeting_url' => 'Lien de connexion',

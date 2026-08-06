@@ -4,8 +4,29 @@
     Deux vues : liste par defaut — c'est elle qui repond a « qu'est-ce qui arrive
     bientot » — et un mois. Le detail des participants est replie : c'est le seul
     chargement couteux de cet ecran, et il ne se paie que si on le demande.
+
+    **Le fuseau du navigateur voyage avec l'ouverture du formulaire.** Ce produit
+    n'enregistre aucune preference de fuseau, ni par personne ni par
+    Organization, et `app.timezone` vaut `UTC` : le navigateur est donc la seule
+    source qui sache reellement ou se trouve quelqu'un. Sans lui, une personne a
+    Dallas se verrait proposer l'heure de Paris sans qu'on le lui dise.
+
+    La detection est passee au clic et non a `x-init` : celui-ci s'execute avant
+    que Livewire ait fini d'hydrater le composant, et l'appel partait dans le
+    vide — constate en recette. Au clic, le moment est celui ou la valeur sert,
+    sans course possible, et sans aller-retour supplementaire au chargement.
+
+    Le serveur revalide contre les identifiants IANA de PHP : le navigateur
+    propose, il ne decide pas.
 --}}
-<div class="space-y-3" data-events-root>
+<div class="space-y-3" data-events-root
+     x-data="{
+        /* Le fuseau declare par l'appareil, ou une chaine vide s'il se tait. */
+        detectedTimezone() {
+            try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; }
+            catch (e) { return ''; }
+        }
+     }">
 
     @if($readOnly)
         <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200">
@@ -34,7 +55,7 @@
         </div>
 
         @if($canCreate && ! $showForm)
-            <button type="button" wire:click="openCreateForm"
+            <button type="button" x-on:click="$wire.openCreateForm(detectedTimezone())"
                     class="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-700">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                 {{ __('events.create') }}
@@ -80,13 +101,15 @@
                 </div>
             </div>
 
-            {{-- Le fuseau est toujours visible : sans lui, « 19:00 » ne veut rien
-                 dire. Ce produit n'a pas de preference de fuseau par personne,
-                 c'est donc l'evenement qui la porte. --}}
+            {{-- Le fuseau est toujours visible : sans lui, « 19:00 » ne veut
+                 rien dire. --}}
             <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400" for="ev-tz">{{ __('events.timezone') }}</label>
+            {{-- `$timezoneOptions` porte toujours le fuseau affiche, meme absent
+                 de la liste courte : sinon quelqu'un a Antananarivo verrait le
+                 sien detecte puis introuvable apres l'avoir quitte. --}}
             <select id="ev-tz" wire:model="timezone"
                     class="mt-1 w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-sky-500 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
-                @foreach(\App\Models\LoopEvent::TIMEZONES as $tz)
+                @foreach($timezoneOptions as $tz)
                     <option value="{{ $tz }}">{{ $tz }}</option>
                 @endforeach
             </select>

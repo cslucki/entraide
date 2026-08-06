@@ -388,7 +388,10 @@ class LoopEventService
         $format = (string) ($data['format'] ?? LoopEvent::FORMAT_IN_PERSON);
         $this->assert(in_array($format, LoopEvent::FORMATS, true), 'events.error_format');
 
-        $timezone = (string) ($data['timezone'] ?? LoopEvent::DEFAULT_TIMEZONE);
+        // Le fuseau est requis : une chaine vide n'est pas un lieu, et un
+        // formulaire qui n'en envoie pas est un formulaire casse — pas une
+        // occasion de deviner.
+        $timezone = trim((string) ($data['timezone'] ?? ''));
         $this->assert($this->isValidTimezone($timezone), 'events.error_timezone');
 
         $startsAt = $this->toUtc($data['starts_at'] ?? null, $timezone);
@@ -450,9 +453,17 @@ class LoopEventService
         }
     }
 
+    /**
+     * Un identifiant IANA reconnu par ce PHP.
+     *
+     * Delegue au modele, qui porte la meme regle pour le formulaire : une seule
+     * definition de ce qu'est un fuseau valide. Le navigateur propose, PHP
+     * dispose — un decalage brut (`+02:00`), un sigle (`CST`) ou une chaine
+     * forgee sont refuses ici, pas plus loin.
+     */
     private function isValidTimezone(string $timezone): bool
     {
-        return in_array($timezone, timezone_identifiers_list(), true);
+        return LoopEvent::isValidTimezone($timezone);
     }
 
     /**

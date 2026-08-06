@@ -48,7 +48,20 @@ class LoopEventsCard extends Component
 
     public string $endsAt = '';
 
-    public string $timezone = LoopEvent::DEFAULT_TIMEZONE;
+    public string $timezone = '';
+
+    /**
+     * Le fuseau que le navigateur declare, pose une seule fois au montage.
+     *
+     * Faute de preference enregistree — ce produit n'en a ni sur `users` ni sur
+     * `organizations` — c'est la seule source qui sache reellement ou se trouve
+     * la personne. Elle reste une source et jamais une autorite : le serveur la
+     * verifie contre les identifiants IANA de PHP avant de s'en servir.
+     *
+     * Renseigne par Alpine au premier rendu, puis plus jamais : redetecter a
+     * chaque rendu Livewire ecraserait un choix fait a la main.
+     */
+    public string $browserTimezone = '';
 
     public string $location = '';
 
@@ -79,12 +92,36 @@ class LoopEventsCard extends Component
     public function mount(Loop $loop): void
     {
         $this->loop = $loop;
-        $this->month = CarbonImmutable::now(LoopEvent::DEFAULT_TIMEZONE)->format('Y-m');
+        // Le mois affiche par defaut : celui d'ici, pas celui d'un fuseau
+        // choisi d'avance.
+        $this->month = CarbonImmutable::now($this->preferredTimezone())->format('Y-m');
     }
 
     private function service(): LoopEventService
     {
         return app(LoopEventService::class);
+    }
+
+    /**
+     * Le fuseau a proposer maintenant : celui du navigateur s'il a parle, sinon
+     * ce que le serveur sait faire de mieux.
+     */
+    private function preferredTimezone(): string
+    {
+        return LoopEvent::resolveTimezone(null, $this->browserTimezone);
+    }
+
+    /**
+     * Retenir ce que le navigateur declare, la premiere fois seulement.
+     *
+     * Ne touche jamais a `$this->timezone` : la detection alimente les
+     * formulaires ouverts *ensuite*, elle ne defait pas un choix en cours.
+     */
+    public function setBrowserTimezone(string $timezone): void
+    {
+        if ($this->browserTimezone === '' && LoopEvent::isValidTimezone($timezone)) {
+            $this->browserTimezone = $timezone;
+        }
     }
 
     private function user()
@@ -109,9 +146,22 @@ class LoopEventsCard extends Component
 
     // ── Formulaire ──────────────────────────────────────────────────────────
 
-    public function openCreateForm(): void
+    /**
+     * @param  string|null  $detectedTimezone  ce que le navigateur declare, passe
+     *                                         par le clic qui ouvre le formulaire
+     */
+    public function openCreateForm(?string $detectedTimezone = null): void
     {
         $this->resetMessages();
+
+        // La detection voyage avec l'ouverture du formulaire, et non a
+        // l'initialisation d'Alpine : `x-init` s'execute avant que Livewire ait
+        // fini d'hydrater le composant, et l'appel partait dans le vide — un
+        // navigateur a Chicago se voyait alors proposer le repli. Ici, le moment
+        // est celui ou la valeur sert, sans course possible.
+        if ($detectedTimezone !== null) {
+            $this->setBrowserTimezone($detectedTimezone);
+        }
 
         if (! $this->service()->canCreate($this->user(), $this->loop)) {
             $this->errorMessage = __('events.error_not_allowed');
@@ -124,12 +174,14 @@ class LoopEventsCard extends Component
         $this->title = '';
         $this->description = '';
         $this->format = LoopEvent::FORMAT_IN_PERSON;
-        // Une proposition par defaut a demain : personne n'organise une reunion
-        // pour l'instant meme, et une date vide fait perdre un aller-retour.
-        $this->startsAt = CarbonImmutable::now(LoopEvent::DEFAULT_TIMEZONE)
+        // Le fuseau d'abord, la date ensuite : « demain 18h » doit vouloir dire
+        // demain 18h *chez la personne*, pas demain 18h a Paris. Une date par
+        // defaut evite par ailleurs un aller-retour — personne n'organise une
+        // reunion pour l'instant meme.
+        $this->timezone = $this->preferredTimezone();
+        $this->startsAt = CarbonImmutable::now($this->timezone)
             ->addDay()->setTime(18, 0)->format('Y-m-d\TH:i');
         $this->endsAt = '';
-        $this->timezone = LoopEvent::DEFAULT_TIMEZONE;
         $this->location = '';
         $this->meetingUrl = '';
         $this->visibility = LoopEvent::VISIBILITY_LOOP;
@@ -155,6 +207,8 @@ class LoopEventsCard extends Component
         $this->title = $event->title;
         $this->description = (string) $event->description;
         $this->format = $event->format;
+        // Celui de l'Evenement, sans discussion : une rencontre a Chicago reste
+        // a Chicago, meme ouverte depuis Paris.
         $this->timezone = $event->timezone;
         $this->startsAt = $event->startsAtLocal()->format('Y-m-d\TH:i');
         $this->endsAt = $event->endsAtLocal()?->format('Y-m-d\TH:i') ?? '';
@@ -350,6 +404,7 @@ class LoopEventsCard extends Component
             return view('livewire.loop-events-card', [
                 'upcoming' => collect(), 'past' => collect(), 'calendar' => [],
                 'canCreate' => false, 'canPublishOrg' => false, 'readOnly' => true,
+                'timezoneOptions' => LoopEvent::TIMEZONES,
             ]);
         }
 
@@ -375,6 +430,10 @@ class LoopEventsCard extends Component
             'canPublishOrg' => $service->canPublishToOrganization($user, $this->loop),
             'readOnly' => ! $service->canCreate($user, $this->loop)
                 && ! $service->canRespond($user, $this->loop),
+            // Le fuseau affiche figure toujours dans le menu, meme absent de la
+            // liste courte : sinon on ne pourrait pas y revenir apres l'avoir
+            // quitte.
+            'timezoneOptions' => LoopEvent::timezoneOptions($this->timezone),
         ]);
     }
 

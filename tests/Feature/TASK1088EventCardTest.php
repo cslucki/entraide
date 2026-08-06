@@ -200,6 +200,217 @@ class TASK1088EventCardTest extends TestCase
         ]);
     }
 
+    // ── Le fuseau propose, detecte depuis le navigateur ─────────────────────
+
+    public function test_the_detection_travels_with_the_form_opening(): void
+    {
+        // Le chemin reel de l'ecran : le clic porte le fuseau. Pose a
+        // l'initialisation d'Alpine, l'appel partait avant l'hydratation de
+        // Livewire et se perdait — un navigateur a Chicago recevait alors le
+        // repli.
+        Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('openCreateForm', 'America/Chicago')
+            ->assertSet('browserTimezone', 'America/Chicago')
+            ->assertSet('timezone', 'America/Chicago');
+    }
+
+    public function test_opening_without_any_detection_still_works(): void
+    {
+        // Le bouton peut n'envoyer qu'une chaine vide : cela ne doit rien casser.
+        $timezone = Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('openCreateForm', '')
+            ->get('timezone');
+
+        $this->assertTrue(LoopEvent::isValidTimezone($timezone));
+    }
+
+    public function test_a_paris_browser_gets_paris(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('setBrowserTimezone', 'Europe/Paris')
+            ->call('openCreateForm')
+            ->assertSet('timezone', 'Europe/Paris');
+    }
+
+    public function test_a_dallas_browser_never_silently_gets_paris(): void
+    {
+        // Le defaut que cette correction repare : `Europe/Paris` etait ecrit en
+        // dur, donc quelqu'un a Dallas voyait ses horaires decales de sept
+        // heures sans qu'on le lui dise.
+        Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('setBrowserTimezone', 'America/Chicago')
+            ->call('openCreateForm')
+            ->assertSet('timezone', 'America/Chicago')
+            ->assertNotSet('timezone', 'Europe/Paris');
+    }
+
+    public function test_an_antananarivo_browser_gets_antananarivo(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('setBrowserTimezone', 'Indian/Antananarivo')
+            ->call('openCreateForm')
+            ->assertSet('timezone', 'Indian/Antananarivo');
+    }
+
+    public function test_a_detected_zone_outside_the_short_list_is_still_offered(): void
+    {
+        // Sinon on verrait son propre fuseau detecte, puis introuvable dans le
+        // menu apres l'avoir quitte.
+        $this->assertNotContains('Asia/Tokyo', LoopEvent::TIMEZONES);
+
+        $options = Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('setBrowserTimezone', 'Asia/Tokyo')
+            ->call('openCreateForm')
+            ->viewData('timezoneOptions');
+
+        $this->assertContains('Asia/Tokyo', $options);
+        // Et la liste courte reste offerte a cote.
+        $this->assertContains('Europe/Paris', $options);
+    }
+
+    public function test_a_forged_browser_value_is_ignored(): void
+    {
+        $component = Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop]);
+
+        // Un decalage brut, un sigle, une chaine inventee : aucun n'est un
+        // identifiant IANA.
+        foreach (['+02:00', 'CST', 'Mars/Olympus', ''] as $forged) {
+            $component->call('setBrowserTimezone', $forged);
+        }
+
+        $component->assertSet('browserTimezone', '');
+    }
+
+    public function test_a_silent_browser_falls_back_without_crashing(): void
+    {
+        // Navigateur sans Intl : rien n'est annonce, et le formulaire s'ouvre
+        // quand meme sur quelque chose de valide.
+        $timezone = Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('openCreateForm')
+            ->get('timezone');
+
+        $this->assertTrue(LoopEvent::isValidTimezone($timezone));
+        $this->assertSame(LoopEvent::FALLBACK_TIMEZONE, $timezone);
+    }
+
+    public function test_a_manual_choice_survives_a_later_detection(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('setBrowserTimezone', 'America/Chicago')
+            ->call('openCreateForm')
+            ->set('timezone', 'Africa/Dakar')
+            // Une seconde annonce ne doit rien defaire.
+            ->call('setBrowserTimezone', 'Europe/Paris')
+            ->assertSet('timezone', 'Africa/Dakar');
+    }
+
+    public function test_a_validation_error_keeps_the_chosen_zone(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('setBrowserTimezone', 'America/Chicago')
+            ->call('openCreateForm')
+            ->set('timezone', 'Indian/Antananarivo')
+            ->set('title', '')
+            ->call('save')
+            ->assertSet('errorMessage', __('events.error_title_required'))
+            // Le formulaire reste ouvert sur ce qu'on avait choisi.
+            ->assertSet('timezone', 'Indian/Antananarivo');
+    }
+
+    public function test_editing_keeps_the_recorded_zone_whatever_the_browser_says(): void
+    {
+        $event = $this->event($this->member, ['timezone' => 'America/Chicago']);
+
+        Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            // Ouvert depuis Paris…
+            ->call('setBrowserTimezone', 'Europe/Paris')
+            ->call('openEditForm', $event->id)
+            // …mais la rencontre est a Chicago, et elle y reste.
+            ->assertSet('timezone', 'America/Chicago');
+    }
+
+    public function test_the_detected_zone_decides_the_proposed_date(): void
+    {
+        // « Demain 18h » doit vouloir dire demain 18h chez la personne. Le
+        // formulaire propose donc une heure locale dans le fuseau detecte.
+        $startsAt = Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('setBrowserTimezone', 'America/Chicago')
+            ->call('openCreateForm')
+            ->get('startsAt');
+
+        $expected = CarbonImmutable::now('America/Chicago')->addDay()->format('Y-m-d');
+        $this->assertStringStartsWith($expected, $startsAt);
+        $this->assertStringEndsWith('T18:00', $startsAt);
+    }
+
+    public function test_creating_from_a_chicago_browser_stores_the_right_instant(): void
+    {
+        // Le bout en bout : navigateur a Chicago, 19h locales, stockage UTC.
+        Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('setBrowserTimezone', 'America/Chicago')
+            ->call('openCreateForm')
+            ->set('title', 'Reunion de Dallas')
+            ->set('startsAt', '2026-08-12T19:00')
+            ->set('location', 'Bureau')
+            ->call('save')
+            ->assertSet('errorMessage', null);
+
+        $event = LoopEvent::where('title', 'Reunion de Dallas')->firstOrFail();
+
+        $this->assertSame('America/Chicago', $event->timezone);
+        // 19h a Chicago en aout = 00h UTC le lendemain.
+        $this->assertSame('2026-08-13 00:00:00', $event->starts_at->utc()->format('Y-m-d H:i:s'));
+        $this->assertSame('19:00', $event->startsAtLocal()->format('H:i'));
+    }
+
+    public function test_an_empty_timezone_is_refused_not_guessed(): void
+    {
+        // Un formulaire qui n'envoie pas de fuseau est casse ; ce n'est pas une
+        // occasion de deviner a sa place.
+        $this->expectException(EventException::class);
+        $this->event(overrides: ['timezone' => '']);
+    }
+
+    public function test_the_resolver_follows_its_order_of_sources(): void
+    {
+        // 1. ce qui est deja la gagne sur le navigateur.
+        $this->assertSame(
+            'Indian/Antananarivo',
+            LoopEvent::resolveTimezone('Indian/Antananarivo', 'Europe/Paris'),
+        );
+        // 2. sinon le navigateur.
+        $this->assertSame('America/Chicago', LoopEvent::resolveTimezone(null, 'America/Chicago'));
+        // 3. une valeur invalide ne bloque pas la chaine.
+        $this->assertSame(LoopEvent::FALLBACK_TIMEZONE, LoopEvent::resolveTimezone(null, '+02:00'));
+        // 4. `app.timezone` valant UTC ici, c'est le dernier recours qui repond.
+        $this->assertSame(LoopEvent::FALLBACK_TIMEZONE, LoopEvent::resolveTimezone(null, null));
+    }
+
+    public function test_a_generic_utc_is_not_treated_as_a_place(): void
+    {
+        // `app.timezone` vaut `UTC` : ce n'est pas un lieu, c'est l'absence de
+        // reponse. La chaine doit continuer.
+        config(['app.timezone' => 'UTC']);
+        $this->assertSame(LoopEvent::FALLBACK_TIMEZONE, LoopEvent::resolveTimezone(null, null));
+
+        // Une timezone applicative qui dit vraiment quelque chose est retenue.
+        config(['app.timezone' => 'America/New_York']);
+        $this->assertSame('America/New_York', LoopEvent::resolveTimezone(null, null));
+    }
+
     // ── Creation et validation ──────────────────────────────────────────────
 
     public function test_every_active_member_may_propose_a_meeting(): void

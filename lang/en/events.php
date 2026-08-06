@@ -39,7 +39,7 @@ return [
     'starts_at' => 'Start',
     'ends_at' => 'End (optional)',
     'timezone' => 'Time zone',
-    'timezone_hint' => 'Times are recorded in this zone.',
+    'timezone_hint' => 'Detected from your device. Check it if the meeting takes place in another zone.',
     'location' => 'Location',
     'location_placeholder' => 'Address or venue name',
     'meeting_url' => 'Meeting link',
