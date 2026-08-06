@@ -604,6 +604,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/loops/{loop}/cards', [AdminLoopController::class, 'updateCards'])->name('loops.cards.update');
     Route::post('/loops/{loop}/archive', [AdminLoopController::class, 'archive'])->name('loops.archive');
     Route::post('/loops/{loop}/restore', [AdminLoopController::class, 'restore'])->name('loops.restore');
+    // Le configurateur de presets (TASK-1090). Etend l'ecran de composition de
+    // TASK-1083 ; il ne le remplace pas.
+    Route::get('/loops/{loop}/configure', [AdminLoopController::class, 'configure'])->name('loops.configure');
+    Route::post('/loops/{loop}/compose', [AdminLoopController::class, 'composeCards'])->name('loops.compose');
+    Route::post('/loops/{loop}/preset', [AdminLoopController::class, 'applyPreset'])->name('loops.preset.apply');
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
 
     // Outils
@@ -914,6 +919,12 @@ Route::prefix('/org/{organization}')
                 Route::put('/loops/{loop}', [OrgAdminController::class, 'updateLoop'])->name('loops.update');
                 Route::put('/loops/{loop}/cards', [OrgAdminController::class, 'updateLoopCards'])->name('loops.cards.update');
                 Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
+                // Le configurateur, cote Organization (TASK-1090). Meme service
+                // et meme vue que l'ecran plateforme.
+                Route::get('/loops/{loop}/configure', [OrgAdminController::class, 'configureLoop'])->name('loops.configure');
+                Route::post('/loops/{loop}/compose', [OrgAdminController::class, 'composeLoopCards'])->name('loops.compose');
+                Route::post('/loops/{loop}/preset', [OrgAdminController::class, 'applyLoopPreset'])->name('loops.preset.apply');
+                Route::patch('/composition-policy', [OrgAdminController::class, 'updateCompositionPolicy'])->name('composition-policy.update');
                 Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
                 Route::put('/loops/{loop}/members/{member}/role', [OrgAdminController::class, 'updateLoopMemberRole'])->name('loops.members.role');
                 Route::delete('/loops/{loop}/members/{member}', [OrgAdminController::class, 'removeLoopMember'])->name('loops.members.remove');

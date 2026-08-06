@@ -128,5 +128,16 @@
                 </a>
             </div>
         </form>
+
+        {{-- Les membres, hors du formulaire d'identite.
+
+             Modifier une Boucle sans voir qui en fait partie, ni pouvoir y
+             ajouter quelqu'un de l'Organization, obligeait a repasser par
+             l'ecran d'invitation. Le bloc est en dehors du <form> : ses actions
+             sont immediates et n'ont rien a voir avec l'enregistrement du nom
+             ou des domaines. --}}
+        <div class="mt-8">
+            @livewire('loop-members-card', ['loop' => $currentLoop], key('members-card-edit-'.$currentLoop->id))
+        </div>
     </div>
 </x-app-layout>

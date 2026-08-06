@@ -8,6 +8,10 @@
         {{ __('loops.cards_bar_launch') }}
     </span>
 
+    {{-- Les actions de conversation — le Résumé IA — sont remontées dans la
+         barre de titre de la Boucle (loops/partials/header-actions). Les
+         afficher aussi ici donnait deux boutons pour un seul geste. --}}
+
     <div class="flex min-w-0 flex-1 items-center gap-2">
         @foreach($workspaceCards as $card)
             <button

@@ -13,6 +13,8 @@ use App\Services\LoopGovernanceService;
 use App\Services\LoopManifestoService;
 use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopPresetConfigurator;
+use App\Services\Loops\PresetException;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
@@ -129,6 +131,108 @@ class AdminLoopController extends Controller
         }
 
         return back()->with('success', __($data['enabled'] ? 'loops.cards_enabled' : 'loops.cards_disabled'));
+    }
+
+    /**
+     * Le configurateur d'une Boucle : preset, emplacements, catalogue.
+     *
+     * Etend l'ecran de composition livre par TASK-1083 plutot que d'en ouvrir un
+     * second : meme service d'ecriture, meme registre, meme comptage.
+     */
+    public function configure(Request $request, Loop $loop): View
+    {
+        $this->assertOrgAccess($loop);
+
+        $configurator = app(LoopPresetConfigurator::class);
+
+        abort_unless($configurator->canConfigure($request->user(), $loop), 403);
+
+        return view('admin.loops.configure', [
+            'loop' => $loop,
+            'composition' => $configurator->describe($loop),
+            'types' => app(LoopTypeRegistry::class)->selectableFor($loop->type),
+            'organization' => $loop->organization,
+            'backUrl' => route('admin.loops.edit', $loop),
+        ]);
+    }
+
+    /**
+     * Activer, desactiver ou remplacer une Card ; restaurer le preset.
+     *
+     * Une seule route pour quatre gestes : ils partagent leurs verifications, et
+     * les separer aurait multiplie les portes d'entree a garder.
+     */
+    public function composeCards(Request $request, Loop $loop): RedirectResponse
+    {
+        $this->assertOrgAccess($loop);
+
+        $data = $request->validate([
+            'action' => 'required|in:enable,disable,replace,restore',
+            'card_key' => 'nullable|string',
+            'incoming_key' => 'nullable|string',
+        ]);
+
+        $configurator = app(LoopPresetConfigurator::class);
+        $user = $request->user();
+
+        try {
+            $message = match ($data['action']) {
+                'enable' => $this->doEnable($configurator, $user, $loop, $data['card_key'] ?? ''),
+                'disable' => $this->doDisable($configurator, $user, $loop, $data['card_key'] ?? ''),
+                'replace' => $this->doReplace($configurator, $user, $loop, $data['card_key'] ?? '', $data['incoming_key'] ?? ''),
+                default => __('loops.preset_restored', [
+                    'count' => count($configurator->restorePreset($user, $loop)),
+                ]),
+            };
+        } catch (PresetException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /** Appliquer un preset, avec ou sans desactivation des Cards absentes. */
+    public function applyPreset(Request $request, Loop $loop): RedirectResponse
+    {
+        $this->assertOrgAccess($loop);
+
+        $data = $request->validate([
+            'type' => 'required|string',
+            'deactivate_absent' => 'nullable|boolean',
+        ]);
+
+        try {
+            app(LoopPresetConfigurator::class)->applyPreset(
+                $request->user(), $loop, $data['type'], (bool) ($data['deactivate_absent'] ?? false),
+            );
+        } catch (PresetException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('loops.preset_applied', [
+            'type' => app(LoopTypeRegistry::class)->label($data['type']),
+        ]));
+    }
+
+    private function doEnable(LoopPresetConfigurator $c, $user, Loop $loop, string $key): string
+    {
+        $c->enable($user, $loop, $key);
+
+        return __('loops.preset_enabled');
+    }
+
+    private function doDisable(LoopPresetConfigurator $c, $user, Loop $loop, string $key): string
+    {
+        $c->disable($user, $loop, $key);
+
+        return __('loops.preset_disabled');
+    }
+
+    private function doReplace(LoopPresetConfigurator $c, $user, Loop $loop, string $outgoing, string $incoming): string
+    {
+        $c->replace($user, $loop, $outgoing, $incoming);
+
+        return __('loops.preset_replaced');
     }
 
     public function archive(Request $request, Loop $loop): RedirectResponse

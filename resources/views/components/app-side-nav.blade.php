@@ -22,6 +22,50 @@
         return route($rootRoute);
     };
 
+    // ── Le raccourci « Coopérer » ───────────────────────────────────────────
+    //
+    // Cinq entrees dans la langue de qui les lit — « J'ai besoin d'aide »,
+    // pas « Demandes ». Ce sont les memes intentions que les bulles de la page
+    // d'accueil, et elles en reprennent les teintes : c'est ce qui fait qu'on
+    // les reconnait sans les relire.
+    $coopActions = auth()->check() ? [
+        [
+            'url' => $routeUrl('requests.create', 'organization.requests.create'),
+            'label' => __('navigation.fab_need_help'),
+            'hint' => __('navigation.fab_need_help_hint'),
+            'tone' => 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300',
+            'icon' => 'M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z',
+        ],
+        [
+            'url' => $routeUrl('services.create', 'organization.services.create'),
+            'label' => __('navigation.fab_offer_help'),
+            'hint' => __('navigation.fab_offer_help_hint'),
+            'tone' => 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300',
+            'icon' => 'M10.05 4.575a1.575 1.575 0 1 0-3.15 0v3m3.15-3v-1.5a1.575 1.575 0 0 1 3.15 0v1.5m-3.15 0 .075 5.925m3.075.75V4.575m0 0a1.575 1.575 0 0 1 3.15 0V15M6.9 7.575a1.575 1.575 0 1 0-3.15 0v8.175a6.75 6.75 0 0 0 6.75 6.75h2.018a5.25 5.25 0 0 0 3.712-1.538l1.732-1.732a5.25 5.25 0 0 0 1.538-3.712l.003-2.024a.668.668 0 0 1 .198-.471 1.575 1.575 0 1 0-2.228-2.228 3.818 3.818 0 0 0-1.12 2.687M6.9 7.575V12',
+        ],
+        [
+            'url' => $routeUrl('loops.index', 'organization.loops.index'),
+            'label' => __('navigation.fab_create_link'),
+            'hint' => __('navigation.fab_create_link_hint'),
+            'tone' => 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300',
+            'icon' => 'M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244',
+        ],
+        [
+            'url' => $routeUrl('members.index', 'organization.members.index'),
+            'label' => __('navigation.fab_explore'),
+            'hint' => __('navigation.fab_explore_hint'),
+            'tone' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300',
+            'icon' => 'M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18',
+        ],
+        [
+            'url' => $routeUrl('events.agenda', 'organization.events.agenda'),
+            'label' => __('navigation.fab_meet'),
+            'hint' => __('navigation.fab_meet_hint'),
+            'tone' => 'bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300',
+            'icon' => 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0V11.25A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5',
+        ],
+    ] : [];
+
     $items = auth()->check() ? [
         [
             'url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'),
@@ -144,12 +188,12 @@
 @endphp
 
 <aside x-data class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
-    <div class="flex h-full w-full flex-col items-center py-4">
-        <a href="{{ $organizationRouteParam ? route('organization.home', ['organization' => $organizationRouteParam]) : route('home') }}" class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)] transition hover:scale-105" aria-label="BouclePro">
-            <img src="{{ $brandLogoUrl }}" alt="" class="h-8 w-8" aria-hidden="true">
+    <div class="flex h-full w-full flex-col items-center py-3">
+        <a href="{{ $organizationRouteParam ? route('organization.home', ['organization' => $organizationRouteParam]) : route('home') }}" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)] transition hover:scale-105" aria-label="BouclePro">
+            <img src="{{ $brandLogoUrl }}" alt="" class="h-7 w-7" aria-hidden="true">
         </a>
 
-        <div class="mt-2 flex items-center gap-0.5 rounded-full bg-[var(--bp-panel)] px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-[var(--bp-border)]" aria-label="{{ __('navigation.language_switcher') }}">
+        <div class="mt-1.5 flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--bp-panel)] px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-[var(--bp-border)]" aria-label="{{ __('navigation.language_switcher') }}">
             @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                 <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
                     @csrf
@@ -163,7 +207,66 @@
             @endforeach
         </div>
 
-        <nav class="mt-5 flex w-full flex-1 flex-col items-center gap-0.5" aria-label="{{ __('navigation.main_navigation') }}">
+        {{-- ── « Coopérer » ──────────────────────────────────────────────────
+             Le seul bouton plein du rail : ce qu'on vient faire ici commence
+             presque toujours par une de ces cinq intentions.
+
+             Le panneau s'ouvre à côté et non en dessous — le rail est étroit,
+             et une liste posée dedans écraserait la navigation. --}}
+        @if($coopActions !== [])
+            <div x-data="{ open: false }"
+                 x-on:keydown.escape.window="open = false"
+                 class="relative mt-2 shrink-0">
+                <button type="button"
+                        x-on:click="open = ! open"
+                        x-bind:aria-expanded="open ? 'true' : 'false'"
+                        {{-- La couleur des boutons du site, pas celle des jetons
+                             de theme : `--bp-primary` vaut un vert sombre dans
+                             certains themes, et le bouton principal aurait alors
+                             cesse de ressembler a tous les autres. --}}
+                        {{-- La meme taille que les tuiles de la nav : c'est sa
+                             couleur qui le designe comme l'action principale,
+                             pas son encombrement. --}}
+                        class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md shadow-indigo-600/30 transition hover:scale-105 hover:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                        aria-label="{{ __('navigation.fab_label') }}"
+                        title="{{ __('navigation.fab_label') }}">
+                    <svg class="h-4 w-4 transition-transform duration-200" x-bind:class="open && 'rotate-45'"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                    </svg>
+                </button>
+
+                <div x-show="open" x-cloak
+                     x-on:click.outside="open = false"
+                     x-transition:enter="transition ease-out duration-150"
+                     x-transition:enter-start="opacity-0 -translate-x-2"
+                     x-transition:enter-end="opacity-100 translate-x-0"
+                     class="absolute left-full top-0 z-50 ml-3 w-64 overflow-hidden rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-panel)] p-1.5 shadow-2xl">
+                    <p class="px-2.5 pb-1.5 pt-1 text-[10px] font-bold uppercase tracking-wide text-[var(--bp-muted)]">
+                        {{ __('navigation.fab_label') }}
+                    </p>
+                    @foreach($coopActions as $action)
+                        <a href="{{ $action['url'] }}"
+                           class="flex items-center gap-3 rounded-xl px-2.5 py-2 transition hover:bg-[var(--bp-surface)]">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl {{ $action['tone'] }}">
+                                <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="{{ $action['icon'] }}"/>
+                                </svg>
+                            </span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate text-sm font-bold leading-tight text-[var(--bp-text)]">{{ $action['label'] }}</span>
+                                <span class="block truncate text-[11px] leading-tight text-[var(--bp-muted)]">{{ $action['hint'] }}</span>
+                            </span>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+        {{-- min-h-0 : sans lui, un flex-1 refuse de descendre sous la hauteur de
+             son contenu et pousse l'avatar hors de l'écran. Avec, le rail défile
+             et le bas reste toujours atteignable. --}}
+        <nav class="mt-3 flex w-full min-h-0 flex-1 flex-col items-center overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="{{ __('navigation.main_navigation') }}">
             @foreach($items as $item)
                 @php
                     $active = $isActive($item);
@@ -177,43 +280,46 @@
                     $activeIndicatorClass = $isFlux ? 'bg-emerald-500' : 'bg-[var(--bp-primary)]';
                 @endphp
                 <a href="{{ $item['url'] }}"
-                   class="group relative flex w-full flex-col items-center gap-0.5 px-2 py-1 text-[10px] font-medium transition {{ $itemTextClass }}"
+                   class="group relative flex w-full shrink-0 flex-col items-center px-1 py-0.5 text-[9px] font-medium leading-none transition {{ $itemTextClass }}"
                    title="{{ $item['label'] }}">
-                    <span class="relative flex h-10 w-10 items-center justify-center rounded-xl transition {{ $iconClass }}">
-                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <span class="relative flex h-8 w-8 items-center justify-center rounded-lg transition {{ $iconClass }}">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <path d="{{ $item['icon'] }}" />
                         </svg>
                         @if(($item['badge'] ?? 0) > 0)
-                            <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]">
+                            <span class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]">
                                 {{ $item['badge'] > 9 ? '9+' : $item['badge'] }}
                             </span>
                         @endif
                     </span>
-                    <span class="leading-none">{{ $item['label'] }}</span>
+                    <span class="mt-0.5 leading-none">{{ $item['label'] }}</span>
                     @if($active)
-                        <span class="absolute right-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-l-full {{ $activeIndicatorClass }}"></span>
+                        <span class="absolute right-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-l-full {{ $activeIndicatorClass }}"></span>
                     @endif
                 </a>
             @endforeach
         </nav>
 
-        <div class="flex flex-col items-center gap-2 border-t border-[var(--bp-border)] pt-2.5">
-            <button type="button" @click="$store.visualTheme.next()" class="flex w-10 flex-col items-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] px-0.5 py-1 text-[8px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.change_theme') }}">
-                <span class="h-2 w-2 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
+        {{-- shrink-0 : ce bloc ne se comprime jamais. Les deux réglages et
+             surtout l'avatar restent visibles quel que soit le nombre d'entrées
+             au-dessus — c'est la nav qui défile, pas le bas du rail. --}}
+        <div class="mt-2 flex shrink-0 flex-col items-center gap-1.5 border-t border-[var(--bp-border)] pt-2">
+            <button type="button" @click="$store.visualTheme.next()" class="flex w-9 flex-col items-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] px-0.5 py-0.5 text-[7px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.change_theme') }}">
+                <span class="h-1.5 w-1.5 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
                 <span class="mt-0.5 leading-none" x-text="$store.visualTheme.label()">Sable</span>
             </button>
 
-            <button type="button" @click="$store.darkMode.toggle()" class="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.toggle_display_mode') }}">
-                <svg class="h-3.5 w-3.5 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-                <svg class="hidden h-3.5 w-3.5 dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <button type="button" @click="$store.darkMode.toggle()" class="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.toggle_display_mode') }}">
+                <svg class="h-3 w-3 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                <svg class="hidden h-3 w-3 dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
 
             @auth
                 <x-dropdown align="left-up" width="w-64" contentClasses="py-2 bg-white dark:bg-gray-800">
                     <x-slot name="trigger">
-                        <button class="relative flex h-11 w-11 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
-                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
-                            <span class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
+                        <button class="relative flex h-9 w-9 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
+                            <img src="{{ Auth::user()->avatar_url }}" class="h-8 w-8 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
+                            <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
                         </button>
                     </x-slot>
                     <x-slot name="content">

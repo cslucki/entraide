@@ -70,23 +70,48 @@ class TASK1081WorkspaceCompositionTest extends TestCase
 
     // ── Composition ─────────────────────────────────────────────────────────
 
-    public function test_a_dialogue_loop_shows_only_its_members_card(): void
+    public function test_a_community_loop_shows_its_own_cards_and_not_the_others(): void
     {
+        // Le socle de `general` — libelle « Communaute » depuis TASK-1090 —
+        // porte Manifeste, Membres, Sondages et Evenements. Manifeste et
+        // Membres sont affiches, mais dans le cadre permanent : ils apparaissent
+        // donc a l'ecran sans occuper d'emplacement de grille.
         $loop = $this->loop('general');
 
         $this->workspace($loop)->assertOk()
             ->assertSee($this->label('core.members'))
-            ->assertDontSee($this->label('core.manifesto'))
-            ->assertDontSee($this->label('core.roadmap'))
-            ->assertDontSee($this->label('core.ai_summary'));
+            ->assertSee($this->label('core.manifesto'))
+            ->assertSee($this->label('core.polls'))
+            ->assertSee($this->label('core.events'))
+            // Ce que ce preset n'a pas reste absent.
+            ->assertDontSee($this->label('core.roadmap'));
+    }
+
+    public function test_the_permanent_frame_never_takes_a_grid_slot(): void
+    {
+        // La regle qui porte TASK-1090 : trois emplacements distinctifs, et le
+        // cadre n'en consomme aucun.
+        $loop = $this->loop('general');
+        $registry = app(\App\Support\Loops\LoopCardRegistry::class);
+
+        $grid = $registry->workspaceCardsFor($loop->fresh(), $this->member)->pluck('key');
+        $frame = $registry->frameCardsFor($loop->fresh(), $this->member)->pluck('key');
+
+        $this->assertLessThanOrEqual($registry->gridSlots(), $grid->count());
+        $this->assertNotContains('core.manifesto', $grid);
+        $this->assertNotContains('core.members', $grid);
+        $this->assertContains('core.manifesto', $frame);
+        $this->assertContains('core.members', $frame);
     }
 
     public function test_the_refused_cards_are_not_even_offered(): void
     {
         // The heart of the defect: the buttons existed, and opened on nothing.
+        // `core.manifesto` a rejoint le socle de ce preset en TASK-1090 et n'est
+        // donc plus un exemple valable ici ; la Roadmap et le Resume IA en
+        // restent absents.
         $html = $this->workspace($this->loop('general'))->assertOk()->getContent();
 
-        $this->assertStringNotContainsString('core.manifesto', $html);
         $this->assertStringNotContainsString('core.roadmap', $html);
         $this->assertStringNotContainsString('core.ai_summary', $html);
     }

@@ -62,6 +62,7 @@ class Organization extends Model
         'homepage_template',
         'homepage_settings',
         'dossier_storage_quota_bytes',
+            'loop_composition_policy',
     ];
 
     protected function casts(): array
@@ -237,5 +238,25 @@ class Organization extends Model
     public function isFeedPostPublishableByMembers(): bool
     {
         return $this->feed_post_publish_mode === 'members';
+    }
+
+    // ── Composition des Cards (TASK-1090) ───────────────────────────────────
+
+    public const COMPOSITION_LOCKED = 'locked';
+
+    public const COMPOSITION_OWNER_ALLOWED = 'owner_allowed';
+
+    public const COMPOSITION_POLICIES = [self::COMPOSITION_LOCKED, self::COMPOSITION_OWNER_ALLOWED];
+
+    /**
+     * Le proprietaire d'une Boucle peut-il en composer les Cards ?
+     *
+     * Verrouille par defaut : c'est le comportement livre jusqu'ici, et une
+     * Organization qui n'a rien decide ne doit pas voir ses regles changer parce
+     * qu'une colonne est apparue.
+     */
+    public function allowsOwnerComposition(): bool
+    {
+        return $this->loop_composition_policy === self::COMPOSITION_OWNER_ALLOWED;
     }
 }
