@@ -70,6 +70,16 @@
             :current-user-id="auth()->id()" />
     @endif
 
+    {{-- Ajouter quelqu'un de l'Organization.
+
+         Cette Card ne proposait que l'invitation par e-mail : pour faire entrer
+         une personne qui a deja un compte a cote, il fallait lui envoyer un
+         courriel et attendre qu'elle clique. Le composant repond au cas courant,
+         le formulaire e-mail plus bas restant pour qui n'est pas encore la. --}}
+    @unless($currentLoop->isArchived())
+        @livewire('loop-member-picker', ['loop' => $currentLoop, 'showMembers' => false], key('member-picker-'.$currentLoop->id))
+    @endunless
+
     {{-- Le formulaire d'invitation disparait sur une Boucle archivee. Le serveur
          le refuse deja (LoopPolicy::update), mais afficher un champ dont l'envoi
          echouera n'aide personne. La liste des invitations en cours reste

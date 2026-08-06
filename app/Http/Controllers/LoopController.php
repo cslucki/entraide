@@ -347,7 +347,7 @@ class LoopController extends Controller
 
         return view('loops.invite', [
             'loop' => $loop,
-            'candidates' => $this->invitableOrganizationMembers($loop, $organization),
+            'candidates' => $this->loopService->invitableOrganizationMembers($loop),
             'pendingInvitations' => $this->loopInvitationsFor($loop),
         ]);
     }
@@ -386,7 +386,7 @@ class LoopController extends Controller
 
         // Re-scope server-side: only active users of THIS Organization, whatever
         // the form posted.
-        $userIds = $this->invitableOrganizationMembers($loop, $organization)
+        $userIds = $this->loopService->invitableOrganizationMembers($loop)
             ->whereIn('id', $data['user_ids'])
             ->pluck('id')
             ->all();
@@ -398,18 +398,6 @@ class LoopController extends Controller
     }
 
     /** Active Organization members who are not active members of this Loop yet. */
-    private function invitableOrganizationMembers(Loop $loop, Organization $organization)
-    {
-        $alreadyIn = LoopMember::where('loop_id', $loop->id)
-            ->where('status', 'active')
-            ->pluck('user_id');
-
-        return User::assignable()
-            ->where('organization_id', $organization->id)
-            ->whereNotIn('id', $alreadyIn)
-            ->orderBy('name')
-            ->get(['id', 'name', 'first_name', 'email']);
-    }
 
     /** Domains (Annuaire referential) selectable for this Organization. */
     private function organizationDomains(Organization $organization)

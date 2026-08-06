@@ -158,6 +158,30 @@ class LoopService
      * @param  array<int, string>  $userIds
      * @return array{added: int, skipped: int}
      */
+    /**
+     * Les personnes de l'Organization de la Boucle qui n'y sont pas encore.
+     *
+     * Cette requete vivait en prive dans LoopController et n'etait donc
+     * atteignable que depuis l'ecran d'invitation. Trois ecrans en ont besoin —
+     * l'invitation, la Card Membres et l'edition — et le serveur s'en ressert
+     * pour re-verifier ce qu'un formulaire a poste : une seule definition.
+     *
+     * @return Collection<int, User>
+     */
+    public function invitableOrganizationMembers(Loop $loop): Collection
+    {
+        $alreadyIn = LoopMember::query()
+            ->where('loop_id', $loop->id)
+            ->where('status', 'active')
+            ->pluck('user_id');
+
+        return User::assignable()
+            ->where('organization_id', $loop->organization_id)
+            ->whereNotIn('id', $alreadyIn)
+            ->orderBy('name')
+            ->get(['id', 'name', 'first_name', 'email', 'avatar', 'banned_at']);
+    }
+
     public function addMembersFromOrganization(Loop $loop, array $userIds, User $actor): array
     {
         $added = 0;

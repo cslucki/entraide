@@ -52,9 +52,10 @@
                             $isSelf = $currentUserId !== null && $member->user_id === $currentUserId;
                         @endphp
                         <li class="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
-                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-600 dark:bg-violet-500/20 dark:text-violet-300">
-                                {{ mb_strtoupper(mb_substr($member->user?->publicDisplayName() ?? '?', 0, 1)) }}
-                            </span>
+                            {{-- La photo quand elle existe, les initiales sinon.
+                                 Ce trombinoscope dessinait sa propre pastille a
+                                 une lettre et ignorait donc les avatars deposes. --}}
+                            <x-user-avatar :user="$member->user" size="md" />
 
                             <span class="min-w-0 flex-1">
                                 <span class="block truncate text-sm font-medium text-gray-800 dark:text-gray-100">

@@ -28,47 +28,12 @@
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('loops.invite_subtitle') }}</p>
         </div>
 
-        <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 sm:p-6">
-            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.invite_add_members_title') }}</h2>
-
-            @if($candidates->isEmpty())
-                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ __('loops.invite_no_candidate') }}</p>
-            @else
-                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ __('loops.invite_add_members_help') }}</p>
-
-                {{-- A plain checkbox list: an Organization holds ~200 people at most,
-                     so a local filter is enough — no server-side search needed. --}}
-                <form method="POST" action="{{ $_loopRoute('invite.members', ['loop' => $currentLoop]) }}"
-                      x-data="{ q: '', picked: [] }" class="mt-4">
-                    @csrf
-
-                    @if($candidates->count() > 8)
-                        <input type="search" x-model="q" placeholder="{{ __('loops.invite_search_placeholder') }}"
-                               class="mb-3 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-                    @endif
-
-                    <div class="max-h-72 space-y-1 overflow-y-auto rounded-xl border border-gray-200 p-2 dark:border-gray-700">
-                        @foreach($candidates as $candidate)
-                            <label x-show="q === '' || {{ \Illuminate\Support\Js::from(mb_strtolower($candidate->publicDisplayName())) }}.includes(q.toLowerCase())"
-                                   class="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 has-[:checked]:bg-indigo-50 dark:hover:bg-gray-700/50 dark:has-[:checked]:bg-indigo-900/20">
-                                <input type="checkbox" name="user_ids[]" value="{{ $candidate->id }}" x-model="picked"
-                                       class="rounded text-indigo-600 focus:ring-indigo-500">
-                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                                    {{ mb_strtoupper(mb_substr($candidate->publicDisplayName(), 0, 1)) }}
-                                </span>
-                                <span class="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">{{ $candidate->publicDisplayName() }}</span>
-                            </label>
-                        @endforeach
-                    </div>
-
-                    <button type="submit" x-bind:disabled="picked.length === 0"
-                            class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">
-                        <span x-show="picked.length === 0">{{ __('loops.invite_add_submit') }}</span>
-                        <span x-show="picked.length > 0" x-cloak x-text="`{{ __('loops.invite_add_submit') }} (${picked.length})`"></span>
-                    </button>
-                </form>
-            @endif
-        </div>
+        {{-- La liste des membres et l'ajout depuis l'Organization vivent
+             maintenant dans un seul composant, partage avec la Card Membres et
+             l'ecran d'edition. Le formulaire POST + redirection qui etait ici
+             rechargeait la page sans jamais montrer qui venait d'etre ajoute.
+             La route reste servie : elle est la garde serveur du meme geste. --}}
+        @livewire('loop-member-picker', ['loop' => $currentLoop, 'open' => true])
 
         <div class="mt-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 sm:p-6">
             <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.invite_email_title') }}</h2>
