@@ -114,18 +114,31 @@
                 <p class="{{ $sectionTitle }}">{{ __('loops.cards.dossiers.series') }}</p>
                 <ul class="divide-y divide-[var(--bp-border)]">
                     @foreach($series as $serie)
-                        <li wire:key="series-{{ $serie->id }}" class="flex items-center gap-2.5 px-1.5 py-2">
-                            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300">
-                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
-                            </span>
-                            <span class="min-w-0 flex-1">
-                                <span class="block truncate text-sm font-medium text-[var(--bp-text)]">
-                                    {{ $serie->rootBlogPost?->title ?? __('loops.cards.dossiers.series_untitled') }}
+                        {{-- La Serie s'ouvre la ou elle vit : l'onglet
+                             « contenus » de son Dossier. Ce produit n'a pas de
+                             route de Serie dediee, et en creer une aurait fait
+                             une seconde page concurrente. --}}
+                        <li wire:key="series-{{ $serie->id }}">
+                            <a @if($urls) href="{{ $urls['articles'] }}" @endif
+                               class="flex items-center gap-2.5 rounded-xl px-1.5 py-2 transition @if($urls) hover:bg-[var(--bp-surface)] @endif">
+                                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300">
+                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
                                 </span>
-                                <span class="block text-[10px] leading-tight text-[var(--bp-muted)]">
-                                    {{ trans_choice('loops.cards.dossiers.series_items', $serie->items_count, ['count' => $serie->items_count]) }}
+                                <span class="min-w-0 flex-1">
+                                    {{-- Le titre vient de la racine. Une Serie dont
+                                         la racine manque se lit quand meme, elle ne
+                                         casse pas la Card. --}}
+                                    <span class="block truncate text-sm font-medium text-[var(--bp-text)]">
+                                        {{ $serie->rootBlogPost?->title ?? __('loops.cards.dossiers.series_untitled') }}
+                                    </span>
+                                    <span class="block text-[10px] leading-tight text-[var(--bp-muted)]">
+                                        {{ trans_choice('loops.cards.dossiers.series_items', $serie->items_count, ['count' => $serie->items_count]) }}
+                                    </span>
                                 </span>
-                            </span>
+                                @if($urls)
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-[var(--bp-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                                @endif
+                            </a>
                         </li>
                     @endforeach
                 </ul>
