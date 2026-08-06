@@ -538,5 +538,6 @@ return [
     'dossier_series_root' => 'Series root',
     'dossier_series_annex' => 'In a series',
     'dossier_series_root_short' => 'Root',
+    'dossier_series_open' => 'View the series',
     'dossier_series_current' => '(this article)',
 ];

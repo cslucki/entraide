@@ -59,12 +59,22 @@ class DossierSeriesController extends Controller
             ]);
         }
 
-        $series = ArticleSeries::create([
-            'organization_id' => $organization->id,
-            'dossier_id' => $dossier->id,
-            'root_blog_post_id' => $post->id,
-            'created_by' => $request->user()->id,
-        ]);
+        // Sous transaction et relu sous verrou : deux creations simultanees sur
+        // la meme racine se seraient sinon toutes deux crues seules.
+        $series = DB::transaction(function () use ($organization, $dossier, $post, $request) {
+            if (ArticleSeries::where('root_blog_post_id', $post->id)->lockForUpdate()->exists()) {
+                throw ValidationException::withMessages([
+                    'root_blog_post_id' => __('dossiers.article_is_series_root'),
+                ]);
+            }
+
+            return ArticleSeries::create([
+                'organization_id' => $organization->id,
+                'dossier_id' => $dossier->id,
+                'root_blog_post_id' => $post->id,
+                'created_by' => $request->user()->id,
+            ]);
+        });
 
         return response()->json([
             'series' => $series->load('rootBlogPost'),
@@ -134,6 +144,17 @@ class DossierSeriesController extends Controller
                     'added_by' => auth()->id(),
                 ]);
             }
+
+            // Renumeroter comme le fait un retrait. L'ordre etait deja juste —
+            // `orderBy('position')` ne demande pas la continuite — mais la
+            // promotion laissait des trous (0, 3, 4, 5) parce qu'elle
+            // incremente tout puis libere un rang. Deux mecaniques de
+            // numerotation differentes dans le meme objet finissent par se
+            // contredire.
+            ArticleSeriesItem::where('article_series_id', $series->id)
+                ->orderBy('position')
+                ->get()
+                ->each(fn ($row, $i) => $row->forceFill(['position' => $i])->save());
         });
 
         return response()->json([
@@ -171,15 +192,31 @@ class DossierSeriesController extends Controller
             ]);
         }
 
-        $nextPosition = ((int) $series->items()->max('position')) + 1;
+        // La position se lit et s'ecrit sous verrou, dans la meme transaction.
+        //
+        // Sans cela, `max('position') + 1` etait calcule avant l'insertion :
+        // deux ajouts simultanes lisaient le meme maximum et posaient deux
+        // annexes au meme rang. Le verrou sur la ligne de la Serie serialise
+        // les ajouts a cette Serie, et a elle seule.
+        $item = DB::transaction(function () use ($series, $organization, $post, $request) {
+            $locked = ArticleSeries::whereKey($series->id)->lockForUpdate()->firstOrFail();
 
-        $item = ArticleSeriesItem::create([
-            'organization_id' => $organization->id,
-            'article_series_id' => $series->id,
-            'blog_post_id' => $post->id,
-            'position' => $nextPosition,
-            'added_by' => $request->user()->id,
-        ]);
+            // Relu sous verrou : entre la verification et ici, quelqu'un a pu
+            // poser le meme article.
+            if (ArticleSeriesItem::where('blog_post_id', $post->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'blog_post_id' => __('dossiers.article_already_in_series'),
+                ]);
+            }
+
+            return ArticleSeriesItem::create([
+                'organization_id' => $organization->id,
+                'article_series_id' => $locked->id,
+                'blog_post_id' => $post->id,
+                'position' => ((int) $locked->items()->max('position')) + 1,
+                'added_by' => $request->user()->id,
+            ]);
+        });
 
         return response()->json([
             'item' => $item->load('blogPost'),
@@ -196,15 +233,30 @@ class DossierSeriesController extends Controller
 
         $series = $this->resolveSeries($dossier, $organization);
 
-        $item = ArticleSeriesItem::where('article_series_id', $series->id)
-            ->where('blog_post_id', $request->route('item'))
-            ->first();
+        // Retrait et renumerotation d'un seul tenant : un retrait concurrent
+        // laissait sinon des rangs troues, et deux retraits simultanes
+        // pouvaient se croiser.
+        DB::transaction(function () use ($series, $request) {
+            $locked = ArticleSeries::whereKey($series->id)->lockForUpdate()->firstOrFail();
 
-        if (! $item) {
-            abort(404);
-        }
+            $item = ArticleSeriesItem::where('article_series_id', $locked->id)
+                ->where('blog_post_id', $request->route('item'))
+                ->lockForUpdate()
+                ->first();
 
-        $item->delete();
+            if (! $item) {
+                abort(404);
+            }
+
+            // L'Article n'est jamais supprime, ni detache du Dossier : seule
+            // son appartenance a la Serie disparait.
+            $item->delete();
+
+            ArticleSeriesItem::where('article_series_id', $locked->id)
+                ->orderBy('position')
+                ->get()
+                ->each(fn ($row, $i) => $row->forceFill(['position' => $i])->save());
+        });
 
         return response()->json([
             'message' => __('dossiers.annex_removed'),

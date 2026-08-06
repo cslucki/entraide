@@ -518,6 +518,7 @@
                             seriesRoot: @js(__('blog.dossier_series_root')),
                             seriesAnnex: @js(__('blog.dossier_series_annex')),
                             seriesRootShort: @js(__('blog.dossier_series_root_short')),
+                            seriesOpen: @js(__('blog.dossier_series_open')),
                             seriesCurrent: @js(__('blog.dossier_series_current')),
                             selectPlaceholder: @js(__('blog.dossier_select_placeholder')),
                             classify: @js(__('blog.dossier_classify')),
@@ -614,7 +615,37 @@
                                             <span class="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
                                                   x-text="currentDossier.series.is_root ? i18n.seriesRoot : i18n.seriesAnnex"></span>
                                             <span class="min-w-0 truncate" x-text="currentDossier.series.root_title"></span>
+                                            {{-- Le rang, seulement quand il apprend quelque chose. --}}
+                                            <span x-show="!currentDossier.series.is_root && currentDossier.series.position"
+                                                  class="shrink-0 tabular-nums text-gray-400"
+                                                  x-text="`${currentDossier.series.position}/${currentDossier.series.total}`"></span>
                                         </p>
+
+                                        {{-- Passer d'un texte au suivant sans repasser par le
+                                             Dossier. Le precedent et le suivant sont calcules par
+                                             le serveur depuis l'ordre persiste : la vue ne le
+                                             recalcule pas, elle l'affiche. --}}
+                                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                            <a x-show="currentDossier.series.previous"
+                                               :href="currentDossier.series.previous?.url"
+                                               :title="currentDossier.series.previous?.title"
+                                               class="inline-flex min-w-0 items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 transition hover:border-amber-300 hover:text-amber-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:text-amber-200">
+                                                <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+                                                <span class="max-w-[7rem] truncate" x-text="currentDossier.series.previous?.title"></span>
+                                            </a>
+
+                                            <a x-show="currentDossier.series.next"
+                                               :href="currentDossier.series.next?.url"
+                                               :title="currentDossier.series.next?.title"
+                                               class="inline-flex min-w-0 items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 transition hover:border-amber-300 hover:text-amber-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:text-amber-200">
+                                                <span class="max-w-[7rem] truncate" x-text="currentDossier.series.next?.title"></span>
+                                                <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                                            </a>
+
+                                            <a :href="currentDossier.series.url"
+                                               class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 underline-offset-2 transition hover:underline dark:text-amber-300"
+                                               x-text="i18n.seriesOpen"></a>
+                                        </div>
 
                                         {{-- Toute la serie, pas seulement sa racine.
                                              L'auteur ecrit une partie d'un ensemble : il doit

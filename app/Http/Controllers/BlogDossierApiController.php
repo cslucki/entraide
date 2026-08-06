@@ -139,13 +139,65 @@ class BlogDossierApiController extends Controller
                 'organization' => $organization->slug,
                 'dossier' => $entry->dossier->id,
             ]),
-            'series' => $inSeries ? [
-                'root_title' => $series->rootBlogPost?->title,
-                'is_root' => $series->root_blog_post_id === $entry->blog_post_id,
-                // La serie entiere, pour que l'auteur voie de quoi son texte
-                // fait partie sans quitter l'editeur.
-                'articles' => $this->seriesArticles($series, $annexes, $entry->blog_post_id, $organization),
-            ] : null,
+            'series' => $inSeries ? $this->seriesPayload(
+                $series, $annexes, $entry->blog_post_id, $organization, $entry->dossier->id
+            ) : null,
+        ];
+    }
+
+    /**
+     * Ce que l'editeur sait de la Serie a laquelle appartient l'Article.
+     *
+     * Le precedent et le suivant se **deduisent** de la liste ordonnee, ils ne
+     * sont pas recalcules : l'ordre — racine d'abord, puis les annexes a leur
+     * position persistee — n'existe qu'a un seul endroit, et deux calculs
+     * auraient fini par diverger.
+     */
+    private function seriesPayload(
+        ArticleSeries $series,
+        $annexes,
+        string $currentBlogPostId,
+        $organization,
+        string $dossierId,
+    ): array {
+        $articles = $this->seriesArticles($series, $annexes, $currentBlogPostId, $organization);
+
+        $index = collect($articles)->search(fn (array $a) => $a['is_current'] === true);
+
+        $neighbour = function ($offset) use ($articles, $index) {
+            if ($index === false) {
+                return null;
+            }
+
+            $row = $articles[$index + $offset] ?? null;
+
+            return $row === null ? null : [
+                'id' => $row['id'],
+                'title' => $row['title'],
+                'url' => $row['url'],
+            ];
+        };
+
+        $isRoot = $series->root_blog_post_id === $currentBlogPostId;
+
+        return [
+            'root_title' => $series->rootBlogPost?->title,
+            'is_root' => $isRoot,
+            // Le rang d'une annexe, tel qu'on le lit : la racine est le
+            // premier Article, la premiere annexe le deuxieme.
+            'position' => $index === false ? null : $index + 1,
+            'total' => count($articles),
+            'previous' => $neighbour(-1),
+            'next' => $neighbour(1),
+            // Pas de route de Serie dediee dans ce produit : la Serie se lit
+            // dans l'onglet « contenus » de son Dossier.
+            'url' => route('organization.dossiers.show', [
+                'organization' => $organization->slug,
+                'dossier' => $dossierId,
+            ]).'?tab=contenus',
+            // La serie entiere, pour que l'auteur voie de quoi son texte fait
+            // partie sans quitter l'editeur.
+            'articles' => $articles,
         ];
     }
 

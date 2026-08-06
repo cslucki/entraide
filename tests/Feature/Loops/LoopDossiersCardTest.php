@@ -430,4 +430,119 @@ class LoopDossiersCardTest extends TestCase
             count($registry->workspaceCardsFor($this->loop, $this->owner)),
         );
     }
+
+    // ── Le lien vers la Serie ───────────────────────────────────────────────
+
+    public function test_a_series_row_links_into_its_dossier(): void
+    {
+        // Ce produit n'a pas de route de Serie dediee : la Serie s'ouvre dans
+        // l'onglet « contenus » de son Dossier.
+        $root = $this->attachArticle('Le fil rouge');
+
+        ArticleSeries::create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $this->dossier->id,
+            'root_blog_post_id' => $root->id,
+            'created_by' => $this->owner->id,
+        ]);
+
+        $html = Livewire::actingAs($this->owner)
+            ->test(LoopDossiersCard::class, ['loop' => $this->loop])
+            ->html();
+
+        $this->assertStringContainsString('tab=contenus', $html);
+        $this->assertStringContainsString((string) $this->dossier->id, $html);
+    }
+
+    public function test_a_series_shows_its_root_title_and_its_annex_count(): void
+    {
+        $root = $this->attachArticle('Racine du fil');
+        $annex = $this->attachArticle('Une annexe');
+
+        $series = ArticleSeries::create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $this->dossier->id,
+            'root_blog_post_id' => $root->id,
+            'created_by' => $this->owner->id,
+        ]);
+
+        \App\Models\ArticleSeriesItem::create([
+            'organization_id' => $this->organization->id,
+            'article_series_id' => $series->id,
+            'blog_post_id' => $annex->id,
+            'position' => 0,
+            'added_by' => $this->owner->id,
+        ]);
+
+        Livewire::actingAs($this->owner)
+            ->test(LoopDossiersCard::class, ['loop' => $this->loop])
+            ->assertSee('Racine du fil')
+            ->assertSee(trans_choice('loops.cards.dossiers.series_items', 1, ['count' => 1]));
+    }
+
+    public function test_a_series_without_annex_does_not_break_the_card(): void
+    {
+        $root = $this->attachArticle('Serie sans annexe');
+
+        ArticleSeries::create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $this->dossier->id,
+            'root_blog_post_id' => $root->id,
+            'created_by' => $this->owner->id,
+        ]);
+
+        Livewire::actingAs($this->owner)
+            ->test(LoopDossiersCard::class, ['loop' => $this->loop])
+            ->assertOk()
+            ->assertSee(trans_choice('loops.cards.dossiers.series_items', 0, ['count' => 0]));
+    }
+
+    public function test_a_series_of_another_organization_never_shows_here(): void
+    {
+        $otherOwner = User::factory()->create(['organization_id' => $this->otherOrganization->id]);
+        $otherLoop = (new LoopService)->createLoop($otherOwner, 'Boucle etrangere');
+        $otherDossier = Dossier::where('loop_id', $otherLoop->id)->firstOrFail();
+
+        $foreignRoot = BlogPost::create([
+            'organization_id' => $this->otherOrganization->id,
+            'user_id' => $otherOwner->id,
+            'title' => 'Serie etrangere',
+            'slug' => 'serie-etrangere-'.uniqid(),
+            'content' => '<p></p>',
+            'status' => 'draft',
+        ]);
+
+        ArticleSeries::create([
+            'organization_id' => $this->otherOrganization->id,
+            'dossier_id' => $otherDossier->id,
+            'root_blog_post_id' => $foreignRoot->id,
+            'created_by' => $otherOwner->id,
+        ]);
+
+        Livewire::actingAs($this->owner)
+            ->test(LoopDossiersCard::class, ['loop' => $this->loop])
+            ->assertDontSee('Serie etrangere');
+    }
+
+    public function test_a_disabled_card_never_deletes_a_series(): void
+    {
+        // Eteindre l'interface ne touche pas au systeme documentaire : la Serie
+        // reste, et reste atteignable par les autres parcours autorises.
+        $root = $this->attachArticle('Serie qui doit survivre');
+
+        ArticleSeries::create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $this->dossier->id,
+            'root_blog_post_id' => $root->id,
+            'created_by' => $this->owner->id,
+        ]);
+
+        $before = ArticleSeries::where('dossier_id', $this->dossier->id)->count();
+
+        app(LoopCardCompositionService::class)->disable($this->loop, 'core.dossiers');
+        $this->loop->refresh();
+
+        $this->assertSame($before, ArticleSeries::where('dossier_id', $this->dossier->id)->count());
+        $this->assertTrue($this->owner->can('view', $this->dossier->fresh()));
+    }
 }
