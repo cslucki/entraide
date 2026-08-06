@@ -163,18 +163,24 @@ return [
             'icon' => 'academic',
             'order' => 30,
             /*
-             * Not offered anywhere: its pedagogical cards do not exist yet, and
-             * a type that ships nothing of its own is a promise, not a product.
+             * Offert desormais : le type embarque sa propre Card, le Support de
+             * cours. Il ne promet plus, il livre — c'etait la condition posee
+             * ici meme quand il etait retenu.
              */
-            'available' => false,
+            'available' => true,
             /*
-             * Pedagogical activity cards do not exist yet. Listing them here
-             * would be pretending: the preset stays on what is really shipped,
-             * and gains them the day they land in config/loop_cards.php.
+             * Progression, Travaux a rendre et QCM restent absents : ce sont
+             * d'autres Cards de la matrice, et les lister avant de les livrer
+             * serait exactement ce que ce commentaire refusait.
+             *
+             * Modules et Sequences n'y figurent pas non plus, et ne le feront
+             * jamais : ce ne sont pas des Cards, ce sont les contenus du
+             * Support de cours.
              */
             'cards' => [
                 'core.manifesto',
                 'core.members',
+                'training.course_material',
                 'core.roadmap',
             ],
         ],

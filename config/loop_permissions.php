@@ -159,6 +159,32 @@ return [
         ],
 
         // ── ChatLoop ────────────────────────────────────────────────────────
+        /*
+         * Le Support de cours.
+         *
+         * Deux capacites, pas six. Modules et Sequences n'ont pas de permission
+         * a eux : ce ne sont pas des Cards, et ce qu'on a le droit d'en faire
+         * depend entierement de la Card qui les porte. Une permission par
+         * niveau de contenu aurait laisse croire qu'on peut gerer les Sequences
+         * sans gerer le Support de cours.
+         *
+         * `requires_card` est bien la : desactiver la Card ferme reellement la
+         * capacite — ici la dependance est genuine, la capacite n'existe pas
+         * sans elle.
+         */
+        'course_material.view' => [
+            'module' => 'course_material', 'label_fr' => 'Consulter le Support de cours', 'label_en' => 'View the course material',
+            'description' => 'Voir les Modules et les Séquences du Support de cours.', 'locked' => false,
+            'read' => true,
+            'requires_card' => 'training.course_material',
+        ],
+
+        'course_material.manage' => [
+            'module' => 'course_material', 'label_fr' => 'Gérer le Support de cours', 'label_en' => 'Manage the course material',
+            'description' => 'Créer, modifier, classer et supprimer les Modules et les Séquences.', 'locked' => false,
+            'requires_card' => 'training.course_material',
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -312,6 +338,7 @@ return [
             'events.view', 'events.create', 'events.respond', 'events.manage',
             'events.publish_organization',
             'dossiers.view', 'dossiers.create_article', 'dossiers.upload_file',
+            'course_material.view', 'course_material.manage',
         ],
 
         /*
@@ -331,6 +358,9 @@ return [
             'events.view', 'events.create', 'events.respond', 'events.manage',
             'events.publish_organization',
             'dossiers.view',
+            // Le Support de cours, monte et tenu : dans une Boucle Formation,
+            // c'est le travail quotidien du facilitateur.
+            'course_material.view', 'course_material.manage',
         ],
 
         /*
@@ -348,6 +378,9 @@ return [
             'polls.view', 'polls.create', 'polls.vote',
             'events.view', 'events.create', 'events.respond',
             'dossiers.view',
+            // Consulter, pas monter. Suivre une formation, c'est lire son
+            // Support ; le construire est le travail de qui l'anime.
+            'course_material.view',
         ],
     ],
 
