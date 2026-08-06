@@ -1028,4 +1028,89 @@ class DossierSeriesTest extends TestCase
             ]);
         }
     }
+
+    // ── L'etat canonique renvoye au client (TASK-1094) ──────────────────────
+    //
+    // Le client applique cet etat au lieu de recharger la page. Il ne peut le
+    // faire que si la reponse porte reellement la racine ET les annexes dans
+    // l'ordre : c'est ce que ces tests fixent.
+
+    public function test_promoting_returns_the_whole_series_not_just_the_root(): void
+    {
+        [$dossier, $series, $root, $annex] = $this->seriesWithAnnex();
+
+        $payload = $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $annex->id,
+            ])
+            ->assertOk()
+            ->json('series');
+
+        $this->assertSame($annex->id, $payload['root_blog_post_id']);
+        $this->assertArrayHasKey('items', $payload);
+        $this->assertArrayHasKey('root_blog_post', $payload);
+        $this->assertSame($annex->id, $payload['root_blog_post']['id']);
+    }
+
+    public function test_the_returned_annexes_carry_the_former_root_in_first_position(): void
+    {
+        [$dossier, $series, $root, $annex] = $this->seriesWithAnnex();
+
+        $items = $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $annex->id,
+            ])
+            ->assertOk()
+            ->json('series.items');
+
+        $this->assertSame($root->id, $items[0]['blog_post_id']);
+        $this->assertNotNull($items[0]['blog_post']['title'] ?? null);
+    }
+
+    public function test_the_returned_annexes_are_ordered_by_position(): void
+    {
+        [$dossier, $series, $root, $a] = $this->seriesWithAnnex();
+
+        foreach (['B', 'C'] as $n) {
+            $p = $this->blogPost($this->orgA, $this->ownerA, "Annexe {$n}");
+            $this->attach($dossier, $p, $this->ownerA, 9);
+            $this->actingAs($this->ownerA)->postJson(
+                $this->orgRoute('dossiers.series.annexes.store', $dossier), ['blog_post_id' => $p->id]
+            )->assertOk();
+        }
+
+        $items = $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $a->id,
+            ])
+            ->assertOk()
+            ->json('series.items');
+
+        $positions = array_column($items, 'position');
+
+        $this->assertSame($positions, array_values(array_unique($positions)));
+        $sorted = $positions;
+        sort($sorted);
+        $this->assertSame($sorted, $positions, 'Les annexes doivent arriver dans l ordre.');
+    }
+
+    public function test_show_and_update_return_the_same_shape(): void
+    {
+        // Deux charges differentes pour le meme objet auraient fini par
+        // diverger, et le client aurait applique un etat incomplet en croyant
+        // l avoir recu entier.
+        [$dossier, $series, $root, $annex] = $this->seriesWithAnnex();
+
+        $viaShow = $this->actingAs($this->ownerA)
+            ->getJson($this->orgRoute('dossiers.series.show', $dossier))
+            ->assertOk()->json('series');
+
+        $viaUpdate = $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $annex->id,
+            ])
+            ->assertOk()->json('series');
+
+        $this->assertSame(array_keys($viaShow), array_keys($viaUpdate));
+    }
 }

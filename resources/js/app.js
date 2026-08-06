@@ -2320,13 +2320,62 @@ function registerDossierContentsCard() {
                     }
                     this.showSuccess(data.message || this.i18n.seriesRootUpdated);
                     this.openMenuId = null;
-                    // Reload rather than reshuffle by hand: the server has just
-                    // moved two articles and renumbered every position, and
-                    // guessing that here is how lists drift out of step.
-                    window.location.reload();
+                    // Appliquer l'etat que le serveur vient de renvoyer, plutot
+                    // que recharger toute la page.
+                    this.applySeriesState(data.series);
                 })
                 .catch(() => this.showError('Error'))
                 .finally(() => { this.saving = false; });
+        },
+
+        /**
+         * Appliquer l'etat canonique renvoye par le serveur.
+         *
+         * Le serveur dit **quoi** : quel article est racine, et dans quel ordre
+         * viennent les annexes. Le client ne fournit que le **comment** —
+         * titres, URLs, droits — a partir des objets qu'il detient deja. Il ne
+         * reconstruit donc rien et ne devine rien, ce qui etait la seule
+         * objection valable au rechargement de page qu'on remplace ici.
+         *
+         * Les champs enrichis (viewUrl, editUrl, canView, canEdit) sont
+         * construits par la vue Blade et absents de la reponse JSON : les
+         * reprendre depuis l'etat courant est ce qui evite d'afficher des lignes
+         * privees de leurs actions.
+         */
+        applySeriesState(series) {
+            if (!series) return;
+
+            const connus = new Map();
+            const retenir = (bp) => { if (bp && bp.blogPostId) connus.set(String(bp.blogPostId), bp); };
+            retenir(this.seriesRoot);
+            this.seriesItems.forEach(e => retenir(e.blog_post));
+            this.ungrouped.forEach(e => retenir(e.blog_post));
+
+            const enrichi = (id, brut) => connus.get(String(id)) || normalizeArticle(brut);
+
+            const racineId = series.root_blog_post_id || (series.root_blog_post && series.root_blog_post.id) || null;
+
+            this.seriesRootBlogPostId = racineId;
+            this.seriesRoot = racineId ? enrichi(racineId, series.root_blog_post) : null;
+
+            this.seriesItems.splice(0, this.seriesItems.length, ...(series.items || []).map(item => ({
+                id: item.id,
+                blog_post_id: item.blog_post_id,
+                position: item.position,
+                blog_post: enrichi(item.blog_post_id, item.blog_post),
+            })));
+
+            // Un article promu depuis les non-classes doit les quitter : c'est
+            // le cas que le rechargement masquait.
+            const dansLaSerie = new Set([
+                ...(racineId ? [String(racineId)] : []),
+                ...this.seriesItems.map(e => String(e.blog_post_id)),
+            ]);
+            const restants = this.ungrouped.filter(e => !dansLaSerie.has(String(e.blog_post_id)));
+            this.ungrouped.splice(0, this.ungrouped.length, ...restants);
+
+            // Les zones de glissement suivent le nouveau contenu.
+            this.$nextTick(() => this.initSortables());
         },
 
         addToSeries(entry, dropIndex) {
