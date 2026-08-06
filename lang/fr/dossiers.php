@@ -147,6 +147,7 @@ return [
     'series_delete' => 'Supprimer la série',
     'series_delete_confirm' => 'Supprimer cette série ? Les articles resteront dans le dossier.',
     'series_deleted' => 'Série supprimée.',
+    'series_ambiguous' => 'Ce Dossier contient plusieurs Séries : précisez laquelle.',
     'series_name_required_without_root' => 'Une Série sans Article racine doit porter un nom.',
     'series_dossier_missing' => 'Cette Série n\'appartient plus à aucun Dossier.',
     'content_not_in_dossier' => 'Cet élément n\'appartient pas à ce Dossier.',

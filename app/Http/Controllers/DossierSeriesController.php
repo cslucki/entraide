@@ -400,17 +400,42 @@ class DossierSeriesController extends Controller
         ]);
     }
 
-    private function resolveSeries(Dossier $dossier, $organization): ArticleSeries
+    /**
+     * La Serie visee par la requete.
+     *
+     * Un Dossier peut desormais en porter plusieurs (TASK-1095). Tant que les
+     * routes ne transportent pas d'identifiant de Serie — c'est l'affaire de
+     * l'interface, pas du modele — cette methode resout la Serie **unique** du
+     * Dossier, et **refuse** quand il y en a plusieurs plutot que d'en choisir
+     * une au hasard.
+     *
+     * Un `->first()` silencieux aurait agi sur une Serie arbitraire, et le
+     * defaut n'aurait ete visible qu'apres coup, sur les donnees de quelqu'un.
+     */
+    private function resolveSeries(Dossier $dossier, $organization, mixed $seriesId = null): ArticleSeries
     {
-        $series = ArticleSeries::where('dossier_id', $dossier->id)
-            ->where('organization_id', $organization->id)
-            ->first();
+        $query = ArticleSeries::where('dossier_id', $dossier->id)
+            ->where('organization_id', $organization->id);
 
-        if (! $series) {
+        if ($seriesId !== null) {
+            // Le controle de tenant reste porte par la requete elle-meme : un
+            // identifiant forge ne traverse ni le Dossier ni l'Organization.
+            return $query->whereKey($seriesId)->firstOrFail();
+        }
+
+        $series = $query->get();
+
+        if ($series->isEmpty()) {
             abort(404);
         }
 
-        return $series;
+        if ($series->count() > 1) {
+            throw ValidationException::withMessages([
+                'series_id' => __('dossiers.series_ambiguous'),
+            ]);
+        }
+
+        return $series->first();
     }
 
     private function resolveBlogPost(mixed $post): BlogPost

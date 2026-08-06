@@ -147,6 +147,7 @@ return [
     'series_delete' => 'Delete series',
     'series_delete_confirm' => 'Delete this series? Articles will remain in the folder.',
     'series_deleted' => 'Series deleted.',
+    'series_ambiguous' => 'This dossier holds several series: say which one.',
     'series_name_required_without_root' => 'A series without a root article must have a name.',
     'series_dossier_missing' => 'This series no longer belongs to any dossier.',
     'content_not_in_dossier' => 'This item does not belong to this dossier.',
