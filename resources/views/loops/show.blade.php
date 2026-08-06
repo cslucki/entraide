@@ -101,26 +101,32 @@
     }
 
     /* Left card: ChatLoop thread + composer (cream, calm) */
+    /* Les couleurs viennent des jetons de theme, comme le reste du site. En dur,
+       cet ecran restait beige quel que soit le theme choisi — le seul du produit
+       a ne pas suivre. */
     .chatloop-thread-panel {
         min-height: 0;
         display: flex;
         flex-direction: column;
         flex: 1 1 auto;
-        background: linear-gradient(180deg, #FBF9F3, #FCFAF5);
+        /* --bp-panel, pas --bp-surface-soft : dans le theme zen ce dernier vaut
+           la couleur de bordure (#DDE3F0), ce qui donnait un panneau bleu-gris
+           sur une page vert d'eau. Les deux panneaux sont des cartes posees sur
+           la page teintee — c'est le motif du reste du produit. */
+        background: var(--bp-panel);
     }
-    .dark .chatloop-thread-panel { background: #111827; }
 
     /* Right card: active tool panel (white) — mobile overlay by default */
     .chatloop-side-panel {
         display: flex;
         flex-direction: column;
-        background: #fff;
+        background: var(--bp-panel);
         position: absolute;
         inset: 0;
         z-index: 20;
         box-shadow: 0 24px 56px -18px rgba(20, 24, 60, .45);
     }
-    .dark .chatloop-side-panel { background: #0b1220; }
+
 
     .chatloop-splitter { display: none; }
 
@@ -135,13 +141,12 @@
         /* Card styling on each child */
         .chatloop-thread-panel,
         .chatloop-side-panel {
-            border: 1px solid rgb(229 231 235);
+            border: 1px solid var(--bp-border);
             border-radius: 24px;
             box-shadow: 0 1px 2px rgba(20, 24, 60, .05), 0 22px 50px -34px rgba(20, 24, 60, .34);
             overflow: hidden;
         }
-        .dark .chatloop-thread-panel,
-        .dark .chatloop-side-panel { border-color: rgb(55 65 81); }
+
         /* Side panel becomes a real grid cell (no longer an overlay) */
         .chatloop-side-panel {
             position: relative;
@@ -228,15 +233,15 @@
                 }
             "
             x-bind:data-resizing="resizing ? 'true' : 'false'"
-            class="loops-show-container h-dvh flex flex-col bg-gray-100 dark:bg-gray-950"
+            class="loops-show-container h-dvh flex flex-col bg-[var(--bp-page)]"
             data-loop-workspace-shell
         >
 
         {{-- Topbar --}}
-        <div class="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div class="flex flex-nowrap items-center gap-2 border-b border-[var(--bp-border)] px-3 py-2.5 flex-shrink-0 sm:gap-3 sm:px-4">
             @php $backHome = app()->bound('current_organization') && app('current_organization')->isMonoLoop(); @endphp
             <a href="{{ $backHome ? route('home') : $_loopRoute('index') }}"
-               class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+               class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] transition hover:text-[var(--bp-text)]"
                aria-label="{{ $backHome ? __('loops.back_home') : __('loops.back_to_loops') }}">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
@@ -245,41 +250,18 @@
             <div class="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
                 <div class="min-w-0 flex-1">
                     <div class="flex min-w-0 items-start gap-2">
-                        <h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currentLoop->name }}</h1>
+                        <h1 class="truncate text-base font-semibold text-[var(--bp-text)] sm:text-lg">{{ $currentLoop->name }}</h1>
                         <span class="mt-0.5 inline-flex shrink-0 items-center rounded-full border px-1 py-px text-[8px] font-semibold uppercase tracking-wide {{ $currentLoop->isPublic() ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300' : 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400' }}">
                             {{ $currentLoop->isPublic() ? __('loops.visibility_public') : __('loops.visibility_private') }}
                         </span>
                     </div>
                     @if($currentLoop->description)
-                        <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $currentLoop->description }}</p>
+                        <p class="truncate text-xs text-[var(--bp-muted)]">{{ $currentLoop->description }}</p>
                     @endif
-
-                    @include('loops.partials.permanent-frame')
                 </div>
 
             </div>
-            @can('update', $currentLoop)
-                <a href="{{ $_loopRoute('edit', ['loop' => $currentLoop]) }}"
-                   class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-                   aria-label="{{ __('loops.edit') }}" title="{{ __('loops.edit') }}">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487a2.1 2.1 0 1 1 2.97 2.97L8.63 18.66l-4.243.53.53-4.243L16.862 4.487Z"/>
-                    </svg>
-                </a>
-            @endcan
-            @if($canArchiveLoop ?? false)
-                {{-- Archiver / reactiver. Hors du @can('update') : cette ability
-                     refuse une Boucle archivee, et la reactivation doit rester
-                     accessible a la personne qui l'a archivee. --}}
-                <button type="button" x-on:click="$dispatch('open-loop-archive')"
-                        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 transition hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/70"
-                        aria-label="{{ $currentLoop->isArchived() ? __('loops.reactivate_action') : __('loops.archive_action') }}"
-                        title="{{ $currentLoop->isArchived() ? __('loops.reactivate_action') : __('loops.archive_action') }}">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
-                    </svg>
-                </button>
-            @endif
+            @include('loops.partials.header-actions')
         </div>
 
         @if($canArchiveLoop ?? false)

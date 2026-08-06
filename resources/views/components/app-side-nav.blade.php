@@ -144,12 +144,12 @@
 @endphp
 
 <aside x-data class="hidden md:flex fixed inset-y-0 left-0 z-40 w-20 flex-col items-center border-r border-[var(--bp-border)] bg-[var(--bp-surface)]/95 text-[var(--bp-muted)] shadow-[8px_0_24px_rgba(15,23,42,0.05)] backdrop-blur">
-    <div class="flex h-full w-full flex-col items-center py-4">
-        <a href="{{ $organizationRouteParam ? route('organization.home', ['organization' => $organizationRouteParam]) : route('home') }}" class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)] transition hover:scale-105" aria-label="BouclePro">
-            <img src="{{ $brandLogoUrl }}" alt="" class="h-8 w-8" aria-hidden="true">
+    <div class="flex h-full w-full flex-col items-center py-3">
+        <a href="{{ $organizationRouteParam ? route('organization.home', ['organization' => $organizationRouteParam]) : route('home') }}" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--bp-panel)] shadow-sm ring-1 ring-[var(--bp-border)] transition hover:scale-105" aria-label="BouclePro">
+            <img src="{{ $brandLogoUrl }}" alt="" class="h-7 w-7" aria-hidden="true">
         </a>
 
-        <div class="mt-2 flex items-center gap-0.5 rounded-full bg-[var(--bp-panel)] px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-[var(--bp-border)]" aria-label="{{ __('navigation.language_switcher') }}">
+        <div class="mt-1.5 flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--bp-panel)] px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-[var(--bp-border)]" aria-label="{{ __('navigation.language_switcher') }}">
             @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                 <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
                     @csrf
@@ -163,7 +163,10 @@
             @endforeach
         </div>
 
-        <nav class="mt-5 flex w-full flex-1 flex-col items-center gap-0.5" aria-label="{{ __('navigation.main_navigation') }}">
+        {{-- min-h-0 : sans lui, un flex-1 refuse de descendre sous la hauteur de
+             son contenu et pousse l'avatar hors de l'écran. Avec, le rail défile
+             et le bas reste toujours atteignable. --}}
+        <nav class="mt-3 flex w-full min-h-0 flex-1 flex-col items-center overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="{{ __('navigation.main_navigation') }}">
             @foreach($items as $item)
                 @php
                     $active = $isActive($item);
@@ -177,43 +180,46 @@
                     $activeIndicatorClass = $isFlux ? 'bg-emerald-500' : 'bg-[var(--bp-primary)]';
                 @endphp
                 <a href="{{ $item['url'] }}"
-                   class="group relative flex w-full flex-col items-center gap-0.5 px-2 py-1 text-[10px] font-medium transition {{ $itemTextClass }}"
+                   class="group relative flex w-full shrink-0 flex-col items-center px-1 py-0.5 text-[9px] font-medium leading-none transition {{ $itemTextClass }}"
                    title="{{ $item['label'] }}">
-                    <span class="relative flex h-10 w-10 items-center justify-center rounded-xl transition {{ $iconClass }}">
-                        <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <span class="relative flex h-8 w-8 items-center justify-center rounded-lg transition {{ $iconClass }}">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <path d="{{ $item['icon'] }}" />
                         </svg>
                         @if(($item['badge'] ?? 0) > 0)
-                            <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]">
+                            <span class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]">
                                 {{ $item['badge'] > 9 ? '9+' : $item['badge'] }}
                             </span>
                         @endif
                     </span>
-                    <span class="leading-none">{{ $item['label'] }}</span>
+                    <span class="mt-0.5 leading-none">{{ $item['label'] }}</span>
                     @if($active)
-                        <span class="absolute right-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-l-full {{ $activeIndicatorClass }}"></span>
+                        <span class="absolute right-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-l-full {{ $activeIndicatorClass }}"></span>
                     @endif
                 </a>
             @endforeach
         </nav>
 
-        <div class="flex flex-col items-center gap-2 border-t border-[var(--bp-border)] pt-2.5">
-            <button type="button" @click="$store.visualTheme.next()" class="flex w-10 flex-col items-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] px-0.5 py-1 text-[8px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.change_theme') }}">
-                <span class="h-2 w-2 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
+        {{-- shrink-0 : ce bloc ne se comprime jamais. Les deux réglages et
+             surtout l'avatar restent visibles quel que soit le nombre d'entrées
+             au-dessus — c'est la nav qui défile, pas le bas du rail. --}}
+        <div class="mt-2 flex shrink-0 flex-col items-center gap-1.5 border-t border-[var(--bp-border)] pt-2">
+            <button type="button" @click="$store.visualTheme.next()" class="flex w-9 flex-col items-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] px-0.5 py-0.5 text-[7px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.change_theme') }}">
+                <span class="h-1.5 w-1.5 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
                 <span class="mt-0.5 leading-none" x-text="$store.visualTheme.label()">Sable</span>
             </button>
 
-            <button type="button" @click="$store.darkMode.toggle()" class="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.toggle_display_mode') }}">
-                <svg class="h-3.5 w-3.5 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-                <svg class="hidden h-3.5 w-3.5 dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <button type="button" @click="$store.darkMode.toggle()" class="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.toggle_display_mode') }}">
+                <svg class="h-3 w-3 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                <svg class="hidden h-3 w-3 dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
 
             @auth
                 <x-dropdown align="left-up" width="w-64" contentClasses="py-2 bg-white dark:bg-gray-800">
                     <x-slot name="trigger">
-                        <button class="relative flex h-11 w-11 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
-                            <img src="{{ Auth::user()->avatar_url }}" class="h-10 w-10 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
-                            <span class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
+                        <button class="relative flex h-9 w-9 items-center justify-center rounded-full ring-2 ring-white transition hover:scale-105 dark:ring-gray-800" aria-label="{{ __('navigation.user_menu') }}">
+                            <img src="{{ Auth::user()->avatar_url }}" class="h-8 w-8 rounded-full object-cover" alt="{{ Auth::user()->full_name }}">
+                            <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--bp-surface)] bg-[var(--bp-progress)]"></span>
                         </button>
                     </x-slot>
                     <x-slot name="content">
