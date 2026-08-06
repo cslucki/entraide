@@ -137,7 +137,7 @@
              sont immediates et n'ont rien a voir avec l'enregistrement du nom
              ou des domaines. --}}
         <div class="mt-8">
-            @livewire('loop-member-picker', ['loop' => $currentLoop], key('member-picker-edit-'.$currentLoop->id))
+            @livewire('loop-members-card', ['loop' => $currentLoop], key('members-card-edit-'.$currentLoop->id))
         </div>
     </div>
 </x-app-layout>

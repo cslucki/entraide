@@ -23,6 +23,9 @@
     'canRemove' => false,
     'creatorId' => null,
     'currentUserId' => null,
+    // Les personnes qui viennent d'arriver : leur ligne se signale un instant,
+    // pour qu'on voie ou elles se sont rangees dans une liste triee.
+    'highlightIds' => [],
 ])
 
 @php
@@ -68,7 +71,7 @@
                     $hasActions = $canPromoteOwner || $canPromoteFacilitator || $canDemoteOwner || $canDemoteFacilitator || $canDrop;
                 @endphp
 
-                <li class="flex items-center gap-2.5 py-1.5">
+                <li class="flex items-center gap-2.5 rounded-xl px-1.5 py-1.5 transition-colors duration-700 {{ in_array($member->user_id, $highlightIds, true) ? 'bg-emerald-50 dark:bg-emerald-900/25' : '' }}">
                     <x-user-avatar :user="$member->user" size="sm" />
 
                     <span class="min-w-0 flex-1">
