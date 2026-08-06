@@ -537,6 +537,10 @@ class LoopController extends Controller
             'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations', 'governance',
         ) + [
             'workspaceCards' => $this->workspaceCardsFor($loop, $user),
+            // Le cadre permanent et les actions IA de ChatLoop : declares dans
+            // le meme registre, mais rendus ailleurs qu'en grille (TASK-1090).
+            'frameCards' => $this->placedCardsFor($loop, $user, 'frame'),
+            'chatActionCards' => $this->placedCardsFor($loop, $user, 'chat'),
             // Le cycle de vie : qui peut archiver, et ce que l'archivage
             // toucherait. Calcule ici pour que la modale annonce des chiffres
             // reels plutot qu'une formule vague.
@@ -574,6 +578,33 @@ class LoopController extends Controller
         }
 
         return app(LoopCardRegistry::class)->workspaceCardsFor($loop, $user);
+    }
+
+    /**
+     * Les Cards rendues hors de la grille : cadre permanent, actions ChatLoop.
+     *
+     * Meme porte d'entree que la grille — un non-membre n'y accede pas — pour
+     * qu'on ne puisse pas contourner la regle en passant par le cadre.
+     *
+     * @param  'frame'|'chat'  $placement
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function placedCardsFor(Loop $loop, User $user, string $placement): \Illuminate\Support\Collection
+    {
+        $isActiveMember = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $isActiveMember && ! $user->is_admin) {
+            return collect();
+        }
+
+        $registry = app(LoopCardRegistry::class);
+
+        return $placement === 'frame'
+            ? $registry->frameCardsFor($loop, $user)
+            : $registry->chatActionCardsFor($loop, $user);
     }
 
     /**

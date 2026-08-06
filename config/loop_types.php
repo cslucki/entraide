@@ -67,16 +67,21 @@ return [
             'order' => 10,
             'available' => true,
             /*
-             * A Dialogue Loop is a conversation: the ChatLoop, its members, and
-             * — since TASK-1087 — the Polls that let that conversation decide
-             * something. No Manifesto, no Roadmap, no AI summary: those belong
-             * to a Loop that is building something.
+             * Communaute — cle `general`, libelle change en TASK-1090.
              *
-             * Polls join this preset alone. Every other type can switch the Card
-             * on locally; none gets it by default, because a Card nobody asked
-             * for is a button in the way.
+             * Le cadre permanent (Manifeste, Membres) plus les Cards
+             * distinctives de la matrice canonique. La cible est
+             * Evenements · Sondage · Dossiers ; **la Card Dossiers n'existe pas
+             * encore**, et la creer etait hors scope de TASK-1090. Le troisieme
+             * emplacement reste donc vide jusqu'a ce qu'elle soit construite.
+             *
+             * La Roadmap n'est plus au socle : une Boucle de vie collective n'a
+             * pas de feuille de route par defaut. Elle reste activable
+             * localement, et les Boucles qui l'ont la gardent — la
+             * synchronisation des presets n'a jamais rien retire.
              */
             'cards' => [
+                'core.manifesto',
                 'core.members',
                 'core.polls',
                 'core.events',

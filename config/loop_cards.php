@@ -3,6 +3,18 @@
 return [
 
     /*
+     * Le nombre de Cards que la zone principale accepte.
+     *
+     * Trois, parce que c'est ce qui permet de comprendre en ouvrant une Boucle
+     * ce qu'on y fait. Au-dela, la barre cesse d'annoncer une intention et
+     * devient une boite a outils.
+     *
+     * Le cadre permanent — ChatLoop, Manifeste, Membres — ne compte pas : il est
+     * partout, donc il ne distingue rien.
+     */
+    'grid_slots' => 3,
+
+    /*
      * Le catalogue des Cards — la seule declaration.
      *
      * Une Card etait auparavant declaree a trois endroits que rien ne tenait
@@ -22,6 +34,21 @@ return [
      *                    de posseder la Card ; null = tout membre actif
      *   required         une Card requise ne se desactive jamais
      *   order            ordre d'affichage dans le workspace
+     *
+     *   placement        ou la Card vit a l'ecran (TASK-1090) :
+     *                      `grid`         la zone des outils, trois au maximum
+     *                      `frame`        le cadre permanent, hors grille
+     *                      `chat_action`  une action IA de ChatLoop
+     *   category         a quoi elle sert, pour regrouper le catalogue
+     *   scope            `universal` (toute Boucle) ou `contextual` (un metier)
+     *   requires         Cards dont celle-ci a besoin pour avoir un sens
+     *   incompatible_with Cards avec lesquelles elle ne peut pas coexister
+     *   replaceable      peut-elle etre echangee dans un emplacement distinctif
+     *
+     * `placement` ne retire rien : une Card `frame` reste declaree, gardee par
+     * ses permissions et comptee par l'administration. Elle quitte seulement la
+     * grille — une barre de six outils ne dit plus ce qu'on fait dans la Boucle,
+     * elle donne une boite a outils au lieu d'une intention.
      *
      * Une Card sans `component` ni `view` est declaree mais pas encore
      * construite : elle n'est jamais proposee a l'activation et ne rend rien.
@@ -45,6 +72,14 @@ return [
             'view_permission' => null,
             'required' => false,
             'order' => 10,
+            // Le resume est une action de la conversation, pas un outil au meme
+            // titre que la Roadmap : il rejoint les actions IA de ChatLoop.
+            'placement' => 'chat_action',
+            'category' => 'ai',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => false,
             'permission' => 'loop.active_member',
             'mobile' => 'drawer',
             'default_enabled' => true,
@@ -62,6 +97,14 @@ return [
             'view_permission' => 'manifesto.view',
             'required' => false,
             'order' => 20,
+            // Cadre permanent : le texte de reference se consulte, il ne
+            // s'« ouvre » pas comme un instrument de travail.
+            'placement' => 'frame',
+            'category' => 'foundation',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => false,
             'permission' => 'loop.active_member',
             'mobile' => 'drawer',
             'default_enabled' => true,
@@ -79,6 +122,12 @@ return [
             'view_permission' => 'roadmap.view',
             'required' => false,
             'order' => 30,
+            'placement' => 'grid',
+            'category' => 'action',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => true,
             'permission' => 'loop.active_member',
             'mobile' => 'drawer',
             'default_enabled' => true,
@@ -96,6 +145,12 @@ return [
             'view_permission' => 'polls.view',
             'required' => false,
             'order' => 35,
+            'placement' => 'grid',
+            'category' => 'decision',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => true,
             'permission' => 'loop.active_member',
             'mobile' => 'drawer',
             'default_enabled' => true,
@@ -113,6 +168,12 @@ return [
             'view_permission' => 'events.view',
             'required' => false,
             'order' => 37,
+            'placement' => 'grid',
+            'category' => 'rhythm',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => true,
             'permission' => 'loop.active_member',
             'mobile' => 'drawer',
             'default_enabled' => true,
@@ -133,6 +194,14 @@ return [
             // Sans les membres, un workspace n'a plus de sens.
             'required' => true,
             'order' => 40,
+            // Cadre permanent : savoir qui est la est un contexte, pas une
+            // activite.
+            'placement' => 'frame',
+            'category' => 'foundation',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => false,
             'permission' => 'loop.active_member',
             'mobile' => 'drawer',
             'default_enabled' => true,

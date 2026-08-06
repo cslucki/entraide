@@ -28,6 +28,15 @@
     $loopInvitationAction = ($_org && request()->routeIs('organization.*') && Route::has('organization.loops.invitations.store'))
         ? route('organization.loops.invitations.store', ['organization' => $_org, 'loop' => $currentLoop])
         : route('loops.invitations.store', $currentLoop);
+    // Les panneaux rendus a droite : la grille, plus le cadre permanent et les
+    // actions ChatLoop, dont les boutons d'ouverture vivent ailleurs depuis
+    // TASK-1090. La mecanique du panneau ne change pas — seuls les points
+    // d'entree ont demenage.
+    $panelCards = collect($workspaceCards)
+        ->concat($frameCards ?? collect())
+        ->concat($chatActionCards ?? collect())
+        ->unique('key')
+        ->values();
     // $workspaceCards is resolved by LoopController::show(). It used to be built
     // here from the global catalogue filtered on `default_enabled`, so every Loop
     // showed every card whatever its own composition — and three of them opened
@@ -214,7 +223,7 @@
                  que le workspace rend deja : un evenement portant une cle
                  inconnue n'ouvre rien. --}}
             @bp-open-loop-card.window="
-                if ($event.detail?.card && @js($workspaceCards->pluck('key')).includes($event.detail.card)) {
+                if ($event.detail?.card && @js($panelCards->pluck('key')).includes($event.detail.card)) {
                     activeCard = $event.detail.card; focus = 'none';
                 }
             "
@@ -244,6 +253,8 @@
                     @if($currentLoop->description)
                         <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $currentLoop->description }}</p>
                     @endif
+
+                    @include('loops.partials.permanent-frame')
                 </div>
 
             </div>
@@ -332,7 +343,7 @@
                 class="chatloop-thread-panel"
                 data-loop-workspace-chat
             >
-                @if($workspaceCards->isNotEmpty())
+                @if($workspaceCards->isNotEmpty() || ($chatActionCards ?? collect())->isNotEmpty())
                     <div class="flex-shrink-0 border-b border-gray-200 bg-white/90 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/90 sm:px-4">
                         @include('loops.partials.chat-tools')
                     </div>
@@ -340,7 +351,7 @@
                 @livewire('loop-chat', ['loop' => $currentLoop], key('loop-chat-'.$currentLoop->id))
             </div>
 
-            @if($workspaceCards->isNotEmpty())
+            @if($panelCards->isNotEmpty())
                 {{-- Resizable vertical splitter (desktop only, when a panel is open) --}}
                 <button
                     type="button"
@@ -378,7 +389,7 @@
 
                             {{-- Desktop: active tool title (docked card) --}}
                             <div class="hidden min-w-0 flex-1 lg:block">
-                                @foreach($workspaceCards as $card)
+                                @foreach($panelCards as $card)
                                     <p x-show="activeCard === @js($card['key'])" x-cloak class="truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ __($card['label_key']) }}</p>
                                 @endforeach
                             </div>
@@ -408,7 +419,7 @@
                         </div>
 
                         <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-                            @foreach($workspaceCards as $card)
+                            @foreach($panelCards as $card)
                                 <section x-show="activeCard === @js($card['key'])" x-cloak class="space-y-5">
                                     {{-- Rendu pilote par le registre : plus aucune condition sur
                                          une cle de Card ici. Une Card sans composant ni vue ne

@@ -120,6 +120,135 @@ class LoopCardRegistry
         return is_string($permission) && $permission !== '' ? $permission : null;
     }
 
+    // ── Placement (TASK-1090) ───────────────────────────────────────────────
+
+    public const PLACEMENT_GRID = 'grid';
+
+    public const PLACEMENT_FRAME = 'frame';
+
+    public const PLACEMENT_CHAT_ACTION = 'chat_action';
+
+    /**
+     * Ou une Card vit a l'ecran.
+     *
+     * `grid` par defaut : une Card qui ne dit rien de son placement est un outil
+     * ordinaire, et c'est le cas le plus frequent.
+     */
+    public function placementOf(string $key): string
+    {
+        $placement = $this->get($key)['placement'] ?? self::PLACEMENT_GRID;
+
+        return in_array($placement, [self::PLACEMENT_GRID, self::PLACEMENT_FRAME, self::PLACEMENT_CHAT_ACTION], true)
+            ? $placement
+            : self::PLACEMENT_GRID;
+    }
+
+    /**
+     * Le nombre de Cards que la zone principale accepte.
+     *
+     * Trois : au-dela, la barre cesse d'annoncer une intention.
+     */
+    public function gridSlots(): int
+    {
+        return max(1, (int) config('loop_cards.grid_slots', 3));
+    }
+
+    /**
+     * Les Cards du cadre permanent — presentes partout, hors de la grille.
+     *
+     * Elles restent declarees, gardees par leurs permissions et comptees par
+     * l'administration : seule leur place a l'ecran change.
+     *
+     * @return array<int, string>
+     */
+    public function frameKeys(): array
+    {
+        return $this->keysWithPlacement(self::PLACEMENT_FRAME);
+    }
+
+    /** @return array<int, string> */
+    public function gridKeys(): array
+    {
+        return $this->keysWithPlacement(self::PLACEMENT_GRID);
+    }
+
+    /** @return array<int, string> */
+    public function chatActionKeys(): array
+    {
+        return $this->keysWithPlacement(self::PLACEMENT_CHAT_ACTION);
+    }
+
+    /** @return array<int, string> */
+    private function keysWithPlacement(string $placement): array
+    {
+        return array_values(array_filter(
+            $this->renderableKeys(),
+            fn ($key) => $this->placementOf($key) === $placement,
+        ));
+    }
+
+    // ── Dependances (TASK-1090) ─────────────────────────────────────────────
+
+    /**
+     * Les Cards dont celle-ci a besoin pour avoir un sens.
+     *
+     * Declarees dans le catalogue, jamais deduites du type : c'est ce qui permet
+     * a une dependance de valoir dans toutes les Boucles, quel que soit leur
+     * preset.
+     *
+     * @return array<int, string>
+     */
+    public function requirementsOf(string $key): array
+    {
+        return array_values(array_filter(
+            (array) ($this->get($key)['requires'] ?? []),
+            fn ($k) => is_string($k) && $this->exists($k),
+        ));
+    }
+
+    /** @return array<int, string> */
+    public function incompatibilitiesOf(string $key): array
+    {
+        return array_values(array_filter(
+            (array) ($this->get($key)['incompatible_with'] ?? []),
+            fn ($k) => is_string($k) && $this->exists($k),
+        ));
+    }
+
+    /** Une Card remplacable peut etre echangee dans un emplacement distinctif. */
+    public function isReplaceable(string $key): bool
+    {
+        return (bool) ($this->get($key)['replaceable'] ?? true);
+    }
+
+    public function categoryOf(string $key): string
+    {
+        return (string) ($this->get($key)['category'] ?? 'other');
+    }
+
+    public function scopeOf(string $key): string
+    {
+        return (string) ($this->get($key)['scope'] ?? 'universal');
+    }
+
+    /**
+     * Ce qui empeche d'activer une Card ici, s'il y a quelque chose.
+     *
+     * Retourne les cles manquantes et les cles en conflit — de quoi expliquer un
+     * refus plutot que de le subir. La verification vaut aussi pour une requete
+     * forgee : c'est le service de composition qui l'appelle, pas la vue.
+     *
+     * @param  array<int, string>  $activeKeys
+     * @return array{missing: array<int, string>, conflicting: array<int, string>}
+     */
+    public function blockersFor(string $key, array $activeKeys): array
+    {
+        $missing = array_values(array_diff($this->requirementsOf($key), $activeKeys));
+        $conflicting = array_values(array_intersect($this->incompatibilitiesOf($key), $activeKeys));
+
+        return ['missing' => $missing, 'conflicting' => $conflicting];
+    }
+
     /** A required Card can never be switched off. */
     public function isRequired(string $key): bool
     {
@@ -169,10 +298,9 @@ class LoopCardRegistry
     /**
      * The Cards a given person actually sees in a given Loop, ready to render.
      *
-     * Three filters, in this order:
-     *   1. the Loop's effective composition (LoopTypeRegistry::activeCardsFor) ;
-     *   2. the existence of a renderer, so no button opens on nothing ;
-     *   3. the read permission, so nothing is offered that the resolver refuses.
+     * **Depuis TASK-1090, seules les Cards `grid` y figurent**, et trois au
+     * maximum. Le cadre permanent — Manifeste, Membres — se lit par
+     * frameCardsFor(), et le Resume IA par chatActionCardsFor().
      *
      * Read-only: nothing here writes to loop_cards.
      *
@@ -180,8 +308,52 @@ class LoopCardRegistry
      */
     public function workspaceCardsFor(Loop $loop, User $user): \Illuminate\Support\Collection
     {
-        // Eager-load once: activeCardsFor() uses the loaded relation when it is
-        // there, and the resolver calls it again for every card it gates.
+        return $this->visibleCardsFor($loop, $user)
+            ->filter(fn (array $card) => $this->placementOf($card['key']) === self::PLACEMENT_GRID)
+            // Le plafond est applique ici et non en base : une composition qui
+            // en porterait davantage — heritage, ou preset elargi — ne casse
+            // rien, elle montre les trois premieres dans l'ordre du catalogue.
+            ->take($this->gridSlots())
+            ->values();
+    }
+
+    /**
+     * Les Cards du cadre permanent que cette personne voit ici.
+     *
+     * Memes filtres que la grille — composition, renderer, permission de lecture
+     * — mais sans plafond : le cadre n'est pas un emplacement qu'on se dispute.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    public function frameCardsFor(Loop $loop, User $user): \Illuminate\Support\Collection
+    {
+        return $this->visibleCardsFor($loop, $user)
+            ->filter(fn (array $card) => $this->placementOf($card['key']) === self::PLACEMENT_FRAME)
+            ->values();
+    }
+
+    /**
+     * Les Cards qui vivent dans les actions IA de ChatLoop.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    public function chatActionCardsFor(Loop $loop, User $user): \Illuminate\Support\Collection
+    {
+        return $this->visibleCardsFor($loop, $user)
+            ->filter(fn (array $card) => $this->placementOf($card['key']) === self::PLACEMENT_CHAT_ACTION)
+            ->values();
+    }
+
+    /**
+     * Le socle commun aux trois accesseurs : ce que cette personne peut voir de
+     * la composition de cette Boucle, sans distinction de placement.
+     *
+     * Read-only : rien n'ecrit dans loop_cards.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function visibleCardsFor(Loop $loop, User $user): \Illuminate\Support\Collection
+    {
         $loop->loadMissing('cards');
 
         $resolver = app(LoopPermissionResolver::class);

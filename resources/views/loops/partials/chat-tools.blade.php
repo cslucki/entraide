@@ -8,6 +8,22 @@
         {{ __('loops.cards_bar_launch') }}
     </span>
 
+    {{-- Les actions IA vivent sous « Lancer », pas dans la grille des outils :
+         un resume est quelque chose qu'on demande a la conversation, pas un
+         instrument au meme titre que la Roadmap (TASK-1090). --}}
+    @foreach(($chatActionCards ?? collect()) as $aiCard)
+        <button
+            type="button"
+            x-on:click="openCard(@js($aiCard['key']))"
+            x-bind:aria-pressed="activeCard === @js($aiCard['key'])"
+            x-bind:class="activeCard === @js($aiCard['key']) ? 'border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-600/70 dark:bg-violet-900/20 dark:text-violet-200' : 'border-violet-100 bg-violet-50/60 text-violet-700 hover:border-violet-300 dark:border-violet-800/50 dark:bg-violet-900/20 dark:text-violet-200'"
+            class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold transition"
+        >
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
+            {{ __($aiCard['label_key']) }}
+        </button>
+    @endforeach
+
     <div class="flex min-w-0 flex-1 items-center gap-2">
         @foreach($workspaceCards as $card)
             <button

@@ -23,6 +23,8 @@ use App\Models\TranslationOverride;
 use App\Models\User;
 use App\Services\LoopGovernanceService;
 use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopPresetConfigurator;
+use App\Services\Loops\PresetException;
 use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
@@ -360,6 +362,108 @@ class OrgAdminController extends Controller
      * a leur maniere. Celui-ci ne verifiait aucune permission — il la demande
      * desormais comme tout le monde.
      */
+    /**
+     * Le configurateur, vu depuis l'Organization.
+     *
+     * Meme service, meme vue, memes regles que l'ecran plateforme : seules les
+     * routes changent. Dupliquer l'ecran aurait garanti qu'ils divergent.
+     */
+    public function configureLoop(Request $request, Organization $organization, Loop $loop): View
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $configurator = app(LoopPresetConfigurator::class);
+
+        abort_unless($configurator->canConfigure($request->user(), $loop), 403);
+
+        return view('admin.loops.configure', [
+            'loop' => $loop,
+            'composition' => $configurator->describe($loop),
+            'types' => app(LoopTypeRegistry::class)->selectableFor($loop->type),
+            'organization' => $organization,
+            'backUrl' => route('organization.admin.loops.edit', [
+                'organization' => $organization->slug, 'loop' => $loop->id,
+            ]),
+            'scopedRoutes' => [
+                'compose' => route('organization.admin.loops.compose', [
+                    'organization' => $organization->slug, 'loop' => $loop->id,
+                ]),
+                'preset' => route('organization.admin.loops.preset.apply', [
+                    'organization' => $organization->slug, 'loop' => $loop->id,
+                ]),
+            ],
+        ]);
+    }
+
+    public function composeLoopCards(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $data = $request->validate([
+            'action' => 'required|in:enable,disable,replace,restore',
+            'card_key' => 'nullable|string',
+            'incoming_key' => 'nullable|string',
+        ]);
+
+        $configurator = app(LoopPresetConfigurator::class);
+        $user = $request->user();
+
+        try {
+            $message = match ($data['action']) {
+                'enable' => tap(__('loops.preset_enabled'), fn () => $configurator->enable($user, $loop, $data['card_key'] ?? '')),
+                'disable' => tap(__('loops.preset_disabled'), fn () => $configurator->disable($user, $loop, $data['card_key'] ?? '')),
+                'replace' => tap(__('loops.preset_replaced'), fn () => $configurator->replace($user, $loop, $data['card_key'] ?? '', $data['incoming_key'] ?? '')),
+                default => __('loops.preset_restored', ['count' => count($configurator->restorePreset($user, $loop))]),
+            };
+        } catch (PresetException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $message);
+    }
+
+    public function applyLoopPreset(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $data = $request->validate([
+            'type' => 'required|string',
+            'deactivate_absent' => 'nullable|boolean',
+        ]);
+
+        try {
+            app(LoopPresetConfigurator::class)->applyPreset(
+                $request->user(), $loop, $data['type'], (bool) ($data['deactivate_absent'] ?? false),
+            );
+        } catch (PresetException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('loops.preset_applied', [
+            'type' => app(LoopTypeRegistry::class)->label($data['type']),
+        ]));
+    }
+
+    /**
+     * La politique de composition de l'Organization.
+     *
+     * Deux valeurs, et c'est tout : verrouille, ou proprietaires autorises.
+     * Une delegation plus fine demanderait sa propre table, et personne ne l'a
+     * demandee.
+     */
+    public function updateCompositionPolicy(Request $request, Organization $organization): RedirectResponse
+    {
+        abort_unless($request->user()?->is_admin || $organization->admin_id === $request->user()?->id, 403);
+
+        $data = $request->validate([
+            'policy' => ['required', Rule::in(Organization::COMPOSITION_POLICIES)],
+        ]);
+
+        $organization->update(['loop_composition_policy' => $data['policy']]);
+
+        return back()->with('success', __('loops.preset_policy_saved'));
+    }
+
     public function toggleLoopActive(Request $request, Organization $organization, Loop $loop): RedirectResponse
     {
         abort_if($loop->organization_id !== $organization->id, 404);
