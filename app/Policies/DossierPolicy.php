@@ -86,6 +86,16 @@ class DossierPolicy
         // A root Dossier has no personal owner, so isOwner() would lock
         // everyone out — including the people who run the Loop. Its editors are
         // those who may edit the Loop's identity.
+        //
+        // Cette porte ne consulte deliberement AUCUNE Card. Le Dossier racine
+        // est une infrastructure commune : la Card Dossiers en est une vue, et
+        // d'autres viendront — Article, Support de cours, Travaux a rendre, le
+        // document racine, les fichiers de la Boucle. Eteindre une interface ne
+        // doit pas eteindre le systeme documentaire qu'elle regarde.
+        //
+        // TASK-1091 avait ajoute ici un test sur `core.dossiers`. C'etait trop
+        // large : cela faisait dependre l'ecriture du Dossier de la presence
+        // d'une seule de ses vues.
         if ($dossier->isLoopDossier()) {
             return $dossier->loop !== null && $user->can('update', $dossier->loop);
         }

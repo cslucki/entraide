@@ -211,6 +211,34 @@ return [
             'requires_card' => 'core.events',
         ],
 
+        // ── Dossiers ────────────────────────────────────────────────────────
+        //
+        // La Card Dossiers n'a pas de regle a elle : elle expose le Dossier
+        // racine de la Boucle, dont DossierPolicy tient deja les droits. Ces
+        // trois capacites servent a une seule chose — permettre au resolveur de
+        // refuser quand la Card est eteinte, via `requires_card`. Le reste des
+        // verifications reste ou il est.
+        'dossiers.view' => [
+            'module' => 'dossiers', 'label_fr' => 'Consulter le Dossier', 'label_en' => 'View the Dossier',
+            'description' => 'Voir les Articles, Series et fichiers du Dossier racine de la Boucle.',
+            'locked' => false,
+            // La seule lecture : la seule qui survive a l'archivage.
+            'read' => true,
+            'requires_card' => 'core.dossiers',
+        ],
+        'dossiers.create_article' => [
+            'module' => 'dossiers', 'label_fr' => 'Ecrire un Article', 'label_en' => 'Write an article',
+            'description' => 'Creer un Article dans le Dossier racine. Le droit reel vient de DossierPolicy, qui delegue a LoopPolicy::update : proprietaire ou admin d\'Organization. Cette entree sert la porte `requires_card`.',
+            'locked' => false,
+            'requires_card' => 'core.dossiers',
+        ],
+        'dossiers.upload_file' => [
+            'module' => 'dossiers', 'label_fr' => 'Deposer un fichier', 'label_en' => 'Upload a file',
+            'description' => 'Ajouter un fichier au Dossier racine. Meme porte que l\'ecriture d\'Article : DossierPolicy delegue a LoopPolicy::update.',
+            'locked' => false,
+            'requires_card' => 'core.dossiers',
+        ],
+
         // ── Sondages ────────────────────────────────────────────────────────
         //
         // `requires_card` fait tout le travail de la Card desactivee : sans la
@@ -283,6 +311,7 @@ return [
             'polls.view', 'polls.create', 'polls.vote', 'polls.manage',
             'events.view', 'events.create', 'events.respond', 'events.manage',
             'events.publish_organization',
+            'dossiers.view', 'dossiers.create_article', 'dossiers.upload_file',
         ],
 
         /*
@@ -301,6 +330,7 @@ return [
             'polls.view', 'polls.create', 'polls.vote', 'polls.manage',
             'events.view', 'events.create', 'events.respond', 'events.manage',
             'events.publish_organization',
+            'dossiers.view',
         ],
 
         /*
@@ -317,6 +347,7 @@ return [
             'chatloop.view', 'chatloop.post',
             'polls.view', 'polls.create', 'polls.vote',
             'events.view', 'events.create', 'events.respond',
+            'dossiers.view',
         ],
     ],
 

@@ -164,10 +164,27 @@ class TASK1081WorkspaceCompositionTest extends TestCase
             ]);
         }
 
-        $response = $this->workspace($loop)->assertOk();
+        $this->workspace($loop)->assertOk();
+
+        // Rien n'a ete retire de la composition : c'est cela que ce test garde.
+        $active = app(\App\Support\Loops\LoopTypeRegistry::class)->activeCardsFor($loop->fresh());
 
         foreach (array_keys(config('loop_cards.cards')) as $key) {
-            $response->assertSee($this->label($key));
+            $this->assertContains($key, $active, "La Card {$key} a disparu de la composition.");
+        }
+
+        // Ce qui s'affiche, en revanche, respecte le plafond de la grille pose
+        // par TASK-1090 : voir moins de Cards que la Boucle n'en porte est le
+        // comportement voulu, pas une perte. Epingler « toutes les etiquettes
+        // sont visibles » ne tenait que tant qu'il y avait exactement autant de
+        // Cards de grille que d'emplacements.
+        $registry = app(\App\Support\Loops\LoopCardRegistry::class);
+        $shown = $registry->workspaceCardsFor($loop->fresh(), $this->member);
+
+        $this->assertLessThanOrEqual($registry->gridSlots(), count($shown));
+
+        foreach ($shown as $card) {
+            $this->assertContains($card['key'], $active);
         }
     }
 

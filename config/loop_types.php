@@ -69,11 +69,10 @@ return [
             /*
              * Communaute — cle `general`, libelle change en TASK-1090.
              *
-             * Le cadre permanent (Manifeste, Membres) plus les Cards
-             * distinctives de la matrice canonique. La cible est
-             * Evenements · Sondage · Dossiers ; **la Card Dossiers n'existe pas
-             * encore**, et la creer etait hors scope de TASK-1090. Le troisieme
-             * emplacement reste donc vide jusqu'a ce qu'elle soit construite.
+             * Le cadre permanent (Manifeste, Membres) plus les trois Cards
+             * distinctives de la matrice canonique : Evenements, Sondage,
+             * Dossiers. La cible est atteinte depuis TASK-1091, qui a construit
+             * la Card Dossiers laissee manquante par TASK-1090.
              *
              * La Roadmap n'est plus au socle : une Boucle de vie collective n'a
              * pas de feuille de route par defaut. Elle reste activable
@@ -85,6 +84,7 @@ return [
                 'core.members',
                 'core.polls',
                 'core.events',
+                'core.dossiers',
             ],
         ],
 

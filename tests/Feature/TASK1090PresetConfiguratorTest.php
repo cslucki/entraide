@@ -311,18 +311,39 @@ class TASK1090PresetConfiguratorTest extends TestCase
     public function test_the_grid_refuses_a_fourth_card(): void
     {
         $loop = $this->makeLoop('general');
+
+        // Le nombre d'emplacements se lit dans le registre et la grille se
+        // remplit jusqu'a saturation : epingler « le socle en prend deux » a
+        // casse des qu'une Card est entree dans le preset (TASK-1091).
+        $slots = $this->registry()->gridSlots();
         $composition = app(LoopCardCompositionService::class);
 
-        // Deux emplacements pris par le socle Communaute, le troisieme par la
-        // Roadmap.
-        $composition->enable($loop, 'core.roadmap');
+        $gridOf = fn ($loop) => collect(app(LoopTypeRegistry::class)->activeCardsFor($loop->fresh()))
+            ->filter(fn ($k) => $this->registry()->placementOf($k) === LoopCardRegistry::PLACEMENT_GRID)
+            ->values();
 
-        $active = app(LoopTypeRegistry::class)->activeCardsFor($loop->fresh());
-        $inGrid = collect($active)->filter(
-            fn ($k) => $this->registry()->placementOf($k) === LoopCardRegistry::PLACEMENT_GRID,
-        );
+        foreach ($this->registry()->gridKeys() as $key) {
+            if ($gridOf($loop)->count() >= $slots) {
+                break;
+            }
+            $composition->enable($loop, $key);
+        }
 
-        $this->assertCount(3, $inGrid);
+        $this->assertCount($slots, $gridOf($loop));
+
+        // La grille est pleine : une Card de grille de plus est refusee.
+        $remaining = collect($this->registry()->gridKeys())
+            ->reject(fn ($k) => $gridOf($loop)->contains($k))
+            ->first();
+
+        if ($remaining !== null) {
+            try {
+                $this->configurator()->enable($this->superAdmin, $loop->fresh(), $remaining);
+                $this->fail('Une quatrieme Card de grille aurait du etre refusee.');
+            } catch (PresetException $e) {
+                $this->assertNotSame('', $e->getMessage());
+            }
+        }
 
         // Le Resume IA n'est pas une Card de grille : il ne consomme pas
         // d'emplacement et reste activable.

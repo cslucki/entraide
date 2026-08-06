@@ -178,6 +178,39 @@ return [
             'mobile' => 'drawer',
             'default_enabled' => true,
         ],
+        // ── Dossiers ────────────────────────────────────────────────────────
+        //
+        // Cette Card ne cree aucun systeme documentaire : elle donne une fenetre
+        // sur le Dossier racine que toute Boucle possede deja
+        // (`dossiers.loop_id`, pose par LoopRootDocumentService a la creation).
+        // Articles, Series et fichiers restent la ou ils sont, avec leurs
+        // routes, leur policy et leur editeur.
+        'core.dossiers' => [
+            'key' => 'core.dossiers',
+            'label_key' => 'loops.cards.dossiers.label',
+            'description_key' => 'loops.cards.dossiers.description',
+            'empty_title_key' => 'loops.cards.dossiers.empty_title',
+            'empty_body_key' => 'loops.cards.dossiers.empty_body',
+            'action_key' => 'loops.cards.dossiers.action',
+            'icon' => 'folder',
+            'component' => 'loop-dossiers-card',
+            'view' => null,
+            'view_permission' => 'dossiers.view',
+            'required' => false,
+            // Apres Evenements (37), avant Membres (40) : la Card documentaire
+            // ferme la rangee distinctive.
+            'order' => 38,
+            'placement' => 'grid',
+            'category' => 'documentary',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => true,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => true,
+        ],
+
         'core.members' => [
             'key' => 'core.members',
             'label_key' => 'loops.cards.members.label',

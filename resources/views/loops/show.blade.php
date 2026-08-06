@@ -12,13 +12,6 @@
     // NOTE: a primary Manifesto designation (loops.manifesto_blog_post_id) is a future
     // dedicated task. We deliberately do NOT auto-pick the first linked BlogPost as "the
     // Manifesto" here, to avoid presenting an arbitrary article as the reference document.
-    // Per-card accent (icon tile) to echo the mockup's calm colour coding.
-    $cardAccents = [
-        'core.ai_summary' => 'bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300',
-        'core.manifesto' => 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300',
-        'core.roadmap' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300',
-        'core.members' => 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300',
-    ];
     $loopMembers = $currentLoop->members->where('status', 'active')->sortBy(fn ($m) => match ($m->role) {
         'owner' => 0, 'moderator' => 1, default => 2,
     });
