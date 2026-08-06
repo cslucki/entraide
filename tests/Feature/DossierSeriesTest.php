@@ -675,4 +675,223 @@ class DossierSeriesTest extends TestCase
 
         $response->assertStatus(403);
     }
+
+    // ── Promotion de racine ─────────────────────────────────────────────────
+    //
+    // Le geste central des Series, et le seul qui deplace deux Articles a la
+    // fois. Il n'avait aucun test.
+
+    public function test_promoting_an_annex_makes_it_the_root(): void
+    {
+        [$dossier, $series, $root, $annex] = $this->seriesWithAnnex();
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $annex->id,
+            ])
+            ->assertOk();
+
+        $this->assertSame($annex->id, $series->fresh()->root_blog_post_id);
+    }
+
+    public function test_the_former_root_becomes_the_first_annex(): void
+    {
+        // Rien de ce qu'une personne a range dans la Serie n'en sort tout seul.
+        [$dossier, $series, $root, $annex] = $this->seriesWithAnnex();
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $annex->id,
+            ])
+            ->assertOk();
+
+        $first = ArticleSeriesItem::where('article_series_id', $series->id)
+            ->orderBy('position')
+            ->first();
+
+        $this->assertSame($root->id, $first->blog_post_id);
+    }
+
+    public function test_the_promoted_article_is_never_root_and_annex_at_once(): void
+    {
+        [$dossier, $series, $root, $annex] = $this->seriesWithAnnex();
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $annex->id,
+            ])
+            ->assertOk();
+
+        $this->assertFalse(
+            ArticleSeriesItem::where('article_series_id', $series->id)
+                ->where('blog_post_id', $annex->id)
+                ->exists(),
+        );
+    }
+
+    public function test_promoting_deletes_no_article(): void
+    {
+        [$dossier, $series, $root, $annex] = $this->seriesWithAnnex();
+        $before = BlogPost::count();
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $annex->id,
+            ])
+            ->assertOk();
+
+        $this->assertSame($before, BlogPost::count());
+        $this->assertDatabaseHas('dossier_blog_posts', [
+            'dossier_id' => $dossier->id, 'blog_post_id' => $root->id,
+        ]);
+    }
+
+    public function test_an_article_of_another_dossier_can_never_become_root(): void
+    {
+        [$dossier, $series] = $this->seriesWithAnnex();
+        $other = $this->dossier($this->orgA, $this->ownerA, 'Autre Dossier');
+        $foreign = $this->blogPost($this->orgA, $this->ownerA, 'Ailleurs');
+        $this->attach($other, $foreign, $this->ownerA, 1);
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.update', $dossier), [
+                'root_blog_post_id' => $foreign->id,
+            ])
+            ->assertStatus(404);
+    }
+
+    // ── Reordonnancement ────────────────────────────────────────────────────
+
+    public function test_reordering_changes_positions_and_no_title(): void
+    {
+        [$dossier, $series, $root, $a] = $this->seriesWithAnnex();
+        $b = $this->blogPost($this->orgA, $this->ownerA, 'Deuxieme annexe');
+        $this->attach($dossier, $b, $this->ownerA, 3);
+        $this->actingAs($this->ownerA)->postJson(
+            $this->orgRoute('dossiers.series.annexes.store', $dossier), ['blog_post_id' => $b->id]
+        )->assertOk();
+
+        $titlesBefore = BlogPost::orderBy('id')->pluck('title')->all();
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->orgRoute('dossiers.series.annexes.reorder', $dossier), [
+                'items' => [$b->id, $a->id],
+            ])
+            ->assertOk();
+
+        $order = ArticleSeriesItem::where('article_series_id', $series->id)
+            ->orderBy('position')->pluck('blog_post_id')->all();
+
+        $this->assertSame([$b->id, $a->id], $order);
+        // Un classement ne renomme rien.
+        $this->assertSame($titlesBefore, BlogPost::orderBy('id')->pluck('title')->all());
+    }
+
+    // ── Integrite sous concurrence ──────────────────────────────────────────
+
+    public function test_adding_the_same_article_twice_never_creates_two_annexes(): void
+    {
+        [$dossier, $series] = $this->seriesWithAnnex();
+        $c = $this->blogPost($this->orgA, $this->ownerA, 'Candidat');
+        $this->attach($dossier, $c, $this->ownerA, 4);
+
+        $this->actingAs($this->ownerA)->postJson(
+            $this->orgRoute('dossiers.series.annexes.store', $dossier), ['blog_post_id' => $c->id]
+        )->assertOk();
+
+        $this->actingAs($this->ownerA)->postJson(
+            $this->orgRoute('dossiers.series.annexes.store', $dossier), ['blog_post_id' => $c->id]
+        )->assertStatus(422);
+
+        $this->assertSame(1, ArticleSeriesItem::where('blog_post_id', $c->id)->count());
+    }
+
+    public function test_positions_stay_unique_and_contiguous_after_a_removal(): void
+    {
+        [$dossier, $series, $root, $a] = $this->seriesWithAnnex();
+
+        foreach (['B', 'C'] as $n) {
+            $p = $this->blogPost($this->orgA, $this->ownerA, "Annexe {$n}");
+            $this->attach($dossier, $p, $this->ownerA, 9);
+            $this->actingAs($this->ownerA)->postJson(
+                $this->orgRoute('dossiers.series.annexes.store', $dossier), ['blog_post_id' => $p->id]
+            )->assertOk();
+        }
+
+        $this->actingAs($this->ownerA)->deleteJson(
+            $this->orgRoute('dossiers.series.annexes.destroy', $dossier, ['item' => $a->id])
+        )->assertOk();
+
+        $positions = ArticleSeriesItem::where('article_series_id', $series->id)
+            ->orderBy('position')->pluck('position')->all();
+
+        $this->assertSame(count($positions), count(array_unique($positions)));
+        $this->assertSame(range(0, count($positions) - 1), $positions);
+    }
+
+    public function test_removing_an_annex_keeps_the_article_in_the_dossier(): void
+    {
+        [$dossier, $series, $root, $a] = $this->seriesWithAnnex();
+
+        $this->actingAs($this->ownerA)->deleteJson(
+            $this->orgRoute('dossiers.series.annexes.destroy', $dossier, ['item' => $a->id])
+        )->assertOk();
+
+        $this->assertDatabaseHas('blog_posts', ['id' => $a->id]);
+        $this->assertDatabaseHas('dossier_blog_posts', [
+            'dossier_id' => $dossier->id, 'blog_post_id' => $a->id,
+        ]);
+    }
+
+    // ── Requetes forgees ────────────────────────────────────────────────────
+
+    public function test_a_forged_series_id_of_another_organization_is_refused(): void
+    {
+        $foreignDossier = $this->dossier($this->orgB, $this->userB, 'Dossier etranger');
+        $foreignRoot = $this->blogPost($this->orgB, $this->userB, 'Racine etrangere');
+        $this->attach($foreignDossier, $foreignRoot, $this->userB, 1);
+
+        ArticleSeries::create([
+            'organization_id' => $this->orgB->id,
+            'dossier_id' => $foreignDossier->id,
+            'root_blog_post_id' => $foreignRoot->id,
+            'created_by' => $this->userB->id,
+        ]);
+
+        $this->actingAs($this->ownerA)
+            ->patchJson(route('organization.dossiers.series.update', [
+                'organization' => $this->orgA->slug,
+                'dossier' => $foreignDossier->id,
+            ]), ['root_blog_post_id' => $foreignRoot->id])
+            ->assertStatus(404);
+    }
+
+    /**
+     * Une Serie avec sa racine et une annexe, prete a etre bousculee.
+     *
+     * @return array{0: Dossier, 1: ArticleSeries, 2: BlogPost, 3: BlogPost}
+     */
+    private function seriesWithAnnex(): array
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Serie de travail');
+
+        $root = $this->blogPost($this->orgA, $this->ownerA, 'La racine');
+        $annex = $this->blogPost($this->orgA, $this->ownerA, 'Premiere annexe');
+        $this->attach($dossier, $root, $this->ownerA, 1);
+        $this->attach($dossier, $annex, $this->ownerA, 2);
+
+        $series = ArticleSeries::create([
+            'organization_id' => $this->orgA->id,
+            'dossier_id' => $dossier->id,
+            'root_blog_post_id' => $root->id,
+            'created_by' => $this->ownerA->id,
+        ]);
+
+        $this->actingAs($this->ownerA)->postJson(
+            $this->orgRoute('dossiers.series.annexes.store', $dossier),
+            ['blog_post_id' => $annex->id]
+        )->assertOk();
+
+        return [$dossier, $series, $root, $annex];
+    }
 }
