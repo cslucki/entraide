@@ -149,8 +149,15 @@ Aucun modèle, aucune migration, aucune table sur `training`, `course`, `lesson`
 | Annoncer dans ChatLoop | motif `sendEventMessage` | TASK-1087/1088 |
 | Propager un socle | `loops:sync-presets` | TASK-1086 |
 
-**Le seul vrai manque : la progression individuelle.** Rien ne sait dire « cette
-personne a terminé cette étape ». C'est le cœur de ce qui reste à construire.
+**La progression individuelle est la seule capacité *transverse* qui manque.**
+Rien dans le socle ne sait dire « cette personne a terminé cette étape », et rien
+d'équivalent n'existe ailleurs dans le produit.
+
+Ce n'est pas pour autant le seul travail restant. **Modules, Séquences, Travaux à
+rendre et QCM sont entièrement à développer** — ils n'ont aujourd'hui ni modèle,
+ni table, ni écran. La différence est ailleurs : ceux-là se construisent sur des
+briques existantes (Articles, Dossier racine, la forme du Sondage), là où la
+progression n'a aucun précédent dans le produit.
 
 ### La doctrine tient
 
@@ -528,10 +535,14 @@ version « pédagogique » séparée.
 | **Événements** | déjà développé et livré (TASK-1088). Formats, fuseaux, présence, agenda. |
 | **Membres** | la Card existante, présentée en compact. |
 
-**Conséquence pour Formation :** sur les cinq briques que le parcours utilise, une
-seule est réellement nouvelle — la progression. Le Support de cours s'appuie sur
-les Articles et le Dossier racine ; les Travaux et le QCM s'inspirent de la forme
-du Sondage sans partager son modèle métier.
+**Conséquence pour Formation.** Le Support de cours s'appuie sur les Articles et
+le Dossier racine ; les Travaux et le QCM s'inspirent de la forme du Sondage sans
+partager son modèle métier. Tous trois restent à écrire — modèles, tables,
+écrans — mais avec un précédent sous les yeux.
+
+**La progression, elle, n'a aucun précédent.** C'est la seule capacité transverse
+que le produit n'a jamais eue, et c'est ce qui justifie de lui consacrer sa propre
+tranche.
 
 ---
 
