@@ -151,6 +151,18 @@ class LoopCardCompositionService
      * engine. A card the catalogue gains later simply reports null until
      * someone adds its case here.
      */
+    /** Combien d'elements le Dossier racine de cette Boucle contient. */
+    private function dossierItemCount(Loop $loop): int
+    {
+        $dossier = Dossier::where('loop_id', $loop->id)->first();
+
+        if (! $dossier) {
+            return 0;
+        }
+
+        return $dossier->articles()->count() + $dossier->files()->count();
+    }
+
     private function dataCount(Loop $loop, string $key): ?int
     {
         return match ($key) {
@@ -160,6 +172,13 @@ class LoopCardCompositionService
             'core.manifesto' => $this->rootDocumentExists($loop) ? 1 : 0,
             'core.polls' => LoopPoll::where('loop_id', $loop->id)->count(),
             'core.events' => LoopEvent::where('loop_id', $loop->id)->count(),
+            // Articles + fichiers du Dossier racine, et rien d'autre.
+            //
+            // Les Series ne s'ajoutent pas : DossierSeriesController::addAnnex()
+            // exige qu'une annexe soit deja un Article du Dossier avant de creer
+            // son ArticleSeriesItem. Les compter reviendrait a compter deux fois
+            // les memes elements.
+            'core.dossiers' => $this->dossierItemCount($loop),
             default => null,
         };
     }
