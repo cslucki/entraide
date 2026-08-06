@@ -26,7 +26,79 @@ xAPI, pas de certificats, pas de catalogue commercial.
 
 ---
 
-## 2. Où on en est vraiment
+## 2. Le cadre global des presets
+
+Formation n'est pas un cas isolé : c'est un preset parmi sept, et il doit se lire
+dans cette grille. **Cette matrice est la référence fonctionnelle.** Elle est
+donnée ici comme contexte ; les six autres presets ne sont pas spécifiés par
+cette tâche.
+
+| Preset | Cards communes | Trois Cards distinctives |
+|---|---|---|
+| Communauté | Manifeste · Membres | Événements · Sondage · Dossiers |
+| Projet | Manifeste · Membres | Roadmap · Décisions · Dossiers |
+| Pair-aidance | Manifeste · Membres | Engagements · Journal · Sondage |
+| **Formation** | Manifeste · Membres | **Support de cours · Progression · Travaux à rendre ou QCM** |
+| Réseautage | Manifeste · Membres | Demande-Offre · Roadmap · Événements |
+| Coaching | Manifeste · Membres | Engagements · Suivi de coaching · Journal |
+| Rédaction | Manifeste · Membres | Article · Roadmap · Dossiers |
+
+### Ce que la matrice dit
+
+**Trois Cards distinctives, pas davantage.** Ce sont elles qui font qu'on
+comprend, en ouvrant une Boucle, ce qu'on y fait. Une grille de six ou sept
+outils ne dit plus rien : elle donne une boîte à outils au lieu d'une intention.
+
+**Le socle commun n'est pas distinctif.** ChatLoop, Manifeste et Membres sont
+partout ; les nommer dans la grille reviendrait à répéter la même chose sept fois
+et à noyer les trois qui comptent.
+
+### Une correspondance à établir
+
+Le code porte aujourd'hui la clé `general`, libellée **« Dialogue »**. La matrice
+l'appelle **« Communauté »**. Il s'agit très probablement du même preset sous deux
+noms. Ce n'est pas une décision de cette spécification — mais la tâche qui
+touchera aux presets devra trancher le libellé plutôt que créer une seconde clé.
+`peer_support` (« Pair-Aidance ») et `coaching` existent déjà ; `Réseautage` et
+`Rédaction` n'ont aujourd'hui aucune clé.
+
+---
+
+## 3. La doctrine de présentation
+
+Décision UX et fonctionnelle. **Elle ne demande aucun refactor du registre ni du
+workspace dans cette tâche.**
+
+### Le cadre permanent
+
+**ChatLoop reste le centre.** C'est là que la Boucle vit ; tout le reste
+l'accompagne.
+
+**Manifeste** s'affiche sous forme compacte — en-tête ou panneau permanent. Le
+texte de référence doit être à portée sans occuper une case d'outil : on le
+consulte, on ne « l'ouvre » pas comme un instrument de travail.
+
+**Membres** s'affiche sous forme compacte : avatars, nombre, et un accès à la
+liste complète. Savoir qui est là est une information de contexte, permanente,
+pas une activité.
+
+### La zone des outils
+
+**Seules les trois Cards distinctives occupent la zone principale.** Elles
+expliquent immédiatement la fonction du preset.
+
+Elles restent **configurables localement** selon les règles déjà livrées
+(TASK-1083, TASK-1086) : un Admin d'Organization en désactive une, et **une Card
+désactivée conserve ses données** — vérifié en recette sur Sondage et Événements.
+
+Rien de tout cela ne change le fonctionnement livré : `core.manifesto` et
+`core.members` restent des Cards déclarées dans le registre, avec leurs
+permissions et `core.members` toujours requise. **C'est leur présentation qui
+change**, et cela relèvera d'une tâche d'interface, pas de celle-ci.
+
+---
+
+## 4. Où on en est vraiment
 
 ### Le type existe déjà, et il est retenu volontairement
 
@@ -77,7 +149,7 @@ Formation ne doit pas être l'occasion de la briser :** aucun `if ($loop->type =
 
 ---
 
-## 3. Personas et droits
+## 5. Personas et droits
 
 ### Stagiaire — membre de la Boucle
 
@@ -140,7 +212,7 @@ comportement du resolveur depuis TASK-1086, et la Formation n'y déroge pas.
 
 ---
 
-## 4. Les objets
+## 6. Les objets
 
 ### Formation = la Boucle
 
@@ -181,8 +253,12 @@ options, une réponse par personne — pas les tables.
 
 ### Ressource — ce qu'on consulte
 
-Article, fichier, lien, vidéo, référence, modèle téléchargeable. Rattachée à la
-Formation entière, à un Module ou à une Séquence.
+Article, fichier, lien, vidéo, référence, modèle téléchargeable.
+
+**Ce n'est pas un objet nouveau.** Les ressources vivent dans le **Dossier racine**
+de la Boucle, avec ses fichiers et ses Articles (TASK-1082). Une Séquence peut y
+pointer ; elle n'en possède pas une copie. Créer une table de ressources
+dupliquerait un rangement qui existe et qui marche.
 
 ### Progression — l'état individuel
 
@@ -190,7 +266,7 @@ Le seul objet réellement nouveau du point de vue du socle.
 
 ---
 
-## 5. Programme narratif contre structure — le risque de doublon
+## 7. Programme narratif contre structure — le risque de doublon
 
 C'est le point le plus délicat de cette spécification.
 
@@ -225,7 +301,7 @@ a beaucoup bougé. **Proposer.** Le formateur décide, toujours.
 
 ---
 
-## 6. Disponibilité et déblocage
+## 8. Disponibilité et déblocage
 
 Les règles imaginables sont nombreuses. Un moteur générique serait la faute à ne
 pas commettre : il coûte cher, se teste mal, et personne n'en utilise le dixième.
@@ -252,7 +328,7 @@ produit (une étape fermée à tort) se corrige d'un clic, alors que l'inverse
 
 ---
 
-## 7. La progression individuelle
+## 9. La progression individuelle
 
 ### Les états
 
@@ -315,58 +391,110 @@ qui survivent au départ depuis TASK-1087.
 
 ---
 
-## 8. Les Cards
+## 10. Les Cards de la Formation
 
-### Obligatoires au socle Formation
+### Le cadre commun
 
-| Card | Clé proposée | Ce qu'elle montre |
+| | Clé | Présentation |
 |---|---|---|
-| Programme de formation | `core.manifesto` (déjà là) | le document racine |
-| Support de cours | `training.course` | modules, séquences, contenus |
-| Ma progression / Suivi | `training.progress` | **la même Card, deux visages** |
+| ChatLoop | — | le centre, toujours |
+| Manifeste | `core.manifesto` (existe) | compact, permanent — porte le Programme |
+| Membres | `core.members` (existe) | compact, permanent — avatars, nombre, accès à la liste |
 
-**« Ma progression / Suivi » est une seule Card.** Un stagiaire y voit son
-parcours ; un formateur y voit le tableau de tous. C'est la même question — *où
-en est-on ?* — posée depuis deux places. Deux Cards obligeraient à choisir
-laquelle montrer selon le rôle, ce que le socle ne sait pas faire et n'a pas à
-apprendre.
+### Les trois Cards distinctives
 
-### Facultatives
+Conformément à la matrice canonique.
 
-| Card | Clé proposée |
-|---|---|
-| Travaux | `training.assignments` |
-| Évaluations | `training.assessments` |
-| Ressources | `training.resources` |
-| Événements | `core.events` (déjà là) |
+| Emplacement | Card | Clé proposée | Statut |
+|---|---|---|---|
+| 1 | **Support de cours** | `training.course` | **obligatoire** |
+| 2 | **Progression** | `training.progress` | **obligatoire** |
+| 3 | **Travaux à rendre** *ou* **QCM** | `training.assignments` / `training.assessments` | **au moins l'un des deux** |
 
-### Ce qui n'est pas une Card
+#### Le troisième emplacement est contraint, pas libre
 
-Modules et Séquences — contenus internes. Sondage reste une Card générique,
-activable localement, **jamais pédagogique par défaut**.
+Une Formation doit activer **au minimum l'un des deux**, et peut activer les deux
+localement.
+
+*Pourquoi une contrainte plutôt qu'un choix libre.* Une formation où l'on ne rend
+rien et où l'on n'est jamais évalué n'est pas une formation : c'est une
+bibliothèque, et le Dossier racine y suffit. Le troisième emplacement est
+précisément ce qui distingue les deux.
+
+*Pourquoi deux Cards et non une.* **Travaux à rendre et QCM sont deux métiers.**
+Un Travail est un dépôt, une lecture humaine, un retour rédigé, une reprise
+possible. Un QCM est un barème, des tentatives, un seuil, une correction
+automatique. Les réunir sous un seul nom obligerait chaque écran à demander
+« lequel des deux ? » avant de savoir quoi montrer.
+
+*Ce que cela implique pour le preset livré.* Le socle du type propose l'un des
+deux par défaut — **Travaux à rendre**, le plus universel : toutes les formations
+ne notent pas, mais presque toutes font produire quelque chose. Un formateur qui
+veut du QCM l'active localement, avec ou sans les Travaux.
+
+### Ce qui n'est pas une Card de Formation
+
+**Ni Module ni Séquence.** Ce sont des contenus internes au parcours, rendus par
+le Support de cours. Une Card par module ferait une grille illisible dès la
+troisième semaine, et contredirait la règle des trois.
+
+**Ressources — non plus.** Les supports vivent dans le **Dossier racine** de la
+Boucle, livré par TASK-1082, avec ses fichiers et ses Articles. Créer une Card
+Ressources ajouterait un quatrième outil pour ranger ce qui est déjà rangé.
+
+**Sondage et Événements** restent des Cards génériques, activables localement.
+Elles ne font pas partie du preset Formation et ne deviennent jamais
+pédagogiques par défaut.
 
 ---
 
-## 9. L'expérience stagiaire
+## 11. Ce qui se réutilise, et ne se réinvente pas
 
-La Card « Ma progression » répond à une seule question :
+La matrice fait apparaître les mêmes Cards dans plusieurs presets. Aucune n'a de
+version « pédagogique » séparée.
+
+| Card de la matrice | Ce qu'elle réutilise |
+|---|---|
+| **Manifeste** | le **document racine** et `LoopRootDocumentService` (TASK-1082). En Formation, il porte le libellé « Programme de formation », déjà configuré. |
+| **Dossiers** | le système **Dossier** existant et le **Dossier racine** de la Boucle, avec ses fichiers, ses Articles et ses membres (TASK-1082 à TASK-1085). |
+| **Article** | le module Article complet : éditeur TipTap, Séries, co-écriture, snapshots, annotations (TASK-1084, TASK-1085). Pas de second éditeur. |
+| **Roadmap** | **une seule Card technique.** Les variantes entre presets — « Engagements », « Suivi de coaching » — sont des **presets de vocabulaire et de colonnes**, pas des Cards distinctes. |
+| **Sondage** | déjà développé et livré (TASK-1087). Nominatif, sans bonne réponse. |
+| **Événements** | déjà développé et livré (TASK-1088). Formats, fuseaux, présence, agenda. |
+| **Membres** | la Card existante, présentée en compact. |
+
+**Conséquence pour Formation :** sur les cinq briques que le parcours utilise, une
+seule est réellement nouvelle — la progression. Le Support de cours s'appuie sur
+les Articles et le Dossier racine ; les Travaux et le QCM s'inspirent de la forme
+du Sondage sans partager son modèle métier.
+
+---
+
+## 12. L'expérience stagiaire
+
+La Card **« Progression »**, vue stagiaire, répond à une seule question :
 
 > **Que dois-je faire maintenant ?**
 
 Elle montre : un pourcentage indicatif, les modules terminés, le module en cours,
-la prochaine séquence, les travaux attendus, les évaluations disponibles, ce qui
-est bloqué **et pourquoi**, et un bouton d'action principal.
+la prochaine séquence, les travaux à rendre, les QCM disponibles, ce qui est
+bloqué **et pourquoi**, et un bouton d'action principal.
 
 **« Et pourquoi » n'est pas décoratif.** Une étape grisée sans explication est
 une impasse ; « disponible après le module 2 » est une consigne.
 
 ---
 
-## 10. Le tableau du formateur
+## 13. Le tableau du formateur
 
-Même Card, vue formateur. Liste des stagiaires, progression globale, module en
-cours, dernière activité, travaux en attente, évaluations à valider, blocages,
-prochaine étape, absence d'activité.
+**La même Card « Progression », vue formateur.** Liste des stagiaires,
+progression globale, module en cours, dernière activité, travaux en attente, QCM
+à valider, blocages, prochaine étape, absence d'activité.
+
+C'est la même question — *où en est-on ?* — posée depuis deux places. Deux Cards
+obligeraient à choisir laquelle montrer selon le rôle, ce que le socle ne sait pas
+faire et n'a pas à apprendre. Et cela consommerait deux des trois emplacements
+distinctifs pour une seule idée.
 
 Deux entrées — par stagiaire, par module — et des filtres simples. **Pas d'outil
 analytique.** Un formateur veut savoir qui a besoin de lui, pas produire un
@@ -374,7 +502,7 @@ rapport.
 
 ---
 
-## 11. ChatLoop
+## 14. ChatLoop
 
 ChatLoop reste le centre vivant de la Boucle. Le motif existe depuis TASK-1087 et
 a servi deux fois : un `type` propre, un `metadata` structuré, la vue qui branche
@@ -396,7 +524,7 @@ monde — un stagiaire en difficulté n'a pas à l'être en public.
 
 ---
 
-## 12. Sondages et Événements
+## 15. Sondages et Événements
 
 **Sondage** — recueillir un avis, choisir un horaire, vérifier une compréhension
 informelle. Il ne devient pas une Évaluation : pas de bonne réponse, pas de score,
@@ -414,7 +542,7 @@ encore mesuré. À rouvrir si l'usage le réclame.
 
 ---
 
-## 13. Permissions
+## 16. Permissions
 
 Bornées, adossées aux rôles réels, jamais une par bouton.
 
@@ -440,7 +568,7 @@ est le bon défaut depuis TASK-1086.
 
 ---
 
-## 14. Modèle conceptuel
+## 17. Modèle conceptuel
 
 Conceptuel. **Aucune migration n'accompagne ce document.**
 
@@ -455,7 +583,7 @@ Conceptuel. **Aucune migration n'accompagne ce document.**
 | `TrainingAssessment` | une Évaluation | via séquence | — | **T3** |
 | `TrainingQuestion` | une question et ses options | via évaluation | — | **T3** |
 | `TrainingAttempt` | une tentative | oui | — | **T3** |
-| `TrainingResource` | un support | oui | oui | **T2 ou T3** |
+| ~~`TrainingResource`~~ | **abandonné** — le Dossier racine range déjà | — | — | non |
 
 ### Ce qui n'existera pas
 
@@ -480,30 +608,41 @@ Archivage plutôt que suppression dès qu'un état existe.
 
 ---
 
-## 15. Découpage proposé
+## 18. Découpage proposé
 
 ### Tranche 1 — Programme, Modules et Séquences
 
 Le type devient disponible. Programme racine, constructeur simple, lecture
-stagiaire, ordre, disponibilité de base (règles 1 et 2). Card « Support de cours ».
+stagiaire, ordre, disponibilité de base (règles 1 et 2). Card **« Support de
+cours »**.
 
 **Pas de progression** : on peut lire un parcours sans le suivre.
 
+À l'issue de cette tranche, le preset Formation ne remplit que deux de ses trois
+emplacements. Il ne devrait donc pas être ouvert au public avant la tranche 2 —
+un type disponible qui n'apporte pas ce qu'il promet est exactement ce que le
+commentaire de `config/loop_types.php` reproche aujourd'hui.
+
 ### Tranche 2 — La progression individuelle
 
-Card « Ma progression / Suivi ». Marquer terminé, déblocage, tableau formateur,
-validation manuelle, règles 3 et 4. Ressources.
+Card « Progression ». Marquer terminé, déblocage, tableau formateur, validation
+manuelle, règles 3 et 4.
 
-### Tranche 3 — Travaux · Tranche 4 — Évaluations
+Pas de Card Ressources : les supports restent dans le Dossier racine.
 
-**Recommandation : séparer.** Un Travail est un dépôt et un retour humain. Une
-Évaluation est un questionnaire, un barème, des tentatives et une correction
-automatique. Ce sont deux métiers ; les faire ensemble donnerait une tâche du
-double de TASK-1088, qui était déjà la plus lourde de la série.
+### Tranche 3 — Travaux à rendre · Tranche 4 — QCM
+
+**Recommandation : séparer.** Un Travail est un dépôt et un retour humain. Un QCM
+est un barème, des tentatives, un seuil et une correction automatique. Ce sont
+deux métiers ; les faire ensemble donnerait une tâche du double de TASK-1088, qui
+était déjà la plus lourde de la série.
+
+La tranche 3 remplit le troisième emplacement du preset. La tranche 4 l'enrichit
+sans être indispensable au lancement.
 
 ---
 
-## 16. Critères d'acceptation
+## 19. Critères d'acceptation
 
 **Créer une Formation.** *Étant donné* un membre autorisé à créer une Boucle,
 *quand* il choisit le type Formation, *alors* la Boucle est créée avec son
@@ -517,7 +656,7 @@ ouvre le Support de cours, *alors* il lit sans pouvoir modifier, et une route
 directe est refusée.
 
 **Affichage individualisé.** *Étant donné* deux stagiaires d'avancées
-différentes, *quand* chacun ouvre « Ma progression », *alors* chacun voit son
+différentes, *quand* chacun ouvre « Progression », *alors* chacun voit son
 propre état et **jamais** celui de l'autre.
 
 **Terminer.** *Quand* un stagiaire clique « J'ai terminé », *alors* son état passe
@@ -552,9 +691,15 @@ conservées, les routes directes refusées, et la réactivation retrouve tout.
 
 ---
 
-## 17. Ce que je recommande, et ce que je vous demande
+## 20. Ce que je recommande, et ce que je vous demande
 
 Six décisions changent le produit. Pour chacune : ma recommandation, et pourquoi.
+
+**Aucune ne remet en cause la matrice des Cards.** Elles portent sur le
+comportement du parcours — ce qui s'ouvre quand, ce qui se voit, ce qui bloque —
+pas sur la composition du preset, qui est arrêtée. Elles doivent être tranchées
+avant la première tâche d'implémentation, faute de quoi celle-ci construirait sur
+des hypothèses.
 
 ### Q1 — Une Formation est-elle une session ou un modèle réutilisable ?
 
@@ -601,15 +746,15 @@ de demande.
 
 **Ce que je vous demande :** confirmez de reporter les dates de module.
 
-### Q5 — Une Évaluation ratée bloque-t-elle automatiquement la suite ?
+### Q5 — Un QCM raté bloque-t-il automatiquement la suite ?
 
-**Recommandation : non par défaut ; le formateur l'active par évaluation.**
+**Recommandation : non par défaut ; le formateur l'active par QCM.**
 
-*Pourquoi.* Bloquer par défaut transforme chaque quiz en examen. Beaucoup
-d'évaluations servent à s'auto-situer, pas à filtrer. Mais quand un prérequis est
-réel, le verrou doit exister.
+*Pourquoi.* Bloquer par défaut transforme chaque QCM en examen. Beaucoup servent
+à s'auto-situer, pas à filtrer. Mais quand un prérequis est réel, le verrou doit
+exister.
 
-**Ce que je vous demande :** confirmez le blocage optionnel, décidé par évaluation.
+**Ce que je vous demande :** confirmez le blocage optionnel, décidé par QCM.
 
 ### Q6 — Le stagiaire voit-il la correction détaillée immédiatement ?
 
@@ -623,7 +768,7 @@ tentatives multiples sans objet, et circule d'un stagiaire à l'autre.
 
 ---
 
-## 18. Hors scope
+## 21. Hors scope
 
 SCORM, LTI, xAPI, certificats, certification, paiement, catalogue commercial,
 visioconférence intégrée, IA de correction, notifications email ou push,
@@ -633,7 +778,7 @@ Community, correctif du rafraîchissement ChatLoop.
 
 ---
 
-## 19. Ce que cette spécification ne change pas
+## 22. Ce que cette spécification ne change pas
 
 Organization = Tenant. Loop ≠ Tenant. Community reste une dette. ChatLoop reste
 le centre vivant. Les Cards sont des capacités, pas des espaces isolés. **Aucune
@@ -646,7 +791,7 @@ nouvelle n'apparaît.
 
 ---
 
-## 20. En une phrase
+## 23. En une phrase
 
 **La structure est commune, l'état est individuel, et le formateur a toujours le
 dernier mot.**
