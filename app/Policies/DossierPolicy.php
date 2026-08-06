@@ -86,10 +86,18 @@ class DossierPolicy
         // A root Dossier has no personal owner, so isOwner() would lock
         // everyone out — including the people who run the Loop. Its editors are
         // those who may edit the Loop's identity.
+        //
+        // Cette porte ne consulte deliberement AUCUNE Card. Le Dossier racine
+        // est une infrastructure commune : la Card Dossiers en est une vue, et
+        // d'autres viendront — Article, Support de cours, Travaux a rendre, le
+        // document racine, les fichiers de la Boucle. Eteindre une interface ne
+        // doit pas eteindre le systeme documentaire qu'elle regarde.
+        //
+        // TASK-1091 avait ajoute ici un test sur `core.dossiers`. C'etait trop
+        // large : cela faisait dependre l'ecriture du Dossier de la presence
+        // d'une seule de ses vues.
         if ($dossier->isLoopDossier()) {
-            return $dossier->loop !== null
-                && $user->can('update', $dossier->loop)
-                && $this->loopCardIsActive($dossier->loop);
+            return $dossier->loop !== null && $user->can('update', $dossier->loop);
         }
 
         if ($this->isOwner($user, $dossier)) {
@@ -97,25 +105,6 @@ class DossierPolicy
         }
 
         return $this->isEditor($user, $dossier);
-    }
-
-    /**
-     * La Card Dossiers est-elle allumee sur cette Boucle (TASK-1091) ?
-     *
-     * L'ecran d'un Dossier s'atteint par sa propre adresse, independamment du
-     * workspace : sans ce test, eteindre la Card l'aurait retiree de la Boucle
-     * sans rien refuser a qui connait l'URL. C'est la seule chose que ce test
-     * ajoute — il ne dit pas *qui* peut ecrire, seulement *si* la Boucle expose
-     * encore son Dossier. La lecture n'est deliberement pas concernee : eteindre
-     * une Card ne doit jamais rendre des donnees illisibles.
-     */
-    private function loopCardIsActive(\App\Models\Loop $loop): bool
-    {
-        return in_array(
-            'core.dossiers',
-            app(\App\Support\Loops\LoopTypeRegistry::class)->activeCardsFor($loop),
-            true,
-        );
     }
 
     public function delete(User $user, Dossier $dossier): bool
@@ -159,8 +148,6 @@ class DossierPolicy
 
     public function manageFiles(User $user, Dossier $dossier): bool
     {
-        // Passe par update(), donc herite du test de Card pour un Dossier de
-        // Boucle : deposer un fichier est une ecriture comme une autre.
         return $this->update($user, $dossier);
     }
 

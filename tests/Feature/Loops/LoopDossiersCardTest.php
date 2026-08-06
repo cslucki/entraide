@@ -318,27 +318,48 @@ class LoopDossiersCardTest extends TestCase
         );
     }
 
-    public function test_a_disabled_card_refuses_writing_even_by_its_own_url(): void
+    public function test_a_disabled_card_leaves_the_dossier_governed_by_its_own_rules(): void
     {
-        // L'ecran d'un Dossier s'atteint independamment du workspace : sans ce
-        // verrou, eteindre la Card l'aurait retiree de la Boucle sans rien
-        // refuser a qui connait l'adresse.
+        // Le Dossier racine est une infrastructure commune : la Card Dossiers en
+        // est une vue, et d'autres viendront — Article, Support de cours,
+        // Travaux a rendre, le document racine, les fichiers de la Boucle.
+        // Eteindre une interface ne doit pas eteindre le systeme documentaire
+        // qu'elle regarde.
         app(LoopCardCompositionService::class)->disable($this->loop, 'core.dossiers');
         $this->loop->refresh();
         $this->dossier->refresh();
 
-        $this->assertFalse($this->owner->can('update', $this->dossier));
-        $this->assertFalse($this->owner->can('manageFiles', $this->dossier));
+        // Les droits du Dossier continuent de s'appliquer, ni plus ni moins.
+        $this->assertTrue($this->owner->can('view', $this->dossier));
+        $this->assertTrue($this->owner->can('update', $this->dossier));
+        $this->assertTrue($this->owner->can('manageFiles', $this->dossier));
+
+        // Et ils restent des droits : un membre simple n'ecrit pas davantage.
+        $this->assertTrue($this->member->can('view', $this->dossier));
+        $this->assertFalse($this->member->can('update', $this->dossier));
     }
 
-    public function test_a_disabled_card_still_lets_people_read(): void
+    public function test_a_disabled_card_never_opens_the_dossier_to_another_organization(): void
     {
-        // Eteindre une Card ne doit jamais rendre des donnees illisibles.
         app(LoopCardCompositionService::class)->disable($this->loop, 'core.dossiers');
+        $this->loop->refresh();
+        $this->dossier->refresh();
+
+        $this->assertFalse($this->stranger->can('view', $this->dossier));
+        $this->assertFalse($this->stranger->can('update', $this->dossier));
+    }
+
+    public function test_an_archived_loop_stays_read_only_whatever_the_card_state(): void
+    {
+        // L'archivage est porte par LoopPolicy::update, pas par la Card : il
+        // tient donc que la Card soit allumee ou eteinte.
+        app(LoopCardCompositionService::class)->disable($this->loop, 'core.dossiers');
+        $this->loop->update(['status' => 'archived', 'archived_at' => now()]);
         $this->loop->refresh();
         $this->dossier->refresh();
 
         $this->assertTrue($this->owner->can('view', $this->dossier));
+        $this->assertFalse($this->owner->can('update', $this->dossier));
     }
 
     public function test_disabling_deletes_nothing_and_reactivating_finds_it_all(): void
@@ -364,8 +385,6 @@ class LoopDossiersCardTest extends TestCase
             ->test(LoopDossiersCard::class, ['loop' => $this->loop])
             ->assertSee('Un texte qui doit survivre')
             ->assertSee('un-fichier-qui-doit-survivre.pdf');
-
-        $this->assertTrue($this->owner->can('update', $this->dossier->fresh()));
     }
 
     // ── Boucle archivee ─────────────────────────────────────────────────────
