@@ -173,6 +173,44 @@ return [
             'description' => 'Épingler, masquer ou supprimer un message.', 'locked' => false,
         ],
 
+        // ── Evenements ──────────────────────────────────────────────────────
+        //
+        // `events.publish_organization` ne suffit jamais a elle seule : le
+        // service exige aussi que la Boucle ne soit pas privee. Une Boucle
+        // privee ne remonte pas dans l'agenda d'Organization, quel que soit le
+        // rang de qui demande.
+        'events.view' => [
+            'module' => 'events', 'label_fr' => 'Consulter les Evenements', 'label_en' => 'View events',
+            'description' => 'Voir l\'agenda de la Boucle et le detail des rencontres.',
+            'locked' => false,
+            'read' => true,
+            'requires_card' => 'core.events',
+        ],
+        'events.create' => [
+            'module' => 'events', 'label_fr' => 'Proposer une rencontre', 'label_en' => 'Propose an event',
+            'description' => 'Creer un Evenement dans la Boucle. Tout membre actif le peut par defaut.',
+            'locked' => false,
+            'requires_card' => 'core.events',
+        ],
+        'events.respond' => [
+            'module' => 'events', 'label_fr' => 'Repondre a une invitation', 'label_en' => 'Respond to an event',
+            'description' => 'Indiquer si l\'on participe, et changer d\'avis tant que l\'Evenement tient.',
+            'locked' => false,
+            'requires_card' => 'core.events',
+        ],
+        'events.manage' => [
+            'module' => 'events', 'label_fr' => 'Gerer tous les Evenements', 'label_en' => 'Manage all events',
+            'description' => 'Modifier, annuler ou supprimer un Evenement dont on n\'est pas l\'auteur. Chacun garde la main sur les siens.',
+            'locked' => false,
+            'requires_card' => 'core.events',
+        ],
+        'events.publish_organization' => [
+            'module' => 'events', 'label_fr' => 'Publier a l\'Organization', 'label_en' => 'Publish to the Organization',
+            'description' => 'Rendre une rencontre visible par tous les membres de l\'Organization. Impossible depuis une Boucle privee.',
+            'locked' => false,
+            'requires_card' => 'core.events',
+        ],
+
         // ── Sondages ────────────────────────────────────────────────────────
         //
         // `requires_card` fait tout le travail de la Card desactivee : sans la
@@ -243,6 +281,8 @@ return [
             'chatloop.view', 'chatloop.post', 'chatloop.manage',
             'invitations.view', 'invitations.revoke',
             'polls.view', 'polls.create', 'polls.vote', 'polls.manage',
+            'events.view', 'events.create', 'events.respond', 'events.manage',
+            'events.publish_organization',
         ],
 
         /*
@@ -259,6 +299,8 @@ return [
             'chatloop.view', 'chatloop.post', 'chatloop.manage',
             'invitations.view', 'invitations.revoke',
             'polls.view', 'polls.create', 'polls.vote', 'polls.manage',
+            'events.view', 'events.create', 'events.respond', 'events.manage',
+            'events.publish_organization',
         ],
 
         /*
@@ -274,6 +316,7 @@ return [
             'roadmap.view',
             'chatloop.view', 'chatloop.post',
             'polls.view', 'polls.create', 'polls.vote',
+            'events.view', 'events.create', 'events.respond',
         ],
     ],
 

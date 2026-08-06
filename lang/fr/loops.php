@@ -193,6 +193,13 @@ return [
     'ai_summary_requested_by' => 'Demandé par :name',
     'ai_summary_rate_limited' => 'Trop de demandes de résumé. Réessaie dans une minute.',
     'cards' => [
+        'events' => [
+            'label' => 'Événements',
+            'description' => 'Organise les rencontres de la Boucle et sait qui vient.',
+            'empty_title' => 'Aucune rencontre',
+            'empty_body' => 'Propose une rencontre aux membres de cette Boucle : ils diront s\'ils viennent, et elle apparaîtra dans l\'agenda.',
+            'action' => 'Proposer une rencontre',
+        ],
         'polls' => [
             'label' => 'Sondages',
             'description' => 'Pose une question aux membres et recueille leurs réponses.',

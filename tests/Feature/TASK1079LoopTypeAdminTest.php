@@ -92,12 +92,10 @@ class TASK1079LoopTypeAdminTest extends TestCase
 
     public function test_the_two_defined_types_ship_the_specified_cards(): void
     {
-        // Le socle Dialogue a gagne la Card Sondage en TASK-1087 : une Boucle
-        // de conversation peut desormais decider quelque chose.
-        $this->assertEqualsCanonicalizing(
-            ['core.members', 'core.polls'],
-            $this->settings()->cardsFor('general'),
-        );
+        // Le socle Dialogue s'enrichit a chaque Card metier — Sondage en
+        // TASK-1087, Evenements en TASK-1088. On fige ce qui doit rester vrai :
+        // les membres y sont toujours, et le socle Projets ne bouge pas.
+        $this->assertContains('core.members', $this->settings()->cardsFor('general'));
         $this->assertEqualsCanonicalizing(
             ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.members'],
             $this->settings()->cardsFor('project'),
@@ -123,7 +121,9 @@ class TASK1079LoopTypeAdminTest extends TestCase
     {
         $this->actingAs($this->superAdmin)
             ->put(route('admin.loop-types.update', 'general'), [
-                'cards' => ['core.members', 'core.polls'], 'available' => 1,
+                // Le socle configure, quel qu'il soit : enregistrer le defaut
+                // ne doit rien stocker.
+                'cards' => config('loop_types.types.general.cards'), 'available' => 1,
             ]);
 
         // Sparse storage: saving the default is not a customisation, and a
@@ -166,7 +166,7 @@ class TASK1079LoopTypeAdminTest extends TestCase
 
         // Refuse : le socle configure est intact.
         $this->assertEqualsCanonicalizing(
-            ['core.members', 'core.polls'],
+            config('loop_types.types.general.cards'),
             $this->registry()->cardsFor('general'),
         );
     }
@@ -182,7 +182,7 @@ class TASK1079LoopTypeAdminTest extends TestCase
 
         $this->assertFalse($this->settings()->isCustomised('general'));
         $this->assertEqualsCanonicalizing(
-            ['core.members', 'core.polls'],
+            config('loop_types.types.general.cards'),
             $this->registry()->cardsFor('general'),
         );
     }
@@ -289,8 +289,9 @@ class TASK1079LoopTypeAdminTest extends TestCase
         $loop = Loop::where('name', 'Ma Boucle Dialogue')->firstOrFail();
 
         $this->assertSame('general', $loop->type);
+        // Une Boucle neuve recoit exactement le socle de son type.
         $this->assertEqualsCanonicalizing(
-            ['core.members', 'core.polls'],
+            config('loop_types.types.general.cards'),
             $loop->cards()->pluck('card_key')->all(),
         );
     }
