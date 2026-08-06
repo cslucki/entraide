@@ -79,7 +79,11 @@ class DossierController extends Controller
             'dossierMembers.user:id,first_name,name,email,organization_id,banned_at',
         ]);
 
-        $series = ArticleSeries::where('dossier_id', $dossier->id)
+        // Toutes les Series du Dossier — il peut en porter plusieurs depuis
+        // TASK-1095 — dans un ordre **explicite**, donc stable. Un `->first()`
+        // sans `orderBy` rendait une Serie dont le choix dependait du plan
+        // d'execution.
+        $seriesList = ArticleSeries::where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
             ->with([
                 'rootBlogPost:id,organization_id,user_id,title,slug,status,updated_at,published_at',
@@ -88,8 +92,15 @@ class DossierController extends Controller
                 'items.blogPost:id,organization_id,user_id,title,slug,status,updated_at,published_at',
                 'items.blogPost.user:id,first_name,name,email,organization_id,banned_at',
                 'items.blogPost.coAuthors:id,first_name,name,email,organization_id,banned_at',
+                'items.dossierFile:id,organization_id,dossier_id,original_name,display_name,mime_type,size_bytes,updated_at',
             ])
-            ->first();
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        // L'onglet « contenus » n'en connait qu'une, et ce n'est pas a cette
+        // tache de le changer : il garde la plus ancienne.
+        $series = $seriesList->first();
 
         $eligibleArticles = collect();
         if ($canManageArticles) {
@@ -127,6 +138,7 @@ class DossierController extends Controller
             'dossier' => $dossier,
             'eligibleArticles' => $eligibleArticles,
             'series' => $series,
+            'seriesList' => $seriesList,
             'seriesEligibleArticles' => $seriesEligibleArticles,
             'userRole' => $userRole,
             'canManageArticles' => $canManageArticles,
