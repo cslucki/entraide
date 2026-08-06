@@ -26,6 +26,11 @@
     // Les personnes qui viennent d'arriver : leur ligne se signale un instant,
     // pour qu'on voie ou elles se sont rangees dans une liste triee.
     'highlightIds' => [],
+    // Les intitules de role au-dessus de chaque groupe. Vrais par defaut : les
+    // deux ecrans d'administration ont la largeur pour eux et s'en servent. La
+    // Card Membres, elle, tient dans un panneau etroit et prefere un flux unique
+    // ou le role se lit sur la ligne.
+    'sections' => true,
 ])
 
 @php
@@ -38,11 +43,19 @@
     $grouped = $members->groupBy(fn ($m) => $roles->canonical($m->role));
     $ownerCount = $grouped->get($OWNER, collect())->count();
 
-    // Un seul flux, gouvernance d'abord : on lit qui decide avant qui participe.
+    // Gouvernance d'abord : on lit qui decide avant qui participe.
     $rank = [$OWNER => 0, $FACILITATOR => 1, $MEMBER => 2];
-    $ordered = $members
-        ->sortBy(fn ($m) => [$rank[$roles->canonical($m->role)] ?? 3, mb_strtolower($m->user?->publicDisplayName() ?? '')])
-        ->values();
+    $byName = fn ($m) => mb_strtolower($m->user?->publicDisplayName() ?? '');
+
+    // Un seul parcours, que les groupes soient titres ou non : le balisage
+    // d'une ligne n'existe qu'en un exemplaire.
+    $blocks = $sections
+        ? collect([
+            [__('loops.governance_owners'), $grouped->get($OWNER, collect())->sortBy($byName)->values()],
+            [__('loops.governance_facilitators'), $grouped->get($FACILITATOR, collect())->sortBy($byName)->values()],
+            [__('loops.governance_members'), $grouped->get($MEMBER, collect())->sortBy($byName)->values()],
+        ])
+        : collect([[null, $members->sortBy(fn ($m) => [$rank[$roles->canonical($m->role)] ?? 3, $byName($m)])->values()]]);
 
     $chips = [
         $OWNER => ['label' => __('loops.members_role_owner'), 'class' => 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200'],
@@ -52,11 +65,22 @@
 
 <div {{ $attributes->merge(['class' => 'space-y-3']) }}>
 
-    @if($ordered->isEmpty())
+    @if($members->isEmpty())
         <p class="text-xs text-gray-400">—</p>
     @else
+        @foreach($blocks as [$heading, $bucket])
+        @if($heading !== null)
+            <h3 class="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500 first:mt-0 dark:text-gray-400">
+                {{ $heading }}
+                <span class="font-normal text-gray-400">({{ $bucket->count() }})</span>
+            </h3>
+        @endif
+
+        @if($bucket->isEmpty())
+            <p class="text-xs text-gray-400">—</p>
+        @else
         <ul class="divide-y divide-gray-100 dark:divide-gray-800">
-            @foreach($ordered as $member)
+            @foreach($bucket as $member)
                 @php
                     $role = $roles->canonical($member->role);
                     $isLastOwner = $role === $OWNER && $ownerCount === 1;
@@ -165,6 +189,8 @@
                 </li>
             @endforeach
         </ul>
+        @endif
+        @endforeach
     @endif
 
     {{-- Said once for the whole roster, not repeated on every row. --}}

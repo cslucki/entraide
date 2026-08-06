@@ -29,12 +29,18 @@
     $tabOff = 'text-[var(--bp-muted)] hover:bg-[var(--bp-surface)] hover:text-[var(--bp-text)]';
     $chevron = 'h-4 w-4 shrink-0 text-[var(--bp-muted)] transition';
     $addedIds = collect($justAdded)->pluck('id')->all();
+
+    // Deplie, les deux volets s'affichent l'un sous l'autre et la barre
+    // d'onglets n'a plus d'objet.
+    $showMembersPane = $flat || $tab === 'members';
+    $showInvitationsPane = $flat || $tab === 'invitations';
 @endphp
 
 <div class="space-y-3">
 
     {{-- ── Onglets, compteurs et lien ─────────────────────────────────── --}}
     <div class="flex flex-wrap items-center gap-2">
+        @unless($flat)
         <div class="flex items-center gap-1 rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-panel)] p-1">
             <button type="button" wire:click="selectTab('members')"
                     class="{{ $tabBase }} {{ $tab === 'members' ? $tabOn : $tabOff }}">
@@ -49,6 +55,7 @@
                 @endif
             </button>
         </div>
+        @endunless
 
         <p class="hidden text-[11px] text-[var(--bp-muted)] sm:block">
             {{ trans_choice('loops.members_owners_count', $ownersCount, ['count' => $ownersCount]) }}
@@ -68,7 +75,47 @@
         </div>
     </div>
 
-    @if($tab === 'members')
+{{-- Une demande a rejoindre appelle une decision : elle ne se range pas
+     derriere un onglet, elle reste sous les yeux quel que soit celui-ci. --}}
+    @if($joinRequests->isNotEmpty())
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/60 dark:bg-amber-900/15">
+            <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                {{ __('loops.join_requests_title') }}
+                <span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">{{ $joinRequests->count() }}</span>
+            </p>
+            <ul class="space-y-2">
+                @foreach($joinRequests as $joinRequest)
+                    <li wire:key="request-{{ $joinRequest->id }}" class="rounded-xl border border-amber-200 bg-white p-2.5 dark:border-amber-800/50 dark:bg-gray-900">
+                        <div class="flex items-center gap-2">
+                            <x-user-avatar :user="$joinRequest->user" size="sm" />
+                            <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{{ $joinRequest->user?->publicDisplayName() ?? '—' }}</span>
+                            <span class="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">{{ $joinRequest->created_at->diffForHumans() }}</span>
+                        </div>
+                        @if($joinRequest->message)
+                            <p class="mt-1.5 text-xs leading-5 text-gray-600 dark:text-gray-300">{{ $joinRequest->message }}</p>
+                        @endif
+                        <div class="mt-2 flex gap-2">
+                            <form method="POST" action="{{ route('loop-join-requests.accept', $joinRequest) }}" class="flex-1">
+                                @csrf
+                                <button type="submit" class="w-full rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">
+                                    {{ __('loops.join_requests_accept') }}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('loop-join-requests.reject', $joinRequest) }}" class="flex-1">
+                                @csrf
+                                <button type="submit" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
+                                    {{ __('loops.join_requests_reject') }}
+                                </button>
+                            </form>
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+
+    @if($showMembersPane)
 
         {{-- ── Ajouter depuis l'Organization ──────────────────────────── --}}
         @if($manageable)
@@ -204,53 +251,18 @@
                     :can-remove="false"
                     :creator-id="$currentLoop->created_by"
                     :current-user-id="auth()->id()"
-                    :highlight-ids="$addedIds" />
+                    :highlight-ids="$addedIds"
+                    :sections="false" />
             @endif
         </div>
 
-    @else
+    @endif
 
-        {{-- ── Onglet « Invitations » ─────────────────────────────────── --}}
+    @if($showInvitationsPane)
+
+        {{-- ── Volet « Invitations » ─────────────────────────────────── --}}
         @if($noticeMessage)
             <p class="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300" role="status">{{ $noticeMessage }}</p>
-        @endif
-
-        {{-- Une demande a rejoindre appelle une decision : elle passe devant. --}}
-        @if($joinRequests->isNotEmpty())
-            <div class="rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/60 dark:bg-amber-900/15">
-                <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                    {{ __('loops.join_requests_title') }}
-                    <span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">{{ $joinRequests->count() }}</span>
-                </p>
-                <ul class="space-y-2">
-                    @foreach($joinRequests as $joinRequest)
-                        <li wire:key="request-{{ $joinRequest->id }}" class="rounded-xl border border-amber-200 bg-white p-2.5 dark:border-amber-800/50 dark:bg-gray-900">
-                            <div class="flex items-center gap-2">
-                                <x-user-avatar :user="$joinRequest->user" size="sm" />
-                                <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{{ $joinRequest->user?->publicDisplayName() ?? '—' }}</span>
-                                <span class="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">{{ $joinRequest->created_at->diffForHumans() }}</span>
-                            </div>
-                            @if($joinRequest->message)
-                                <p class="mt-1.5 text-xs leading-5 text-gray-600 dark:text-gray-300">{{ $joinRequest->message }}</p>
-                            @endif
-                            <div class="mt-2 flex gap-2">
-                                <form method="POST" action="{{ route('loop-join-requests.accept', $joinRequest) }}" class="flex-1">
-                                    @csrf
-                                    <button type="submit" class="w-full rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">
-                                        {{ __('loops.join_requests_accept') }}
-                                    </button>
-                                </form>
-                                <form method="POST" action="{{ route('loop-join-requests.reject', $joinRequest) }}" class="flex-1">
-                                    @csrf
-                                    <button type="submit" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
-                                        {{ __('loops.join_requests_reject') }}
-                                    </button>
-                                </form>
-                            </div>
-                        </li>
-                    @endforeach
-                </ul>
-            </div>
         @endif
 
         <div class="{{ $tile }} p-4">

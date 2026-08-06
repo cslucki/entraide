@@ -41,6 +41,16 @@ class LoopMembersCard extends Component
 
     public string $tab = self::TAB_MEMBERS;
 
+    /**
+     * Tout d'un coup, sans onglets.
+     *
+     * Les onglets servent le panneau lateral du workspace, ou la place manque.
+     * L'ecran qui suit la creation d'une Boucle est une page entiere dont le
+     * sujet est justement « qui va la rejoindre » : y cacher les invitations
+     * derriere un onglet ferait perdre ce qu'on vient d'y faire.
+     */
+    public bool $flat = false;
+
     /** Le champ unique : un nom a filtrer, ou une adresse a inviter. */
     public string $search = '';
 
@@ -83,9 +93,10 @@ class LoopMembersCard extends Component
      */
     public string $shareUrl = '';
 
-    public function mount(Loop $loop): void
+    public function mount(Loop $loop, bool $flat = false): void
     {
         $this->loop = $loop;
+        $this->flat = $flat;
 
         $organization = request()->route('organization');
 

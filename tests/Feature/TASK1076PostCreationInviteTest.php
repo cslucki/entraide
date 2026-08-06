@@ -83,13 +83,23 @@ class TASK1076PostCreationInviteTest extends TestCase
         $banned = User::factory()->create(['organization_id' => $org->id, 'name' => 'Banned Person', 'banned_at' => now()]);
         $this->withCurrentOrganization($org);
 
-        $this->actingAs($owner)
+        $response = $this->actingAs($owner)
             ->get(route('loops.invite', $loop))
             ->assertOk()
-            ->assertSee('Candidate Person')
-            ->assertDontSee('Already Person')
-            ->assertDontSee('Foreign Person')
+            ->assertSee('Candidate Person');
+
+        // Personne d'une autre Organization, ni compte desactive : ces deux-la
+        // n'ont rien a faire nulle part sur cet ecran.
+        $response->assertDontSee('Foreign Person')
             ->assertDontSee('Banned Person');
+
+        // « Already Person » est bien sur la page — la liste des membres de la
+        // Boucle y figure desormais, c'est meme l'interet de l'ecran. Ce que la
+        // regle interdit, c'est de la proposer une seconde fois : on verifie
+        // donc l'absence de sa case a cocher, pas l'absence de son nom.
+        $response->assertSee('Already Person')
+            ->assertDontSee('value="'.$alreadyIn->id.'"', false)
+            ->assertSee('value="'.$candidate->id.'"', false);
     }
 
     // ── Permissions ─────────────────────────────────────────────────────────

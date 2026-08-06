@@ -33,7 +33,7 @@
              l'ecran d'edition. Le formulaire POST + redirection qui etait ici
              rechargeait la page sans jamais montrer qui venait d'etre ajoute.
              La route reste servie : elle est la garde serveur du meme geste. --}}
-        @livewire('loop-members-card', ['loop' => $currentLoop])
+        @livewire('loop-members-card', ['loop' => $currentLoop, 'flat' => true])
 
         <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-between">
             <a href="{{ $_loopRoute('index') }}"
