@@ -136,20 +136,32 @@ class TASK1097CourseMaterialTest extends TestCase
         // L'invariant : une Card n'est declaree **que** lorsqu'elle est livree.
         // La declarer en creux serait promettre.
         //
-        // Cette liste retrecit a chaque livraison, et c'est normal : le test
-        // suit ce qui est livre, il ne le contredit pas. `training.progression`
-        // en est sortie avec TASK-1099, `training.assignments` avec TASK-1100.
+        // Cette liste a retreci a chaque livraison, et elle est desormais
+        // vide : les quatre Cards de la matrice Formation existent.
         //
-        // Le QCM reste dedans : le troisieme emplacement de la matrice accepte
-        // Travaux **ou** QCM, et seul le premier est livre.
-        foreach (['training.quiz'] as $plusTard) {
-            $this->assertFalse($registry->exists($plusTard), "{$plusTard} ne doit pas etre declaree avant d'etre livree");
+        //   Support de cours   TASK-1097
+        //   Progression        TASK-1099
+        //   Travaux a rendre   TASK-1100
+        //   QCM                TASK-1102
+        //
+        // Le test garde son sens en changeant de forme : il verifie maintenant
+        // que **rien d'autre** n'est declare sous le prefixe `training.`. Une
+        // Card inventee hors matrice serait aussi une promesse.
+        foreach (['training.course_material', 'training.progression', 'training.assignments', 'training.quiz'] as $livree) {
+            $this->assertTrue($registry->exists($livree));
         }
 
-        // Et ce qui est declare l'est bien : le preset minimal Formation.
-        $this->assertTrue($registry->exists('training.course_material'));
-        $this->assertTrue($registry->exists('training.progression'));
-        $this->assertTrue($registry->exists('training.assignments'));
+        $declarees = collect(array_keys(config('loop_cards.cards')))
+            ->filter(fn (string $cle) => str_starts_with($cle, 'training.'))
+            ->sort()
+            ->values()
+            ->all();
+
+        $this->assertSame(
+            ['training.assignments', 'training.course_material', 'training.progression', 'training.quiz'],
+            $declarees,
+            'Aucune Card Formation hors matrice canonique.',
+        );
     }
 
     public function test_membership_is_the_only_enrolment(): void

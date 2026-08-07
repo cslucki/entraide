@@ -90,12 +90,13 @@ class TASK1101TrainingAvailableTest extends TestCase
         );
     }
 
-    public function test_the_quiz_is_still_not_part_of_the_preset(): void
+    public function test_the_quiz_is_not_part_of_the_preset(): void
     {
-        // Le troisieme emplacement accepte Travaux **ou** QCM. L'ouverture du
-        // type ne promet pas le second.
+        // Le troisieme emplacement accepte Travaux **ou** QCM. Le preset livre
+        // les Travaux ; le QCM existe depuis TASK-1102 et s'active localement.
+        // L'ouverture du type n'impose donc aucun des deux.
         $this->assertNotContains('training.quiz', $this->registry()->cardsFor('training'));
-        $this->assertFalse(app(\App\Support\Loops\LoopCardRegistry::class)->exists('training.quiz'));
+        $this->assertTrue(app(\App\Support\Loops\LoopCardRegistry::class)->exists('training.quiz'));
     }
 
     public function test_an_existing_training_loop_gains_the_missing_cards(): void

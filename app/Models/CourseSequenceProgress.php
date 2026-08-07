@@ -60,6 +60,7 @@ class CourseSequenceProgress extends Model
         'validated_by',
         'unlocked_at',
         'unlocked_by',
+        'passed_quiz_id',
     ];
 
     protected function casts(): array

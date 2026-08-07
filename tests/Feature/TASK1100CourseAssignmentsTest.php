@@ -116,11 +116,14 @@ class TASK1100CourseAssignmentsTest extends TestCase
         $this->assertContains('training.progression', $requis);
     }
 
-    public function test_the_quiz_card_is_still_not_promised(): void
+    public function test_the_quiz_is_an_alternative_not_a_default(): void
     {
-        // Le troisieme emplacement accepte Travaux **ou** QCM. Cette tache livre
-        // le premier ; le second n'est declare nulle part.
-        $this->assertFalse(app(LoopCardRegistry::class)->exists('training.quiz'));
+        // Le troisieme emplacement accepte Travaux **ou** QCM. Le QCM existe
+        // depuis TASK-1102, mais le preset livre les **Travaux** : le QCM
+        // s'active localement, c'est au formateur de composer.
+        $this->assertTrue(app(LoopCardRegistry::class)->exists('training.quiz'));
+        $this->assertNotContains('training.quiz', app(LoopTypeRegistry::class)->cardsFor('training'));
+        $this->assertContains('training.assignments', app(LoopTypeRegistry::class)->cardsFor('training'));
     }
 
     public function test_no_second_file_system_is_created(): void
