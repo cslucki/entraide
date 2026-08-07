@@ -58,6 +58,19 @@ class LoopProgressionCard extends Component
         return $this->resolver()->can(auth()->user(), $this->loop, 'progression.view');
     }
 
+    /**
+     * Le droit d'**avancer** dans son parcours, distinct du droit de voir.
+     *
+     * Ouvrir une etape et la declarer terminee sont des ecritures. Les garder
+     * derriere `progression.view`, declaree `read`, defaisait un invariant du
+     * socle : une Boucle **archivee** acceptait encore qu'on y progresse.
+     */
+    public function canAdvance(): bool
+    {
+        return app(LoopPermissionResolver::class)
+            ->can(auth()->user(), $this->loop, 'progression.complete');
+    }
+
     /** L'Animateur : voit tout le monde, valide, demande une reprise, debloque. */
     public function canManage(): bool
     {
@@ -68,7 +81,7 @@ class LoopProgressionCard extends Component
 
     public function open(string $sequenceId): void
     {
-        $this->authorizeView();
+        $this->authorizeAdvance();
 
         $sequence = $this->resolveSequence($sequenceId);
 
@@ -85,7 +98,7 @@ class LoopProgressionCard extends Component
 
     public function markDone(string $sequenceId): void
     {
-        $this->authorizeView();
+        $this->authorizeAdvance();
 
         try {
             $this->progress()->markCompleted(auth()->user(), $this->resolveSequence($sequenceId));
@@ -216,6 +229,11 @@ class LoopProgressionCard extends Component
         abort_unless($this->canManage(), 403);
     }
 
+    private function authorizeAdvance(): void
+    {
+        abort_unless($this->canAdvance(), 403);
+    }
+
     /**
      * Une Sequence de **cette** Boucle, ou 404.
      *
@@ -303,6 +321,7 @@ class LoopProgressionCard extends Component
 
         return view('livewire.loop-progression-card', [
             'canView' => $canView,
+            'canAdvance' => $canView && $this->canAdvance(),
             'openModuleId' => $this->openModuleId,
             'openUserId' => $this->openUserId,
             'cellDetail' => $this->openCellDetail(),

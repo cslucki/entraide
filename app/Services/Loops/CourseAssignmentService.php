@@ -21,8 +21,11 @@ use Illuminate\Validation\ValidationException;
  * 1. **Le cout ne doit pas exploser avec la taille de la classe.** `warmUp()`
  *    charge toutes les remises en une requete ; rien ici n'interroge la base
  *    dans une boucle.
- * 2. **Un acquis ne regresse jamais.** Retirer un Travail deja rendu l'archive
- *    au lieu de le supprimer, et l'archivage ne referme rien.
+ * 2. **Un acquis ne regresse jamais _tout seul_.** Retirer un Travail deja rendu
+ *    l'archive au lieu de le supprimer, et l'archivage ne referme rien. Aucun
+ *    changement de structure ne defait un `validated`. Seul le formateur peut
+ *    revenir sur sa propre decision, par « demander une reprise » — c'est un
+ *    geste explicite, avec un auteur, pas un effet de bord.
  * 3. **Une capacite n'existe que si quelqu'un peut l'atteindre.** Chaque geste
  *    de ce service a un chemin dans la Card, et un test qui le prouve.
  *
@@ -139,15 +142,25 @@ class CourseAssignmentService
         DB::transaction(function () use ($assignment) {
             $this->forget();
 
-            if (CourseSubmission::where('course_assignment_id', $assignment->id)->exists()) {
-                $assignment->forceFill(['archived_at' => now()])->save();
+            // Le verrou porte sur une ligne **qui existe** : il verrouille donc
+            // reellement. Sans lui, une remise arrivant entre le `exists()` et
+            // le `delete()` etait emportee par la cascade — quelqu'un rendait
+            // son travail et il disparaissait.
+            $locked = CourseAssignment::whereKey($assignment->id)->lockForUpdate()->first();
+
+            if (! $locked) {
+                return;
+            }
+
+            if (CourseSubmission::where('course_assignment_id', $locked->id)->exists()) {
+                $locked->forceFill(['archived_at' => now()])->save();
 
                 return;
             }
 
-            $assignment->delete();
+            $locked->delete();
 
-            $this->renumber($assignment->loop_id);
+            $this->renumber($locked->loop_id);
         });
     }
 
@@ -217,6 +230,13 @@ class CourseAssignmentService
                 'dossier_file_id' => $fichier,
                 'status' => CourseSubmission::STATUS_SUBMITTED,
                 'submitted_at' => now(),
+                // L'avis precedent portait sur la copie precedente : le laisser
+                // ferait relire a la personne le reproche d'avant sur le travail
+                // qu'elle vient de corriger, et donnerait au formateur un avis
+                // date d'avant la remise.
+                'feedback' => null,
+                'reviewed_at' => null,
+                'reviewed_by' => null,
             ]);
         });
     }
@@ -225,6 +245,8 @@ class CourseAssignmentService
 
     public function validateSubmission(CourseAssignment $assignment, User $student, User $trainer, ?string $feedback = null): CourseSubmission
     {
+        $this->assertHasSubmitted($assignment, $student);
+
         return DB::transaction(fn () => $this->write($assignment, $student, [
             'status' => CourseSubmission::STATUS_VALIDATED,
             'feedback' => $feedback,
@@ -235,6 +257,8 @@ class CourseAssignmentService
 
     public function requestRedo(CourseAssignment $assignment, User $student, User $trainer, ?string $feedback = null): CourseSubmission
     {
+        $this->assertHasSubmitted($assignment, $student);
+
         return DB::transaction(fn () => $this->write($assignment, $student, [
             'status' => CourseSubmission::STATUS_REDO,
             'feedback' => $feedback,
@@ -322,6 +346,46 @@ class CourseAssignmentService
         return $this->cache[$cle] = CourseSubmission::where('course_assignment_id', $assignment->id)
             ->where('user_id', $student->id)
             ->first();
+    }
+
+    /**
+     * On ne prononce que sur ce qui a ete remis.
+     *
+     * Sans cette garde, un clic sur la case d'une personne qui n'avait rien
+     * rendu **fabriquait** une remise validee, vide — et l'enfermait : ni
+     * `submit()` ni `saveDraft()` ne touchent une remise validee, donc elle ne
+     * pouvait plus jamais rendre. Un acquis inexistant, et la capacite d'en
+     * produire un vrai detruite, sans un message.
+     */
+    private function assertHasSubmitted(CourseAssignment $assignment, User $student): void
+    {
+        $remise = $this->submissionOf($assignment, $student);
+
+        if (! $remise || $remise->status === CourseSubmission::STATUS_DRAFT) {
+            throw ValidationException::withMessages([
+                'submission' => __('loops.cards.assignments.nothing_to_review'),
+            ]);
+        }
+    }
+
+    /**
+     * Les Travaux retires, avec ce que les gens y ont rendu.
+     *
+     * Sans cette lecture, archiver un Travail que vingt personnes avaient rendu
+     * rendait leurs vingt copies invisibles **partout et definitivement**.
+     * L'archive garde la trace ; encore faut-il pouvoir la lire.
+     *
+     * @return Collection<int, CourseAssignment>
+     */
+    public function archivedAssignments(Loop $loop): Collection
+    {
+        // `withCount` plutot qu'un comptage par ligne dans la vue : une liste
+        // d'archives ne doit pas couter une requete par element.
+        return CourseAssignment::where('loop_id', $loop->id)
+            ->whereNotNull('archived_at')
+            ->withCount('submissions')
+            ->orderByDesc('archived_at')
+            ->get();
     }
 
     /** Un Travail archive n'accepte plus de remise. */

@@ -156,15 +156,15 @@ class TASK1100CourseAssignmentsTest extends TestCase
 
         DB::enableQueryLog();
         $matrice = $service->matrixFor($this->loop, $stagiaires);
-        // On force l'evaluation complete, sinon on mesurerait une collection
-        // paresseuse plutot que le rendu.
         $matrice->each(fn (array $l) => $l['cells']->each(fn (array $c) => $c['status']));
         $requetes = count(DB::getQueryLog());
         DB::disableQueryLog();
 
-        // Un plafond, pas un nombre exact : ce qui compte est que le cout ne
-        // suive pas membres x contenus.
-        $this->assertLessThan(20, $requetes, "matrixFor a fait {$requetes} requetes pour 48 cellules");
+        // Le plafond est **serre**, et c'est le point : a 20, une regression en
+        // N+1 par **ligne** — 9 requetes pour 8 stagiaires — serait passee
+        // inapercue. Seul un N+1 par cellule aurait ete attrape. Un plafond qui
+        // n'attrape que la catastrophe ne protege de rien.
+        $this->assertLessThan(6, $requetes, "matrixFor a fait {$requetes} requetes pour 48 cellules");
         $this->assertCount(8, $matrice);
     }
 
@@ -181,7 +181,7 @@ class TASK1100CourseAssignmentsTest extends TestCase
         $requetes = count(DB::getQueryLog());
         DB::disableQueryLog();
 
-        $this->assertLessThan(12, $requetes, "overviewFor a fait {$requetes} requetes");
+        $this->assertLessThan(5, $requetes, "overviewFor a fait {$requetes} requetes");
     }
 
     // ── Invariant 2 : un acquis ne regresse jamais ──────────────────────────
@@ -433,7 +433,160 @@ class TASK1100CourseAssignmentsTest extends TestCase
         $this->assertNotNull($remise->reviewed_at);
     }
 
+
+    // ── Ce que la revue hostile a trouve ────────────────────────────────────
+
+    public function test_an_archived_loop_accepts_no_submission(): void
+    {
+        $t = $this->travail();
+        $this->loop->forceFill(['status' => 'archived', 'archived_at' => now()])->save();
+
+        // Remettre est une **ecriture**. La garder derriere une permission de
+        // lecture — `assignments.view`, declaree `read` — defaisait l'invariant
+        // du socle : une Boucle archivee acceptait encore les remises.
+        $this->card($this->stagiaire)->call('submit', $t->id)->assertForbidden();
+        $this->card($this->stagiaire)->call('saveDraft', $t->id)->assertForbidden();
+
+        $this->assertDatabaseCount('course_submissions', 0);
+        // Lire reste possible : c'est ce qu'une archive doit permettre.
+        $this->assertTrue($this->card($this->stagiaire)->instance()->canView());
+        $this->assertFalse($this->card($this->stagiaire)->instance()->canSubmit());
+    }
+
+    public function test_an_archived_loop_still_refuses_to_advance_progression(): void
+    {
+        // Le meme defaut existait sur la Progression, deja mergee : declarer une
+        // etape terminee est une ecriture.
+        $materiel = app(\App\Services\Loops\CourseMaterialService::class);
+        $module = $materiel->createModule($this->loop, $this->formateur, 'M1');
+        $sequence = $materiel->addSequence($module, $this->formateur, 'S1');
+
+        $this->loop->forceFill(['status' => 'archived', 'archived_at' => now()])->save();
+
+        Livewire::actingAs($this->stagiaire)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->call('markDone', $sequence->id)
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('course_sequence_progress', 0);
+    }
+
+    public function test_a_trainer_cannot_validate_what_was_never_submitted(): void
+    {
+        $t = $this->travail();
+
+        // Sans garde, un clic sur la case d'une personne qui n'avait rien rendu
+        // **fabriquait** une remise validee et vide — et l'enfermait : ni
+        // `submit()` ni `saveDraft()` ne touchent une remise validee. Elle ne
+        // pouvait plus jamais rendre, sans un message.
+        try {
+            $this->service()->validateSubmission($t, $this->stagiaire, $this->formateur);
+            $this->fail('Valider une remise inexistante doit etre refuse.');
+        } catch (ValidationException) {
+            // Attendu.
+        }
+
+        $this->assertDatabaseCount('course_submissions', 0);
+
+        // Et la personne peut toujours rendre.
+        $this->service()->submit($t, $this->stagiaire, 'Ma reponse.');
+        $this->assertSame(S::STATUS_SUBMITTED, $this->service()->statusFor($t, $this->stagiaire));
+    }
+
+    public function test_a_draft_alone_cannot_be_validated(): void
+    {
+        $t = $this->travail();
+        $this->service()->saveDraft($t, $this->stagiaire, 'Pas fini.');
+
+        $this->expectException(ValidationException::class);
+        // Un brouillon n'a pas ete remis : il n'y a rien a prononcer dessus.
+        $this->service()->validateSubmission($t, $this->stagiaire, $this->formateur);
+    }
+
+    public function test_an_empty_cell_offers_no_review_button(): void
+    {
+        $t = $this->travail('Jamais rendu');
+
+        // La cellule vide ne s'ouvre pas : c'est le chemin qui menait au defaut.
+        $this->card()->set('face', 'everyone')
+            ->assertDontSee(e(__('loops.cards.assignments.validate')), false);
+    }
+
+    public function test_a_banned_member_is_unreachable(): void
+    {
+        $t = $this->travail();
+        $this->service()->submit($t, $this->stagiaire, 'Ma reponse.');
+        $this->stagiaire->forceFill(['banned_at' => now()])->save();
+
+        // Il sort de la matrice : il doit sortir aussi des gestes. Sinon le
+        // formateur ecrit sur quelqu'un qu'il ne voit plus.
+        $this->card()->call('validateSubmission', $t->id, $this->stagiaire->id)->assertNotFound();
+
+        $this->assertSame(S::STATUS_SUBMITTED, $this->service()->statusFor($t->fresh(), $this->stagiaire));
+    }
+
+    public function test_a_new_submission_clears_the_previous_review(): void
+    {
+        $t = $this->travail();
+        $this->service()->submit($t, $this->stagiaire, 'v1');
+        $this->service()->requestRedo($t, $this->stagiaire, $this->formateur, 'Trop court, recommence.');
+
+        $this->service()->submit($t, $this->stagiaire, 'v2 corrigee');
+
+        $remise = S::where('course_assignment_id', $t->id)->firstOrFail();
+
+        // L'avis portait sur la copie d'avant : le laisser ferait relire le
+        // reproche sur le travail qu'on vient de corriger, et donnerait au
+        // formateur un avis date d'avant la remise.
+        $this->assertNull($remise->feedback);
+        $this->assertNull($remise->reviewed_at);
+        $this->assertNull($remise->reviewed_by);
+    }
+
+    public function test_an_unreadable_due_date_is_refused_not_swallowed(): void
+    {
+        // Avaler l'exception faisait disparaitre la date saisie sans un mot :
+        // une faute de frappe coutait l'echeance en silence.
+        $this->card()->set('title', 'Un Travail')->set('dueAt', 'pas une date')->call('saveAssignment')
+            ->assertHasErrors('dueAt');
+
+        $this->assertDatabaseCount('course_assignments', 0);
+
+        // Et « 0000-00-00 » rendait une date negative, perpetuellement en retard.
+        $this->card()->set('title', 'Un Travail')->set('dueAt', '0000-00-00T00:00')->call('saveAssignment')
+            ->assertHasErrors('dueAt');
+
+        $this->assertDatabaseCount('course_assignments', 0);
+    }
+
+    public function test_an_error_never_shows_in_the_success_banner(): void
+    {
+        $t = $this->travail();
+
+        $composant = $this->card($this->stagiaire)->call('openAssignment', $t->id)->call('submit', $t->id);
+
+        // Une remise vide est refusee — et le refus s'affiche comme un refus.
+        $this->assertNotSame('', $composant->get('problem'));
+        $this->assertSame('', $composant->get('flash'));
+        $composant->assertSee('role="alert"', false);
+    }
+
+    public function test_a_removed_assignment_stays_readable_by_the_trainer(): void
+    {
+        $t = $this->travail('Retire mais rendu');
+        $this->service()->submit($t, $this->stagiaire, 'Ma reponse.');
+        $this->service()->delete($t);
+
+        // Archiver un Travail que vingt personnes ont rendu rendait leurs vingt
+        // copies invisibles partout, definitivement. L'archive garde la trace ;
+        // encore faut-il pouvoir la lire.
+        $this->card()
+            ->assertSee(e(__('loops.cards.assignments.archived_title')), false)
+            ->assertSee('Retire mais rendu');
+    }
+
     // ── Cloisonnement ───────────────────────────────────────────────────────
+
 
     public function test_an_assignment_of_another_loop_is_never_reachable(): void
     {

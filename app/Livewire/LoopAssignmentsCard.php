@@ -62,6 +62,9 @@ class LoopAssignmentsCard extends Component
 
     public string $flash = '';
 
+    /** Une erreur n'est pas un succes : elle a sa propre banniere. */
+    public string $problem = '';
+
     public function mount(Loop $loop): void
     {
         $this->loop = $loop;
@@ -77,6 +80,17 @@ class LoopAssignmentsCard extends Component
     public function canManage(): bool
     {
         return $this->resolver()->can(auth()->user(), $this->loop, 'assignments.manage');
+    }
+
+    /**
+     * Le droit de **remettre**, distinct du droit de voir.
+     *
+     * Remettre est une ecriture : le resolveur la refuse sur une Boucle
+     * archivee, ce qu'une permission de lecture ne faisait pas.
+     */
+    public function canSubmit(): bool
+    {
+        return $this->resolver()->can(auth()->user(), $this->loop, 'assignments.submit');
     }
 
     // ── Gestes de l'Animateur ───────────────────────────────────────────────
@@ -103,13 +117,14 @@ class LoopAssignmentsCard extends Component
                 );
             }
         } catch (ValidationException $e) {
-            $this->addError('title', $e->getMessage());
+            $this->addError(array_key_first($e->errors()) === 'dueAt' ? 'dueAt' : 'title', $e->getMessage());
 
             return;
         }
 
         $this->reset(['title', 'brief', 'dueAt', 'showForm', 'editingId']);
-        $this->flash = __('loops.cards.assignments.save');
+        $this->problem = '';
+        $this->flash = __('loops.cards.assignments.saved');
     }
 
     public function startEditing(string $assignmentId): void
@@ -117,6 +132,9 @@ class LoopAssignmentsCard extends Component
         $this->authorizeManage();
 
         $a = $this->resolveAssignment($assignmentId);
+
+        $this->flash = '';
+        $this->problem = '';
 
         $this->editingId = $a->id;
         $this->title = $a->title;
@@ -131,7 +149,7 @@ class LoopAssignmentsCard extends Component
 
         $this->service()->delete($this->resolveAssignment($assignmentId));
 
-        $this->flash = __('loops.cards.assignments.delete_confirm');
+        $this->flash = __('loops.cards.assignments.removed');
     }
 
     public function toggleReview(string $assignmentId, string $userId): void
@@ -193,33 +211,35 @@ class LoopAssignmentsCard extends Component
 
     public function saveDraft(string $assignmentId): void
     {
-        $this->authorizeView();
+        $this->authorizeSubmit();
 
         try {
             $this->service()->saveDraft($this->resolveAssignment($assignmentId), auth()->user(), $this->body ?: null);
         } catch (ValidationException $e) {
-            $this->flash = $e->getMessage();
+            $this->problem = $e->getMessage();
 
             return;
         }
 
-        $this->flash = __('loops.cards.assignments.save_draft');
+        $this->problem = '';
+        $this->flash = __('loops.cards.assignments.draft_saved');
     }
 
     public function submit(string $assignmentId): void
     {
-        $this->authorizeView();
+        $this->authorizeSubmit();
 
         try {
             $this->service()->submit($this->resolveAssignment($assignmentId), auth()->user(), $this->body ?: null);
         } catch (ValidationException $e) {
-            $this->flash = $e->getMessage();
+            $this->problem = $e->getMessage();
 
             return;
         }
 
+        $this->problem = '';
         $this->openAssignmentId = null;
-        $this->flash = __('loops.cards.assignments.submitted_note');
+        $this->flash = __('loops.cards.assignments.submission_sent');
     }
 
     // ── Gardes ──────────────────────────────────────────────────────────────
@@ -232,6 +252,11 @@ class LoopAssignmentsCard extends Component
     private function authorizeManage(): void
     {
         abort_unless($this->canManage(), 403);
+    }
+
+    private function authorizeSubmit(): void
+    {
+        abort_unless($this->canSubmit(), 403);
     }
 
     /** Un Travail de **cette** Boucle, ou 404. */
@@ -252,7 +277,10 @@ class LoopAssignmentsCard extends Component
             ->where('status', 'active')
             ->first();
 
-        abort_unless((bool) $membre, 404);
+        // Un compte banni sort de la matrice — il doit donc sortir aussi des
+        // gestes. Sans ce controle, le formateur pouvait ecrire sur quelqu'un
+        // qu'il ne voit plus : une ecriture sans lecture.
+        abort_unless($membre && $membre->user && $membre->user->banned_at === null, 404);
 
         return $membre->user;
     }
@@ -264,10 +292,24 @@ class LoopAssignmentsCard extends Component
         }
 
         try {
-            return \Illuminate\Support\Carbon::parse($this->dueAt);
+            $date = \Illuminate\Support\Carbon::parse($this->dueAt);
         } catch (\Throwable) {
-            return null;
+            // Avaler l'exception faisait disparaitre la date saisie sans un
+            // mot : une faute de frappe coutait l'echeance en silence.
+            throw ValidationException::withMessages([
+                'dueAt' => __('loops.cards.assignments.due_invalid'),
+            ]);
         }
+
+        // Carbon accepte « 0000-00-00 » et rend une date negative, affichee
+        // « 30/11/-001 » et perpetuellement en retard.
+        if ($date->year < 2000 || $date->year > 2200) {
+            throw ValidationException::withMessages([
+                'dueAt' => __('loops.cards.assignments.due_invalid'),
+            ]);
+        }
+
+        return $date;
     }
 
     /** @return Collection<int, User> */
@@ -301,6 +343,8 @@ class LoopAssignmentsCard extends Component
         return view('livewire.loop-assignments-card', [
             'canView' => $canView,
             'canManage' => $canManage,
+            'canSubmit' => $canView && $this->canSubmit(),
+            'archived' => $canManage ? $this->service()->archivedAssignments($this->loop) : collect(),
             'face' => $face,
             'overview' => $canView && $face === self::FACE_MINE
                 ? $this->service()->overviewFor($this->loop, auth()->user())
