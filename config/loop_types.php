@@ -191,7 +191,7 @@ return [
                 'core.manifesto',
                 'core.members',
                 'training.course_material',
-                'core.roadmap',
+                'training.progression',
             ],
         ],
 

@@ -470,7 +470,142 @@ class TASK1099CourseProgressTest extends TestCase
         $this->assertSame(0, $this->progress()->matrixFor($this->loop, collect([$this->stagiaire]))[0]['awaiting']);
     }
 
+
+    // ── La Card : une seule, deux visages ───────────────────────────────────
+
+    public function test_the_progression_is_one_card_with_two_faces(): void
+    {
+        $registre = app(\App\Support\Loops\LoopCardRegistry::class);
+
+        $this->assertTrue($registre->exists('training.progression'));
+
+        // Deux Cards obligeraient a choisir laquelle montrer selon le role, ce
+        // que le socle ne sait pas faire.
+        foreach (['training.my_progress', 'training.trainer_dashboard', 'training.progress_matrix'] as $inexistante) {
+            $this->assertFalse($registre->exists($inexistante));
+        }
+    }
+
+    public function test_the_progression_needs_the_course_material(): void
+    {
+        // Suivre une progression sans Support de cours ne veut rien dire : la
+        // dependance est declaree, pas laissee a la discipline.
+        $this->assertContains(
+            'training.course_material',
+            app(\App\Support\Loops\LoopCardRegistry::class)->get('training.progression')['requires']
+        );
+    }
+
+    public function test_a_trainee_sees_only_their_own_progress(): void
+    {
+        $m = $this->module('M1');
+        $this->sequence($m, 'A');
+
+        $composant = \Livewire\Livewire::actingAs($this->stagiaire)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop]);
+
+        $composant->assertSee(__('loops.cards.progression.status_available'), false)
+            // Pas d'onglet : il n'y a qu'un visage a lui montrer.
+            ->assertDontSee(__('loops.cards.progression.everyone'), false);
+
+        // Et demander l'autre visage ne l'ouvre pas.
+        $composant->set('face', 'everyone')
+            ->assertDontSee(__('loops.cards.progression.no_members'), false);
+    }
+
+    public function test_a_trainer_sees_both_faces(): void
+    {
+        $m = $this->module('M1');
+        $this->sequence($m, 'A');
+
+        \Livewire\Livewire::actingAs($this->formateur)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.cards.progression.my_progress'), false)
+            ->assertSee(__('loops.cards.progression.everyone'), false)
+            ->set('face', 'everyone')
+            ->assertSee($this->stagiaire->first_name ?? $this->stagiaire->name);
+    }
+
+    public function test_every_trainer_gesture_is_guarded(): void
+    {
+        $m = $this->module('M1');
+        $a = $this->sequence($m, 'A', validation: true);
+        $this->progress()->markCompleted($this->stagiaire, $a);
+
+        // Un stagiaire ne valide pas, ne demande pas de reprise, ne debloque
+        // pas, et ne change pas le mode de parcours.
+        foreach ([
+            ['validateFor', [$a->id, $this->stagiaire->id]],
+            ['requestRedoFor', [$a->id, $this->stagiaire->id]],
+            ['unlockFor', [$a->id, $this->stagiaire->id]],
+            ['setPathMode', [CourseSetting::PATH_FREE]],
+        ] as [$methode, $arguments]) {
+            \Livewire\Livewire::actingAs($this->stagiaire)
+                ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+                ->call($methode, ...$arguments)
+                ->assertForbidden();
+        }
+
+        $this->assertSame(P::STATUS_SUBMITTED, $this->etat($a));
+        $this->assertSame(CourseSetting::PATH_SEQUENTIAL, $this->progress()->pathMode($this->loop));
+    }
+
+    public function test_a_trainer_never_acts_on_someone_outside_the_loop(): void
+    {
+        $m = $this->module('M1');
+        $a = $this->sequence($m, 'A');
+        $dehors = User::factory()->create(['organization_id' => $this->org->id]);
+
+        // L'identifiant est reel et l'Animateur a tous les droits chez lui :
+        // c'est l'appartenance a la Boucle qui refuse, pas le droit.
+        \Livewire\Livewire::actingAs($this->formateur)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->call('validateFor', $a->id, $dehors->id)
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('course_sequence_progress', 0);
+    }
+
+    public function test_a_sequence_of_another_loop_is_never_reachable(): void
+    {
+        $autre = $this->trainingLoop();
+        $moduleVoisin = $this->material()->createModule($autre, $this->formateur, 'Chez le voisin');
+        $sequenceVoisine = $this->material()->addSequence($moduleVoisin, $this->formateur, 'S');
+
+        \Livewire\Livewire::actingAs($this->formateur)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->call('unlockFor', $sequenceVoisine->id, $this->stagiaire->id)
+            ->assertNotFound();
+    }
+
+    public function test_a_non_member_reads_nothing(): void
+    {
+        $m = $this->module('M1');
+        $this->sequence($m, 'Sequence confidentielle');
+        $etranger = User::factory()->create(['organization_id' => $this->org->id]);
+
+        \Livewire\Livewire::actingAs($etranger)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->assertDontSee('Sequence confidentielle')
+            ->assertSee(e(__('loops.cards.progression.no_access')), false);
+    }
+
+    public function test_the_locked_reason_is_always_shown(): void
+    {
+        $m = $this->module('M1');
+        $this->sequence($m, 'A');
+        $this->sequence($m, 'B');
+
+        // Toute la structure reste visible : une etape verrouillee se voit
+        // venir, avec la raison de son verrou.
+        \Livewire\Livewire::actingAs($this->stagiaire)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->assertSee('B')
+            ->assertSee(e(__('loops.cards.progression.locked_reason')), false);
+    }
+
     // ── Cloisonnement ───────────────────────────────────────────────────────
+
 
     public function test_every_progress_row_carries_its_organization(): void
     {
