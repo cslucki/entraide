@@ -366,6 +366,41 @@ return [
             'default_enabled' => false,
         ],
 
+        /*
+         * Le Journal — ce qui s'est passe, date et signe.
+         *
+         * **Deux presets l'attendent** : Pair-aidance et Coaching. C'est ce qui
+         * en fait la Card a livrer en premier apres la Formation — une seule
+         * table sert deux parcours.
+         *
+         * Elle ne depend d'aucune autre : un Journal se tient seul.
+         */
+        'core.journal' => [
+            'key' => 'core.journal',
+            'label_key' => 'loops.cards.journal.label',
+            'description_key' => 'loops.cards.journal.description',
+            'empty_title_key' => 'loops.cards.journal.empty_title',
+            'empty_body_key' => 'loops.cards.journal.empty_body',
+            'action_key' => 'loops.cards.journal.action',
+            'icon' => 'document',
+            'component' => 'loop-journal-card',
+            'view' => null,
+            'view_permission' => 'journal.view',
+            'required' => false,
+            // Entre Sondages (35) et Evenements (37) : le Journal se lit au
+            // rythme de la Boucle, comme eux.
+            'order' => 41,
+            'placement' => 'grid',
+            'category' => 'rhythm',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => true,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => true,
+        ],
+
         'core.members' => [
             'key' => 'core.members',
             'label_key' => 'loops.cards.members.label',
