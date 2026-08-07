@@ -1850,7 +1850,7 @@ function registerDossierTabs() {
 
         init() {
             const hash = window.location.hash.replace('#', '');
-            if (['contenus', 'fichiers', 'membres'].includes(hash)) {
+            if (['contenus', 'fichiers', 'series', 'membres'].includes(hash)) {
                 this.active = hash;
             }
         },
@@ -1862,9 +1862,194 @@ function registerDossierTabs() {
 
         onHashChange() {
             const hash = window.location.hash.replace('#', '');
-            if (['contenus', 'fichiers', 'membres'].includes(hash)) {
+            if (['contenus', 'fichiers', 'series', 'membres'].includes(hash)) {
                 this.active = hash;
             }
+        },
+    }));
+}
+
+/**
+ * Classer une Serie **sans glissement**.
+ *
+ * Le glisser-deposer reste, mais il ne peut pas etre le seul chemin : il est
+ * inaccessible au clavier et impraticable sur un ecran tactile etroit, la ou
+ * ces Series seront surtout lues.
+ *
+ * Les deux chemins appellent la meme route et envoient la meme chose — la liste
+ * complete des items dans l'ordre voulu. Il n'y a donc pas deux mecaniques de
+ * reordonnancement a garder d'accord.
+ *
+ * En cas d'echec, l'ordre affiche **revient a ce qu'il etait**. Laisser a
+ * l'ecran un ordre que le serveur a refuse, c'est mentir jusqu'au prochain
+ * rechargement.
+ */
+function registerDossierSeriesReorder() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierSeriesReorder', (config) => ({
+        seriesId: config.seriesId,
+        dossierId: config.dossierId,
+        orgParam: config.orgParam,
+        itemIds: [...(config.itemIds || [])],
+        csrfToken: config.csrfToken,
+        // Les libelles viennent du serveur, traduits : le composant n'en
+        // fabrique aucun et ne va en chercher aucun dans un objet global.
+        i18n: config.i18n || {},
+        announcement: '',
+        saving: false,
+        sortable: null,
+
+        init() {
+            // Une zone par Serie, et **jamais** de groupe commun : un groupe
+            // partage aurait laisse glisser un contenu d'une Serie a l'autre,
+            // ce que le serveur refuse — un contenu n'appartient qu'a une
+            // seule Serie. Mieux vaut que le geste soit impossible que
+            // possible puis rejete.
+            this.$nextTick(() => {
+                const zone = this.$el.querySelector('[data-series-zone]');
+                if (!zone) return;
+
+                this.sortable = Sortable.create(zone, {
+                    group: `dossier-series-${this.seriesId}`,
+                    handle: '[data-series-handle]',
+                    filter: '[data-no-drag]',
+                    animation: 150,
+                    onEnd: () => this.persistDomOrder(),
+                });
+            });
+        },
+
+        destroy() {
+            this.sortable?.destroy();
+            this.sortable = null;
+        },
+
+        /**
+         * Apres un glissement, lire l'ordre **depuis le DOM** et l'enregistrer.
+         *
+         * Sortable a deja deplace la ligne ; c'est donc le DOM qui fait foi a
+         * cet instant. Le chemin d'enregistrement est ensuite le meme que
+         * celui des boutons — une seule mecanique a garder juste.
+         */
+        persistDomOrder() {
+            const zone = this.$el.querySelector('[data-series-zone]');
+            if (!zone) return;
+
+            const avant = [...this.itemIds];
+
+            this.itemIds = [...zone.querySelectorAll('li[data-item-id]')]
+                .map(li => li.dataset.itemId);
+
+            this.applyDomOrder();
+            this.persist(avant, null);
+        },
+
+        async move(itemId, delta) {
+            if (this.saving) return;
+
+            const from = this.itemIds.indexOf(itemId);
+            const to = from + delta;
+            if (from === -1 || to < 0 || to >= this.itemIds.length) return;
+
+            const avant = [...this.itemIds];
+
+            const ordre = [...this.itemIds];
+            ordre.splice(to, 0, ordre.splice(from, 1)[0]);
+            this.itemIds = ordre;
+
+            // Le DOM suit tout de suite : le geste doit se voir avant que le
+            // reseau ait repondu, sinon on croit qu'il n'a rien fait.
+            this.applyDomOrder();
+            await this.persist(avant, itemId);
+        },
+
+        /**
+         * Enregistrer l'ordre courant. Le seul endroit qui parle au serveur.
+         *
+         * En cas d'echec, l'ordre affiche **revient a ce qu'il etait**, et
+         * l'echec est dit. Laisser a l'ecran un ordre que le serveur a refuse,
+         * c'est mentir jusqu'au prochain rechargement ; le retirer sans un mot
+         * ressemble a un bouton qui ne marche pas.
+         */
+        async persist(avant, itemId) {
+            if (this.saving) return;
+            this.saving = true;
+
+            try {
+                const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/reorder`;
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ items: this.itemIds, series_id: this.seriesId }),
+                });
+
+                if (!response.ok) throw new Error(String(response.status));
+
+                if (itemId) this.announce(itemId);
+            } catch (e) {
+                this.itemIds = avant;
+                this.applyDomOrder();
+                this.announcement = this.i18n.reorderFailed || '';
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        /**
+         * Replacer les lignes et **recalculer les numeros affiches**.
+         *
+         * Les numeros ne sont recopies nulle part : ils sont deduits du rang,
+         * ici comme sur le serveur. Deplacer une ligne les refait donc tous,
+         * sans qu'aucun titre ni nom de fichier ne soit touche.
+         */
+        applyDomOrder() {
+            const zone = this.$el.querySelector('[data-series-zone]');
+            if (!zone) return;
+
+            const parRang = new Map();
+            zone.querySelectorAll('[data-item-id]').forEach(li => parRang.set(li.dataset.itemId, li));
+
+            this.itemIds.forEach(id => {
+                const li = parRang.get(id);
+                if (li) zone.appendChild(li);
+            });
+
+            zone.querySelectorAll('li').forEach((li, index) => {
+                const numero = li.querySelector('[data-series-number]');
+                if (numero) numero.textContent = String(index + 1).padStart(2, '0');
+            });
+
+            this.refreshBounds();
+        },
+
+        /** Le premier ne monte pas, le dernier ne descend pas. */
+        refreshBounds() {
+            const zone = this.$el.querySelector('[data-series-zone]');
+            if (!zone) return;
+
+            const deplacables = [...zone.querySelectorAll('li[data-item-id]')];
+
+            deplacables.forEach((li, index) => {
+                const [monter, descendre] = li.querySelectorAll('button');
+                if (monter) monter.disabled = index === 0;
+                if (descendre) descendre.disabled = index === deplacables.length - 1;
+            });
+        },
+
+        announce(itemId) {
+            const zone = this.$el.querySelector('[data-series-zone]');
+            const li = zone?.querySelector(`[data-item-id="${itemId}"]`);
+            if (!li || !zone) return;
+
+            const position = [...zone.querySelectorAll('li')].indexOf(li) + 1;
+            const nom = li.querySelector('a, span.block')?.textContent?.trim() || '';
+
+            this.announcement = `${nom} — ${position}`;
         },
     }));
 }
@@ -5675,6 +5860,7 @@ registerBlogCoAuthorCard();
 registerBlogInviteByEmail();
     registerBlogDossierCard();
     registerDossierTabs();
+    registerDossierSeriesReorder();
     registerDossierContentsCard();
     registerDossierSemanticArticleSearch();
     registerDossierMembersCard();

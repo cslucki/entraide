@@ -153,6 +153,9 @@
                 <button @click="activate('fichiers')" :aria-selected="active === 'fichiers'" :tabindex="active === 'fichiers' ? '0' : '-1'" role="tab" id="tab-fichiers" aria-controls="tabpanel-fichiers" class="inline-flex px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors" :class="active === 'fichiers' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
                     {{ __('dossiers.files_tab') }}
                 </button>
+                <button @click="activate('series')" :aria-selected="active === 'series'" :tabindex="active === 'series' ? '0' : '-1'" role="tab" id="tab-series" aria-controls="tabpanel-series" class="inline-flex px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors" :class="active === 'series' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
+                    {{ __('dossiers.series_tab') }}
+                </button>
                 <button @click="activate('membres')" :aria-selected="active === 'membres'" :tabindex="active === 'membres' ? '0' : '-1'" role="tab" id="tab-membres" aria-controls="tabpanel-membres" class="inline-flex px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors" :class="active === 'membres' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
                     {{ __('dossiers.members_tab') }}
                 </button>
@@ -1105,6 +1108,41 @@
                     </template>
                 </section>
                 @endif
+            </div>
+
+            {{-- Tab: Series --}}
+            <div x-show="active === 'series'" x-cloak role="tabpanel" id="tabpanel-series" aria-labelledby="tab-series" class="mt-6">
+                <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+                    <header class="mb-5 flex flex-wrap items-baseline justify-between gap-2">
+                        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.series_tab') }}</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            {{ trans_choice('dossiers.series_count_items', $seriesList->count(), ['count' => $seriesList->count()]) }}
+                        </p>
+                    </header>
+
+                    @if ($seriesList->isEmpty())
+                        <div class="rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center dark:border-gray-600">
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.series_tab_empty_title') }}</h3>
+                            <p class="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.series_tab_empty_body') }}</p>
+                        </div>
+                    @else
+                        {{-- Une Serie par bloc, chacune avec sa propre zone de
+                             classement. Une seule zone commune aurait laisse
+                             glisser un contenu d'une Serie a l'autre, ce que le
+                             serveur refuse : un contenu n'appartient qu'a une
+                             seule Serie. --}}
+                        <div class="space-y-5">
+                            @foreach ($seriesList as $uneSerie)
+                                <x-dossiers.series-list
+                                    :series="$uneSerie"
+                                    :can-manage="$canManageArticles"
+                                    :organization-param="$organizationRouteParam"
+                                    :dossier-id="$dossier->id"
+                                />
+                            @endforeach
+                        </div>
+                    @endif
+                </section>
             </div>
 
             {{-- Tab: Members --}}
