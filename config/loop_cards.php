@@ -350,7 +350,11 @@ return [
             'view' => null,
             'view_permission' => 'quiz.view',
             'required' => false,
-            'order' => 37,
+            // 39 et non 36-adjacent : `core.events` occupe 37 et
+            // `core.dossiers` 38. Deux Cards ne peuvent pas partager un ordre —
+            // il fixe la position dans la grille, et un ex aequo la rendrait
+            // dependante de l'ordre de declaration.
+            'order' => 39,
             'placement' => 'grid',
             'category' => 'pedagogy',
             'scope' => 'training',

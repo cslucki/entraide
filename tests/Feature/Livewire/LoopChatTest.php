@@ -1249,7 +1249,12 @@ class LoopChatTest extends TestCase
         $this->assertLessThan($positions['core.members'], $positions['core.roadmap']);
 
         $cards->each(function (array $card): void {
-            $this->assertTrue($card['default_enabled']);
+            // `default_enabled` est un booleen, pas forcement `true`.
+            // `training.quiz` est la premiere Card volontairement facultative :
+            // le troisieme emplacement de la Formation accepte Travaux **ou**
+            // QCM, le preset livre le premier, et le second s'active
+            // localement. Exiger `true` partout interdirait toute alternative.
+            $this->assertIsBool($card['default_enabled']);
             $this->assertSame('loop.active_member', $card['permission']);
             $this->assertSame('drawer', $card['mobile']);
         });
