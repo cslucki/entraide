@@ -274,8 +274,27 @@ class AppServiceProvider extends ServiceProvider
             $view->with('pendingOrganizationRequestsCount', OrganizationRequest::where('status', 'pending')->count());
         });
 
-        Route::bind('loop', function (string $value) {
-            $orgSlug = request()->route('organization');
+        Route::bind('loop', function (string $value, $route = null) {
+            // L'Organization se lit sur **la route en cours de resolution**, et
+            // non sur `request()`.
+            //
+            // La difference n'est visible que sur une requete Livewire. Livero
+            // rejoue les middlewares persistants de la page d'origine en
+            // reconstruisant sa route ; mais `request()` reste, lui, le
+            // `POST /livewire/update`, qui ne porte aucun parametre
+            // `organization`. Le slug tombait donc dans la branche « pas
+            // d'Organization » et repondait 404, tandis qu'un UUID passait
+            // outre — d'ou une Boucle qui marchait par UUID et cassait toutes
+            // ses interactions par slug.
+            //
+            // Le repli sur `request()` reste pour les appels qui n'ont pas de
+            // route, et le filtre par `organization_id` est inchange : rien
+            // n'est ouvert, c'est seulement la bonne source qui est lue.
+            $orgSlug = $route?->parameter('organization') ?? request()->route('organization');
+
+            if ($orgSlug instanceof Organization) {
+                $orgSlug = $orgSlug->slug;
+            }
 
             if (Str::isUuid($value)) {
                 $query = Loop::query();
