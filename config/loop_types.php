@@ -163,24 +163,28 @@ return [
             'icon' => 'academic',
             'order' => 30,
             /*
-             * Toujours pas offert, et c'est volontaire.
+             * **Offert.** La condition posee ici depuis l'origine — livrer
+             * plutot que promettre — est remplie : le type embarque les trois
+             * Cards que la matrice canonique lui prevoit.
              *
-             * Le type embarque desormais **deux** des trois Cards que la
-             * matrice canonique lui prevoit : Support de cours (TASK-1097) et
-             * Progression (TASK-1099). Il manque la troisieme — Travaux a
-             * rendre ou QCM — et c'est elle qui fait qu'on rend quelque chose,
-             * donc qu'il y a un avant et un apres.
+             *   Support de cours   TASK-1097
+             *   Progression        TASK-1099
+             *   Travaux a rendre   TASK-1100
              *
-             * La condition posee ici — livrer plutot que promettre — est donc
-             * aux deux tiers remplie. L'ouverture est une decision de produit a
-             * part entiere, a prendre quand les trois Cards existent, et non un
-             * effet de bord de la premiere.
+             * Le troisieme emplacement accepte Travaux **ou** QCM ; l'un des
+             * deux suffit a ce que la Formation conduise quelque part — on rend
+             * quelque chose, donc il y a un avant et un apres. Le QCM viendra
+             * s'y ajouter sans rien changer ici.
+             *
+             * L'ouverture n'a ete faite ni comme effet de bord de la premiere
+             * Card, ni de la deuxieme : c'etait une decision de produit a part
+             * entiere, et elle se prend maintenant, en une tache dediee.
              */
-            'available' => false,
+            'available' => true,
             /*
-             * Travaux a rendre et QCM restent absents : ce sont d'autres Cards
-             * de la matrice, et les lister avant de les livrer serait
-             * exactement ce que ce commentaire refuse.
+             * Le QCM reste absent : le troisieme emplacement accepte Travaux
+             * **ou** QCM, et seul le premier est livre. Le lister avant de le
+             * livrer serait exactement ce que ce commentaire refuse.
              *
              * `core.roadmap` a quitte ce preset avec TASK-1099 : la matrice
              * canonique ne prevoit pas de Roadmap pour une Formation, et elle y

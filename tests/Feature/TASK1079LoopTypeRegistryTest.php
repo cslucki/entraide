@@ -101,8 +101,11 @@ class TASK1079LoopTypeRegistryTest extends TestCase
 
     public function test_only_the_defined_types_may_be_chosen(): void
     {
-        $this->assertSame(['general', 'project', 'coaching'], $this->registry()->availableKeys());
-        $this->assertFalse($this->registry()->isAvailable('training'));
+        // `training` a rejoint les types offerts avec TASK-1101 : son preset
+        // minimal est complet. `peer_support` reste l'exemple d'un type retenu
+        // — ses Cards de pair-aidance n'existent pas encore.
+        $this->assertSame(['general', 'project', 'coaching', 'training'], $this->registry()->availableKeys());
+        $this->assertTrue($this->registry()->isAvailable('training'));
         $this->assertFalse($this->registry()->isAvailable('peer_support'));
     }
 
@@ -110,8 +113,8 @@ class TASK1079LoopTypeRegistryTest extends TestCase
     {
         // Otherwise reassigning anything else on the form would silently move a
         // Formation Loop off its type just because it could not be displayed.
-        $this->assertArrayHasKey('training', $this->registry()->selectableFor('training'));
-        $this->assertArrayNotHasKey('training', $this->registry()->selectableFor('general'));
+        $this->assertArrayHasKey('peer_support', $this->registry()->selectableFor('peer_support'));
+        $this->assertArrayNotHasKey('peer_support', $this->registry()->selectableFor('general'));
     }
 
     // ── Application du preset ───────────────────────────────────────────────

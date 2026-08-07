@@ -213,7 +213,7 @@ class TASK1079LoopTypeAdminTest extends TestCase
         ]);
 
         $this->actingAs($this->superAdmin)
-            ->put(route('admin.loops.type.update', $loop), ['type' => 'training'])
+            ->put(route('admin.loops.type.update', $loop), ['type' => 'peer_support'])
             ->assertSessionHas('error');
 
         $this->assertSame('general', $loop->fresh()->type);
@@ -222,14 +222,14 @@ class TASK1079LoopTypeAdminTest extends TestCase
     public function test_a_loop_already_on_an_unavailable_type_may_be_saved_unchanged(): void
     {
         $loop = Loop::factory()->create([
-            'organization_id' => $this->org->id, 'status' => 'active', 'type' => 'training',
+            'organization_id' => $this->org->id, 'status' => 'active', 'type' => 'peer_support',
         ]);
 
         $this->actingAs($this->superAdmin)
-            ->put(route('admin.loops.type.update', $loop), ['type' => 'training'])
+            ->put(route('admin.loops.type.update', $loop), ['type' => 'peer_support'])
             ->assertSessionMissing('error');
 
-        $this->assertSame('training', $loop->fresh()->type);
+        $this->assertSame('peer_support', $loop->fresh()->type);
     }
 
     public function test_the_listing_offers_only_the_available_types(): void
@@ -242,7 +242,10 @@ class TASK1079LoopTypeAdminTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('value="project"', $html);
-        $this->assertStringNotContainsString('value="training"', $html);
+        // `training` a rejoint les types offerts avec TASK-1101 ; `peer_support`
+        // reste retenu, faute de Cards de pair-aidance.
+        $this->assertStringContainsString('value="training"', $html);
+        $this->assertStringNotContainsString('value="peer_support"', $html);
     }
 
     // ── Choix du type à la création ─────────────────────────────────────────
@@ -254,7 +257,8 @@ class TASK1079LoopTypeAdminTest extends TestCase
             ->assertOk()
             ->assertSee(__('loops.type_choose_label'))
             ->assertSee('value="project"', false)
-            ->assertDontSee('value="training"', false);
+            ->assertSee('value="training"', false)
+            ->assertDontSee('value="peer_support"', false);
     }
 
     public function test_an_admin_creates_a_loop_of_the_chosen_type_with_its_cards(): void
@@ -301,7 +305,7 @@ class TASK1079LoopTypeAdminTest extends TestCase
         $user = User::factory()->create(['organization_id' => $this->org->id]);
 
         $this->actingAs($user)->post(route('loops.store'), [
-            'name' => 'Tentative', 'type' => 'training',
+            'name' => 'Tentative', 'type' => 'peer_support',
         ])->assertSessionHasErrors('type');
 
         $this->assertDatabaseMissing('loops', ['name' => 'Tentative']);
