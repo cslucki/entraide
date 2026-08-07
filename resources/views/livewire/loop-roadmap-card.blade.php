@@ -1,16 +1,22 @@
-@php $statusMeta = [
+@php
+    // Le vocabulaire vient du **type de la Boucle**, lu par le registre. Aucune
+    // condition sur `$loop->type` ici : « Engagements » et « Suivi de coaching »
+    // sont la meme Card technique, avec d'autres mots.
+    $colonnes = app(\App\Support\Loops\LoopTypeRegistry::class)->roadmapColumnLabels($loop->type);
+
+    $statusMeta = [
     \App\Models\LoopRoadmapItem::STATUS_TODO => [
-        'label' => 'roadmap_status_todo', 'dot' => 'bg-violet-500',
+        'label' => $colonnes['todo'], 'dot' => 'bg-violet-500',
         'col' => 'border-violet-200/70 bg-violet-50/60 dark:border-violet-900/40 dark:bg-violet-950/25',
         'chip' => 'text-violet-700 dark:text-violet-300',
     ],
     \App\Models\LoopRoadmapItem::STATUS_IN_PROGRESS => [
-        'label' => 'roadmap_status_in_progress', 'dot' => 'bg-amber-500',
+        'label' => $colonnes['in_progress'], 'dot' => 'bg-amber-500',
         'col' => 'border-amber-200/70 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/25',
         'chip' => 'text-amber-700 dark:text-amber-300',
     ],
     \App\Models\LoopRoadmapItem::STATUS_DONE => [
-        'label' => 'roadmap_status_done', 'dot' => 'bg-emerald-500',
+        'label' => $colonnes['done'], 'dot' => 'bg-emerald-500',
         'col' => 'border-emerald-200/70 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/25',
         'chip' => 'text-emerald-700 dark:text-emerald-300',
     ],

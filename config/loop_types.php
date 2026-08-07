@@ -133,6 +133,16 @@ return [
                 'loops.root_document_sections.goals',
                 'loops.root_document_sections.how',
             ],
+            /*
+             * La Roadmap s'appelle ici **Suivi de coaching**, et ses colonnes
+             * suivent un chemin d'apprentissage plutot qu'une liste de taches.
+             */
+            'roadmap_label_key' => 'loops.roadmap_preset.coaching.label',
+            'roadmap_column_keys' => [
+                'todo' => 'loops.roadmap_preset.coaching.todo',
+                'in_progress' => 'loops.roadmap_preset.coaching.in_progress',
+                'done' => 'loops.roadmap_preset.coaching.done',
+            ],
             'key' => 'coaching',
             'label_key' => 'loops.types.coaching.label',
             'description_key' => 'loops.types.coaching.description',
@@ -226,6 +236,17 @@ return [
                 'loops.root_document_sections.principles',
                 'loops.root_document_sections.how',
             ],
+            /*
+             * La Roadmap s'appelle ici **Engagements**, et ses colonnes disent
+             * ce qu'une pair-aidance en fait : on prend un engagement, on
+             * l'honore. Meme Card, meme table, meme statuts en base.
+             */
+            'roadmap_label_key' => 'loops.roadmap_preset.peer_support.label',
+            'roadmap_column_keys' => [
+                'todo' => 'loops.roadmap_preset.peer_support.todo',
+                'in_progress' => 'loops.roadmap_preset.peer_support.in_progress',
+                'done' => 'loops.roadmap_preset.peer_support.done',
+            ],
             'key' => 'peer_support',
             'label_key' => 'loops.types.peer_support.label',
             'description_key' => 'loops.types.peer_support.description',
@@ -246,6 +267,7 @@ return [
             'cards' => [
                 'core.manifesto',
                 'core.members',
+                'core.roadmap',
                 'core.journal',
                 'core.polls',
             ],

@@ -81,6 +81,20 @@ return [
     'roadmap_move_up' => 'Monter',
     'roadmap_move_down' => 'Descendre',
     'roadmap_drag_handle' => 'Déplacer l\'action',
+    'roadmap_preset' => [
+        'peer_support' => [
+            'label' => 'Engagements',
+            'todo' => 'Pris',
+            'in_progress' => 'En cours',
+            'done' => 'Tenu',
+        ],
+        'coaching' => [
+            'label' => 'Suivi de coaching',
+            'todo' => 'À travailler',
+            'in_progress' => 'En cours',
+            'done' => 'Acquis',
+        ],
+    ],
     'roadmap_section_todo' => 'À faire',
     'roadmap_section_done' => 'Terminées',
     'roadmap_actions_menu' => 'Autres actions',

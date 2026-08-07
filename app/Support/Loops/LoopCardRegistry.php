@@ -288,6 +288,26 @@ class LoopCardRegistry
         return $card ? __($card['label_key']) : $key;
     }
 
+    /**
+     * Le nom d'une Card **dans une Boucle donnee**.
+     *
+     * La Roadmap est une seule Card technique, mais chaque preset lui donne son
+     * mot : « Roadmap » en Projet, « Engagements » en Pair-aidance, « Suivi de
+     * coaching » en Coaching. La spec produit le pose ainsi — des presets de
+     * vocabulaire, **pas des Cards distinctes**.
+     *
+     * Le detour passe par `LoopTypeRegistry`, qui lit une declaration : aucune
+     * vue et aucun service ne teste `$loop->type`.
+     */
+    public function labelFor(Loop $loop, string $key): string
+    {
+        if ($key === 'core.roadmap') {
+            return app(LoopTypeRegistry::class)->roadmapLabel($loop->type);
+        }
+
+        return $this->label($key);
+    }
+
     public function description(string $key): string
     {
         $card = $this->get($key);
