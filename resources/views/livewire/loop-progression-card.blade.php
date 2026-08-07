@@ -115,12 +115,12 @@
                                             {{ __('loops.cards.progression.status_'.$etat) }}
                                         </span>
 
-                                        @if ($etat === 'available')
+                                        @if ($etat === 'available' && $canAdvance)
                                             <button type="button" wire:click="open('{{ $sequence->id }}')"
                                                     class="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-500/15">
                                                 {{ __('loops.cards.progression.open') }}
                                             </button>
-                                        @elseif (in_array($etat, ['in_progress', 'redo'], true))
+                                        @elseif (in_array($etat, ['in_progress', 'redo'], true) && $canAdvance)
                                             <button type="button" wire:click="markDone('{{ $sequence->id }}')"
                                                     class="shrink-0 rounded-lg bg-indigo-600 px-2 py-1 text-xs font-semibold text-white hover:bg-indigo-700">
                                                 {{ __('loops.cards.progression.mark_done') }}

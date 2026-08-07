@@ -294,6 +294,41 @@ return [
             'default_enabled' => true,
         ],
 
+        /*
+         * Les Travaux a rendre — le **troisieme** emplacement de la Formation.
+         *
+         * La matrice canonique donne ce slot a « Travaux a rendre **ou** QCM ».
+         * Les deux restent deux Cards : un depot avec lecture humaine et un
+         * bareme avec tentatives sont deux metiers, et les reunir ferait une
+         * Card que personne ne saurait decrire.
+         *
+         * Elle depend du Support de cours et de la Progression : un Travail
+         * ferme une etape d'un parcours, il n'a pas de sens sans lui.
+         */
+        'training.assignments' => [
+            'key' => 'training.assignments',
+            'label_key' => 'loops.cards.assignments.label',
+            'description_key' => 'loops.cards.assignments.description',
+            'empty_title_key' => 'loops.cards.assignments.empty_title',
+            'empty_body_key' => 'loops.cards.assignments.empty_body',
+            'action_key' => 'loops.cards.assignments.action',
+            'icon' => 'map',
+            'component' => 'loop-assignments-card',
+            'view' => null,
+            'view_permission' => 'assignments.view',
+            'required' => false,
+            'order' => 36,
+            'placement' => 'grid',
+            'category' => 'pedagogy',
+            'scope' => 'training',
+            'requires' => ['training.course_material', 'training.progression'],
+            'incompatible_with' => [],
+            'replaceable' => true,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => true,
+        ],
+
         'core.members' => [
             'key' => 'core.members',
             'label_key' => 'loops.cards.members.label',

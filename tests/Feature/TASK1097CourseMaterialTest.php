@@ -136,17 +136,20 @@ class TASK1097CourseMaterialTest extends TestCase
         // L'invariant : une Card n'est declaree **que** lorsqu'elle est livree.
         // La declarer en creux serait promettre.
         //
-        // `training.progression` figurait dans cette liste tant qu'elle
-        // n'existait pas. TASK-1099 l'a livree — le test suit la livraison, il
-        // ne la contredit pas. Les deux Cards restantes de la matrice Formation
-        // sont toujours absentes, et c'est ce qui est verifie ici.
-        foreach (['training.assignments', 'training.quiz'] as $plusTard) {
+        // Cette liste retrecit a chaque livraison, et c'est normal : le test
+        // suit ce qui est livre, il ne le contredit pas. `training.progression`
+        // en est sortie avec TASK-1099, `training.assignments` avec TASK-1100.
+        //
+        // Le QCM reste dedans : le troisieme emplacement de la matrice accepte
+        // Travaux **ou** QCM, et seul le premier est livre.
+        foreach (['training.quiz'] as $plusTard) {
             $this->assertFalse($registry->exists($plusTard), "{$plusTard} ne doit pas etre declaree avant d'etre livree");
         }
 
-        // Et ce qui est declare l'est bien.
+        // Et ce qui est declare l'est bien : le preset minimal Formation.
         $this->assertTrue($registry->exists('training.course_material'));
         $this->assertTrue($registry->exists('training.progression'));
+        $this->assertTrue($registry->exists('training.assignments'));
     }
 
     public function test_membership_is_the_only_enrolment(): void

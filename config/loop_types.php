@@ -196,6 +196,7 @@ return [
                 'core.members',
                 'training.course_material',
                 'training.progression',
+                'training.assignments',
             ],
         ],
 

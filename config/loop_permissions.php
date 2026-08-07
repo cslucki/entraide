@@ -201,10 +201,55 @@ return [
             'requires_card' => 'training.progression',
         ],
 
+        /*
+         * Meme raison qu'`assignments.submit` : declarer une etape terminee est
+         * une **ecriture**, et une Boucle archivee ne doit pas l'accepter.
+         */
+        'progression.complete' => [
+            'module' => 'progression', 'label_fr' => 'Avancer dans son parcours', 'label_en' => 'Advance own progress',
+            'description' => 'Ouvrir une étape et la déclarer terminée.', 'locked' => false,
+            'requires_card' => 'training.progression',
+        ],
+
         'progression.manage' => [
             'module' => 'progression', 'label_fr' => 'Suivre la progression de tous', 'label_en' => 'Track everyone\'s progress',
             'description' => 'Voir la progression de chaque membre, valider, demander une reprise, débloquer.', 'locked' => false,
             'requires_card' => 'training.progression',
+        ],
+
+        /*
+         * Les Travaux a rendre.
+         *
+         * `view` : voir les Travaux et **rendre les siens**. `manage` : les
+         * creer, les modifier, lire les remises de tout le monde, valider,
+         * demander une reprise. Deux capacites parce que ce sont deux gestes.
+         */
+        'assignments.view' => [
+            'module' => 'assignments', 'label_fr' => 'Rendre ses Travaux', 'label_en' => 'Submit own assignments',
+            'description' => 'Voir les Travaux à rendre et remettre les siens.', 'locked' => false,
+            'read' => true,
+            'requires_card' => 'training.assignments',
+        ],
+
+        /*
+         * **Remettre est une ecriture.** Elle a donc sa propre permission, sans
+         * `read`, et non `assignments.view`.
+         *
+         * La raison n'est pas cosmetique : le resolveur refuse toute capacite
+         * non-`read` sur une Boucle archivee. Garder une ecriture derriere une
+         * permission de lecture defaisait cet invariant en silence — une Boucle
+         * archivee acceptait encore les remises.
+         */
+        'assignments.submit' => [
+            'module' => 'assignments', 'label_fr' => 'Remettre un Travail', 'label_en' => 'Submit an assignment',
+            'description' => 'Déposer ou modifier sa propre remise.', 'locked' => false,
+            'requires_card' => 'training.assignments',
+        ],
+
+        'assignments.manage' => [
+            'module' => 'assignments', 'label_fr' => 'Gérer les Travaux', 'label_en' => 'Manage assignments',
+            'description' => 'Créer et modifier les Travaux, lire les remises, valider, demander une reprise.', 'locked' => false,
+            'requires_card' => 'training.assignments',
         ],
 
         'chatloop.view' => [
@@ -361,7 +406,8 @@ return [
             'events.publish_organization',
             'dossiers.view', 'dossiers.create_article', 'dossiers.upload_file',
             'course_material.view', 'course_material.manage',
-            'progression.view', 'progression.manage',
+            'progression.view', 'progression.complete', 'progression.manage',
+            'assignments.view', 'assignments.submit', 'assignments.manage',
         ],
 
         /*
@@ -384,7 +430,8 @@ return [
             // Le Support de cours, monte et tenu : dans une Boucle Formation,
             // c'est le travail quotidien du facilitateur.
             'course_material.view', 'course_material.manage',
-            'progression.view', 'progression.manage',
+            'progression.view', 'progression.complete', 'progression.manage',
+            'assignments.view', 'assignments.submit', 'assignments.manage',
         ],
 
         /*
@@ -406,7 +453,9 @@ return [
             // Support ; le construire est le travail de qui l'anime.
             'course_material.view',
             // Sa progression, pas celle des autres.
-            'progression.view',
+            'progression.view', 'progression.complete',
+            // Ses Travaux, pas ceux des autres.
+            'assignments.view', 'assignments.submit',
         ],
     ],
 
