@@ -300,6 +300,39 @@ return [
             'requires_card' => 'core.journal',
         ],
 
+        'decisions.view' => [
+            'module' => 'decisions', 'label_fr' => 'Lire les Décisions', 'label_en' => 'Read decisions',
+            'description' => 'Voir ce qui a été décidé dans la Boucle.', 'locked' => false,
+            'read' => true,
+            'requires_card' => 'core.decisions',
+        ],
+
+        /*
+         * Consigner une Decision est une **ecriture** : sa permission ne porte
+         * donc pas `read`, et une Boucle archivee la refuse. C'est l'invariant
+         * pose apres la revue de TASK-1100.
+         *
+         * Elle n'est **pas** donnee au membre par defaut, a la difference de
+         * `polls.create` ou `journal.write`. Un Sondage est un outil de
+         * conversation et une entree de Journal appartient a qui l'ecrit ; une
+         * Decision, elle, engage le collectif. Si chacun pouvait inscrire
+         * « nous avons decide X », le registre cesserait de faire foi.
+         *
+         * C'est une decision produit que j'ai prise faute d'arbitrage ecrit —
+         * elle se renverse en ajoutant une chaine a `member` ci-dessous.
+         */
+        'decisions.record' => [
+            'module' => 'decisions', 'label_fr' => 'Consigner une Décision', 'label_en' => 'Record a decision',
+            'description' => 'Inscrire une décision, la remplacer, ou en lancer une action.', 'locked' => false,
+            'requires_card' => 'core.decisions',
+        ],
+
+        'decisions.manage' => [
+            'module' => 'decisions', 'label_fr' => 'Gérer les Décisions', 'label_en' => 'Manage decisions',
+            'description' => 'Corriger ou retirer les Décisions de tout le monde.', 'locked' => false,
+            'requires_card' => 'core.decisions',
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -458,6 +491,7 @@ return [
             'assignments.view', 'assignments.submit', 'assignments.manage',
             'quiz.view', 'quiz.attempt', 'quiz.manage',
             'journal.view', 'journal.write', 'journal.manage',
+            'decisions.view', 'decisions.record', 'decisions.manage',
         ],
 
         /*
@@ -484,6 +518,7 @@ return [
             'assignments.view', 'assignments.submit', 'assignments.manage',
             'quiz.view', 'quiz.attempt', 'quiz.manage',
             'journal.view', 'journal.write', 'journal.manage',
+            'decisions.view', 'decisions.record', 'decisions.manage',
         ],
 
         /*
@@ -511,6 +546,11 @@ return [
             'quiz.view', 'quiz.attempt',
             // Ses entrees, pas celles des autres.
             'journal.view', 'journal.write',
+            // **Lire, pas trancher.** Une Decision engage le collectif : si
+            // chacun pouvait en inscrire une, le registre cesserait de faire
+            // foi. Le membre pese dans la conversation et dans les Sondages ;
+            // ce qui en sort est consigne par qui mene la Boucle.
+            'decisions.view',
         ],
     ],
 

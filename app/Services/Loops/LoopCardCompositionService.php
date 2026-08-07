@@ -7,7 +7,9 @@ use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopMember;
+use App\Models\LoopDecision;
 use App\Models\LoopEvent;
+use App\Models\LoopJournalEntry;
 use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
 use App\Support\Loops\LoopCardRegistry;
@@ -179,6 +181,13 @@ class LoopCardCompositionService
             // son ArticleSeriesItem. Les compter reviendrait a compter deux fois
             // les memes elements.
             'core.dossiers' => $this->dossierItemCount($loop),
+            // Sans ce compteur, on eteint la Card ou l'on change de preset sans
+            // etre prevenu qu'elle porte quarante Decisions, la ou Roadmap,
+            // Sondages et Evenements previennent. Le Journal a la meme omission
+            // depuis TASK-1104 : elle est traitee ici aussi, le compteur etant
+            // le meme geste.
+            'core.decisions' => LoopDecision::where('loop_id', $loop->id)->count(),
+            'core.journal' => LoopJournalEntry::where('loop_id', $loop->id)->count(),
             default => null,
         };
     }

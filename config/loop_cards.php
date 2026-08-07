@@ -401,6 +401,45 @@ return [
             'default_enabled' => true,
         ],
 
+        /*
+         * Les Decisions : ce qui a ete tranche, quand, et pourquoi.
+         *
+         * Le North Star nomme la perte qu'elle adresse — « une decision n'est
+         * pas transformee en action » — et la regle qui la gouverne :
+         * « l'humain reste responsable des decisions durables ».
+         *
+         * `order` 31, juste apres la Roadmap (30) et avant les Sondages : la
+         * matrice produit lit « Roadmap · Decisions · Dossiers » pour le
+         * Projet, et l'ordre d'affichage suit cette lecture.
+         *
+         * Elle ne depend d'aucune autre Card. Le lien vers la Roadmap est un
+         * **service rendu quand elle est la**, pas une dependance : une Boucle
+         * qui n'aurait que les Decisions les consigne quand meme.
+         */
+        'core.decisions' => [
+            'key' => 'core.decisions',
+            'label_key' => 'loops.cards.decisions.label',
+            'description_key' => 'loops.cards.decisions.description',
+            'empty_title_key' => 'loops.cards.decisions.empty_title',
+            'empty_body_key' => 'loops.cards.decisions.empty_body',
+            'action_key' => 'loops.cards.decisions.action',
+            'icon' => 'document',
+            'component' => 'loop-decisions-card',
+            'view' => null,
+            'view_permission' => 'decisions.view',
+            'required' => false,
+            'order' => 31,
+            'placement' => 'grid',
+            'category' => 'rhythm',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => true,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => true,
+        ],
+
         'core.members' => [
             'key' => 'core.members',
             'label_key' => 'loops.cards.members.label',
