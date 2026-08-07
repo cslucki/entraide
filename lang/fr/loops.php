@@ -405,6 +405,8 @@ return [
             'not_in_same_loop' => 'Les deux décisions doivent appartenir à la même Boucle.',
             'already_superseded' => 'Cette décision a déjà été remplacée.',
             'would_make_a_cycle' => 'Ces deux décisions se remplaceraient l\'une l\'autre.',
+            'new_one_is_superseded' => 'Cette décision a elle-même été remplacée : elle n\'en remplace plus aucune.',
+            'superseded_is_history' => 'Une décision remplacée est de l\'histoire. Retirez d\'abord celle qui la remplace.',
 
             'recorded' => 'Décision consignée.',
             'removed' => 'Décision retirée. Les actions engagées restent.',

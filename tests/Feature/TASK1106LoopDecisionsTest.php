@@ -581,11 +581,207 @@ class TASK1106LoopDecisionsTest extends TestCase
 
     public function test_an_invalid_identifier_is_a_404_and_not_a_500(): void
     {
-        // Sous PostgreSQL, une colonne `uuid` native rend `SQLSTATE 22P02` — un
-        // 500 — la ou SQLite rend 404. La resolution passe par un `where` sur
-        // la Boucle, qui ne compare jamais l'identifiant a une colonne uuid
-        // sans l'avoir trouve.
+        // **La premiere version de ce test passait un UUID valide.** Son nom
+        // promettait la garde contre `SQLSTATE 22P02`, son commentaire la
+        // nommait, et il ne l'eprouvait pas : sous PostgreSQL la colonne est un
+        // `uuid` natif, et seule une chaine qui **n'en est pas un** declenche le
+        // 500. Cinquieme fois dans cette serie qu'un nom de test promet plus
+        // qu'il ne verifie.
+        //
+        // Les neuf gestes passent par `resolveDecision()` ou `resolveMessage()`.
+        // Plusieurs sont atteignables en posant une propriete publique.
+        $this->card()->call('startEditing', 'pas-un-uuid')->assertNotFound();
+        $this->card()->call('remove', 'pas-un-uuid')->assertNotFound();
+        $this->card()->call('startAction', 'pas-un-uuid')->assertNotFound();
+        $this->card()->call('startSuperseding', 'pas-un-uuid')->assertNotFound();
+
+        $this->card()->set('editingId', 'pas-un-uuid')->set('title', 'X')->call('save')->assertNotFound();
+        $this->card()->set('actionForId', 'pas-un-uuid')->set('actionTitle', 'X')->call('saveAction')->assertNotFound();
+
+        $this->card()->set('supersedingId', 'pas-un-uuid')->call('supersede', $this->decision('A')->id)->assertNotFound();
+
+        $this->card()->set('title', 'X')->call('promote', 'pas-un-uuid')->assertNotFound();
+
+        // Un UUID valide mais inexistant reste un 404, evidemment.
         $this->card()->call('startEditing', '00000000-0000-0000-0000-000000000000')->assertNotFound();
+    }
+
+    // ── Ce que la revue hostile a trouve ────────────────────────────────────
+
+    public function test_a_cycle_of_any_length_is_refused(): void
+    {
+        // Ne comparer que `nouvelle->superseded_by_id === ancienne->id` ne
+        // voyait que les cycles de longueur deux. A remplacee par B, B par C,
+        // puis C par A passait — et **plus aucune Decision ne faisait foi**.
+        $a = $this->decision('A');
+        $b = $this->decision('B');
+        $c = $this->decision('C');
+
+        $this->service()->supersede($a, $b);
+        $this->service()->supersede($b->fresh(), $c);
+
+        try {
+            $this->service()->supersede($c->fresh(), $a->fresh());
+            $this->fail('le cycle A->B->C->A a ete accepte');
+        } catch (ValidationException) {
+            // C'est ce qu'on veut.
+        }
+
+        // Au moins une Decision fait toujours foi.
+        $this->assertGreaterThan(0, LoopDecision::where('loop_id', $this->loop->id)->whereNull('superseded_by_id')->count());
+    }
+
+    public function test_a_superseded_decision_supersedes_nothing(): void
+    {
+        // Sinon le lecteur suit un renvoi mort : « remplacee par A », A etant
+        // elle-meme barree. C'est la brique dont se font les cycles.
+        $a = $this->decision('A');
+        $this->service()->supersede($a, $this->decision('B'));
+
+        $c = $this->decision('C');
+
+        $this->expectException(ValidationException::class);
+        $this->service()->supersede($c, $a->fresh());
+    }
+
+    public function test_the_screen_refuses_to_open_a_superseded_decision_as_the_new_one(): void
+    {
+        $a = $this->decision('A');
+        $this->service()->supersede($a, $this->decision('B'));
+
+        $this->card()->call('startSuperseding', $a->id)->assertForbidden();
+    }
+
+    public function test_superseding_checks_the_right_on_the_decision_it_modifies(): void
+    {
+        // `supersede()` autorisait la **nouvelle** et ecrivait sur l'**ancienne**.
+        // Quiconque pouvait consigner barrait donc la Decision de n'importe qui,
+        // et le selecteur les proposait toutes sans distinction d'auteur.
+        $this->loops->addMember($this->loop, $autre = User::factory()->create(['organization_id' => $this->org->id]), 'facilitator');
+
+        config(['loop_permissions.role_defaults.facilitator' => array_values(array_diff(
+            config('loop_permissions.role_defaults.facilitator'),
+            ['decisions.manage'],
+        ))]);
+
+        $celleDeLAnimateur = $this->decision('Celle de l’animateur');
+        $laSienne = $this->service()->record($this->loop, $autre, 'La sienne');
+
+        Livewire::actingAs($autre)
+            ->test(LoopDecisionsCard::class, ['loop' => $this->loop])
+            ->set('supersedingId', $laSienne->id)
+            ->call('supersede', $celleDeLAnimateur->id)
+            ->assertForbidden();
+
+        $this->assertNull($celleDeLAnimateur->fresh()->superseded_by_id);
+    }
+
+    public function test_the_supersede_picker_only_offers_what_one_may_actually_strike(): void
+    {
+        $this->loops->addMember($this->loop, $autre = User::factory()->create(['organization_id' => $this->org->id]), 'facilitator');
+
+        config(['loop_permissions.role_defaults.facilitator' => array_values(array_diff(
+            config('loop_permissions.role_defaults.facilitator'),
+            ['decisions.manage'],
+        ))]);
+
+        $celleDeLAnimateur = $this->decision('Celle de l’animateur');
+        $laSienne = $this->service()->record($this->loop, $autre, 'La sienne');
+        $uneAutreSienne = $this->service()->record($this->loop, $autre, 'Une autre sienne');
+
+        // L'assertion porte sur **le bouton du selecteur**, pas sur le titre :
+        // celui-ci figure de toute façon dans la liste des Decisions, que tout
+        // le monde lit.
+        Livewire::actingAs($autre)
+            ->test(LoopDecisionsCard::class, ['loop' => $this->loop])
+            ->call('startSuperseding', $laSienne->id)
+            ->assertSeeHtml("supersede('{$uneAutreSienne->id}')")
+            ->assertDontSeeHtml("supersede('{$celleDeLAnimateur->id}')");
+    }
+
+    public function test_an_old_decision_beyond_the_page_can_still_be_superseded(): void
+    {
+        // Le selecteur se calculait depuis la page affichee, bornee a 30 : une
+        // Decision plus ancienne devenait impossible a remplacer depuis
+        // l'ecran, sans un mot.
+        $vieille = $this->decision('La plus vieille', null, now()->subYears(3)->toDateString());
+
+        for ($i = 0; $i < 35; $i++) {
+            $this->decision("Decision {$i}");
+        }
+
+        $nouvelle = $this->decision('La toute nouvelle');
+
+        $this->card()
+            ->call('startSuperseding', $nouvelle->id)
+            ->assertSee('La plus vieille');
+    }
+
+    public function test_a_message_removed_from_chatloop_is_no_longer_promotable(): void
+    {
+        // Le selecteur le filtrait deja ; l'appel direct, non. La moderation
+        // doit etre terminale pour tous les gestes en aval.
+        $message = $this->message('A retirer');
+        $message->update(['deleted_at' => now()]);
+
+        $this->card()->set('title', 'Le choix')->call('promote', $message->id)->assertNotFound();
+
+        $this->assertDatabaseCount('loop_decisions', 0);
+    }
+
+    public function test_a_superseded_decision_is_not_deleted(): void
+    {
+        // « Elle reste lisible » est la regle de la Card. Pour s'en defaire, on
+        // retire d'abord celle qui la remplace — l'ancienne redevient courante.
+        $ancienne = $this->decision('Avant');
+        $this->service()->supersede($ancienne, $this->decision('Apres'));
+
+        $this->expectException(ValidationException::class);
+        $this->service()->delete($ancienne->fresh());
+    }
+
+    public function test_the_screen_offers_no_way_to_delete_a_superseded_decision(): void
+    {
+        $ancienne = $this->decision('Avant');
+        $this->service()->supersede($ancienne, $this->decision('Apres'));
+
+        $this->card()->assertDontSeeHtml("remove('{$ancienne->id}')");
+    }
+
+    public function test_the_keep_a_message_button_is_hidden_without_chatloop_access(): void
+    {
+        // Sans `chatloop.view`, le selecteur est toujours vide : le bouton
+        // menait a « aucun message a consigner ».
+        config(['loop_permissions.role_defaults.owner' => array_values(array_diff(
+            config('loop_permissions.role_defaults.owner'),
+            ['chatloop.view'],
+        ))]);
+
+        $this->card()
+            ->set('showForm', true)
+            ->assertDontSee(__('loops.cards.decisions.promote'));
+    }
+
+    public function test_a_rationale_is_bounded(): void
+    {
+        // La colonne est un `text`, donc rien ne casse — mais chaque rendu de la
+        // Card relit et renvoie ce qu'on y met.
+        $decision = $this->service()->record($this->loop, $this->animateur, 'Un choix', str_repeat('z', 300000));
+
+        $this->assertLessThanOrEqual(5000, mb_strlen($decision->rationale));
+    }
+
+    public function test_the_card_declares_a_data_count(): void
+    {
+        // Sans lui, on eteint la Card sans etre prevenu qu'elle porte quarante
+        // Decisions, la ou Roadmap et Sondages previennent.
+        $this->decision('Une');
+        $this->decision('Deux');
+
+        $composition = app(\App\Services\Loops\LoopCardCompositionService::class)->compositionFor($this->loop->fresh());
+        $ligne = collect($composition)->firstWhere('key', 'core.decisions');
+
+        $this->assertSame(2, $ligne['data_count'] ?? null);
     }
 
     // ── Les dates ───────────────────────────────────────────────────────────

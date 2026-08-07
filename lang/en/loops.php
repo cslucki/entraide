@@ -405,6 +405,8 @@ return [
             'not_in_same_loop' => 'Both decisions must belong to the same Loop.',
             'already_superseded' => 'This decision has already been superseded.',
             'would_make_a_cycle' => 'These two decisions would supersede each other.',
+            'new_one_is_superseded' => 'This decision was itself superseded; it supersedes nothing.',
+            'superseded_is_history' => 'A superseded decision is history. Remove the one that replaced it first.',
 
             'recorded' => 'Decision recorded.',
             'removed' => 'Decision removed. Actions already started remain.',

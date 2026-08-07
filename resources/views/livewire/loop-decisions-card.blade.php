@@ -62,22 +62,24 @@
                             @endif
 
                             @if ($canRecord && ($canManage || $decision->author_id === auth()->id()))
-                                {{-- Une Décision remplacée est de l'histoire : elle ne
-                                     se corrige plus, et ne lance plus rien. --}}
+                                {{-- Ni le crayon ni la croix : une Décision remplacée
+                                     est de l'histoire. Pour s'en défaire, on retire
+                                     d'abord celle qui la remplace — l'ancienne
+                                     redevient alors courante. --}}
                                 @unless ($decision->isSuperseded())
                                     <button type="button" wire:click="startEditing('{{ $decision->id }}')"
                                             class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
                                             aria-label="{{ __('loops.cards.decisions.edit') }}">
                                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
                                     </button>
-                                @endunless
 
-                                <button type="button" wire:click="remove('{{ $decision->id }}')"
-                                        wire:confirm="{{ __('loops.cards.decisions.delete_confirm') }}"
-                                        aria-label="{{ __('loops.cards.decisions.remove', ['name' => Str::limit($decision->title, 40)]) }}"
-                                        class="rounded-lg p-1.5 text-gray-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                                </button>
+                                    <button type="button" wire:click="remove('{{ $decision->id }}')"
+                                            wire:confirm="{{ __('loops.cards.decisions.delete_confirm') }}"
+                                            aria-label="{{ __('loops.cards.decisions.remove', ['name' => Str::limit($decision->title, 40)]) }}"
+                                            class="rounded-lg p-1.5 text-gray-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                @endunless
                             @endif
                         </div>
                     </header>
@@ -212,12 +214,12 @@
                         {{-- Garder un message du ChatLoop : le North Star le décrit —
                              « une Interaction peut devenir […] une décision ». Le
                              titre est saisi d'abord ; le message vient l'appuyer. --}}
-                        @unless ($editingId)
+                        @if (! $editingId && $canPromote)
                             <button type="button" wire:click="$toggle('showPicker')"
                                     class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
                                 {{ __('loops.cards.decisions.promote') }}
                             </button>
-                        @endunless
+                        @endif
 
                         {{-- `cancel()` et non `$set('showForm', false)` : celui-ci
                              laisserait `editingId` posé, et la Décision suivante

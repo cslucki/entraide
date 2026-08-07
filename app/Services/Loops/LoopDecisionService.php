@@ -176,19 +176,30 @@ class LoopDecisionService
             ]);
         }
 
-        // 4. Ni par une Decision qu'elle a elle-meme remplacee : cela fermerait
-        //    une boucle ou chacune renvoie a l'autre, et plus rien ne ferait
-        //    foi.
-        if ($nouvelle->superseded_by_id === $ancienne->id) {
+        // 4. Ni par une Decision elle-meme remplacee : le lecteur suivrait un
+        //    renvoi mort — « remplacee par A », A etant deja barree.
+        //
+        //    **Cette garde ferme aussi tous les cycles**, de n'importe quelle
+        //    longueur : fermer un cycle demande de pointer vers une Decision
+        //    deja engagee dans la chaine, donc deja remplacee. La version
+        //    precedente comparait `$nouvelle->superseded_by_id === $ancienne->id`
+        //    et ne voyait que les cycles de longueur deux — A remplacee par B,
+        //    B par C, puis C par A passait, et plus aucune Decision ne faisait
+        //    foi. Une remontee de chaine a ete ecrite puis **retiree** : elle
+        //    etait inatteignable, et du code mort qui pretend proteger vaut
+        //    moins que rien.
+        if ($nouvelle->isSuperseded()) {
             throw ValidationException::withMessages([
-                'superseded_by_id' => __('loops.cards.decisions.would_make_a_cycle'),
+                'superseded_by_id' => __('loops.cards.decisions.new_one_is_superseded'),
             ]);
         }
+
 
         $ancienne->update(['superseded_by_id' => $nouvelle->id]);
 
         return $ancienne->fresh();
     }
+
 
     /**
      * Lancer une action depuis une Decision.
@@ -244,6 +255,16 @@ class LoopDecisionService
      */
     public function delete(LoopDecision $decision): void
     {
+        // **Une Decision remplacee ne s'efface pas.** « Elle reste lisible » est
+        // la regle de la Card ; la retirer priverait le collectif du choix
+        // qu'il a change d'avis sur. Pour s'en defaire, on retire d'abord celle
+        // qui la remplace — l'ancienne redevient alors courante, et se retire.
+        if ($decision->isSuperseded()) {
+            throw ValidationException::withMessages([
+                'title' => __('loops.cards.decisions.superseded_is_history'),
+            ]);
+        }
+
         $decision->delete();
     }
 
@@ -302,7 +323,14 @@ class LoopDecisionService
     {
         $rationale = trim((string) $rationale);
 
-        return $rationale === '' ? null : $rationale;
+        if ($rationale === '') {
+            return null;
+        }
+
+        // La colonne est un `text`, donc rien ne casse — mais chaque rendu de
+        // la Card relit et renvoie ce qu'on y met. La borne est large : elle
+        // refuse le deversement, pas l'argumentation.
+        return mb_substr($rationale, 0, 5000);
     }
 
     /**

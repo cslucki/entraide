@@ -8,6 +8,7 @@ use App\Models\LoopMessage;
 use App\Services\Loops\LoopDecisionService;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
@@ -226,6 +227,10 @@ class LoopDecisionsCard extends Component
         $decision = $this->resolveDecision($decisionId);
         abort_unless($this->canEdit($decision), 403);
 
+        // Une Decision deja remplacee n'en remplace plus aucune : le lecteur
+        // suivrait un renvoi mort, et c'est la brique dont se font les cycles.
+        abort_if($decision->isSuperseded(), 403);
+
         $this->supersedingId = $decision->id;
         $this->flash = '';
         $this->problem = '';
@@ -242,7 +247,13 @@ class LoopDecisionsCard extends Component
         $nouvelle = $this->resolveDecision($this->supersedingId);
         abort_unless($this->canEdit($nouvelle), 403);
 
+        // **C'est l'ancienne qu'on modifie** : son droit doit etre verifie
+        // aussi. Sans cela, quiconque pouvait consigner barrait la Decision de
+        // n'importe qui — « chacun corrige les siennes, l'animation corrige
+        // tout » ne tenait plus, et le chemin etait a l'ecran, le selecteur
+        // proposant toutes les Decisions sans distinction d'auteur.
         $ancienne = $this->resolveDecision($oldId);
+        abort_unless($this->canEdit($ancienne), 403);
 
         try {
             $this->service()->supersede($ancienne, $nouvelle);
@@ -309,9 +320,19 @@ class LoopDecisionsCard extends Component
         abort_unless($this->canView() && $this->canRecord(), 403);
     }
 
-    /** Une Decision de **cette** Boucle, ou 404. */
+    /**
+     * Une Decision de **cette** Boucle, ou 404.
+     *
+     * Le controle de forme vient **avant** la requete : sous PostgreSQL la
+     * colonne est un `uuid` natif, et une chaine qui n'en est pas un rend
+     * `SQLSTATE 22P02` — un 500 — la ou SQLite se contente d'un 404. Neuf
+     * gestes arrivent ici, dont plusieurs par une propriete publique posee
+     * depuis le client : il suffisait d'y ecrire n'importe quoi.
+     */
     private function resolveDecision(string $decisionId): LoopDecision
     {
+        abort_unless(Str::isUuid($decisionId), 404);
+
         $decision = LoopDecision::where('loop_id', $this->loop->id)->whereKey($decisionId)->first();
 
         abort_unless((bool) $decision, 404);
@@ -319,10 +340,19 @@ class LoopDecisionsCard extends Component
         return $decision;
     }
 
-    /** Un message de **cette** Boucle, ou 404. */
+    /** Un message de **cette** Boucle, ou 404. Meme garde de forme. */
     private function resolveMessage(string $messageId): LoopMessage
     {
-        $message = LoopMessage::where('loop_id', $this->loop->id)->whereKey($messageId)->first();
+        abort_unless(Str::isUuid($messageId), 404);
+
+        $message = LoopMessage::where('loop_id', $this->loop->id)
+            // **Un message retire du ChatLoop ne se promeut plus.** Le
+            // selecteur le filtrait deja ; l'appel direct, non — et la
+            // moderation doit etre terminale pour tous les gestes en aval, pas
+            // seulement pour l'affichage.
+            ->whereNull('deleted_at')
+            ->whereKey($messageId)
+            ->first();
 
         abort_unless((bool) $message, 404);
 
@@ -370,6 +400,30 @@ class LoopDecisionsCard extends Component
             ->get();
     }
 
+    /**
+     * Les Decisions que celle en cours peut remplacer.
+     *
+     * @return Collection<int, LoopDecision>
+     */
+    private function supersedable(): Collection
+    {
+        // **`render()` ne passe pas par `resolveDecision()`** : la propriete
+        // publique arrive ici brute, et `whereKeyNot()` l'envoyait telle quelle
+        // dans un `where` sur une colonne `uuid` native — troisieme chemin vers
+        // le meme 500 sous PostgreSQL, celui-ci atteint au simple rendu.
+        if (! Str::isUuid($this->supersedingId)) {
+            return collect();
+        }
+
+        return LoopDecision::where('loop_id', $this->loop->id)
+            ->whereKeyNot($this->supersedingId)
+            ->whereNull('superseded_by_id')
+            ->orderByDesc('decided_on')
+            ->get()
+            ->filter(fn (LoopDecision $d) => $this->canEdit($d))
+            ->values();
+    }
+
     private function service(): LoopDecisionService
     {
         return app(LoopDecisionService::class);
@@ -393,13 +447,17 @@ class LoopDecisionsCard extends Component
             'canManage' => $canView && $this->canManage(),
             'canAct' => $canRecord && $this->resolver()->can(auth()->user(), $this->loop, 'roadmap.manage'),
             'decisions' => $decisions,
+            // Sans `chatloop.view`, `promotable()` rend toujours vide : offrir
+            // le bouton menait a un selecteur qui annonce « aucun message ».
+            'canPromote' => $canRecord && $this->resolver()->can(auth()->user(), $this->loop, 'chatloop.view'),
             'promotable' => $canRecord && $this->showPicker ? $this->promotable() : collect(),
             // Ce qu'une Decision peut remplacer : les autres, non deja
-            // remplacees. Calcule **depuis la liste deja chargee**, sans une
-            // requete de plus.
-            'supersedable' => $this->supersedingId
-                ? $decisions->filter(fn (LoopDecision $d) => $d->id !== $this->supersedingId && ! $d->isSuperseded())
-                : collect(),
+            // remplacees, **et qu'on a le droit de barrer**.
+            //
+            // Lu par sa propre requete et non filtre depuis la page affichee :
+            // celle-ci est bornee a 30, et une Decision plus ancienne devenait
+            // alors impossible a remplacer depuis l'ecran — sans un mot.
+            'supersedable' => $this->supersedingId ? $this->supersedable() : collect(),
         ]);
     }
 }
