@@ -4,6 +4,7 @@ namespace App\Support\Loops;
 
 use App\Models\Loop;
 use App\Models\LoopCard;
+use App\Models\LoopRoadmapItem;
 use App\Services\LoopTypeSettingsService;
 use Illuminate\Support\Facades\DB;
 
@@ -135,6 +136,53 @@ class LoopTypeRegistry
         $key = $this->definition($type)['root_document_label_key'] ?? null;
 
         return $key ? __($key) : __('loops.root_document.general');
+    }
+
+    /**
+     * Le nom que ce type donne a la Roadmap.
+     *
+     * **Une seule Card technique**, plusieurs vocabulaires : « Roadmap » pour un
+     * Projet, « Engagements » pour une Pair-aidance, « Suivi de coaching » pour
+     * un Coaching. La spec produit le dit explicitement — ce sont des presets de
+     * vocabulaire et de colonnes, **pas des Cards distinctes**.
+     *
+     * Lu ici, comme `rootDocumentLabel()`, pour qu'aucune vue et aucun service
+     * ne teste `$loop->type`.
+     */
+    public function roadmapLabel(?string $type): string
+    {
+        $key = $this->definition($type)['roadmap_label_key'] ?? null;
+
+        return $key ? __($key) : __('loops.cards.roadmap.label');
+    }
+
+    /**
+     * Le nom que ce type donne a chacune des trois colonnes.
+     *
+     * Les **statuts ne changent pas** — `todo`, `in_progress`, `done` restent
+     * les memes en base, et un item deplace d'un preset a l'autre garde le
+     * sien. Seul le mot change : « A faire » devient « Pris », « Fait » devient
+     * « Tenu ». Renommer en base aurait fait deux verites sur le meme etat.
+     *
+     * @return array<string, string> statut => libelle traduit
+     */
+    public function roadmapColumnLabels(?string $type): array
+    {
+        $declares = $this->definition($type)['roadmap_column_keys'] ?? [];
+
+        $defauts = [
+            LoopRoadmapItem::STATUS_TODO => 'loops.roadmap_status_todo',
+            LoopRoadmapItem::STATUS_IN_PROGRESS => 'loops.roadmap_status_in_progress',
+            LoopRoadmapItem::STATUS_DONE => 'loops.roadmap_status_done',
+        ];
+
+        $out = [];
+
+        foreach ($defauts as $statut => $defaut) {
+            $out[$statut] = __($declares[$statut] ?? $defaut);
+        }
+
+        return $out;
     }
 
     /**

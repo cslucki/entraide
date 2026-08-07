@@ -288,6 +288,40 @@ class LoopCardRegistry
         return $card ? __($card['label_key']) : $key;
     }
 
+    /**
+     * Le nom d'une Card **dans une Boucle donnee**.
+     *
+     * La Roadmap est une seule Card technique, mais chaque preset lui donne son
+     * mot : « Roadmap » en Projet, « Engagements » en Pair-aidance, « Suivi de
+     * coaching » en Coaching. La spec produit le pose ainsi — des presets de
+     * vocabulaire, **pas des Cards distinctes**.
+     *
+     * Le detour passe par `LoopTypeRegistry`, qui lit une declaration : aucune
+     * vue et aucun service ne teste `$loop->type`.
+     */
+    public function labelFor(Loop $loop, string $key): string
+    {
+        return $this->labelForType($loop->type, $key);
+    }
+
+    /**
+     * Le meme nom, connu **du seul type**.
+     *
+     * L'ecran de choix du type annonce ce que chaque preset construit, avant
+     * qu'aucune Boucle n'existe : il ne peut pas appeler `labelFor()`. Sans
+     * cette variante il listait « Roadmap » pour la Pair-aidance, la ou la
+     * matrice produit dit « Engagements » — c'est-a-dire au moment precis ou le
+     * vocabulaire sert a decider.
+     */
+    public function labelForType(?string $type, string $key): string
+    {
+        if ($key === 'core.roadmap') {
+            return app(LoopTypeRegistry::class)->roadmapLabel($type);
+        }
+
+        return $this->label($key);
+    }
+
     public function description(string $key): string
     {
         $card = $this->get($key);

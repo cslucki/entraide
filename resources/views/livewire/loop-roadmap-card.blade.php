@@ -1,16 +1,26 @@
-@php $statusMeta = [
+@php
+    // Le vocabulaire vient du **type de la Boucle**, lu par le registre. Aucune
+    // condition sur `$loop->type` ici : « Engagements » et « Suivi de coaching »
+    // sont la meme Card technique, avec d'autres mots.
+    $colonnes = app(\App\Support\Loops\LoopTypeRegistry::class)->roadmapColumnLabels($loop->type);
+
+    // **`label` est desormais un mot pret a afficher, plus un suffixe de cle.**
+    // Les sites d'appel ne doivent donc plus l'envelopper dans `__('loops.'.…)` :
+    // celui-ci rendait « loops.Pris », et « loops.A faire » sur les Boucles qui
+    // ne declarent rien — c'est-a-dire sur tout le parc existant.
+    $statusMeta = [
     \App\Models\LoopRoadmapItem::STATUS_TODO => [
-        'label' => 'roadmap_status_todo', 'dot' => 'bg-violet-500',
+        'label' => $colonnes['todo'], 'dot' => 'bg-violet-500',
         'col' => 'border-violet-200/70 bg-violet-50/60 dark:border-violet-900/40 dark:bg-violet-950/25',
         'chip' => 'text-violet-700 dark:text-violet-300',
     ],
     \App\Models\LoopRoadmapItem::STATUS_IN_PROGRESS => [
-        'label' => 'roadmap_status_in_progress', 'dot' => 'bg-amber-500',
+        'label' => $colonnes['in_progress'], 'dot' => 'bg-amber-500',
         'col' => 'border-amber-200/70 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/25',
         'chip' => 'text-amber-700 dark:text-amber-300',
     ],
     \App\Models\LoopRoadmapItem::STATUS_DONE => [
-        'label' => 'roadmap_status_done', 'dot' => 'bg-emerald-500',
+        'label' => $colonnes['done'], 'dot' => 'bg-emerald-500',
         'col' => 'border-emerald-200/70 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/25',
         'chip' => 'text-emerald-700 dark:text-emerald-300',
     ],
@@ -115,7 +125,7 @@
                                     class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide {{ $statusMeta[$status]['chip'] }}">
                                 <svg x-show="mode === 'list'" x-cloak class="h-3.5 w-3.5 transition-transform" x-bind:class="!collapsed[@js($status)] && 'rotate-90'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
                                 <span class="h-2 w-2 rounded-full {{ $statusMeta[$status]['dot'] }}"></span>
-                                {{ __('loops.'.$statusMeta[$status]['label']) }}
+                                {{ $statusMeta[$status]['label'] }}
                                 <span class="rounded-full bg-white/70 px-1.5 text-[10px] text-gray-600 dark:bg-gray-900/50 dark:text-gray-300">{{ $colItems->count() }}</span>
                             </button>
                             <button type="button" x-on:click="openCreate(@js($status))"
@@ -167,7 +177,7 @@
                                 <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('loops.roadmap_field_status') }}</label>
                                 <select wire:model="newStatus" class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-700 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200">
                                     @foreach($columns as $status => $colItems)
-                                        <option value="{{ $status }}">{{ __('loops.'.$statusMeta[$status]['label']) }}</option>
+                                        <option value="{{ $status }}">{{ $statusMeta[$status]['label'] }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -223,7 +233,7 @@
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-sm font-medium text-gray-800 dark:text-gray-100">{{ $arch->title }}</p>
                                 <p class="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
-                                    {{ __('loops.roadmap_archived_from', ['status' => __('loops.'.$statusMeta[$arch->status]['label'])]) }}
+                                    {{ __('loops.roadmap_archived_from', ['status' => $statusMeta[$arch->status]['label']]) }}
                                     · {{ __('loops.roadmap_archived_on', ['date' => $arch->deleted_at?->isoFormat('D MMM · HH:mm')]) }}
                                 </p>
                             </div>

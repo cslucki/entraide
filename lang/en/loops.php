@@ -81,6 +81,20 @@ return [
     'roadmap_move_up' => 'Move up',
     'roadmap_move_down' => 'Move down',
     'roadmap_drag_handle' => 'Move action',
+    'roadmap_preset' => [
+        'peer_support' => [
+            'label' => 'Commitments',
+            'todo' => 'Made',
+            'in_progress' => 'In progress',
+            'done' => 'Kept',
+        ],
+        'coaching' => [
+            'label' => 'Coaching follow-up',
+            'todo' => 'To work on',
+            'in_progress' => 'In progress',
+            'done' => 'Acquired',
+        ],
+    ],
     'roadmap_section_todo' => 'To do',
     'roadmap_section_done' => 'Done',
     'roadmap_actions_menu' => 'More actions',

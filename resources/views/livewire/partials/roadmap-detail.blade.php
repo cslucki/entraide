@@ -36,7 +36,7 @@
                     <button type="button" x-on:click="open = !open"
                             class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                         <span class="h-2 w-2 rounded-full {{ $statusMeta[$detail->status]['dot'] }}"></span>
-                        {{ __('loops.'.$statusMeta[$detail->status]['label']) }}
+                        {{ $statusMeta[$detail->status]['label'] }}
                         <svg class="h-3.5 w-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
                     </button>
                     <div x-show="open" x-cloak x-on:click.outside="open = false" x-transition.opacity
@@ -45,7 +45,7 @@
                             <button type="button" wire:click="setStatus('{{ $detail->id }}', '{{ $st }}')" x-on:click="open = false"
                                     @class(['flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium transition hover:bg-gray-50 dark:hover:bg-gray-700/60', 'text-violet-700 dark:text-violet-300' => $detail->status === $st, 'text-gray-700 dark:text-gray-200' => $detail->status !== $st])>
                                 <span class="h-2 w-2 rounded-full {{ $statusMeta[$st]['dot'] }}"></span>
-                                {{ __('loops.'.$statusMeta[$st]['label']) }}
+                                {{ $statusMeta[$st]['label'] }}
                                 @if($detail->status === $st)<svg class="ml-auto h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>@endif
                             </button>
                         @endforeach
@@ -54,7 +54,7 @@
             @else
                 <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                     <span class="h-2 w-2 rounded-full {{ $statusMeta[$detail->status]['dot'] }}"></span>
-                    {{ __('loops.'.$statusMeta[$detail->status]['label']) }}
+                    {{ $statusMeta[$detail->status]['label'] }}
                 </span>
             @endif
 

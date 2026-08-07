@@ -110,7 +110,7 @@
                             <p class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('loops.roadmap_change_status') }}</p>
                             @foreach(array_values(array_diff(\App\Models\LoopRoadmapItem::STATUSES, [$item->status])) as $st)
                                 <button type="button" wire:click="setStatus('{{ $item->id }}', '{{ $st }}')" x-on:click="close()" role="menuitem"
-                                        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('loops.roadmap_status_'.$st) }}</button>
+                                        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ $statusMeta[$st]['label'] }}</button>
                             @endforeach
                             <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
                             <button type="button" wire:click="moveUp('{{ $item->id }}')" x-on:click="close()" role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('loops.roadmap_move_up') }}</button>

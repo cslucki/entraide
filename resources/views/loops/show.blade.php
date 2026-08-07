@@ -365,7 +365,7 @@
                             {{-- Desktop: active tool title (docked card) --}}
                             <div class="hidden min-w-0 flex-1 lg:block">
                                 @foreach($panelCards as $card)
-                                    <p x-show="activeCard === @js($card['key'])" x-cloak class="truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ __($card['label_key']) }}</p>
+                                    <p x-show="activeCard === @js($card['key'])" x-cloak class="truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ app(\App\Support\Loops\LoopCardRegistry::class)->labelFor($currentLoop, $card['key']) }}</p>
                                 @endforeach
                             </div>
 
