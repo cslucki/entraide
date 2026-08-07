@@ -160,12 +160,16 @@ class TASK1079LoopTypeRegistryTest extends TestCase
 
     public function test_a_card_added_by_a_human_survives_every_type_change(): void
     {
+        // `core.events` et non `core.roadmap` : depuis TASK-1105 la Roadmap
+        // **fait partie** du preset Pair-aidance, sous le nom « Engagements ».
+        // La regle testee n'a pas bouge — il fallait juste une Card qui ne soit
+        // pas dans ce preset.
         $loop = $this->loop('peer_support');
         $this->registry()->applyPreset($loop);
         LoopCard::create([
             'organization_id' => $loop->organization_id,
             'loop_id' => $loop->id,
-            'card_key' => 'core.roadmap',
+            'card_key' => 'core.events',
             'enabled' => true,
             'added_by_preset' => null,
         ]);
@@ -175,7 +179,7 @@ class TASK1079LoopTypeRegistryTest extends TestCase
             $this->registry()->applyPreset($loop);
         }
 
-        $custom = LoopCard::where('loop_id', $loop->id)->where('card_key', 'core.roadmap')->get();
+        $custom = LoopCard::where('loop_id', $loop->id)->where('card_key', 'core.events')->get();
         $this->assertCount(1, $custom, 'The human-added card was duplicated or lost');
         $this->assertNull($custom->first()->added_by_preset);
     }

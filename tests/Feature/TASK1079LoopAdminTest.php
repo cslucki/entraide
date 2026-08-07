@@ -218,7 +218,9 @@ class TASK1079LoopAdminTest extends TestCase
         $this->registry()->applyPreset($loop);
         LoopCard::create([
             'organization_id' => $this->org->id, 'loop_id' => $loop->id,
-            'card_key' => 'core.roadmap', 'enabled' => true, 'added_by_preset' => null,
+            // `core.events` : depuis TASK-1105 la Roadmap fait partie du preset
+            // Pair-aidance sous le nom « Engagements ». Meme regle, autre exemple.
+            'card_key' => 'core.events', 'enabled' => true, 'added_by_preset' => null,
         ]);
 
         $preset = $this->actingAs($this->orgAdmin)
@@ -227,7 +229,7 @@ class TASK1079LoopAdminTest extends TestCase
             ->viewData('presetCards');
 
         $this->assertContains('core.manifesto', $preset);
-        $this->assertNotContains('core.roadmap', $preset, 'A human-added card must not read as part of the type baseline');
+        $this->assertNotContains('core.events', $preset, 'A human-added card must not read as part of the type baseline');
     }
 
     public function test_the_edit_page_only_offers_candidates_of_this_organization(): void
