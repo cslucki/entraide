@@ -6,13 +6,29 @@ use App\Models\ArticleSeries;
 use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
+use App\Models\DossierFile;
+use App\Services\Dossiers\DossierSeriesService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Les Series d'un Dossier, vues depuis HTTP.
+ *
+ * Ce controleur ne tient plus les regles : elles sont dans
+ * `DossierSeriesService`, en un seul endroit. Il lui reste ce qui est
+ * proprement HTTP — resoudre la requete, autoriser, valider la forme des
+ * entrees, nommer les erreurs comme les champs du formulaire, repondre.
+ *
+ * Les controles de cloisonnement restent **ici aussi**, et ce n'est pas un
+ * doublon inutile : ils repondent 404, la ou le service souleve une erreur de
+ * validation. Un identifiant d'une autre Organization ne doit rien apprendre a
+ * qui le forge, pas meme qu'il designe quelque chose.
+ */
 class DossierSeriesController extends Controller
 {
+    public function __construct(private readonly DossierSeriesService $series) {}
+
     public function show(Request $request): JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
@@ -20,60 +36,49 @@ class DossierSeriesController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('viewSeries', $dossier);
 
-        $series = ArticleSeries::where('dossier_id', $dossier->id)
+        $all = ArticleSeries::where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
-            ->first();
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
 
-        if (! $series) {
-            return response()->json(['series' => null]);
-        }
-
-        return response()->json(['series' => $this->seriesPayload($series)]);
+        return response()->json([
+            // `series` reste la Serie **la plus ancienne** du Dossier : le
+            // pop-up actuel n'en connait qu'une, et lui envoyer soudain une
+            // liste l'aurait casse. L'ordre est explicite, donc stable — pas
+            // un `->first()` dont le resultat depend du plan d'execution.
+            'series' => $all->isEmpty() ? null : $this->seriesPayload($all->first()),
+            // Et la verite complete a cote, pour l'onglet Series de TASK-1096.
+            'series_list' => $all->map(fn (ArticleSeries $s) => $this->seriesPayload($s))->values(),
+        ]);
     }
 
     public function store(Request $request): JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
-        $organization = $this->currentOrganizationOrFail();
+        $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageSeries', $dossier);
 
         $data = $request->validate([
-            'root_blog_post_id' => ['required', 'uuid'],
+            // La racine devient facultative : une Serie de fichiers n'en a pas.
+            'root_blog_post_id' => ['nullable', 'uuid'],
+            'name' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $post = $this->resolveBlogPost($data['root_blog_post_id']);
-        $this->ensureBlogPostBelongsToCurrentOrganization($post);
-        $this->ensureBlogPostBelongsToDossier($post, $dossier);
+        $post = null;
 
-        if (ArticleSeries::where('root_blog_post_id', $post->id)->exists()) {
-            throw ValidationException::withMessages([
-                'root_blog_post_id' => __('dossiers.article_is_series_root'),
-            ]);
+        if (! empty($data['root_blog_post_id'])) {
+            $post = $this->resolveBlogPost($data['root_blog_post_id']);
+            $this->ensureBlogPostBelongsToCurrentOrganization($post);
+            $this->ensureBlogPostBelongsToDossier($post, $dossier);
         }
 
-        if (ArticleSeriesItem::where('blog_post_id', $post->id)->exists()) {
-            throw ValidationException::withMessages([
-                'root_blog_post_id' => __('dossiers.article_is_series_annex'),
-            ]);
+        try {
+            $series = $this->series->create($dossier, $request->user(), $post, $data['name'] ?? null);
+        } catch (ValidationException $e) {
+            $this->rethrowUnder($e, ['blog_post_id' => 'root_blog_post_id']);
         }
-
-        // Sous transaction et relu sous verrou : deux creations simultanees sur
-        // la meme racine se seraient sinon toutes deux crues seules.
-        $series = DB::transaction(function () use ($organization, $dossier, $post, $request) {
-            if (ArticleSeries::where('root_blog_post_id', $post->id)->lockForUpdate()->exists()) {
-                throw ValidationException::withMessages([
-                    'root_blog_post_id' => __('dossiers.article_is_series_root'),
-                ]);
-            }
-
-            return ArticleSeries::create([
-                'organization_id' => $organization->id,
-                'dossier_id' => $dossier->id,
-                'root_blog_post_id' => $post->id,
-                'created_by' => $request->user()->id,
-            ]);
-        });
 
         return response()->json([
             'series' => $series->load('rootBlogPost'),
@@ -88,7 +93,7 @@ class DossierSeriesController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageSeries', $dossier);
 
-        $series = $this->resolveSeries($dossier, $organization);
+        $series = $this->resolveSeries($dossier, $organization, $this->requestedSeriesId($request));
 
         $data = $request->validate([
             'root_blog_post_id' => ['required', 'uuid'],
@@ -98,63 +103,11 @@ class DossierSeriesController extends Controller
         $this->ensureBlogPostBelongsToCurrentOrganization($post);
         $this->ensureBlogPostBelongsToDossier($post, $dossier);
 
-        if ($series->root_blog_post_id !== $post->id) {
-            // Root of ANOTHER series: taking it would empty that one.
-            if (ArticleSeries::where('root_blog_post_id', $post->id)->where('id', '!=', $series->id)->exists()) {
-                throw ValidationException::withMessages([
-                    'root_blog_post_id' => __('dossiers.article_is_series_root'),
-                ]);
-            }
-
-            // An annexe of ANOTHER series is still refused — but an annexe of
-            // *this* one is exactly what promoting a root means, and refusing
-            // it was the reason "change root" could never do anything.
-            $foreignAnnex = ArticleSeriesItem::where('blog_post_id', $post->id)
-                ->where('article_series_id', '!=', $series->id)
-                ->exists();
-
-            if ($foreignAnnex) {
-                throw ValidationException::withMessages([
-                    'root_blog_post_id' => __('dossiers.article_is_series_annex'),
-                ]);
-            }
+        try {
+            $series = $this->series->setRoot($series, $post, $request->user());
+        } catch (ValidationException $e) {
+            $this->rethrowUnder($e, ['blog_post_id' => 'root_blog_post_id']);
         }
-
-        $formerRootId = $series->root_blog_post_id;
-
-        DB::transaction(function () use ($series, $post, $formerRootId) {
-            // The promoted article stops being an annexe of its own series.
-            ArticleSeriesItem::where('article_series_id', $series->id)
-                ->where('blog_post_id', $post->id)
-                ->delete();
-
-            $series->update(['root_blog_post_id' => $post->id]);
-
-            // The former root becomes the first annexe rather than falling out
-            // of the series: nothing a human put there is ever dropped.
-            if ($formerRootId && $formerRootId !== $post->id) {
-                ArticleSeriesItem::where('article_series_id', $series->id)->increment('position');
-
-                ArticleSeriesItem::create([
-                    'organization_id' => $series->organization_id,
-                    'article_series_id' => $series->id,
-                    'blog_post_id' => $formerRootId,
-                    'position' => 0,
-                    'added_by' => auth()->id(),
-                ]);
-            }
-
-            // Renumeroter comme le fait un retrait. L'ordre etait deja juste —
-            // `orderBy('position')` ne demande pas la continuite — mais la
-            // promotion laissait des trous (0, 3, 4, 5) parce qu'elle
-            // incremente tout puis libere un rang. Deux mecaniques de
-            // numerotation differentes dans le meme objet finissent par se
-            // contredire.
-            ArticleSeriesItem::where('article_series_id', $series->id)
-                ->orderBy('position')
-                ->get()
-                ->each(fn ($row, $i) => $row->forceFill(['position' => $i])->save());
-        });
 
         return response()->json([
             // La charge complete, pas seulement la racine : c'est ce qui permet
@@ -162,7 +115,7 @@ class DossierSeriesController extends Controller
             // serveur vient de deplacer deux Articles et de renumeroter ; lui
             // faire dire l'etat resultant coute une requete deja faite, et
             // supprime toute reconstruction approximative cote navigateur.
-            'series' => $this->seriesPayload($series->fresh()),
+            'series' => $this->seriesPayload($series),
             'message' => __('dossiers.series_root_updated'),
         ]);
     }
@@ -174,56 +127,30 @@ class DossierSeriesController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageSeries', $dossier);
 
-        $series = $this->resolveSeries($dossier, $organization);
+        $series = $this->resolveSeries($dossier, $organization, $this->requestedSeriesId($request));
 
         $data = $request->validate([
-            'blog_post_id' => ['required', 'uuid'],
+            // Un Article **ou** un fichier, jamais les deux, jamais aucun.
+            // `required_without` de chaque cote pose l'obligation, `missing_with`
+            // interdit le cumul : une requete qui porte les deux est refusee
+            // plutot que silencieusement tranchee en faveur de l'un.
+            'blog_post_id' => ['required_without:dossier_file_id', 'missing_with:dossier_file_id', 'uuid'],
+            'dossier_file_id' => ['required_without:blog_post_id', 'uuid'],
         ]);
 
-        $post = $this->resolveBlogPost($data['blog_post_id']);
-        $this->ensureBlogPostBelongsToCurrentOrganization($post);
-        $this->ensureBlogPostBelongsToDossier($post, $dossier);
-
-        if ($post->id === $series->root_blog_post_id) {
-            throw ValidationException::withMessages([
-                'blog_post_id' => __('dossiers.article_is_series_root'),
-            ]);
+        if (! empty($data['blog_post_id'])) {
+            $content = $this->resolveBlogPost($data['blog_post_id']);
+            $this->ensureBlogPostBelongsToCurrentOrganization($content);
+            $this->ensureBlogPostBelongsToDossier($content, $dossier);
+        } else {
+            $content = $this->resolveDossierFile($data['dossier_file_id']);
+            $this->ensureDossierFileBelongsToDossier($content, $dossier);
         }
 
-        if (ArticleSeriesItem::where('blog_post_id', $post->id)->exists()) {
-            throw ValidationException::withMessages([
-                'blog_post_id' => __('dossiers.article_already_in_series'),
-            ]);
-        }
-
-        // La position se lit et s'ecrit sous verrou, dans la meme transaction.
-        //
-        // Sans cela, `max('position') + 1` etait calcule avant l'insertion :
-        // deux ajouts simultanes lisaient le meme maximum et posaient deux
-        // annexes au meme rang. Le verrou sur la ligne de la Serie serialise
-        // les ajouts a cette Serie, et a elle seule.
-        $item = DB::transaction(function () use ($series, $organization, $post, $request) {
-            $locked = ArticleSeries::whereKey($series->id)->lockForUpdate()->firstOrFail();
-
-            // Relu sous verrou : entre la verification et ici, quelqu'un a pu
-            // poser le meme article.
-            if (ArticleSeriesItem::where('blog_post_id', $post->id)->exists()) {
-                throw ValidationException::withMessages([
-                    'blog_post_id' => __('dossiers.article_already_in_series'),
-                ]);
-            }
-
-            return ArticleSeriesItem::create([
-                'organization_id' => $organization->id,
-                'article_series_id' => $locked->id,
-                'blog_post_id' => $post->id,
-                'position' => ((int) $locked->items()->max('position')) + 1,
-                'added_by' => $request->user()->id,
-            ]);
-        });
+        $item = $this->series->addItem($series, $content, $request->user());
 
         return response()->json([
-            'item' => $item->load('blogPost'),
+            'item' => $item->load(['blogPost', 'dossierFile']),
             'message' => __('dossiers.annex_added'),
         ]);
     }
@@ -235,32 +162,9 @@ class DossierSeriesController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageSeries', $dossier);
 
-        $series = $this->resolveSeries($dossier, $organization);
+        $series = $this->resolveSeries($dossier, $organization, $this->requestedSeriesId($request));
 
-        // Retrait et renumerotation d'un seul tenant : un retrait concurrent
-        // laissait sinon des rangs troues, et deux retraits simultanes
-        // pouvaient se croiser.
-        DB::transaction(function () use ($series, $request) {
-            $locked = ArticleSeries::whereKey($series->id)->lockForUpdate()->firstOrFail();
-
-            $item = ArticleSeriesItem::where('article_series_id', $locked->id)
-                ->where('blog_post_id', $request->route('item'))
-                ->lockForUpdate()
-                ->first();
-
-            if (! $item) {
-                abort(404);
-            }
-
-            // L'Article n'est jamais supprime, ni detache du Dossier : seule
-            // son appartenance a la Serie disparait.
-            $item->delete();
-
-            ArticleSeriesItem::where('article_series_id', $locked->id)
-                ->orderBy('position')
-                ->get()
-                ->each(fn ($row, $i) => $row->forceFill(['position' => $i])->save());
-        });
+        $this->series->removeItem($series, $this->resolveItem($series, $request->route('item')));
 
         return response()->json([
             'message' => __('dossiers.annex_removed'),
@@ -274,32 +178,19 @@ class DossierSeriesController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageSeries', $dossier);
 
-        $series = $this->resolveSeries($dossier, $organization);
+        $series = $this->resolveSeries($dossier, $organization, $this->requestedSeriesId($request));
 
         $data = $request->validate([
             'items' => ['required', 'array'],
             'items.*' => ['required', 'uuid'],
         ]);
 
-        $itemIds = array_values($data['items']);
-
-        $entries = ArticleSeriesItem::query()
-            ->where('article_series_id', $series->id)
-            ->whereIn('blog_post_id', $itemIds)
-            ->get()
-            ->keyBy('blog_post_id');
-
-        if ($entries->count() !== count(array_unique($itemIds))) {
-            throw ValidationException::withMessages([
-                'items' => __('dossiers.reorder_invalid'),
-            ]);
-        }
-
-        DB::transaction(function () use ($itemIds, $entries) {
-            foreach ($itemIds as $index => $itemId) {
-                $entries[$itemId]->update(['position' => $index + 1]);
-            }
-        });
+        // Traduction indulgente, a dessein : un identifiant qui ne designe rien
+        // est laisse tel quel plutot que de repondre 404. Un classement perime
+        // n'est pas une URL introuvable — c'est une liste devenue fausse, et
+        // c'est le service qui la refuse **en entier**, en 422. Repondre 404
+        // pour un element d'un lot dirait que la route n'existe pas.
+        $this->series->reorder($series, $this->translateItemIds($series, array_values($data['items'])));
 
         return response()->json([
             'message' => __('dossiers.annexes_reordered'),
@@ -313,12 +204,9 @@ class DossierSeriesController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageSeries', $dossier);
 
-        $series = $this->resolveSeries($dossier, $organization);
-
-        DB::transaction(function () use ($series) {
-            $series->items()->delete();
-            $series->delete();
-        });
+        $this->series->delete(
+            $this->resolveSeries($dossier, $organization, $this->requestedSeriesId($request))
+        );
 
         return response()->json([
             'message' => __('dossiers.series_deleted'),
@@ -385,7 +273,7 @@ class DossierSeriesController extends Controller
     }
 
     /**
-     * L'etat canonique d'une Serie : sa racine et ses annexes, dans l'ordre.
+     * L'etat canonique d'une Serie : sa racine et ses contenus, dans l'ordre.
      *
      * Une seule construction, partagee par `show()` et par `update()`. Deux
      * charges differentes pour le meme objet auraient fini par diverger, et le
@@ -397,20 +285,106 @@ class DossierSeriesController extends Controller
         return $series->load([
             'rootBlogPost:id,organization_id,user_id,title,slug,status,updated_at',
             'items.blogPost:id,organization_id,user_id,title,slug,status,updated_at',
+            'items.dossierFile:id,organization_id,dossier_id,original_name,mime_type,size_bytes,updated_at',
         ]);
     }
 
-    private function resolveSeries(Dossier $dossier, $organization): ArticleSeries
+    /**
+     * L'identifiant de Serie que porte la requete, s'il y en a un.
+     *
+     * Un Dossier peut desormais porter plusieurs Series (TASK-1095). Les routes
+     * historiques n'en designent aucune ; celles qui le font passent `series_id`.
+     * Le champ reste facultatif : un Dossier a une seule Serie n'a rien a dire
+     * de plus, et les appels existants continuent de fonctionner tels quels.
+     */
+    private function requestedSeriesId(Request $request): ?string
     {
-        $series = ArticleSeries::where('dossier_id', $dossier->id)
-            ->where('organization_id', $organization->id)
-            ->first();
+        $id = $request->route('series') ?? $request->input('series_id');
 
-        if (! $series) {
+        return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
+     * La Serie visee par la requete.
+     *
+     * Sans identifiant explicite, cette methode resout la Serie **unique** du
+     * Dossier, et **refuse** quand il y en a plusieurs plutot que d'en choisir
+     * une au hasard. Un `->first()` silencieux aurait agi sur une Serie
+     * arbitraire, et le defaut n'aurait ete visible qu'apres coup, sur les
+     * donnees de quelqu'un.
+     */
+    private function resolveSeries(Dossier $dossier, $organization, mixed $seriesId = null): ArticleSeries
+    {
+        $query = ArticleSeries::where('dossier_id', $dossier->id)
+            ->where('organization_id', $organization->id);
+
+        if ($seriesId !== null) {
+            // Le controle de tenant reste porte par la requete elle-meme : un
+            // identifiant forge ne traverse ni le Dossier ni l'Organization.
+            return $query->whereKey($seriesId)->firstOrFail();
+        }
+
+        $series = $query->get();
+
+        if ($series->isEmpty()) {
             abort(404);
         }
 
-        return $series;
+        if ($series->count() > 1) {
+            throw ValidationException::withMessages([
+                'series_id' => __('dossiers.series_ambiguous'),
+            ]);
+        }
+
+        return $series->first();
+    }
+
+    /**
+     * L'item designe par un identifiant, dans cette Serie.
+     *
+     * Les appels historiques designent une annexe par l'identifiant de son
+     * **Article** : c'etait sans ambiguite tant qu'une Serie ne contenait que
+     * des Articles. Depuis qu'elle peut contenir des fichiers, seul
+     * l'identifiant de l'item lui-meme est universel — un item de fichier n'a
+     * pas de `blog_post_id`.
+     *
+     * Les deux sont donc acceptes, l'item d'abord. Ce sont des UUID tires de
+     * deux tables differentes : la collision n'est pas un cas a traiter.
+     */
+    private function resolveItem(ArticleSeries $series, mixed $id): ArticleSeriesItem
+    {
+        $item = ArticleSeriesItem::where('article_series_id', $series->id)
+            ->where(fn ($q) => $q->whereKey($id)->orWhere('blog_post_id', $id))
+            ->first();
+
+        if (! $item) {
+            abort(404);
+        }
+
+        return $item;
+    }
+
+    /**
+     * Traduire une liste d'identifiants en identifiants d'items.
+     *
+     * Meme double lecture que `resolveItem()` — identifiant d'item ou d'Article
+     * — mais sans refus unitaire : ce qui ne se traduit pas passe tel quel, et
+     * le service juge la liste dans son ensemble.
+     *
+     * @param  array<int, string>  $ids
+     * @return array<int, string>
+     */
+    private function translateItemIds(ArticleSeries $series, array $ids): array
+    {
+        $items = ArticleSeriesItem::where('article_series_id', $series->id)->get();
+
+        $parArticle = $items->whereNotNull('blog_post_id')->keyBy('blog_post_id');
+        $connus = $items->pluck('id')->flip();
+
+        return array_map(
+            fn (string $id) => $connus->has($id) ? $id : ($parArticle[$id]->id ?? $id),
+            $ids
+        );
     }
 
     private function resolveBlogPost(mixed $post): BlogPost
@@ -420,6 +394,15 @@ class DossierSeriesController extends Controller
         }
 
         return BlogPost::query()->whereKey($post)->firstOrFail();
+    }
+
+    private function resolveDossierFile(mixed $file): DossierFile
+    {
+        if ($file instanceof DossierFile) {
+            return $file;
+        }
+
+        return DossierFile::query()->whereKey($file)->firstOrFail();
     }
 
     private function ensureDossierBelongsToCurrentOrganization(Dossier $dossier): void
@@ -445,5 +428,35 @@ class DossierSeriesController extends Controller
         if (! $dossier->articles()->where('blog_post_id', $post->id)->exists()) {
             abort(404, 'Blog post is not attached to this dossier.');
         }
+    }
+
+    private function ensureDossierFileBelongsToDossier(DossierFile $file, Dossier $dossier): void
+    {
+        $organization = $this->currentOrganizationOrFail();
+
+        if ($file->organization_id !== $organization->id || $file->dossier_id !== $dossier->id) {
+            abort(404);
+        }
+    }
+
+    /**
+     * Relancer une erreur du service sous le nom du champ HTTP.
+     *
+     * Le service parle contenus : `blog_post_id`, `dossier_file_id`. Le
+     * formulaire, lui, parle de ce qu'il affiche : `root_blog_post_id` quand il
+     * s'agit d'une racine. Le message reste celui du service — seule la cle
+     * change, pour que l'erreur se pose sous le bon champ.
+     *
+     * @param  array<string, string>  $map
+     */
+    private function rethrowUnder(ValidationException $e, array $map): never
+    {
+        $errors = [];
+
+        foreach ($e->errors() as $key => $messages) {
+            $errors[$map[$key] ?? $key] = $messages;
+        }
+
+        throw ValidationException::withMessages($errors);
     }
 }

@@ -427,41 +427,44 @@ class DossierSeriesTest extends TestCase
         $response->assertUnprocessable()->assertJsonValidationErrors(['blog_post_id']);
     }
 
-    public function test_article_cannot_be_annex_of_two_series(): void
+    // `test_article_cannot_be_annex_of_two_series` a ete deplace vers
+    // `Dossiers\\DossierSeriesServiceTest::test_an_article_belongs_to_at_most_one_series`.
+    //
+    // Deux raisons, et aucune n'est un affaiblissement :
+    //
+    // 1. `dossier_blog_posts.blog_post_id` est **unique** — un Article
+    //    n'appartient qu'a un seul Dossier. Le seul moyen d'exprimer la regle au
+    //    niveau des routes etait donc deux Series dans le **meme** Dossier.
+    // 2. Depuis TASK-1095 un Dossier peut en porter plusieurs, et une route sans
+    //    identifiant de Serie y devient ambigue : le serveur la refuse au lieu
+    //    de choisir au hasard. Le test aurait alors mesure l'ambiguite, pas la
+    //    regle qu'il defendait.
+    //
+    // L'invariant — **un Article n'appartient qu'a une seule Serie** — est
+    // desormais verifie la ou l'on peut designer une Serie precise : dans le
+    // service. Le test ci-dessous couvre ce que les routes, elles, doivent dire.
+
+    public function test_a_dossier_with_several_series_refuses_an_ambiguous_request(): void
     {
-        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $root1 = $this->blogPost($this->orgA, $this->ownerA, 'Root 1');
-        $root2 = $this->blogPost($this->orgA, $this->ownerA, 'Root 2');
-        $shared = $this->blogPost($this->orgA, $this->ownerA, 'Shared');
-        $this->attach($dossier, $root1, $this->ownerA, 1);
-        $this->attach($dossier, $root2, $this->ownerA, 2);
-        $this->attach($dossier, $shared, $this->ownerA, 3);
+        // Le serveur ne choisit plus une Serie au hasard : il le dit.
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'Deux Series');
+        foreach (['A', 'B'] as $n) {
+            $racine = $this->blogPost($this->orgA, $this->ownerA, "Racine {$n}");
+            $this->attach($dossier, $racine, $this->ownerA, 1);
+            ArticleSeries::create([
+                'organization_id' => $this->orgA->id,
+                'dossier_id' => $dossier->id,
+                'root_blog_post_id' => $racine->id,
+            ]);
+        }
 
-        $s1 = ArticleSeries::create([
-            'organization_id' => $this->orgA->id,
-            'dossier_id' => $dossier->id,
-            'root_blog_post_id' => $root1->id,
-        ]);
+        $candidat = $this->blogPost($this->orgA, $this->ownerA, 'Candidat');
+        $this->attach($dossier, $candidat, $this->ownerA, 9);
 
-        ArticleSeriesItem::create([
-            'organization_id' => $this->orgA->id,
-            'article_series_id' => $s1->id,
-            'blog_post_id' => $shared->id,
-            'position' => 1,
-        ]);
-
-        $s2 = ArticleSeries::create([
-            'organization_id' => $this->orgA->id,
-            'dossier_id' => $dossier->id,
-            'root_blog_post_id' => $root2->id,
-        ]);
-
-        $response = $this->actingAs($this->ownerA)->postJson(
+        $this->actingAs($this->ownerA)->postJson(
             $this->orgRoute('dossiers.series.annexes.store', $dossier),
-            ['blog_post_id' => $shared->id]
-        );
-
-        $response->assertUnprocessable()->assertJsonValidationErrors(['blog_post_id']);
+            ['blog_post_id' => $candidat->id]
+        )->assertUnprocessable()->assertJsonValidationErrors(['series_id']);
     }
 
     public function test_show_series_json_path_uses_snake_case_for_relations(): void

@@ -18,8 +18,26 @@ class ArticleSeries extends Model
         'organization_id',
         'dossier_id',
         'root_blog_post_id',
+        'name',
         'created_by',
     ];
+
+    /**
+     * Le nom d'une Serie.
+     *
+     * Une Serie ancree sur un Article racine prend son titre ; une Serie de
+     * fichiers, qui n'a pas de racine, porte son propre nom. Deux sources, un
+     * seul point de lecture : sans cela chaque vue aurait invente sa propre
+     * regle de repli.
+     */
+    public function displayName(): string
+    {
+        if (filled($this->name)) {
+            return $this->name;
+        }
+
+        return (string) ($this->rootBlogPost?->title ?? '');
+    }
 
     public function organization(): BelongsTo
     {
