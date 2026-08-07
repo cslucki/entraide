@@ -207,6 +207,26 @@ return [
             'requires_card' => 'training.progression',
         ],
 
+        /*
+         * Les Travaux a rendre.
+         *
+         * `view` : voir les Travaux et **rendre les siens**. `manage` : les
+         * creer, les modifier, lire les remises de tout le monde, valider,
+         * demander une reprise. Deux capacites parce que ce sont deux gestes.
+         */
+        'assignments.view' => [
+            'module' => 'assignments', 'label_fr' => 'Rendre ses Travaux', 'label_en' => 'Submit own assignments',
+            'description' => 'Voir les Travaux à rendre et remettre les siens.', 'locked' => false,
+            'read' => true,
+            'requires_card' => 'training.assignments',
+        ],
+
+        'assignments.manage' => [
+            'module' => 'assignments', 'label_fr' => 'Gérer les Travaux', 'label_en' => 'Manage assignments',
+            'description' => 'Créer et modifier les Travaux, lire les remises, valider, demander une reprise.', 'locked' => false,
+            'requires_card' => 'training.assignments',
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -362,6 +382,7 @@ return [
             'dossiers.view', 'dossiers.create_article', 'dossiers.upload_file',
             'course_material.view', 'course_material.manage',
             'progression.view', 'progression.manage',
+            'assignments.view', 'assignments.manage',
         ],
 
         /*
@@ -385,6 +406,7 @@ return [
             // c'est le travail quotidien du facilitateur.
             'course_material.view', 'course_material.manage',
             'progression.view', 'progression.manage',
+            'assignments.view', 'assignments.manage',
         ],
 
         /*
@@ -407,6 +429,8 @@ return [
             'course_material.view',
             // Sa progression, pas celle des autres.
             'progression.view',
+            // Ses Travaux, pas ceux des autres.
+            'assignments.view',
         ],
     ],
 
