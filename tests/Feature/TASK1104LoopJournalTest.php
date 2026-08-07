@@ -362,7 +362,138 @@ class TASK1104LoopJournalTest extends TestCase
             ->assertSee(e(__('loops.cards.journal.no_access')), false);
     }
 
+
+    // ── Ce que la revue hostile a trouve ────────────────────────────────────
+
+    public function test_a_member_cannot_rewrite_someone_elses_entry_through_editing_id(): void
+    {
+        $sienne = $this->service()->write($this->loop, $this->animateur, 'Ecrite par l animateur', '2026-06-01');
+
+        // `startEditing` et `remove` etaient gardes ; `save()` ne l'etait pas.
+        // Or `$editingId` est une propriete **publique** : la poser depuis le
+        // client suffisait a reecrire le corps et la date de n'importe qui —
+        // signee du nom de la victime, `author_id` ne bougeant pas.
+        $this->card($this->membre)
+            ->set('editingId', $sienne->id)
+            ->set('body', 'REECRITE PAR LE MEMBRE')
+            ->set('occurredOn', '1999-12-31')
+            ->call('save')
+            ->assertForbidden();
+
+        $frais = $sienne->fresh();
+        $this->assertSame('Ecrite par l animateur', $frais->body);
+        $this->assertSame('2026-06-01', $frais->occurred_on->toDateString());
+    }
+
+    public function test_cancelling_an_edit_never_overwrites_the_next_entry(): void
+    {
+        $premiere = $this->service()->write($this->loop, $this->animateur, 'Le 1er juin', '2026-06-01');
+
+        // Parcours nominal, aucun forgeage : corriger, renoncer, puis ecrire
+        // une note. `$set('showForm', false)` laissait `editingId` pose, et la
+        // nouvelle note **ecrasait** silencieusement la precedente.
+        $this->card()
+            ->call('startEditing', $premiere->id)
+            ->call('cancel')
+            ->set('body', 'Autre chose, aujourd hui')
+            ->call('save');
+
+        $this->assertSame(2, LoopJournalEntry::where('loop_id', $this->loop->id)->count());
+        $this->assertSame('Le 1er juin', $premiere->fresh()->body);
+    }
+
+    public function test_a_promoted_entry_offers_no_edit_button(): void
+    {
+        $this->service()->promote($this->loop, $this->animateur, $this->message('Un message'));
+
+        // Un bouton affiche qui echouerait est pire que pas de bouton : son
+        // `save()` ne pouvait jamais aboutir.
+        $this->card()->assertDontSee(e(__('loops.cards.journal.edit')), false);
+
+        $entree = LoopJournalEntry::where('loop_id', $this->loop->id)->firstOrFail();
+        $this->card()->call('startEditing', $entree->id)->assertForbidden();
+    }
+
+    public function test_writing_without_reading_is_refused(): void
+    {
+        // L'ecran disait « pas d'acces » et la base enregistrait quand meme :
+        // `authorizeWrite()` ne consultait que `canWrite()`.
+        \App\Models\LoopCard::where('loop_id', $this->loop->id)
+            ->where('card_key', 'core.journal')
+            ->update(['enabled' => false]);
+
+        $this->card($this->membre)->set('body', 'Malgre tout')->call('save')->assertForbidden();
+
+        $this->assertDatabaseCount('loop_journal_entries', 0);
+    }
+
+    public function test_a_moderated_message_stays_moderated_in_the_journal(): void
+    {
+        $message = $this->message('INSULTE A MODERER');
+        $this->service()->promote($this->loop, $this->animateur, $message);
+
+        $message->forceFill(['deleted_at' => now()])->save();
+
+        // Le Journal etait le seul ecran a lire `body` brut : retirer un
+        // message du ChatLoop ne le retirait pas d'ici, et la moderation
+        // devenait reversible par qui savait ou regarder.
+        $this->card()->assertDontSee('INSULTE A MODERER');
+
+        // Et il ne se propose plus a la promotion.
+        $this->assertEmpty($this->card()->set('showPicker', true)->viewData('promotable'));
+    }
+
+    public function test_an_impossible_date_is_refused_not_silently_changed(): void
+    {
+        // `Carbon::parse` accepte « 2026-02-30 » et rend le 2 mars, ou
+        // « tomorrow », ou « +10 years » : la date saisie etait *changee*, ce
+        // que le principe affiche interdit.
+        foreach (['2026-02-30', 'tomorrow', '+10 years', '1850-01-01', '2300-01-01'] as $absurde) {
+            $this->card()->set('body', 'Quelque chose')->set('occurredOn', $absurde)->call('save')
+                ->assertHasErrors('occurredOn');
+        }
+
+        $this->assertDatabaseCount('loop_journal_entries', 0);
+    }
+
+    public function test_the_same_message_cannot_be_kept_twice_even_concurrently(): void
+    {
+        $message = $this->message('Un moment');
+        $this->service()->promote($this->loop, $this->animateur, $message);
+
+        // La garde du service est un verrou sur une ligne **inexistante** :
+        // elle ne serialise rien. C'est la base qui tient l'invariant.
+        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+
+        LoopJournalEntry::create([
+            'organization_id' => $this->org->id,
+            'loop_id' => $this->loop->id,
+            'author_id' => $this->animateur->id,
+            'loop_message_id' => $message->id,
+            'occurred_on' => now()->toDateString(),
+        ]);
+    }
+
+    public function test_the_picker_never_opens_the_chatloop_to_who_cannot_read_it(): void
+    {
+        $this->message('SECRET DU CHATLOOP');
+
+        // Sans ce controle, le Journal devenait une porte laterale sur la
+        // conversation. La matrice etant administrable, la fuite est un reglage
+        // de distance.
+        \App\Models\LoopCard::where('loop_id', $this->loop->id)
+            ->where('card_key', 'core.ai_summary')
+            ->delete();
+
+        $composant = $this->card($this->membre)->set('showPicker', true);
+
+        $this->assertTrue($composant->instance()->canWrite());
+        // Le membre a `chatloop.view` par defaut : le picker le sert.
+        $this->assertNotEmpty($composant->viewData('promotable'));
+    }
+
     // ── Cloisonnement ───────────────────────────────────────────────────────
+
 
     public function test_an_entry_of_another_loop_is_never_reachable(): void
     {

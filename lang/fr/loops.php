@@ -362,6 +362,7 @@ return [
             'delete_confirm' => 'Retirer cette entrée du Journal ? Le message du ChatLoop n\'est pas supprimé.',
             'promote' => 'Garder dans le Journal',
             'promoted' => 'Message gardé dans le Journal.',
+            'message_removed' => 'Ce message a été retiré du ChatLoop.',
             'promoted_note' => 'Depuis le ChatLoop',
             'promoted_is_read_only' => 'Cette entrée reprend un message : corrigez le message, elle suivra.',
             'body_required' => 'Une entrée vide ne raconte rien.',

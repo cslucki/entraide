@@ -149,7 +149,10 @@ class LoopJournalService
     public function entriesFor(Loop $loop, int $limit = self::PAGE): Collection
     {
         return LoopJournalEntry::where('loop_id', $loop->id)
-            ->with(['author:id,first_name,name,email,organization_id,banned_at', 'message:id,body,created_at'])
+            ->with(['author:id,first_name,name,email,organization_id,banned_at', // `deleted_at` fait partie de la selection : sans lui, `isDeleted()`
+                // ne voyait rien et le Journal affichait en clair un message
+                // que le ChatLoop avait retire.
+                'message:id,body,created_at,deleted_at'])
             ->orderByDesc('occurred_on')
             ->orderByDesc('created_at')
             ->limit($limit)
@@ -179,7 +182,15 @@ class LoopJournalService
         }
 
         try {
-            $lue = Carbon::parse($date);
+            // **Strict**, et non `Carbon::parse` : celui-ci accepte
+            // « 2026-02-30 » et rend le 2 mars, ou « tomorrow », ou
+            // « +10 years ». La date saisie etait donc silencieusement
+            // *changee* — exactement ce que le commentaire ci-dessus interdit.
+            $lue = Carbon::createFromFormat('!Y-m-d', $date);
+
+            if (! $lue || $lue->format('Y-m-d') !== $date) {
+                throw new \InvalidArgumentException('date impossible');
+            }
         } catch (\Throwable) {
             // Avaler l'exception ferait disparaitre la date saisie sans un mot.
             throw ValidationException::withMessages([

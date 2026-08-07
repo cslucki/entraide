@@ -72,6 +72,16 @@ class LoopJournalEntry extends Model
     public function displayBody(): string
     {
         if ($this->sourceType() === self::SOURCE_MESSAGE) {
+            // **Un message modere reste modere ici aussi.** Le Journal etait le
+            // seul ecran a lire `body` brut : partout ailleurs — ChatLoop,
+            // banniere epinglee — un message supprime laisse un texte de
+            // remplacement. Sans cela, retirer un message du ChatLoop ne le
+            // retirait pas du Journal, et la moderation devenait reversible par
+            // qui savait ou regarder.
+            if ($this->message?->isDeleted()) {
+                return (string) __('loops.cards.journal.message_removed');
+            }
+
             return (string) ($this->message?->body ?? $this->body ?? '');
         }
 

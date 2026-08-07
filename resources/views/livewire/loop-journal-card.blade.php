@@ -92,7 +92,10 @@
                         <button type="button" wire:click="save" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
                             {{ __('loops.cards.journal.save') }}
                         </button>
-                        <button type="button" wire:click="$set('showForm', false)" class="rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                        {{-- `cancel()` et non `$set('showForm', false)` : celui-ci
+                             laissait `editingId` pose, et la note suivante
+                             ecrasait celle qu'on venait de renoncer a corriger. --}}
+                        <button type="button" wire:click="cancel" class="rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
                             {{ __('loops.cards.journal.cancel') }}
                         </button>
                     </div>

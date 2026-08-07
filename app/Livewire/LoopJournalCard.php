@@ -88,7 +88,16 @@ class LoopJournalCard extends Component
 
         try {
             if ($this->editingId) {
-                $this->service()->update($this->resolveEntry($this->editingId), $this->body, $this->occurredOn ?: null);
+                $entry = $this->resolveEntry($this->editingId);
+
+                // **La garde etait sur `startEditing()`, pas ici.** Or
+                // `$editingId` est une propriete publique : la poser depuis le
+                // client suffisait a reecrire le corps **et la date** de
+                // l'entree de n'importe qui — signee du nom de la victime,
+                // puisque `author_id` ne bouge pas.
+                abort_unless($this->canEdit($entry), 403);
+
+                $this->service()->update($entry, $this->body, $this->occurredOn ?: null);
             } else {
                 $this->service()->write($this->loop, auth()->user(), $this->body, $this->occurredOn ?: null);
             }
@@ -110,6 +119,10 @@ class LoopJournalCard extends Component
         $entry = $this->resolveEntry($entryId);
         abort_unless($this->canEdit($entry), 403);
 
+        // Une entree promue n'a pas de texte propre : ouvrir son formulaire
+        // menait a un `save()` qui ne pouvait jamais aboutir.
+        abort_if($entry->sourceType() === LoopJournalEntry::SOURCE_MESSAGE, 403);
+
         $this->editingId = $entry->id;
         $this->body = (string) $entry->body;
         $this->occurredOn = $entry->occurred_on?->toDateString() ?? '';
@@ -129,6 +142,20 @@ class LoopJournalCard extends Component
 
         $this->problem = '';
         $this->flash = __('loops.cards.journal.removed');
+    }
+
+    /**
+     * Fermer le formulaire **et** relacher ce qu'il tenait.
+     *
+     * `$set('showForm', false)` ne suffisait pas : `editingId` restait pose, et
+     * la note suivante — ecrite en croyant en commencer une — **ecrasait**
+     * silencieusement celle qu'on venait de renoncer a corriger, date comprise.
+     * Une perte de donnees par le parcours nominal, sur la Card dont l'argument
+     * est d'etre la memoire de la Boucle.
+     */
+    public function cancel(): void
+    {
+        $this->reset(['body', 'occurredOn', 'showForm', 'editingId']);
     }
 
     public function promote(string $messageId): void
@@ -152,7 +179,10 @@ class LoopJournalCard extends Component
 
     private function authorizeWrite(): void
     {
-        abort_unless($this->canWrite(), 403);
+        // `canView()` **aussi** : sans lui, une personne privee de lecture
+        // ecrivait quand meme, dans un Journal que l'ecran lui declarait
+        // inaccessible.
+        abort_unless($this->canView() && $this->canWrite(), 403);
     }
 
     /** Une entree de **cette** Boucle, ou 404. */
@@ -185,11 +215,20 @@ class LoopJournalCard extends Component
      */
     private function promotable(): Collection
     {
+        // Garder un message suppose de pouvoir le lire. Sans ce controle, le
+        // Journal devenait une porte laterale sur la conversation pour qui
+        // n'avait pas `chatloop.view` — un reglage de distance, la matrice
+        // etant administrable.
+        if (! $this->resolver()->can(auth()->user(), $this->loop, 'chatloop.view')) {
+            return collect();
+        }
+
         $deja = LoopJournalEntry::where('loop_id', $this->loop->id)
             ->whereNotNull('loop_message_id')
             ->pluck('loop_message_id');
 
         return LoopMessage::where('loop_id', $this->loop->id)
+            ->whereNull('deleted_at')
             ->whereNotIn('id', $deja)
             ->with('sender:id,first_name,name,email,organization_id,banned_at')
             ->orderByDesc('created_at')

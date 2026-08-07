@@ -362,6 +362,7 @@ return [
             'delete_confirm' => 'Remove this entry from the journal? The ChatLoop message is not deleted.',
             'promote' => 'Keep in the journal',
             'promoted' => 'Message kept in the journal.',
+            'message_removed' => 'This message was removed from the ChatLoop.',
             'promoted_note' => 'From the ChatLoop',
             'promoted_is_read_only' => 'This entry mirrors a message: correct the message and it will follow.',
             'body_required' => 'An empty entry tells nothing.',
