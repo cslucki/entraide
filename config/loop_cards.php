@@ -211,6 +211,53 @@ return [
             'default_enabled' => true,
         ],
 
+        /*
+         * Le Support de cours d'une Boucle Formation.
+         *
+         * C'est **une** Card, et une seule. Ses Modules et ses Sequences n'en
+         * sont pas : ce sont ses contenus, comme un Article est le contenu d'un
+         * Dossier. Les declarer ici aurait fait trois Cards la ou la matrice
+         * canonique n'en prevoit qu'une, et aurait mange deux des trois
+         * emplacements de la grille.
+         *
+         * `scope` vaut `training` : contrairement aux Cards universelles, elle
+         * n'a de sens que dans une Boucle Formation.
+         *
+         * Ce champ est **descriptif**, et il faut le dire : `scopeOf()` n'a
+         * qu'un lecteur, `LoopPresetConfigurator`, qui l'expose sans filtrer.
+         * Le confinement reel vient du **preset** de `config/loop_types.php`,
+         * ou cette Card n'est listee que sous `training`. Un administrateur
+         * composant a la main pourrait donc l'activer ailleurs — elle y
+         * fonctionnerait, sans rien casser, mais sans rien vouloir dire.
+         *
+         * Aucune vue ne teste `$loop->type`, et c'est ce qui compte : la
+         * composition reste declarative.
+         */
+        'training.course_material' => [
+            'key' => 'training.course_material',
+            'label_key' => 'loops.cards.course_material.label',
+            'description_key' => 'loops.cards.course_material.description',
+            'empty_title_key' => 'loops.cards.course_material.empty_title',
+            'empty_body_key' => 'loops.cards.course_material.empty_body',
+            'action_key' => 'loops.cards.course_material.action',
+            'icon' => 'document',
+            'component' => 'loop-course-material-card',
+            'view' => null,
+            'view_permission' => 'course_material.view',
+            'required' => false,
+            // Premiere Card distinctive de la Formation, avant Membres (40).
+            'order' => 32,
+            'placement' => 'grid',
+            'category' => 'pedagogy',
+            'scope' => 'training',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => true,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => true,
+        ],
+
         'core.members' => [
             'key' => 'core.members',
             'label_key' => 'loops.cards.members.label',
