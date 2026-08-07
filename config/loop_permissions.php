@@ -276,6 +276,30 @@ return [
             'requires_card' => 'training.quiz',
         ],
 
+        'journal.view' => [
+            'module' => 'journal', 'label_fr' => 'Lire le Journal', 'label_en' => 'Read the journal',
+            'description' => 'Voir les entrées du Journal de la Boucle.', 'locked' => false,
+            'read' => true,
+            'requires_card' => 'core.journal',
+        ],
+
+        /*
+         * Ecrire dans le Journal est une **ecriture** : sa permission ne porte
+         * donc pas `read`, et une Boucle archivee la refuse. C'est l'invariant
+         * pose apres la revue de TASK-1100.
+         */
+        'journal.write' => [
+            'module' => 'journal', 'label_fr' => 'Écrire dans le Journal', 'label_en' => 'Write in the journal',
+            'description' => 'Ajouter une entrée, ou garder un message du ChatLoop.', 'locked' => false,
+            'requires_card' => 'core.journal',
+        ],
+
+        'journal.manage' => [
+            'module' => 'journal', 'label_fr' => 'Gérer le Journal', 'label_en' => 'Manage the journal',
+            'description' => 'Corriger ou retirer les entrées de tout le monde.', 'locked' => false,
+            'requires_card' => 'core.journal',
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -433,6 +457,7 @@ return [
             'progression.view', 'progression.complete', 'progression.manage',
             'assignments.view', 'assignments.submit', 'assignments.manage',
             'quiz.view', 'quiz.attempt', 'quiz.manage',
+            'journal.view', 'journal.write', 'journal.manage',
         ],
 
         /*
@@ -458,6 +483,7 @@ return [
             'progression.view', 'progression.complete', 'progression.manage',
             'assignments.view', 'assignments.submit', 'assignments.manage',
             'quiz.view', 'quiz.attempt', 'quiz.manage',
+            'journal.view', 'journal.write', 'journal.manage',
         ],
 
         /*
@@ -483,6 +509,8 @@ return [
             // Ses Travaux, pas ceux des autres.
             'assignments.view', 'assignments.submit',
             'quiz.view', 'quiz.attempt',
+            // Ses entrees, pas celles des autres.
+            'journal.view', 'journal.write',
         ],
     ],
 

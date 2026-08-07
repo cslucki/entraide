@@ -139,9 +139,21 @@ return [
             'icon' => 'compass',
             'order' => 25,
             'available' => true,
+            /*
+             * La matrice canonique donne au Coaching : Engagements, Suivi de
+             * coaching, Journal. Le **Journal** arrive avec TASK-1104 ; les
+             * deux autres n'existent pas encore.
+             *
+             * `core.roadmap` y figure sans y avoir sa place — meme situation
+             * que la Formation avant TASK-1099. Il cedera son emplacement
+             * quand Engagements sera livree, la ou le remplacement existe :
+             * retirer avant d'avoir de quoi mettre laisserait un preset plus
+             * pauvre qu'il ne l'etait.
+             */
             'cards' => [
                 'core.ai_summary',
                 'core.roadmap',
+                'core.journal',
                 'core.members',
             ],
         ],
@@ -225,9 +237,17 @@ return [
              * (TASK D of the TASK-1072 spec, still unwritten). Same rule:
              * only real cards here.
              */
+            /*
+             * La matrice canonique donne a la Pair-aidance : Engagements,
+             * Journal, Sondage. Le **Journal** et le **Sondage** arrivent avec
+             * TASK-1104 ; il ne manque plus qu'Engagements pour que le preset
+             * soit complet — et le type pourra alors s'ouvrir.
+             */
             'cards' => [
                 'core.manifesto',
                 'core.members',
+                'core.journal',
+                'core.polls',
             ],
         ],
 
