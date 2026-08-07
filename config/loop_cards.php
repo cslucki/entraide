@@ -258,6 +258,42 @@ return [
             'default_enabled' => true,
         ],
 
+        /*
+         * La Progression individuelle.
+         *
+         * **Une seule Card a deux visages** : « Ma progression » pour le
+         * stagiaire, la matrice pour l'Animateur. Deux Cards obligeraient a
+         * choisir laquelle montrer selon le role, ce que le socle ne sait pas
+         * faire — et laisseraient une case vide a qui n'a pas le bon role.
+         *
+         * Elle n'a de sens qu'avec un Support de cours : `requires` le dit, et
+         * le registry refuse de l'activer sans lui.
+         */
+        'training.progression' => [
+            'key' => 'training.progression',
+            'label_key' => 'loops.cards.progression.label',
+            'description_key' => 'loops.cards.progression.description',
+            'empty_title_key' => 'loops.cards.progression.empty_title',
+            'empty_body_key' => 'loops.cards.progression.empty_body',
+            'action_key' => 'loops.cards.progression.action',
+            'icon' => 'chart',
+            'component' => 'loop-progression-card',
+            'view' => null,
+            'view_permission' => 'progression.view',
+            'required' => false,
+            // Juste apres le Support de cours (32) : on suit ce qu'on a monte.
+            'order' => 34,
+            'placement' => 'grid',
+            'category' => 'pedagogy',
+            'scope' => 'training',
+            'requires' => ['training.course_material'],
+            'incompatible_with' => [],
+            'replaceable' => true,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => true,
+        ],
+
         'core.members' => [
             'key' => 'core.members',
             'label_key' => 'loops.cards.members.label',

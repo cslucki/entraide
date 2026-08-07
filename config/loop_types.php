@@ -165,23 +165,27 @@ return [
             /*
              * Toujours pas offert, et c'est volontaire.
              *
-             * Le type embarque desormais **une** Card qui lui est propre, le
-             * Support de cours (TASK-1097). Mais la matrice canonique lui en
-             * prevoit trois : Support de cours, Progression, et Travaux a
-             * rendre ou QCM. Ouvrir le type maintenant reviendrait a proposer
-             * une Formation a laquelle il manque les deux tiers de ce qui la
-             * distingue.
+             * Le type embarque desormais **deux** des trois Cards que la
+             * matrice canonique lui prevoit : Support de cours (TASK-1097) et
+             * Progression (TASK-1099). Il manque la troisieme — Travaux a
+             * rendre ou QCM — et c'est elle qui fait qu'on rend quelque chose,
+             * donc qu'il y a un avant et un apres.
              *
-             * La condition posee ici — livrer plutot que promettre — n'est donc
-             * qu'au tiers remplie. L'ouverture est une decision de produit a
+             * La condition posee ici — livrer plutot que promettre — est donc
+             * aux deux tiers remplie. L'ouverture est une decision de produit a
              * part entiere, a prendre quand les trois Cards existent, et non un
              * effet de bord de la premiere.
              */
             'available' => false,
             /*
-             * Progression, Travaux a rendre et QCM restent absents : ce sont
-             * d'autres Cards de la matrice, et les lister avant de les livrer
-             * serait exactement ce que ce commentaire refusait.
+             * Travaux a rendre et QCM restent absents : ce sont d'autres Cards
+             * de la matrice, et les lister avant de les livrer serait
+             * exactement ce que ce commentaire refuse.
+             *
+             * `core.roadmap` a quitte ce preset avec TASK-1099 : la matrice
+             * canonique ne prevoit pas de Roadmap pour une Formation, et elle y
+             * occupait un des trois emplacements de grille sans y avoir sa
+             * place. Il en reste **un**, pour le troisieme — Travaux ou QCM.
              *
              * Modules et Sequences n'y figurent pas non plus, et ne le feront
              * jamais : ce ne sont pas des Cards, ce sont les contenus du
@@ -191,7 +195,7 @@ return [
                 'core.manifesto',
                 'core.members',
                 'training.course_material',
-                'core.roadmap',
+                'training.progression',
             ],
         ],
 

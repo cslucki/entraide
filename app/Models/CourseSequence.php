@@ -32,6 +32,8 @@ class CourseSequence extends Model
         'course_module_id',
         'title',
         'body',
+        'requires_validation',
+        'archived_at',
         'blog_post_id',
         'dossier_file_id',
         'position',
@@ -40,6 +42,8 @@ class CourseSequence extends Model
 
     protected $casts = [
         'position' => 'integer',
+        'requires_validation' => 'boolean',
+        'archived_at' => 'datetime',
     ];
 
     public function organization(): BelongsTo

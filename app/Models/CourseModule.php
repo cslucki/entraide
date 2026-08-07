@@ -26,11 +26,13 @@ class CourseModule extends Model
         'title',
         'summary',
         'position',
+        'archived_at',
         'created_by',
     ];
 
     protected $casts = [
         'position' => 'integer',
+        'archived_at' => 'datetime',
     ];
 
     public function organization(): BelongsTo

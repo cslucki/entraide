@@ -185,6 +185,28 @@ return [
             'requires_card' => 'training.course_material',
         ],
 
+        /*
+         * La Progression.
+         *
+         * `view` est **sa propre** progression : tout stagiaire l'a. `manage`
+         * est le tableau de bord de l'Animateur — voir celle de tout le monde,
+         * valider, demander une reprise, debloquer. Deux capacites, parce que
+         * ce sont deux gestes : suivre son parcours et conduire celui des
+         * autres.
+         */
+        'progression.view' => [
+            'module' => 'progression', 'label_fr' => 'Suivre sa progression', 'label_en' => 'Track own progress',
+            'description' => 'Voir son propre parcours et déclarer ses étapes terminées.', 'locked' => false,
+            'read' => true,
+            'requires_card' => 'training.progression',
+        ],
+
+        'progression.manage' => [
+            'module' => 'progression', 'label_fr' => 'Suivre la progression de tous', 'label_en' => 'Track everyone\'s progress',
+            'description' => 'Voir la progression de chaque membre, valider, demander une reprise, débloquer.', 'locked' => false,
+            'requires_card' => 'training.progression',
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -339,6 +361,7 @@ return [
             'events.publish_organization',
             'dossiers.view', 'dossiers.create_article', 'dossiers.upload_file',
             'course_material.view', 'course_material.manage',
+            'progression.view', 'progression.manage',
         ],
 
         /*
@@ -361,6 +384,7 @@ return [
             // Le Support de cours, monte et tenu : dans une Boucle Formation,
             // c'est le travail quotidien du facilitateur.
             'course_material.view', 'course_material.manage',
+            'progression.view', 'progression.manage',
         ],
 
         /*
@@ -381,6 +405,8 @@ return [
             // Consulter, pas monter. Suivre une formation, c'est lire son
             // Support ; le construire est le travail de qui l'anime.
             'course_material.view',
+            // Sa progression, pas celle des autres.
+            'progression.view',
         ],
     ],
 

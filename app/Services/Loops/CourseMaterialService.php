@@ -83,6 +83,33 @@ class CourseMaterialService
         DB::transaction(function () use ($module) {
             $loopId = $module->loop_id;
 
+            // Les Sequences suivies s'archivent, les autres partent. Un Module
+            // qui garde des traces reste donc, portant ce que des gens ont
+            // fait : le supprimer effacerait leur travail.
+            $suivies = \App\Models\CourseSequenceProgress::query()
+                ->whereIn('course_sequence_id', CourseSequence::where('course_module_id', $module->id)->select('id'))
+                ->exists();
+
+            if ($suivies) {
+                $maintenant = now();
+
+                CourseSequence::where('course_module_id', $module->id)
+                    ->whereNull('archived_at')
+                    ->update(['archived_at' => $maintenant]);
+
+                // **Le Module s'archive aussi.** Se contenter d'archiver ses
+                // Sequences le laissait vide — et un Module vide n'est jamais
+                // « termine », donc il gelait toute la suite du parcours, pour
+                // tout le monde, sans retour possible. Pire : une etape deja
+                // ouverte redevenait verrouillee, alors que rien d'autre ici ne
+                // fait jamais regresser un etat acquis.
+                $module->forceFill(['archived_at' => $maintenant])->save();
+
+                $this->renumberModules($loopId);
+
+                return;
+            }
+
             CourseSequence::where('course_module_id', $module->id)->delete();
             $module->delete();
 
@@ -135,10 +162,33 @@ class CourseMaterialService
         });
     }
 
+    /**
+     * Retirer une Sequence.
+     *
+     * **Elle s'archive des qu'une progression existe.** Effacer la ligne
+     * effacerait ce que des gens ont fait — meme regle que les Sondages votes
+     * et les Evenements repondus depuis TASK-1087. Une Sequence archivee ne
+     * bloque plus personne et ne compte plus dans le parcours ; elle garde
+     * seulement la trace de ce qui s'est passe.
+     *
+     * Sans progression, rien a preserver : elle part.
+     */
     public function deleteSequence(CourseSequence $sequence): void
     {
         DB::transaction(function () use ($sequence) {
             $moduleId = $sequence->course_module_id;
+
+            $aDesTraces = \App\Models\CourseSequenceProgress::where('course_sequence_id', $sequence->id)->exists();
+
+            if ($aDesTraces) {
+                $sequence->forceFill(['archived_at' => now()])->save();
+
+                // Renumeroter les vivantes : l'archivee ne compte plus dans le
+                // parcours, et laisser un trou ferait mentir l'affichage.
+                $this->renumberSequences($moduleId);
+
+                return;
+            }
 
             // Le contenu reference n'est jamais touche : seule la Sequence
             // disparait.
