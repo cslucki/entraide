@@ -129,15 +129,24 @@ class TASK1097CourseMaterialTest extends TestCase
         );
     }
 
-    public function test_no_progression_no_assignments_no_quiz_are_promised(): void
+    public function test_nothing_is_promised_before_being_delivered(): void
     {
         $registry = app(LoopCardRegistry::class);
 
-        // Ces trois Cards existent dans la matrice canonique, mais cette tache
-        // ne les livre pas. Les declarer en creux serait promettre.
-        foreach (['training.progression', 'training.assignments', 'training.quiz'] as $plusTard) {
-            $this->assertFalse($registry->exists($plusTard));
+        // L'invariant : une Card n'est declaree **que** lorsqu'elle est livree.
+        // La declarer en creux serait promettre.
+        //
+        // `training.progression` figurait dans cette liste tant qu'elle
+        // n'existait pas. TASK-1099 l'a livree — le test suit la livraison, il
+        // ne la contredit pas. Les deux Cards restantes de la matrice Formation
+        // sont toujours absentes, et c'est ce qui est verifie ici.
+        foreach (['training.assignments', 'training.quiz'] as $plusTard) {
+            $this->assertFalse($registry->exists($plusTard), "{$plusTard} ne doit pas etre declaree avant d'etre livree");
         }
+
+        // Et ce qui est declare l'est bien.
+        $this->assertTrue($registry->exists('training.course_material'));
+        $this->assertTrue($registry->exists('training.progression'));
     }
 
     public function test_membership_is_the_only_enrolment(): void
