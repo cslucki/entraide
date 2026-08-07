@@ -252,6 +252,30 @@ return [
             'requires_card' => 'training.assignments',
         ],
 
+        'quiz.view' => [
+            'module' => 'quiz', 'label_fr' => 'Consulter les QCM', 'label_en' => 'View quizzes',
+            'description' => 'Voir les QCM et ses propres résultats.', 'locked' => false,
+            'read' => true,
+            'requires_card' => 'training.quiz',
+        ],
+
+        /*
+         * Passer un QCM est une **ecriture** : elle a donc sa propre
+         * permission, sans `read`. Une Boucle archivee ne recoit plus de
+         * tentative — c'est le meme invariant que pour les remises.
+         */
+        'quiz.attempt' => [
+            'module' => 'quiz', 'label_fr' => 'Passer un QCM', 'label_en' => 'Take a quiz',
+            'description' => 'Soumettre une tentative.', 'locked' => false,
+            'requires_card' => 'training.quiz',
+        ],
+
+        'quiz.manage' => [
+            'module' => 'quiz', 'label_fr' => 'Gérer les QCM', 'label_en' => 'Manage quizzes',
+            'description' => 'Créer et modifier les QCM, voir les résultats de chacun, ouvrir le détail.', 'locked' => false,
+            'requires_card' => 'training.quiz',
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -408,6 +432,7 @@ return [
             'course_material.view', 'course_material.manage',
             'progression.view', 'progression.complete', 'progression.manage',
             'assignments.view', 'assignments.submit', 'assignments.manage',
+            'quiz.view', 'quiz.attempt', 'quiz.manage',
         ],
 
         /*
@@ -432,6 +457,7 @@ return [
             'course_material.view', 'course_material.manage',
             'progression.view', 'progression.complete', 'progression.manage',
             'assignments.view', 'assignments.submit', 'assignments.manage',
+            'quiz.view', 'quiz.attempt', 'quiz.manage',
         ],
 
         /*
@@ -456,6 +482,7 @@ return [
             'progression.view', 'progression.complete',
             // Ses Travaux, pas ceux des autres.
             'assignments.view', 'assignments.submit',
+            'quiz.view', 'quiz.attempt',
         ],
     ],
 

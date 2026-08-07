@@ -329,6 +329,39 @@ return [
             'default_enabled' => true,
         ],
 
+        /*
+         * Le QCM — l'autre occupant possible du troisieme emplacement.
+         *
+         * La matrice canonique dit « Travaux a rendre **ou** QCM ». Les deux
+         * restent deux Cards : un depot avec lecture humaine et un bareme avec
+         * tentatives sont deux metiers. Les deux peuvent coexister localement,
+         * mais la grille n'en montre que trois — c'est au formateur de choisir
+         * sa composition.
+         */
+        'training.quiz' => [
+            'key' => 'training.quiz',
+            'label_key' => 'loops.cards.quiz.label',
+            'description_key' => 'loops.cards.quiz.description',
+            'empty_title_key' => 'loops.cards.quiz.empty_title',
+            'empty_body_key' => 'loops.cards.quiz.empty_body',
+            'action_key' => 'loops.cards.quiz.action',
+            'icon' => 'chart',
+            'component' => 'loop-quiz-card',
+            'view' => null,
+            'view_permission' => 'quiz.view',
+            'required' => false,
+            'order' => 37,
+            'placement' => 'grid',
+            'category' => 'pedagogy',
+            'scope' => 'training',
+            'requires' => ['training.course_material', 'training.progression'],
+            'incompatible_with' => [],
+            'replaceable' => true,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => false,
+        ],
+
         'core.members' => [
             'key' => 'core.members',
             'label_key' => 'loops.cards.members.label',
