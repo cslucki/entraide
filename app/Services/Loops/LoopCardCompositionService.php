@@ -10,6 +10,7 @@ use App\Models\LoopMember;
 use App\Models\LoopDecision;
 use App\Models\LoopEvent;
 use App\Models\LoopJournalEntry;
+use App\Models\LoopMarketplaceLink;
 use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
 use App\Support\Loops\LoopCardRegistry;
@@ -188,6 +189,7 @@ class LoopCardCompositionService
             // le meme geste.
             'core.decisions' => LoopDecision::where('loop_id', $loop->id)->count(),
             'core.journal' => LoopJournalEntry::where('loop_id', $loop->id)->count(),
+            'core.marketplace' => LoopMarketplaceLink::where('loop_id', $loop->id)->count(),
             default => null,
         };
     }
