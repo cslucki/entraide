@@ -38,7 +38,10 @@
                 <span class="mt-2 flex flex-wrap gap-1 pl-6">
                     @foreach($registry->cardsFor($key) as $cardKey)
                         <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                            {{ isset($catalogue[$cardKey]) ? __($catalogue[$cardKey]['label_key']) : $cardKey }}
+                            {{-- Par le type : cet ecran annonce ce que le preset
+                                 construit, et « Engagements » est le mot que la
+                                 Pair-aidance verra. --}}
+                            {{ isset($catalogue[$cardKey]) ? app(\App\Support\Loops\LoopCardRegistry::class)->labelForType($key, $cardKey) : $cardKey }}
                         </span>
                     @endforeach
                 </span>

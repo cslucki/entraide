@@ -25,7 +25,10 @@
                 class="group inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-2xl border px-3 py-1.5 transition"
             >
                 <x-loops.card-icon :icon="$card['icon'] ?? null" />
-                <span class="text-sm font-bold tracking-tight text-gray-800 dark:text-gray-100">{{ __($card['label_key']) }}</span>
+                {{-- `labelFor` et non `__($card['label_key'])` : c'est le bouton
+                     qu'on lit **en premier**. Sans lui il disait « Roadmap »
+                     tandis que le panneau qu'il ouvre disait « Engagements ». --}}
+                <span class="text-sm font-bold tracking-tight text-gray-800 dark:text-gray-100">{{ app(\App\Support\Loops\LoopCardRegistry::class)->labelFor($currentLoop, $card['key']) }}</span>
                 @if($card['key'] === 'core.members')
                     <span class="ml-0.5 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">{{ $loopMembers->count() }}</span>
                     @if(($canManageJoinRequests ?? false) && $pendingJoinRequests->isNotEmpty())

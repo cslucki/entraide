@@ -187,25 +187,150 @@ class TASK1105RoadmapVocabularyTest extends TestCase
         );
     }
 
+    /**
+     * Le rendu, et **aucune cle brute**.
+     *
+     * `assertSee('Pris')` seul ne prouve rien : « loops.Pris » contient « Pris »,
+     * et c'est exactement ce que la vue affichait — sur tout le parc, Projet
+     * compris. `label` etait un suffixe de cle enveloppe dans `__('loops.'.…)` ;
+     * en le passant a un mot deja traduit sans toucher les sites d'appel, la
+     * traduction se faisait deux fois.
+     */
+    private function rendu(Loop $loop): string
+    {
+        // **Avec un item dans chaque colonne.** Une planche vide n'affiche pas
+        // ses en-tetes : un test qui s'en contentait mesurait une seule
+        // occurrence, hors des colonnes qu'il pretendait verifier.
+        foreach ([LoopRoadmapItem::STATUS_TODO, LoopRoadmapItem::STATUS_IN_PROGRESS, LoopRoadmapItem::STATUS_DONE] as $statut) {
+            LoopRoadmapItem::create([
+                'organization_id' => $loop->organization_id,
+                'loop_id' => $loop->id,
+                'title' => 'Item '.$statut,
+                'status' => $statut,
+                'created_by' => $this->auteur->id,
+            ]);
+        }
+
+        $html = Livewire::actingAs($this->auteur)
+            ->test(\App\Livewire\LoopRoadmapCard::class, ['loop' => $loop])
+            ->html();
+
+        // Une cle de traduction est en minuscules avec des tirets bas. Tout
+        // « loops. » suivi d'une majuscule ou d'un accent est donc un libelle
+        // qu'on a retraduit par erreur.
+        $this->assertSame(
+            [],
+            preg_match_all('/loops\.[\p{Lu}\p{L}]*[\p{Lu}À-Þ]/u', $html, $m) ? array_unique($m[0]) : [],
+            'des libelles sont retraduits comme des cles',
+        );
+
+        return $html;
+    }
+
     public function test_the_columns_are_rendered_with_the_preset_words(): void
     {
-        $engagements = $this->boucle('peer_support');
+        $html = $this->rendu($this->boucle('peer_support'));
 
-        Livewire::actingAs($this->auteur)
-            ->test(\App\Livewire\LoopRoadmapCard::class, ['loop' => $engagements])
-            ->assertSee('Pris')
-            ->assertSee('Tenu')
-            ->assertDontSee('À faire');
+        $this->assertStringContainsString('>Pris<', $html);
+        $this->assertStringContainsString('>Tenu<', $html);
+        $this->assertStringNotContainsString('À faire', $html);
     }
 
     public function test_a_project_still_reads_its_own_words(): void
     {
-        $projet = $this->boucle('project');
+        $html = $this->rendu($this->boucle('project'));
 
-        Livewire::actingAs($this->auteur)
-            ->test(\App\Livewire\LoopRoadmapCard::class, ['loop' => $projet])
-            ->assertSee('À faire')
-            ->assertDontSee('Tenu');
+        $this->assertStringContainsString('À faire', $html);
+        $this->assertStringNotContainsString('Tenu', $html);
+    }
+
+    public function test_the_status_menu_of_an_item_speaks_the_same_words_as_its_column(): void
+    {
+        // Sinon la meme planche disait « Pris » en tete de colonne et « À faire »
+        // trois centimetres plus bas, pour le meme etat.
+        $html = $this->rendu($this->boucle('peer_support'));
+
+        $this->assertStringNotContainsString('Fait', $html, 'le menu de statut parle encore le vocabulaire Projet');
+        $this->assertStringNotContainsString('roadmap_status_', $html);
+    }
+
+    public function test_the_button_that_opens_the_card_carries_the_preset_word(): void
+    {
+        // C'est le bouton qu'on lit **en premier**. Il disait « Roadmap » quand
+        // le panneau qu'il ouvre disait « Engagements ».
+        $engagements = $this->boucle('peer_support');
+
+        $html = $this->actingAs($this->auteur)
+            ->get("/org/{$this->org->slug}/loops/{$engagements->id}")
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Engagements', $html);
+    }
+
+    public function test_the_type_picker_announces_the_preset_word(): void
+    {
+        // L'ecran de choix du type annonce ce que chaque preset construit :
+        // c'est le moment precis ou le vocabulaire sert a decider.
+        $registre = app(LoopCardRegistry::class);
+
+        $this->assertSame('Engagements', $registre->labelForType('peer_support', 'core.roadmap'));
+        $this->assertSame('Roadmap', $registre->labelForType('project', 'core.roadmap'));
+        $this->assertSame('Roadmap', $registre->labelForType(null, 'core.roadmap'));
+        $this->assertSame($registre->label('core.journal'), $registre->labelForType('coaching', 'core.journal'));
+    }
+
+    // ── Le rattrapage sur les Boucles existantes ────────────────────────────
+
+    public function test_an_existing_peer_support_loop_receives_the_card(): void
+    {
+        // Ajouter une Card a un preset n'atteint **aucune** Boucle deja creee :
+        // `activeCardsFor()` ne retombe sur le preset que si la Boucle n'a aucune
+        // ligne `loop_cards`, et le parc a ete materialise. Meme defaut que le
+        // Journal une tache plus tot.
+        $ancienne = $this->loops->createLoop($this->auteur, 'Une Boucle d’avant');
+        $ancienne->forceFill(['type' => 'peer_support'])->save();
+
+        LoopCard::where('loop_id', $ancienne->id)->delete();
+        foreach (['core.manifesto', 'core.members', 'core.journal', 'core.polls'] as $cle) {
+            LoopCard::create([
+                'organization_id' => $this->org->id, 'loop_id' => $ancienne->id,
+                'card_key' => $cle, 'enabled' => true, 'added_by_preset' => 'peer_support',
+            ]);
+        }
+
+        $this->assertNotContains('core.roadmap', $this->types()->activeCardsFor($ancienne->fresh()));
+
+        $this->migration()->up();
+
+        $this->assertContains('core.roadmap', $this->types()->activeCardsFor($ancienne->fresh()));
+    }
+
+    public function test_the_backfill_can_run_twice_without_duplicating(): void
+    {
+        $ancienne = $this->boucle('peer_support');
+
+        $this->migration()->up();
+        $this->migration()->up();
+
+        $this->assertSame(1, LoopCard::where('loop_id', $ancienne->id)->where('card_key', 'core.roadmap')->count());
+    }
+
+    public function test_the_backfill_leaves_a_card_switched_off_by_hand_switched_off(): void
+    {
+        // Un administrateur qui a eteint la Card ne doit pas la voir se rallumer
+        // parce qu'une migration est passee.
+        $boucle = $this->boucle('peer_support');
+        LoopCard::where('loop_id', $boucle->id)->where('card_key', 'core.roadmap')->update(['enabled' => false]);
+
+        $this->migration()->up();
+
+        $this->assertFalse((bool) LoopCard::where('loop_id', $boucle->id)->where('card_key', 'core.roadmap')->value('enabled'));
+    }
+
+    private function migration(): object
+    {
+        return require database_path('migrations/2026_08_07_213000_backfill_roadmap_card_on_peer_support_loops.php');
     }
 
     // ── Les presets qui l'attendaient ───────────────────────────────────────
