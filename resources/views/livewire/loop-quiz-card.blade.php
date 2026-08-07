@@ -89,12 +89,17 @@
                                             {{ __('loops.cards.quiz.release') }}
                                         </button>
                                     @endif
+                                    <button type="button" wire:click="startEditing('{{ $quiz->id }}')"
+                                            class="rounded-lg border border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 hover:border-indigo-400 dark:border-gray-600 dark:text-gray-300">
+                                        {{ __('loops.cards.quiz.edit') }}
+                                    </button>
                                     <button type="button" wire:click="openQuestionForm('{{ $quiz->id }}')"
                                             class="rounded-lg border border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 hover:border-indigo-400 dark:border-gray-600 dark:text-gray-300">
                                         {{ __('loops.cards.quiz.add_question') }}
                                     </button>
                                     <button type="button" wire:click="deleteQuiz('{{ $quiz->id }}')"
                                             wire:confirm="{{ __('loops.cards.quiz.delete_confirm') }}"
+                                            aria-label="{{ __('loops.cards.quiz.remove', ['name' => $quiz->title]) }}"
                                             class="rounded-lg p-1.5 text-gray-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15">
                                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                     </button>
@@ -140,6 +145,10 @@
                                             class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
                                         {{ __('loops.cards.quiz.save') }}
                                     </button>
+                                    <button type="button" wire:click="startEditing('{{ $quiz->id }}')"
+                                            class="rounded-lg border border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 hover:border-indigo-400 dark:border-gray-600 dark:text-gray-300">
+                                        {{ __('loops.cards.quiz.edit') }}
+                                    </button>
                                     <button type="button" wire:click="openQuestionForm('{{ $quiz->id }}')"
                                             class="rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
                                         {{ __('loops.cards.quiz.cancel') }}
@@ -148,8 +157,26 @@
                             </div>
                         @endif
 
+                        {{-- Le formateur relit ses questions et son corrige sans
+                             avoir a passer son propre QCM — ce qui creait une
+                             tentative et le faisait apparaitre dans sa propre
+                             matrice. --}}
+                        @if ($canManage && $takingId !== $quiz->id)
+                            <ul class="mt-2 space-y-1 rounded-xl bg-gray-50 p-3 text-xs dark:bg-gray-900/50">
+                                @forelse ($quiz->questions as $q)
+                                    <li class="text-gray-700 dark:text-gray-300">
+                                        <span class="font-medium">{{ $q->text }}</span> —
+                                        {{ __('loops.cards.quiz.correct_answer') }} :
+                                        {{ $q->options->where('is_correct', true)->pluck('text')->join(', ') }}
+                                    </li>
+                                @empty
+                                    <li class="text-gray-500 dark:text-gray-400">{{ __('loops.cards.quiz.no_question') }}</li>
+                                @endforelse
+                            </ul>
+                        @endif
+
                         {{-- Le passage, cote stagiaire. --}}
-                        @if ($takingId === $quiz->id)
+                        @if ($takingId === $quiz->id && $canAttempt)
                             <ol class="mt-3 space-y-3">
                                 @foreach ($quiz->questions as $question)
                                     @php $unique = $question->kind !== 'multiple'; @endphp
@@ -223,10 +250,30 @@
                             </label>
                         </div>
                         @error('pass_score') <p class="text-xs text-rose-600">{{ $message }}</p> @enderror
+                        @error('max_attempts') <p class="text-xs text-rose-600">{{ $message }}</p> @enderror
                         <label class="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
-                            <input type="checkbox" wire:model="blocking" class="rounded border-gray-300" />
+                            <input type="checkbox" wire:model.live="blocking" class="rounded border-gray-300" />
                             {{ __('loops.cards.quiz.blocking_label') }}
                         </label>
+
+                        {{-- Sans Sequence, « bloquant » ne bloque **rien** : le
+                             service exige une etape a conditionner. Le champ
+                             n'apparait donc que quand la case est cochee, et il
+                             dit ce qui se passe s'il reste vide. --}}
+                        @if ($blocking && ! $editingId)
+                            <label class="block">
+                                <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.cards.quiz.sequence_label') }}</span>
+                                <select wire:model="sequenceId" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800">
+                                    <option value="">{{ __('loops.cards.quiz.sequence_none') }}</option>
+                                    @foreach ($sequences as $s)
+                                        <option value="{{ $s->id }}">{{ $s->module?->title }} — {{ $s->displayName() }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            @if ($sequences->isEmpty())
+                                <p class="text-xs text-amber-700 dark:text-amber-300">{{ __('loops.cards.quiz.sequence_none_available') }}</p>
+                            @endif
+                        @endif
                         <label class="block">
                             <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.cards.quiz.reveal_label') }}</span>
                             <select wire:model="revealMode" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800">
@@ -300,6 +347,24 @@
                 </table>
             </div>
         @endif
+    @endif
+
+    {{-- ── Les QCM retires ────────────────────────────────────────────── --}}
+    @if ($canManage && $archived->isNotEmpty())
+        <section class="mt-5 rounded-2xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ __('loops.cards.quiz.archived_title') }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('loops.cards.quiz.archived_help') }}</p>
+            <ul class="mt-2 space-y-1.5">
+                @foreach ($archived as $retire)
+                    <li class="flex items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm dark:bg-gray-800">
+                        <span class="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{{ $retire->title }}</span>
+                        <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                            {{ __('loops.cards.quiz.archived_note') }}
+                        </span>
+                    </li>
+                @endforeach
+            </ul>
+        </section>
     @endif
 
 @endif

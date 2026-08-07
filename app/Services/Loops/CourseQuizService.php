@@ -90,17 +90,7 @@ class CourseQuizService
             ]);
         }
 
-        if (! in_array($revealMode, CourseQuiz::REVEAL_MODES, true)) {
-            throw ValidationException::withMessages([
-                'reveal_mode' => __('loops.cards.quiz.reveal_invalid'),
-            ]);
-        }
-
-        if ($passScore < 0 || $passScore > 100) {
-            throw ValidationException::withMessages([
-                'pass_score' => __('loops.cards.quiz.pass_score_invalid'),
-            ]);
-        }
+        $this->assertSettings($title, $passScore, $revealMode, $maxAttempts);
 
         return DB::transaction(function () use ($loop, $actor, $title, $intro, $passScore, $maxAttempts, $blocking, $revealMode, $sequenceId) {
             $locked = Loop::whereKey($loop->id)->lockForUpdate()->firstOrFail();
@@ -145,6 +135,24 @@ class CourseQuizService
         if (count($options) < 2) {
             throw ValidationException::withMessages([
                 'options' => __('loops.cards.quiz.needs_two_options'),
+            ]);
+        }
+
+        $bonnes = collect($options)->filter(fn (array $o) => (bool) ($o['correct'] ?? false))->count();
+
+        // Sans bonne reponse, la question ne peut **jamais** etre juste : le
+        // QCM devient impassable, et rien ne le dit.
+        if ($bonnes < 1) {
+            throw ValidationException::withMessages([
+                'options' => __('loops.cards.quiz.needs_one_correct'),
+            ]);
+        }
+
+        // Une question a choix unique n'en garde qu'une a la correction : en
+        // declarer deux la rendrait impossible a reussir, silencieusement.
+        if ($kind !== CourseQuizQuestion::KIND_MULTIPLE && $bonnes > 1) {
+            throw ValidationException::withMessages([
+                'options' => __('loops.cards.quiz.single_needs_one_correct'),
             ]);
         }
 
@@ -201,6 +209,80 @@ class CourseQuizService
         });
     }
 
+    /**
+     * Modifier les reglages d'un QCM.
+     *
+     * Sans ce chemin, un seuil mal saisi ou un mode d'affichage mal choisi
+     * etaient **definitifs** : le QCM devenait une impasse que rien ne
+     * rattrapait. Les tentatives deja passees ne sont pas touchees.
+     */
+    public function update(
+        CourseQuiz $quiz,
+        string $title,
+        ?string $intro = null,
+        ?int $passScore = null,
+        ?int $maxAttempts = null,
+        ?bool $blocking = null,
+        ?string $revealMode = null,
+    ): CourseQuiz {
+        $title = trim($title);
+
+        if ($title === '') {
+            throw ValidationException::withMessages([
+                'title' => __('validation.required', ['attribute' => 'title']),
+            ]);
+        }
+
+        $this->assertSettings($title, $passScore ?? $quiz->pass_score, $revealMode ?? $quiz->reveal_mode, $maxAttempts);
+
+        $quiz->update([
+            'title' => $title,
+            'intro' => filled($intro) ? $intro : null,
+            'pass_score' => $passScore ?? $quiz->pass_score,
+            'max_attempts' => $maxAttempts,
+            'blocking' => $blocking ?? $quiz->blocking,
+            'reveal_mode' => $revealMode ?? $quiz->reveal_mode,
+        ]);
+
+        return $quiz->fresh();
+    }
+
+    /**
+     * Les bornes des reglages.
+     *
+     * Elles ne sont pas cosmetiques : `title` est un `varchar(255)` et
+     * `max_attempts` un `smallint` en PostgreSQL. SQLite les accepte sans
+     * broncher — la suite de tests ne pouvait donc pas voir ces deux 500.
+     */
+    private function assertSettings(string $title, int $passScore, string $revealMode, ?int $maxAttempts): void
+    {
+        if (mb_strlen($title) > 255) {
+            throw ValidationException::withMessages([
+                'title' => __('loops.cards.quiz.title_too_long'),
+            ]);
+        }
+
+        // Un seuil a zero validerait un envoi vide : le score est toujours
+        // superieur ou egal a zero, et « reussi » perdrait son sens.
+        if ($passScore < 1 || $passScore > 100) {
+            throw ValidationException::withMessages([
+                'pass_score' => __('loops.cards.quiz.pass_score_invalid'),
+            ]);
+        }
+
+        if ($maxAttempts !== null && ($maxAttempts < 1 || $maxAttempts > 999)) {
+            throw ValidationException::withMessages([
+                'max_attempts' => __('loops.cards.quiz.max_attempts_invalid'),
+            ]);
+        }
+
+        if (! in_array($revealMode, CourseQuiz::REVEAL_MODES, true)) {
+            throw ValidationException::withMessages([
+                'reveal_mode' => __('loops.cards.quiz.reveal_invalid'),
+            ]);
+        }
+    }
+
     /** Ouvrir le detail des bonnes reponses, en mode `after_release`. */
     public function release(CourseQuiz $quiz): CourseQuiz
     {
@@ -230,6 +312,15 @@ class CourseQuizService
             ]);
         }
 
+        // Le cloisonnement ne se delegue pas a l'appelant. La Card le tient
+        // deja, mais un service qui suppose son unique appelant devient faux au
+        // deuxieme.
+        if ($student->organization_id !== $quiz->organization_id) {
+            throw ValidationException::withMessages([
+                'quiz' => __('dossiers.content_not_in_dossier'),
+            ]);
+        }
+
         return DB::transaction(function () use ($quiz, $student, $answers) {
             $this->forget();
 
@@ -247,11 +338,18 @@ class CourseQuizService
             [$score, $normalisees] = $this->grade($quiz, $answers);
             $reussi = $score >= $quiz->pass_score;
 
+            // `max + 1` et non `count + 1` : un trou dans la numerotation — une
+            // ligne supprimee — faisait reutiliser un rang deja pris et violait
+            // l'index unique, avec un 500 a la cle.
+            $rang = ((int) CourseQuizAttempt::where('course_quiz_id', $quiz->id)
+                ->where('user_id', $student->id)
+                ->max('attempt_number')) + 1;
+
             $tentative = CourseQuizAttempt::create([
                 'organization_id' => $quiz->organization_id,
                 'course_quiz_id' => $quiz->id,
                 'user_id' => $student->id,
-                'attempt_number' => $passees->count() + 1,
+                'attempt_number' => $rang,
                 'score' => $score,
                 'passed' => $reussi,
                 'answers' => $normalisees,
@@ -334,8 +432,12 @@ class CourseQuizService
     /** @return Collection<int, CourseQuiz> */
     public function activeQuizzes(Loop $loop): Collection
     {
+        // Les questions et leurs options sont chargees **avec** : la vue les
+        // parcourt toutes, et sans cela elle payait une requete par QCM puis
+        // une par question. Le service etait plat ; c'est le rendu qui coutait.
         return CourseQuiz::where('loop_id', $loop->id)
             ->whereNull('archived_at')
+            ->with('questions.options')
             ->orderBy('position')
             ->orderBy('created_at')
             ->get();
@@ -386,7 +488,13 @@ class CourseQuizService
         return match ($quiz->reveal_mode) {
             CourseQuiz::REVEAL_IMMEDIATE => true,
             CourseQuiz::REVEAL_AFTER_RELEASE => $quiz->released_at !== null,
-            default => $this->attemptsLeft($quiz, $student) === 0,
+            // Sans limite de tentatives, il n'y a **pas** de derniere : la
+            // condition n'arrivait jamais, et le corrige restait invisible pour
+            // toujours. Le formateur reprend alors la main — c'est le seul
+            // moment ou « apres la derniere » a encore un sens.
+            default => $quiz->max_attempts === null
+                ? $quiz->released_at !== null
+                : $this->attemptsLeft($quiz, $student) === 0,
         };
     }
 

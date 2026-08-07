@@ -56,6 +56,17 @@ class LoopQuizCard extends Component
 
     public string $revealMode = CourseQuiz::REVEAL_AFTER_LAST;
 
+    /**
+     * La Sequence que ce QCM conditionne, s'il est bloquant.
+     *
+     * Sans elle, « bloquant » ne bloquait **rien** : le service exige une
+     * Sequence pour ouvrir une etape, et le formulaire ne la demandait pas. La
+     * case a cocher promettait donc quelque chose que rien ne tenait.
+     */
+    public string $sequenceId = '';
+
+    public ?string $editingId = null;
+
     /** Le QCM ouvert pour redaction de question, cote Animateur. */
     public ?string $questionFormFor = null;
 
@@ -108,26 +119,60 @@ class LoopQuizCard extends Component
     {
         $this->authorizeManage();
 
+        $tentatives = $this->maxAttempts === '' ? null : (int) $this->maxAttempts;
+        $seuil = (int) ($this->passScore === '' ? 70 : $this->passScore);
+
         try {
-            $this->service()->create(
-                $this->loop,
-                auth()->user(),
-                $this->title,
-                $this->intro,
-                (int) ($this->passScore === '' ? 70 : $this->passScore),
-                $this->maxAttempts === '' ? null : max(1, (int) $this->maxAttempts),
-                $this->blocking,
-                $this->revealMode,
-            );
+            if ($this->editingId) {
+                $this->service()->update(
+                    $this->resolveQuiz($this->editingId),
+                    $this->title,
+                    $this->intro,
+                    $seuil,
+                    $tentatives,
+                    $this->blocking,
+                    $this->revealMode,
+                );
+            } else {
+                $this->service()->create(
+                    $this->loop,
+                    auth()->user(),
+                    $this->title,
+                    $this->intro,
+                    $seuil,
+                    $tentatives,
+                    $this->blocking,
+                    $this->revealMode,
+                    $this->sequenceId !== '' ? $this->resolveSequence($this->sequenceId)->id : null,
+                );
+            }
         } catch (ValidationException $e) {
             $this->addError(array_key_first($e->errors()), $e->getMessage());
 
             return;
         }
 
-        $this->reset(['title', 'intro', 'passScore', 'maxAttempts', 'blocking', 'revealMode', 'showForm']);
+        $this->reset(['title', 'intro', 'passScore', 'maxAttempts', 'blocking', 'revealMode', 'sequenceId', 'showForm', 'editingId']);
         $this->problem = '';
         $this->flash = __('loops.cards.quiz.saved');
+    }
+
+    public function startEditing(string $quizId): void
+    {
+        $this->authorizeManage();
+
+        $quiz = $this->resolveQuiz($quizId);
+
+        $this->editingId = $quiz->id;
+        $this->title = $quiz->title;
+        $this->intro = (string) $quiz->intro;
+        $this->passScore = (string) $quiz->pass_score;
+        $this->maxAttempts = (string) ($quiz->max_attempts ?? '');
+        $this->blocking = (bool) $quiz->blocking;
+        $this->revealMode = $quiz->reveal_mode;
+        $this->showForm = true;
+        $this->flash = '';
+        $this->problem = '';
     }
 
     public function openQuestionForm(string $quizId): void
@@ -171,6 +216,7 @@ class LoopQuizCard extends Component
         }
 
         $this->reset(['questionText', 'questionKind', 'optionRows', 'questionFormFor']);
+        $this->problem = '';
         $this->flash = __('loops.cards.quiz.saved');
     }
 
@@ -180,6 +226,7 @@ class LoopQuizCard extends Component
 
         $this->service()->delete($this->resolveQuiz($quizId));
 
+        $this->problem = '';
         $this->flash = __('loops.cards.quiz.removed');
     }
 
@@ -189,6 +236,7 @@ class LoopQuizCard extends Component
 
         $this->service()->release($this->resolveQuiz($quizId));
 
+        $this->problem = '';
         $this->flash = __('loops.cards.quiz.released');
     }
 
@@ -261,6 +309,29 @@ class LoopQuizCard extends Component
         return $quiz;
     }
 
+    /** Une Sequence de **cette** Boucle, ou 404. */
+    private function resolveSequence(string $sequenceId): \App\Models\CourseSequence
+    {
+        $sequence = \App\Models\CourseSequence::whereKey($sequenceId)
+            ->whereHas('module', fn ($q) => $q->where('loop_id', $this->loop->id))
+            ->first();
+
+        abort_unless((bool) $sequence, 404);
+
+        return $sequence;
+    }
+
+    /** Les Sequences que ce QCM peut conditionner. */
+    private function sequences(): Collection
+    {
+        return \App\Models\CourseSequence::whereHas('module', fn ($q) => $q->where('loop_id', $this->loop->id))
+            ->whereNull('archived_at')
+            ->with('module:id,title,position')
+            ->get()
+            ->sortBy(fn ($s) => [$s->module?->position ?? 0, $s->position])
+            ->values();
+    }
+
     /** @return Collection<int, User> */
     private function students(): Collection
     {
@@ -294,6 +365,10 @@ class LoopQuizCard extends Component
             'canManage' => $canManage,
             'canAttempt' => $canView && $this->canAttempt(),
             'face' => $face,
+            'sequences' => $canManage ? $this->sequences() : collect(),
+            'archived' => $canManage
+                ? \App\Models\CourseQuiz::where('loop_id', $this->loop->id)->whereNotNull('archived_at')->get()
+                : collect(),
             'overview' => $canView && $face === self::FACE_MINE
                 ? $this->service()->overviewFor($this->loop, auth()->user())
                 : collect(),
