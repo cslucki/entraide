@@ -134,18 +134,26 @@ class DossierArticleController extends Controller
         $this->ensureBlogPostBelongsToCurrentOrganization($post);
         $this->ensureUserOwnsBlogPost($request, $post);
 
-        $series = ArticleSeries::where('dossier_id', $dossier->id)
+        // Toutes les Series du Dossier, pas la premiere venue : depuis
+        // TASK-1095 un Dossier peut en porter plusieurs, et un `->first()`
+        // laissait detacher un Article qui etait la racine d'une **autre**
+        // Serie que celle retenue au hasard.
+        $seriesIds = ArticleSeries::where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
-            ->first();
+            ->pluck('id');
 
-        if ($series && $series->root_blog_post_id === $post->id) {
+        $estRacine = ArticleSeries::whereIn('id', $seriesIds)
+            ->where('root_blog_post_id', $post->id)
+            ->exists();
+
+        if ($estRacine) {
             throw ValidationException::withMessages([
                 'blog_post_id' => __('dossiers.cannot_detach_series_root'),
             ]);
         }
 
-        if ($series) {
-            $seriesItem = ArticleSeriesItem::where('article_series_id', $series->id)
+        if ($seriesIds->isNotEmpty()) {
+            $seriesItem = ArticleSeriesItem::whereIn('article_series_id', $seriesIds)
                 ->where('blog_post_id', $post->id)
                 ->first();
 
