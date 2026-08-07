@@ -9,6 +9,7 @@ use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -103,14 +104,29 @@ class DossierSeriesService
 
             $this->assertFreeOfAnySeries($content, lock: true);
 
-            return ArticleSeriesItem::create([
-                'organization_id' => $locked->organization_id,
-                'article_series_id' => $locked->id,
-                'blog_post_id' => $content instanceof BlogPost ? $content->id : null,
-                'dossier_file_id' => $content instanceof DossierFile ? $content->id : null,
-                'position' => ((int) $locked->items()->max('position')) + 1,
-                'added_by' => $actor->id,
-            ]);
+            try {
+                return ArticleSeriesItem::create([
+                    'organization_id' => $locked->organization_id,
+                    'article_series_id' => $locked->id,
+                    'blog_post_id' => $content instanceof BlogPost ? $content->id : null,
+                    'dossier_file_id' => $content instanceof DossierFile ? $content->id : null,
+                    'position' => ((int) $locked->items()->max('position')) + 1,
+                    'added_by' => $actor->id,
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                // Le dernier mot revient a l'index unique, et c'est voulu :
+                // `assertFreeOfAnySeries()` interroge une requete qui ne ramene
+                // **aucune ligne** dans le cas normal, et `FOR UPDATE` ne pose
+                // alors aucun verrou. Deux ajouts simultanes du meme contenu
+                // vers deux Series differentes passent donc tous les deux la
+                // garde ; c'est la base qui tranche.
+                //
+                // Sans ce rattrapage, le perdant recevait un 500. Il recoit
+                // maintenant le meme message que s'il etait arrive second.
+                throw ValidationException::withMessages([
+                    $content instanceof BlogPost ? 'blog_post_id' : 'dossier_file_id' => __('dossiers.content_already_in_a_series'),
+                ]);
+            }
         });
     }
 
@@ -154,7 +170,13 @@ class DossierSeriesService
 
             // Un classement bati sur une liste devenue obsolete est refuse en
             // entier : appliquer la moitie d'un ordre est pire que le refuser.
-            if ($rows->count() !== count(array_unique($itemIds))
+            // `count($itemIds)` et non `count(array_unique(...))` : une liste
+            // qui repete un identifiant est **fausse**, pas seulement
+            // redondante. L'ancienne comparaison la laissait passer, et la
+            // boucle ecrivait alors deux fois la meme ligne — la seconde
+            // ecriture gagnait, et les positions finissaient trouees (0, 2)
+            // alors que le service promet des rangs contigus.
+            if ($rows->count() !== count($itemIds)
                 || $rows->count() !== ArticleSeriesItem::where('article_series_id', $locked->id)->count()) {
                 throw ValidationException::withMessages([
                     'items' => __('dossiers.reorder_invalid'),

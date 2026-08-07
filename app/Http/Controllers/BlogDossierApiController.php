@@ -35,42 +35,78 @@ class BlogDossierApiController extends Controller
     }
 
     /**
-     * Remove every trace of an article from a Dossier's Series.
+     * Retirer toute trace d'un Article des Series d'un Dossier.
      *
-     * Promoting the first annexe rather than deleting the Series: a Series that
-     * loses its root still holds the articles someone put in it, and dropping
-     * them would destroy work. Only a Series left with nothing at all goes.
+     * Promouvoir la premiere annexe plutot que supprimer la Serie : une Serie
+     * qui perd sa racine tient encore les contenus que quelqu'un y a ranges, et
+     * les jeter detruirait du travail. Seule une Serie qui ne contient plus rien
+     * du tout disparait.
+     *
+     * **Toutes** les Series du Dossier sont traitees, pas la premiere venue.
+     * Depuis TASK-1095 un Dossier peut en porter plusieurs ; un `->first()` sans
+     * ordre agissait sur une Serie arbitraire, qui n'etait pas forcement celle
+     * contenant l'Article — le detachement etait alors un silence, et laissait
+     * un item pointant vers un Article qui n'est plus dans le Dossier.
      */
     private function detachFromSeries(string $dossierId, string $blogPostId): void
     {
-        $series = ArticleSeries::where('dossier_id', $dossierId)->first();
+        $seriesList = ArticleSeries::where('dossier_id', $dossierId)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
 
-        if (! $series) {
-            return;
+        foreach ($seriesList as $series) {
+            DB::transaction(function () use ($series, $blogPostId) {
+                $locked = ArticleSeries::whereKey($series->id)->lockForUpdate()->first();
+
+                if (! $locked) {
+                    return;
+                }
+
+                ArticleSeriesItem::where('article_series_id', $locked->id)
+                    ->where('blog_post_id', $blogPostId)
+                    ->delete();
+
+                if ($locked->root_blog_post_id !== $blogPostId) {
+                    return;
+                }
+
+                // La racine s'en va : c'est un **Article** qui doit la
+                // remplacer. Depuis TASK-1095 une Serie contient aussi des
+                // fichiers, et le premier item peut en etre un — son
+                // `blog_post_id` est alors NULL. La colonne etant devenue
+                // nullable, la promouvoir ne levait plus rien : elle fabriquait
+                // silencieusement une Serie sans racine **et sans nom**, un etat
+                // que `DossierSeriesService::create()` refuse explicitement.
+                $next = ArticleSeriesItem::where('article_series_id', $locked->id)
+                    ->whereNotNull('blog_post_id')
+                    ->orderBy('position')
+                    ->first();
+
+                if ($next) {
+                    $locked->update(['root_blog_post_id' => $next->blog_post_id]);
+                    $next->delete();
+
+                    return;
+                }
+
+                // Plus aucun Article : s'il reste des fichiers, la Serie
+                // survit **sans racine**, ce qui est desormais un etat legal —
+                // a condition qu'elle porte un nom, sinon elle n'aurait rien a
+                // afficher. Les fichiers ranges par quelqu'un ne sont jamais
+                // jetes pour cause de depart d'un Article.
+                if (ArticleSeriesItem::where('article_series_id', $locked->id)->exists()) {
+                    $locked->update([
+                        'root_blog_post_id' => null,
+                        'name' => $locked->name ?: __('dossiers.series_untitled'),
+                    ]);
+
+                    return;
+                }
+
+                $locked->delete();
+            });
         }
-
-        DB::transaction(function () use ($series, $blogPostId) {
-            ArticleSeriesItem::where('article_series_id', $series->id)
-                ->where('blog_post_id', $blogPostId)
-                ->delete();
-
-            if ($series->root_blog_post_id !== $blogPostId) {
-                return;
-            }
-
-            $next = ArticleSeriesItem::where('article_series_id', $series->id)
-                ->orderBy('position')
-                ->first();
-
-            if (! $next) {
-                $series->delete();
-
-                return;
-            }
-
-            $series->update(['root_blog_post_id' => $next->blog_post_id]);
-            $next->delete();
-        });
     }
 
     /**

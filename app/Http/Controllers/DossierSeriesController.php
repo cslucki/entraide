@@ -10,6 +10,7 @@ use App\Models\DossierFile;
 use App\Services\Dossiers\DossierSeriesService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -301,7 +302,22 @@ class DossierSeriesController extends Controller
     {
         $id = $request->route('series') ?? $request->input('series_id');
 
-        return is_string($id) && $id !== '' ? $id : null;
+        if (! is_string($id) || $id === '') {
+            return null;
+        }
+
+        // La forme est verifiee **ici**, avant que la valeur n'atteigne
+        // `whereKey()`. En PostgreSQL la colonne est un `uuid` natif : un
+        // `series_id=abc` y provoque un `SQLSTATE 22P02` et donc un **500**, la
+        // ou SQLite se contente de ne rien trouver. La suite de tests tourne en
+        // SQLite : elle ne pouvait pas voir ce defaut.
+        if (! Str::isUuid($id)) {
+            throw ValidationException::withMessages([
+                'series_id' => __('validation.uuid', ['attribute' => 'series_id']),
+            ]);
+        }
+
+        return $id;
     }
 
     /**
