@@ -177,15 +177,56 @@
                                 </th>
                                 @foreach ($ligne['modules'] as $cellule)
                                     <td class="px-2 py-2">
-                                        <span class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold {{ $tons[$cellule['status']] ?? $tons['unavailable'] }}">
+                                        {{-- La cellule se deplie : la matrice donne l'etat par
+                                             Module, mais valider ou debloquer se fait sur une
+                                             **Sequence**. --}}
+                                        <button type="button"
+                                                wire:click="toggleCell('{{ $cellule['module']->id }}', '{{ $ligne['user']->id }}')"
+                                                aria-expanded="{{ $openModuleId === $cellule['module']->id && $openUserId === $ligne['user']->id ? 'true' : 'false' }}"
+                                                class="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold transition-opacity hover:opacity-80 {{ $tons[$cellule['status']] ?? $tons['unavailable'] }}">
                                             {{ __('loops.cards.progression.status_'.$cellule['status']) }}
-                                        </span>
+                                        </button>
                                     </td>
                                 @endforeach
                                 <td class="px-2 py-2 text-xs text-gray-600 dark:text-gray-300">
                                     {{ trans_choice('loops.cards.progression.awaiting_one', $ligne['awaiting'], ['count' => $ligne['awaiting']]) }}
                                 </td>
                             </tr>
+
+                            @if ($openUserId === $ligne['user']->id && $cellDetail->isNotEmpty())
+                                <tr class="bg-gray-50 dark:bg-gray-900/40">
+                                    <td colspan="{{ $ligne['modules']->count() + 2 }}" class="px-3 py-3">
+                                        <ol class="space-y-1.5">
+                                            @foreach ($cellDetail as $detail)
+                                                @php $seq = $detail['sequence']; $etatSeq = $detail['status']; @endphp
+                                                <li class="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 dark:bg-gray-800">
+                                                    <span class="shrink-0 font-mono text-[11px] tabular-nums text-gray-400" aria-hidden="true">{{ $detail['number'] }}</span>
+                                                    <span class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200">{{ $seq->displayName() }}</span>
+                                                    <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold {{ $tons[$etatSeq] ?? $tons['unavailable'] }}">
+                                                        {{ __('loops.cards.progression.status_'.$etatSeq) }}
+                                                    </span>
+
+                                                    @if ($etatSeq === 'submitted')
+                                                        <button type="button" wire:click="validateFor('{{ $seq->id }}', '{{ $ligne['user']->id }}')"
+                                                                class="shrink-0 rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700">
+                                                            {{ __('loops.cards.progression.validate') }}
+                                                        </button>
+                                                        <button type="button" wire:click="requestRedoFor('{{ $seq->id }}', '{{ $ligne['user']->id }}')"
+                                                                class="shrink-0 rounded-lg border border-rose-300 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-300">
+                                                            {{ __('loops.cards.progression.request_redo') }}
+                                                        </button>
+                                                    @elseif ($etatSeq === 'unavailable')
+                                                        <button type="button" wire:click="unlockFor('{{ $seq->id }}', '{{ $ligne['user']->id }}')"
+                                                                class="shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
+                                                            {{ __('loops.cards.progression.unlock') }}
+                                                        </button>
+                                                    @endif
+                                                </li>
+                                            @endforeach
+                                        </ol>
+                                    </td>
+                                </tr>
+                            @endif
                         @endforeach
                     </tbody>
                 </table>

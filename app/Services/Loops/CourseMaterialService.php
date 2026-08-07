@@ -91,9 +91,21 @@ class CourseMaterialService
                 ->exists();
 
             if ($suivies) {
+                $maintenant = now();
+
                 CourseSequence::where('course_module_id', $module->id)
                     ->whereNull('archived_at')
-                    ->update(['archived_at' => now()]);
+                    ->update(['archived_at' => $maintenant]);
+
+                // **Le Module s'archive aussi.** Se contenter d'archiver ses
+                // Sequences le laissait vide — et un Module vide n'est jamais
+                // « termine », donc il gelait toute la suite du parcours, pour
+                // tout le monde, sans retour possible. Pire : une etape deja
+                // ouverte redevenait verrouillee, alors que rien d'autre ici ne
+                // fait jamais regresser un etat acquis.
+                $module->forceFill(['archived_at' => $maintenant])->save();
+
+                $this->renumberModules($loopId);
 
                 return;
             }
@@ -170,6 +182,10 @@ class CourseMaterialService
 
             if ($aDesTraces) {
                 $sequence->forceFill(['archived_at' => now()])->save();
+
+                // Renumeroter les vivantes : l'archivee ne compte plus dans le
+                // parcours, et laisser un trou ferait mentir l'affichage.
+                $this->renumberSequences($moduleId);
 
                 return;
             }

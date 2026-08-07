@@ -39,7 +39,10 @@ class LoopProgressionCard extends Component
      *  voir dans la meme reponse que le rendu qui suit. */
     public string $face = self::FACE_MINE;
 
+    /** Le Module deplie dans la matrice, et la personne concernee. */
     public ?string $openModuleId = null;
+
+    public ?string $openUserId = null;
 
     public string $flash = '';
 
@@ -136,6 +139,60 @@ class LoopProgressionCard extends Component
         $this->flash = __('loops.cards.progression.unlocked_note');
     }
 
+    /**
+     * Deplier le detail d'une personne sur un Module.
+     *
+     * La matrice donne l'etat par Module ; valider ou debloquer se fait sur une
+     * **Sequence**. Sans ce depliage, les trois gestes existaient dans le
+     * composant et n'etaient atteignables depuis aucun ecran.
+     */
+    public function toggleCell(string $moduleId, string $userId): void
+    {
+        $this->authorizeManage();
+
+        $memeCellule = $this->openModuleId === $moduleId && $this->openUserId === $userId;
+
+        $this->openModuleId = $memeCellule ? null : $moduleId;
+        $this->openUserId = $memeCellule ? null : $userId;
+    }
+
+    /**
+     * Le detail d'une cellule depliee : chaque Sequence et son etat.
+     *
+     * @return Collection<int, array{sequence: CourseSequence, status: string, number: string}>
+     */
+    public function openCellDetail(): Collection
+    {
+        if (! $this->openModuleId || ! $this->openUserId || ! $this->canManage()) {
+            return collect();
+        }
+
+        $module = \App\Models\CourseModule::where('loop_id', $this->loop->id)
+            ->whereKey($this->openModuleId)
+            ->first();
+
+        if (! $module) {
+            return collect();
+        }
+
+        $personne = LoopMember::where('loop_id', $this->loop->id)
+            ->where('user_id', $this->openUserId)
+            ->where('status', 'active')
+            ->first()?->user;
+
+        if (! $personne) {
+            return collect();
+        }
+
+        return $module->sequences()->whereNull('archived_at')->get()->values()->map(
+            fn (CourseSequence $sequence, int $index) => [
+                'sequence' => $sequence,
+                'status' => $this->progress()->statusFor($personne, $sequence),
+                'number' => str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
+            ]
+        );
+    }
+
     public function setPathMode(string $mode): void
     {
         $this->authorizeManage();
@@ -185,8 +242,14 @@ class LoopProgressionCard extends Component
      */
     private function resolveMemberUser(string $userId): User
     {
+        // `status = 'active'` : une demande d'adhesion en attente n'est pas un
+        // stagiaire. Sans ce filtre, elle apparaissait dans la matrice et
+        // l'Animateur pouvait la valider — alors que le resolveur de
+        // permissions lui refuse tout acces, faute d'adhesion active. Deux
+        // ecrans qui ne disent pas la meme chose.
         $membre = LoopMember::where('loop_id', $this->loop->id)
             ->where('user_id', $userId)
+            ->where('status', 'active')
             ->first();
 
         abort_unless((bool) $membre, 404);
@@ -200,10 +263,13 @@ class LoopProgressionCard extends Component
     private function students(): Collection
     {
         return LoopMember::where('loop_id', $this->loop->id)
+            ->where('status', 'active')
             ->with('user:id,first_name,name,email,organization_id,banned_at')
             ->get()
             ->pluck('user')
-            ->filter()
+            // Un compte banni ne suit plus rien : il sort de la matrice comme
+            // il sort du reste du produit.
+            ->filter(fn (?User $u) => $u && $u->banned_at === null)
             ->values();
     }
 
@@ -226,8 +292,20 @@ class LoopProgressionCard extends Component
         // demander ne l'ouvre pas.
         $face = $canManage ? $this->face : self::FACE_MINE;
 
+        // Une requete au lieu de mille : sans cela, afficher la matrice d'une
+        // classe de vingt personnes en declenchait plus de vingt mille.
+        if ($canView) {
+            $this->progress()->warmUp(
+                $this->loop,
+                $face === self::FACE_EVERYONE ? $this->students() : collect([auth()->user()]),
+            );
+        }
+
         return view('livewire.loop-progression-card', [
             'canView' => $canView,
+            'openModuleId' => $this->openModuleId,
+            'openUserId' => $this->openUserId,
+            'cellDetail' => $this->openCellDetail(),
             'canManage' => $canManage,
             'face' => $face,
             'pathMode' => $canView ? $this->progress()->pathMode($this->loop) : CourseSetting::PATH_SEQUENTIAL,

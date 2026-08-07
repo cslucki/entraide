@@ -8,6 +8,7 @@ use App\Models\CourseSequenceProgress;
 use App\Models\CourseSetting;
 use App\Models\Loop;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -38,13 +39,83 @@ use Illuminate\Validation\ValidationException;
  */
 class CourseProgressService
 {
+    /**
+     * Les progressions deja lues, indexees par `sequenceId:userId`.
+     *
+     * Sans cela, afficher un parcours coutait **plus de mille requetes** : le
+     * calcul d'un etat en declenche plusieurs, et il est appele une fois par
+     * Sequence, puis une seconde fois pour l'etat du Module, puis une troisieme
+     * pour le compteur du formateur. Le calcul recursif — « l'etape precedente
+     * est-elle finie ? » — multipliait encore le tout.
+     *
+     * Le cache est **par instance**, donc par requete HTTP : il accelere un
+     * rendu sans jamais survivre a une ecriture d'une autre requete.
+     *
+     * @var array<string, CourseSequenceProgress|null>
+     */
+    private array $progressCache = [];
+
+    /** @var array<string, string> Le mode de parcours par Boucle, meme raison. */
+    private array $pathCache = [];
+
+    /** @var array<string, \Illuminate\Support\Collection<int, CourseSequence>> */
+    private array $sequenceCache = [];
+
+    /** @var array<string, string> Les etats de Module deja calcules. */
+    private array $moduleCache = [];
+
+    /**
+     * Charger d'un coup toutes les progressions qui vont servir.
+     *
+     * Une requete au lieu de mille : la difference entre une Card qui s'affiche
+     * et une Card qui fait tomber la page.
+     *
+     * @param  \Illuminate\Support\Collection<int, User>  $users
+     */
+    public function warmUp(Loop $loop, Collection $users): void
+    {
+        $sequenceIds = CourseSequence::query()
+            ->whereIn('course_module_id', CourseModule::where('loop_id', $loop->id)->select('id'))
+            ->pluck('id');
+
+        if ($sequenceIds->isEmpty() || $users->isEmpty()) {
+            return;
+        }
+
+        // Les cles absentes sont mises a `null` : une progression inexistante
+        // est une reponse, et la redemander a chaque fois etait l'essentiel du
+        // cout.
+        foreach ($sequenceIds as $sequenceId) {
+            foreach ($users as $user) {
+                $this->progressCache[$sequenceId.':'.$user->id] = null;
+            }
+        }
+
+        CourseSequenceProgress::whereIn('course_sequence_id', $sequenceIds)
+            ->whereIn('user_id', $users->pluck('id'))
+            ->get()
+            ->each(function (CourseSequenceProgress $row) {
+                $this->progressCache[$row->course_sequence_id.':'.$row->user_id] = $row;
+            });
+    }
+
+    /** Oublier ce qui a ete lu. Appele apres chaque ecriture. */
+    private function forget(): void
+    {
+        $this->progressCache = [];
+        $this->moduleCache = [];
+        $this->sequenceCache = [];
+    }
+
     // ── Le reglage de parcours ──────────────────────────────────────────────
 
     /** Une Boucle sans reglage est **sequentielle** : le defaut sans rien ecrire. */
     public function pathMode(Loop $loop): string
     {
-        return CourseSetting::where('loop_id', $loop->id)->value('path_mode')
-            ?? CourseSetting::PATH_SEQUENTIAL;
+        return $this->pathCache[$loop->id] ??= (
+            CourseSetting::where('loop_id', $loop->id)->value('path_mode')
+            ?? CourseSetting::PATH_SEQUENTIAL
+        );
     }
 
     public function setPathMode(Loop $loop, string $mode): CourseSetting
@@ -54,6 +125,9 @@ class CourseProgressService
                 'path_mode' => __('loops.cards.progression.path_mode_invalid'),
             ]);
         }
+
+        unset($this->pathCache[$loop->id]);
+        $this->moduleCache = [];
 
         return CourseSetting::updateOrCreate(
             ['loop_id' => $loop->id],
@@ -122,6 +196,17 @@ class CourseProgressService
      * meme chose et ne doit pas ouvrir le suivant.
      */
     public function moduleStatusFor(User $user, CourseModule $module): string
+    {
+        $cle = $module->id.':'.$user->id;
+
+        if (isset($this->moduleCache[$cle])) {
+            return $this->moduleCache[$cle];
+        }
+
+        return $this->moduleCache[$cle] = $this->computeModuleStatus($user, $module);
+    }
+
+    private function computeModuleStatus(User $user, CourseModule $module): string
     {
         $sequences = $this->liveSequences($module);
 
@@ -193,6 +278,21 @@ class CourseProgressService
         $this->assertAvailable($user, $sequence);
 
         return DB::transaction(function () use ($user, $sequence) {
+            $existant = $this->lockedProgress($user, $sequence);
+
+            // **Se declarer termine ne defait pas une decision du formateur.**
+            // Sans cette garde, appeler la methode sur une Sequence deja
+            // validee la renvoyait dans la file « a relire » — en laissant
+            // `validated_at` renseigne, donc une ligne qui se contredit — et
+            // refermait l'etape suivante. Le bouton n'etait pas affiche ; la
+            // methode restait appelable.
+            if ($existant && in_array($existant->status, [
+                CourseSequenceProgress::STATUS_VALIDATED,
+                CourseSequenceProgress::STATUS_COMPLETED,
+            ], true)) {
+                return $existant;
+            }
+
             $attendUnRegard = (bool) $sequence->requires_validation;
 
             return $this->write(
@@ -301,7 +401,11 @@ class CourseProgressService
     /** @return Collection<int, CourseModule> */
     private function modulesOf(Loop $loop): Collection
     {
+        // Un Module archive **sort du parcours** : il ne bloque plus, il garde
+        // seulement la trace de ce qui s'y est passe. Vide et archive ne sont
+        // pas la meme chose — un Module vide reste a remplir, et bloque.
         return CourseModule::where('loop_id', $loop->id)
+            ->whereNull('archived_at')
             ->orderBy('position')
             ->orderBy('created_at')
             ->get();
@@ -317,12 +421,20 @@ class CourseProgressService
      */
     private function liveSequences(CourseModule $module): Collection
     {
-        return $module->sequences()->whereNull('archived_at')->get();
+        return $this->sequenceCache[$module->id] ??= $module->sequences()
+            ->whereNull('archived_at')
+            ->get();
     }
 
     private function progressOf(User $user, CourseSequence $sequence): ?CourseSequenceProgress
     {
-        return CourseSequenceProgress::where('course_sequence_id', $sequence->id)
+        $cle = $sequence->id.':'.$user->id;
+
+        if (array_key_exists($cle, $this->progressCache)) {
+            return $this->progressCache[$cle];
+        }
+
+        return $this->progressCache[$cle] = CourseSequenceProgress::where('course_sequence_id', $sequence->id)
             ->where('user_id', $user->id)
             ->first();
     }
@@ -358,6 +470,7 @@ class CourseProgressService
         }
 
         $precedent = CourseModule::where('loop_id', $module->loop_id)
+            ->whereNull('archived_at')
             ->where(fn ($q) => $q->where('position', '<', $module->position)
                 ->orWhere(fn ($q2) => $q2->where('position', $module->position)
                     ->where('created_at', '<', $module->created_at)))
@@ -389,12 +502,26 @@ class CourseProgressService
     /** @param  array<string, mixed>  $attributs */
     private function write(User $user, CourseSequence $sequence, string $status, array $attributs): CourseSequenceProgress
     {
-        return CourseSequenceProgress::updateOrCreate(
-            ['course_sequence_id' => $sequence->id, 'user_id' => $user->id],
-            array_merge([
-                'organization_id' => $sequence->organization_id,
-                'status' => $status,
-            ], $attributs),
-        );
+        $this->forget();
+
+        $cle = ['course_sequence_id' => $sequence->id, 'user_id' => $user->id];
+        $valeurs = array_merge([
+            'organization_id' => $sequence->organization_id,
+            'status' => $status,
+        ], $attributs);
+
+        try {
+            return CourseSequenceProgress::updateOrCreate($cle, $valeurs);
+        } catch (UniqueConstraintViolationException) {
+            // Le verrou pris avant ne verrouille rien quand la ligne n'existe
+            // pas encore — `FOR UPDATE` sur zero ligne ne pose aucun verrou.
+            // Deux premieres ecritures simultanees passent donc toutes les
+            // deux, et l'index unique tranche. Le perdant relit et met a jour,
+            // au lieu de recevoir un 500.
+            return tap(
+                CourseSequenceProgress::where($cle)->firstOrFail(),
+                fn (CourseSequenceProgress $ligne) => $ligne->update($valeurs)
+            );
+        }
     }
 }

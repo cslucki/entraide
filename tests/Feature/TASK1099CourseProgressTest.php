@@ -604,7 +604,146 @@ class TASK1099CourseProgressTest extends TestCase
             ->assertSee(e(__('loops.cards.progression.locked_reason')), false);
     }
 
+
+    // ── Ce que la revue a trouve ────────────────────────────────────────────
+
+    public function test_deleting_a_followed_module_never_freezes_the_rest(): void
+    {
+        $m1 = $this->module('M1');
+        $a = $this->sequence($m1, 'A');
+        $m2 = $this->module('M2');
+        $c = $this->sequence($m2, 'C');
+
+        $this->progress()->markCompleted($this->stagiaire, $a);
+        $this->assertSame(P::STATUS_AVAILABLE, $this->etat($c));
+
+        $this->material()->deleteModule($m1);
+
+        // Le Module suivi s'archive — il garde la trace de ce qui s'y est
+        // passe — mais il **sort du parcours**. Se contenter d'archiver ses
+        // Sequences le laissait vide, et un Module vide n'est jamais termine :
+        // il gelait toute la suite, pour tout le monde, sans retour possible.
+        $this->assertDatabaseHas('course_modules', ['id' => $m1->id]);
+        $this->assertNotNull($m1->fresh()->archived_at);
+        $this->assertDatabaseHas('course_sequence_progress', ['course_sequence_id' => $a->id]);
+
+        // Et surtout : un etat deja acquis n'a pas regresse.
+        $this->assertSame(P::STATUS_AVAILABLE, $this->etat($c));
+    }
+
+    public function test_an_empty_module_still_blocks_but_an_archived_one_does_not(): void
+    {
+        // Vide et archive ne sont pas la meme chose : un Module vide reste a
+        // remplir, et bloque. C'est la distinction que la correction preserve.
+        $this->module('M1 vide');
+        $m2 = $this->module('M2');
+        $c = $this->sequence($m2, 'C');
+
+        $this->assertSame(P::STATUS_UNAVAILABLE, $this->etat($c));
+    }
+
+    public function test_a_trainee_cannot_undo_a_validation(): void
+    {
+        $m = $this->module('M1');
+        $a = $this->sequence($m, 'Un travail', validation: true);
+        $b = $this->sequence($m, 'La suite');
+
+        $this->progress()->markCompleted($this->stagiaire, $a);
+        $this->progress()->validate($this->formateur, $this->stagiaire, $a);
+        $this->assertSame(P::STATUS_AVAILABLE, $this->etat($b));
+
+        // Le bouton n'est pas affiche, mais la methode reste appelable. Sans
+        // garde, elle renvoyait la Sequence dans la file « a relire » — en
+        // laissant `validated_at` renseigne, donc une ligne qui se contredit —
+        // et refermait l'etape suivante.
+        \Livewire\Livewire::actingAs($this->stagiaire)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->call('markDone', $a->id);
+
+        $this->assertSame(P::STATUS_VALIDATED, $this->etat($a));
+        $this->assertSame(P::STATUS_AVAILABLE, $this->etat($b));
+
+        $ligne = \App\Models\CourseSequenceProgress::where('course_sequence_id', $a->id)->firstOrFail();
+        $this->assertSame($this->formateur->id, $ligne->validated_by);
+    }
+
+    public function test_a_pending_member_is_not_a_trainee(): void
+    {
+        $candidat = User::factory()->create(['organization_id' => $this->org->id]);
+        \App\Models\LoopMember::create([
+            'organization_id' => $this->org->id,
+            'loop_id' => $this->loop->id,
+            'user_id' => $candidat->id,
+            'role' => 'member',
+            'status' => 'pending',
+        ]);
+
+        $m = $this->module('M1');
+        $a = $this->sequence($m, 'A');
+
+        // Une demande d'adhesion en attente n'est pas un stagiaire : elle
+        // apparaissait dans la matrice et l'Animateur pouvait la valider, alors
+        // que le resolveur lui refuse tout acces. Deux ecrans qui ne disaient
+        // pas la meme chose.
+        \Livewire\Livewire::actingAs($this->formateur)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->set('face', 'everyone')
+            ->call('validateFor', $a->id, $candidat->id)
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('course_sequence_progress', 0);
+    }
+
+    public function test_displaying_a_path_does_not_explode_in_queries(): void
+    {
+        // Le calcul d'un etat en declenche plusieurs, il est appele une fois par
+        // Sequence, puis pour l'etat du Module, puis pour le compteur du
+        // formateur — et la recursion « l'etape precedente est-elle finie ? »
+        // multipliait encore le tout. Une classe de vingt personnes produisait
+        // plus de vingt mille requetes a l'ouverture d'un onglet.
+        $modules = collect(range(1, 4))->map(fn (int $i) => $this->module("M{$i}"));
+
+        foreach ($modules as $m) {
+            foreach (range(1, 4) as $j) {
+                $this->sequence($m, "S{$j}");
+            }
+        }
+
+        $service = app(CourseProgressService::class);
+        $service->warmUp($this->loop, collect([$this->stagiaire]));
+
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+        $service->overviewFor($this->stagiaire, $this->loop);
+        $requetes = count(\Illuminate\Support\Facades\DB::getQueryLog());
+        \Illuminate\Support\Facades\DB::disableQueryLog();
+
+        // Le seuil n'est pas une mesure fine : il fixe un ordre de grandeur.
+        // Avant correction, ce meme parcours en demandait plus de six cents.
+        $this->assertLessThan(60, $requetes, "overviewFor a fait {$requetes} requetes");
+    }
+
+    public function test_the_trainer_can_act_on_a_sequence_from_the_matrix(): void
+    {
+        $m = $this->module('M1');
+        $a = $this->sequence($m, 'Un travail', validation: true);
+        $this->progress()->markCompleted($this->stagiaire, $a);
+
+        // Les trois gestes existaient dans le composant et n'etaient
+        // atteignables depuis aucun ecran : la matrice donne l'etat par Module,
+        // mais valider se fait sur une Sequence.
+        \Livewire\Livewire::actingAs($this->formateur)
+            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->set('face', 'everyone')
+            ->call('toggleCell', $m->id, $this->stagiaire->id)
+            ->assertSee('Un travail')
+            ->assertSee(__('loops.cards.progression.validate'), false)
+            ->call('validateFor', $a->id, $this->stagiaire->id);
+
+        $this->assertSame(P::STATUS_VALIDATED, $this->etat($a));
+    }
+
     // ── Cloisonnement ───────────────────────────────────────────────────────
+
 
 
     public function test_every_progress_row_carries_its_organization(): void
