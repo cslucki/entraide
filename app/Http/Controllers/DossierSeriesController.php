@@ -22,14 +22,13 @@ class DossierSeriesController extends Controller
 
         $series = ArticleSeries::where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
-            ->with(['rootBlogPost:id,organization_id,user_id,title,slug,status,updated_at', 'items.blogPost:id,organization_id,user_id,title,slug,status,updated_at'])
             ->first();
 
         if (! $series) {
             return response()->json(['series' => null]);
         }
 
-        return response()->json(['series' => $series]);
+        return response()->json(['series' => $this->seriesPayload($series)]);
     }
 
     public function store(Request $request): JsonResponse
@@ -158,7 +157,12 @@ class DossierSeriesController extends Controller
         });
 
         return response()->json([
-            'series' => $series->fresh()->load('rootBlogPost'),
+            // La charge complete, pas seulement la racine : c'est ce qui permet
+            // au client d'appliquer l'etat au lieu de recharger la page. Le
+            // serveur vient de deplacer deux Articles et de renumeroter ; lui
+            // faire dire l'etat resultant coute une requete deja faite, et
+            // supprime toute reconstruction approximative cote navigateur.
+            'series' => $this->seriesPayload($series->fresh()),
             'message' => __('dossiers.series_root_updated'),
         ]);
     }
@@ -378,6 +382,22 @@ class DossierSeriesController extends Controller
         }
 
         return Dossier::query()->whereKey($dossier)->firstOrFail();
+    }
+
+    /**
+     * L'etat canonique d'une Serie : sa racine et ses annexes, dans l'ordre.
+     *
+     * Une seule construction, partagee par `show()` et par `update()`. Deux
+     * charges differentes pour le meme objet auraient fini par diverger, et le
+     * client aurait alors applique un etat incomplet en croyant l'avoir recu
+     * entier.
+     */
+    private function seriesPayload(ArticleSeries $series): ArticleSeries
+    {
+        return $series->load([
+            'rootBlogPost:id,organization_id,user_id,title,slug,status,updated_at',
+            'items.blogPost:id,organization_id,user_id,title,slug,status,updated_at',
+        ]);
     }
 
     private function resolveSeries(Dossier $dossier, $organization): ArticleSeries
