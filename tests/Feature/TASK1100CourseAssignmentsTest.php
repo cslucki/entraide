@@ -14,6 +14,7 @@ use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -154,6 +155,7 @@ class TASK1100CourseAssignmentsTest extends TestCase
 
         $service = app(CourseAssignmentService::class);
 
+        DB::flushQueryLog();
         DB::enableQueryLog();
         $matrice = $service->matrixFor($this->loop, $stagiaires);
         $matrice->each(fn (array $l) => $l['cells']->each(fn (array $c) => $c['status']));
@@ -176,6 +178,7 @@ class TASK1100CourseAssignmentsTest extends TestCase
 
         $service = app(CourseAssignmentService::class);
 
+        DB::flushQueryLog();
         DB::enableQueryLog();
         $service->overviewFor($this->loop, $this->stagiaire)->each(fn (array $e) => $e['status']);
         $requetes = count(DB::getQueryLog());
@@ -585,7 +588,139 @@ class TASK1100CourseAssignmentsTest extends TestCase
             ->assertSee('Retire mais rendu');
     }
 
+
+    // ── Transitions d'etat : l'acteur ET l'etat courant ─────────────────────
+
+    public function test_the_valid_transitions_are_allowed(): void
+    {
+        $t = $this->travail();
+
+        // brouillon -> rendu
+        $this->service()->saveDraft($t, $this->stagiaire, 'v1');
+        $this->assertSame(S::STATUS_DRAFT, $this->service()->statusFor($t, $this->stagiaire));
+        $this->service()->submit($t, $this->stagiaire);
+        $this->assertSame(S::STATUS_SUBMITTED, $this->service()->statusFor($t->fresh(), $this->stagiaire));
+
+        // rendu -> reprise demandee
+        $this->service()->requestRedo($t, $this->stagiaire, $this->formateur, 'A revoir.');
+        $this->assertSame(S::STATUS_REDO, $this->service()->statusFor($t->fresh(), $this->stagiaire));
+
+        // reprise demandee -> rendu
+        $this->service()->submit($t, $this->stagiaire, 'v2');
+        $this->assertSame(S::STATUS_SUBMITTED, $this->service()->statusFor($t->fresh(), $this->stagiaire));
+
+        // rendu -> valide
+        $this->service()->validateSubmission($t, $this->stagiaire, $this->formateur);
+        $this->assertSame(S::STATUS_VALIDATED, $this->service()->statusFor($t->fresh(), $this->stagiaire));
+    }
+
+    public function test_the_invalid_transitions_are_refused(): void
+    {
+        $t = $this->travail();
+
+        // rien -> valide : refuse. C'est le defaut qui enfermait la personne.
+        try {
+            $this->service()->validateSubmission($t, $this->stagiaire, $this->formateur);
+            $this->fail('rien -> valide doit etre refuse');
+        } catch (ValidationException) {
+        }
+
+        // brouillon -> valide : refuse aussi. Un brouillon n'a pas ete remis ;
+        // le formateur n'a rien recu a lire.
+        $this->service()->saveDraft($t, $this->stagiaire, 'Pas fini.');
+        try {
+            $this->service()->validateSubmission($t, $this->stagiaire, $this->formateur);
+            $this->fail('brouillon -> valide doit etre refuse');
+        } catch (ValidationException) {
+        }
+
+        // rien -> reprise demandee : refuse. On ne demande pas de reprendre ce
+        // qui n'a jamais ete rendu.
+        $autre = $this->travail('Autre');
+        try {
+            $this->service()->requestRedo($autre, $this->stagiaire, $this->formateur);
+            $this->fail('rien -> reprise doit etre refuse');
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(S::STATUS_DRAFT, $this->service()->statusFor($t->fresh(), $this->stagiaire));
+    }
+
+    public function test_a_validated_submission_is_a_terminus_for_the_trainee(): void
+    {
+        $t = $this->travail();
+        $this->service()->submit($t, $this->stagiaire, 'v1');
+        $this->service()->validateSubmission($t, $this->stagiaire, $this->formateur);
+
+        // valide -> rendu : refuse au stagiaire. Mais le formateur peut revenir
+        // sur sa propre decision : c'est un geste explicite, avec un auteur.
+        $this->service()->submit($t, $this->stagiaire, 'je change');
+        $this->assertSame(S::STATUS_VALIDATED, $this->service()->statusFor($t->fresh(), $this->stagiaire));
+
+        $this->service()->requestRedo($t, $this->stagiaire, $this->formateur, 'Finalement, non.');
+        $this->assertSame(S::STATUS_REDO, $this->service()->statusFor($t->fresh(), $this->stagiaire));
+
+        // Et la personne n'est pas enfermee : elle peut rendre a nouveau.
+        $this->service()->submit($t, $this->stagiaire, 'v2');
+        $this->assertSame(S::STATUS_SUBMITTED, $this->service()->statusFor($t->fresh(), $this->stagiaire));
+    }
+
+    // ── Le cout ne croit pas avec le nombre de cellules ─────────────────────
+
+    public function test_the_sql_cost_does_not_grow_with_the_class(): void
+    {
+        // Un plafond absolu peut laisser passer un petit N+1. Ce qui compte est
+        // la **croissance** : on mesure deux populations tres differentes et on
+        // verifie que le cout reste quasi stable.
+        // **La meme structure**, deux populations tres differentes : c'est le
+        // seul montage qui isole la croissance. Comparer deux Boucles
+        // mesurerait aussi leur creation, et le resultat ne dirait rien.
+        foreach (range(1, 10) as $i) {
+            $this->travail("T{$i}");
+        }
+
+        $gens = collect(range(1, 14))->map(function () {
+            $u = User::factory()->create(['organization_id' => $this->org->id]);
+            $this->loops->addMember($this->loop, $u, 'member');
+
+            return $u;
+        })->push($this->stagiaire);
+
+        $mesure = function (Collection $population): int {
+            // Un service **neuf** a chaque mesure : un cache reste entre les
+            // deux ferait passer la seconde pour gratuite.
+            $frais = new CourseAssignmentService;
+
+            // `flushQueryLog()` et pas seulement `enableQueryLog()` :
+            // `disableQueryLog()` ne vide pas le journal, et la seconde mesure
+            // comptait les requetes de la premiere. La sonde accusait alors le
+            // code d'une croissance qui etait la sienne.
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $frais->matrixFor($this->loop, $population)
+                ->each(fn (array $l) => $l['cells']->each(fn (array $c) => $c['status']));
+            $n = count(DB::getQueryLog());
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+
+            return $n;
+        };
+
+        $petit = $mesure($gens->take(1));   //  10 cellules
+        $grand = $mesure($gens);            // 150 cellules — quinze fois plus
+
+        // Quinze fois plus de cellules, **le meme cout**. Le seuil est en
+        // ecart et non en valeur absolue : c'est ce qui attrape un N+1 par
+        // ligne, qu'un plafond genereux laisserait passer.
+        $this->assertSame(
+            $petit,
+            $grand,
+            "le cout suit la population : {$petit} requetes pour 10 cellules, {$grand} pour 150",
+        );
+    }
+
     // ── Cloisonnement ───────────────────────────────────────────────────────
+
 
 
     public function test_an_assignment_of_another_loop_is_never_reachable(): void
