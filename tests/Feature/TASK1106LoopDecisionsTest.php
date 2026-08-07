@@ -715,6 +715,66 @@ class TASK1106LoopDecisionsTest extends TestCase
         );
     }
 
+
+    // ── Le rattrapage sur les Boucles existantes ────────────────────────────
+
+    private function migration(): object
+    {
+        return require database_path('migrations/2026_08_08_090200_backfill_decisions_card_on_project_loops.php');
+    }
+
+    public function test_an_existing_project_loop_receives_the_card(): void
+    {
+        // Ajouter une Card a un preset n'atteint **aucune** Boucle deja creee :
+        // `activeCardsFor()` ne retombe sur le preset que si la Boucle n'a
+        // aucune ligne `loop_cards`, et le parc a ete materialise. Ce defaut a
+        // ete trouve deux fois de suite par la revue ; il est traite d'avance.
+        $ancienne = $this->loops->createLoop($this->animateur, 'Un projet d’avant');
+        $ancienne->forceFill(['type' => 'project'])->save();
+
+        LoopCard::where('loop_id', $ancienne->id)->delete();
+        foreach (['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.members'] as $cle) {
+            LoopCard::create([
+                'organization_id' => $this->org->id, 'loop_id' => $ancienne->id,
+                'card_key' => $cle, 'enabled' => true, 'added_by_preset' => 'project',
+            ]);
+        }
+
+        $types = app(LoopTypeRegistry::class);
+        $this->assertNotContains('core.decisions', $types->activeCardsFor($ancienne->fresh()));
+
+        $this->migration()->up();
+
+        $this->assertContains('core.decisions', $types->activeCardsFor($ancienne->fresh()));
+    }
+
+    public function test_the_backfill_can_run_twice_without_duplicating(): void
+    {
+        $projet = $this->loops->createLoop($this->animateur, 'Un projet');
+        $projet->forceFill(['type' => 'project'])->save();
+
+        $this->migration()->up();
+        $this->migration()->up();
+
+        $this->assertSame(1, LoopCard::where('loop_id', $projet->id)->where('card_key', 'core.decisions')->count());
+    }
+
+    public function test_the_backfill_leaves_a_card_switched_off_by_hand_switched_off(): void
+    {
+        // Un administrateur qui a eteint la Card ne doit pas la voir se
+        // rallumer parce qu'une migration est passee.
+        $projet = $this->loops->createLoop($this->animateur, 'Un projet');
+        $projet->forceFill(['type' => 'project'])->save();
+        LoopCard::firstOrCreate(
+            ['loop_id' => $projet->id, 'card_key' => 'core.decisions'],
+            ['organization_id' => $this->org->id, 'enabled' => false],
+        );
+
+        $this->migration()->up();
+
+        $this->assertFalse((bool) LoopCard::where('loop_id', $projet->id)->where('card_key', 'core.decisions')->value('enabled'));
+    }
+
     // ── Aucune condition sur le type ────────────────────────────────────────
 
     public function test_no_business_code_branches_on_the_loop_type(): void
