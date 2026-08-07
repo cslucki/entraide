@@ -1,0 +1,405 @@
+<?php
+
+namespace App\Livewire;
+
+use App\Models\Loop;
+use App\Models\LoopDecision;
+use App\Models\LoopMessage;
+use App\Services\Loops\LoopDecisionService;
+use App\Support\Loops\LoopPermissionResolver;
+use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
+use Livewire\Component;
+
+/**
+ * La Card Decisions : ce qui a ete tranche, quand, et pourquoi.
+ *
+ * La matrice produit la donne au Projet, aux cotes de la Roadmap et des
+ * Dossiers.
+ *
+ * Les cinq invariants de la serie sont tenus des la conception :
+ *
+ * 1. **Consigner est une ecriture** : `decisions.record`, sans `read`. Une
+ *    Boucle archivee la refuse.
+ * 2. **Une permission ne suffit pas — la transition doit etre valide.** Quatre
+ *    remplacements sont refuses par le service, pour quatre raisons qui se
+ *    lisent.
+ * 3. **Le cout ne croit pas** : la lecture est bornee, les relations chargees
+ *    en une fois.
+ * 4. **Chaque geste a un chemin**, teste au refus, au succes **et** a l'ecran.
+ * 5. **Rien ne se fige** : retirer une Decision n'emporte pas les actions
+ *    engagees.
+ *
+ * Le droit de corriger suit la regle du Journal : chacun corrige les siennes,
+ * l'animation corrige tout.
+ *
+ * **`$editingId` et `$supersedingId` sont publics** — donc poses depuis le
+ * client. Chaque geste qui les consomme revalide donc le droit au moment de
+ * l'ecriture, et non seulement quand on ouvre le formulaire. C'est le defaut
+ * exact trouve dans le Journal : la garde etait sur `startEditing()`, et poser
+ * la propriete suffisait a reecrire l'entree de n'importe qui.
+ */
+class LoopDecisionsCard extends Component
+{
+    public Loop $loop;
+
+    public bool $showForm = false;
+
+    public ?string $editingId = null;
+
+    public string $title = '';
+
+    public string $rationale = '';
+
+    public string $decidedOn = '';
+
+    /** La liste des messages proposes a la promotion, quand elle est ouverte. */
+    public bool $showPicker = false;
+
+    /** La Decision dont on choisit ce qu'elle remplace. */
+    public ?string $supersedingId = null;
+
+    /** La Decision pour laquelle on saisit une action. */
+    public ?string $actionForId = null;
+
+    public string $actionTitle = '';
+
+    public string $flash = '';
+
+    public string $problem = '';
+
+    public function mount(Loop $loop): void
+    {
+        $this->loop = $loop;
+    }
+
+    // ── Droits ──────────────────────────────────────────────────────────────
+
+    public function canView(): bool
+    {
+        return $this->resolver()->can(auth()->user(), $this->loop, 'decisions.view');
+    }
+
+    public function canRecord(): bool
+    {
+        return $this->resolver()->can(auth()->user(), $this->loop, 'decisions.record');
+    }
+
+    public function canManage(): bool
+    {
+        return $this->resolver()->can(auth()->user(), $this->loop, 'decisions.manage');
+    }
+
+    /** Chacun corrige les siennes ; l'animation corrige tout. */
+    public function canEdit(LoopDecision $decision): bool
+    {
+        if (! $this->canRecord()) {
+            return false;
+        }
+
+        return $this->canManage() || $decision->author_id === auth()->id();
+    }
+
+    // ── Gestes ──────────────────────────────────────────────────────────────
+
+    public function save(): void
+    {
+        $this->authorizeRecord();
+
+        try {
+            if ($this->editingId) {
+                $decision = $this->resolveDecision($this->editingId);
+
+                // Revalide **ici**, pas seulement a l'ouverture du formulaire :
+                // `$editingId` est public.
+                abort_unless($this->canEdit($decision), 403);
+
+                $this->service()->update($decision, $this->title, $this->rationale ?: null, $this->decidedOn ?: null);
+            } else {
+                $this->service()->record(
+                    $this->loop,
+                    auth()->user(),
+                    $this->title,
+                    $this->rationale ?: null,
+                    $this->decidedOn ?: null,
+                );
+            }
+        } catch (ValidationException $e) {
+            $this->reportProblem($e);
+
+            return;
+        }
+
+        $this->reset(['title', 'rationale', 'decidedOn', 'showForm', 'editingId']);
+        $this->problem = '';
+        $this->flash = __('loops.cards.decisions.recorded');
+    }
+
+    public function startEditing(string $decisionId): void
+    {
+        $this->authorizeRecord();
+
+        $decision = $this->resolveDecision($decisionId);
+        abort_unless($this->canEdit($decision), 403);
+
+        // Une Decision remplacee est de l'histoire : ouvrir son formulaire
+        // menerait a un `save()` que le service refuse de toute façon.
+        abort_if($decision->isSuperseded(), 403);
+
+        $this->editingId = $decision->id;
+        $this->title = (string) $decision->title;
+        $this->rationale = (string) $decision->rationale;
+        $this->decidedOn = $decision->decided_on?->toDateString() ?? '';
+        $this->showForm = true;
+        $this->flash = '';
+        $this->problem = '';
+    }
+
+    public function remove(string $decisionId): void
+    {
+        $this->authorizeRecord();
+
+        $decision = $this->resolveDecision($decisionId);
+        abort_unless($this->canEdit($decision), 403);
+
+        $this->service()->delete($decision);
+
+        $this->problem = '';
+        $this->flash = __('loops.cards.decisions.removed');
+    }
+
+    /**
+     * Fermer le formulaire **et** relacher tout ce qu'il tenait.
+     *
+     * `$set('showForm', false)` ne suffit pas : `editingId` resterait pose, et
+     * la Decision suivante — ecrite en croyant en commencer une — ecraserait
+     * silencieusement celle qu'on venait de renoncer a corriger. Le Journal a
+     * paye ce defaut ; il ne se represente pas ici.
+     */
+    public function cancel(): void
+    {
+        $this->reset([
+            'title', 'rationale', 'decidedOn', 'showForm', 'editingId',
+            'supersedingId', 'actionForId', 'actionTitle', 'showPicker',
+        ]);
+        $this->problem = '';
+    }
+
+    public function promote(string $messageId): void
+    {
+        $this->authorizeRecord();
+
+        if (trim($this->title) === '') {
+            // Le titre est saisi **avant** de choisir le message : le corps
+            // d'un message n'est pas un titre, et le laisser en tenir lieu
+            // donnerait une liste de Decisions illisible.
+            $this->problem = __('loops.cards.decisions.title_required');
+
+            return;
+        }
+
+        try {
+            $this->service()->promote(
+                $this->loop,
+                auth()->user(),
+                $this->resolveMessage($messageId),
+                $this->title,
+                $this->rationale ?: null,
+                $this->decidedOn ?: null,
+            );
+        } catch (ValidationException $e) {
+            $this->reportProblem($e);
+
+            return;
+        }
+
+        $this->reset(['title', 'rationale', 'decidedOn', 'showPicker', 'showForm']);
+        $this->problem = '';
+        $this->flash = __('loops.cards.decisions.recorded');
+    }
+
+    /** Ouvrir le choix de ce que cette Decision remplace. */
+    public function startSuperseding(string $decisionId): void
+    {
+        $this->authorizeRecord();
+
+        $decision = $this->resolveDecision($decisionId);
+        abort_unless($this->canEdit($decision), 403);
+
+        $this->supersedingId = $decision->id;
+        $this->flash = '';
+        $this->problem = '';
+    }
+
+    public function supersede(string $oldId): void
+    {
+        $this->authorizeRecord();
+
+        // La **nouvelle** est celle qu'on a ouverte ; l'ancienne est celle
+        // qu'on designe. Les deux sont resolues dans cette Boucle.
+        abort_unless((bool) $this->supersedingId, 403);
+
+        $nouvelle = $this->resolveDecision($this->supersedingId);
+        abort_unless($this->canEdit($nouvelle), 403);
+
+        $ancienne = $this->resolveDecision($oldId);
+
+        try {
+            $this->service()->supersede($ancienne, $nouvelle);
+        } catch (ValidationException $e) {
+            $this->reportProblem($e);
+
+            return;
+        }
+
+        $this->supersedingId = null;
+        $this->problem = '';
+        $this->flash = __('loops.cards.decisions.superseded_flash');
+    }
+
+    /** Ouvrir la saisie d'une action pour cette Decision. */
+    public function startAction(string $decisionId): void
+    {
+        $this->authorizeRecord();
+
+        $decision = $this->resolveDecision($decisionId);
+        abort_unless($this->canEdit($decision), 403);
+        abort_if($decision->isSuperseded(), 403);
+
+        $this->actionForId = $decision->id;
+        $this->actionTitle = '';
+        $this->flash = '';
+        $this->problem = '';
+    }
+
+    public function saveAction(): void
+    {
+        $this->authorizeRecord();
+
+        abort_unless((bool) $this->actionForId, 403);
+
+        $decision = $this->resolveDecision($this->actionForId);
+        abort_unless($this->canEdit($decision), 403);
+
+        // Lancer une action, c'est ecrire dans la Roadmap : le droit d'y ecrire
+        // est **aussi** exige. Sans lui, la Card Decisions serait une porte
+        // laterale pour poser des taches a qui n'a pas `roadmap.manage`.
+        abort_unless($this->resolver()->can(auth()->user(), $this->loop, 'roadmap.manage'), 403);
+
+        try {
+            $this->service()->startAction($decision, auth()->user(), $this->actionTitle);
+        } catch (ValidationException $e) {
+            $this->reportProblem($e);
+
+            return;
+        }
+
+        $this->reset(['actionForId', 'actionTitle']);
+        $this->problem = '';
+        $this->flash = __('loops.cards.decisions.action_started');
+    }
+
+    // ── Gardes ──────────────────────────────────────────────────────────────
+
+    private function authorizeRecord(): void
+    {
+        // `canView()` **aussi** : sans lui, une personne privee de lecture
+        // consignerait quand meme, dans une Card que l'ecran lui declare
+        // inaccessible.
+        abort_unless($this->canView() && $this->canRecord(), 403);
+    }
+
+    /** Une Decision de **cette** Boucle, ou 404. */
+    private function resolveDecision(string $decisionId): LoopDecision
+    {
+        $decision = LoopDecision::where('loop_id', $this->loop->id)->whereKey($decisionId)->first();
+
+        abort_unless((bool) $decision, 404);
+
+        return $decision;
+    }
+
+    /** Un message de **cette** Boucle, ou 404. */
+    private function resolveMessage(string $messageId): LoopMessage
+    {
+        $message = LoopMessage::where('loop_id', $this->loop->id)->whereKey($messageId)->first();
+
+        abort_unless((bool) $message, 404);
+
+        return $message;
+    }
+
+    /** Les erreurs de validation vont au bon champ, ou au bandeau. */
+    private function reportProblem(ValidationException $e): void
+    {
+        $champ = array_key_first($e->errors());
+
+        match ($champ) {
+            'title' => $this->addError('title', $e->getMessage()),
+            'decided_on' => $this->addError('decidedOn', $e->getMessage()),
+            'action_title' => $this->addError('actionTitle', $e->getMessage()),
+            default => $this->problem = $e->getMessage(),
+        };
+    }
+
+    /**
+     * Les messages qu'on peut encore consigner.
+     *
+     * @return Collection<int, LoopMessage>
+     */
+    private function promotable(): Collection
+    {
+        // Consigner un message suppose de pouvoir le lire. Sans ce controle, la
+        // Card devenait une porte laterale sur la conversation pour qui n'avait
+        // pas `chatloop.view` — un reglage de distance, la matrice etant
+        // administrable.
+        if (! $this->resolver()->can(auth()->user(), $this->loop, 'chatloop.view')) {
+            return collect();
+        }
+
+        $deja = LoopDecision::where('loop_id', $this->loop->id)
+            ->whereNotNull('loop_message_id')
+            ->pluck('loop_message_id');
+
+        return LoopMessage::where('loop_id', $this->loop->id)
+            ->whereNull('deleted_at')
+            ->whereNotIn('id', $deja)
+            ->with('sender:id,first_name,name,email,organization_id,banned_at')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+    }
+
+    private function service(): LoopDecisionService
+    {
+        return app(LoopDecisionService::class);
+    }
+
+    private function resolver(): LoopPermissionResolver
+    {
+        return app(LoopPermissionResolver::class);
+    }
+
+    public function render()
+    {
+        $canView = $this->canView();
+        $canRecord = $canView && $this->canRecord();
+
+        $decisions = $canView ? $this->service()->decisionsFor($this->loop) : collect();
+
+        return view('livewire.loop-decisions-card', [
+            'canView' => $canView,
+            'canRecord' => $canRecord,
+            'canManage' => $canView && $this->canManage(),
+            'canAct' => $canRecord && $this->resolver()->can(auth()->user(), $this->loop, 'roadmap.manage'),
+            'decisions' => $decisions,
+            'promotable' => $canRecord && $this->showPicker ? $this->promotable() : collect(),
+            // Ce qu'une Decision peut remplacer : les autres, non deja
+            // remplacees. Calcule **depuis la liste deja chargee**, sans une
+            // requete de plus.
+            'supersedable' => $this->supersedingId
+                ? $decisions->filter(fn (LoopDecision $d) => $d->id !== $this->supersedingId && ! $d->isSuperseded())
+                : collect(),
+        ]);
+    }
+}

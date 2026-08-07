@@ -111,6 +111,10 @@ return [
                 'core.ai_summary',
                 'core.manifesto',
                 'core.roadmap',
+                // La matrice produit donne au Projet « Roadmap · Decisions ·
+                // Dossiers ». Les Decisions arrivent ici ; les Dossiers
+                // restent a brancher, la Card existant deja.
+                'core.decisions',
                 'core.members',
             ],
         ],
