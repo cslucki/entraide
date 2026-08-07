@@ -50,23 +50,55 @@ class LoopChat extends Component
     public function mount(Loop $loop): void
     {
         $this->loop = $loop;
+        $this->refreshMembership();
+        $this->loadInitialMessages();
+    }
 
+    /**
+     * Recalculer l'adhesion **a chaque requete**, y compris les mises a jour
+     * Livewire.
+     *
+     * `$isMember` est une propriete publique : elle voyage dans le snapshot, et
+     * Livewire la restitue telle qu'elle etait au chargement de la page. Une
+     * personne retiree de la Boucle gardait donc `true` et continuait a lire —
+     * y compris des messages postes **apres** son depart — en rejouant son
+     * dernier snapshot. Le snapshot est une capacite durable : il n'a ni nonce,
+     * ni expiration.
+     *
+     * `booted()` s'execute a l'hydratation comme au montage : l'adhesion est
+     * desormais une conclusion tiree a chaque fois, pas un fait recopie.
+     */
+    public function booted(): void
+    {
+        $this->refreshMembership();
+    }
+
+    private function refreshMembership(): void
+    {
         $user = auth()->user();
-        if ($user && ! $user->isDeactivated()) {
-            $this->isMember = LoopMember::where('loop_id', $loop->id)
+
+        $this->isMember = $user
+            && ! $user->isDeactivated()
+            && LoopMember::where('loop_id', $this->loop->id)
                 ->where('user_id', $user->id)
                 ->where('status', 'active')
                 ->exists();
-        }
-
-        $this->loadInitialMessages();
     }
 
     public function aiRoute(): string
     {
-        $organization = request()->route('organization');
+        // L'Organization vient de la **Boucle**, pas de `request()`. Sur une
+        // mise a jour Livewire, la requete est le `POST /livewire/update` et ne
+        // porte aucun parametre `organization` : la route retombait alors sur
+        // sa forme sans prefixe, et changeait donc entre le chargement de la
+        // page et le premier clic.
+        $organization = request()->route('organization') ?? $this->loop->organization?->slug;
 
-        if ($organization && request()->routeIs('organization.*') && Route::has('organization.loops.ai')) {
+        // `routeIs('organization.*')` ne tient pas non plus sur un POST
+        // Livewire — la route courante y est celle de Livewire. C'est
+        // l'existence d'une Organization pour cette Boucle qui decide, et elle
+        // ne change pas d'une requete a l'autre.
+        if ($organization && Route::has('organization.loops.ai')) {
             return route('organization.loops.ai', [
                 'organization' => $organization,
                 'loop' => $this->loop,
@@ -445,6 +477,15 @@ class LoopChat extends Component
 
     public function render()
     {
+        // **Sans adhesion, rien ne se lit.** `$loadedMessageIds` voyage dans le
+        // snapshot : une personne retiree de la Boucle gardait sa liste, et
+        // `syncNewerMessages()` y ajoutait consciencieusement les messages
+        // postes apres son depart. Recalculer l'adhesion ne suffisait pas — il
+        // fallait que la lecture en depende.
+        if (! $this->isMember) {
+            $this->loadedMessageIds = [];
+        }
+
         $this->syncNewerMessages();
 
         $messages = $this->loop->messages()
@@ -499,6 +540,12 @@ class LoopChat extends Component
 
     private function loadInitialMessages(): void
     {
+        if (! $this->isMember) {
+            $this->loadedMessageIds = [];
+
+            return;
+        }
+
         $this->loadedMessageIds = $this->loop->messages()
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -513,6 +560,10 @@ class LoopChat extends Component
 
     private function syncNewerMessages(): void
     {
+        if (! $this->isMember) {
+            return;
+        }
+
         if ($this->loadedMessageIds === []) {
             $this->loadInitialMessages();
 

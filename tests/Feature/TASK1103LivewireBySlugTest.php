@@ -169,7 +169,7 @@ class TASK1103LivewireBySlugTest extends TestCase
             ->assertSee($jumelle->id, false);
     }
 
-    public function test_the_livewire_interaction_stays_scoped_after_a_slug_page(): void
+    public function test_a_slug_page_still_interacts_when_a_twin_exists_elsewhere(): void
     {
         $autre = Organization::factory()->create(['slug' => 'org-e', 'is_active' => true]);
         $etranger = User::factory()->create(['organization_id' => $autre->id]);
@@ -178,11 +178,54 @@ class TASK1103LivewireBySlugTest extends TestCase
         (new LoopService)->createLoop($etranger, 'Ma Boucle');
         app()->instance('current_organization', $this->org);
 
-        // La correction lit l'Organization sur la route ; il faut donc verifier
-        // qu'elle lit bien **celle du chemin**, et pas une autre.
-        $reponse = $this->interagir($this->loop->slug, 'loop-chat')->assertOk();
+        // Ce test verifie que l'interaction **aboutit** malgre un homonyme
+        // ailleurs — rien de plus.
+        //
+        // Une version precedente affirmait aussi prouver le cloisonnement, en
+        // cherchant l'identifiant de la bonne Boucle dans la reponse. Elle ne
+        // prouvait rien : cet identifiant vient du modele rehydrate depuis le
+        // snapshot, jamais de la liaison de route. Un binding mal cloisonne
+        // aurait rendu la meme reponse. Le cloisonnement est verifie par
+        // `test_two_organizations_may_hold_the_same_slug_without_leaking`, qui
+        // charge les deux pages.
+        $this->interagir($this->loop->slug, 'loop-chat')->assertOk();
+    }
 
-        $this->assertStringContainsString($this->loop->id, $reponse->getContent());
+    public function test_the_uuid_filter_is_the_only_guard_on_the_livewire_path(): void
+    {
+        // Sur le replay Livewire **aucun controleur ne tourne** : le filtre par
+        // `organization_id` du binding est le seul garde-fou. Une revue a
+        // montre qu'aucun test ne le tenait — le 404 que les autres observent
+        // vient de `LoopController`, en aval, sur le chemin GET.
+        //
+        // Ce test l'exerce la ou il est nu : la page est chargee dans une
+        // Organization, et l'UUID d'une Boucle d'une autre est glisse dans le
+        // chemin du POST.
+        $autre = Organization::factory()->create(['slug' => 'org-f', 'is_active' => true]);
+        $etranger = User::factory()->create(['organization_id' => $autre->id]);
+
+        app()->instance('current_organization', $autre);
+        $sienne = (new LoopService)->createLoop($etranger, 'Boucle voisine')->fresh();
+        app()->instance('current_organization', $this->org);
+
+        $chemin = "/org/{$this->org->slug}/loops/{$this->loop->id}";
+        $html = $this->actingAs($this->membre)->get($chemin)->assertOk()->getContent();
+
+        // Le snapshot est legitime ; c'est le **chemin** du POST qui designe la
+        // Boucle de l'autre Organization.
+        $reponse = $this->actingAs($this->membre)
+            ->withHeaders(['X-Livewire' => '1', 'Referer' => "/org/{$this->org->slug}/loops/{$sienne->id}"])
+            ->postJson(route('default-livewire.update'), [
+                '_token' => csrf_token(),
+                'components' => [[
+                    'snapshot' => $this->snapshot($html, 'loop-chat'),
+                    'updates' => [],
+                    'calls' => [],
+                ]],
+            ]);
+
+        // Le contenu de la Boucle voisine ne doit apparaitre nulle part.
+        $this->assertStringNotContainsString($sienne->id, $reponse->getContent());
     }
 
     public function test_an_unknown_slug_is_refused(): void
@@ -211,5 +254,49 @@ class TASK1103LivewireBySlugTest extends TestCase
             ->getContent();
 
         $this->assertStringNotContainsString('data-loop-workspace-shell', $html);
+    }
+
+    public function test_leaving_the_loop_closes_the_reading_immediately(): void
+    {
+        // **La version GET de ce test ne prouvait rien.** Le cloisonnement ne
+        // lache pas au chargement de la page, il lache au `POST` : `$isMember`
+        // est une propriete publique, elle voyage dans le snapshot, et Livewire
+        // la restituait telle qu'elle etait au chargement.
+        //
+        // Une personne retiree de la Boucle gardait donc `true` et continuait a
+        // lire — y compris des messages postes **apres** son depart — en
+        // rejouant son dernier snapshot. Celui-ci est une capacite durable :
+        // ni nonce, ni expiration.
+        $partant = User::factory()->create(['organization_id' => $this->org->id]);
+        (new LoopService)->addMember($this->loop, $partant, 'member');
+
+        $chemin = "/org/{$this->org->slug}/loops/{$this->loop->slug}";
+        $html = $this->actingAs($partant)->get($chemin)->assertOk()->getContent();
+        $snapshot = $this->snapshot($html, 'loop-chat');
+
+        // Il part, puis quelqu'un ecrit.
+        \App\Models\LoopMember::where('loop_id', $this->loop->id)
+            ->where('user_id', $partant->id)
+            ->delete();
+
+        \App\Models\LoopMessage::create([
+            'organization_id' => $this->org->id,
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->membre->id,
+            'body' => 'APRES-SON-DEPART',
+        ]);
+
+        $reponse = $this->actingAs($partant)
+            ->withHeaders(['X-Livewire' => '1', 'Referer' => $chemin])
+            ->postJson(route('default-livewire.update'), [
+                '_token' => csrf_token(),
+                'components' => [[
+                    'snapshot' => $snapshot,
+                    'updates' => [],
+                    'calls' => [],
+                ]],
+            ]);
+
+        $this->assertStringNotContainsString('APRES-SON-DEPART', $reponse->getContent());
     }
 }

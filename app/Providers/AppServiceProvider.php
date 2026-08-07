@@ -290,30 +290,43 @@ class AppServiceProvider extends ServiceProvider
             // Le repli sur `request()` reste pour les appels qui n'ont pas de
             // route, et le filtre par `organization_id` est inchange : rien
             // n'est ouvert, c'est seulement la bonne source qui est lue.
-            $orgSlug = $route?->parameter('organization') ?? request()->route('organization');
+            $orgSlug = $route->parameter('organization');
 
-            if ($orgSlug instanceof Organization) {
-                $orgSlug = $orgSlug->slug;
+            // `ResolveOrganization` vient de resoudre la meme Organization
+            // dans ce pipeline et l'a laissee dans le conteneur. La relire
+            // coutait une requete de plus a chaque mise a jour Livewire, pour
+            // le meme resultat.
+            $org = null;
+
+            if ($orgSlug) {
+                $courante = currentOrganization();
+
+                $org = ($courante && $courante->slug === $orgSlug)
+                    ? $courante
+                    : Organization::findBySlug($orgSlug);
+
+                if (! $org) {
+                    abort(404);
+                }
             }
 
             if (Str::isUuid($value)) {
                 $query = Loop::query();
-                if ($orgSlug) {
-                    $org = Organization::findBySlug($orgSlug);
-                    if (! $org) {
-                        abort(404);
-                    }
+
+                // Sans Organization dans la route — les chemins hors `/org/` —
+                // l'UUID n'est pas filtre ici : ce sont les controleurs qui
+                // verifient le tenant en aval. Avec une Organization, le filtre
+                // s'applique, et c'est le **seul** garde-fou sur le chemin
+                // Livewire, ou aucun controleur ne tourne.
+                if ($org) {
                     $query->where('organization_id', $org->id);
                 }
 
                 return $query->findOrFail($value);
             }
 
-            if (! $orgSlug) {
-                abort(404);
-            }
-
-            $org = Organization::findBySlug($orgSlug);
+            // Un slug n'a de sens que dans une Organization : le meme peut
+            // exister dans plusieurs.
             if (! $org) {
                 abort(404);
             }
