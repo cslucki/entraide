@@ -4,6 +4,7 @@ namespace App\Services\Loops;
 
 use App\Models\Loop;
 use App\Models\LoopMarketplaceLink;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -87,8 +88,16 @@ class LoopMarketplaceService
             // Deux mises en avant de la meme Offre la feraient lire deux fois.
             // L'unicite est tenue par la base — cette lecture n'est qu'un
             // raccourci qui evite une exception previsible.
+            //
+            // **Le nouveau mot s'applique quand meme** : l'ecran annonçait
+            // « mis en avant » et n'ecrivait rien, ce qui donnait un succes
+            // pour un geste sans effet.
             if ($deja) {
-                return $deja;
+                if ($note !== null) {
+                    $deja->update(['note' => $note]);
+                }
+
+                return $deja->fresh();
             }
 
             return LoopMarketplaceLink::create(array_merge($cible, [
@@ -132,18 +141,65 @@ class LoopMarketplaceService
     public function linksFor(Loop $loop, int $limit = self::PAGE): Collection
     {
         $colonnes = 'id,user_id,title,description,status,organization_id';
+        $auteur = 'id,first_name,name,email,organization_id,banned_at';
+
+        // **`withoutGlobalScopes()` sur les deux relations.** `Service` et
+        // `ServiceRequest` portent `BelongsToOrganizationScope`, qui filtre sur
+        // l'Organization **de la requete** et non sur celle de la Boucle. Un
+        // super-admin d'une autre Organization — que le resolveur autorise
+        // explicitement — voyait donc des lignes vides, annoncees a tort comme
+        // retirees du catalogue.
+        //
+        // Le cloisonnement ne s'en trouve pas affaibli : il est porte par
+        // `loop_id`, et la Boucle est deja resolue dans son tenant. C'est ce
+        // que fait deja l'Explorer (`app/Livewire/Explorer.php`).
+        // **`withoutGlobalScope(BelongsToOrganizationScope::class)` et non
+        // `withoutGlobalScopes()`** : celui-ci retire *tous* les scopes, dont
+        // `SoftDeletingScope`, et faisait donc reapparaitre les Offres mises a
+        // la corbeille — precisement ce que la ligne suivante veut exclure.
+        $sansScope = fn ($relation) => $relation->withoutGlobalScope(BelongsToOrganizationScope::class);
+        $cible = fn ($relation) => $relation
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->select(explode(',', $colonnes));
 
         return LoopMarketplaceLink::where('loop_id', $loop->id)
+            // Une Offre supprimee du catalogue n'a plus rien a mettre en avant.
+            // `ServiceController::destroy()` fait un **soft delete** : la ligne
+            // reste, le `cascadeOnDelete` ne se declenche jamais, et la Card
+            // affichait une boite sans titre que seul son auteur pouvait
+            // retirer. `whereHas` exclut les corbeilles.
+            ->where(fn ($q) => $q->whereHas('service', $sansScope)->orWhereHas('serviceRequest', $sansScope))
             ->with([
-                'addedBy:id,first_name,name,email,organization_id,banned_at',
-                "service:{$colonnes}",
-                'service.user:id,first_name,name,email,organization_id,banned_at',
-                "serviceRequest:{$colonnes}",
-                'serviceRequest.user:id,first_name,name,email,organization_id,banned_at',
+                "addedBy:{$auteur}",
+                'service' => $cible,
+                "service.user:{$auteur}",
+                'serviceRequest' => $cible,
+                "serviceRequest.user:{$auteur}",
             ])
             ->orderByDesc('created_at')
+            // **Le departage est indispensable.** Sous PostgreSQL les colonnes
+            // `timestamps()` sont a la seconde : trente-cinq mises en avant
+            // faites dans la meme seconde s'ordonnaient au hasard, et les
+            // trente affichees etaient les **plus anciennes**. L'identifiant
+            // est un UUIDv7, donc ordonne dans le temps.
+            ->orderByDesc('id')
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * Combien la Boucle met en avant, au total.
+     *
+     * La Card en montre trente : taire les autres laisserait croire qu'il n'y
+     * a que ça.
+     */
+    public function countFor(Loop $loop): int
+    {
+        $sansScope = fn ($relation) => $relation->withoutGlobalScope(BelongsToOrganizationScope::class);
+
+        return LoopMarketplaceLink::where('loop_id', $loop->id)
+            ->where(fn ($q) => $q->whereHas('service', $sansScope)->orWhereHas('serviceRequest', $sansScope))
+            ->count();
     }
 
     /**

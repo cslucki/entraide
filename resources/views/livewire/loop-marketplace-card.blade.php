@@ -79,13 +79,27 @@
                     <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                         {{-- L'auteur de l'Offre, **et non** qui l'a mise en avant :
                              confondre les deux ferait écrire au mauvais. --}}
+                        {{-- `publicDisplayName()` : un compte désactivé ne s'affiche
+                             nulle part ailleurs sous son vrai nom. --}}
                         @if ($lien->author())
-                            {{ __('loops.cards.marketplace.by', ['name' => $lien->author()->first_name ?? $lien->author()->name]) }}
+                            {{ __('loops.cards.marketplace.by', ['name' => $lien->authorName()]) }}
                         @endif
                         @if ($lien->addedBy && $lien->added_by !== ($lien->author()?->id))
-                            · {{ __('loops.cards.marketplace.added_by', ['name' => $lien->addedBy->first_name ?? $lien->addedBy->name]) }}
+                            · {{ __('loops.cards.marketplace.added_by', ['name' => $lien->addedByName()]) }}
                         @endif
                     </p>
+
+                    {{-- Le chemin vers l'Offre. Sans lui la Card montrait un titre
+                         et un prénom sans permettre ni de l'ouvrir, ni de la
+                         demander, ni d'écrire à la personne. --}}
+                    @if ($lien->isLive() && $lien->target())
+                        <a href="{{ $lien->kind() === \App\Models\LoopMarketplaceLink::KIND_OFFER
+                                ? route('services.show', $lien->target())
+                                : route('requests.show', $lien->target()) }}"
+                           class="mt-2 inline-block text-xs font-semibold text-indigo-600 underline hover:text-indigo-700 dark:text-indigo-300">
+                            {{ __('loops.cards.marketplace.open_in_catalogue') }}
+                        </a>
+                    @endif
 
                     @if ($lien->note && $editingId !== $lien->id)
                         <p class="mt-2 whitespace-pre-line rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:bg-gray-900/50 dark:text-gray-300">{{ $lien->note }}</p>
@@ -110,17 +124,24 @@
                 </li>
             @endforeach
         </ul>
+
+        {{-- Ne pas taire ce qui n'est pas montré. --}}
+        @if ($total > $links->count())
+            <p class="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
+                {{ __('loops.cards.marketplace.and_more', ['count' => $total - $links->count()]) }}
+            </p>
+        @endif
     @endif
 
     @if ($canHighlight)
         <div class="mt-4 space-y-2">
             @if ($picking === '')
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" wire:click="$set('picking', 'offer')"
+                    <button type="button" wire:click="startPicking('offer')"
                             class="flex-1 rounded-xl border border-dashed border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-emerald-400 hover:text-emerald-600 dark:border-gray-600 dark:text-gray-300">
                         + {{ __('loops.cards.marketplace.add_offer') }}
                     </button>
-                    <button type="button" wire:click="$set('picking', 'request')"
+                    <button type="button" wire:click="startPicking('request')"
                             class="flex-1 rounded-xl border border-dashed border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
                         + {{ __('loops.cards.marketplace.add_request') }}
                     </button>

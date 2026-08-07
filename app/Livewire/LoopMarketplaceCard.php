@@ -76,8 +76,16 @@ class LoopMarketplaceCard extends Component
         return $this->resolver()->can(auth()->user(), $this->loop, 'marketplace.manage');
     }
 
-    /** Chacun retire les siennes ; l'animation retire tout. */
-    public function canEdit(LoopMarketplaceLink $link): bool
+    /**
+     * Chacun retire les siennes ; l'animation retire tout.
+     *
+     * **`protected` et non `public`** : Livewire expose toute methode publique
+     * comme action et resout son argument par liaison implicite — donc **sans**
+     * le `where('loop_id', …)` de `resolveLink()`. Elle repondait alors sur un
+     * lien d'une autre Boucle, et distinguait l'inexistant de l'existant : un
+     * oracle, sans mutation possible, mais un oracle.
+     */
+    protected function canEdit(LoopMarketplaceLink $link): bool
     {
         if (! $this->canHighlight()) {
             return false;
@@ -124,6 +132,25 @@ class LoopMarketplaceCard extends Component
         $this->reset(['picking', 'note']);
         $this->problem = '';
         $this->flash = __('loops.cards.marketplace.highlighted');
+    }
+
+    /**
+     * Ouvrir un selecteur, **et relacher ce que le formulaire tenait**.
+     *
+     * `$set('picking', …)` ne suffisait pas : `editingId` restait pose, et le
+     * mot tape pour la nouvelle mise en avant **ecrasait** celui de la
+     * precedente — ou, symetriquement, la nouvelle naissait avec le mot de
+     * l'ancienne. Trois clics ordinaires. C'est le defaut du Journal, revenu
+     * par l'autre porte : `cancel()` etait garde, celle-ci ne l'etait pas.
+     */
+    public function startPicking(string $kind): void
+    {
+        $this->authorizeHighlight();
+
+        $this->reset(['editingId', 'note']);
+        $this->picking = in_array($kind, ['offer', 'request'], true) ? $kind : '';
+        $this->flash = '';
+        $this->problem = '';
     }
 
     public function startEditingNote(string $linkId): void
@@ -220,8 +247,16 @@ class LoopMarketplaceCard extends Component
     {
         abort_unless(Str::isUuid($id), 404);
 
+        // **Le statut est verifie ici, pas seulement dans le selecteur.**
+        // Celui-ci filtrait deja, mais l'identifiant vient du client : on
+        // pouvait mettre en avant, par appel direct, une Offre `paused` ou
+        // `deleted`, ou une Demande `closed` — et injecter du mort dans la
+        // Boucle.
+        $vivants = $modele === Service::class ? ['active'] : ['open', 'in_progress'];
+
         $objet = $modele::where('organization_id', $this->loop->organization_id)
             ->where('user_id', auth()->id())
+            ->whereIn('status', $vivants)
             ->whereKey($id)
             ->first();
 
@@ -254,12 +289,14 @@ class LoopMarketplaceCard extends Component
     {
         $canView = $this->canView();
         $canHighlight = $canView && $this->canHighlight();
+        $liens = $canView ? $this->service()->linksFor($this->loop) : collect();
 
         return view('livewire.loop-marketplace-card', [
             'canView' => $canView,
             'canHighlight' => $canHighlight,
             'canManage' => $canView && $this->canManage(),
-            'links' => $canView ? $this->service()->linksFor($this->loop) : collect(),
+            'links' => $liens,
+            'total' => $canView ? $this->service()->countFor($this->loop) : 0,
             'pickable' => $canHighlight ? $this->pickable() : collect(),
         ]);
     }

@@ -381,6 +381,7 @@ return [
             'by' => 'par :name',
             'added_by' => 'mis en avant par :name',
             'open_in_catalogue' => 'Voir dans le catalogue',
+            'and_more' => 'et :count autre(s) non affiché(s).',
 
             'note_label' => 'Un mot pour la Boucle (facultatif)',
             'save' => 'Enregistrer',

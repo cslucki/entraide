@@ -381,6 +381,7 @@ return [
             'by' => 'by :name',
             'added_by' => 'highlighted by :name',
             'open_in_catalogue' => 'View in the catalogue',
+            'and_more' => 'and :count more not shown.',
 
             'note_label' => 'A word for the Loop (optional)',
             'save' => 'Save',

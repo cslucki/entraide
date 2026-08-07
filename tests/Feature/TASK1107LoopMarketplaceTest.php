@@ -653,6 +653,169 @@ class TASK1107LoopMarketplaceTest extends TestCase
         );
     }
 
+
+    // ── Ce que la revue hostile a trouve ────────────────────────────────────
+
+    public function test_a_deactivated_persons_offer_is_not_announced_as_live(): void
+    {
+        // `services.show` rend 404 pour elle et `scopeActive()` l'exclut du
+        // catalogue. La Card etait la seule surface a l'annoncer vivante et
+        // contactable, sous le vrai nom de la personne.
+        $offre = $this->offre();
+        $lien = $this->service()->highlightOffer($this->loop, $this->membre, $offre);
+
+        $this->membre->forceFill(['banned_at' => now()])->save();
+
+        $lu = $this->service()->linksFor($this->loop)->firstWhere('id', $lien->id);
+
+        $this->assertFalse($lu->isLive());
+        $this->assertNotSame($this->membre->fullName, $lu->authorName());
+    }
+
+    public function test_the_screen_never_shows_a_deactivated_persons_real_name(): void
+    {
+        $this->service()->highlightOffer($this->loop, $this->membre, $this->offre());
+        $this->membre->forceFill(['banned_at' => now()])->save();
+
+        $this->card($this->animateur)
+            ->assertDontSee($this->membre->fullName)
+            ->assertSee(__('loops.cards.marketplace.closed_badge'));
+    }
+
+    public function test_a_soft_deleted_offer_leaves_no_empty_box(): void
+    {
+        // `ServiceController::destroy()` fait un **soft delete** : la ligne
+        // reste, le `cascadeOnDelete` ne se declenche jamais, et la Card
+        // affichait une boite sans titre que seul son auteur pouvait retirer.
+        // Mon test d'origine eprouvait `forceDelete()`, geste reserve au
+        // super-admin — un chemin que le produit ne prend jamais.
+        $offre = $this->offre();
+        $this->service()->highlightOffer($this->loop, $this->membre, $offre);
+
+        $offre->update(['status' => 'deleted']);
+        $offre->delete();
+
+        $this->assertCount(0, $this->service()->linksFor($this->loop));
+        $this->card()->assertSee(__('loops.cards.marketplace.empty_title'));
+    }
+
+    public function test_an_in_progress_request_is_not_called_withdrawn(): void
+    {
+        // Elle est en cours de traitement, pas retiree du catalogue.
+        $lien = $this->service()->highlightRequest($this->loop, $this->membre, $this->demande());
+
+        $lien->serviceRequest->update(['status' => 'in_progress']);
+
+        $this->assertTrue($lien->fresh()->isLive());
+    }
+
+    public function test_a_closed_request_is_withdrawn(): void
+    {
+        $lien = $this->service()->highlightRequest($this->loop, $this->membre, $this->demande());
+
+        $lien->serviceRequest->update(['status' => 'closed']);
+
+        $this->assertFalse($lien->fresh()->isLive());
+    }
+
+    public function test_opening_a_picker_releases_what_the_form_was_holding(): void
+    {
+        // `$set('picking', …)` laissait `editingId` pose : le mot tape pour la
+        // nouvelle mise en avant ecrasait celui de la precedente, ou la
+        // nouvelle naissait avec le mot de l'ancienne. Trois clics ordinaires.
+        $premier = $this->service()->highlightOffer($this->loop, $this->membre, $this->offre($this->membre, 'Une'), 'mot du premier');
+        $seconde = $this->offre($this->membre, 'Deux');
+
+        $this->card()
+            ->call('startEditingNote', $premier->id)
+            ->call('startPicking', 'offer')
+            ->assertSet('editingId', null)
+            ->assertSet('note', '')
+            ->call('highlightOffer', $seconde->id)
+            ->assertHasNoErrors();
+
+        $this->assertSame('mot du premier', $premier->fresh()->note);
+        $this->assertNull(LoopMarketplaceLink::where('service_id', $seconde->id)->value('note'));
+    }
+
+    public function test_a_paused_offer_cannot_be_highlighted_by_direct_call(): void
+    {
+        // Le filtre de statut n'existait que dans le selecteur, donc
+        // contournable : l'identifiant vient du client. On pouvait injecter du
+        // mort dans la Boucle.
+        $eteinte = $this->offre($this->membre, 'Eteinte', 'paused');
+
+        $this->card()->call('highlightOffer', $eteinte->id)->assertNotFound();
+
+        $this->assertDatabaseCount('loop_marketplace_links', 0);
+    }
+
+    public function test_a_closed_request_cannot_be_highlighted_by_direct_call(): void
+    {
+        $fermee = $this->demande($this->membre, 'Fermee', 'closed');
+
+        $this->card()->call('highlightRequest', $fermee->id)->assertNotFound();
+    }
+
+    public function test_the_card_leads_somewhere(): void
+    {
+        // Sans ce lien la Card montrait un titre et un prenom, sans permettre
+        // ni d'ouvrir l'Offre, ni de la demander, ni d'ecrire a la personne.
+        $offre = $this->offre();
+        $this->service()->highlightOffer($this->loop, $this->membre, $offre);
+
+        $this->card()
+            ->assertSee(__('loops.cards.marketplace.open_in_catalogue'))
+            ->assertSeeHtml(route('services.show', $offre));
+    }
+
+    public function test_the_most_recent_are_the_ones_shown(): void
+    {
+        // Sous PostgreSQL les `timestamps()` sont a la seconde : trente-cinq
+        // mises en avant faites dans la meme seconde s'ordonnaient au hasard,
+        // et les trente affichees etaient les **plus anciennes**.
+        for ($i = 0; $i < 35; $i++) {
+            $this->service()->highlightOffer($this->loop, $this->membre, $this->offre($this->membre, "offre {$i}"));
+        }
+
+        $titres = $this->service()->linksFor($this->loop)->map(fn ($l) => $l->displayTitle());
+
+        $this->assertContains('offre 34', $titres, 'la plus recente est absente');
+        $this->assertNotContains('offre 0', $titres, 'la plus ancienne est affichee a sa place');
+    }
+
+    public function test_what_is_not_shown_is_not_hidden_in_silence(): void
+    {
+        for ($i = 0; $i < 33; $i++) {
+            $this->service()->highlightOffer($this->loop, $this->membre, $this->offre($this->membre, "offre {$i}"));
+        }
+
+        $this->assertSame(33, $this->service()->countFor($this->loop));
+        $this->card()->assertSee(__('loops.cards.marketplace.and_more', ['count' => 3]));
+    }
+
+    public function test_highlighting_again_applies_the_new_note(): void
+    {
+        // L'ecran annonçait « mis en avant » et n'ecrivait rien : un succes
+        // pour un geste sans effet.
+        $offre = $this->offre();
+        $this->service()->highlightOffer($this->loop, $this->membre, $offre, 'premier mot');
+
+        $lien = $this->service()->highlightOffer($this->loop, $this->membre, $offre, 'second mot');
+
+        $this->assertSame('second mot', $lien->note);
+    }
+
+    public function test_can_edit_is_not_exposed_as_a_livewire_action(): void
+    {
+        // Livewire expose toute methode publique comme action et resout son
+        // argument par liaison implicite — donc sans le `where('loop_id', …)`
+        // du resolveur. C'etait un oracle d'existence inter-Boucles.
+        $methode = new \ReflectionMethod(LoopMarketplaceCard::class, 'canEdit');
+
+        $this->assertFalse($methode->isPublic(), 'canEdit est exposee comme action Livewire');
+    }
+
     // ── Aucune condition sur le type ────────────────────────────────────────
 
     public function test_no_business_code_branches_on_the_loop_type(): void

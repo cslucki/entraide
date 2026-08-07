@@ -106,9 +106,40 @@ class LoopMarketplaceLink extends Model
             return false;
         }
 
-        // **Les deux n'ont pas le meme mot pour « vivant »** : une Offre est
-        // `active`, une Demande est `open`. Les confondre aurait montre toutes
-        // les Demandes comme eteintes, ou l'inverse.
-        return $cible->status === ($this->kind() === self::KIND_OFFER ? 'active' : 'open');
+        // **Un compte desactive retire ses Offres du catalogue.**
+        // `Service::scopeActive()` les exclut par `activeAccount()`, et
+        // `services.show` rend 404. Sans ce controle, la Card les annonçait
+        // vivantes et contactables — la seule surface du produit a le faire.
+        if ($cible->user?->isDeactivated()) {
+            return false;
+        }
+
+        // **Les deux n'ont pas le meme vocabulaire.** Une Offre est vivante
+        // quand elle est `active` (parmi `active|paused|deleted`). Une Demande
+        // l'est tant qu'elle n'est pas `closed` : `in_progress` veut dire
+        // qu'on s'en occupe, pas qu'elle a quitte le catalogue — la badger
+        // « retiree » etait un enonce faux.
+        return $this->kind() === self::KIND_OFFER
+            ? $cible->status === 'active'
+            : $cible->status !== 'closed';
+    }
+
+    /**
+     * Le nom a afficher pour la personne a contacter.
+     *
+     * `publicDisplayName()` et non `first_name` : un compte desactive ne
+     * s'affiche nulle part ailleurs sous son vrai nom — Manifeste, Dossiers,
+     * Roadmap et ChatLoop passent tous par la. Cette Card etait la seule a y
+     * echapper.
+     */
+    public function authorName(): string
+    {
+        return $this->author()?->publicDisplayName() ?? '';
+    }
+
+    /** Idem pour la personne qui a mis en avant. */
+    public function addedByName(): string
+    {
+        return $this->addedBy?->publicDisplayName() ?? '';
     }
 }
