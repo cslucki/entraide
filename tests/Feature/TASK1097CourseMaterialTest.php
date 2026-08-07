@@ -367,20 +367,103 @@ class TASK1097CourseMaterialTest extends TestCase
 
     public function test_a_non_member_can_neither_read_nor_write_through_the_card(): void
     {
-        $module = $this->module();
+        $module = $this->module('Module confidentiel');
         $etranger = User::factory()->create(['organization_id' => $this->org->id]);
 
-        $this->assertFalse(
-            app(\App\Support\Loops\LoopPermissionResolver::class)
-                ->can($etranger, $this->loop, 'course_material.manage')
-        );
+        $resolveur = app(\App\Support\Loops\LoopPermissionResolver::class);
+        $this->assertFalse($resolveur->can($etranger, $this->loop, 'course_material.manage'));
+        $this->assertFalse($resolveur->can($etranger, $this->loop, 'course_material.view'));
 
+        // **Lire** : la Card se rend vide. Le filtre de la grille s'applique au
+        // montage ; celui-ci s'applique a chaque rendu, donc un composant deja
+        // monte cesse de servir le contenu des que le droit tombe.
+        \Livewire\Livewire::actingAs($etranger)
+            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+            ->assertDontSee('Module confidentiel')
+            ->assertSee(__('loops.cards.course_material.no_access'));
+
+        // **Ecrire** : refuse.
         \Livewire\Livewire::actingAs($etranger)
             ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
             ->call('deleteModule', $module->id)
             ->assertForbidden();
 
         $this->assertDatabaseHas('course_modules', ['id' => $module->id]);
+    }
+
+    public function test_every_write_of_the_card_is_guarded(): void
+    {
+        $module = $this->module();
+        $sequence = $this->service()->addSequence($module, $this->owner, 'Une Sequence');
+        $etranger = User::factory()->create(['organization_id' => $this->org->id]);
+
+        // Une seule action gardee ne prouve rien des cinq autres : chacune est
+        // verifiee, sinon la garde tient par raisonnement et non par test.
+        $appels = [
+            ['createModule', []],
+            ['addSequence', [$module->id]],
+            ['deleteSequence', [$sequence->id]],
+            ['moveModule', [$module->id, 1]],
+            ['moveSequence', [$sequence->id, 1]],
+            ['startEditingModule', [$module->id]],
+        ];
+
+        foreach ($appels as [$methode, $arguments]) {
+            \Livewire\Livewire::actingAs($etranger)
+                ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+                ->call($methode, ...$arguments)
+                ->assertForbidden();
+        }
+
+        $this->assertDatabaseHas('course_modules', ['id' => $module->id]);
+        $this->assertDatabaseHas('course_sequences', ['id' => $sequence->id]);
+    }
+
+    public function test_the_text_of_a_sequence_can_be_read_back(): void
+    {
+        $module = $this->module();
+        $sequence = $this->service()->addSequence($module, $this->owner, 'Introduction', body: 'Le contenu du cours.');
+
+        // Le corps etait saisi, enregistre, et n'apparaissait nulle part :
+        // quelqu'un ecrivait sa Sequence et la voyait disparaitre.
+        \Livewire\Livewire::actingAs($this->owner)
+            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+            ->assertDontSee('Le contenu du cours.')
+            ->call('toggleSequence', $sequence->id)
+            ->assertSee('Le contenu du cours.');
+    }
+
+    public function test_a_module_can_be_renamed_from_the_card(): void
+    {
+        $module = $this->module('Titre d origine');
+
+        \Livewire\Livewire::actingAs($this->owner)
+            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+            ->call('startEditingModule', $module->id)
+            ->set('moduleTitle', 'Titre corrige')
+            ->call('saveModule')
+            ->assertOk();
+
+        $this->assertSame('Titre corrige', $module->fresh()->title);
+    }
+
+    public function test_a_sequence_left_without_title_or_reference_is_still_nameable(): void
+    {
+        $module = $this->module();
+        $article = $this->article('Un Article');
+
+        // Titre vide autorise parce qu'une reference nomme la Sequence.
+        $sequence = $this->service()->addSequence($module, $this->owner, '', reference: $article);
+
+        // La cle est en ON DELETE SET NULL : l'Article part, la Sequence reste.
+        $article->delete();
+
+        // Sans repli, elle s'affichait comme une ligne vide — impossible a
+        // designer, donc impossible a supprimer.
+        $this->assertSame(
+            __('loops.cards.course_material.sequence_untitled'),
+            $sequence->fresh()->displayName()
+        );
     }
 
     public function test_a_module_of_another_loop_is_never_reachable(): void

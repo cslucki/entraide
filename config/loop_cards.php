@@ -221,8 +221,17 @@ return [
          * emplacements de la grille.
          *
          * `scope` vaut `training` : contrairement aux Cards universelles, elle
-         * n'a de sens que dans une Boucle Formation. Le registry lit ce champ ;
-         * aucune vue ne teste `$loop->type`.
+         * n'a de sens que dans une Boucle Formation.
+         *
+         * Ce champ est **descriptif**, et il faut le dire : `scopeOf()` n'a
+         * qu'un lecteur, `LoopPresetConfigurator`, qui l'expose sans filtrer.
+         * Le confinement reel vient du **preset** de `config/loop_types.php`,
+         * ou cette Card n'est listee que sous `training`. Un administrateur
+         * composant a la main pourrait donc l'activer ailleurs — elle y
+         * fonctionnerait, sans rien casser, mais sans rien vouloir dire.
+         *
+         * Aucune vue ne teste `$loop->type`, et c'est ce qui compte : la
+         * composition reste declarative.
          */
         'training.course_material' => [
             'key' => 'training.course_material',

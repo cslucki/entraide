@@ -12,6 +12,14 @@
 --}}
 <div class="flex h-full flex-col" data-loop-course-material>
 
+@if (! $canView)
+    {{-- Sans droit de lecture, rien du contenu n'est rendu. Le filtre de la
+         grille s'applique au montage ; celui-ci s'applique a chaque rendu. --}}
+    <p class="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+        {{ __('loops.cards.course_material.no_access') }}
+    </p>
+@else
+
     @if ($flash)
         <p class="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200"
            role="status" aria-live="polite">{{ $flash }}</p>
@@ -54,6 +62,11 @@
                                         aria-label="{{ __('loops.cards.course_material.move_down', ['name' => $module->title]) }}">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
                                 </button>
+                                <button type="button" wire:click="startEditingModule('{{ $module->id }}')"
+                                        class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
+                                        aria-label="{{ __('loops.cards.course_material.module_edit', ['name' => $module->title]) }}">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+                                </button>
                                 <button type="button" wire:click="deleteModule('{{ $module->id }}')"
                                         wire:confirm="{{ __('loops.cards.course_material.module_delete_confirm') }}"
                                         class="rounded-lg p-1.5 text-gray-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15">
@@ -62,6 +75,30 @@
                             </div>
                         @endif
                     </header>
+
+                    @if ($canManage && $editingModuleId === $module->id)
+                        <div class="mb-3 space-y-2 rounded-xl bg-gray-50 p-3 dark:bg-gray-900/50">
+                            <label class="block">
+                                <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.cards.course_material.module_title') }}</span>
+                                <input type="text" wire:model="moduleTitle" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800" />
+                            </label>
+                            @error('moduleTitle') <p class="text-xs text-rose-600">{{ $message }}</p> @enderror
+                            <label class="block">
+                                <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.cards.course_material.module_summary') }}</span>
+                                <input type="text" wire:model="moduleSummary" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800" />
+                            </label>
+                            <div class="flex gap-2">
+                                <button type="button" wire:click="saveModule"
+                                        class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
+                                    {{ __('loops.cards.course_material.module_save') }}
+                                </button>
+                                <button type="button" wire:click="$set('editingModuleId', null)"
+                                        class="rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                                    {{ __('loops.cards.course_material.cancel') }}
+                                </button>
+                            </div>
+                        </div>
+                    @endif
 
                     @php $sequences = $module->numberedSequences(); @endphp
 
@@ -79,14 +116,25 @@
                                  rien d'autre que de la Sequence. --}}
                             @foreach ($sequences as $entry)
                                 @php $sequence = $entry['sequence']; @endphp
-                                <li class="flex items-center gap-2.5 rounded-lg border border-gray-100 px-2.5 py-2 dark:border-gray-700">
+                                <li class="rounded-lg border border-gray-100 px-2.5 py-2 dark:border-gray-700">
+                                    <div class="flex items-center gap-2.5">
                                     <span class="shrink-0 font-mono text-[11px] tabular-nums text-gray-400" aria-hidden="true">{{ $entry['number'] }}</span>
 
                                     <x-loops.card-icon :icon="$sequence->contentType() === 'file' ? 'folder' : 'document'" size="sm" />
 
-                                    <span class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200">
-                                        <span class="sr-only">{{ __('dossiers.series_position_label', ['number' => $entry['rank']]) }} —</span>{{ $sequence->displayName() }}
-                                    </span>
+                                    @if (filled($sequence->body))
+                                        {{-- Le texte est saisi ici : il doit se relire ici. --}}
+                                        <button type="button" wire:click="toggleSequence('{{ $sequence->id }}')"
+                                                class="min-w-0 flex-1 truncate text-left text-sm text-gray-800 hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400"
+                                                aria-expanded="{{ $openSequenceId === $sequence->id ? 'true' : 'false' }}"
+                                                aria-controls="sequence-{{ $sequence->id }}-body">
+                                            <span class="sr-only">{{ __('dossiers.series_position_label', ['number' => $entry['rank']]) }} —</span>{{ $sequence->displayName() }}
+                                        </button>
+                                    @else
+                                        <span class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200">
+                                            <span class="sr-only">{{ __('dossiers.series_position_label', ['number' => $entry['rank']]) }} —</span>{{ $sequence->displayName() }}
+                                        </span>
+                                    @endif
 
                                     @if ($canManage)
                                         <span class="flex shrink-0 items-center gap-0.5">
@@ -101,10 +149,23 @@
                                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
                                             </button>
                                             <button type="button" wire:click="deleteSequence('{{ $sequence->id }}')"
+                                                    wire:confirm="{{ __('loops.cards.course_material.sequence_delete_confirm') }}"
                                                     class="rounded p-1 text-gray-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15">
                                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                             </button>
                                         </span>
+                                    @endif
+                                    </div>
+
+                                    @if ($openSequenceId === $sequence->id && filled($sequence->body))
+                                        {{-- Dans le meme `<li>` que sa Sequence : une `<ol>` ne
+                                             doit compter que des Sequences, sinon un lecteur
+                                             d'ecran annonce deux fois plus d'elements qu'il n'y
+                                             en a. --}}
+                                        <div id="sequence-{{ $sequence->id }}-body"
+                                             class="mt-1.5 whitespace-pre-line rounded-lg bg-gray-50 px-3 py-2.5 text-sm text-gray-700 dark:bg-gray-900/50 dark:text-gray-300">
+                                            {{ $sequence->body }}
+                                        </div>
                                     @endif
                                 </li>
                             @endforeach
@@ -178,4 +239,5 @@
             @endif
         </div>
     @endif
+@endif
 </div>

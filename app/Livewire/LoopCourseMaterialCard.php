@@ -37,6 +37,10 @@ class LoopCourseMaterialCard extends Component
 
     public ?string $openSequenceFormFor = null;
 
+    public ?string $openSequenceId = null;
+
+    public ?string $editingModuleId = null;
+
     public string $moduleTitle = '';
 
     public string $moduleSummary = '';
@@ -70,6 +74,22 @@ class LoopCourseMaterialCard extends Component
             ->can(auth()->user(), $this->loop, 'course_material.manage');
     }
 
+    /**
+     * Le droit de **lire** le Support de cours.
+     *
+     * `LoopCardRegistry::visibleCardsFor()` filtre deja la Card en amont, mais
+     * ce filtre s'applique au **moment ou la grille est construite**. Un
+     * composant deja monte continuerait sinon a servir la liste complete des
+     * Modules apres revocation du droit ou desactivation de la Card : l'ecriture
+     * serait refusee, la lecture non. Toutes les Cards soeurs verifient leur
+     * droit de lecture chez elles ; celle-ci ne le faisait pas.
+     */
+    public function canView(): bool
+    {
+        return app(LoopPermissionResolver::class)
+            ->can(auth()->user(), $this->loop, 'course_material.view');
+    }
+
     // ── Ecriture ────────────────────────────────────────────────────────────
 
     public function createModule(): void
@@ -86,6 +106,36 @@ class LoopCourseMaterialCard extends Component
         }
 
         $this->reset(['moduleTitle', 'moduleSummary', 'showModuleForm']);
+        $this->flash = __('loops.cards.course_material.saved');
+    }
+
+    public function startEditingModule(string $moduleId): void
+    {
+        $this->authorizeManage();
+
+        $module = $this->resolveModule($moduleId);
+
+        $this->editingModuleId = $module->id;
+        $this->moduleTitle = $module->title;
+        $this->moduleSummary = (string) $module->summary;
+    }
+
+    public function saveModule(): void
+    {
+        $this->authorizeManage();
+
+        $module = $this->resolveModule((string) $this->editingModuleId);
+
+        try {
+            app(CourseMaterialService::class)
+                ->updateModule($module, $this->moduleTitle, $this->moduleSummary);
+        } catch (ValidationException $e) {
+            $this->addError('moduleTitle', $e->getMessage());
+
+            return;
+        }
+
+        $this->reset(['moduleTitle', 'moduleSummary', 'editingModuleId']);
         $this->flash = __('loops.cards.course_material.saved');
     }
 
@@ -106,6 +156,19 @@ class LoopCourseMaterialCard extends Component
 
         $this->reset(['sequenceTitle', 'sequenceBody', 'openSequenceFormFor']);
         $this->flash = __('loops.cards.course_material.saved');
+    }
+
+    /**
+     * La Sequence dont le texte est deplie, s'il y en a une.
+     *
+     * Le corps d'une Sequence etait saisi, enregistre… et n'apparaissait nulle
+     * part. Quelqu'un ecrivait le contenu de sa Sequence et le voyait
+     * disparaitre. Il se lit maintenant sur place, une Sequence a la fois : la
+     * Card est un panneau lateral, pas une page de cours.
+     */
+    public function toggleSequence(string $sequenceId): void
+    {
+        $this->openSequenceId = $this->openSequenceId === $sequenceId ? null : $sequenceId;
     }
 
     public function deleteModule(string $moduleId): void
@@ -241,9 +304,16 @@ class LoopCourseMaterialCard extends Component
 
     public function render()
     {
+        $canView = $this->canView();
+
         return view('livewire.loop-course-material-card', [
-            'modules' => $this->modules(),
-            'canManage' => $this->canManage(),
+            // Sans droit de lecture, la Card se rend **vide** plutot que de
+            // disparaitre : elle n'est de toute facon pas censee etre affichee,
+            // et rendre une coquille est plus sur que de laisser une vue
+            // supposer qu'une collection est la.
+            'modules' => $canView ? $this->modules() : collect(),
+            'canView' => $canView,
+            'canManage' => $canView && $this->canManage(),
         ]);
     }
 }

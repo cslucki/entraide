@@ -84,17 +84,29 @@ class CourseSequence extends Model
         };
     }
 
-    /** Le nom a afficher : celui de la Sequence, sinon celui de ce qu'elle designe. */
+    /**
+     * Le nom a afficher : celui de la Sequence, sinon celui de ce qu'elle
+     * designe, sinon un libelle de repli.
+     *
+     * Le repli n'est pas decoratif. `addSequence()` autorise un titre vide
+     * quand une reference est fournie — c'est la reference qui nomme la
+     * Sequence. Mais les deux cles sont en `ON DELETE SET NULL` : supprimer
+     * l'Article laisse une Sequence sans titre **et** sans reference. Sans
+     * repli, elle s'affichait comme une ligne vide, impossible a designer et
+     * donc impossible a supprimer.
+     */
     public function displayName(): string
     {
         if (filled($this->title)) {
             return $this->title;
         }
 
-        return match ($this->contentType()) {
+        $nom = match ($this->contentType()) {
             self::TYPE_ARTICLE => (string) ($this->blogPost?->title ?? ''),
             self::TYPE_FILE => (string) ($this->dossierFile?->display_name ?? $this->dossierFile?->original_name ?? ''),
             default => '',
         };
+
+        return filled($nom) ? $nom : __('loops.cards.course_material.sequence_untitled');
     }
 }
