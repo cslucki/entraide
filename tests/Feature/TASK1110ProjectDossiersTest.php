@@ -19,9 +19,15 @@ use Tests\TestCase;
  * deux premieres y sont depuis TASK-1105 et TASK-1106 ; la troisieme arrive.
  *
  * **Aucune Card n'est creee.** `core.dossiers` existe depuis TASK-1091, qui l'a
- * livree a la Communaute et a rattrape le parc. Cette tache ne fait que
- * l'ajouter a un second preset — et rattraper les Boucles Projet existantes,
- * ce qui est desormais un invariant et non une decouverte.
+ * ajoutee au preset Communaute. Cette tache ne fait que l'ajouter a un second
+ * preset, et rattraper les Boucles Projet existantes — un invariant desormais,
+ * et non une decouverte.
+ *
+ * **Le rattrapage ne prend la place de personne.** Le preset Projet porte
+ * exactement trois Cards de grille pour trois `grid_slots` : ecrire la
+ * quatrieme sur une Boucle qui en portait deja une ajoutee a la main aurait
+ * sorti cette derniere de l'ecran, sans un mot. Une Boucle deja au plafond est
+ * donc laissee telle quelle.
  */
 class TASK1110ProjectDossiersTest extends TestCase
 {
@@ -50,12 +56,46 @@ class TASK1110ProjectDossiersTest extends TestCase
         return app(LoopTypeRegistry::class);
     }
 
-    private function projet(string $nom = 'Un projet'): Loop
+    /**
+     * Une Boucle Projet **telle qu'elle etait avant cette tache**.
+     *
+     * `createLoop()` applique le preset `general`, qui porte deja les
+     * Dossiers : une Boucle ainsi fabriquee puis reetiquetee `project` n'a
+     * jamais eu besoin du rattrapage, et les tests ne l'exerçaient pas. La
+     * composition est donc posee a la main, exactement comme le parc reel.
+     *
+     * @param  list<string>  $enPlus  Cards ajoutees a la main sur cette Boucle
+     */
+    private function projet(string $nom = 'Un projet', array $enPlus = []): Loop
     {
         $loop = $this->loops->createLoop($this->auteur, $nom);
         $loop->forceFill(['type' => 'project'])->save();
 
+        LoopCard::where('loop_id', $loop->id)->delete();
+
+        foreach (['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.decisions', 'core.members'] as $cle) {
+            LoopCard::create([
+                'organization_id' => $this->org->id, 'loop_id' => $loop->id,
+                'card_key' => $cle, 'enabled' => true, 'added_by_preset' => 'project',
+            ]);
+        }
+
+        foreach ($enPlus as $cle) {
+            LoopCard::create([
+                'organization_id' => $this->org->id, 'loop_id' => $loop->id,
+                'card_key' => $cle, 'enabled' => true, 'added_by_preset' => null,
+            ]);
+        }
+
         return $loop->fresh();
+    }
+
+    /** Ce que la grille montre reellement — plafond compris. */
+    private function grille(Loop $loop): array
+    {
+        return app(LoopCardRegistry::class)
+            ->workspaceCardsFor($loop->fresh(), $this->auteur)
+            ->pluck('key')->all();
     }
 
     private function migration(): object
@@ -78,13 +118,20 @@ class TASK1110ProjectDossiersTest extends TestCase
         }
     }
 
-    public function test_the_card_catalogue_is_unchanged_in_size(): void
+    public function test_the_card_catalogue_gained_nothing(): void
     {
-        // Un ajout au catalogue serait le signe qu'on a cree une Card.
-        $this->assertSame(
-            count(config('loop_cards.cards')),
-            collect(config('loop_cards.cards'))->pluck('key')->unique()->count(),
-        );
+        // **La premiere version de ce test etait une tautologie** : elle
+        // comparait `count()` a `pluck('key')->unique()->count()` sur un
+        // tableau **indexe par la cle** — les deux sont egaux quelle que soit
+        // la taille. Ajouter une Card au catalogue la laissait passer.
+        //
+        // La liste est donc figee a la main, comme les presets.
+        $this->assertSame([
+            'core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.polls',
+            'core.events', 'core.dossiers', 'training.course_material',
+            'training.progression', 'training.assignments', 'training.quiz',
+            'core.journal', 'core.decisions', 'core.marketplace', 'core.members',
+        ], array_keys(config('loop_cards.cards')));
     }
 
     // ── La matrice, pour le Projet ──────────────────────────────────────────
@@ -226,24 +273,122 @@ class TASK1110ProjectDossiersTest extends TestCase
 
     public function test_a_loop_of_another_type_is_left_alone(): void
     {
-        $dialogue = $this->loops->createLoop($this->auteur, 'Un dialogue')->fresh();
-        $avant = LoopCard::where('loop_id', $dialogue->id)->count();
+        // **Un temoin qui n'a pas deja la Card.** Le precedent etait une Boucle
+        // `general`, dont le preset porte les Dossiers depuis TASK-1091 : le
+        // test passait meme sans le filtre sur le type.
+        $formation = $this->loops->createLoop($this->auteur, 'Une formation');
+        $formation->forceFill(['type' => 'training'])->save();
+
+        LoopCard::where('loop_id', $formation->id)->delete();
+        LoopCard::create([
+            'organization_id' => $this->org->id, 'loop_id' => $formation->id,
+            'card_key' => 'core.members', 'enabled' => true, 'added_by_preset' => 'training',
+        ]);
 
         $this->migration()->up();
 
-        $this->assertSame($avant, LoopCard::where('loop_id', $dialogue->id)->count());
+        $this->assertNull(
+            LoopCard::where('loop_id', $formation->id)->where('card_key', 'core.dossiers')->first(),
+            'le rattrapage a touche une Boucle qui n’est pas un Projet',
+        );
     }
 
-    public function test_every_backfilled_row_carries_its_organization(): void
+    public function test_every_backfilled_row_carries_the_organization_of_its_loop(): void
     {
-        $projet = $this->projet();
-        LoopCard::where('loop_id', $projet->id)->where('card_key', 'core.dossiers')->delete();
+        // **Une seconde Organization, et le contexte courant pointe ailleurs.**
+        // Sans cela, `HasOrganizationId` remplissait la colonne tout seul et le
+        // test passait meme si le rattrapage ne la posait pas.
+        $autreOrg = Organization::factory()->create(['is_active' => true, 'loops_enabled' => true]);
+        $ailleurs = User::factory()->create(['organization_id' => $autreOrg->id]);
+
+        app()->instance('current_organization', $autreOrg);
+        $chezEux = (new LoopService)->createLoop($ailleurs, 'Leur projet');
+        $chezEux->forceFill(['type' => 'project'])->save();
+        LoopCard::where('loop_id', $chezEux->id)->delete();
+        LoopCard::create([
+            'organization_id' => $autreOrg->id, 'loop_id' => $chezEux->id,
+            'card_key' => 'core.members', 'enabled' => true, 'added_by_preset' => 'project',
+        ]);
+
+        // Le contexte courant reste sur **notre** Organization pendant le
+        // rattrapage : la colonne doit venir de la Boucle, pas de la requete.
+        app()->instance('current_organization', $this->org);
 
         $this->migration()->up();
 
-        $ligne = LoopCard::where('loop_id', $projet->id)->where('card_key', 'core.dossiers')->first();
+        $ligne = LoopCard::where('loop_id', $chezEux->id)->where('card_key', 'core.dossiers')->first();
 
-        $this->assertSame($this->org->id, $ligne->organization_id);
+        $this->assertNotNull($ligne);
+        $this->assertSame($autreOrg->id, $ligne->organization_id);
+    }
+
+
+    // ── Le rattrapage ne prend la place de personne ─────────────────────────
+
+    public function test_a_card_added_by_hand_never_leaves_the_grid(): void
+    {
+        // **Le defaut trouve en revue.** Le preset porte exactement trois Cards
+        // de grille pour trois emplacements : ecrire la quatrieme aurait sorti
+        // de l'ecran celle qu'un humain avait ajoutee — et le Journal n'a
+        // aucune route a lui, sa Card est sa seule surface. La donnee aurait
+        // survecu, l'acces non.
+        $projet = $this->projet('Avec un Journal', ['core.journal']);
+
+        $avant = $this->grille($projet);
+        $this->assertContains('core.journal', $avant);
+
+        $this->migration()->up();
+
+        $this->assertContains('core.journal', $this->grille($projet), 'le Journal a ete chasse de la grille');
+    }
+
+    public function test_a_loop_already_at_the_cap_is_left_untouched(): void
+    {
+        $projet = $this->projet('Deja au plafond', ['core.polls']);
+
+        $this->migration()->up();
+
+        $this->assertNull(
+            LoopCard::where('loop_id', $projet->id)->where('card_key', 'core.dossiers')->first(),
+            'la Card a ete ajoutee alors que la grille etait pleine',
+        );
+    }
+
+    public function test_the_grid_never_shows_more_than_its_cap_after_the_backfill(): void
+    {
+        foreach ([[], ['core.journal'], ['core.polls', 'core.events']] as $i => $enPlus) {
+            $projet = $this->projet("Projet {$i}", $enPlus);
+
+            $this->migration()->up();
+
+            $this->assertLessThanOrEqual(
+                config('loop_cards.grid_slots'),
+                count($this->grille($projet)),
+                "Projet {$i}",
+            );
+        }
+    }
+
+    public function test_an_archived_project_loop_keeps_what_it_shows(): void
+    {
+        // Sur une Boucle archivee la recomposition est refusee : une eviction y
+        // serait irreversible sans desarchiver.
+        $projet = $this->projet('Archivee', ['core.journal']);
+        $projet->forceFill(['status' => 'archived', 'archived_at' => now()])->save();
+
+        $this->migration()->up();
+
+        $this->assertContains('core.journal', $this->grille($projet->fresh()));
+    }
+
+    public function test_a_loop_with_room_still_receives_the_card(): void
+    {
+        // Le rattrapage ne doit pas devenir timide au point de ne rien faire.
+        $projet = $this->projet('De la place');
+
+        $this->migration()->up();
+
+        $this->assertContains('core.dossiers', $this->grille($projet));
     }
 
     // ── Le compteur ─────────────────────────────────────────────────────────
