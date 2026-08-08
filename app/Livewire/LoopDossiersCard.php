@@ -55,13 +55,40 @@ class LoopDossiersCard extends Component
      *
      * @return array{open: string, articles: string, files: string}|null
      */
+    /**
+     * L'adresse d'un Article, **dans l'Organization de la Boucle**.
+     *
+     * La vue appelait `route('blog.show', $slug)` — la route **nue**, celle qui
+     * retombe sur l'Organization par defaut. Mesure sur une Organization non
+     * par defaut : deux liens sur cinq pointaient ailleurs. C'est le meme
+     * defaut que le bloquant de TASK-1107, signale par TASK-1111.
+     *
+     * Precalculee dans `render()` et passee comme chaine : une methode publique
+     * prenant un modele serait exposee par Livewire comme action, avec liaison
+     * implicite — troisieme lecon de la serie.
+     */
+    private function articleUrls(\Illuminate\Support\Collection $articles): \Illuminate\Support\Collection
+    {
+        $slug = $this->loop->organization?->slug;
+
+        return $articles->mapWithKeys(fn ($article) => [
+            $article->id => $slug
+                ? route('organization.blog.show', ['organization' => $slug, 'post' => $article->slug])
+                : route('blog.show', ['post' => $article->slug]),
+        ]);
+    }
+
     private function dossierUrls(?Dossier $dossier): ?array
     {
         if (! $dossier) {
             return null;
         }
 
-        $organization = request()->route('organization') ?: $this->loop->organization?->slug;
+        // **La Boucle d'abord, la requete jamais.** L'ordre inverse laissait le
+        // slug de l'URL decider ; c'est la lecon de TASK-1103, ou une
+        // interaction Livewire arrive sur `POST /livewire/update`, qui ne porte
+        // aucun parametre `organization`.
+        $organization = $this->loop->organization?->slug;
 
         if (! $organization || ! Route::has('organization.dossiers.show')) {
             return null;
@@ -97,6 +124,7 @@ class LoopDossiersCard extends Component
                 'dossier' => null,
                 'urls' => null,
                 'articles' => collect(),
+                'articleUrls' => collect(),
                 'series' => collect(),
                 'files' => collect(),
                 'total' => 0,
@@ -120,10 +148,13 @@ class LoopDossiersCard extends Component
             && $resolver->can($user, $this->loop, 'dossiers.upload_file')
             && $user->can('manageFiles', $dossier);
 
+        $articles = $this->recentArticles($dossier);
+
         return view('livewire.loop-dossiers-card', [
             'dossier' => $dossier,
             'urls' => $this->dossierUrls($dossier),
-            'articles' => $this->recentArticles($dossier),
+            'articles' => $articles,
+            'articleUrls' => $this->articleUrls($articles),
             'series' => $this->recentSeries($dossier),
             'files' => $this->recentFiles($dossier),
             'total' => $this->totalItems($dossier),
