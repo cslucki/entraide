@@ -96,12 +96,13 @@ class TASK1079LoopTypeAdminTest extends TestCase
         // TASK-1087, Evenements en TASK-1088. On fige ce qui doit rester vrai :
         // les membres y sont toujours, et le socle Projets ne bouge pas.
         $this->assertContains('core.members', $this->settings()->cardsFor('general'));
-        // `core.decisions` a rejoint le socle Projet avec TASK-1106 : la matrice
-        // produit lui donne « Roadmap · Decisions · Dossiers ». La liste reste
-        // **figee a la main** — c'est ce qui fait qu'un changement de preset ne
-        // passe jamais inaperçu.
+        // Le socle Projet porte desormais ses trois Cards distinctives —
+        // « Roadmap · Decisions · Dossiers » — les Decisions avec TASK-1106,
+        // les Dossiers avec TASK-1110. La liste reste **figee a la main** :
+        // c'est ce qui fait qu'un changement de preset ne passe jamais
+        // inaperçu.
         $this->assertEqualsCanonicalizing(
-            ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.decisions', 'core.members'],
+            ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
             $this->settings()->cardsFor('project'),
         );
     }

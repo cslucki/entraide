@@ -98,12 +98,13 @@ class TASK1079LoopTypeRegistryTest extends TestCase
             $this->registry()->cardsFor('general'),
         );
         $this->assertContains('core.members', $this->registry()->cardsFor('general'));
-        // `core.decisions` a rejoint le socle Projet avec TASK-1106 : la matrice
-        // produit lui donne « Roadmap · Decisions · Dossiers ». La liste reste
-        // **figee a la main** — c'est ce qui fait qu'un changement de preset ne
-        // passe jamais inaperçu.
+        // Le socle Projet porte desormais ses trois Cards distinctives —
+        // « Roadmap · Decisions · Dossiers » — les Decisions avec TASK-1106,
+        // les Dossiers avec TASK-1110. La liste reste **figee a la main** :
+        // c'est ce qui fait qu'un changement de preset ne passe jamais
+        // inaperçu.
         $this->assertEqualsCanonicalizing(
-            ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.decisions', 'core.members'],
+            ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
             $this->registry()->cardsFor('project'),
         );
     }

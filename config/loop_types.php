@@ -112,9 +112,17 @@ return [
                 'core.manifesto',
                 'core.roadmap',
                 // La matrice produit donne au Projet « Roadmap · Decisions ·
-                // Dossiers ». Les Decisions arrivent ici ; les Dossiers
-                // restent a brancher, la Card existant deja.
+                // Dossiers ». Les trois y sont desormais.
+                //
+                // **Aucune Card n'est creee** : `core.dossiers` existe depuis
+                // TASK-1091, qui l'a livree a la Communaute et a rattrape le
+                // parc. Ici on ne fait que l'ajouter a un second preset.
+                //
+                // Trois Cards en grille pour trois `grid_slots` : le preset est
+                // **exactement au plafond**. Une quatrieme disparaitrait en
+                // silence — `workspaceCardsFor()` fait `->take(3)` sans un mot.
                 'core.decisions',
+                'core.dossiers',
                 'core.members',
             ],
         ],
