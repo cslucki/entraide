@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    CI FEATURE — Blocking quality gate, second half.
+
+    Avant TASK-1112, la CI GitHub ne lançait que `tests/Unit` : **aucun test
+    Feature n'a jamais tourné dans un gate bloquant**. Une régression Feature,
+    même massive, laissait la coche verte. Le seul filet réel était la suite
+    locale.
+
+    Ce fichier lance `tests/Feature` — moins les classes déjà rouges sur
+    `develop`, listées une par une ci-dessous avec leur nombre d'échecs. Les
+    exclure est le seul moyen d'obtenir un gate qui **signifie** quelque chose
+    aujourd'hui : sans elles, la CI serait rouge en permanence et personne ne
+    la regarderait plus.
+
+    **Cette liste doit rétrécir, jamais grandir.** Y ajouter une classe pour
+    faire passer une PR reviendrait à désactiver le gate qu'on vient de poser.
+    Un test qui la retire échouerait alors — c'est voulu.
+
+    Mesuré sur `develop` le 2026-08-08, sur PostgreSQL : 23 échecs, 12 classes.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+
+            <!-- pgvector / recherche sémantique : 6 échecs -->
+            <exclude>tests/Feature/Livewire/MessageThreadTest.php</exclude>
+
+            <!-- Suppression de compte, aperçu : 3 échecs -->
+            <exclude>tests/Feature/Admin/AdminUserDeletePreviewTest.php</exclude>
+
+            <!-- Cloisonnement historique : 2 échecs -->
+            <exclude>tests/Feature/T347OrganizationScopedAuthTest.php</exclude>
+
+            <!-- ChatLoop : 2 échecs -->
+            <exclude>tests/Feature/Livewire/LoopChatTest.php</exclude>
+
+            <!-- Agent IA en ligne : 2 échecs -->
+            <exclude>tests/Feature/Livewire/InlineMemberAgentTest.php</exclude>
+
+            <!-- Fichiers de Dossier : 2 échecs -->
+            <exclude>tests/Feature/DossierFileTest.php</exclude>
+
+            <!-- Registre du cycle de vie des données : 1 échec.
+                 28 clés étrangères non classées — dette transverse connue. -->
+            <exclude>tests/Feature/UserDataLifecycleRegistryTest.php</exclude>
+
+            <!-- Blog : 2 échecs -->
+            <exclude>tests/Feature/T997BlogMethodSelectionAnnotationTest.php</exclude>
+            <exclude>tests/Feature/T969BlogTagsTest.php</exclude>
+
+            <!-- Routes publiques partenaires : 1 échec -->
+            <exclude>tests/Feature/PublicFrenchPartnersRoutesTest.php</exclude>
+
+            <!-- API : 1 échec -->
+            <exclude>tests/Feature/Api/ApiTenantScopingTest.php</exclude>
+
+            <!-- Redirection du tableau de bord admin : 1 échec -->
+            <exclude>tests/Feature/Admin/AdminDashboardRedirectTest.php</exclude>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI="/>
+        <env name="APP_URL" value="http://localhost"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+        <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_DATABASE" value="bouclepro_test"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+    </php>
+</phpunit>

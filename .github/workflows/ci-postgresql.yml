@@ -86,5 +86,17 @@ jobs:
       - name: Run migrations
         run: php artisan migrate --force
 
+      # Les deux moities du gate, dans **un seul job** : l'installation de
+      # composer, npm et la construction des assets coutent environ une minute,
+      # et les dedoubler en deux jobs paierait cette minute deux fois pour rien.
+      # Les etapes restent separees pour que leurs durees se lisent
+      # independamment.
       - name: Run Unit tests (blocking)
         run: php vendor/bin/phpunit --configuration phpunit.ci-minimal.xml
+
+      # Avant TASK-1112, la CI ne lançait **que** les tests Unit : aucune
+      # regression Feature ne pouvait rendre ce gate rouge. La liste des classes
+      # exclues est dans `phpunit.ci-feature.xml`, avec la raison de chacune —
+      # elle doit retrecir, jamais grandir.
+      - name: Run Feature tests (blocking)
+        run: php vendor/bin/phpunit --configuration phpunit.ci-feature.xml

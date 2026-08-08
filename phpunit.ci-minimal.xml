@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     CI MINIMAL — Blocking quality gate.
-    Runs only Unit tests + stable Feature subset.
+    Runs the Unit suite. Les tests Feature sont dans phpunit.ci-feature.xml,
+    lance par la meme etape bloquante depuis TASK-1112.
+
+    (Le commentaire d origine annonçait un « stable Feature subset » qui
+    n existait pas : aucune testsuite Feature n a jamais figure ici.)
     Used by the "quality-gate" job in ci-postgresql.yml.
     All failures here are blocking.
 -->
