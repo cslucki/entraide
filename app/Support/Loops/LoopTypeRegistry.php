@@ -88,6 +88,27 @@ class LoopTypeRegistry
         return config('loop_types.default', 'general');
     }
 
+    /**
+     * Ce type peut-il etre **assigne** a cette Boucle ?
+     *
+     * Un type retire des choix ne s'assigne pas. Mais **garder celui que la
+     * Boucle porte deja n'est pas une assignation** : sans cette nuance, un
+     * formulaire d'edition refuserait d'enregistrer le nom ou la description
+     * d'une Boucle dont le type a ete ferme entre-temps.
+     *
+     * La regle vivait dans un seul controleur (`AdminLoopController`), et
+     * manquait aux deux autres chemins. Elle est ici, **au registre**, pour que
+     * le prochain appelant n'ait rien a redecouvrir.
+     */
+    public function isAssignableTo(?string $wanted, ?string $current): bool
+    {
+        if (! $this->exists($wanted)) {
+            return false;
+        }
+
+        return $this->isAvailable($wanted) || $this->resolve($current) === $this->resolve($wanted);
+    }
+
     public function exists(?string $type): bool
     {
         return $type !== null && array_key_exists($type, config('loop_types.types', []));

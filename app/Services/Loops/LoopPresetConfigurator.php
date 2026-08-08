@@ -302,6 +302,18 @@ class LoopPresetConfigurator
             throw new PresetException(__('loops.preset_error_unknown_type'));
         }
 
+        // **Un type retire des choix ne s'assigne pas**, quel que soit
+        // l'appelant. La regle vivait dans un seul controleur ; les deux autres
+        // chemins ne l'avaient pas, et un POST forge suffisait a poser un type
+        // que le produit n'offre pas.
+        //
+        // Garder celui que la Boucle porte deja reste permis : ce n'est pas une
+        // assignation, et l'interdire empecherait d'enregistrer quoi que ce
+        // soit d'autre sur le formulaire.
+        if (! $this->types->isAssignableTo($targetType, $loop->type)) {
+            throw new PresetException(__('loops.type_unavailable'));
+        }
+
         $preview = $this->previewPresetChange($loop, $targetType);
 
         return DB::transaction(function () use ($loop, $targetType, $preview, $deactivateAbsent) {

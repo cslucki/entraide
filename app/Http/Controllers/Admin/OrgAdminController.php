@@ -311,6 +311,12 @@ class OrgAdminController extends Controller
             return back()->with('error', __('loops.type_invalid'));
         }
 
+        // Meme regle que les deux autres chemins, lue au registre : un type
+        // retire des choix ne s'assigne pas, mais garder le sien reste permis.
+        if (! $registry->isAssignableTo($data['type'], $loop->type)) {
+            return back()->with('error', __('loops.type_unavailable'));
+        }
+
         $loop->update([
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
