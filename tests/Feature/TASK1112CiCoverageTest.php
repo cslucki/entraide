@@ -154,7 +154,12 @@ class TASK1112CiCoverageTest extends TestCase
             if ($fichier->isFile()
                 && str_ends_with($fichier->getFilename(), '.php')
                 && $fichier->getFilename() !== 'TASK1112CiCoverageTest.php') {
-                $annotees += substr_count(file_get_contents($fichier->getPathname()), '@group ci-known-red');
+                // **L'attribut, pas l'annotation.** PHPUnit 12 a retire le
+                // support des metadonnees en commentaire : mes `@group` etaient
+                // inertes, et les douze classes echouaient quand meme dans le
+                // premier passage reel de la CI. Compter la chaine en
+                // commentaire aurait laisse croire le contraire.
+                $annotees += substr_count(file_get_contents($fichier->getPathname()), "Group('ci-known-red')");
             }
         }
 
@@ -163,6 +168,42 @@ class TASK1112CiCoverageTest extends TestCase
             $annotees,
             'le groupe des tests deja rouges a change : s’il a grandi, expliquez-vous ; s’il a maigri, baissez ce nombre',
         );
+    }
+
+    public function test_the_group_is_declared_with_an_attribute_not_an_annotation(): void
+    {
+        // PHPUnit 12 a **retire** le support des metadonnees en commentaire :
+        // un `@group` y est inerte. Le premier passage reel de la CI l'a
+        // montre — les douze classes « exclues » echouaient toutes.
+        $restantes = 0;
+
+        $iterateur = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator(base_path('tests/Feature')),
+        );
+
+        foreach ($iterateur as $fichier) {
+            if ($fichier->isFile()
+                && str_ends_with($fichier->getFilename(), '.php')
+                && $fichier->getFilename() !== 'TASK1112CiCoverageTest.php') {
+                $restantes += substr_count(file_get_contents($fichier->getPathname()), '@group ci-known-red');
+            }
+        }
+
+        $this->assertSame(0, $restantes, 'des annotations `@group` inertes subsistent');
+    }
+
+    public function test_the_locale_is_pinned_so_both_environments_agree(): void
+    {
+        // Le premier passage reel a rendu 42 echecs disant « Manifesto » la ou
+        // le test attendait « Manifeste » : la CI n'a pas de `.env` et
+        // retombait sur le defaut de `config/app.php`.
+        foreach (['phpunit.ci-feature.xml', 'phpunit.ci-minimal.xml'] as $config) {
+            $this->assertStringContainsString(
+                'APP_LOCALE" value="fr"',
+                file_get_contents(base_path($config)),
+                $config,
+            );
+        }
     }
 
     public function test_the_feature_config_excludes_by_group_and_not_by_file(): void

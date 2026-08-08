@@ -470,13 +470,10 @@ class MessageThreadTest extends TestCase
 
     /* ---------- PINNED MESSAGE TESTS ---------- */
 
-    /**
-     * @group ci-known-red
-     *
-     * Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-     * qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-     * n'est pas un endroit ou ranger un test qui gene.
-     */
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_buyer_can_pin_message(): void
     {
         $msg = Message::create([
@@ -495,13 +492,10 @@ class MessageThreadTest extends TestCase
         $this->assertSame($this->buyer->id, $fresh->pinned_by_id);
     }
 
-    /**
-     * @group ci-known-red
-     *
-     * Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-     * qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-     * n'est pas un endroit ou ranger un test qui gene.
-     */
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_seller_can_pin_message(): void
     {
         $msg = Message::create([
@@ -520,13 +514,10 @@ class MessageThreadTest extends TestCase
         $this->assertSame($this->seller->id, $fresh->pinned_by_id);
     }
 
-    /**
-     * @group ci-known-red
-     *
-     * Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-     * qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-     * n'est pas un endroit ou ranger un test qui gene.
-     */
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_pinned_message_is_shown_in_banner_in_messages(): void
     {
         Message::create([
@@ -766,13 +757,10 @@ class MessageThreadTest extends TestCase
         }
     }
 
-    /**
-     * @group ci-known-red
-     *
-     * Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-     * qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-     * n'est pas un endroit ou ranger un test qui gene.
-     */
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_reaction_coexists_with_reply_image_pin_in_messages(): void
     {
         Storage::fake('public');
@@ -812,13 +800,10 @@ class MessageThreadTest extends TestCase
         ]);
     }
 
-    /**
-     * @group ci-known-red
-     *
-     * Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-     * qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-     * n'est pas un endroit ou ranger un test qui gene.
-     */
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_pin_replaces_previous_pin_in_messages(): void
     {
         $first = Message::create([
@@ -849,13 +834,10 @@ class MessageThreadTest extends TestCase
         $this->assertSame($this->buyer->id, $secondFresh->pinned_by_id);
     }
 
-    /**
-     * @group ci-known-red
-     *
-     * Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-     * qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-     * n'est pas un endroit ou ranger un test qui gene.
-     */
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_buyer_can_unpin_message(): void
     {
         $msg = Message::create([

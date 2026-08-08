@@ -94,13 +94,10 @@ class AdminDashboardRedirectTest extends TestCase
             ->assertNotFound();
     }
 
-    /**
-     * @group ci-known-red
-     *
-     * Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-     * qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-     * n'est pas un endroit ou ranger un test qui gene.
-     */
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_admin_with_organization_login_defaults_to_chatloop_url(): void
     {
         $organization = Organization::factory()->create(['is_active' => true]);

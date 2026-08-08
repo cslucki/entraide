@@ -18,13 +18,10 @@ class T969BlogTagsTest extends TestCase
         parent::tearDown();
     }
 
-    /**
-     * @group ci-known-red
-     *
-     * Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-     * qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-     * n'est pas un endroit ou ranger un test qui gene.
-     */
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_blog_store_normalizes_hash_prefixed_tags(): void
     {
         $organization = $this->createOrganization();
