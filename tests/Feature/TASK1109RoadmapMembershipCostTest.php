@@ -168,14 +168,24 @@ class TASK1109RoadmapMembershipCostTest extends TestCase
         // Une propriete publique voyage dans le snapshot, qui n'a ni nonce ni
         // expiration : une adhesion memoisee y deviendrait un droit durable,
         // rejouable apres un retrait.
-        $reflet = new \ReflectionClass(LoopRoadmapCard::class);
+        // **On lit le snapshot**, on ne devine pas depuis les noms : la
+        // premiere version de ce test n'assertait qu'une chose — aucun nom de
+        // propriete publique ne contient « membership » — et serait passee
+        // inchangee si quelqu'un avait ajoute `public array $droitsMemo`.
+        $this->items(2);
 
-        foreach ($reflet->getProperties(\ReflectionProperty::IS_PUBLIC) as $propriete) {
-            $this->assertStringNotContainsStringIgnoringCase(
-                'membership',
-                $propriete->getName(),
-                "la propriete publique « {$propriete->getName()} » porterait l'adhesion dans le snapshot",
-            );
+        $html = Livewire::actingAs($this->animateur)
+            ->test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->html();
+
+        preg_match('/wire:snapshot="([^"]*)"/', $html, $m);
+        $this->assertNotEmpty($m, 'aucun snapshot rendu');
+
+        $snapshot = json_decode(html_entity_decode($m[1], ENT_QUOTES), true);
+        $donnees = array_keys($snapshot['data'] ?? []);
+
+        foreach (['membershipMemo', 'membershipMemoRempli', 'privilegeMemo', 'droitsMemo'] as $cache) {
+            $this->assertNotContains($cache, $donnees, "« {$cache} » voyage dans le snapshot");
         }
     }
 
@@ -245,6 +255,89 @@ class TASK1109RoadmapMembershipCostTest extends TestCase
         ]);
     }
 
+
+
+    // ── Le cache ne survit pas au rendu ─────────────────────────────────────
+
+    public function test_the_cache_does_not_outlive_a_render(): void
+    {
+        // **La correction du defaut trouve en revue.** Une propriete privee ne
+        // voyage pas dans le snapshot — c'est vrai, et le test precedent le
+        // verifie sur le snapshot lui-meme. Mais l'unite de vie d'une instance
+        // Livewire n'est pas la requete : c'est le **commit**, et un commit
+        // porte un tableau de `calls`. Deux gestes partis dans le meme tick
+        // partagent une instance, et un droit retire entre les deux par une
+        // requete concurrente n'aurait plus ete honore.
+        //
+        // Le cache ne vit donc que pendant `render()`. C'est verifie ici
+        // directement, par lecture des proprietes privees apres un rendu — le
+        // harnais de test Livewire construisant une instance neuve a chaque
+        // `call()`, il ne permet pas de rejouer deux gestes d'un meme commit.
+        $this->items(3);
+
+        $composant = Livewire::actingAs($this->animateur)->test(LoopRoadmapCard::class, ['loop' => $this->loop]);
+        $composant->html();
+
+        $instance = $composant->instance();
+        $reflet = new \ReflectionClass($instance);
+
+        foreach (['membershipMemo', 'privilegeMemo'] as $nom) {
+            $propriete = $reflet->getProperty($nom);
+            $propriete->setAccessible(true);
+
+            $this->assertNull(
+                $propriete->getValue($instance),
+                "« {$nom} » survit au rendu : un droit retire entre deux gestes du meme commit ne serait plus honore",
+            );
+        }
+
+        $rempli = $reflet->getProperty('membershipMemoRempli');
+        $rempli->setAccessible(true);
+        $this->assertFalse($rempli->getValue($instance));
+    }
+
+    public function test_the_two_other_cards_do_not_keep_their_rights_either(): void
+    {
+        LoopCard::firstOrCreate(
+            ['loop_id' => $this->loop->id, 'card_key' => 'core.decisions'],
+            ['organization_id' => $this->org->id, 'enabled' => true],
+        );
+        LoopCard::firstOrCreate(
+            ['loop_id' => $this->loop->id, 'card_key' => 'core.marketplace'],
+            ['organization_id' => $this->org->id, 'enabled' => true],
+        );
+
+        foreach ([
+            \App\Livewire\LoopDecisionsCard::class,
+            \App\Livewire\LoopMarketplaceCard::class,
+        ] as $classe) {
+            $composant = Livewire::actingAs($this->animateur)->test($classe, ['loop' => $this->loop]);
+            $composant->html();
+
+            $instance = $composant->instance();
+            $propriete = (new \ReflectionClass($instance))->getProperty('droitsMemo');
+            $propriete->setAccessible(true);
+
+            $this->assertSame([], $propriete->getValue($instance), $classe.' garde ses droits apres le rendu');
+        }
+    }
+
+    public function test_no_card_exposes_a_permission_check_as_a_livewire_action(): void
+    {
+        // Livewire expose toute methode publique comme action et resout son
+        // argument par liaison implicite — donc hors de la garde qui verifie la
+        // Boucle. La Card Demande-Offre avait deja reçu ce correctif ; la Card
+        // Decisions etait restee en arriere, et repondait sur une Decision
+        // d'une autre Organization.
+        foreach ([
+            \App\Livewire\LoopDecisionsCard::class,
+            \App\Livewire\LoopMarketplaceCard::class,
+        ] as $classe) {
+            $methode = new \ReflectionMethod($classe, 'canEdit');
+
+            $this->assertFalse($methode->isPublic(), $classe.'::canEdit est exposee comme action');
+        }
+    }
 
     // ── La meme forme, ailleurs ─────────────────────────────────────────────
 

@@ -102,6 +102,21 @@ class LoopDecisionsCard extends Component
         return $this->droitsMemo[$capacite] ??= $this->resolver()->can(auth()->user(), $this->loop, $capacite);
     }
 
+    /**
+     * Oublier les droits appris.
+     *
+     * Appele a l'entree **et** a la sortie de `render()` : le cache ne doit pas
+     * survivre au rendu. Une propriete privee ne voyage pas dans le snapshot,
+     * mais l'unite de vie d'une instance Livewire n'est pas la requete, c'est
+     * le **commit** — et un commit porte plusieurs `calls`. Deux gestes partis
+     * dans le meme tick partagent donc une instance, et un droit retire entre
+     * les deux par une requete concurrente ne serait plus honore.
+     */
+    private function forgetDroits(): void
+    {
+        $this->droitsMemo = [];
+    }
+
     public function canView(): bool
     {
         return $this->droit('decisions.view');
@@ -117,8 +132,17 @@ class LoopDecisionsCard extends Component
         return $this->droit('decisions.manage');
     }
 
-    /** Chacun corrige les siennes ; l'animation corrige tout. */
-    public function canEdit(LoopDecision $decision): bool
+    /**
+     * Chacun corrige les siennes ; l'animation corrige tout.
+     *
+     * **`protected` et non `public`** : Livewire expose toute methode publique
+     * comme action et resout son argument par liaison implicite — donc **sans**
+     * le `where('loop_id', …)` de `resolveDecision()`. Elle repondait sur une
+     * Decision d'une autre Organization, et distinguait l'inexistant (404) de
+     * l'existant (`true`) : un oracle. La Card Demande-Offre avait deja recu ce
+     * correctif ; celle-ci etait restee en arriere.
+     */
+    protected function canEdit(LoopDecision $decision): bool
     {
         if (! $this->canRecord()) {
             return false;
@@ -422,6 +446,10 @@ class LoopDecisionsCard extends Component
             ->whereNotIn('id', $deja)
             ->with('sender:id,first_name,name,email,organization_id,banned_at')
             ->orderByDesc('created_at')
+            // Departage : `loop_messages.created_at` est a la seconde sous
+            // PostgreSQL, et **quels** dix messages apparaissent serait sinon
+            // indetermine — un test en depend deja.
+            ->orderByDesc('id')
             ->limit(10)
             ->get();
     }
@@ -445,6 +473,9 @@ class LoopDecisionsCard extends Component
             ->whereKeyNot($this->supersedingId)
             ->whereNull('superseded_by_id')
             ->orderByDesc('decided_on')
+            // `decided_on` est une **date** : l'egalite y est la norme, pas
+            // l'exception, et l'ordre du selecteur serait indetermine.
+            ->orderByDesc('id')
             ->get()
             ->filter(fn (LoopDecision $d) => $this->canEdit($d))
             ->values();
@@ -462,12 +493,15 @@ class LoopDecisionsCard extends Component
 
     public function render()
     {
+        // Le cache d'autorisation ne vit **que** dans ce rendu.
+        $this->forgetDroits();
+
         $canView = $this->canView();
         $canRecord = $canView && $this->canRecord();
 
         $decisions = $canView ? $this->service()->decisionsFor($this->loop) : collect();
 
-        return view('livewire.loop-decisions-card', [
+        $vue = view('livewire.loop-decisions-card', [
             'canView' => $canView,
             'canRecord' => $canRecord,
             'canManage' => $canView && $this->canManage(),
@@ -485,5 +519,10 @@ class LoopDecisionsCard extends Component
             // alors impossible a remplacer depuis l'ecran — sans un mot.
             'supersedable' => $this->supersedingId ? $this->supersedable() : collect(),
         ]);
+
+        // Les gestes d'ecriture qui suivront dans le meme commit reliront l'etat.
+        $this->forgetDroits();
+
+        return $vue;
     }
 }

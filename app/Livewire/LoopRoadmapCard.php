@@ -911,15 +911,19 @@ class LoopRoadmapCard extends Component
      * `loop_members` par item. Mesure : 11 lectures pour 2 items, 87 pour 40.
      * C'est la forme que l'invariant de performance interdit.
      *
-     * **La memoisation n'est pas une capacite durable.** La propriete est
-     * `private` : Livewire ne serialise que les proprietes publiques, donc elle
-     * ne voyage pas dans le snapshot — lequel n'a ni nonce ni expiration — et
-     * se reconstruit a chaque requete. Un retrait d'adhesion est donc visible
-     * au rendu suivant, et non a la fin d'une session.
+     * **Le cache ne vit que pendant `render()`.** C'est la correction d'une
+     * premiere version qui le laissait vivre toute la requete : une propriete
+     * privee ne voyage pas dans le snapshot — verifie —, mais l'unite de vie
+     * d'une instance Livewire n'est pas la requete, c'est le **commit**, et un
+     * commit porte un tableau de `calls`. Deux gestes partis dans le meme tick
+     * partagent donc une instance, et un droit retire entre les deux par une
+     * requete concurrente n'etait plus honore. C'etait une regression de
+     * comportement, sur l'invariant meme que cette tache doit tenir.
      *
-     * Le seul geste de ce composant qui touche une adhesion,
-     * `assignAndAddMember()`, relache explicitement le cache : sans cela, la
-     * suite de la meme requete lirait un etat perime.
+     * Le N+1 est un probleme de **boucle de rendu** — `canModify()` par item —
+     * et non de garde d'ecriture. Remplir le cache a l'entree de `render()` et
+     * le vider a la sortie supprime le cout sans allonger la fenetre d'aucune
+     * garde : chaque geste d'ecriture relit l'etat.
      */
     private ?LoopMember $membershipMemo = null;
 
@@ -1068,6 +1072,10 @@ class LoopRoadmapCard extends Component
 
     public function render()
     {
+        // Le cache d'autorisation ne vit **que** dans ce rendu. Voir le
+        // commentaire de `$membershipMemo`.
+        $this->forgetMembership();
+
         $canManage = $this->isMemberOrAdmin();
 
         $items = $canManage
@@ -1091,6 +1099,11 @@ class LoopRoadmapCard extends Component
                 ->where('organization_id', $this->loop->organization_id)
                 ->where('loop_id', $this->loop->id)
                 ->orderByDesc('deleted_at')
+                // Departage : sans lui, **quels** cinquante items archives sont
+                // visibles changeait d'un rendu a l'autre quand plusieurs le
+                // sont dans la meme transaction — un item pouvait devenir
+                // irrecuperable depuis l'ecran.
+                ->orderByDesc('id')
                 ->limit(50)
                 ->get()
             : collect();
@@ -1126,7 +1139,7 @@ class LoopRoadmapCard extends Component
                 ->get()
             : collect();
 
-        return view('livewire.loop-roadmap-card', [
+        $vue = view('livewire.loop-roadmap-card', [
             'items' => $items,
             'columns' => $columns,
             'openCount' => $columns[LoopRoadmapItem::STATUS_TODO]->count() + $columns[LoopRoadmapItem::STATUS_IN_PROGRESS]->count(),
@@ -1145,6 +1158,12 @@ class LoopRoadmapCard extends Component
             'archivedCount' => $archivedItems->count(),
             'palette' => LoopRoadmapLabel::COLORS,
         ]);
+
+        // Le cache d'autorisation ne survit pas au rendu : les gestes d'ecriture
+        // qui suivront dans le meme commit Livewire reliront l'etat.
+        $this->forgetMembership();
+
+        return $vue;
     }
 
     private function loopLabels(): Collection

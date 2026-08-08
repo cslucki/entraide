@@ -81,6 +81,21 @@ class LoopMarketplaceCard extends Component
         return $this->droitsMemo[$capacite] ??= $this->resolver()->can(auth()->user(), $this->loop, $capacite);
     }
 
+    /**
+     * Oublier les droits appris.
+     *
+     * Appele a l'entree **et** a la sortie de `render()` : le cache ne doit pas
+     * survivre au rendu. Une propriete privee ne voyage pas dans le snapshot,
+     * mais l'unite de vie d'une instance Livewire n'est pas la requete, c'est
+     * le **commit** — et un commit porte plusieurs `calls`. Deux gestes partis
+     * dans le meme tick partagent donc une instance, et un droit retire entre
+     * les deux par une requete concurrente ne serait plus honore.
+     */
+    private function forgetDroits(): void
+    {
+        $this->droitsMemo = [];
+    }
+
     public function canView(): bool
     {
         return $this->droit('marketplace.view');
@@ -383,11 +398,14 @@ class LoopMarketplaceCard extends Component
 
     public function render()
     {
+        // Le cache d'autorisation ne vit **que** dans ce rendu.
+        $this->forgetDroits();
+
         $canView = $this->canView();
         $canHighlight = $canView && $this->canHighlight();
         $liens = $canView ? $this->service()->linksFor($this->loop) : collect();
 
-        return view('livewire.loop-marketplace-card', [
+        $vue = view('livewire.loop-marketplace-card', [
             'canView' => $canView,
             'canHighlight' => $canHighlight,
             'canManage' => $canView && $this->canManage(),
@@ -406,5 +424,10 @@ class LoopMarketplaceCard extends Component
                 : 0,
             'pickable' => $canHighlight ? $this->pickable() : collect(),
         ]);
+
+        // Les gestes d'ecriture qui suivront dans le meme commit reliront l'etat.
+        $this->forgetDroits();
+
+        return $vue;
     }
 }
