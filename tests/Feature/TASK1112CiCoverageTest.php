@@ -127,11 +127,15 @@ class TASK1112CiCoverageTest extends TestCase
         // exclusion de fichier par une exclusion de **repertoire** faisait
         // perdre 385 tests sans qu'aucun test ne bronche.
         //
+        // Mesure une fois l'exclusion par groupe **reellement active** : la
+        // premiere valeur, 3880, avait ete relevee alors que les annotations
+        // `@group` etaient inertes et que rien n'etait exclu.
+        //
         // Ce nombre monte quand la suite grandit — c'est normal, mettez-le a
         // jour. S'il **descend**, c'est qu'on a retire quelque chose du gate,
         // et il faut dire quoi.
         $this->assertGreaterThanOrEqual(
-            3880,
+            3870,
             $this->testsSelectionnes('phpunit.ci-feature.xml'),
             'le gate couvre moins de tests qu’avant : qu’a-t-on retire ?',
         );
