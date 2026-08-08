@@ -85,9 +85,18 @@ class LoopRoadmapItem extends Model
             ->orderBy('name');
     }
 
+    /**
+     * Le fil de l'item, du plus recent au plus ancien.
+     *
+     * Le departage par identifiant n'est pas cosmetique : `created_at` est a la
+     * seconde sous PostgreSQL, et deux messages ecrits dans la meme seconde
+     * s'ordonnaient au hasard. `LoopRoadmapExtrasTest > messages relation and
+     * ordering` echouait **deja** sur PostgreSQL avant cette tache ; il passe
+     * maintenant.
+     */
     public function messages(): HasMany
     {
-        return $this->hasMany(LoopRoadmapItemMessage::class)->latest();
+        return $this->hasMany(LoopRoadmapItemMessage::class)->latest()->orderByDesc('id');
     }
 
     public function creator(): BelongsTo
