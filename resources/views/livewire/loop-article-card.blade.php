@@ -40,10 +40,12 @@
                         <span class="shrink-0 text-[10px] text-gray-500 dark:text-gray-400">
                             {{ __('loops.cards.article.updated', ['date' => $brouillon->updated_at?->translatedFormat('d/m/Y')]) }}
                         </span>
-                        <a href="{{ $this->editUrl($brouillon) }}"
+                        @if ($canCompose)
+                        <a href="{{ $editUrls[$brouillon->id] }}"
                            class="shrink-0 rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-indigo-700">
                             {{ __('loops.cards.article.resume') }}
                         </a>
+                        @endif
                     </li>
                 @endforeach
             </ul>
@@ -90,7 +92,7 @@
                 @foreach ($published as $article)
                     <li class="rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
                         <div class="flex items-center gap-2">
-                            <a href="{{ $this->readUrl($article) }}"
+                            <a href="{{ $readUrls[$article->id] }}"
                                class="min-w-0 flex-1 truncate text-sm font-medium text-indigo-700 underline hover:text-indigo-800 dark:text-indigo-300">
                                 {{ $article->title }}
                             </a>
@@ -151,8 +153,8 @@
 
     {{-- Vers le parcours qui existe. La Card ne refait pas l'éditeur : il a ses
          audiences, ses snapshots et ses policies. --}}
-    @if ($canCompose && $this->dossierUrl($dossier))
-        <a href="{{ $this->dossierUrl($dossier) }}"
+    @if ($canCompose && $dossierUrl)
+        <a href="{{ $dossierUrl }}"
            class="mt-auto block rounded-xl border border-dashed border-gray-300 px-4 py-2.5 text-center text-sm font-semibold text-gray-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
             + {{ __('loops.cards.article.write') }}
         </a>
