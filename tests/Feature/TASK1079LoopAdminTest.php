@@ -201,9 +201,23 @@ class TASK1079LoopAdminTest extends TestCase
             ->assertOk();
 
         $response->assertSee('Boucle Editable');
-        // The four types are offered, with the current one selected.
-        foreach ($this->registry()->keys() as $type) {
+
+        // **Les types assignables**, et non tous les types. Depuis TASK-1108 le
+        // serveur refuse un type retire des choix : le proposer quand meme
+        // faisait un cul-de-sac — on cliquait, et on recevait une erreur. Un
+        // choix absent vaut mieux, et l'ecran plateforme fait deja ainsi.
+        //
+        // La regle n'a pas change : l'ecran offre ce qu'on peut assigner, plus
+        // celui que la Boucle porte deja. C'est l'ensemble qui a retreci, parce
+        // que deux types sont fermes.
+        foreach (array_keys($this->registry()->selectableFor($loop->type)) as $type) {
             $response->assertSee($this->registry()->label($type));
+        }
+
+        foreach ($this->registry()->keys() as $type) {
+            if (! $this->registry()->isAvailable($type) && $type !== $loop->type) {
+                $response->assertDontSee('value="'.$type.'"', false);
+            }
         }
         $this->assertSame('project', $response->viewData('currentType'));
         // Cards, members and candidates all resolved server-side.

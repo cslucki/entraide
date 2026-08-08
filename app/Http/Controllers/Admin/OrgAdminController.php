@@ -250,7 +250,10 @@ class OrgAdminController extends Controller
         return view('admin.org.loop-edit', [
             'organization' => $organization,
             'loop' => $loop,
-            'loopTypes' => $registry->all(),
+            // `selectableFor` et non `all()` : l'ecran offrait des types que le
+            // serveur refuse desormais, donc un cul-de-sac. Il garde celui que
+            // la Boucle porte, meme ferme — l'ecran plateforme fait deja ainsi.
+            'loopTypes' => $registry->selectableFor($loop->type),
             'currentType' => $registry->resolve($loop->type),
             // What the type prescribes, so the admin can tell the baseline apart
             // from what this Loop added on its own.
@@ -309,6 +312,12 @@ class OrgAdminController extends Controller
 
         if (! $registry->exists($data['type'])) {
             return back()->with('error', __('loops.type_invalid'));
+        }
+
+        // Meme regle que les deux autres chemins, lue au registre : un type
+        // retire des choix ne s'assigne pas, mais garder le sien reste permis.
+        if (! $registry->isAssignableTo($data['type'], $loop->type)) {
+            return back()->with('error', __('loops.type_unavailable'));
         }
 
         $loop->update([

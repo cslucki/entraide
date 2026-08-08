@@ -84,10 +84,9 @@ class AdminLoopController extends Controller
             return back()->with('error', __('loops.type_invalid'));
         }
 
-        // A type withdrawn from the choices cannot be assigned. Keeping the one
-        // the Loop already carries is not an assignment, so it stays allowed —
-        // otherwise saving anything else on the form would fail.
-        if (! $registry->isAvailable($type) && $registry->resolve($loop->type) !== $type) {
+        // La regle est **lue au registre** et non redite ici : c'est la
+        // duplication qui avait laisse les deux autres chemins sans garde.
+        if (! $registry->isAssignableTo($type, $loop->type)) {
             return back()->with('error', __('loops.type_unavailable'));
         }
 
