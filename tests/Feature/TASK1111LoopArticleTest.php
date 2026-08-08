@@ -99,7 +99,7 @@ class TASK1111LoopArticleTest extends TestCase
             'slug' => \Illuminate\Support\Str::slug($titre).'-'.\Illuminate\Support\Str::random(6),
             'content' => 'Contenu de test.',
             'status' => $statut,
-            'audience' => 'members',
+            'audience' => 'loop',
             'published_at' => $statut === 'published' ? now() : null,
         ]);
 
@@ -289,7 +289,7 @@ class TASK1111LoopArticleTest extends TestCase
 
         $this->card()
             ->assertSee('Un texte publie')
-            ->assertSee(__('loops.cards.article.audience_label', ['audience' => 'members']));
+            ->assertSee(__('loops.cards.article.audience_label', ['audience' => 'loop']));
     }
 
     public function test_the_read_link_stays_inside_the_organization(): void
@@ -376,21 +376,171 @@ class TASK1111LoopArticleTest extends TestCase
 
     public function test_an_article_of_another_organization_is_never_listed(): void
     {
+        // **La premiere version ne rangeait pas l'Article dans le Dossier** :
+        // elle etait un doublon verbatim du test precedent, et ne gardait rien.
+        // `BlogPost` ne porte aucun scope global d'Organization : si la ligne
+        // pivot existe, seule une condition explicite l'ecarte.
         $autreOrg = Organization::factory()->create(['is_active' => true, 'loops_enabled' => true]);
         $ailleurs = User::factory()->create(['organization_id' => $autreOrg->id]);
 
-        BlogPost::create([
+        $leur = BlogPost::create([
             'organization_id' => $autreOrg->id,
             'user_id' => $ailleurs->id,
             'title' => 'Le leur',
             'slug' => 'le-leur-'.\Illuminate\Support\Str::random(6),
             'content' => 'x',
             'status' => 'published',
-            'audience' => 'members',
+            'audience' => 'loop',
+            'listed_in_blog' => true,
             'published_at' => now(),
         ]);
 
+        // Range **dans notre Dossier**, comme une reprise de donnees fautive
+        // pourrait le faire.
+        \App\Models\DossierBlogPost::create([
+            'organization_id' => $this->org->id,
+            'dossier_id' => $this->dossier->id,
+            'blog_post_id' => $leur->id,
+            'added_by' => $this->auteur->id,
+            'position' => 0,
+        ]);
+
+        $this->assertCount(0, $this->service()->published($this->loop));
         $this->card()->assertDontSee('Le leur');
+    }
+
+    // ── Ce que la revue a trouve ────────────────────────────────────────────
+
+    public function test_the_loops_root_document_is_not_an_article(): void
+    {
+        // **Le bloquant.** Le document racine d'une Boucle est publie et
+        // parfaitement lisible, mais ce n'est pas un article de blog :
+        // `listed_in_blog` est faux, et `scopePublished` existe precisement
+        // pour l'ecarter. Sans lui, le Manifeste de **chaque** Boucle se lisait
+        // comme un Article publie — et le preset Redaction portant aussi
+        // `core.manifesto`, il s'affichait deux fois sur le meme ecran.
+        $racine = BlogPost::create([
+            'organization_id' => $this->org->id,
+            'user_id' => $this->auteur->id,
+            'title' => 'Ligne editoriale de la Boucle',
+            'slug' => 'ligne-'.\Illuminate\Support\Str::random(6),
+            'content' => 'x',
+            'status' => 'published',
+            'audience' => 'loop',
+            'listed_in_blog' => false,
+            'published_at' => now(),
+        ]);
+
+        \App\Models\DossierBlogPost::create([
+            'organization_id' => $this->org->id,
+            'dossier_id' => $this->dossier->id,
+            'blog_post_id' => $racine->id,
+            'added_by' => $this->auteur->id,
+            'position' => 0,
+        ]);
+
+        $this->assertCount(0, $this->service()->published($this->loop));
+        $this->card()->assertDontSee('Ligne editoriale de la Boucle');
+    }
+
+    public function test_an_article_published_in_the_future_is_not_listed_yet(): void
+    {
+        $futur = $this->article('Pour la semaine prochaine', 'published');
+        $futur->update(['published_at' => now()->addWeek(), 'listed_in_blog' => true]);
+
+        $this->assertCount(0, $this->service()->published($this->loop));
+    }
+
+    public function test_a_draft_never_reaches_the_published_list(): void
+    {
+        // La mutation « retirer le filtre de statut » ne tuait **aucun** des 28
+        // tests livres : la liste des publies n'avait aucune garde sur ce
+        // qu'elle exclut.
+        $this->article('Un brouillon');
+
+        $this->assertCount(0, $this->service()->published($this->loop));
+    }
+
+    public function test_no_outbound_link_is_exposed_as_a_livewire_action(): void
+    {
+        // Livewire expose toute methode publique comme action et resout son
+        // argument par liaison implicite — donc sans lien avec cette Boucle. On
+        // pouvait passer le slug d'un brouillon d'une autre Organization : la
+        // methode rendait une URL valide, et un slug inconnu levait une
+        // exception. Les deux reponses se distinguent : un oracle d'existence.
+        //
+        // **Troisieme fois dans cette serie.**
+        $reflet = new \ReflectionClass(LoopArticleCard::class);
+        $examinees = 0;
+
+        foreach ($reflet->getMethods(\ReflectionMethod::IS_PUBLIC) as $methode) {
+            // `mount` et `render` sont des points du cycle de vie, pas des
+            // actions appelables depuis le client.
+            if ($methode->getDeclaringClass()->getName() !== LoopArticleCard::class
+                || in_array($methode->getName(), ['mount', 'render', 'boot', 'booted', 'hydrate', 'dehydrate'], true)) {
+                continue;
+            }
+
+            foreach ($methode->getParameters() as $parametre) {
+                $type = $parametre->getType();
+
+                $this->assertFalse(
+                    $type instanceof \ReflectionNamedType && str_starts_with((string) $type, 'App\\Models\\'),
+                    "{$methode->getName()}() prend un modele et est exposee comme action Livewire",
+                );
+            }
+
+            $examinees++;
+        }
+
+        // Sans cela le test passerait si la classe n'exposait plus rien du
+        // tout — ou si le filtre ci-dessus devenait trop large.
+        $this->assertGreaterThan(0, $examinees, 'aucune methode publique examinee');
+    }
+
+    public function test_an_archived_loop_offers_no_way_to_resume_either(): void
+    {
+        $this->article('Un brouillon');
+        $this->loop->forceFill(['status' => 'archived', 'archived_at' => now()])->save();
+
+        $this->card()
+            ->assertSee('Un brouillon')
+            ->assertDontSee(__('loops.cards.article.resume'));
+    }
+
+    public function test_the_pending_invitations_query_does_not_grow_its_bindings(): void
+    {
+        // Le `pluck` chargeait tous les identifiants du Dossier et les
+        // renvoyait dans un `IN (...)` : 6 valeurs pour 2 Articles, 82 pour 40.
+        // Le compteur de requetes restait plat — c'est pourquoi la sonde de
+        // croissance ne voyait rien.
+        $compter = function (int $combien): int {
+            $this->dossier->articles()->detach();
+            BlogPost::where('organization_id', $this->org->id)->forceDelete();
+
+            for ($i = 0; $i < $combien; $i++) {
+                $this->article("article {$i}");
+            }
+
+            DB::enableQueryLog();
+            DB::flushQueryLog();
+
+            $this->service()->pendingCoAuthors($this->loop);
+
+            $n = collect(DB::getQueryLog())->sum(fn ($r) => count($r['bindings']));
+            DB::flushQueryLog();
+
+            return $n;
+        };
+
+        $petit = $compter(2);
+        $grand = $compter(40);
+
+        $this->assertSame(
+            $petit,
+            $grand,
+            "les liaisons suivent le nombre d'Articles : {$petit} pour 2, {$grand} pour 40",
+        );
     }
 
     public function test_a_loop_without_a_dossier_says_so_plainly(): void

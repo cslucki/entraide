@@ -63,7 +63,11 @@ class LoopWritingService
             return collect();
         }
 
+        // `BlogPost` ne porte **aucun** scope global d'Organization, a la
+        // difference de `Service` ou `Transaction` : le cloisonnement se lit
+        // ici, il ne se deduit pas du Dossier.
         return $dossier->articles()
+            ->where('blog_posts.organization_id', $loop->organization_id)
             ->where('blog_posts.user_id', $author->id)
             ->where('blog_posts.status', 'draft')
             ->reorder()
@@ -88,11 +92,25 @@ class LoopWritingService
             return collect();
         }
 
+        // **`scopePublished` et non un filtre a la main.** Son commentaire dit
+        // exactement le defaut que j'avais ecrit : « le document racine d'une
+        // Boucle est publie et parfaitement lisible, mais ce n'est pas un
+        // article de blog et il ne doit jamais apparaitre dans une liste ».
+        //
+        // Sans lui, le Manifeste de **chaque** Boucle se lisait comme un
+        // Article publie — et le preset Redaction portant aussi `core.manifesto`,
+        // il s'affichait deux fois sur le meme ecran. Le scope ecarte aussi les
+        // dates de publication futures.
         return $dossier->articles()
-            ->where('blog_posts.status', 'published')
+            ->published()
+            ->where('blog_posts.organization_id', $loop->organization_id)
             ->with('user:id,name,first_name,email,organization_id,banned_at')
             ->reorder()
-            ->orderByDesc('blog_posts.published_at')
+            // PostgreSQL place les NULL **en tete** d'un tri descendant, SQLite
+            // en queue. `scopePublished` exige deja `published_at` non nul, mais
+            // l'ordre explicite evite que la liste change de sens selon le
+            // moteur si la condition venait a bouger.
+            ->orderByRaw('blog_posts.published_at DESC NULLS LAST')
             ->orderByDesc('blog_posts.id')
             ->limit($limit)
             ->get();
@@ -116,6 +134,7 @@ class LoopWritingService
         }
 
         return $dossier->articles()
+            ->where('blog_posts.organization_id', $loop->organization_id)
             ->where('blog_posts.status', 'draft')
             ->where('blog_posts.user_id', '!=', $viewer->id)
             ->with('user:id,name,first_name,email,organization_id,banned_at')
@@ -144,13 +163,15 @@ class LoopWritingService
             return collect();
         }
 
-        $articles = $dossier->articles()->reorder()->pluck('blog_posts.id');
-
-        if ($articles->isEmpty()) {
-            return collect();
-        }
-
-        return BlogPostInvitation::whereIn('blog_post_id', $articles)
+        // **Une sous-requete, pas un `pluck`.** Celui-ci chargeait tous les
+        // identifiants du Dossier et les renvoyait dans un `IN (...)` : le
+        // nombre de requetes restait plat, mais la charge du binding suivait le
+        // nombre d'Articles — 6 valeurs pour 2, 82 pour 40. Un cout qui croit
+        // sans qu'aucun compteur de requetes ne le voie.
+        return BlogPostInvitation::whereIn(
+            'blog_post_id',
+            $dossier->articles()->reorder()->select('blog_posts.id'),
+        )
             ->where('organization_id', $loop->organization_id)
             ->where('status', 'pending')
             ->with('blogPost:id,title,slug')
