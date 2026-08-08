@@ -250,7 +250,10 @@ class OrgAdminController extends Controller
         return view('admin.org.loop-edit', [
             'organization' => $organization,
             'loop' => $loop,
-            'loopTypes' => $registry->all(),
+            // `selectableFor` et non `all()` : l'ecran offrait des types que le
+            // serveur refuse desormais, donc un cul-de-sac. Il garde celui que
+            // la Boucle porte, meme ferme — l'ecran plateforme fait deja ainsi.
+            'loopTypes' => $registry->selectableFor($loop->type),
             'currentType' => $registry->resolve($loop->type),
             // What the type prescribes, so the admin can tell the baseline apart
             // from what this Loop added on its own.

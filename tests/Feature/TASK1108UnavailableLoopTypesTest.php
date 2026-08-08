@@ -77,6 +77,14 @@ class TASK1108UnavailableLoopTypesTest extends TestCase
         $this->fail('aucun type indisponible : le test ne prouverait rien');
     }
 
+    /** Fermer un type pour la duree du test, comme le fait la matrice. */
+    private function fermer(string $type): void
+    {
+        $types = config('loop_types.types');
+        $types[$type]['available'] = false;
+        config(['loop_types.types' => $types]);
+    }
+
     // ── La regle, au registre ───────────────────────────────────────────────
 
     public function test_networking_is_currently_unavailable(): void
@@ -245,24 +253,111 @@ class TASK1108UnavailableLoopTypesTest extends TestCase
         $this->assertSame($avant, $this->loop->fresh()->type);
     }
 
-    // ── Aucune condition sur le type dans le metier ─────────────────────────
+    // ── Le defaut que `resolve()` cachait ───────────────────────────────────
 
-    public function test_no_path_compares_the_type_by_hand(): void
+    public function test_a_type_stored_outside_the_catalogue_carries_nothing(): void
     {
-        // La regle se lit au registre. Une comparaison ecrite a la main est ce
-        // qui avait laisse trois chemins sans garde.
-        foreach ([
-            app_path('Http/Controllers/Admin/OrgAdminController.php'),
-            app_path('Http/Controllers/Admin/AdminLoopController.php'),
-            app_path('Services/Loops/LoopPresetConfigurator.php'),
-        ] as $fichier) {
-            $source = file_get_contents($fichier);
+        // `resolve()` confond « alias de » et « repli sur le defaut » : toute
+        // valeur hors catalogue — `custom`, `ai_agent`, `system` — y retombait
+        // sur `general`. Une Boucle Agent IA « portait » donc `general` sans
+        // l'avoir jamais porte, et fermer `general` ne la protegeait plus.
+        $this->fermer('general');
 
-            $this->assertStringNotContainsString(
-                "isAvailable(\$type) && ",
-                $source,
-                basename($fichier).' redit la regle au lieu de la lire',
+        // `custom` n'est pas dans cette liste : c'est un **alias declare** de
+        // `general`, donc une vraie equivalence — le test suivant la couvre.
+        foreach (['ai_agent', 'system'] as $horsCatalogue) {
+            $this->assertFalse(
+                $this->types()->isAssignableTo('general', $horsCatalogue),
+                "{$horsCatalogue} ne porte pas « general »",
             );
         }
     }
+
+    public function test_a_real_alias_still_counts_as_carrying_the_type(): void
+    {
+        // `custom` **est** `general` par alias declare : c'est une vraie
+        // equivalence, et elle doit survivre a la correction ci-dessus.
+        config(['loop_types.legacy_aliases' => ['custom' => 'general']]);
+        $this->fermer('general');
+
+        $this->assertTrue($this->types()->isAssignableTo('general', 'custom'));
+    }
+
+    public function test_the_closed_default_cannot_be_written_over_http(): void
+    {
+        $this->loop->forceFill(['type' => 'ai_agent'])->save();
+        $this->fermer('general');
+
+        $this->actingAs($this->orgAdmin)->put(
+            route('organization.admin.loops.update', ['organization' => $this->org->slug, 'loop' => $this->loop->id]),
+            ['name' => 'Ma Boucle', 'type' => 'general'],
+        )->assertSessionHas('error');
+
+        $this->assertSame('ai_agent', $this->loop->fresh()->type);
+    }
+
+    // ── Les deux chemins que la premiere version ne couvrait pas ────────────
+
+    public function test_the_super_admin_change_type_path_refuses_it(): void
+    {
+        $this->actingAs($this->superAdmin)->put(
+            route('admin.loops.type.update', ['loop' => $this->loop->id]),
+            ['type' => $this->indisponible()],
+        );
+
+        $this->assertNotSame($this->indisponible(), $this->loop->fresh()->type);
+    }
+
+    public function test_the_organization_preset_path_refuses_it(): void
+    {
+        $this->actingAs($this->orgAdmin)->post(
+            route('organization.admin.loops.preset.apply', [
+                'organization' => $this->org->slug, 'loop' => $this->loop->id,
+            ]),
+            ['type' => $this->indisponible()],
+        );
+
+        $this->assertNotSame($this->indisponible(), $this->loop->fresh()->type);
+    }
+
+    // ── L'ecran n'offre pas ce que le serveur refuse ────────────────────────
+
+    public function test_the_screen_offers_no_type_the_server_would_refuse(): void
+    {
+        // Avant le diff le geste marchait (mal) ; apres, c'etait un cul-de-sac.
+        $html = $this->actingAs($this->orgAdmin)
+            ->get(route('organization.admin.loops.edit', ['organization' => $this->org->slug, 'loop' => $this->loop->id]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('value="'.$this->indisponible().'"', $html);
+        $this->assertStringContainsString('value="project"', $html);
+    }
+
+    public function test_the_screen_still_offers_the_closed_type_a_loop_already_carries(): void
+    {
+        $ferme = $this->indisponible();
+        $this->loop->forceFill(['type' => $ferme])->save();
+
+        $this->actingAs($this->orgAdmin)
+            ->get(route('organization.admin.loops.edit', ['organization' => $this->org->slug, 'loop' => $this->loop->id]))
+            ->assertSee('value="'.$ferme.'"', false);
+    }
+
+    // ── Creer et assigner ne suivent pas la meme regle, deliberement ────────
+
+    public function test_creation_coerces_where_assignment_refuses(): void
+    {
+        // A la creation il n'y a **rien a preserver** : un type ferme retombe
+        // sur le defaut plutot que de faire echouer la creation. C'est un choix
+        // ecrit dans `LoopService::resolveCreationType()`, et ce test l'epingle
+        // pour que personne ne l'« aligne » par erreur sur la regle
+        // d'assignation.
+        $boucle = (new LoopService)->createLoop(
+            $this->proprietaire, 'Nouvelle', null, 'private', null, Loop::ACCESS_REQUEST, null, $this->indisponible(),
+        );
+
+        $this->assertSame($this->types()->default(), $boucle->fresh()->type);
+    }
+
 }

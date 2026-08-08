@@ -106,7 +106,25 @@ class LoopTypeRegistry
             return false;
         }
 
-        return $this->isAvailable($wanted) || $this->resolve($current) === $this->resolve($wanted);
+        if ($this->isAvailable($wanted)) {
+            return true;
+        }
+
+        // **Comparaison sur les valeurs brutes, jamais sur `resolve()`.**
+        //
+        // `resolve()` confond deux choses : « alias de » et « repli sur le
+        // defaut ». Toute valeur stockee hors catalogue — `custom` (le defaut
+        // de la colonne), `ai_agent`, `system` — y retombe sur `general`. Une
+        // Boucle Agent IA « portait » donc `general` sans l'avoir jamais porte,
+        // et fermer `general` ne la protegeait plus : les trois chemins gardes
+        // ecrivaient ce type ferme. Ce n'est pas la nuance « garder le sien »,
+        // c'est une assignation, et elle annulait l'objet de la garde.
+        if ($current === $wanted) {
+            return true;
+        }
+
+        // L'alias, lui, est une vraie equivalence : `custom` **est** `general`.
+        return (config('loop_types.legacy_aliases', [])[$current] ?? null) === $wanted;
     }
 
     public function exists(?string $type): bool
