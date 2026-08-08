@@ -440,6 +440,43 @@ return [
             'default_enabled' => true,
         ],
 
+        /*
+         * Demande-Offre : ce que la Boucle met en avant du catalogue.
+         *
+         * **Aucun second systeme.** Les Offres (`services`) et les Demandes
+         * (`service_requests`) existent depuis l'origine du produit. Cette Card
+         * ne fait que les rattacher a une Boucle — elle ne porte meme pas de
+         * formulaire de creation, le parcours existant ayant ses regles de
+         * categorie, de mode de livraison et de cout en points.
+         *
+         * `order` 33, entre le Support de cours (32) et la Progression (34) :
+         * un emplacement libre, l'ordre n'ayant de sens qu'entre Cards
+         * effectivement presentes dans un meme preset.
+         */
+        'core.marketplace' => [
+            'key' => 'core.marketplace',
+            'label_key' => 'loops.cards.marketplace.label',
+            'description_key' => 'loops.cards.marketplace.description',
+            'empty_title_key' => 'loops.cards.marketplace.empty_title',
+            'empty_body_key' => 'loops.cards.marketplace.empty_body',
+            'action_key' => 'loops.cards.marketplace.action',
+            'icon' => 'folder',
+            'component' => 'loop-marketplace-card',
+            'view' => null,
+            'view_permission' => 'marketplace.view',
+            'required' => false,
+            'order' => 33,
+            'placement' => 'grid',
+            'category' => 'rhythm',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => true,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => true,
+        ],
+
         'core.members' => [
             'key' => 'core.members',
             'label_key' => 'loops.cards.members.label',

@@ -230,6 +230,42 @@ return [
             ],
         ],
 
+        /*
+         * Reseautage — le preset que la matrice produit reclame, et qui
+         * **n'avait aucune cle** : la spec TASK-1089 le dit expressement,
+         * « Reseautage et Redaction n'ont aujourd'hui aucune cle ».
+         *
+         * Ses trois Cards distinctives : Demande-Offre, Roadmap, Evenements.
+         * On y dit ce qu'on sait faire et ce qu'on cherche, on se donne
+         * rendez-vous, et on suit ce qui a ete engage.
+         *
+         * `available => false` : ouvrir un type est une decision de produit,
+         * prise a part — c'est ainsi que `training` et `peer_support` sont
+         * arrives. Le preset existe et se teste ; il ne s'offre pas encore.
+         */
+        'networking' => [
+            'root_document_label_key' => 'loops.root_document.networking',
+            'root_document_sections' => [
+                'loops.root_document_sections.why',
+                'loops.root_document_sections.audience',
+                'loops.root_document_sections.principles',
+            ],
+            'key' => 'networking',
+            'label_key' => 'loops.types.networking.label',
+            'description_key' => 'loops.types.networking.description',
+            'icon' => 'map',
+            'order' => 50,
+            'available' => false,
+            'chat_mode' => 'stream',
+            'cards' => [
+                'core.manifesto',
+                'core.members',
+                'core.marketplace',
+                'core.roadmap',
+                'core.events',
+            ],
+        ],
+
         'peer_support' => [
             // Le document racine porte un nom different selon le type,
             // mais reste le meme concept. Lu par le registry, jamais

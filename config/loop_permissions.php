@@ -333,6 +333,35 @@ return [
             'requires_card' => 'core.decisions',
         ],
 
+        'marketplace.view' => [
+            'module' => 'marketplace', 'label_fr' => 'Voir les Demandes et Offres', 'label_en' => 'See requests and offers',
+            'description' => 'Voir ce que la Boucle met en avant du catalogue.', 'locked' => false,
+            'read' => true,
+            'requires_card' => 'core.marketplace',
+        ],
+
+        /*
+         * Mettre en avant est une **ecriture** : sa permission ne porte pas
+         * `read`, et une Boucle archivee la refuse.
+         *
+         * Elle est donnee au membre, a la difference de `decisions.record` :
+         * une Boucle de Reseautage n'a d'interet que si chacun y apporte ce
+         * qu'il sait faire et ce qu'il cherche. Personne n'y engage le
+         * collectif — chacun n'y met que **les siennes**, regle tenue par le
+         * service et non par cette permission.
+         */
+        'marketplace.highlight' => [
+            'module' => 'marketplace', 'label_fr' => 'Mettre en avant une Demande ou une Offre', 'label_en' => 'Highlight a request or offer',
+            'description' => 'Rattacher a la Boucle une de ses propres Offres ou Demandes.', 'locked' => false,
+            'requires_card' => 'core.marketplace',
+        ],
+
+        'marketplace.manage' => [
+            'module' => 'marketplace', 'label_fr' => 'Gerer les mises en avant', 'label_en' => 'Manage highlights',
+            'description' => 'Retirer les mises en avant de tout le monde.', 'locked' => false,
+            'requires_card' => 'core.marketplace',
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -492,6 +521,7 @@ return [
             'quiz.view', 'quiz.attempt', 'quiz.manage',
             'journal.view', 'journal.write', 'journal.manage',
             'decisions.view', 'decisions.record', 'decisions.manage',
+            'marketplace.view', 'marketplace.highlight', 'marketplace.manage',
         ],
 
         /*
@@ -519,6 +549,7 @@ return [
             'quiz.view', 'quiz.attempt', 'quiz.manage',
             'journal.view', 'journal.write', 'journal.manage',
             'decisions.view', 'decisions.record', 'decisions.manage',
+            'marketplace.view', 'marketplace.highlight', 'marketplace.manage',
         ],
 
         /*
@@ -551,6 +582,11 @@ return [
             // foi. Le membre pese dans la conversation et dans les Sondages ;
             // ce qui en sort est consigne par qui mene la Boucle.
             'decisions.view',
+            // **Les siennes, et seulement les siennes.** Une Boucle de
+            // Reseautage n'a d'interet que si chacun y apporte ce qu'il sait
+            // faire ; la restriction a ses propres Offres est tenue par le
+            // service, pas par cette permission.
+            'marketplace.view', 'marketplace.highlight',
         ],
     ],
 

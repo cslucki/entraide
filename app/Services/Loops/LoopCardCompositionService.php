@@ -12,6 +12,7 @@ use App\Models\LoopEvent;
 use App\Models\LoopJournalEntry;
 use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
+use App\Services\Loops\LoopMarketplaceService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Facades\DB;
@@ -188,6 +189,10 @@ class LoopCardCompositionService
             // le meme geste.
             'core.decisions' => LoopDecision::where('loop_id', $loop->id)->count(),
             'core.journal' => LoopJournalEntry::where('loop_id', $loop->id)->count(),
+            // **Le meme compte que la Card**, filtre compris : sinon la
+            // composition annonçait « 2 elements » pour une Card qui en montre
+            // un, les liens orphelins etant invisibles et donc irretirables.
+            'core.marketplace' => app(LoopMarketplaceService::class)->countFor($loop),
             default => null,
         };
     }
