@@ -362,6 +362,28 @@ return [
             'requires_card' => 'core.marketplace',
         ],
 
+        'writing.view' => [
+            'module' => 'writing', 'label_fr' => 'Voir l\'atelier d\'ecriture', 'label_en' => 'See the writing desk',
+            'description' => 'Voir ce que la Boucle ecrit et ce qu\'elle a publie.', 'locked' => false,
+            'read' => true,
+            'requires_card' => 'core.article',
+        ],
+
+        /*
+         * Ecrire est une **ecriture** : sa permission ne porte pas `read`, et
+         * une Boucle archivee la refuse.
+         *
+         * Elle est donnee au membre : une Boucle de Redaction n'a d'interet que
+         * si chacun peut y commencer un texte. Ce qu'on peut faire **d'un
+         * Article** reste decide par les policies existantes — cette permission
+         * ouvre l'atelier, elle ne redéfinit rien du systeme Article.
+         */
+        'writing.compose' => [
+            'module' => 'writing', 'label_fr' => 'Ecrire dans la Boucle', 'label_en' => 'Write in this Loop',
+            'description' => 'Commencer un Article depuis l\'atelier de la Boucle.', 'locked' => false,
+            'requires_card' => 'core.article',
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -522,6 +544,7 @@ return [
             'journal.view', 'journal.write', 'journal.manage',
             'decisions.view', 'decisions.record', 'decisions.manage',
             'marketplace.view', 'marketplace.highlight', 'marketplace.manage',
+            'writing.view', 'writing.compose',
         ],
 
         /*
@@ -550,6 +573,7 @@ return [
             'journal.view', 'journal.write', 'journal.manage',
             'decisions.view', 'decisions.record', 'decisions.manage',
             'marketplace.view', 'marketplace.highlight', 'marketplace.manage',
+            'writing.view', 'writing.compose',
         ],
 
         /*
@@ -587,6 +611,9 @@ return [
             // faire ; la restriction a ses propres Offres est tenue par le
             // service, pas par cette permission.
             'marketplace.view', 'marketplace.highlight',
+            // Une Boucle de Redaction n'a d'interet que si chacun peut y
+            // commencer un texte.
+            'writing.view', 'writing.compose',
         ],
     ],
 

@@ -477,6 +477,49 @@ return [
             'default_enabled' => true,
         ],
 
+        /*
+         * Article — l'atelier d'ecriture d'une Boucle de Redaction.
+         *
+         * **Aucun second systeme.** Les Articles sont des `BlogPost` ranges
+         * dans le Dossier de la Boucle ; l'editeur, les audiences, les
+         * snapshots, les co-auteurs et les Series existent depuis longtemps.
+         * Cette Card ne fait que les **lire sous un autre angle**, et renvoie
+         * aux parcours existants pour ecrire.
+         *
+         * **Distincte de Dossiers**, que la matrice nomme separement : le
+         * Dossier est le classeur — ce que la Boucle range — quand l'atelier
+         * repond a « qu'est-ce que j'ecris, et qu'est-ce qui attend ». Un
+         * brouillon commence il y a trois semaines n'apparait plus dans un
+         * classeur trie par date ; c'est pourtant ce qu'on cherche en revenant
+         * ecrire.
+         *
+         * `order` 42 : les emplacements 30 a 41 sont pris, et l'ordre n'a de
+         * sens qu'entre Cards effectivement presentes dans un meme preset.
+         */
+        'core.article' => [
+            'key' => 'core.article',
+            'label_key' => 'loops.cards.article.label',
+            'description_key' => 'loops.cards.article.description',
+            'empty_title_key' => 'loops.cards.article.empty_title',
+            'empty_body_key' => 'loops.cards.article.empty_body',
+            'action_key' => 'loops.cards.article.action',
+            'icon' => 'document',
+            'component' => 'loop-article-card',
+            'view' => null,
+            'view_permission' => 'writing.view',
+            'required' => false,
+            'order' => 42,
+            'placement' => 'grid',
+            'category' => 'rhythm',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => true,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => true,
+        ],
+
         'core.members' => [
             'key' => 'core.members',
             'label_key' => 'loops.cards.members.label',

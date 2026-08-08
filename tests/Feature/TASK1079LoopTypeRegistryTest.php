@@ -36,14 +36,15 @@ class TASK1079LoopTypeRegistryTest extends TestCase
 
     public function test_the_business_types_are_declared_and_ordered(): void
     {
-        // Dialogue, Projets, Coaching, Formation, Pair-Aidance, Reseautage.
+        // Dialogue, Projets, Coaching, Formation, Pair-Aidance, Reseautage,
+        // Redaction — le dernier preset que la matrice reclamait.
         //
         // La liste reste **figee a la main** : c'est ce qui fait qu'un type
         // ajoute ne passe jamais inaperçu. `networking` l'a rejointe avec
         // TASK-1107, la spec TASK-1089 constatant qu'il « n'avait aujourd'hui
         // aucune cle ».
         $this->assertSame(
-            ['general', 'project', 'coaching', 'training', 'peer_support', 'networking'],
+            ['general', 'project', 'coaching', 'training', 'peer_support', 'networking', 'writing'],
             $this->registry()->keys(),
         );
     }

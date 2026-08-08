@@ -251,6 +251,40 @@ return [
          * prise a part — c'est ainsi que `training` et `peer_support` sont
          * arrives. Le preset existe et se teste ; il ne s'offre pas encore.
          */
+        /*
+         * Redaction — le dernier preset que la matrice reclame, et qui
+         * **n'avait aucune cle** : la spec TASK-1089 le dit expressement.
+         *
+         * Ses trois Cards distinctives : Article, Roadmap, Dossiers. On y ecrit
+         * a plusieurs, on suit ce qui reste a faire, on range ce qui est ecrit.
+         *
+         * `available => false` : ouvrir un type est une decision de produit,
+         * prise a part — c'est ainsi que `training`, `peer_support` et
+         * `networking` sont arrives.
+         */
+        'writing' => [
+            'root_document_label_key' => 'loops.root_document.writing',
+            'root_document_sections' => [
+                'loops.root_document_sections.why',
+                'loops.root_document_sections.audience',
+                'loops.root_document_sections.principles',
+            ],
+            'key' => 'writing',
+            'label_key' => 'loops.types.writing.label',
+            'description_key' => 'loops.types.writing.description',
+            'icon' => 'document',
+            'order' => 60,
+            'available' => false,
+            'chat_mode' => 'stream',
+            'cards' => [
+                'core.manifesto',
+                'core.members',
+                'core.article',
+                'core.roadmap',
+                'core.dossiers',
+            ],
+        ],
+
         'networking' => [
             'root_document_label_key' => 'loops.root_document.networking',
             'root_document_sections' => [

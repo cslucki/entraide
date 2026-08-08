@@ -130,7 +130,8 @@ class TASK1110ProjectDossiersTest extends TestCase
             'core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.polls',
             'core.events', 'core.dossiers', 'training.course_material',
             'training.progression', 'training.assignments', 'training.quiz',
-            'core.journal', 'core.decisions', 'core.marketplace', 'core.members',
+            'core.journal', 'core.decisions', 'core.marketplace', 'core.article',
+            'core.members',
         ], array_keys(config('loop_cards.cards')));
     }
 
