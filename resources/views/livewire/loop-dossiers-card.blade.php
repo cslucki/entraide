@@ -87,7 +87,9 @@
                 <ul class="divide-y divide-[var(--bp-border)]">
                     @foreach($articles as $article)
                         <li wire:key="article-{{ $article->id }}">
-                            <a href="{{ route('blog.show', $article->slug) }}"
+                            {{-- L'adresse **dans l'Organization de la Boucle** : la route nue retombe
+                                 sur l'Organization par défaut. --}}
+                            <a href="{{ $articleUrls[$article->id] }}"
                                class="flex items-center gap-2.5 rounded-xl px-1.5 py-2 transition hover:bg-[var(--bp-surface)]">
                                 <x-user-avatar :user="$article->user" size="xs" />
                                 <span class="min-w-0 flex-1">
