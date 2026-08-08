@@ -102,6 +102,88 @@ class UserDataLifecycleRegistry
             ['key' => 'dossier_chunks', 'type' => 'non_sql', 'surface' => 'dossier_chunks.content/embedding', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'count' => ['table' => 'dossier_chunks', 'column' => 'organization_id', 'matches_organization' => true], 'justification' => 'Embeddings require a dedicated lifecycle policy.'],
             ['key' => 'profile_agent_messages', 'type' => 'non_sql', 'surface' => 'profile_agent_messages.content/metadata', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_profile_agent_conversation', 'justification' => 'Profile agent messages are indirectly linked through conversations.'],
             ['key' => 'cache_keys', 'type' => 'non_sql', 'surface' => 'cache/cache_locks organization and indexing keys', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Cache keys are runtime/organization-scoped.'],
+
+            /*
+             * ── Boucles : Cards metier ──────────────────────────────────────
+             *
+             * Classees par analogie avec les entrees existantes, qui posent
+             * trois lignes claires :
+             *
+             *   - **qui a fait un geste** (epingler, resoudre, cloturer) se
+             *     detache : le contenu survit sans l'acteur ;
+             *   - **ce que quelqu'un a ecrit** s'anonymise : le texte reste,
+             *     l'attribution devient neutre — c'est deja la regle des
+             *     messages du ChatLoop et des commentaires de blog ;
+             *   - **une participation personnelle** (adhesion, reponse) se
+             *     supprime.
+             *
+             * Trois entrees sortent de ces lignes et portent `BLOCK` : elles
+             * demandent une decision produit que je ne prends pas seul, et le
+             * registre est fait pour la reclamer.
+             */
+            ['key' => 'loops_archived_by', 'type' => 'sql', 'table' => 'loops', 'column' => 'archived_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Archival audit can be detached; the Loop survives.'],
+            ['key' => 'loop_decisions_author_id', 'type' => 'sql', 'table' => 'loop_decisions', 'column' => 'author_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'A Decision is collective memory that must survive; only its attribution is anonymized.'],
+            ['key' => 'loop_journal_entries_author_id', 'type' => 'sql', 'table' => 'loop_journal_entries', 'column' => 'author_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'Journal entries are the Loop memory; authorship is anonymized, never erased.'],
+            ['key' => 'loop_marketplace_links_added_by', 'type' => 'sql', 'table' => 'loop_marketplace_links', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Who highlighted an offer is audit; the link survives.'],
+            ['key' => 'loop_manifesto_sources_added_by', 'type' => 'sql', 'table' => 'loop_manifesto_sources', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Source attribution audit can be detached.'],
+            ['key' => 'loop_messages_deleted_by', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'deleted_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Moderation audit: who removed a message must remain answerable.'],
+
+            ['key' => 'loop_events_created_by', 'type' => 'sql', 'table' => 'loop_events', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The event survives; its author is anonymized.'],
+            ['key' => 'loop_events_cancelled_by', 'type' => 'sql', 'table' => 'loop_events', 'column' => 'cancelled_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Cancellation audit can be detached.'],
+            ['key' => 'loop_event_responses_user_id', 'type' => 'sql', 'table' => 'loop_event_responses', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_loop', 'justification' => 'An RSVP is user-specific participation.'],
+
+            ['key' => 'loop_polls_created_by', 'type' => 'sql', 'table' => 'loop_polls', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The poll survives; its author is anonymized.'],
+            ['key' => 'loop_polls_closed_by', 'type' => 'sql', 'table' => 'loop_polls', 'column' => 'closed_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Closure audit can be detached.'],
+            /*
+             * **BLOCK, et non DELETE.** Supprimer les votes changerait
+             * retroactivement un resultat que le collectif a lu et sur lequel
+             * il a peut-etre agi. Les anonymiser romprait l'unicite un-vote-par
+             * -personne. Aucune des deux n'est evidente : c'est une decision
+             * produit, et le registre existe pour la reclamer.
+             */
+            ['key' => 'loop_poll_votes_user_id', 'type' => 'sql', 'table' => 'loop_poll_votes', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'through_loop', 'justification' => 'Deleting votes would retroactively change a result the group acted on; anonymizing would break one-vote-per-person. Needs a product decision.'],
+
+            ['key' => 'loop_join_requests_user_id', 'type' => 'sql', 'table' => 'loop_join_requests', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_loop', 'justification' => 'A join request is user-specific participation.'],
+            ['key' => 'loop_join_requests_decided_by', 'type' => 'sql', 'table' => 'loop_join_requests', 'column' => 'decided_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Decision audit can be detached.'],
+            ['key' => 'loop_invitations_sender_id', 'type' => 'sql', 'table' => 'loop_invitations', 'column' => 'sender_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Invitation sender is audit/history, as for blog invitations.'],
+            ['key' => 'loop_invitations_accepted_by_user_id', 'type' => 'sql', 'table' => 'loop_invitations', 'column' => 'accepted_by_user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Invitation acceptance is audit/history.'],
+
+            ['key' => 'loop_roadmap_items_created_by', 'type' => 'sql', 'table' => 'loop_roadmap_items', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The action survives; its author is anonymized.'],
+            ['key' => 'loop_roadmap_item_messages_user_id', 'type' => 'sql', 'table' => 'loop_roadmap_item_messages', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'Thread author is anonymized, as for ChatLoop messages.'],
+            ['key' => 'loop_roadmap_item_user', 'type' => 'sql', 'table' => 'loop_roadmap_item_user', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_loop', 'justification' => 'Assignment is user-specific participation.'],
+            ['key' => 'loop_roadmap_labels_created_by', 'type' => 'sql', 'table' => 'loop_roadmap_labels', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Label creation audit can be detached.'],
+
+            /*
+             * ── Formation ───────────────────────────────────────────────────
+             *
+             * Le support de cours survit au depart de qui l'a monte : ces
+             * colonnes sont un audit, pas une signature. La progression et les
+             * copies, elles, sont personnelles.
+             */
+            ['key' => 'course_modules_created_by', 'type' => 'sql', 'table' => 'course_modules', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Course material survives its author; the audit column can be detached.'],
+            ['key' => 'course_sequences_created_by', 'type' => 'sql', 'table' => 'course_sequences', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Course material survives its author.'],
+            ['key' => 'course_quizzes_created_by', 'type' => 'sql', 'table' => 'course_quizzes', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Course material survives its author.'],
+            ['key' => 'course_assignments_created_by', 'type' => 'sql', 'table' => 'course_assignments', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Course material survives its author.'],
+
+            ['key' => 'course_sequence_progress_user_id', 'type' => 'sql', 'table' => 'course_sequence_progress', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_loop', 'justification' => 'Personal progress is user-specific data.'],
+            ['key' => 'course_sequence_progress_unlocked_by', 'type' => 'sql', 'table' => 'course_sequence_progress', 'column' => 'unlocked_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Unlocking audit can be detached.'],
+            ['key' => 'course_sequence_progress_validated_by', 'type' => 'sql', 'table' => 'course_sequence_progress', 'column' => 'validated_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Human validation is the record that a person vouched for an acquisition; it stays answerable.'],
+
+            /*
+             * **BLOCK, et non DELETE.** Une copie rendue n'appartient pas
+             * qu'a son auteur : le formateur l'a lue, corrigee, et peut-etre
+             * validee. La supprimer effacerait le travail d'evaluation d'un
+             * tiers, et la retenir garde une donnee personnelle. Decision
+             * produit.
+             */
+            ['key' => 'course_submissions_user_id', 'type' => 'sql', 'table' => 'course_submissions', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'through_loop', 'justification' => 'A submission carries both personal work and a trainer’s evaluation; deleting or retaining both have costs. Needs a product decision.'],
+            ['key' => 'course_submissions_reviewed_by', 'type' => 'sql', 'table' => 'course_submissions', 'column' => 'reviewed_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Who validated a submission stays answerable.'],
+            /*
+             * **BLOCK, et non DELETE.** Une tentative de QCM est personnelle,
+             * mais elle est aussi ce qui debloque une Sequence : l'effacer
+             * pourrait rouvrir un parcours deja franchi. Decision produit.
+             */
+            ['key' => 'course_quiz_attempts_user_id', 'type' => 'sql', 'table' => 'course_quiz_attempts', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'through_loop', 'justification' => 'A quiz attempt is personal but also unlocks a Sequence; erasing it could reopen a completed path. Needs a product decision.'],
         ];
     }
 

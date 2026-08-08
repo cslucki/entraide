@@ -63,14 +63,22 @@
         'allowed' => __('loops.permissions_state_allowed'),
         'denied' => __('loops.permissions_state_denied'),
     ];
-    $moduleLabels = [
-        'loops' => __('loops.permissions_module_loops'),
-        'members' => __('loops.permissions_module_members'),
-        'manifesto' => __('loops.permissions_module_manifesto'),
-        'roadmap' => __('loops.permissions_module_roadmap'),
-        'chatloop' => __('loops.permissions_module_chatloop'),
-        'invitations' => __('loops.permissions_module_invitations'),
-    ];
+    /*
+        Un libellé par module **déclaré**, et non par module dont on s'est
+        souvenu : onze des dix-sept affichaient leur clé brute — `journal`,
+        `decisions`, `marketplace`… — parce que chaque Card ajoutait son module
+        sans passer par ici.
+
+        La liste se construit donc depuis les modules réellement déclarés, et un
+        module sans libellé retombe sur sa clé plutôt que sur rien. Un test
+        vérifie qu'aucun n'en est là.
+    */
+    $moduleLabels = collect(config('loops.permissions_modules', []))->all() ?: [];
+
+    foreach (collect(config('loop_permissions.permissions', []))->pluck('module')->unique() as $_module) {
+        $_cle = 'loops.permissions_module_'.$_module;
+        $moduleLabels[$_module] = __($_cle) === $_cle ? $_module : __($_cle);
+    }
 @endphp
 
 <div class="space-y-4">
