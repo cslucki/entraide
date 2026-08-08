@@ -791,7 +791,7 @@ class TASK1107LoopMarketplaceTest extends TestCase
         }
 
         $this->assertSame(33, $this->service()->countFor($this->loop));
-        $this->card()->assertSee(__('loops.cards.marketplace.and_more', ['count' => 3]));
+        $this->card()->assertSee(trans_choice('loops.cards.marketplace.and_more', 3, ['count' => 3]));
     }
 
     public function test_highlighting_again_applies_the_new_note(): void
@@ -814,6 +814,59 @@ class TASK1107LoopMarketplaceTest extends TestCase
         $methode = new \ReflectionMethod(LoopMarketplaceCard::class, 'canEdit');
 
         $this->assertFalse($methode->isPublic(), 'canEdit est exposee comme action Livewire');
+    }
+
+
+    // ── Ce que la recette navigateur a montre ───────────────────────────────
+
+    public function test_correcting_a_note_does_not_claim_something_was_highlighted(): void
+    {
+        // Observe en recette : la confirmation decrivait un autre geste que
+        // celui qu'on venait de faire.
+        $lien = $this->service()->highlightOffer($this->loop, $this->membre, $this->offre());
+
+        $this->card()
+            ->call('startEditingNote', $lien->id)
+            ->set('note', 'Un mot')
+            ->call('saveNote')
+            ->assertSet('flash', __('loops.cards.marketplace.note_saved'));
+
+        $this->assertNotSame(
+            __('loops.cards.marketplace.highlighted'),
+            __('loops.cards.marketplace.note_saved'),
+        );
+    }
+
+    public function test_each_edit_button_names_what_it_edits(): void
+    {
+        // Cinq boutons portaient le meme libelle « Corriger ce mot » : au
+        // lecteur d'ecran, ils etaient indistinguables. La croix, elle, nommait
+        // deja son element.
+        $this->service()->highlightOffer($this->loop, $this->membre, $this->offre($this->membre, 'Premiere'));
+        $this->service()->highlightOffer($this->loop, $this->membre, $this->offre($this->membre, 'Seconde'));
+
+        $html = $this->card()->html();
+
+        foreach (['Premiere', 'Seconde'] as $titre) {
+            $this->assertStringContainsString(
+                __('loops.cards.marketplace.edit_note_of', ['name' => $titre]),
+                $html,
+                $titre,
+            );
+        }
+    }
+
+    public function test_the_count_of_what_is_not_shown_reads_properly_in_both_numbers(): void
+    {
+        // « et 4 autre(s) non affiché(s) » : le pluriel entre parentheses est
+        // ce qu'on ecrit quand on n'a pas voulu choisir.
+        $un = trans_choice('loops.cards.marketplace.and_more', 1, ['count' => 1]);
+        $plusieurs = trans_choice('loops.cards.marketplace.and_more', 4, ['count' => 4]);
+
+        $this->assertStringNotContainsString('(s)', $un);
+        $this->assertStringNotContainsString('(s)', $plusieurs);
+        $this->assertStringContainsString('4', $plusieurs);
+        $this->assertNotSame($un, $plusieurs);
     }
 
     // ── Aucune condition sur le type ────────────────────────────────────────

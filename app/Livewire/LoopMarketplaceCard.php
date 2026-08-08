@@ -184,7 +184,10 @@ class LoopMarketplaceCard extends Component
 
         $this->reset(['editingId', 'note']);
         $this->problem = '';
-        $this->flash = __('loops.cards.marketplace.highlighted');
+        // **Pas « mis en avant »** : rien n'a ete mis en avant, un mot a ete
+        // corrige. Observe en recette : la confirmation decrivait un autre
+        // geste que celui qu'on venait de faire.
+        $this->flash = __('loops.cards.marketplace.note_saved');
     }
 
     public function remove(string $linkId): void

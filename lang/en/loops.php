@@ -381,12 +381,14 @@ return [
             'by' => 'by :name',
             'added_by' => 'highlighted by :name',
             'open_in_catalogue' => 'View in the catalogue',
-            'and_more' => 'and :count more not shown.',
+            'and_more' => '{1} and 1 more item not shown.|[2,*] and :count more items not shown.',
 
             'note_label' => 'A word for the Loop (optional)',
             'save' => 'Save',
             'cancel' => 'Cancel',
             'edit_note' => 'Edit this note',
+            'edit_note_of' => 'Edit the note on “:name”',
+            'note_saved' => 'Note saved.',
             'remove' => 'Remove “:name” from the Loop',
             'delete_confirm' => 'Remove from the Loop? The offer stays in the catalogue.',
 

@@ -381,12 +381,14 @@ return [
             'by' => 'par :name',
             'added_by' => 'mis en avant par :name',
             'open_in_catalogue' => 'Voir dans le catalogue',
-            'and_more' => 'et :count autre(s) non affiché(s).',
+            'and_more' => '{1} et 1 autre élément non affiché.|[2,*] et :count autres éléments non affichés.',
 
             'note_label' => 'Un mot pour la Boucle (facultatif)',
             'save' => 'Enregistrer',
             'cancel' => 'Annuler',
             'edit_note' => 'Corriger ce mot',
+            'edit_note_of' => 'Corriger le mot de « :name »',
+            'note_saved' => 'Mot enregistré.',
             'remove' => 'Retirer « :name » de la Boucle',
             'delete_confirm' => 'Retirer de la Boucle ? L\'Offre reste au catalogue.',
 
