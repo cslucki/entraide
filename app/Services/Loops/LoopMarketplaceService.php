@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -55,6 +56,13 @@ class LoopMarketplaceService
             ]);
         }
 
+        // **La regle vit ici**, et non seulement dans le composant. La
+        // documentation l'affirmait deja ; le code ne la tenait pas. Un
+        // controleur, un import ou un job qui appellera ce service demain
+        // inscrirait autrui dans une Boucle qu'il n'a pas choisie.
+        $this->assertOwn($actor, $service->user_id);
+        $this->assertLive($service->status, LoopMarketplaceLink::LIVE_OFFER_STATUSES, 'service_id');
+
         return $this->link($loop, $actor, ['service_id' => $service->id], $note);
     }
 
@@ -67,6 +75,9 @@ class LoopMarketplaceService
             ]);
         }
 
+        $this->assertOwn($actor, $request->user_id);
+        $this->assertLive($request->status, LoopMarketplaceLink::LIVE_REQUEST_STATUSES, 'service_request_id');
+
         return $this->link($loop, $actor, ['service_request_id' => $request->id], $note);
     }
 
@@ -76,6 +87,26 @@ class LoopMarketplaceService
      * `service_id` **ou** `service_request_id` : la signature des deux methodes
      * publiques l'impose, et rien d'autre n'appelle celle-ci.
      */
+    /** On ne met en avant que les siennes. */
+    private function assertOwn(User $actor, ?string $ownerId): void
+    {
+        if ($ownerId !== $actor->id) {
+            throw ValidationException::withMessages([
+                'service_id' => __('loops.cards.marketplace.not_yours'),
+            ]);
+        }
+    }
+
+    /** Et seulement ce qui est encore au catalogue. */
+    private function assertLive(?string $statut, array $vivants, string $champ): void
+    {
+        if (! in_array($statut, $vivants, true)) {
+            throw ValidationException::withMessages([
+                $champ => __('loops.cards.marketplace.not_live'),
+            ]);
+        }
+    }
+
     private function link(Loop $loop, User $actor, array $cible, ?string $note): LoopMarketplaceLink
     {
         $note = $this->cleanNote($note);
@@ -100,12 +131,20 @@ class LoopMarketplaceService
                 return $deja->fresh();
             }
 
-            return LoopMarketplaceLink::create(array_merge($cible, [
-                'organization_id' => $loop->organization_id,
-                'loop_id' => $loop->id,
-                'added_by' => $actor->id,
-                'note' => $note,
-            ]));
+            try {
+                return LoopMarketplaceLink::create(array_merge($cible, [
+                    'organization_id' => $loop->organization_id,
+                    'loop_id' => $loop->id,
+                    'added_by' => $actor->id,
+                    'note' => $note,
+                ]));
+            } catch (UniqueConstraintViolationException) {
+                // Deux mises en avant simultanees : la base tranche, et la
+                // seconde relit la ligne gagnante plutot que de rendre 500.
+                return LoopMarketplaceLink::where('loop_id', $loop->id)
+                    ->where(array_key_first($cible), reset($cible))
+                    ->firstOrFail();
+            }
         });
     }
 
@@ -219,9 +258,15 @@ class LoopMarketplaceService
 
         return Service::where('organization_id', $loop->organization_id)
             ->where('user_id', $actor->id)
-            ->where('status', 'active')
+            ->whereIn('status', LoopMarketplaceLink::LIVE_OFFER_STATUSES)
             ->whereNotIn('id', $deja)
             ->orderByDesc('created_at')
+            // Meme departage que `linksFor()` : `services.created_at` et
+            // `service_requests.created_at` sont a la seconde sous PostgreSQL.
+            // Sans lui, vingt-cinq Offres creees dans la meme seconde donnaient
+            // les **vingt plus anciennes**, et celle qu'on venait de creer
+            // etait precisement celle que le selecteur ecartait.
+            ->orderByDesc('id')
             ->limit(20)
             ->get();
     }
@@ -239,11 +284,33 @@ class LoopMarketplaceService
 
         return ServiceRequest::where('organization_id', $loop->organization_id)
             ->where('user_id', $actor->id)
-            ->where('status', 'open')
+            ->whereIn('status', LoopMarketplaceLink::LIVE_REQUEST_STATUSES)
             ->whereNotIn('id', $deja)
             ->orderByDesc('created_at')
+            // Meme departage que `linksFor()` : `services.created_at` et
+            // `service_requests.created_at` sont a la seconde sous PostgreSQL.
+            // Sans lui, vingt-cinq Offres creees dans la meme seconde donnaient
+            // les **vingt plus anciennes**, et celle qu'on venait de creer
+            // etait precisement celle que le selecteur ecartait.
+            ->orderByDesc('id')
             ->limit(20)
             ->get();
+    }
+
+    /** Combien cette personne pourrait encore mettre en avant, au total. */
+    public function pickableCountFor(Loop $loop, User $actor, string $kind): int
+    {
+        return $kind === 'offer'
+            ? Service::where('organization_id', $loop->organization_id)
+                ->where('user_id', $actor->id)
+                ->whereIn('status', LoopMarketplaceLink::LIVE_OFFER_STATUSES)
+                ->whereNotIn('id', LoopMarketplaceLink::where('loop_id', $loop->id)->whereNotNull('service_id')->pluck('service_id'))
+                ->count()
+            : ServiceRequest::where('organization_id', $loop->organization_id)
+                ->where('user_id', $actor->id)
+                ->whereIn('status', LoopMarketplaceLink::LIVE_REQUEST_STATUSES)
+                ->whereNotIn('id', LoopMarketplaceLink::where('loop_id', $loop->id)->whereNotNull('service_request_id')->pluck('service_request_id'))
+                ->count();
     }
 
     private function cleanNote(?string $note): ?string

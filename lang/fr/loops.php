@@ -396,6 +396,8 @@ return [
 
             'not_in_organization' => 'Cette Offre n\'appartient pas à cette Organisation.',
             'not_yours' => 'On ne met en avant que ses propres Offres et Demandes.',
+            'not_live' => 'Cette Offre n\'est plus au catalogue.',
+            'author_gone_title' => 'Offre d\'un compte désactivé',
 
             'highlighted' => 'Mis en avant dans la Boucle.',
             'removed' => 'Retiré de la Boucle. L\'Offre reste au catalogue.',

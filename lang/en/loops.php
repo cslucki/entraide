@@ -396,6 +396,8 @@ return [
 
             'not_in_organization' => 'This offer does not belong to this Organization.',
             'not_yours' => 'You may only highlight your own offers and requests.',
+            'not_live' => 'This offer is no longer in the catalogue.',
+            'author_gone_title' => 'Offer from a deactivated account',
 
             'highlighted' => 'Highlighted in the Loop.',
             'removed' => 'Removed from the Loop. The offer stays in the catalogue.',

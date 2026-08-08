@@ -144,10 +144,15 @@ class TASK1107LoopMarketplaceTest extends TestCase
 
     public function test_the_screen_points_at_the_existing_creation_path(): void
     {
+        // **La route scopee sur l'Organization de la Boucle.** La route nue
+        // retombe sur l'Organization par defaut : « Creer une Offre »
+        // enregistrait l'Offre dans une **autre** Organization, ou son auteur
+        // ne la retrouvait jamais.
         $this->card()
             ->set('picking', 'offer')
             ->assertSee(__('loops.cards.marketplace.create_offer'))
-            ->assertSeeHtml(route('services.create'));
+            ->assertSeeHtml(route('organization.services.create', ['organization' => $this->org->slug]))
+            ->assertDontSeeHtml('"'.route('services.create').'"');
     }
 
     // ── Le preset Reseautage ────────────────────────────────────────────────
@@ -766,7 +771,7 @@ class TASK1107LoopMarketplaceTest extends TestCase
 
         $this->card()
             ->assertSee(__('loops.cards.marketplace.open_in_catalogue'))
-            ->assertSeeHtml(route('services.show', $offre));
+            ->assertSeeHtml(route('organization.services.show', ['organization' => $this->org->slug, 'service' => $offre]));
     }
 
     public function test_the_most_recent_are_the_ones_shown(): void
@@ -867,6 +872,183 @@ class TASK1107LoopMarketplaceTest extends TestCase
         $this->assertStringNotContainsString('(s)', $plusieurs);
         $this->assertStringContainsString('4', $plusieurs);
         $this->assertNotSame($un, $plusieurs);
+    }
+
+
+    // ── Ce que la seconde revue a trouve ────────────────────────────────────
+
+    public function test_the_creation_link_never_sends_to_another_organization(): void
+    {
+        // La route nue retombe sur l'Organization **par defaut** : « Creer une
+        // Offre » enregistrait l'Offre ailleurs, et `resolveOwn()` filtrant sur
+        // l'Organization de la Boucle, son auteur ne la retrouvait jamais. Une
+        // ecriture cross-tenant par le parcours nominal.
+        foreach (['offer' => 'services', 'request' => 'requests'] as $quoi => $route) {
+            $html = $this->card()->set('picking', $quoi)->html();
+
+            $this->assertStringContainsString(
+                route("organization.{$route}.create", ['organization' => $this->org->slug]),
+                $html,
+                $quoi,
+            );
+            $this->assertStringNotContainsString('"'.route("{$route}.create").'"', $html, $quoi);
+        }
+    }
+
+    public function test_the_catalogue_link_stays_inside_the_loops_organization(): void
+    {
+        $offre = $this->offre();
+        $lien = $this->service()->highlightOffer($this->loop, $this->membre, $offre);
+
+        $composant = new \App\Livewire\LoopMarketplaceCard;
+        $composant->loop = $this->loop;
+
+        $this->assertSame(
+            route('organization.services.show', ['organization' => $this->org->slug, 'service' => $offre]),
+            $composant->catalogueUrl($lien->fresh()),
+        );
+    }
+
+    public function test_the_picker_shows_the_most_recent_not_the_oldest(): void
+    {
+        // Meme defaut que celui corrige dans `linksFor()`, laisse en place deux
+        // methodes plus bas : vingt-cinq Offres creees dans la meme seconde
+        // donnaient les **vingt plus anciennes**, et celle qu'on venait de
+        // creer etait precisement celle que le selecteur ecartait.
+        $ids = [];
+        for ($i = 0; $i < 25; $i++) {
+            $ids[] = $this->offre($this->membre, sprintf('QA %02d', $i))->id;
+        }
+
+        \App\Models\Service::whereIn('id', $ids)->update(['created_at' => now()]);
+
+        $proposees = $this->service()->offerableBy($this->loop, $this->membre)->pluck('id');
+
+        $this->assertContains(end($ids), $proposees, 'la plus recente est ecartee');
+        $this->assertNotContains($ids[0], $proposees, 'la plus ancienne est proposee a sa place');
+    }
+
+    public function test_the_picker_says_what_it_does_not_show(): void
+    {
+        for ($i = 0; $i < 25; $i++) {
+            $this->offre($this->membre, sprintf('QA %02d', $i));
+        }
+
+        $this->assertSame(25, $this->service()->pickableCountFor($this->loop, $this->membre, 'offer'));
+
+        $this->card()->set('picking', 'offer')
+            ->assertSee(trans_choice('loops.cards.marketplace.and_more', 5, ['count' => 5]));
+    }
+
+    public function test_the_service_itself_refuses_to_highlight_someone_elses(): void
+    {
+        // La regle n'existait que dans le composant, alors que la
+        // documentation affirmait qu'elle vivait dans le service. Un
+        // controleur, un import ou un job l'aurait contournee sans le savoir.
+        $this->expectException(ValidationException::class);
+        $this->service()->highlightOffer($this->loop, $this->membre, $this->offre($this->animateur, 'La sienne'));
+    }
+
+    public function test_the_service_itself_refuses_what_left_the_catalogue(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->service()->highlightOffer($this->loop, $this->membre, $this->offre($this->membre, 'Eteinte', 'paused'));
+    }
+
+    public function test_the_selector_and_the_guard_speak_the_same_language(): void
+    {
+        // Une Demande `in_progress` n'etait pas proposee mais etait acceptee :
+        // deux verites sur le meme etat, et `isLive()` en donnait une troisieme.
+        $enCours = $this->demande($this->membre, 'En cours', 'in_progress');
+
+        $this->assertContains($enCours->id, $this->service()->requestableBy($this->loop, $this->membre)->pluck('id'));
+
+        $lien = $this->service()->highlightRequest($this->loop, $this->membre, $enCours);
+
+        $this->assertTrue($lien->fresh()->isLive());
+    }
+
+    public function test_a_link_without_any_target_has_no_nature(): void
+    {
+        // Le ternaire d'origine faisait de NULL/NULL une Demande par defaut :
+        // une ligne incoherente se lisait comme une Demande vide.
+        $orphelin = new LoopMarketplaceLink(['loop_id' => $this->loop->id]);
+
+        $this->assertNull($orphelin->kind());
+        $this->assertNull($orphelin->target());
+        $this->assertFalse($orphelin->isLive());
+    }
+
+    public function test_removing_releases_the_form_it_was_holding(): void
+    {
+        // `editingId` restait pose sur une ligne disparue, et le `saveNote()`
+        // suivant rendait 404 au lieu d'un message.
+        $lien = $this->service()->highlightOffer($this->loop, $this->membre, $this->offre());
+
+        $this->card()
+            ->call('startEditingNote', $lien->id)
+            ->call('remove', $lien->id)
+            ->assertSet('editingId', null)
+            ->assertSet('note', '');
+    }
+
+    public function test_an_unknown_picking_value_opens_no_picker(): void
+    {
+        // `$picking` est public : l'assainissement de `startPicking()` ne
+        // protegeait rien. Une valeur inconnue ouvrait le selecteur Demande,
+        // toujours vide, et l'ecran annonçait « aucune Demande ouverte » a
+        // quelqu'un qui en avait.
+        $this->demande($this->membre, 'J’en ai une');
+
+        $this->card()
+            ->set('picking', 'n-importe-quoi')
+            ->assertDontSee(__('loops.cards.marketplace.no_request'))
+            ->assertSee(__('loops.cards.marketplace.add_offer'));
+    }
+
+    public function test_a_deactivated_persons_offer_shows_no_text_either(): void
+    {
+        // Masquer le nom seul laissait le titre et la description en clair, et
+        // la personne, ne pouvant plus se connecter, n'a aucun recours.
+        $this->service()->highlightOffer($this->loop, $this->membre, $this->offre($this->membre, 'Titre confidentiel'));
+
+        $this->membre->forceFill(['banned_at' => now()])->save();
+
+        $this->card($this->animateur)
+            ->assertDontSee('Titre confidentiel')
+            ->assertDontSee('Une description.')
+            ->assertSee(__('loops.cards.marketplace.author_gone_title'));
+    }
+
+    public function test_the_composition_counter_counts_what_the_card_shows(): void
+    {
+        // Les liens orphelins sont invisibles depuis la passe 1, donc
+        // irretirables : les compter gonflait le badge en permanence, et la
+        // composition annonçait un contenu que personne ne pouvait voir.
+        $offre = $this->offre();
+        $this->service()->highlightOffer($this->loop, $this->membre, $offre);
+        $this->service()->highlightOffer($this->loop, $this->membre, $this->offre($this->membre, 'Seconde'));
+
+        $offre->update(['status' => 'deleted']);
+        $offre->delete();
+
+        $composition = app(\App\Services\Loops\LoopCardCompositionService::class)->compositionFor($this->loop->fresh());
+        $ligne = collect($composition)->firstWhere('key', 'core.marketplace');
+
+        $this->assertSame($this->service()->countFor($this->loop), $ligne['data_count']);
+        $this->assertSame(1, $ligne['data_count']);
+    }
+
+    public function test_a_concurrent_duplicate_does_not_crash(): void
+    {
+        // Un `SELECT` puis un `INSERT` sans verrou : sur PostgreSQL la
+        // violation d'unicite avortait la transaction et remontait en 500.
+        $offre = $this->offre();
+        $premier = $this->service()->highlightOffer($this->loop, $this->membre, $offre);
+
+        $second = $this->service()->highlightOffer($this->loop, $this->membre, $offre, 'un autre mot');
+
+        $this->assertSame($premier->id, $second->id);
     }
 
     // ── Aucune condition sur le type ────────────────────────────────────────

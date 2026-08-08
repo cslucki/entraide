@@ -95,10 +95,8 @@
                     {{-- Le chemin vers l'Offre. Sans lui la Card montrait un titre
                          et un prénom sans permettre ni de l'ouvrir, ni de la
                          demander, ni d'écrire à la personne. --}}
-                    @if ($lien->isLive() && $lien->target())
-                        <a href="{{ $lien->kind() === \App\Models\LoopMarketplaceLink::KIND_OFFER
-                                ? route('services.show', $lien->target())
-                                : route('requests.show', $lien->target()) }}"
+                    @if ($lien->isLive() && $this->catalogueUrl($lien))
+                        <a href="{{ $this->catalogueUrl($lien) }}"
                            class="mt-2 inline-block text-xs font-semibold text-indigo-600 underline hover:text-indigo-700 dark:text-indigo-300">
                             {{ __('loops.cards.marketplace.open_in_catalogue') }}
                         </a>
@@ -112,7 +110,7 @@
                         <div class="mt-2 space-y-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
                             <label class="block">
                                 <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.cards.marketplace.note_label') }}</span>
-                                <textarea wire:model="note" rows="2" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800"></textarea>
+                                <textarea wire:model="note" rows="2" maxlength="2000" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800"></textarea>
                             </label>
                             <div class="flex gap-2">
                                 <button type="button" wire:click="saveNote" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
@@ -138,7 +136,7 @@
 
     @if ($canHighlight)
         <div class="mt-4 space-y-2">
-            @if ($picking === '')
+            @if ($pickingKind === '')
                 <div class="flex flex-wrap gap-2">
                     <button type="button" wire:click="startPicking('offer')"
                             class="flex-1 rounded-xl border border-dashed border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-emerald-400 hover:text-emerald-600 dark:border-gray-600 dark:text-gray-300">
@@ -152,7 +150,7 @@
             @else
                 <div class="space-y-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
                     <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                        {{ $picking === 'offer' ? __('loops.cards.marketplace.pick_offer') : __('loops.cards.marketplace.pick_request') }}
+                        {{ $pickingKind === 'offer' ? __('loops.cards.marketplace.pick_offer') : __('loops.cards.marketplace.pick_request') }}
                     </p>
 
                     {{-- Dit noir sur blanc ce que ce geste ne fait pas. Laisser croire
@@ -164,19 +162,19 @@
 
                     @if ($pickable->isEmpty())
                         <p class="text-xs text-gray-500 dark:text-gray-400">
-                            {{ $picking === 'offer' ? __('loops.cards.marketplace.no_offer') : __('loops.cards.marketplace.no_request') }}
+                            {{ $pickingKind === 'offer' ? __('loops.cards.marketplace.no_offer') : __('loops.cards.marketplace.no_request') }}
                         </p>
                     @else
                         <label class="block">
                             <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.cards.marketplace.note_label') }}</span>
-                            <textarea wire:model="note" rows="2" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800"></textarea>
+                            <textarea wire:model="note" rows="2" maxlength="2000" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800"></textarea>
                         </label>
 
                         <ul class="space-y-1.5">
                             @foreach ($pickable as $candidat)
                                 <li>
                                     <button type="button"
-                                            wire:click="{{ $picking === 'offer' ? 'highlightOffer' : 'highlightRequest' }}('{{ $candidat->id }}')"
+                                            wire:click="{{ $pickingKind === 'offer' ? 'highlightOffer' : 'highlightRequest' }}('{{ $candidat->id }}')"
                                             class="flex w-full items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-left text-sm text-gray-800 hover:bg-indigo-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-indigo-500/15">
                                         <span class="min-w-0 flex-1 truncate">{{ $candidat->title }}</span>
                                     </button>
@@ -185,13 +183,19 @@
                         </ul>
                     @endif
 
+                        @if ($pickableTotal > $pickable->count())
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                                {{ trans_choice('loops.cards.marketplace.and_more', $pickableTotal - $pickable->count(), ['count' => $pickableTotal - $pickable->count()]) }}
+                            </p>
+                        @endif
+
                     {{-- Vers le parcours qui existe. La Card ne refait pas ce
                          formulaire : il a ses règles de catégorie, de mode de
                          livraison et de coût en points. --}}
                     <div class="flex flex-wrap items-center gap-2 pt-1">
-                        <a href="{{ $picking === 'offer' ? route('services.create') : route('requests.create') }}"
+                        <a href="{{ $pickingKind === 'offer' ? $catalogue['offer_create'] : $catalogue['request_create'] }}"
                            class="text-xs font-semibold text-indigo-600 underline hover:text-indigo-700 dark:text-indigo-300">
-                            {{ $picking === 'offer' ? __('loops.cards.marketplace.create_offer') : __('loops.cards.marketplace.create_request') }}
+                            {{ $pickingKind === 'offer' ? __('loops.cards.marketplace.create_offer') : __('loops.cards.marketplace.create_request') }}
                         </a>
                         <button type="button" wire:click="cancel" class="ml-auto rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
                             {{ __('loops.cards.marketplace.cancel') }}

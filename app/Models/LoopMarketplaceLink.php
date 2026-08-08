@@ -21,6 +21,18 @@ class LoopMarketplaceLink extends Model
 
     public const KIND_REQUEST = 'request';
 
+    /**
+     * Ce que « vivant » veut dire, **au meme endroit pour tout le monde**.
+     *
+     * Les deux moities du produit ne parlaient pas la meme langue : le
+     * selecteur ne proposait qu'`open`, la garde acceptait aussi
+     * `in_progress`, et `isLive()` la disait vivante. Trois verites sur le meme
+     * etat.
+     */
+    public const LIVE_OFFER_STATUSES = ['active'];
+
+    public const LIVE_REQUEST_STATUSES = ['open', 'in_progress'];
+
     use HasUuids;
 
     protected $fillable = [
@@ -58,10 +70,20 @@ class LoopMarketplaceLink extends Model
         return $this->belongsTo(ServiceRequest::class);
     }
 
-    /** `offer` ou `request` — une seule lecture, pour que les vues s'accordent. */
-    public function kind(): string
+    /**
+     * `offer` ou `request` — une seule lecture, pour que les vues s'accordent.
+     *
+     * Une ligne **sans aucune cible** n'est pas une Demande : le ternaire
+     * d'origine en faisait une par defaut, et une ligne incoherente se lisait
+     * alors comme une Demande vide. Elle n'a plus de nature du tout.
+     */
+    public function kind(): ?string
     {
-        return $this->service_id !== null ? self::KIND_OFFER : self::KIND_REQUEST;
+        if ($this->service_id !== null) {
+            return self::KIND_OFFER;
+        }
+
+        return $this->service_request_id !== null ? self::KIND_REQUEST : null;
     }
 
     /** L'Offre ou la Demande, selon le cas. */
@@ -70,14 +92,36 @@ class LoopMarketplaceLink extends Model
         return $this->kind() === self::KIND_OFFER ? $this->service : $this->serviceRequest;
     }
 
+    /**
+     * Le titre a afficher.
+     *
+     * **Un compte desactive retire son texte aussi.** `ServiceController::show()`
+     * rend 404 pour son Offre et `scopeActive()` l'exclut du catalogue ; la
+     * masquer par le nom seulement laissait son titre et sa description en
+     * clair, et la personne concernee, ne pouvant plus se connecter, n'a aucun
+     * recours.
+     */
     public function displayTitle(): string
     {
+        if ($this->authorIsGone()) {
+            return (string) __('loops.cards.marketplace.author_gone_title');
+        }
+
         return (string) ($this->target()?->title ?? '');
     }
 
     public function displayDescription(): string
     {
+        if ($this->authorIsGone()) {
+            return '';
+        }
+
         return (string) ($this->target()?->description ?? '');
+    }
+
+    public function authorIsGone(): bool
+    {
+        return (bool) $this->author()?->isDeactivated();
     }
 
     /**
@@ -119,9 +163,11 @@ class LoopMarketplaceLink extends Model
         // l'est tant qu'elle n'est pas `closed` : `in_progress` veut dire
         // qu'on s'en occupe, pas qu'elle a quitte le catalogue — la badger
         // « retiree » etait un enonce faux.
-        return $this->kind() === self::KIND_OFFER
-            ? $cible->status === 'active'
-            : $cible->status !== 'closed';
+        return in_array(
+            $cible->status,
+            $this->kind() === self::KIND_OFFER ? self::LIVE_OFFER_STATUSES : self::LIVE_REQUEST_STATUSES,
+            true,
+        );
     }
 
     /**

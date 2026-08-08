@@ -199,6 +199,11 @@ class LoopMarketplaceCard extends Component
 
         $this->service()->remove($link);
 
+        // **Relacher `editingId`** : le laisser pose sur une ligne qui vient de
+        // disparaitre faisait rendre 404 au `saveNote()` suivant, au lieu d'un
+        // message. Les deux boutons sont visibles en meme temps : le geste est
+        // ordinaire.
+        $this->reset(['editingId', 'note']);
         $this->problem = '';
         $this->flash = __('loops.cards.marketplace.removed');
     }
@@ -255,7 +260,12 @@ class LoopMarketplaceCard extends Component
         // pouvait mettre en avant, par appel direct, une Offre `paused` ou
         // `deleted`, ou une Demande `closed` — et injecter du mort dans la
         // Boucle.
-        $vivants = $modele === Service::class ? ['active'] : ['open', 'in_progress'];
+        // Le meme vocabulaire que le selecteur : sans cela, une Demande
+        // `in_progress` n'etait pas proposee mais etait acceptee par appel
+        // direct — deux verites sur le meme etat.
+        $vivants = $modele === Service::class
+            ? LoopMarketplaceLink::LIVE_OFFER_STATUSES
+            : LoopMarketplaceLink::LIVE_REQUEST_STATUSES;
 
         $objet = $modele::where('organization_id', $this->loop->organization_id)
             ->where('user_id', auth()->id())
@@ -268,6 +278,56 @@ class LoopMarketplaceCard extends Component
         return $objet;
     }
 
+    /**
+     * Les liens vers le catalogue, **scopes sur l'Organization de la Boucle**.
+     *
+     * Les routes nues `services.show` et `services.create` retombent sur
+     * l'Organization **par defaut** : `ResolveUrlOrganization` les traite comme
+     * des routes de fonctionnalite. Consequences mesurees — la fiche d'une
+     * Offre rendait 404 pour son propre auteur, et « Creer une Offre »
+     * enregistrait l'Offre **dans une autre Organization**, ou son auteur ne la
+     * retrouvait jamais. Une ecriture cross-tenant par le parcours nominal.
+     *
+     * Le slug vient de la **Boucle**, jamais de la requete : c'est la lecon de
+     * TASK-1103. Six autres ecrans du produit font deja cette bascule ; cette
+     * Card etait le seul consommateur a ne pas la faire.
+     *
+     * @return array{offer_create:string, request_create:string}
+     */
+    private function catalogueLinks(): array
+    {
+        $slug = $this->loop->organization?->slug;
+
+        return [
+            'offer_create' => $slug
+                ? route('organization.services.create', ['organization' => $slug])
+                : route('services.create'),
+            'request_create' => $slug
+                ? route('organization.requests.create', ['organization' => $slug])
+                : route('requests.create'),
+        ];
+    }
+
+    /** La fiche d'une Offre ou d'une Demande, dans la meme Organization. */
+    public function catalogueUrl(LoopMarketplaceLink $link): ?string
+    {
+        $cible = $link->target();
+
+        if (! $cible) {
+            return null;
+        }
+
+        $slug = $this->loop->organization?->slug;
+        $offre = $link->kind() === LoopMarketplaceLink::KIND_OFFER;
+
+        if ($slug) {
+            return route($offre ? 'organization.services.show' : 'organization.requests.show',
+                ['organization' => $slug, $offre ? 'service' : 'request' => $cible]);
+        }
+
+        return route($offre ? 'services.show' : 'requests.show', $cible);
+    }
+
     private function service(): LoopMarketplaceService
     {
         return app(LoopMarketplaceService::class);
@@ -278,10 +338,23 @@ class LoopMarketplaceCard extends Component
         return app(LoopPermissionResolver::class);
     }
 
+    /**
+     * La valeur reellement retenue pour le selecteur.
+     *
+     * `$picking` est **public** : l'assainissement de `startPicking()` ne
+     * protegeait rien, la propriete pouvant etre posee directement. Une valeur
+     * inconnue ouvrait le selecteur Demande avec une liste toujours vide, et
+     * l'ecran annonçait « aucune Demande ouverte » a quelqu'un qui en avait.
+     */
+    public function picking(): string
+    {
+        return in_array($this->picking, ['offer', 'request'], true) ? $this->picking : '';
+    }
+
     /** @return Collection<int, Service|ServiceRequest> */
     private function pickable(): Collection
     {
-        return match ($this->picking) {
+        return match ($this->picking()) {
             'offer' => $this->service()->offerableBy($this->loop, auth()->user()),
             'request' => $this->service()->requestableBy($this->loop, auth()->user()),
             default => collect(),
@@ -300,6 +373,17 @@ class LoopMarketplaceCard extends Component
             'canManage' => $canView && $this->canManage(),
             'links' => $liens,
             'total' => $canView ? $this->service()->countFor($this->loop) : 0,
+            // **Un autre nom que la propriete publique** : Livewire donne la
+            // priorite a celle-ci sur la donnee passee, et la vue continuait
+            // donc a lire la valeur brute — l'assainissement ne protegeait
+            // rien.
+            'pickingKind' => $this->picking(),
+            'catalogue' => $this->catalogueLinks(),
+            // Le selecteur plafonne a vingt : taire le reste laissait des
+            // Offres eligibles sans aucun chemin.
+            'pickableTotal' => $canHighlight && $this->picking()
+                ? $this->service()->pickableCountFor($this->loop, auth()->user(), $this->picking())
+                : 0,
             'pickable' => $canHighlight ? $this->pickable() : collect(),
         ]);
     }
