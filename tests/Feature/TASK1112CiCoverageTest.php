@@ -146,6 +146,9 @@ class TASK1112CiCoverageTest extends TestCase
         // Le groupe est un **constat**, pas un endroit ou ranger un test qui
         // gene. Il doit se vider ; ce test echouera alors, et c'est voulu — il
         // rappelle de baisser le nombre et de dire ce qui a ete repare.
+        //
+        // **23 -> 22** : `UserDataLifecycleRegistryTest` est repare par
+        // TASK-1114, qui a classe les trente cles etrangeres manquantes.
         $annotees = 0;
 
         $iterateur = new \RecursiveIteratorIterator(
@@ -168,7 +171,7 @@ class TASK1112CiCoverageTest extends TestCase
         }
 
         $this->assertSame(
-            23,
+            22,
             $annotees,
             'le groupe des tests deja rouges a change : s’il a grandi, expliquez-vous ; s’il a maigri, baissez ce nombre',
         );
