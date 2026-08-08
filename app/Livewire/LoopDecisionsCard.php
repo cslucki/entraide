@@ -76,19 +76,45 @@ class LoopDecisionsCard extends Component
 
     // ── Droits ──────────────────────────────────────────────────────────────
 
+    /**
+     * Les trois droits, lus **une fois par requete**.
+     *
+     * `LoopPermissionResolver::can()` interroge `loop_members` a chaque appel :
+     * il n'a pas de cache, et n'est pas lie en singleton. Or `supersedable()`
+     * appelle `canEdit()` **par ligne**, qui appelle deux de ces droits.
+     * Mesure, selecteur de remplacement ouvert : 14 lectures pour 2 Decisions,
+     * **90 pour 40**.
+     *
+     * Ma sonde de croissance de TASK-1106 ne l'avait pas vu : elle n'ouvrait
+     * jamais le selecteur, et mesurait donc un chemin ou le defaut n'existe
+     * pas.
+     *
+     * Le cache est `private` : il ne voyage pas dans le snapshot Livewire, qui
+     * n'a ni nonce ni expiration, et se reconstruit a chaque requete. Un droit
+     * retire est visible au rendu suivant.
+     *
+     * @var array<string, bool>
+     */
+    private array $droitsMemo = [];
+
+    private function droit(string $capacite): bool
+    {
+        return $this->droitsMemo[$capacite] ??= $this->resolver()->can(auth()->user(), $this->loop, $capacite);
+    }
+
     public function canView(): bool
     {
-        return $this->resolver()->can(auth()->user(), $this->loop, 'decisions.view');
+        return $this->droit('decisions.view');
     }
 
     public function canRecord(): bool
     {
-        return $this->resolver()->can(auth()->user(), $this->loop, 'decisions.record');
+        return $this->droit('decisions.record');
     }
 
     public function canManage(): bool
     {
-        return $this->resolver()->can(auth()->user(), $this->loop, 'decisions.manage');
+        return $this->droit('decisions.manage');
     }
 
     /** Chacun corrige les siennes ; l'animation corrige tout. */
@@ -295,7 +321,7 @@ class LoopDecisionsCard extends Component
         // Lancer une action, c'est ecrire dans la Roadmap : le droit d'y ecrire
         // est **aussi** exige. Sans lui, la Card Decisions serait une porte
         // laterale pour poser des taches a qui n'a pas `roadmap.manage`.
-        abort_unless($this->resolver()->can(auth()->user(), $this->loop, 'roadmap.manage'), 403);
+        abort_unless($this->droit('roadmap.manage'), 403);
 
         try {
             $this->service()->startAction($decision, auth()->user(), $this->actionTitle);
@@ -383,7 +409,7 @@ class LoopDecisionsCard extends Component
         // Card devenait une porte laterale sur la conversation pour qui n'avait
         // pas `chatloop.view` — un reglage de distance, la matrice etant
         // administrable.
-        if (! $this->resolver()->can(auth()->user(), $this->loop, 'chatloop.view')) {
+        if (! $this->droit('chatloop.view')) {
             return collect();
         }
 
@@ -445,11 +471,11 @@ class LoopDecisionsCard extends Component
             'canView' => $canView,
             'canRecord' => $canRecord,
             'canManage' => $canView && $this->canManage(),
-            'canAct' => $canRecord && $this->resolver()->can(auth()->user(), $this->loop, 'roadmap.manage'),
+            'canAct' => $canRecord && $this->droit('roadmap.manage'),
             'decisions' => $decisions,
             // Sans `chatloop.view`, `promotable()` rend toujours vide : offrir
             // le bouton menait a un selecteur qui annonce « aucun message ».
-            'canPromote' => $canRecord && $this->resolver()->can(auth()->user(), $this->loop, 'chatloop.view'),
+            'canPromote' => $canRecord && $this->droit('chatloop.view'),
             'promotable' => $canRecord && $this->showPicker ? $this->promotable() : collect(),
             // Ce qu'une Decision peut remplacer : les autres, non deja
             // remplacees, **et qu'on a le droit de barrer**.

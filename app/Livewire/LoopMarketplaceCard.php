@@ -61,19 +61,39 @@ class LoopMarketplaceCard extends Component
 
     // ── Droits ──────────────────────────────────────────────────────────────
 
+    /**
+     * Les trois droits, lus une fois par requete.
+     *
+     * `LoopPermissionResolver::can()` interroge `loop_members` a chaque appel.
+     * Ici le cout ne croissait pas avec le nombre de lignes — `canEdit()` n'est
+     * pas appele par ligne — mais chaque rendu payait quatre lectures pour la
+     * meme reponse.
+     *
+     * `private` : ne voyage pas dans le snapshot, se reconstruit a chaque
+     * requete.
+     *
+     * @var array<string, bool>
+     */
+    private array $droitsMemo = [];
+
+    private function droit(string $capacite): bool
+    {
+        return $this->droitsMemo[$capacite] ??= $this->resolver()->can(auth()->user(), $this->loop, $capacite);
+    }
+
     public function canView(): bool
     {
-        return $this->resolver()->can(auth()->user(), $this->loop, 'marketplace.view');
+        return $this->droit('marketplace.view');
     }
 
     public function canHighlight(): bool
     {
-        return $this->resolver()->can(auth()->user(), $this->loop, 'marketplace.highlight');
+        return $this->droit('marketplace.highlight');
     }
 
     public function canManage(): bool
     {
-        return $this->resolver()->can(auth()->user(), $this->loop, 'marketplace.manage');
+        return $this->droit('marketplace.manage');
     }
 
     /**

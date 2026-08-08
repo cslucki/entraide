@@ -290,6 +290,10 @@ class LoopRoadmapCard extends Component
         DB::transaction(function () use ($item, $user) {
             if (! $this->isActiveLoopMember($user->id)) {
                 app(LoopService::class)->addMemberByUserId($this->loop, $user->id, 'member');
+
+                // Une adhesion vient de changer : ce qu'on avait memorise n'est
+                // plus vrai pour la suite de cette requete.
+                $this->forgetMembership();
             }
             $item->assignees()->syncWithoutDetaching([$user->id]);
         });
@@ -899,7 +903,62 @@ class LoopRoadmapCard extends Component
             ->find($id);
     }
 
+    /**
+     * L'adhesion de la personne connectee, lue **une fois par requete**.
+     *
+     * `render()` calcule `canModify()` pour chaque item, et `canModify()`
+     * passait par `canWrite()` **et** `isPrivileged()` — deux lectures de
+     * `loop_members` par item. Mesure : 11 lectures pour 2 items, 87 pour 40.
+     * C'est la forme que l'invariant de performance interdit.
+     *
+     * **La memoisation n'est pas une capacite durable.** La propriete est
+     * `private` : Livewire ne serialise que les proprietes publiques, donc elle
+     * ne voyage pas dans le snapshot — lequel n'a ni nonce ni expiration — et
+     * se reconstruit a chaque requete. Un retrait d'adhesion est donc visible
+     * au rendu suivant, et non a la fin d'une session.
+     *
+     * Le seul geste de ce composant qui touche une adhesion,
+     * `assignAndAddMember()`, relache explicitement le cache : sans cela, la
+     * suite de la meme requete lirait un etat perime.
+     */
+    private ?LoopMember $membershipMemo = null;
+
+    private bool $membershipMemoRempli = false;
+
+    /**
+     * Le droit d'animer, lui aussi lu une fois par requete.
+     *
+     * `isPrivileged()` passe par `LoopPermissionResolver::can()`, qui interroge
+     * `loop_members` a **chaque appel** : le resolveur n'a pas de cache, et
+     * n'est pas lie en singleton — une instance neuve a chaque `app()`.
+     * Memoiser l'adhesion ne suffisait donc pas : le cout continuait de suivre
+     * le nombre d'items, par cet autre chemin.
+     *
+     * Le reglage est une constante de la requete pour une personne donnee : il
+     * ne peut pas changer entre deux items de la meme planche.
+     */
+    private ?bool $privilegeMemo = null;
+
     private function activeMembership(): ?LoopMember
+    {
+        if ($this->membershipMemoRempli) {
+            return $this->membershipMemo;
+        }
+
+        $this->membershipMemoRempli = true;
+
+        return $this->membershipMemo = $this->readActiveMembership();
+    }
+
+    /** Oublier ce qu'on savait : l'adhesion vient de changer dans cette requete. */
+    private function forgetMembership(): void
+    {
+        $this->membershipMemo = null;
+        $this->membershipMemoRempli = false;
+        $this->privilegeMemo = null;
+    }
+
+    private function readActiveMembership(): ?LoopMember
     {
         $user = auth()->user();
         if (! $user || $user->isDeactivated()) {
@@ -944,18 +1003,18 @@ class LoopRoadmapCard extends Component
 
     private function isPrivileged(): bool
     {
-        $user = auth()->user();
-        if ($user && $user->is_admin) {
-            return true;
+        if ($this->privilegeMemo !== null) {
+            return $this->privilegeMemo;
         }
 
-        $membership = $this->activeMembership();
+        $user = auth()->user();
+        if ($user && $user->is_admin) {
+            return $this->privilegeMemo = true;
+        }
 
         // Resolved centrally (CP5ter): the facilitator replaces the never-used
         // moderator, and a type or an Organization can vary the rule.
-        $user = auth()->user();
-
-        return $user !== null
+        return $this->privilegeMemo = $user !== null
             && app(LoopPermissionResolver::class)->can($user, $this->loop, 'roadmap.manage');
     }
 
