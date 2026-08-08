@@ -19,7 +19,12 @@ class PgvectorDossierChunksSchemaTest extends TestCase
         $this->assertSame('bouclepro_test', DB::connection()->getDatabaseName());
 
         $extension = DB::table('pg_extension')->where('extname', 'vector')->first();
-        $this->assertSame('0.8.5', $extension?->extversion);
+        // **L'extension doit etre la ; sa version de correctif n'est pas une
+        // regle du produit.** Epingler `0.8.5` faisait echouer ces tests sur
+        // toute autre installation — c'est ce qu'a montre le premier passage
+        // reel de la CI, dont l'image pgvector porte une autre version. Un test
+        // qui asserte son environnement casse des qu'il change d'environnement.
+        $this->assertNotNull($extension?->extversion, 'l’extension pgvector est absente');
 
         $columnType = DB::table('pg_attribute as a')
             ->join('pg_class as c', 'c.oid', '=', 'a.attrelid')
