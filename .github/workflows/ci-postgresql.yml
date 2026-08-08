@@ -7,10 +7,21 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+# Une nouvelle poussee sur la meme branche annule la precedente : le job dure
+# desormais une vingtaine de minutes, et les empiler ne renseigne personne.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality-gate:
     name: Quality Gate (blocking)
     runs-on: ubuntu-latest
+
+    # Le job est passe de ~70 s a ~20 min en gagnant la suite Feature. Sans
+    # cette borne, le defaut de GitHub est 360 minutes : un test qui pend
+    # retiendrait un runner six heures.
+    timeout-minutes: 45
 
     env:
       DB_CONNECTION: pgsql

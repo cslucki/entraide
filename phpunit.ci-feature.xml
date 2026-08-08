@@ -27,43 +27,30 @@
     <testsuites>
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
-
-            <!-- pgvector / recherche sémantique : 6 échecs -->
-            <exclude>tests/Feature/Livewire/MessageThreadTest.php</exclude>
-
-            <!-- Suppression de compte, aperçu : 3 échecs -->
-            <exclude>tests/Feature/Admin/AdminUserDeletePreviewTest.php</exclude>
-
-            <!-- Cloisonnement historique : 2 échecs -->
-            <exclude>tests/Feature/T347OrganizationScopedAuthTest.php</exclude>
-
-            <!-- ChatLoop : 2 échecs -->
-            <exclude>tests/Feature/Livewire/LoopChatTest.php</exclude>
-
-            <!-- Agent IA en ligne : 2 échecs -->
-            <exclude>tests/Feature/Livewire/InlineMemberAgentTest.php</exclude>
-
-            <!-- Fichiers de Dossier : 2 échecs -->
-            <exclude>tests/Feature/DossierFileTest.php</exclude>
-
-            <!-- Registre du cycle de vie des données : 1 échec.
-                 28 clés étrangères non classées — dette transverse connue. -->
-            <exclude>tests/Feature/UserDataLifecycleRegistryTest.php</exclude>
-
-            <!-- Blog : 2 échecs -->
-            <exclude>tests/Feature/T997BlogMethodSelectionAnnotationTest.php</exclude>
-            <exclude>tests/Feature/T969BlogTagsTest.php</exclude>
-
-            <!-- Routes publiques partenaires : 1 échec -->
-            <exclude>tests/Feature/PublicFrenchPartnersRoutesTest.php</exclude>
-
-            <!-- API : 1 échec -->
-            <exclude>tests/Feature/Api/ApiTenantScopingTest.php</exclude>
-
-            <!-- Redirection du tableau de bord admin : 1 échec -->
-            <exclude>tests/Feature/Admin/AdminDashboardRedirectTest.php</exclude>
         </testsuite>
     </testsuites>
+    <groups>
+        <exclude>
+            <!--
+                Les 23 methodes deja rouges sur `develop` avant TASK-1112,
+                annotees `@group ci-known-red` la ou elles vivent, avec la
+                raison. **Le groupe doit se vider** : ce n'est pas un endroit ou
+                ranger un test qui gene.
+
+                Exclure par **groupe** et non par fichier : la premiere version
+                de ce gate excluait douze classes entieres, soit **248 tests
+                sacrifies pour en taire 23** — environ dix tests sains par test
+                rouge. Le depot exclut deja par groupe dans `phpunit.pgsql.xml` ;
+                c'etait le bon outil, sous la main.
+            -->
+            <group>ci-known-red</group>
+
+            <!-- Meme exclusion que `phpunit.pgsql.xml` : ces tests ne valent
+                 que sous SQLite. Sans cette ligne, un futur test du groupe qui
+                 ne se protegerait pas lui-meme rendrait le gate rouge. -->
+            <group>sqlite-only</group>
+        </exclude>
+    </groups>
     <source>
         <include>
             <directory>app</directory>
