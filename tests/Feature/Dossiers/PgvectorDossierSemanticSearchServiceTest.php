@@ -196,7 +196,15 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
     {
         $this->assertSame('pgsql', DB::connection()->getDriverName());
         $this->assertSame('bouclepro_test', DB::connection()->getDatabaseName());
-        $this->assertSame('0.8.5', DB::table('pg_extension')->where('extname', 'vector')->value('extversion'));
+        // **L'extension doit etre la ; sa version de correctif n'est pas une
+        // regle du produit.** Epingler `0.8.5` faisait echouer ces tests sur
+        // toute autre installation — c'est ce qu'a montre le premier passage
+        // reel de la CI, dont l'image pgvector porte une autre version. Un test
+        // qui asserte son environnement casse des qu'il change d'environnement.
+        $this->assertNotNull(
+            DB::table('pg_extension')->where('extname', 'vector')->value('extversion'),
+            'l’extension pgvector est absente',
+        );
     }
 
     /**

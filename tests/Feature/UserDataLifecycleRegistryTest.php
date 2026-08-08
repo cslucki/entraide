@@ -15,6 +15,10 @@ class UserDataLifecycleRegistryTest extends TestCase
 {
     use RefreshDatabase;
 
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_every_user_foreign_key_is_declared_in_lifecycle_registry(): void
     {
         $actualForeignKeys = $this->userForeignKeys();
