@@ -209,13 +209,22 @@ class Loop extends Model
         return route('loops.show', $this);
     }
 
-    /** Every active owner. A Loop may have several; they all have equal rights. */
+    /**
+     * Every active owner. A Loop may have several; they all have equal rights.
+     *
+     * **Depart avec `id` en second critere.** `joined_at` est a la seconde :
+     * deux personnes promues dans la meme seconde — ce qui arrive a chaque
+     * fixture et a chaque promotion en lot — s'egalent, et PostgreSQL rend
+     * alors l'ordre qu'il veut. L'identifiant est un UUIDv7, donc ordonne dans
+     * le temps : il departage sans rien changer a la chronologie.
+     */
     public function owners(): HasMany
     {
         return $this->hasMany(LoopMember::class)
             ->where('role', 'owner')
             ->where('status', 'active')
-            ->orderBy('joined_at');
+            ->orderBy('joined_at')
+            ->orderBy('id');
     }
 
     /**
@@ -223,9 +232,13 @@ class Loop extends Model
      *
      * A Loop can have several owners and there is no business notion of a
      * "primary owner". This relation exists solely so the screens written when
-     * a single owner was assumed keep rendering; it is ordered by joined_at so
-     * the value is at least deterministic instead of whichever row the database
-     * returned first.
+     * a single owner was assumed keep rendering; il est ordonne par `joined_at`
+     * **puis par `id`** pour que la valeur soit reellement deterministe.
+     *
+     * La version precedente s'arretait a `joined_at` en affirmant que cela
+     * suffisait. C'etait faux sur PostgreSQL, ou l'horodatage est a la seconde :
+     * des ex aequo rendaient la main a la base, c'est-a-dire exactement ce que
+     * le commentaire pretendait avoir evite.
      *
      * **Never use it to authorise anything** — LoopPermissionResolver is the
      * only authority. New screens use owners().
@@ -235,7 +248,8 @@ class Loop extends Model
         return $this->hasOne(LoopMember::class)
             ->where('role', 'owner')
             ->where('status', 'active')
-            ->orderBy('joined_at');
+            ->orderBy('joined_at')
+            ->orderBy('id');
     }
 
     public function messages(): HasMany

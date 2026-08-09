@@ -2,12 +2,14 @@
 
 namespace App\Support\Loops;
 
+use App\Models\CustomLoopType;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\LoopCard;
 use App\Models\LoopRoadmapItem;
 use App\Services\LoopTypeSettingsService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Central authority on Loop types and the card composition they imply.
@@ -20,6 +22,17 @@ use Illuminate\Support\Facades\DB;
 class LoopTypeRegistry
 {
     /**
+     * Memo du catalogue cree, pour la duree de la requete.
+     *
+     * Le registre est un singleton pour cette raison : `exists()` est sur des
+     * chemins chauds, et une requete par appel serait payee a chaque carte
+     * rendue.
+     *
+     * @var array<int, array<string, mixed>>|null
+     */
+    private ?array $customMemo = null;
+
+    /**
      * Types that may be chosen — in a creation form, or when reassigning a
      * Loop.
      *
@@ -29,15 +42,19 @@ class LoopTypeRegistry
      *
      * @return array<string, array<string, mixed>> keyed by type
      */
-    public function available(): array
+    public function available(?Organization $organization = null): array
     {
-        return array_filter($this->all(), fn ($_, $key) => $this->isAvailable($key), ARRAY_FILTER_USE_BOTH);
+        return array_filter(
+            $this->all($organization),
+            fn ($_, $key) => $this->isAvailable($key, $organization),
+            ARRAY_FILTER_USE_BOTH,
+        );
     }
 
     /** @return array<int, string> */
-    public function availableKeys(): array
+    public function availableKeys(?Organization $organization = null): array
     {
-        return array_keys($this->available());
+        return array_keys($this->available($organization));
     }
 
     public function isAvailable(?string $type, ?Organization $organization = null): bool
@@ -54,13 +71,15 @@ class LoopTypeRegistry
      *
      * @return array<string, array<string, mixed>> keyed by type
      */
-    public function selectableFor(?string $currentType): array
+    public function selectableFor(?string $currentType, ?Organization $organization = null): array
     {
-        $types = $this->available();
+        $types = $this->available($organization);
         $current = $this->resolve($currentType);
 
+        // Depuis le catalogue **complet** : la Boucle peut porter un type cree
+        // par son Organization, que `all()` d'une autre portee ne montre pas.
         if (! isset($types[$current]) && $this->exists($current)) {
-            $types[$current] = $this->all()[$current];
+            $types[$current] = $this->catalogue()[$current];
         }
 
         uasort($types, fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
@@ -68,14 +87,136 @@ class LoopTypeRegistry
         return $types;
     }
 
-    /** @return array<string, array<string, mixed>> keyed by type */
-    public function all(): array
+    /**
+     * Le catalogue **visible depuis une portee donnee**.
+     *
+     * Deux sources, un seul catalogue : `config/loop_types.php` pour les types
+     * livres avec le produit, `custom_loop_types` pour ceux crees depuis
+     * l'administration. Un type cree par la Plateforme est visible partout ; un
+     * type cree par une Organization n'est visible que chez elle.
+     *
+     * @return array<string, array<string, mixed>> keyed by type
+     */
+    public function all(?Organization $organization = null): array
     {
         $types = config('loop_types.types', []);
+
+        foreach ($this->customDefinitions() as $definition) {
+            $proprietaire = $definition['organization_id'];
+
+            if ($proprietaire !== null && $proprietaire !== $organization?->id) {
+                continue;
+            }
+
+            $types[$definition['key']] = $definition;
+        }
 
         uasort($types, fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
 
         return $types;
+    }
+
+    /**
+     * Tout ce qui existe, **portee comprise**.
+     *
+     * Distinct de `all()`, et la nuance porte une garantie : `exists()` et
+     * `definition()` doivent reconnaitre un type cree par une Organization meme
+     * quand personne ne leur dit laquelle. Sans cela, `resolve()` retomberait
+     * sur le defaut et une Boucle « Parcours » s'afficherait comme une
+     * Communaute des qu'on la lit hors de son contexte — un job, une commande,
+     * un ecran transverse.
+     *
+     * Le cloisonnement, lui, se joue au moment du **choix** — `available()`,
+     * `selectableFor()` — et pas a la lecture. La cle prefixee rend d'ailleurs
+     * toute collision entre Organizations impossible.
+     *
+     * @return array<string, array<string, mixed>> keyed by type
+     */
+    private function catalogue(): array
+    {
+        $types = config('loop_types.types', []);
+
+        foreach ($this->customDefinitions() as $definition) {
+            $types[$definition['key']] = $definition;
+        }
+
+        return $types;
+    }
+
+    /**
+     * Les types crees, mis a la forme d'une definition de configuration.
+     *
+     * Ils n'ont pas de cle de traduction mais un mot ecrit : `label_key` est
+     * donc absent, et `label()` lit `label` — la chaine de surcharge posee en
+     * TASK-1116 continue de s'appliquer par-dessus, sans rien de special.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function customDefinitions(): array
+    {
+        if ($this->customMemo !== null) {
+            return $this->customMemo;
+        }
+
+        // La table peut ne pas exister encore — migrations en attente, ou
+        // console qui boote avant elles. Le catalogue du fichier reste lisible.
+        //
+        // **On demande avant d'essayer, on n'essaie pas pour rattraper.** Un
+        // `try/catch` autour de la requete serait un piege sur PostgreSQL : une
+        // instruction en echec y avorte la **transaction entiere**, et toute
+        // requete suivante echoue avec `25P02` — y compris celles qui n'ont rien
+        // a voir. L'exception rattrapee ferait donc disparaitre la cause tout en
+        // laissant la transaction inutilisable, et le defaut sortirait bien plus
+        // loin, sous la forme d'une 500 inexplicable. SQLite, lui, ne connait
+        // pas ce comportement : le piege ne se voit qu'en production.
+        if (! Schema::hasTable('custom_loop_types')) {
+            return $this->customMemo = [];
+        }
+
+        $lignes = CustomLoopType::query()->orderBy('order')->get();
+
+        return $this->customMemo = $lignes->map(fn (CustomLoopType $t) => [
+            'key' => $t->key,
+            'organization_id' => $t->organization_id,
+            'label' => $t->label,
+            'description' => $t->description,
+            'icon' => $t->icon,
+            'order' => $t->order,
+            'available' => $t->available,
+            'cards' => $t->cards ?? [],
+            'based_on' => $t->based_on,
+            'created' => true,
+        ])->all();
+    }
+
+    /**
+     * La definition **brute** d'une cle, sans repli sur le type par defaut.
+     *
+     * C'est le niveau que les surcharges recouvrent : pour un type du fichier,
+     * ce qu'il declare ; pour un type cree, ce que sa ligne porte. Distinct de
+     * `definition()`, qui passe par `resolve()` et rend donc le type par defaut
+     * pour une cle inconnue — ce qui, ici, ferait recouvrir la mauvaise chose.
+     *
+     * **N'appelle pas le service de reglages** : c'est ce qui permet a celui-ci
+     * de s'appuyer dessus sans cycle.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function baseDefinition(?string $type): ?array
+    {
+        return $type === null ? null : ($this->catalogue()[$type] ?? null);
+    }
+
+    /**
+     * Oublier le catalogue memoise.
+     *
+     * **Appele par la primitive d'ecriture, jamais par l'appelant** : la leçon
+     * de TASK-1116, ou une invalidation posee chez l'appelant se perdait des que
+     * l'ordre des lignes changeait.
+     */
+    public function forgetCatalogue(): void
+    {
+        $this->customMemo = null;
     }
 
     /** @return array<int, string> */
@@ -130,7 +271,7 @@ class LoopTypeRegistry
 
     public function exists(?string $type): bool
     {
-        return $type !== null && array_key_exists($type, config('loop_types.types', []));
+        return $type !== null && array_key_exists($type, $this->catalogue());
     }
 
     /**
@@ -154,7 +295,7 @@ class LoopTypeRegistry
     /** @return array<string, mixed>|null */
     public function definition(?string $type): ?array
     {
-        return config('loop_types.types.'.$this->resolve($type));
+        return $this->catalogue()[$this->resolve($type)] ?? null;
     }
 
     /**
@@ -179,7 +320,14 @@ class LoopTypeRegistry
 
         $definition = $this->definition($type);
 
-        return $definition ? __($definition['label_key']) : (string) $type;
+        if ($definition === null) {
+            return (string) $type;
+        }
+
+        // Un type cree porte un **mot ecrit**, pas une cle de traduction.
+        return isset($definition['label_key'])
+            ? __($definition['label_key'])
+            : (string) ($definition['label'] ?? $type);
     }
 
     /** Meme regle pour la description. */
@@ -195,7 +343,13 @@ class LoopTypeRegistry
 
         $definition = $this->definition($type);
 
-        return $definition && isset($definition['description_key']) ? __($definition['description_key']) : '';
+        if ($definition === null) {
+            return '';
+        }
+
+        return isset($definition['description_key'])
+            ? __($definition['description_key'])
+            : (string) ($definition['description'] ?? '');
     }
 
     /**

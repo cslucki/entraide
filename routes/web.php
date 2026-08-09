@@ -513,6 +513,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Composition des types de Boucles (super-admin). Le contrôleur refuse
     // lui-même tout non super-admin : le groupe admin ne suffit pas.
     Route::get('/loop-types', [AdminLoopTypeController::class, 'index'])->name('loop-types');
+    Route::post('/loop-types', [AdminLoopTypeController::class, 'store'])->name('loop-types.store');
+    // Avant `{type}` : sans cela, « custom » serait avale comme une cle de type.
+    Route::delete('/loop-types/custom/{customLoopType}', [AdminLoopTypeController::class, 'destroy'])->name('loop-types.destroy');
     Route::put('/loop-types/{type}', [AdminLoopTypeController::class, 'update'])->name('loop-types.update');
     Route::delete('/loop-types/{type}', [AdminLoopTypeController::class, 'reset'])->name('loop-types.reset');
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');

@@ -55,7 +55,10 @@ class LoopGovernanceService
             ->where('status', 'active')
             ->where('role', LoopRoleRegistry::OWNER)
             ->with('user')
+            // `id` en second critere : `joined_at` est a la seconde, et des
+            // proprietaires promus dans la meme seconde s'egaleraient.
             ->orderBy('joined_at')
+            ->orderBy('id')
             ->get();
     }
 

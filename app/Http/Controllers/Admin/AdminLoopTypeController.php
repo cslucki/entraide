@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\CustomLoopType;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Services\Loops\LoopPresetSyncService;
+use App\Services\Loops\LoopTypeCreationService;
 use App\Services\LoopTypeSettingsService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
@@ -58,7 +60,10 @@ class AdminLoopTypeController extends Controller
         $registry = app(LoopCardRegistry::class);
         $rows = [];
 
-        foreach ($this->types->all() as $key => $definition) {
+        // **Le catalogue de la portee affichee** : un type cree par cette
+        // Organization doit y figurer, sinon il serait invisible la ou il a ete
+        // cree.
+        foreach ($this->types->all($scope) as $key => $definition) {
             $propres = $this->settings->ownTextsFor($key, $scope);
 
             $rows[$key] = [
@@ -73,7 +78,10 @@ class AdminLoopTypeController extends Controller
                 'own_label' => $propres['label'],
                 'own_description' => $propres['description'],
                 // Et ce dont il heriterait si on vidait le champ.
-                'inherited_label' => $scope ? $this->types->label($key) : __($definition['label_key']),
+                // Un type cree porte un mot ecrit, pas une cle de traduction.
+                'inherited_label' => $scope
+                    ? $this->types->label($key)
+                    : (isset($definition['label_key']) ? __($definition['label_key']) : ($definition['label'] ?? $key)),
                 'cards' => $this->settings->cardsFor($key, $scope),
                 'available' => $this->settings->isAvailable($key, $scope),
                 'customised' => $scope
@@ -92,6 +100,12 @@ class AdminLoopTypeController extends Controller
             // Meme registre que le workspace : un socle ne peut nommer qu'une
             // Card reellement rendue.
             'catalogue' => $registry->manageableCatalogue(),
+            // Les types crees, pour pouvoir les retirer : seuls ceux-la se
+            // suppriment, ceux du fichier n'existent pas en base.
+            'created' => CustomLoopType::query()
+                ->when($scope, fn ($q) => $q->where('organization_id', $scope->id))
+                ->when(! $scope, fn ($q) => $q->whereNull('organization_id'))
+                ->get()->keyBy('key'),
         ]);
     }
 
@@ -200,6 +214,69 @@ class AdminLoopTypeController extends Controller
         return redirect()
             ->route('admin.loop-types', $this->scopeParam($scope))
             ->with('success', $message);
+    }
+
+    /**
+     * Creer un type dans la portee affichee.
+     *
+     * La cle n'est pas saisie : elle est **forgee** depuis le mot, prefixee par
+     * l'Organization, et ne changera plus. Renommer le type plus tard ne la
+     * touchera pas — c'est ce que TASK-1116 a rendu possible, et c'est pourquoi
+     * on peut se permettre de la deriver d'un mot qui, lui, bougera.
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()?->is_admin, 403);
+
+        $data = $request->validate([
+            'label' => 'required|string|max:80',
+            'description' => 'nullable|string|max:2000',
+            'based_on' => 'nullable|string',
+        ]);
+
+        $scope = $this->scope($request);
+
+        try {
+            $type = app(LoopTypeCreationService::class)->create(
+                organization: $scope,
+                label: $data['label'],
+                description: $data['description'] ?? null,
+                basedOn: $data['based_on'] ?: null,
+                author: $request->user(),
+            );
+        } catch (\InvalidArgumentException $e) {
+            return back()->withInput()->withErrors(['label' => $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('admin.loop-types', $this->scopeParam($scope))
+            ->with('success', __('loops.types_admin_created', [
+                'type' => $type->label,
+                'key' => $type->key,
+            ]));
+    }
+
+    /**
+     * Retirer un type cree.
+     *
+     * Refuse tant qu'une Boucle le porte : le service dit pourquoi, et l'ecran
+     * le repete plutot que d'echouer en silence.
+     */
+    public function destroy(Request $request, CustomLoopType $customLoopType): RedirectResponse
+    {
+        abort_unless($request->user()?->is_admin, 403);
+
+        $scope = $this->scope($request);
+
+        try {
+            app(LoopTypeCreationService::class)->delete($customLoopType);
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['type' => $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('admin.loop-types', $this->scopeParam($scope))
+            ->with('success', __('loops.types_admin_deleted'));
     }
 
     /**

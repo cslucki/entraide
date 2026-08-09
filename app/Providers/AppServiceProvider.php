@@ -53,6 +53,7 @@ use App\Services\Ai\Scenarios\ServiceOfferMasterScenario;
 use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\LoopTypeSettingsService;
+use App\Support\Loops\LoopTypeRegistry;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
 use Illuminate\Auth\Events\Login;
@@ -82,6 +83,12 @@ class AppServiceProvider extends ServiceProvider
         // every workspace render, and a fresh instance per resolution would
         // query loop_type_settings each time.
         $this->app->singleton(LoopTypeSettingsService::class);
+
+        // Meme raison, depuis que le catalogue de types ne vient plus seulement
+        // du fichier de configuration : `exists()` et `definition()` sont sur
+        // des chemins chauds, et les vues resolvent le registre a chaque appel.
+        // Sans singleton, le memo du catalogue serait recree — donc inutile.
+        $this->app->singleton(LoopTypeRegistry::class);
         $this->app->bind(AiProvider::class, function ($app) {
             return new ClarifyUserHelpRequestService(
                 $app->make(SupervisionProviderResolver::class),
