@@ -157,11 +157,45 @@ class LoopTypeRegistry
         return config('loop_types.types.'.$this->resolve($type));
     }
 
-    public function label(?string $type): string
+    /**
+     * Le nom **affiche** d'un type.
+     *
+     * Il peut etre surcharge — globalement, ou pour une seule Organization —
+     * sans que la **cle technique** bouge jamais. `key = training` reste
+     * `training` : c'est elle que portent `loops.type`, les presets et les
+     * permissions.
+     *
+     * Sans override, la traduction declaree en configuration.
+     */
+    public function label(?string $type, ?Organization $organization = null): string
     {
+        $resolu = $this->resolve($type);
+
+        $override = app(LoopTypeSettingsService::class)->labelFor($resolu, $organization);
+
+        if ($override !== null) {
+            return $override;
+        }
+
         $definition = $this->definition($type);
 
         return $definition ? __($definition['label_key']) : (string) $type;
+    }
+
+    /** Meme regle pour la description. */
+    public function description(?string $type, ?Organization $organization = null): string
+    {
+        $resolu = $this->resolve($type);
+
+        $override = app(LoopTypeSettingsService::class)->descriptionFor($resolu, $organization);
+
+        if ($override !== null) {
+            return $override;
+        }
+
+        $definition = $this->definition($type);
+
+        return $definition && isset($definition['description_key']) ? __($definition['description_key']) : '';
     }
 
     /**

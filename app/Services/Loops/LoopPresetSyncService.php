@@ -4,6 +4,7 @@ namespace App\Services\Loops;
 
 use App\Models\Loop;
 use App\Models\LoopCard;
+use App\Models\Organization;
 use App\Support\Loops\LoopTypeRegistry;
 
 /**
@@ -46,7 +47,7 @@ class LoopPresetSyncService
      *     local_preserved: int,
      * }
      */
-    public function preview(?string $type = null): array
+    public function preview(?string $type = null, ?Organization $organization = null): array
     {
         $summary = [
             'types' => [],
@@ -57,7 +58,7 @@ class LoopPresetSyncService
             'local_preserved' => 0,
         ];
 
-        foreach ($this->loopsInScope($type) as $loop) {
+        foreach ($this->loopsInScope($type, $organization) as $loop) {
             $summary['loops_scanned']++;
 
             $resolved = $this->types->resolve($loop->type);
@@ -65,7 +66,12 @@ class LoopPresetSyncService
                 $summary['types'][] = $resolved;
             }
 
-            $wanted = $this->types->cardsFor($loop->type);
+            // **Le socle de l'Organization de la Boucle**, comme `applyPreset()`.
+            // Sans l'Organization, la mesure lisait le socle Plateforme pendant
+            // que l'ecriture appliquait celui du locataire : deux socles
+            // differents depuis que les types sont scopables, donc un chiffre
+            // annonce que le geste ne produisait pas.
+            $wanted = $this->types->cardsFor($loop->type, $this->organizationOf($loop));
             $rows = LoopCard::where('loop_id', $loop->id)->get();
             $existing = $rows->pluck('card_key')->all();
 
@@ -98,11 +104,11 @@ class LoopPresetSyncService
      *
      * @return array{loops_scanned: int, loops_affected: int, cards_added: array<string, int>}
      */
-    public function sync(?string $type = null): array
+    public function sync(?string $type = null, ?Organization $organization = null): array
     {
         $result = ['loops_scanned' => 0, 'loops_affected' => 0, 'cards_added' => []];
 
-        foreach ($this->loopsInScope($type) as $loop) {
+        foreach ($this->loopsInScope($type, $organization) as $loop) {
             $result['loops_scanned']++;
 
             // Une seule ecriture, celle du registre : la regle additive et son
@@ -132,11 +138,11 @@ class LoopPresetSyncService
      * @param  array<int, string>  $futureCards
      * @return array{loops: int, cards_to_add: array<string, int>, loops_affected: int}
      */
-    public function previewForCards(string $type, array $futureCards): array
+    public function previewForCards(string $type, array $futureCards, ?Organization $organization = null): array
     {
         $out = ['loops' => 0, 'cards_to_add' => [], 'loops_affected' => 0];
 
-        foreach ($this->loopsInScope($type) as $loop) {
+        foreach ($this->loopsInScope($type, $organization) as $loop) {
             $out['loops']++;
 
             $existing = LoopCard::where('loop_id', $loop->id)->pluck('card_key')->all();
@@ -156,6 +162,25 @@ class LoopPresetSyncService
         return $out;
     }
 
+    /** @var array<string, Organization|null> */
+    private array $organizations = [];
+
+    /**
+     * L'Organization d'une Boucle, lue une fois par locataire.
+     *
+     * Le parcours est un curseur : `$loop->organization` ferait une requete par
+     * Boucle. Le memo est borne par le nombre d'Organizations, pas par la taille
+     * du parc.
+     */
+    private function organizationOf(Loop $loop): ?Organization
+    {
+        if ($loop->organization_id === null) {
+            return null;
+        }
+
+        return $this->organizations[$loop->organization_id] ??= Organization::find($loop->organization_id);
+    }
+
     /**
      * Les Boucles concernees, alias legacy replies.
      *
@@ -166,9 +191,16 @@ class LoopPresetSyncService
      * n'ecrit aucune donnee metier et evite qu'une Boucle reactivee se reveille
      * avec un socle perime — ce qui serait une surprise, pas une protection.
      *
+     * **`$organization` restreint a un seul locataire.** Depuis que les socles
+     * sont scopables, le SuperAdmin peut regler un type pour une Organization
+     * donnee : l'impact annonce doit alors se compter chez elle seule. L'ecriture
+     * etait deja juste — `applyPreset()` lit le socle de l'Organization **de la
+     * Boucle** — mais la mesure, elle, portait sur tout le parc et annoncait un
+     * chiffre que le geste ne produisait pas.
+     *
      * @return \Illuminate\Support\LazyCollection<int, Loop>
      */
-    private function loopsInScope(?string $type): \Illuminate\Support\LazyCollection
+    private function loopsInScope(?string $type, ?Organization $organization = null): \Illuminate\Support\LazyCollection
     {
         $query = Loop::query()->orderBy('id');
 
@@ -179,6 +211,10 @@ class LoopPresetSyncService
             ));
 
             $query->whereIn('type', array_merge([$type], $aliases));
+        }
+
+        if ($organization !== null) {
+            $query->where('organization_id', $organization->id);
         }
 
         return $query->cursor();

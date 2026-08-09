@@ -209,7 +209,7 @@ class AdminLoopController extends Controller
         }
 
         return back()->with('success', __('loops.preset_applied', [
-            'type' => app(LoopTypeRegistry::class)->label($data['type']),
+            'type' => app(LoopTypeRegistry::class)->label($data['type'], $loop->organization),
         ]));
     }
 
@@ -438,8 +438,8 @@ class AdminLoopController extends Controller
 
         return view('admin.loops.show', [
             'boucle' => $loop,
-            'typeLabel' => $registry->label($loop->type),
-            'presetCards' => $registry->cardsFor($loop->type),
+            'typeLabel' => $registry->label($loop->type, $loop->organization),
+            'presetCards' => $registry->cardsFor($loop->type, $loop->organization),
             // activeCardsFor(), not the raw relation: Loops predating the
             // loop_cards table fall back to their type preset, so reading the
             // relation showed them as having no cards while the workspace

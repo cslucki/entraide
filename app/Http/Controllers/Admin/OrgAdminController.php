@@ -454,7 +454,7 @@ class OrgAdminController extends Controller
         }
 
         return back()->with('success', __('loops.preset_applied', [
-            'type' => app(LoopTypeRegistry::class)->label($data['type']),
+            'type' => app(LoopTypeRegistry::class)->label($data['type'], $loop->organization),
         ]));
     }
 

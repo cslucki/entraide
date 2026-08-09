@@ -61,12 +61,112 @@ class LoopTypeSettingsService
         return (bool) (config('loop_types.types.'.$type.'.available') ?? true);
     }
 
+    /**
+     * Le libelle **en vigueur** : celui de l'Organization, sinon celui de la
+     * Plateforme, sinon la traduction declaree en configuration.
+     *
+     * **Le libelle n'est pas la cle.** `key = training` reste `training` pour
+     * toujours ; seul le mot change, et il peut differer d'une Organization a
+     * l'autre. La cle porte sept ans de donnees — `loops.type`, les presets,
+     * les permissions — et c'est precisement pour cela qu'elle est separee du
+     * mot qu'on lit.
+     */
+    public function labelFor(string $type, ?Organization $organization = null): ?string
+    {
+        return $this->setting($type, $organization)?->label;
+    }
+
+    public function descriptionFor(string $type, ?Organization $organization = null): ?string
+    {
+        return $this->setting($type, $organization)?->description;
+    }
+
+    /**
+     * Ce que **ce niveau** a lui-meme ecrit, sans aucun repli.
+     *
+     * Distinct de `labelFor()`, qui rend le mot en vigueur — celui dont on
+     * herite compris. L'ecran a besoin des deux : le champ affiche ce que cette
+     * portee a decide, et le texte en dessous ce dont elle heriterait si on le
+     * vidait. Les confondre ferait recopier l'heritage dans l'override au
+     * premier enregistrement, et le type cesserait de suivre son niveau
+     * superieur sans que personne ne l'ait demande.
+     *
+     * @return array{label: ?string, description: ?string}
+     */
+    public function ownTextsFor(string $type, ?Organization $organization = null): array
+    {
+        $ligne = $this->rawSetting($type, $organization);
+
+        return [
+            'label' => $ligne?->label,
+            'description' => $ligne?->description,
+        ];
+    }
+
+    /**
+     * Renommer un type dans une portee donnee.
+     *
+     * Un libelle vide, ou identique au niveau au-dessus, **ne stocke rien** :
+     * le type continue alors de suivre ce niveau. C'est la meme regle que pour
+     * les Cards, et pour la meme raison — un override inutile fige un type sans
+     * que personne ne le sache.
+     *
+     * **Asymetrie assumee au niveau Plateforme** : la, un mot saisi est toujours
+     * stocke, meme s'il reproduit la traduction du fichier. Le niveau au-dessus
+     * n'est pas un autre reglage mais un fichier de langue, et sa valeur depend
+     * de la locale de celui qui regarde : ne rien stocker rendrait « Formation »
+     * a un lecteur francais et « Training » a un lecteur anglais. Ecrire le mot,
+     * c'est le figer pour tout le monde — ce que veut dire renommer un type.
+     */
+    public function rename(string $type, ?string $label, ?string $description, ?Organization $organization = null): void
+    {
+        $label = $this->cleanText($label, 80);
+        $description = $this->cleanText($description, 2000);
+
+        $refLabel = $organization
+            ? $this->labelFor($type)
+            : null;
+
+        $refDescription = $organization
+            ? $this->descriptionFor($type)
+            : null;
+
+        $payload = [
+            'label' => $label === $refLabel ? null : $label,
+            'description' => $description === $refDescription ? null : $description,
+        ];
+
+        $existant = $this->rawSetting($type, $organization);
+
+        // Rien a dire, et rien d'autre a garder : la ligne disparait plutot que
+        // de rester vide. Mais si elle porte une composition, on ne retire que
+        // le mot — personne n'a demande d'effacer les Cards.
+        if ($payload['label'] === null && $payload['description'] === null
+            && ($existant === null || ($existant->cards === null && $existant->available === null))) {
+            $this->deleteSetting($type, $organization);
+
+            return;
+        }
+
+        $this->writeSetting($type, $organization, $payload);
+    }
+
+    private function cleanText(?string $texte, int $max): ?string
+    {
+        $texte = trim((string) $texte);
+
+        return $texte === '' ? null : mb_substr($texte, 0, $max);
+    }
+
     /** True when this type departs from its configured defaults. */
     public function isCustomised(string $type, ?Organization $organization = null): bool
     {
         $setting = $this->setting($type, $organization);
 
-        return $setting !== null && ($setting->cards !== null || $setting->available !== null);
+        return $setting !== null && ($setting->cards !== null
+            || $setting->available !== null
+            || $setting->label !== null
+            || $setting->description !== null);
     }
 
     /**
@@ -115,18 +215,20 @@ class LoopTypeSettingsService
             'available' => $available === $refAvailable ? null : $available,
         ];
 
-        $this->memo = null;
+        $existant = $this->rawSetting($type, $organization);
 
-        if ($payload['cards'] === null && $payload['available'] === null) {
+        // **Symetrique de `rename()`.** La ligne porte aussi le libelle : la
+        // supprimer parce que la composition rejoint le niveau au-dessus
+        // effacerait un renommage que personne n'a demande de retirer. L'ecran
+        // enregistre les deux d'un meme geste, donc les deux se croisent.
+        if ($payload['cards'] === null && $payload['available'] === null
+            && ($existant === null || ($existant->label === null && $existant->description === null))) {
             $this->deleteSetting($type, $organization);
 
             return;
         }
 
-        LoopTypeSetting::updateOrCreate(
-            ['loop_type' => $type, 'organization_id' => $organization?->id],
-            $payload,
-        );
+        $this->writeSetting($type, $organization, $payload);
     }
 
     /**
@@ -139,9 +241,29 @@ class LoopTypeSettingsService
      */
     public function reset(string $type, ?Organization $organization = null): void
     {
-        $this->memo = null;
-
         $this->deleteSetting($type, $organization);
+    }
+
+    // ── Les deux seules ecritures ───────────────────────────────────────────
+    //
+    // **Le memo s'invalide ici, et nulle part ailleurs.** Il l'etait avant dans
+    // les appelants, avant leur ecriture : `rename()` relisait ensuite la table
+    // pour savoir s'il restait quelque chose a garder, ce qui repeuplait le memo
+    // avec l'etat **d'avant** l'ecriture. L'ecran d'administration reaffichait
+    // alors l'ancien libelle dans la seconde qui suivait l'enregistrement.
+    //
+    // Le geste est donc porte par les primitives : aucun appelant ne peut plus
+    // se tromper d'ordre.
+
+    /** @param  array<string, mixed>  $payload */
+    private function writeSetting(string $type, ?Organization $organization, array $payload): void
+    {
+        LoopTypeSetting::updateOrCreate(
+            ['loop_type' => $type, 'organization_id' => $organization?->id],
+            $payload,
+        );
+
+        $this->memo = null;
     }
 
     private function deleteSetting(string $type, ?Organization $organization): void
@@ -153,6 +275,8 @@ class LoopTypeSettingsService
             : $requete->whereNull('organization_id');
 
         $requete->delete();
+
+        $this->memo = null;
     }
 
     // ── Interne ─────────────────────────────────────────────────────────────

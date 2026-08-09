@@ -25,6 +25,33 @@
             </div>
         @enderror
 
+        {{-- Le selecteur de portee : PLATEFORME -> ORGANIZATION.
+             Un GET, parce que choisir une portee c'est regarder ailleurs, pas
+             enregistrer quoi que ce soit. --}}
+        <form method="GET" action="{{ route('admin.loop-types') }}"
+              class="mb-5 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+            <label for="scope" class="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {{ __('loops.types_admin_scope_legend') }}
+            </label>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+                <select id="scope" name="scope" onchange="this.form.submit()"
+                        class="min-h-[44px] flex-1 rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                    <option value="platform" @selected(! $scope)>{{ __('loops.types_admin_scope_platform') }}</option>
+                    @foreach($organizations as $organization)
+                        <option value="{{ $organization->id }}" @selected($scope?->is($organization))>{{ $organization->name }}</option>
+                    @endforeach
+                </select>
+                <noscript>
+                    <button type="submit" class="min-h-[44px] rounded-xl border border-gray-300 px-4 text-sm dark:border-gray-600 dark:text-gray-200">
+                        {{ __('loops.types_admin_scope_go') }}
+                    </button>
+                </noscript>
+            </div>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                {{ $scope ? __('loops.types_admin_scope_org_help', ['organization' => $scope->name]) : __('loops.types_admin_scope_platform_help') }}
+            </p>
+        </form>
+
         <div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
             {{ __('loops.types_admin_not_retroactive') }}
         </div>
@@ -34,6 +61,7 @@
                 <form method="POST" action="{{ route('admin.loop-types.update', $key) }}"
                       class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
                     @csrf @method('PUT')
+                    <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
 
                     <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
                         <div class="min-w-0">
@@ -46,7 +74,11 @@
                                 @endif
                                 @if($type['customised'])
                                     <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
-                                        {{ __('loops.types_admin_customised') }}
+                                        {{ $scope ? __('loops.types_admin_customised_org') : __('loops.types_admin_customised') }}
+                                    </span>
+                                @else
+                                    <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700/60 dark:text-gray-400">
+                                        {{ $scope ? __('loops.types_admin_inherited_org') : __('loops.types_admin_inherited_config') }}
                                     </span>
                                 @endif
                             </h2>
@@ -57,6 +89,35 @@
                             </p>
                         </div>
                     </div>
+
+                    {{-- Le mot, jamais la cle.
+                         `key = training` reste `training` : c'est elle que
+                         portent les Boucles, les socles et les permissions. Le
+                         champ vide veut dire « comme le niveau au-dessus », et
+                         le texte d'aide dit lequel — sinon le SuperAdmin
+                         recopierait l'heritage dans la surcharge, et ce type
+                         cesserait de suivre la Plateforme sans que personne ne
+                         l'ait voulu. --}}
+                    <fieldset class="mb-4">
+                        <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ __('loops.types_admin_naming_legend') }}</legend>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="block">
+                                <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">{{ __('loops.types_admin_label_field') }}</span>
+                                <input type="text" name="label" maxlength="80" value="{{ old('label', $type['own_label']) }}"
+                                       placeholder="{{ $type['inherited_label'] }}"
+                                       class="min-h-[44px] w-full rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">{{ __('loops.types_admin_description_field') }}</span>
+                                <input type="text" name="description" maxlength="2000" value="{{ old('description', $type['own_description']) }}"
+                                       placeholder="{{ $type['description'] }}"
+                                       class="min-h-[44px] w-full rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                            </label>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-400">
+                            {{ __('loops.types_admin_naming_help', ['key' => $type['key'], 'inherited' => $type['inherited_label']]) }}
+                        </p>
+                    </fieldset>
 
                     <fieldset class="mb-4">
                         <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ __('loops.types_admin_cards_legend') }}</legend>
@@ -89,7 +150,7 @@
                             @if($type['customised'])
                                 <button type="submit" form="reset-{{ $key }}"
                                         class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-4 text-sm text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                                    {{ __('loops.types_admin_reset') }}
+                                    {{ $scope ? __('loops.types_admin_reset_to_platform') : __('loops.types_admin_reset') }}
                                 </button>
                             @endif
                             <button type="submit"
@@ -104,6 +165,7 @@
                 @if($type['customised'])
                     <form id="reset-{{ $key }}" method="POST" action="{{ route('admin.loop-types.reset', $key) }}" class="hidden">
                         @csrf @method('DELETE')
+                        <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
                     </form>
                 @endif
             @endforeach

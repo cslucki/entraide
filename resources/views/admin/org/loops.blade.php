@@ -46,7 +46,7 @@
                         </p>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
-                        {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($boucle->type) }}
+                        {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($boucle->type, $organization) }}
                     </td>
                     <td class="px-4 py-3">
                         @php
