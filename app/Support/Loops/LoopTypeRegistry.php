@@ -9,6 +9,7 @@ use App\Models\LoopCard;
 use App\Models\LoopRoadmapItem;
 use App\Services\LoopTypeSettingsService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Central authority on Loop types and the card composition they imply.
@@ -159,11 +160,20 @@ class LoopTypeRegistry
 
         // La table peut ne pas exister encore — migrations en attente, ou
         // console qui boote avant elles. Le catalogue du fichier reste lisible.
-        try {
-            $lignes = CustomLoopType::query()->orderBy('order')->get();
-        } catch (\Throwable) {
+        //
+        // **On demande avant d'essayer, on n'essaie pas pour rattraper.** Un
+        // `try/catch` autour de la requete serait un piege sur PostgreSQL : une
+        // instruction en echec y avorte la **transaction entiere**, et toute
+        // requete suivante echoue avec `25P02` — y compris celles qui n'ont rien
+        // a voir. L'exception rattrapee ferait donc disparaitre la cause tout en
+        // laissant la transaction inutilisable, et le defaut sortirait bien plus
+        // loin, sous la forme d'une 500 inexplicable. SQLite, lui, ne connait
+        // pas ce comportement : le piege ne se voit qu'en production.
+        if (! Schema::hasTable('custom_loop_types')) {
             return $this->customMemo = [];
         }
+
+        $lignes = CustomLoopType::query()->orderBy('order')->get();
 
         return $this->customMemo = $lignes->map(fn (CustomLoopType $t) => [
             'key' => $t->key,
