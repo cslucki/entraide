@@ -42,9 +42,7 @@ class LoopTypeSettingsService
     {
         $override = $this->setting($type, $organization)?->cards;
 
-        return $this->normalizeCards(
-            $override ?? (config('loop_types.types.'.$type.'.cards') ?? []),
-        );
+        return $this->normalizeCards($override ?? $this->baseCards($type));
     }
 
     /** True when the type may be chosen in a form or assigned to a Loop. */
@@ -57,8 +55,8 @@ class LoopTypeSettingsService
         }
 
         // A type that says nothing is available: only an explicit `false` in
-        // the configuration withholds it.
-        return (bool) (config('loop_types.types.'.$type.'.available') ?? true);
+        // its definition withholds it.
+        return (bool) ($this->baseDefinition($type)['available'] ?? true);
     }
 
     /**
@@ -204,11 +202,11 @@ class LoopTypeSettingsService
         // Plateforme.
         $refCards = $organization
             ? $this->cardsFor($type)
-            : $this->normalizeCards(config('loop_types.types.'.$type.'.cards') ?? []);
+            : $this->normalizeCards($this->baseCards($type));
 
         $refAvailable = $organization
             ? $this->isAvailable($type)
-            : (bool) (config('loop_types.types.'.$type.'.available') ?? true);
+            : (bool) ($this->baseDefinition($type)['available'] ?? true);
 
         $payload = [
             'cards' => $cards === $refCards ? null : $cards,
@@ -311,6 +309,30 @@ class LoopTypeSettingsService
             ->all();
 
         return $this->memo[($organization?->id ?? 'plateforme').'|'.$type] ?? null;
+    }
+
+    /**
+     * Le niveau que les surcharges recouvrent.
+     *
+     * **Le catalogue, pas le fichier de configuration.** Un type cree depuis
+     * l'administration n'a aucune entree dans `config/loop_types.php` : lire le
+     * fichier rendait sa composition vide et le declarait disponible quoi qu'il
+     * arrive, puisque l'absence y vaut « disponible ». Sa base vit dans sa
+     * ligne, et c'est le registre qui sait ou regarder.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function baseDefinition(string $type): ?array
+    {
+        return app(\App\Support\Loops\LoopTypeRegistry::class)->baseDefinition($type);
+    }
+
+    /** @return array<int, string> */
+    private function baseCards(string $type): array
+    {
+        $base = $this->baseDefinition($type);
+
+        return is_array($base['cards'] ?? null) ? $base['cards'] : [];
     }
 
     /**

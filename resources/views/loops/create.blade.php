@@ -55,7 +55,7 @@
                 @enderror
             </div>
 
-            <x-loops.type-picker :types="$loopTypes" :selected="old('type')" />
+            <x-loops.type-picker :types="$loopTypes" :selected="old('type')" :organization="$organization ?? null" />
 
             <div>
                 <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('loops.access_mode_label') }}</span>

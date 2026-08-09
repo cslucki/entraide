@@ -224,7 +224,11 @@ class LoopController extends Controller
 
         return view('loops.create', [
             'domains' => $this->organizationDomains($organization),
-            'loopTypes' => app(LoopTypeRegistry::class)->available(),
+            'organization' => $organization,
+            // Les types **ouverts a cette Organization** : un type ouvert pour
+            // elle seule doit apparaitre, un type ferme chez elle doit
+            // disparaitre.
+            'loopTypes' => app(LoopTypeRegistry::class)->available($organization),
         ]);
     }
 

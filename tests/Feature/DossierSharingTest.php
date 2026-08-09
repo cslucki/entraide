@@ -296,10 +296,10 @@ class DossierSharingTest extends TestCase
     public function test_search_finds_by_first_name(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Jean']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Zephyrin']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -308,10 +308,10 @@ class DossierSharingTest extends TestCase
     public function test_search_finds_by_last_name(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Dupont']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Qvistgaard']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -320,10 +320,10 @@ class DossierSharingTest extends TestCase
     public function test_search_finds_by_full_name_first_plus_last(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Jean Dupont']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Zephyrin Qvistgaard']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -332,10 +332,10 @@ class DossierSharingTest extends TestCase
     public function test_search_finds_by_full_name_last_plus_first(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Dupont Jean']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Qvistgaard Zephyrin']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -344,12 +344,12 @@ class DossierSharingTest extends TestCase
     public function test_search_is_case_insensitive(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
         $this->readerA->update(['first_name' => 'Marie', 'name' => 'Curie']);
         $this->strangerA->update(['first_name' => 'Pierre', 'name' => 'Martin']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'jean']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'zephyrin']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -358,10 +358,10 @@ class DossierSharingTest extends TestCase
     public function test_search_normalizes_spaces(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => '  Jean   Dupont  ']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => '  Zephyrin   Qvistgaard  ']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -370,7 +370,7 @@ class DossierSharingTest extends TestCase
     public function test_search_isolation_does_not_find_other_org_users(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->userB->update(['first_name' => 'OtherOrgOnly1048', 'name' => 'Dupont']);
+        $this->userB->update(['first_name' => 'OtherOrgOnly1048', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
             ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'OtherOrgOnly1048']))

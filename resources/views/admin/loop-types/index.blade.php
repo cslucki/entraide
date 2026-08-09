@@ -56,6 +56,57 @@
             {{ __('loops.types_admin_not_retroactive') }}
         </div>
 
+        {{-- Creer un type dans la portee affichee.
+             La cle n'est pas saisie : elle est forgee depuis le mot et ne
+             changera plus. Renommer le type ensuite ne la touche pas. --}}
+        <details class="mb-5 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800" @if($errors->has('label')) open @endif>
+            <summary class="cursor-pointer text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {{ $scope ? __('loops.types_admin_create_for_org', ['organization' => $scope->name]) : __('loops.types_admin_create_for_platform') }}
+            </summary>
+
+            <form method="POST" action="{{ route('admin.loop-types.store') }}" class="mt-4 space-y-3">
+                @csrf
+                <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">{{ __('loops.types_admin_label_field') }}</span>
+                        <input type="text" name="label" maxlength="80" required value="{{ old('label') }}"
+                               class="min-h-[44px] w-full rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                        @error('label')<span class="mt-1 block text-xs text-red-600 dark:text-red-400">{{ $message }}</span>@enderror
+                    </label>
+
+                    <label class="block">
+                        <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">{{ __('loops.types_admin_based_on') }}</span>
+                        <select name="based_on" class="min-h-[44px] w-full rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                            <option value="">{{ __('loops.types_admin_based_on_none') }}</option>
+                            @foreach($types as $key => $type)
+                                <option value="{{ $key }}" @selected(old('based_on') === $key)>{{ $type['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                </div>
+
+                <label class="block">
+                    <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">{{ __('loops.types_admin_description_field') }}</span>
+                    <input type="text" name="description" maxlength="2000" value="{{ old('description') }}"
+                           class="min-h-[44px] w-full rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                </label>
+
+                <p class="text-xs text-gray-400">{{ __('loops.types_admin_create_help') }}</p>
+
+                <button type="submit" class="inline-flex min-h-[44px] items-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                    {{ __('loops.types_admin_create_submit') }}
+                </button>
+            </form>
+        </details>
+
+        @error('type')
+            <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                {{ $message }}
+            </div>
+        @enderror
+
         <div class="space-y-4">
             @foreach($types as $key => $type)
                 <form method="POST" action="{{ route('admin.loop-types.update', $key) }}"
@@ -166,6 +217,20 @@
                     <form id="reset-{{ $key }}" method="POST" action="{{ route('admin.loop-types.reset', $key) }}" class="hidden">
                         @csrf @method('DELETE')
                         <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
+                    </form>
+                @endif
+
+                {{-- Seuls les types crees se suppriment : ceux du fichier
+                     n'existent pas en base. Et le refus, quand une Boucle le
+                     porte, vient du service — pas d'un `confirm()`. --}}
+                @if(isset($created[$key]))
+                    <form method="POST" action="{{ route('admin.loop-types.destroy', $created[$key]) }}"
+                          class="-mt-2 mb-2 flex justify-end">
+                        @csrf @method('DELETE')
+                        <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
+                        <button type="submit" class="text-xs text-gray-400 underline underline-offset-2 transition hover:text-red-600 dark:hover:text-red-400">
+                            {{ __('loops.types_admin_delete') }}
+                        </button>
                     </form>
                 @endif
             @endforeach
