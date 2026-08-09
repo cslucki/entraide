@@ -19,7 +19,10 @@ class LoopTypeSetting extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['loop_type', 'cards', 'available'];
+    // `organization_id` nullable : `null` signifie **Plateforme**, comme
+    // l'absence d'une cle dans `organizations.loop_permissions` signifie
+    // « herite ».
+    protected $fillable = ['organization_id', 'loop_type', 'cards', 'available'];
 
     protected $casts = [
         'cards' => 'array',
