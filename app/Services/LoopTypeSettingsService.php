@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\LoopTypeSetting;
+use App\Models\Organization;
 use App\Support\Loops\LoopCardRegistry;
 
 /**
@@ -37,9 +38,9 @@ class LoopTypeSettingsService
      *
      * @return array<int, string>
      */
-    public function cardsFor(string $type): array
+    public function cardsFor(string $type, ?Organization $organization = null): array
     {
-        $override = $this->setting($type)?->cards;
+        $override = $this->setting($type, $organization)?->cards;
 
         return $this->normalizeCards(
             $override ?? (config('loop_types.types.'.$type.'.cards') ?? []),
@@ -47,9 +48,9 @@ class LoopTypeSettingsService
     }
 
     /** True when the type may be chosen in a form or assigned to a Loop. */
-    public function isAvailable(string $type): bool
+    public function isAvailable(string $type, ?Organization $organization = null): bool
     {
-        $override = $this->setting($type)?->available;
+        $override = $this->setting($type, $organization)?->available;
 
         if ($override !== null) {
             return $override;
@@ -61,11 +62,24 @@ class LoopTypeSettingsService
     }
 
     /** True when this type departs from its configured defaults. */
-    public function isCustomised(string $type): bool
+    public function isCustomised(string $type, ?Organization $organization = null): bool
     {
-        $setting = $this->setting($type);
+        $setting = $this->setting($type, $organization);
 
         return $setting !== null && ($setting->cards !== null || $setting->available !== null);
+    }
+
+    /**
+     * Cette Organization a-t-elle son propre reglage pour ce type ?
+     *
+     * Distinct de `isCustomised()`, qui repond « ce type s'ecarte de sa
+     * configuration » sans dire **a quel niveau**. L'ecran doit pouvoir
+     * afficher « herite » ou « personnalise », et ce n'est pas la meme
+     * question.
+     */
+    public function hasOrganizationOverride(string $type, Organization $organization): bool
+    {
+        return $this->rawSetting($type, $organization) !== null;
     }
 
     // ── Écriture ────────────────────────────────────────────────────────────
@@ -79,45 +93,100 @@ class LoopTypeSettingsService
      *
      * @param  array<int, string>  $cards
      */
-    public function save(string $type, array $cards, bool $available): void
+    public function save(string $type, array $cards, bool $available, ?Organization $organization = null): void
     {
         $cards = $this->normalizeCards($cards);
-        $defaultCards = $this->normalizeCards(config('loop_types.types.'.$type.'.cards') ?? []);
-        $defaultAvailable = (bool) (config('loop_types.types.'.$type.'.available') ?? true);
+
+        // **La reference n'est pas la meme selon la portee.** Un reglage
+        // d'Organization qui reproduit le niveau Plateforme n'a rien a stocker :
+        // le comparer a la configuration du fichier ecrirait un override
+        // inutile, et ce type cesserait alors de suivre les changements de la
+        // Plateforme.
+        $refCards = $organization
+            ? $this->cardsFor($type)
+            : $this->normalizeCards(config('loop_types.types.'.$type.'.cards') ?? []);
+
+        $refAvailable = $organization
+            ? $this->isAvailable($type)
+            : (bool) (config('loop_types.types.'.$type.'.available') ?? true);
 
         $payload = [
-            'cards' => $cards === $defaultCards ? null : $cards,
-            'available' => $available === $defaultAvailable ? null : $available,
+            'cards' => $cards === $refCards ? null : $cards,
+            'available' => $available === $refAvailable ? null : $available,
         ];
 
         $this->memo = null;
 
         if ($payload['cards'] === null && $payload['available'] === null) {
-            LoopTypeSetting::where('loop_type', $type)->delete();
+            $this->deleteSetting($type, $organization);
 
             return;
         }
 
-        LoopTypeSetting::updateOrCreate(['loop_type' => $type], $payload);
+        LoopTypeSetting::updateOrCreate(
+            ['loop_type' => $type, 'organization_id' => $organization?->id],
+            $payload,
+        );
     }
 
-    /** Drop every override for a type, returning it to configuration. */
-    public function reset(string $type): void
+    /**
+     * Revenir aux reglages du niveau au-dessus.
+     *
+     * **Ne touche que la portee demandee** : reinitialiser une Organization ne
+     * defait rien chez sa voisine ni au niveau Plateforme. Et cela ne change
+     * **jamais** la composition effective d'une Boucle existante — celle-ci vit
+     * dans `loop_cards`, que ce service n'ecrit pas.
+     */
+    public function reset(string $type, ?Organization $organization = null): void
     {
         $this->memo = null;
 
-        LoopTypeSetting::where('loop_type', $type)->delete();
+        $this->deleteSetting($type, $organization);
+    }
+
+    private function deleteSetting(string $type, ?Organization $organization): void
+    {
+        $requete = LoopTypeSetting::where('loop_type', $type);
+
+        $organization
+            ? $requete->where('organization_id', $organization->id)
+            : $requete->whereNull('organization_id');
+
+        $requete->delete();
     }
 
     // ── Interne ─────────────────────────────────────────────────────────────
 
-    private function setting(string $type): ?LoopTypeSetting
+    /**
+     * Le reglage qui **s'applique** : celui de l'Organization s'il existe,
+     * sinon celui de la Plateforme.
+     *
+     * C'est la meme grammaire que les permissions : l'absence de valeur veut
+     * dire « le niveau au-dessus ». Sans Organization, seul le niveau
+     * Plateforme est consulte — un appelant qui n'a pas de contexte tenant ne
+     * doit pas heriter d'une Organization au hasard.
+     */
+    private function setting(string $type, ?Organization $organization = null): ?LoopTypeSetting
     {
-        if ($this->memo === null) {
-            $this->memo = LoopTypeSetting::all()->keyBy('loop_type')->all();
+        if ($organization) {
+            $propre = $this->rawSetting($type, $organization);
+
+            if ($propre) {
+                return $propre;
+            }
         }
 
-        return $this->memo[$type] ?? null;
+        return $this->rawSetting($type, null);
+    }
+
+    /** Le reglage d'un niveau donne, sans repli. */
+    private function rawSetting(string $type, ?Organization $organization): ?LoopTypeSetting
+    {
+        $this->memo ??= LoopTypeSetting::all()
+            ->keyBy(fn (LoopTypeSetting $s) => ($s->organization_id ?? 'plateforme').'|'.$s->loop_type)
+            ->all();
+
+        return $this->memo[($organization?->id ?? 'plateforme').'|'.$type] ?? null;
     }
 
     /**

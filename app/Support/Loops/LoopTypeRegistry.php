@@ -3,6 +3,7 @@
 namespace App\Support\Loops;
 
 use App\Models\Loop;
+use App\Models\Organization;
 use App\Models\LoopCard;
 use App\Models\LoopRoadmapItem;
 use App\Services\LoopTypeSettingsService;
@@ -39,9 +40,9 @@ class LoopTypeRegistry
         return array_keys($this->available());
     }
 
-    public function isAvailable(?string $type): bool
+    public function isAvailable(?string $type, ?Organization $organization = null): bool
     {
-        return $this->exists($type) && app(LoopTypeSettingsService::class)->isAvailable($type);
+        return $this->exists($type) && app(LoopTypeSettingsService::class)->isAvailable($type, $organization);
     }
 
     /**
@@ -244,12 +245,12 @@ class LoopTypeRegistry
      *
      * @return array<int, string>
      */
-    public function cardsFor(?string $type): array
+    public function cardsFor(?string $type, ?Organization $organization = null): array
     {
         // Through the settings service, never straight from config: the
         // super-admin composes types from /admin/loop-types, and the saved
         // preset is what a new Loop must be built from.
-        return app(LoopTypeSettingsService::class)->cardsFor($this->resolve($type));
+        return app(LoopTypeSettingsService::class)->cardsFor($this->resolve($type), $organization);
     }
 
     /**
@@ -274,7 +275,9 @@ class LoopTypeRegistry
      */
     public function applyPreset(Loop $loop): array
     {
-        $wanted = $this->cardsFor($loop->type);
+        // L'Organization vient de la **Boucle**, jamais de la requete : c'est
+        // la regle posee par TASK-1103 et reappliquee depuis.
+        $wanted = $this->cardsFor($loop->type, $loop->organization);
 
         if ($wanted === []) {
             return [];
@@ -317,7 +320,7 @@ class LoopTypeRegistry
             : LoopCard::where('loop_id', $loop->id)->where('enabled', true)->pluck('card_key')->all();
 
         if ($keys === []) {
-            $keys = $this->cardsFor($loop->type);
+            $keys = $this->cardsFor($loop->type, $loop->organization);
         }
 
         $registry = app(LoopCardRegistry::class);
