@@ -198,7 +198,10 @@ class LoopController extends Controller
         return Loop::query()
             ->where('organization_id', $organizationId)
             ->where('status', 'active')
-            ->with(['owner.user', 'owners.user', 'categories'])
+            // `organization` : le libelle d'un type peut etre surcharge par
+            // locataire, et la carte de catalogue le lit. Charge ici, une fois,
+            // plutot qu'une requete par Boucle dans la vue.
+            ->with(['owner.user', 'owners.user', 'categories', 'organization'])
             ->withCount('activeMembers')
             ->withMax('messages as last_message_at', 'created_at')
             ->withExists(['members as is_member' => function ($q) use ($user) {

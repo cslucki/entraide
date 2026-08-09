@@ -123,7 +123,7 @@ class LoopPresetConfigurator
 
         return [
             'preset' => $this->types->resolve($loop->type),
-            'preset_label' => $this->types->label($loop->type),
+            'preset_label' => $this->types->label($loop->type, $loop->organization),
             'slots' => $this->registry->gridSlots(),
             'frame' => $byPlacement(LoopCardRegistry::PLACEMENT_FRAME),
             // Ce qui occupe les emplacements, et ce qui pourrait les occuper.
@@ -174,7 +174,7 @@ class LoopPresetConfigurator
         return [
             'from' => $this->types->resolve($loop->type),
             'to' => $target,
-            'to_label' => $this->types->label($target),
+            'to_label' => $this->types->label($target, $loop->organization),
             'added' => $added,
             'kept' => array_values(array_intersect($active, $wanted)),
             'deactivated' => $deactivated,

@@ -93,7 +93,7 @@
              saurait sinon pas ce qu'on regarde. --}}
         <p class="mt-2 flex flex-wrap items-center gap-1.5">
             <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($item->type) }}
+                {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($item->type, $item->organization) }}
             </span>
         </p>
 

@@ -22,7 +22,7 @@ class LoopTypeSetting extends Model
     // `organization_id` nullable : `null` signifie **Plateforme**, comme
     // l'absence d'une cle dans `organizations.loop_permissions` signifie
     // « herite ».
-    protected $fillable = ['organization_id', 'loop_type', 'cards', 'available'];
+    protected $fillable = ['organization_id', 'loop_type', 'label', 'description', 'cards', 'available'];
 
     protected $casts = [
         'cards' => 'array',

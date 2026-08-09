@@ -18,7 +18,7 @@
 <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
     <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.cards_composition_title') }}</h2>
-        <span class="text-xs text-gray-400">{{ __('loops.type_label') }} · {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($loop->type) }}</span>
+        <span class="text-xs text-gray-400">{{ __('loops.type_label') }} · {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($loop->type, $loop->organization) }}</span>
     </div>
     <p class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('loops.cards_composition_help') }}</p>
 
