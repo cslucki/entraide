@@ -287,48 +287,46 @@ class TASK1123LoopCardAdministrationTest extends TestCase
         $this->assertTrue($composition['core.members']['in_preset']);
     }
 
-    // ── Regle 3/3 : rien de masque, rien de detruit ─────────────────────────
+    // ── Le maximum de trois ne concerne que les outils mis en avant ─────────
 
-    public function test_the_grid_limit_refuses_loudly_and_hides_nothing(): void
+    public function test_activating_a_fourth_tool_is_allowed_and_it_stays_reachable(): void
     {
+        // TASK-1123 documentait le contrat d'alors : la grille refusait un 4e
+        // outil actif. TASK-1124 supprime cette hypothese — le maximum de
+        // trois ne vaut plus que pour les outils **mis en avant**.
         $configurator = app(LoopPresetConfigurator::class);
-        $etat = $configurator->describe($this->boucle);
+        $composition = app(\App\Services\Loops\LoopCardCompositionService::class);
+        $registry = app(\App\Support\Loops\LoopCardRegistry::class);
 
-        // Le comportement documente : la grille montre TOUTES les Cards
-        // actives (aucun slice), et la limite ne s'applique qu'a l'activation,
-        // avec un refus nomme — jamais un masquage silencieux.
-        $this->assertGreaterThan(0, $etat['slots']);
-        $this->assertSame(
-            collect($etat['grid'])->count(),
-            collect($etat['grid'])->unique('key')->count(),
+        $actifsAvant = $registry->activeGridKeysFor($this->boucle->fresh());
+
+        $suivant = collect($registry->gridKeys())
+            ->reject(fn ($k) => in_array($k, $actifsAvant, true))
+            ->first(fn ($k) => $registry->blockersFor($k, $actifsAvant)['missing'] === []
+                && $registry->blockersFor($k, $actifsAvant)['conflicting'] === []);
+
+        $this->assertNotNull($suivant, 'Il faut un outil activable pour ce test.');
+
+        $configurator->enable($this->superAdmin, $this->boucle->fresh(), $suivant);
+
+        $actifsApres = $registry->activeGridKeysFor($this->boucle->fresh());
+
+        // Rien n'a ete desactive pour lui faire de la place.
+        $this->assertSame(count($actifsAvant) + 1, count($actifsApres));
+        foreach ($actifsAvant as $cle) {
+            $this->assertContains($cle, $actifsApres);
+        }
+
+        // Et il est trouvable : mis en avant, ou dans les autres outils.
+        $this->assertContains($suivant, array_merge(
+            $composition->primaryKeysFor($this->boucle->fresh()),
+            $composition->secondaryKeysFor($this->boucle->fresh()),
+        ));
+
+        // Le plafond des principaux, lui, tient.
+        $this->assertLessThanOrEqual(
+            \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY,
+            count($composition->primaryKeysFor($this->boucle->fresh())),
         );
-
-        // Remplir la grille puis tenter une activation de plus : refus
-        // explicite, et rien n'est supprime.
-        $grille = collect($etat['grid'])->pluck('key');
-        $disponibles = collect($etat['available'])->pluck('key');
-        $aActiver = $disponibles->take(max(0, $etat['slots'] - $grille->count()));
-
-        foreach ($aActiver as $cle) {
-            try {
-                $configurator->enable($this->superAdmin, $this->boucle->fresh(), $cle);
-            } catch (\App\Services\Loops\PresetException) {
-                // Dependance manquante : sans importance pour ce test.
-            }
-        }
-
-        $encoreDispo = collect($configurator->describe($this->boucle->fresh())['available'])->pluck('key')->first();
-
-        if ($encoreDispo !== null && collect($configurator->describe($this->boucle->fresh())['grid'])->count() >= $etat['slots']) {
-            try {
-                $configurator->enable($this->superAdmin, $this->boucle->fresh(), $encoreDispo);
-                $this->fail('La grille pleine doit refuser une activation de plus.');
-            } catch (\App\Services\Loops\PresetException $e) {
-                $this->assertNotSame('', $e->getMessage());
-            }
-        }
-
-        // Quoi qu'il arrive : aucune ligne loop_cards supprimee par le refus.
-        $this->assertGreaterThanOrEqual($grille->count(), \App\Models\LoopCard::where('loop_id', $this->boucle->id)->where('enabled', true)->count());
     }
 }

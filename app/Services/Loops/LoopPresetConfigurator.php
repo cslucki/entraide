@@ -120,14 +120,23 @@ class LoopPresetConfigurator
             ->all();
 
         $grid = collect($byPlacement(LoopCardRegistry::PLACEMENT_GRID));
+        $actifs = $grid->where('enabled', true)->values();
+
+        // Les outils mis en avant de CETTE Boucle — au plus trois, et
+        // parfaitement distincts des outils actifs, qui peuvent etre N.
+        $principaux = $this->composition->primaryKeysFor($loop);
 
         return [
             'preset' => $this->types->resolve($loop->type),
             'preset_label' => $this->types->label($loop->type, $loop->organization),
-            'slots' => $this->registry->gridSlots(),
+            // Le maximum d'outils **mis en avant**. Ce n'est plus un nombre
+            // d'emplacements a se disputer : activer n'en consomme aucun.
+            'max_primary' => \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY,
             'frame' => $byPlacement(LoopCardRegistry::PLACEMENT_FRAME),
-            // Ce qui occupe les emplacements, et ce qui pourrait les occuper.
-            'grid' => $grid->where('enabled', true)->values()->all(),
+            'primary' => $actifs->filter(fn ($c) => in_array($c['key'], $principaux, true))
+                ->sortBy(fn ($c) => array_search($c['key'], $principaux, true))
+                ->values()->all(),
+            'secondary' => $actifs->reject(fn ($c) => in_array($c['key'], $principaux, true))->values()->all(),
             'available' => $grid->where('enabled', false)->values()->all(),
             'chat_actions' => $byPlacement(LoopCardRegistry::PLACEMENT_CHAT_ACTION),
         ];
@@ -210,21 +219,50 @@ class LoopPresetConfigurator
             ]));
         }
 
-        // Le plafond ne vaut que pour la grille : le cadre permanent n'est pas
-        // un emplacement qu'on se dispute.
-        if ($this->registry->placementOf($key) === LoopCardRegistry::PLACEMENT_GRID) {
-            $used = collect($active)
-                ->filter(fn ($k) => $this->registry->placementOf($k) === LoopCardRegistry::PLACEMENT_GRID)
-                ->count();
-
-            if ($used >= $this->registry->gridSlots()) {
-                throw new PresetException(__('loops.preset_error_slots_full', [
-                    'slots' => $this->registry->gridSlots(),
-                ]));
-            }
-        }
-
+        // **Plus de plafond a l'activation** (TASK-1124). Une Boucle peut
+        // avoir N outils actifs ; le maximum de trois ne concerne plus que les
+        // outils **mis en avant**, porte par
+        // LoopCardCompositionService::promote(). Les autres refus demeurent :
+        // indisponibilite, dependance manquante, incompatibilite, permission,
+        // Boucle archivee, Cards requises protegees.
         $this->composition->enable($loop, $key);
+    }
+
+    /**
+     * Mettre un outil actif en avant — sans jamais toucher son activation.
+     *
+     * Meme porte que les autres gestes (`assertConfigurable` : droit + Boucle
+     * non archivee), pour qu'une requete forgee ne contourne rien.
+     *
+     * @throws PresetException
+     */
+    public function promote(User $user, Loop $loop, string $key): void
+    {
+        $this->assertConfigurable($user, $loop);
+        $this->assertManageable($key);
+
+        try {
+            $this->composition->promote($loop, $key);
+        } catch (\RuntimeException $e) {
+            throw new PresetException($e->getMessage());
+        }
+    }
+
+    /**
+     * Retirer un outil des principaux. Il **reste actif** et accessible.
+     *
+     * @throws PresetException
+     */
+    public function demote(User $user, Loop $loop, string $key): void
+    {
+        $this->assertConfigurable($user, $loop);
+        $this->assertManageable($key);
+
+        try {
+            $this->composition->demote($loop, $key);
+        } catch (\RuntimeException $e) {
+            throw new PresetException($e->getMessage());
+        }
     }
 
     /**

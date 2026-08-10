@@ -144,13 +144,18 @@ class TASK1090PresetConfiguratorTest extends TestCase
         $this->assertSame(count($all), count(array_unique($all)));
     }
 
-    public function test_the_grid_never_shows_more_than_three_cards(): void
+    public function test_the_workspace_shows_every_active_tool(): void
     {
-        // Le socle « project » en porte quatre, dont deux de cadre : la grille
-        // n'en garde donc que ce qui lui revient, plafonne a trois.
+        // Le plafond de trois ne s'applique plus a l'affichage (TASK-1124) :
+        // il ne concerne que les outils **mis en avant**. La grille rend tout
+        // ce qui est actif ; les non-mis-en-avant vivent dans « Autres
+        // outils » plutot que de disparaitre.
         $grid = $this->registry()->workspaceCardsFor($this->loop->fresh(), $this->member);
 
-        $this->assertLessThanOrEqual($this->registry()->gridSlots(), $grid->count());
+        $this->assertLessThanOrEqual(
+            LoopCardCompositionService::MAX_PRIMARY,
+            $this->registry()->primaryWorkspaceCardsFor($this->loop->fresh(), $this->member)->count(),
+        );
 
         foreach ($grid as $card) {
             $this->assertSame(
@@ -308,14 +313,14 @@ class TASK1090PresetConfiguratorTest extends TestCase
         $this->configurator()->enable($this->superAdmin, $this->loop, 'core.does_not_exist');
     }
 
-    public function test_the_grid_refuses_a_fourth_card(): void
+    public function test_a_fourth_tool_is_accepted_and_stays_reachable(): void
     {
         $loop = $this->makeLoop('general');
 
-        // Le nombre d'emplacements se lit dans le registre et la grille se
-        // remplit jusqu'a saturation : epingler « le socle en prend deux » a
-        // casse des qu'une Card est entree dans le preset (TASK-1091).
-        $slots = $this->registry()->gridSlots();
+        // TASK-1124 : l'activation ne se heurte plus a un nombre
+        // d'emplacements. Ce test disait l'inverse — « une quatrieme Card de
+        // grille aurait du etre refusee » — c'etait l'hypothese que la tache
+        // fait disparaitre.
         $composition = app(LoopCardCompositionService::class);
 
         $gridOf = fn ($loop) => collect(app(LoopTypeRegistry::class)->activeCardsFor($loop->fresh()))
@@ -323,26 +328,36 @@ class TASK1090PresetConfiguratorTest extends TestCase
             ->values();
 
         foreach ($this->registry()->gridKeys() as $key) {
-            if ($gridOf($loop)->count() >= $slots) {
+            if ($gridOf($loop)->count() >= LoopCardCompositionService::MAX_PRIMARY) {
                 break;
             }
             $composition->enable($loop, $key);
         }
 
-        $this->assertCount($slots, $gridOf($loop));
+        $avant = $gridOf($loop)->count();
 
-        // La grille est pleine : une Card de grille de plus est refusee.
-        $remaining = collect($this->registry()->gridKeys())
+        $suivante = collect($this->registry()->gridKeys())
             ->reject(fn ($k) => $gridOf($loop)->contains($k))
-            ->first();
+            ->first(fn ($k) => $this->registry()->blockersFor($k, $gridOf($loop)->all())['missing'] === []
+                && $this->registry()->blockersFor($k, $gridOf($loop)->all())['conflicting'] === []);
 
-        if ($remaining !== null) {
-            try {
-                $this->configurator()->enable($this->superAdmin, $loop->fresh(), $remaining);
-                $this->fail('Une quatrieme Card de grille aurait du etre refusee.');
-            } catch (PresetException $e) {
-                $this->assertNotSame('', $e->getMessage());
-            }
+        if ($suivante !== null) {
+            $this->configurator()->enable($this->superAdmin, $loop->fresh(), $suivante);
+
+            $this->assertSame($avant + 1, $gridOf($loop)->count(),
+                'Activer un outil de plus doit reussir, sans en desactiver aucun.');
+
+            // Et il reste **trouvable** : mis en avant, ou dans les autres.
+            $registry = $this->registry();
+            $tous = $registry->primaryWorkspaceCardsFor($loop->fresh(), $this->superAdmin)
+                ->merge($registry->secondaryWorkspaceCardsFor($loop->fresh(), $this->superAdmin))
+                ->pluck('key');
+
+            $this->assertContains($suivante, $tous->all());
+            $this->assertLessThanOrEqual(
+                LoopCardCompositionService::MAX_PRIMARY,
+                $registry->primaryWorkspaceCardsFor($loop->fresh(), $this->superAdmin)->count(),
+            );
         }
 
         // Le Resume IA n'est pas une Card de grille : il ne consomme pas
@@ -476,7 +491,10 @@ class TASK1090PresetConfiguratorTest extends TestCase
             'created_by' => $this->owner->id,
         ]);
 
-        $roadmap = collect($this->configurator()->describe($loop->fresh())['grid'])
+        // `grid` s'est scinde en `primary` / `secondary` (TASK-1124) : le
+        // compteur de donnees vaut pour un outil actif, mis en avant ou non.
+        $etat = $this->configurator()->describe($loop->fresh());
+        $roadmap = collect($etat['primary'])->merge($etat['secondary'])
             ->firstWhere('key', 'core.roadmap');
 
         $this->assertNotNull($roadmap);
@@ -491,7 +509,9 @@ class TASK1090PresetConfiguratorTest extends TestCase
             ->get(route('admin.loops.configure', $this->loop))
             ->assertOk()
             ->assertSee(__('loops.preset_frame_title'))
-            ->assertSee(__('loops.preset_grid_title'));
+            // L'ecran parle desormais d'outils, pas de « Cards distinctives »
+            // (TASK-1124) : c'est le vocabulaire humain demande.
+            ->assertSee(__('loops.tools_primary_title'));
     }
 
     public function test_the_organization_configurator_opens_for_its_admin(): void
@@ -501,7 +521,9 @@ class TASK1090PresetConfiguratorTest extends TestCase
                 'organization' => $this->org->slug, 'loop' => $this->loop->id,
             ]))
             ->assertOk()
-            ->assertSee(__('loops.preset_grid_title'));
+            // L'ecran parle desormais d'outils, pas de « Cards distinctives »
+            // (TASK-1124) : c'est le vocabulaire humain demande.
+            ->assertSee(__('loops.tools_primary_title'));
     }
 
     public function test_the_configurator_refuses_a_member(): void

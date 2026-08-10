@@ -151,6 +151,152 @@ class LoopCardCompositionService
         });
     }
 
+    // ── Outils principaux (TASK-1124) ───────────────────────────────────────
+
+    /** Combien d'outils une Boucle peut mettre en avant. */
+    public const MAX_PRIMARY = 3;
+
+    /**
+     * Les outils **mis en avant** de cette Boucle, dans l'ordre.
+     *
+     * **La regle se lit au niveau de la Boucle, jamais ligne a ligne.** Une
+     * Boucle sans aucun rang explicite est en mode *derive* : ses principaux
+     * sont ses premieres Cards actives dans l'ordre du catalogue — le
+     * comportement d'avant TASK-1124, rendu explicite. Des qu'un seul rang est
+     * pose, elle bascule en mode *explicite* et `NULL` y signifie
+     * « secondaire ».
+     *
+     * Lire `NULL = secondaire` sans ce niveau de lecture aurait fait perdre
+     * leurs trois outils principaux a toutes les Boucles historiques.
+     *
+     * @return array<int, string> cles de Cards, principales d'abord
+     */
+    public function primaryKeysFor(Loop $loop): array
+    {
+        $actives = app(LoopCardRegistry::class)->activeGridKeysFor($loop);
+
+        $rangs = LoopCard::where('loop_id', $loop->id)
+            ->whereNotNull('primary_rank')
+            ->orderBy('primary_rank')
+            ->pluck('card_key')
+            ->all();
+
+        // Mode explicite : les rangs font foi. Filtres sur les actives —
+        // un outil desactive n'est plus mis en avant, sans qu'on ait eu a
+        // nettoyer son rang.
+        if ($rangs !== []) {
+            return array_values(array_slice(
+                array_values(array_filter($rangs, fn ($k) => in_array($k, $actives, true))),
+                0,
+                self::MAX_PRIMARY,
+            ));
+        }
+
+        // Mode derive : l'historique, dit a voix haute.
+        return array_slice($actives, 0, self::MAX_PRIMARY);
+    }
+
+    /**
+     * Les autres outils actifs — accessibles, jamais masques.
+     *
+     * @return array<int, string>
+     */
+    public function secondaryKeysFor(Loop $loop): array
+    {
+        $actives = app(LoopCardRegistry::class)->activeGridKeysFor($loop);
+
+        return array_values(array_diff($actives, $this->primaryKeysFor($loop)));
+    }
+
+    /**
+     * Mettre un outil actif en avant.
+     *
+     * Ne touche **jamais** `enabled` : promouvoir n'active pas, retrograder ne
+     * desactive pas. Si trois outils sont deja en avant, le refus est
+     * explicite — jamais un remplacement silencieux.
+     *
+     * @throws \RuntimeException
+     */
+    public function promote(Loop $loop, string $key): void
+    {
+        $this->assertManageable($key);
+
+        DB::transaction(function () use ($loop, $key) {
+            $actuels = $this->primaryKeysFor($loop);
+
+            if (in_array($key, $actuels, true)) {
+                return;
+            }
+
+            if (! in_array($key, app(LoopCardRegistry::class)->activeGridKeysFor($loop), true)) {
+                throw new \RuntimeException(__('loops.tools_error_not_active'));
+            }
+
+            if (count($actuels) >= self::MAX_PRIMARY) {
+                throw new \RuntimeException(__('loops.tools_error_primary_full', ['max' => self::MAX_PRIMARY]));
+            }
+
+            // La bascule derive -> explicite : on materialise l'etat courant
+            // avant d'y ajouter le nouveau, sinon poser un seul rang ferait
+            // disparaitre les principaux derives des Boucles historiques.
+            $this->writeRanks($loop, [...$actuels, $key]);
+        });
+    }
+
+    /** Retirer un outil des principaux. Il reste **actif** et accessible. */
+    public function demote(Loop $loop, string $key): void
+    {
+        $this->assertManageable($key);
+
+        DB::transaction(function () use ($loop, $key) {
+            $actuels = $this->primaryKeysFor($loop);
+
+            if (! in_array($key, $actuels, true)) {
+                return;
+            }
+
+            $restants = array_values(array_diff($actuels, [$key]));
+
+            // **Au moins un outil en avant tant qu'il en reste un d'actif.**
+            // Sans cette borne, retirer le dernier principal viderait la
+            // colonne, la Boucle retomberait en mode derive et retrouverait
+            // aussitot celui qu'on vient de retirer — un geste sans effet, ce
+            // qui est pire qu'un refus. Le seul autre moyen de distinguer
+            // « aucun choix » de « choix : aucun » serait une valeur
+            // sentinelle, c'est-a-dire un second etat metier.
+            if ($restants === []) {
+                throw new \RuntimeException(__('loops.tools_error_last_primary'));
+            }
+
+            // Materialiser avant de retirer : poser les rangs des restants
+            // fait basculer la Boucle en mode explicite.
+            $this->writeRanks($loop, $restants);
+        });
+    }
+
+    /**
+     * Ecrire l'ordre des principaux, et lui seul.
+     *
+     * Tout ce qui n'est pas dans la liste repasse a `NULL` — secondaire, pas
+     * desactive. `enabled` n'est pas dans le `forceFill` : c'est la garantie
+     * mecanique que ce chemin ne peut pas eteindre un outil.
+     *
+     * @param  array<int, string>  $keys
+     */
+    private function writeRanks(Loop $loop, array $keys): void
+    {
+        $keys = array_values(array_slice(array_unique($keys), 0, self::MAX_PRIMARY));
+
+        // Jamais appele avec une liste vide : promote() ajoute, demote()
+        // refuse de retirer le dernier. Une colonne entierement `NULL` veut
+        // dire « cette Boucle n'a jamais choisi », et rien d'autre.
+        LoopCard::where('loop_id', $loop->id)->update(['primary_rank' => null]);
+
+        foreach ($keys as $rang => $cle) {
+            LoopCard::where('loop_id', $loop->id)->where('card_key', $cle)->update(['primary_rank' => $rang]);
+        }
+    }
+
     /**
      * How much a card already holds, so switching it off is never a surprise.
      *

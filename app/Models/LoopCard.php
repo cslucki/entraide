@@ -28,10 +28,14 @@ class LoopCard extends Model
         'card_key',
         'enabled',
         'added_by_preset',
+        // TASK-1124 : NULL = pas mis en avant ; 0..2 = outil principal, dans
+        // cet ordre. Ne dit rien de l'activation, qui reste `enabled` seul.
+        'primary_rank',
     ];
 
     protected $casts = [
         'enabled' => 'boolean',
+        'primary_rank' => 'integer',
     ];
 
     public function loop(): BelongsTo
