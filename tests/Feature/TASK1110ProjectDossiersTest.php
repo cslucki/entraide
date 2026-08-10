@@ -355,16 +355,40 @@ class TASK1110ProjectDossiersTest extends TestCase
         );
     }
 
-    public function test_the_grid_never_shows_more_than_its_cap_after_the_backfill(): void
+    public function test_the_backfill_never_hides_an_active_tool(): void
     {
+        // Ce test plafonnait l'affichage a `grid_slots` : c'etait la regle
+        // d'avant TASK-1124, ou le workspace coupait sa barre a trois et la 4e
+        // Card active devenait introuvable. Ce qui compte desormais, c'est que
+        // le backfill n'escamote **aucun** outil actif : au plus trois sont
+        // mis en avant, les autres restent accessibles.
+        $composition = app(\App\Services\Loops\LoopCardCompositionService::class);
+
         foreach ([[], ['core.journal'], ['core.polls', 'core.events']] as $i => $enPlus) {
             $projet = $this->projet("Projet {$i}", $enPlus);
 
             $this->migration()->up();
 
+            $actifs = app(LoopCardRegistry::class)->activeGridKeysFor($projet->fresh());
+            $principaux = $composition->primaryKeysFor($projet->fresh());
+            $secondaires = $composition->secondaryKeysFor($projet->fresh());
+
             $this->assertLessThanOrEqual(
-                config('loop_cards.grid_slots'),
-                count($this->grille($projet)),
+                \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY,
+                count($principaux),
+                "Projet {$i}",
+            );
+
+            // Tout ce qui est actif est rendu, mis en avant ou non.
+            $this->assertSame(
+                collect($actifs)->sort()->values()->all(),
+                collect($principaux)->merge($secondaires)->sort()->values()->all(),
+                "Projet {$i}",
+            );
+
+            $this->assertSame(
+                collect($actifs)->sort()->values()->all(),
+                collect($this->grille($projet))->sort()->values()->all(),
                 "Projet {$i}",
             );
         }
