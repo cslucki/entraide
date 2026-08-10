@@ -66,13 +66,30 @@ class TASK1079ManifestoSourcesTest extends TestCase
         return $post;
     }
 
-    private function file(?Organization $org = null): DossierFile
+    /**
+     * Un document attachable.
+     *
+     * Depuis TASK-1121, le referentiel des sources est le **Dossier racine de
+     * la Boucle** — le helper cree donc la par defaut, sans quoi chaque
+     * attache serait refusee (`RESULT_OUTSIDE_ROOT_DOSSIER`) et la moitie de
+     * cette classe testerait du vide. `$prive` fabrique l'ancien cas — un
+     * fichier de Dossier personnel — pour verifier qu'il n'est plus offert.
+     */
+    private function file(?Organization $org = null, bool $prive = false): DossierFile
     {
-        $org ??= $this->org;
-        $dossier = Dossier::factory()->create(['organization_id' => $org->id, 'owner_id' => $this->owner->id]);
+        if ($org !== null || $prive) {
+            $proprietaire = $org ?? $this->org;
+            $dossier = Dossier::factory()->create(['organization_id' => $proprietaire->id, 'owner_id' => $this->owner->id]);
+
+            return DossierFile::factory()->create([
+                'organization_id' => $proprietaire->id, 'dossier_id' => $dossier->id, 'uploaded_by' => $this->owner->id,
+            ]);
+        }
+
+        $racine = app(\App\Services\Loops\LoopRootDocumentService::class)->ensureRootDossier($this->loop);
 
         return DossierFile::factory()->create([
-            'organization_id' => $org->id, 'dossier_id' => $dossier->id, 'uploaded_by' => $this->owner->id,
+            'organization_id' => $this->org->id, 'dossier_id' => $racine->id, 'uploaded_by' => $this->owner->id,
         ]);
     }
 
@@ -221,6 +238,9 @@ class TASK1079ManifestoSourcesTest extends TestCase
         $mine = $this->file();
         $linked = $this->file();
         $foreign = $this->file($otherOrg);
+        // Le nouveau perimetre de TASK-1121 : un fichier d'un Dossier
+        // personnel de la meme Organization n'est pas propose non plus.
+        $prive = $this->file(prive: true);
         $this->service()->attachSource($this->loop, $linked->id, $this->owner);
 
         $ids = $this->service()->candidateFiles($this->loop)->pluck('id')->all();
@@ -228,6 +248,7 @@ class TASK1079ManifestoSourcesTest extends TestCase
         $this->assertContains($mine->id, $ids);
         $this->assertNotContains($linked->id, $ids, 'An already linked document must not be offered again');
         $this->assertNotContains($foreign->id, $ids, 'A document of another Organization must never be offered');
+        $this->assertNotContains($prive->id, $ids, 'A private Dossier document must never be offered');
     }
 
     public function test_sources_survive_a_change_of_designated_manifesto(): void

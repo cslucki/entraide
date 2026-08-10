@@ -56,16 +56,23 @@ class AdminAiInteractionTest extends TestCase
     {
         $admin = $this->makeAdmin();
 
+        // Des horodatages **distincts**, et des attentes qui disent le contrat
+        // de l'ecran — les plus recentes d'abord. L'ancienne version creait 30
+        // lignes dans la meme seconde et attendait les plus *anciennes* en
+        // page 1 : elle encodait l'ordre d'insertion, que SQLite rendait par
+        // accident et que PostgreSQL rendait au gre du plan (TASK-1121).
         for ($i = 0; $i < 30; $i++) {
-            $this->makeInteraction(['input_excerpt' => "Excerpt {$i}"]);
+            $interaction = $this->makeInteraction(['input_excerpt' => "Excerpt {$i}"]);
+            $interaction->forceFill(['created_at' => now()->subMinutes(30 - $i)])->save();
         }
 
         $response = $this->actingAs($admin)->get(route('admin.ai-interactions'));
 
         $response->assertOk();
-        $response->assertSee('Excerpt 0');
-        $response->assertSee('Excerpt 24');
-        $response->assertDontSee('Excerpt 25');
+        // Page 1 : Excerpt 29 (la plus recente) jusqu'a Excerpt 5.
+        $response->assertSee('Excerpt 29');
+        $response->assertSee('Excerpt 5');
+        $response->assertDontSee('Excerpt 4');
         $response->assertSee('?page=2');
     }
 

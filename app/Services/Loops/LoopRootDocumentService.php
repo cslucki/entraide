@@ -55,9 +55,12 @@ class LoopRootDocumentService
                 'owner_id' => null,
                 'loop_id' => $loop->id,
                 'name' => $loop->name,
-                // Held by the Loop, so its confidentiality is the Loop's.
-                // syncVisibility() must never run on this Dossier.
-                'visibility' => Dossier::VISIBILITY_SHARED,
+                // Held by the Loop, so its confidentiality is the Loop's :
+                // effectiveVisibility() court-circuite cette colonne des que
+                // loop_id est renseigne. La valeur stockee est donc inerte —
+                // mais on n'ecrit plus `shared`, valeur historique que la
+                // migration a justement normalisee vers `private` sur le stock.
+                'visibility' => Dossier::VISIBILITY_PRIVATE,
             ]);
         });
     }
@@ -74,6 +77,13 @@ class LoopRootDocumentService
             $dossier->refresh();
 
             if ($dossier->root_blog_post_id && ($post = BlogPost::find($dossier->root_blog_post_id))) {
+                // Rattrapage doux des documents racines d'avant TASK-1121 :
+                // designate() ne posait pas le lien Article <-> Boucle, et
+                // l'editeur montrait une section « Boucle » vide sur un
+                // Manifeste ne pour elle. Idempotent, repare au passage —
+                // aucun backfill massif.
+                $post->loops()->syncWithoutDetaching([$loop->id]);
+
                 return $post;
             }
 
@@ -133,6 +143,12 @@ class LoopRootDocumentService
                 'audience' => BlogPost::AUDIENCE_LOOP,
                 'listed_in_blog' => false,
             ])->save();
+
+            // Le document racine d'une Boucle est lie a sa Boucle — la meme
+            // ligne `blog_post_loop` que le panneau Boucle de l'editeur. Sans
+            // elle, un Manifeste ne pour une Boucle affichait une section
+            // « Boucle » vide. Idempotent : re-designer ne duplique rien.
+            $post->loops()->syncWithoutDetaching([$loop->id]);
 
             $dossier->forceFill(['root_blog_post_id' => $post->id])->save();
 

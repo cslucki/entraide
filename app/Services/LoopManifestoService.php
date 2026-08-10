@@ -28,6 +28,15 @@ class LoopManifestoService
     public const RESULT_NOT_FOUND = 'not_found';
 
     /**
+     * Le document existe, dans la bonne Organization — mais hors du Dossier
+     * racine de la Boucle. Le referentiel documentaire d'une Boucle est son
+     * Dossier partage : une Card de Boucle ne fait pas entrer un fichier d'un
+     * Dossier prive dans le contexte partage. La copie prive -> partage est une
+     * fonction future, volontairement absente d'ici.
+     */
+    public const RESULT_OUTSIDE_ROOT_DOSSIER = 'outside_root_dossier';
+
+    /**
      * Link a Dossiers document as a source of this Loop's Manifesto.
      *
      * No file is copied, moved or re-owned: this writes one row pointing at the
@@ -48,6 +57,14 @@ class LoopManifestoService
             // posted id: a document of another Organization is never linkable.
             if ($file->organization_id !== $loop->organization_id) {
                 return ['result' => self::RESULT_CROSS_TENANT, 'source' => null];
+            }
+
+            // Et le perimetre produit, verifie au meme endroit : seul un
+            // document du Dossier racine de la Boucle peut devenir source. Le
+            // selecteur ne montre que ceux-la, mais un id forge ne doit pas
+            // faire mieux que le selecteur.
+            if ($file->dossier_id !== $this->rootDossierId($loop)) {
+                return ['result' => self::RESULT_OUTSIDE_ROOT_DOSSIER, 'source' => null];
             }
 
             $existing = LoopManifestoSource::where('loop_id', $loop->id)
@@ -134,19 +151,37 @@ class LoopManifestoService
     }
 
     /**
-     * Candidate documents: everything in this Organization's Dossiers that is
-     * not linked yet. Scoped server-side, so the picker cannot be widened by a
-     * forged request.
+     * Candidate documents: what lives in this Loop's root Dossier and is not
+     * linked yet — and nothing else.
+     *
+     * Le perimetre etait « tous les Dossiers de l'Organization », ce qui
+     * offrait au selecteur les fichiers des **Dossiers prives** de chacun. Le
+     * referentiel documentaire d'une Boucle est son Dossier partage : c'est de
+     * la que viennent les sources. attachSource() applique la meme regle cote
+     * ecriture — le selecteur et la porte disent la meme chose.
      */
     public function candidateFiles(Loop $loop, int $limit = 100)
     {
+        $racineId = $this->rootDossierId($loop);
+
+        if ($racineId === null) {
+            return collect();
+        }
+
         $linked = LoopManifestoSource::where('loop_id', $loop->id)->pluck('dossier_file_id');
 
         return DossierFile::where('organization_id', $loop->organization_id)
+            ->where('dossier_id', $racineId)
             ->whereNotIn('id', $linked)
             ->with('dossier')
             ->latest()
             ->limit($limit)
             ->get();
+    }
+
+    /** L'identifiant du Dossier racine de la Boucle, s'il existe deja. */
+    private function rootDossierId(Loop $loop): ?string
+    {
+        return \App\Models\Dossier::where('loop_id', $loop->id)->value('id');
     }
 }

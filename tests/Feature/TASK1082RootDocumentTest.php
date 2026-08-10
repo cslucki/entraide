@@ -199,10 +199,17 @@ class TASK1082RootDocumentTest extends TestCase
         $dossier = Dossier::where('loop_id', $loop->id)->first();
 
         // It holds no dossier_members, so deriving visibility from them would
-        // flip it to private on every call.
+        // flip its stored value on every call. L'invariant est que la colonne
+        // ne bouge pas — sa valeur stockee est inerte pour un Dossier de
+        // Boucle (`effectiveVisibility()` court-circuite), et depuis TASK-1121
+        // le service ecrit `private`, plus la valeur historique `shared`.
+        $avant = $dossier->visibility;
+
         $dossier->syncVisibility();
 
-        $this->assertSame(Dossier::VISIBILITY_SHARED, $dossier->fresh()->visibility);
+        $this->assertSame($avant, $dossier->fresh()->visibility);
+        $this->assertSame(Dossier::VISIBILITY_PRIVATE, $avant);
+        $this->assertSame(Dossier::VISIBILITY_LOOP, $dossier->effectiveVisibility());
         $this->assertSame(0, $dossier->dossierMembers()->count());
     }
 

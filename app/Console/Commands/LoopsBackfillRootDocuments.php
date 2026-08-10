@@ -39,7 +39,7 @@ class LoopsBackfillRootDocuments extends Command
 
         $withDossier = Dossier::whereNotNull('loop_id')->pluck('loop_id')->all();
 
-        $report = ['analysees' => $loops->count(), 'dossiers' => 0, 'documents' => 0, 'reutilises' => 0, 'inchangees' => 0, 'erreurs' => 0];
+        $report = ['analysees' => $loops->count(), 'dossiers' => 0, 'documents' => 0, 'reutilises' => 0, 'lies' => 0, 'inchangees' => 0, 'erreurs' => 0];
 
         $this->line($dryRun ? 'Simulation — rien ne sera ecrit.' : 'Application.');
         $this->newLine();
@@ -49,7 +49,37 @@ class LoopsBackfillRootDocuments extends Command
             $dossier = $hasDossier ? Dossier::where('loop_id', $loop->id)->first() : null;
 
             if ($dossier && $dossier->root_blog_post_id) {
-                $report['inchangees']++;
+                // Le document existe — mais son lien a la Boucle peut manquer :
+                // designate() ne l'ecrivait pas avant TASK-1121, et l'editeur
+                // montrait une section « Boucle » vide sur un Manifeste ne pour
+                // elle. Le service le pose au passage (syncWithoutDetaching) ;
+                // sauter ces Boucles aurait laisse la commande incapable de
+                // reparer le parc qu'elle a elle-meme construit.
+                $lienManquant = ! \Illuminate\Support\Facades\DB::table('blog_post_loop')
+                    ->where('loop_id', $loop->id)
+                    ->where('blog_post_id', $dossier->root_blog_post_id)
+                    ->exists();
+
+                if (! $lienManquant) {
+                    $report['inchangees']++;
+
+                    continue;
+                }
+
+                if ($dryRun) {
+                    $report['lies']++;
+                    $this->line(sprintf('  %-30s relierait son document a la Boucle', mb_substr($loop->name, 0, 30)));
+
+                    continue;
+                }
+
+                try {
+                    $service->ensureRootDocument($loop);
+                    $report['lies']++;
+                } catch (\Throwable $e) {
+                    $report['erreurs']++;
+                    $this->error(sprintf('  %-30s %s', mb_substr($loop->name, 0, 30), $e->getMessage()));
+                }
 
                 continue;
             }
@@ -76,8 +106,8 @@ class LoopsBackfillRootDocuments extends Command
 
         $this->newLine();
         $this->table(
-            ['Boucles analysees', 'Dossiers crees', 'Documents crees', 'Articles adoptes', 'Deja en place', 'Erreurs'],
-            [[$report['analysees'], $report['dossiers'], $report['documents'], $report['reutilises'], $report['inchangees'], $report['erreurs']]],
+            ['Boucles analysees', 'Dossiers crees', 'Documents crees', 'Articles adoptes', 'Liens poses', 'Deja en place', 'Erreurs'],
+            [[$report['analysees'], $report['dossiers'], $report['documents'], $report['reutilises'], $report['lies'], $report['inchangees'], $report['erreurs']]],
         );
 
         return $report['erreurs'] > 0 ? self::FAILURE : self::SUCCESS;

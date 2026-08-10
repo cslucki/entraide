@@ -116,7 +116,12 @@
                 <a href="{{ route('organization.dossiers.index', ['organization' => $orgParam]) }}" class="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ __('dossiers.back') }}</a>
                 <div class="mt-4 flex flex-wrap items-center gap-3">
                     <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $dossier->name }}</h1>
-                    @if($userRole === 'owner')
+                    @if($dossier->isLoopDossier())
+                        {{-- Dossier racine : ni « Privé » ni « Partagé » — il est
+                             à sa Boucle, et le rôle affiché en dérive. --}}
+                        <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">{{ __('dossiers.loop_dossier_badge') }}</span>
+                        <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ __('dossiers.your_role', ['role' => __('dossiers.role_'.$userRole)]) }}</span>
+                    @elseif($userRole === 'owner')
                         <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $dossier->getKey()]) }}" class="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200" title="{{ __('dossiers.rename') }}">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -1147,6 +1152,41 @@
 
             {{-- Tab: Members --}}
             <div x-show="active === 'membres'" x-cloak role="tabpanel" id="tabpanel-membres" aria-labelledby="tab-membres" class="mt-6">
+                @if($dossier->isLoopDossier())
+                    {{-- Dossier racine : les accès sont ceux de la Boucle, en
+                         lecture seule. Aucune gestion parallèle ici — la Boucle
+                         est la source de vérité, et c'est chez elle qu'on gère. --}}
+                    @php
+                        $registreRoles = app(\App\Support\Loops\LoopRoleRegistry::class);
+                        $ordreRoles = [\App\Support\Loops\LoopRoleRegistry::OWNER => 0, \App\Support\Loops\LoopRoleRegistry::FACILITATOR => 1];
+                        $accesBoucle = ($dossier->loop?->activeMembers ?? collect())
+                            ->sortBy(fn ($m) => [$ordreRoles[$registreRoles->canonical($m->role)] ?? 2, $m->joined_at]);
+                    @endphp
+                    <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.members_access_title') }}</h2>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.members_managed_by_loop') }}</p>
+
+                        <ul class="mt-4 divide-y divide-gray-100 dark:divide-gray-700">
+                            @foreach($accesBoucle as $membreBoucle)
+                                <li class="flex items-center justify-between gap-3 py-2.5">
+                                    <span class="min-w-0 truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                                        {{ $membreBoucle->user?->isDisplayableIn(currentOrganization()) ? $membreBoucle->user->publicDisplayName() : __('profile.deactivated_user') }}
+                                    </span>
+                                    <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                        {{ __('dossiers.role_loop_'.$registreRoles->canonical($membreBoucle->role)) }}
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
+
+                        @if($dossier->loop)
+                            <a href="{{ route('organization.loops.show', ['organization' => $orgParam, 'loop' => $dossier->loop]) }}"
+                               class="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                                {{ __('dossiers.members_open_loop') }} →
+                            </a>
+                        @endif
+                    </section>
+                @else
                 <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
                          x-data="dossierMembersCard(@js([
                              'csrfToken' => csrf_token(),
@@ -1338,6 +1378,7 @@
                     </template>
                     @endif
                 </section>
+                @endif
             </div>
         </div>
 
