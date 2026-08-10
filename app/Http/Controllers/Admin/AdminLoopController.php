@@ -223,7 +223,7 @@ class AdminLoopController extends Controller
         $this->assertOrgAccess($loop);
 
         $data = $request->validate([
-            'action' => 'required|in:enable,disable,replace,restore',
+            'action' => 'required|in:enable,disable,replace,restore,promote,demote',
             'card_key' => 'nullable|string',
             'incoming_key' => 'nullable|string',
         ]);
@@ -236,6 +236,10 @@ class AdminLoopController extends Controller
                 'enable' => $this->doEnable($configurator, $user, $loop, $data['card_key'] ?? ''),
                 'disable' => $this->doDisable($configurator, $user, $loop, $data['card_key'] ?? ''),
                 'replace' => $this->doReplace($configurator, $user, $loop, $data['card_key'] ?? '', $data['incoming_key'] ?? ''),
+                // Mettre en avant / retirer des principaux : jamais une
+                // activation, jamais une desactivation (TASK-1124).
+                'promote' => tap(__('loops.tools_promoted'), fn () => $configurator->promote($user, $loop, $data['card_key'] ?? '')),
+                'demote' => tap(__('loops.tools_demoted'), fn () => $configurator->demote($user, $loop, $data['card_key'] ?? '')),
                 default => __('loops.preset_restored', [
                     'count' => count($configurator->restorePreset($user, $loop)),
                 ]),

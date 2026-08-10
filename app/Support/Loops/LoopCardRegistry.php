@@ -342,12 +342,62 @@ class LoopCardRegistry
      */
     public function workspaceCardsFor(Loop $loop, User $user): \Illuminate\Support\Collection
     {
+        // **Plus de plafond ici.** Le `take(gridSlots())` d'avant TASK-1124
+        // masquait purement et simplement la 4e Card active : active en base,
+        // ses donnees vivantes, et introuvable dans la Boucle. Le workspace
+        // rend desormais tout ce qui est actif, et separe la mise en avant de
+        // l'activation — voir primaryWorkspaceCardsFor() / secondary…().
         return $this->visibleCardsFor($loop, $user)
             ->filter(fn (array $card) => $this->placementOf($card['key']) === self::PLACEMENT_GRID)
-            // Le plafond est applique ici et non en base : une composition qui
-            // en porterait davantage — heritage, ou preset elargi — ne casse
-            // rien, elle montre les trois premieres dans l'ordre du catalogue.
-            ->take($this->gridSlots())
+            ->values();
+    }
+
+    /**
+     * Les cles des Cards de grille **actives**, dans l'ordre du catalogue.
+     *
+     * L'ordre canonique dont derivent les outils principaux d'une Boucle qui
+     * n'en a jamais choisi. Sans utilisateur : c'est la composition qui
+     * compte, pas ce qu'une personne a le droit de lire.
+     *
+     * @return array<int, string>
+     */
+    public function activeGridKeysFor(Loop $loop): array
+    {
+        return collect(app(LoopTypeRegistry::class)->activeCardsFor($loop))
+            ->filter(fn (string $key) => $this->exists($key)
+                && $this->placementOf($key) === self::PLACEMENT_GRID)
+            ->sortBy(fn (string $key) => $this->get($key)['order'] ?? 0)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Les outils **mis en avant** que cette personne voit, dans l'ordre choisi.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    public function primaryWorkspaceCardsFor(Loop $loop, User $user): \Illuminate\Support\Collection
+    {
+        $principaux = app(\App\Services\Loops\LoopCardCompositionService::class)->primaryKeysFor($loop);
+        $visibles = $this->workspaceCardsFor($loop, $user)->keyBy('key');
+
+        return collect($principaux)
+            ->map(fn (string $key) => $visibles->get($key))
+            ->filter()
+            ->values();
+    }
+
+    /**
+     * Les autres outils actifs — accessibles, jamais masques.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    public function secondaryWorkspaceCardsFor(Loop $loop, User $user): \Illuminate\Support\Collection
+    {
+        $principaux = app(\App\Services\Loops\LoopCardCompositionService::class)->primaryKeysFor($loop);
+
+        return $this->workspaceCardsFor($loop, $user)
+            ->reject(fn (array $card) => in_array($card['key'], $principaux, true))
             ->values();
     }
 

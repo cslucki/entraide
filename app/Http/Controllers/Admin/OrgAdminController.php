@@ -430,7 +430,7 @@ class OrgAdminController extends Controller
         abort_if($loop->organization_id !== $organization->id, 404);
 
         $data = $request->validate([
-            'action' => 'required|in:enable,disable,replace,restore',
+            'action' => 'required|in:enable,disable,replace,restore,promote,demote',
             'card_key' => 'nullable|string',
             'incoming_key' => 'nullable|string',
         ]);
@@ -443,6 +443,8 @@ class OrgAdminController extends Controller
                 'enable' => tap(__('loops.preset_enabled'), fn () => $configurator->enable($user, $loop, $data['card_key'] ?? '')),
                 'disable' => tap(__('loops.preset_disabled'), fn () => $configurator->disable($user, $loop, $data['card_key'] ?? '')),
                 'replace' => tap(__('loops.preset_replaced'), fn () => $configurator->replace($user, $loop, $data['card_key'] ?? '', $data['incoming_key'] ?? '')),
+                'promote' => tap(__('loops.tools_promoted'), fn () => $configurator->promote($user, $loop, $data['card_key'] ?? '')),
+                'demote' => tap(__('loops.tools_demoted'), fn () => $configurator->demote($user, $loop, $data['card_key'] ?? '')),
                 default => __('loops.preset_restored', ['count' => count($configurator->restorePreset($user, $loop))]),
             };
         } catch (PresetException $e) {

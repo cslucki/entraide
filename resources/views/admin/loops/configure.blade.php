@@ -27,15 +27,15 @@
     // deja le discriminant des deux entrees.
     $shell = isset($scopedRoutes) && $scopedRoutes ? 'app-layout' : 'admin-layout';
 @endphp
-<x-dynamic-component :component="$shell" :title="__('loops.preset_grid_title')">
+<x-dynamic-component :component="$shell" :title="__('loops.tools_title')">
     <x-page-container>
 
         <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
                 <a href="{{ $backUrl }}" class="text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300">← {{ $loop->name }}</a>
-                <h1 class="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('loops.preset_grid_title') }}</h1>
+                <h1 class="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('loops.tools_title') }}</h1>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {{ __('loops.preset_grid_hint', ['slots' => $composition['slots']]) }}
+                    {{ __('loops.tools_hint', ['max' => $composition['max_primary']]) }}
                 </p>
             </div>
             <span class="shrink-0 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
@@ -71,60 +71,107 @@
             </div>
         </section>
 
-        {{-- ── Les emplacements distinctifs ───────────────────────────── --}}
+        {{-- ── Outils principaux / Autres outils actifs ───────────────── --}}
         <section class="mb-6">
             <p class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
-                {{ __('loops.preset_grid_title') }}
-                <span class="ml-1 text-xs font-normal text-gray-400">{{ count($composition['grid']) }} / {{ $composition['slots'] }}</span>
+                {{ __('loops.tools_primary_title') }}
+                <span class="ml-1 text-xs font-normal text-gray-400">{{ count($composition['primary']) }} / {{ $composition['max_primary'] }}</span>
             </p>
 
             <div class="grid gap-3 sm:grid-cols-3">
-                @foreach($composition['grid'] as $card)
+                @foreach($composition['primary'] as $card)
                     <div class="rounded-2xl border border-violet-200 bg-white p-4 dark:border-violet-800/60 dark:bg-gray-900">
                         <p class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $card['label'] }}</p>
                         <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ $card['description'] }}</p>
 
                         <p class="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
-                            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-gray-500 dark:bg-gray-800 dark:text-gray-400">{{ $card['category'] }}</span>
-                            @if($card['origin'] === 'preset')
-                                <span class="rounded-full bg-violet-100 px-2 py-0.5 font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">{{ __('loops.cards_origin_preset') }}</span>
-                            @elseif($card['origin'] === 'local')
-                                <span class="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">{{ __('loops.cards_origin_local') }}</span>
-                            @endif
                             @if($card['data_count'] !== null)
                                 <span class="text-gray-400">{{ __('loops.preset_data_count', ['count' => $card['data_count']]) }}</span>
                             @endif
                         </p>
 
-                        @if($card['requires'] !== [])
-                            <p class="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
-                                {{ __('loops.preset_requires_label', ['cards' => collect($card['requires'])->implode(', ')]) }}
-                            </p>
-                        @endif
-
-                        @unless($card['required'])
-                            <form method="POST" action="{{ $composeUrl }}" class="mt-3">
+                        <div class="mt-3 space-y-1.5">
+                            {{-- Retirer des principaux n'eteint rien : l'outil
+                                 reste actif, dans « Autres outils ». --}}
+                            <form method="POST" action="{{ $composeUrl }}">
                                 @csrf
-                                <input type="hidden" name="action" value="disable">
+                                <input type="hidden" name="action" value="demote">
                                 <input type="hidden" name="card_key" value="{{ $card['key'] }}">
                                 <button type="submit"
                                         class="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
-                                    {{ __('loops.cards_disable') }}
+                                    {{ __('loops.tools_demote') }}
                                 </button>
                             </form>
-                        @endunless
+                            @unless($card['required'])
+                                <form method="POST" action="{{ $composeUrl }}">
+                                    @csrf
+                                    <input type="hidden" name="action" value="disable">
+                                    <input type="hidden" name="card_key" value="{{ $card['key'] }}">
+                                    <button type="submit"
+                                            class="w-full rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
+                                        {{ __('loops.cards_disable') }}
+                                    </button>
+                                </form>
+                            @endunless
+                        </div>
                     </div>
                 @endforeach
 
-                {{-- Les emplacements libres se voient : une zone vide est une
-                     invitation, une zone absente est un oubli. --}}
-                @for($i = count($composition['grid']); $i < $composition['slots']; $i++)
+                @for($i = count($composition['primary']); $i < $composition['max_primary']; $i++)
                     <div class="flex min-h-[7rem] items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white p-4 text-xs text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
-                        {{ __('loops.preset_slot_empty') }}
+                        {{ __('loops.tools_primary_empty') }}
                     </div>
                 @endfor
             </div>
         </section>
+
+        @if($composition['secondary'] !== [])
+            <section class="mb-6">
+                <p class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    {{ __('loops.tools_secondary_title') }}
+                    <span class="ml-1 text-xs font-normal text-gray-400">{{ count($composition['secondary']) }}</span>
+                </p>
+                <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ __('loops.tools_secondary_hint') }}</p>
+
+                <div class="grid gap-3 sm:grid-cols-3">
+                    @foreach($composition['secondary'] as $card)
+                        <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                        <p class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $card['label'] }}</p>
+                        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ $card['description'] }}</p>
+
+                        <p class="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+                            @if($card['data_count'] !== null)
+                                <span class="text-gray-400">{{ __('loops.preset_data_count', ['count' => $card['data_count']]) }}</span>
+                            @endif
+                        </p>
+
+                            <div class="mt-3 space-y-1.5">
+                                <form method="POST" action="{{ $composeUrl }}">
+                                    @csrf
+                                    <input type="hidden" name="action" value="promote">
+                                    <input type="hidden" name="card_key" value="{{ $card['key'] }}">
+                                    <button type="submit"
+                                            class="w-full rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700">
+                                        {{ __('loops.tools_promote') }}
+                                    </button>
+                                </form>
+                                @unless($card['required'])
+                                    <form method="POST" action="{{ $composeUrl }}">
+                                        @csrf
+                                        <input type="hidden" name="action" value="disable">
+                                        <input type="hidden" name="card_key" value="{{ $card['key'] }}">
+                                        <button type="submit"
+                                                class="w-full rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
+                                            {{ __('loops.cards_disable') }}
+                                        </button>
+                                    </form>
+                                @endunless
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </section>
+        @endif
 
         {{-- ── Le catalogue ───────────────────────────────────────────── --}}
         @if($composition['available'] !== [])

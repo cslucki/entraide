@@ -87,17 +87,18 @@ class TASK1081WorkspaceCompositionTest extends TestCase
             ->assertDontSee($this->label('core.roadmap'));
     }
 
-    public function test_the_permanent_frame_never_takes_a_grid_slot(): void
+    public function test_the_permanent_frame_is_never_confused_with_the_tools(): void
     {
-        // La regle qui porte TASK-1090 : trois emplacements distinctifs, et le
-        // cadre n'en consomme aucun.
+        // TASK-1090 separait le cadre permanent des emplacements distinctifs.
+        // Depuis TASK-1124, ce qui compte n'est plus un nombre d'emplacements
+        // mais la separation elle-meme : le cadre n'est jamais un outil.
         $loop = $this->loop('general');
         $registry = app(\App\Support\Loops\LoopCardRegistry::class);
 
         $grid = $registry->workspaceCardsFor($loop->fresh(), $this->member)->pluck('key');
         $frame = $registry->frameCardsFor($loop->fresh(), $this->member)->pluck('key');
 
-        $this->assertLessThanOrEqual($registry->gridSlots(), $grid->count());
+        $this->assertTrue($grid->intersect($frame)->isEmpty());
         $this->assertNotContains('core.manifesto', $grid);
         $this->assertNotContains('core.members', $grid);
         $this->assertContains('core.manifesto', $frame);
@@ -173,15 +174,27 @@ class TASK1081WorkspaceCompositionTest extends TestCase
             $this->assertContains($key, $active, "La Card {$key} a disparu de la composition.");
         }
 
-        // Ce qui s'affiche, en revanche, respecte le plafond de la grille pose
-        // par TASK-1090 : voir moins de Cards que la Boucle n'en porte est le
-        // comportement voulu, pas une perte. Epingler « toutes les etiquettes
-        // sont visibles » ne tenait que tant qu'il y avait exactement autant de
-        // Cards de grille que d'emplacements.
+        // Et **tout ce qui est actif s'affiche** (TASK-1124). Le plafond de
+        // TASK-1090 coupait la liste a trois : une Boucle historique portant
+        // quatre Cards en perdait une, active mais introuvable. Le maximum de
+        // trois ne concerne plus que les outils **mis en avant** ; les autres
+        // vivent dans « Autres outils ».
         $registry = app(\App\Support\Loops\LoopCardRegistry::class);
         $shown = $registry->workspaceCardsFor($loop->fresh(), $this->member);
+        $principaux = $registry->primaryWorkspaceCardsFor($loop->fresh(), $this->member);
+        $secondaires = $registry->secondaryWorkspaceCardsFor($loop->fresh(), $this->member);
 
-        $this->assertLessThanOrEqual($registry->gridSlots(), count($shown));
+        $this->assertLessThanOrEqual(
+            \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY,
+            $principaux->count(),
+        );
+
+        // Les deux groupes recouvrent exactement les Cards de grille actives.
+        $this->assertSame(
+            $shown->pluck('key')->sort()->values()->all(),
+            $principaux->pluck('key')->merge($secondaires->pluck('key'))->sort()->values()->all(),
+            'Un outil actif ne doit jamais tomber entre les deux groupes.',
+        );
 
         foreach ($shown as $card) {
             $this->assertContains($card['key'], $active);

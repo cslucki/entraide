@@ -539,6 +539,12 @@ class LoopController extends Controller
             'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations', 'governance',
         ) + [
             'workspaceCards' => $this->workspaceCardsFor($loop, $user),
+            // Les outils **mis en avant** et les autres (TASK-1124). La barre
+            // montrait `take(3)` : la 4e Card active etait introuvable. Les
+            // deux collections sortent du meme ensemble visible, donc rien ne
+            // peut apparaitre ici qui ne soit pas dans `workspaceCards`.
+            'primaryCards' => $this->workspaceCardsFor($loop, $user, 'primary'),
+            'secondaryCards' => $this->workspaceCardsFor($loop, $user, 'secondary'),
             // Le cadre permanent et les actions IA de ChatLoop : declares dans
             // le meme registre, mais rendus ailleurs qu'en grille (TASK-1090).
             'frameCards' => $this->placedCardsFor($loop, $user, 'frame'),
@@ -566,7 +572,7 @@ class LoopController extends Controller
      *
      * @return \Illuminate\Support\Collection<int, array<string, mixed>>
      */
-    private function workspaceCardsFor(Loop $loop, User $user): \Illuminate\Support\Collection
+    private function workspaceCardsFor(Loop $loop, User $user, string $subset = 'all'): \Illuminate\Support\Collection
     {
         // A non-member never reaches the workspace cards; a super-admin does,
         // matching the previous behaviour of this screen.
@@ -579,7 +585,13 @@ class LoopController extends Controller
             return collect();
         }
 
-        return app(LoopCardRegistry::class)->workspaceCardsFor($loop, $user);
+        $registry = app(LoopCardRegistry::class);
+
+        return match ($subset) {
+            'primary' => $registry->primaryWorkspaceCardsFor($loop, $user),
+            'secondary' => $registry->secondaryWorkspaceCardsFor($loop, $user),
+            default => $registry->workspaceCardsFor($loop, $user),
+        };
     }
 
     /**
