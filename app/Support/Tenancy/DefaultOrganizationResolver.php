@@ -13,7 +13,10 @@ class DefaultOrganizationResolver
             return null;
         }
 
-        return Organization::where('is_default', true)->first()
-            ?? Organization::where('is_active', true)->orderBy('created_at')->first();
+        // Departage par `id` derriere l'horodatage : deux Organizations creees
+        // dans la meme seconde laissaient PostgreSQL choisir au gre du plan —
+        // stable sur SQLite, aleatoire en CI. Meme lecon que TASK-1117.
+        return Organization::where('is_default', true)->orderBy('created_at')->orderBy('id')->first()
+            ?? Organization::where('is_active', true)->orderBy('created_at')->orderBy('id')->first();
     }
 }
