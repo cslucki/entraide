@@ -264,9 +264,14 @@ class OrgAdminController extends Controller
             // l'Organization** : c'est son socle surcharge qui fait baseline
             // ici, pas celui de la Plateforme — la dette laissee par TASK-1120.
             'presetCards' => $registry->cardsFor($loop->type, $organization),
-            // La capacite reelle : le bouton « Modifier les outils » suit
-            // exactement ce que le configurateur acceptera, jamais plus.
+            // La capacite reelle **de la route visee** : configureLoop() exige
+            // l'appartenance a l'Organization (garde tenant stricte), la ou ce
+            // present ecran laisse passer le SuperAdmin. Sans ce troisieme
+            // terme, un SuperAdmin d'une autre Organization voyait un bouton
+            // qui menait a une 404 — constate en recette. Lui a son ecran
+            // plateforme ; le bouton scope est pour l'admin d'Organization.
             'canConfigureCards' => ! $loop->isArchived()
+                && auth()->user()?->organization_id === $organization->id
                 && app(\App\Services\Loops\LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop),
             'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
             'candidates' => User::assignable()

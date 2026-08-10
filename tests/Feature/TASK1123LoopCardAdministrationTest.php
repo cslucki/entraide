@@ -132,6 +132,29 @@ class TASK1123LoopCardAdministrationTest extends TestCase
             ->assertDontSee('"'.route('admin.loops.configure', $this->boucle).'"', false);
     }
 
+    public function test_a_cross_org_super_admin_gets_no_scoped_button_it_could_not_use(): void
+    {
+        // Constate en recette : configureLoop() exige l'appartenance a
+        // l'Organization, editLoop() laisse passer le SuperAdmin — le bouton
+        // scope menait donc a une 404 pour un SuperAdmin d'une autre
+        // Organization. Visibilite = capacite de la route visee.
+        $superAdminAilleurs = User::factory()->create(['is_admin' => true, 'organization_id' => $this->orgB->id]);
+
+        $this->actingAs($superAdminAilleurs)
+            ->get(route('organization.admin.loops.edit', [
+                'organization' => $this->orgA->slug, 'loop' => $this->boucle->id,
+            ]))
+            ->assertOk()
+            ->assertDontSee(__('loops.edit_tools_action'));
+
+        // Et la route scopee elle-meme refuse bien ce profil.
+        $this->actingAs($superAdminAilleurs)
+            ->get(route('organization.admin.loops.configure', [
+                'organization' => $this->orgA->slug, 'loop' => $this->boucle->id,
+            ]))
+            ->assertNotFound();
+    }
+
     // ── Non-destruction : Sondages (donnees en table metier) ────────────────
 
     public function test_disabling_polls_keeps_the_poll_and_reenabling_finds_it(): void

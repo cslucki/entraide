@@ -19,8 +19,15 @@
     // ecran, et une variable attendue de l'un des deux est une 500 en attente
     // — c'est exactement ce qui est arrive en ecrivant cette tache.
     $typeRegistry = app(\App\Support\Loops\LoopTypeRegistry::class);
+
+    // Le shell suit le contexte : ouvert depuis l'administration plateforme,
+    // l'ecran doit porter le rail SuperAdmin — pas celui de l'app membre, qui
+    // semait la confusion (retour de recette TASK-1123). Le chemin
+    // Organization garde l'app-layout, comme loop-edit. `scopedRoutes` est
+    // deja le discriminant des deux entrees.
+    $shell = isset($scopedRoutes) && $scopedRoutes ? 'app-layout' : 'admin-layout';
 @endphp
-<x-app-layout :title="__('loops.preset_grid_title')">
+<x-dynamic-component :component="$shell" :title="__('loops.preset_grid_title')">
     <x-page-container>
 
         <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
@@ -204,4 +211,4 @@
         </section>
 
     </x-page-container>
-</x-app-layout>
+</x-dynamic-component>
