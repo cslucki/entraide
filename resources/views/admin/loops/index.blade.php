@@ -1,4 +1,20 @@
 <x-admin-layout title="Boucles">
+    {{-- Deux repères, pas un dashboard. Le total du parc ne varie jamais avec
+         les filtres ; le second chiffre est le total de l'Organization choisie
+         dans le filtre — le filtre Type ne le change pas. --}}
+    <div class="mb-4 flex flex-wrap gap-8">
+        <div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $totalLoops }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('loops.admin_loops_total_label') }}</div>
+        </div>
+        @if($organizationLoops !== null)
+        <div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $organizationLoops }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('loops.admin_loops_org_label', ['organization' => $selectedOrganization->name]) }}</div>
+        </div>
+        @endif
+    </div>
+
     <div class="flex flex-col gap-4 mb-4 lg:flex-row lg:items-center lg:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">
             Boucles filtrées par organisation. Par défaut : votre organisation.

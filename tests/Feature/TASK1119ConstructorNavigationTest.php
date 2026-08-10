@@ -304,4 +304,50 @@ class TASK1119ConstructorNavigationTest extends TestCase
             ->assertDontSee($autre->name)
             ->assertSee('Parcours interne');
     }
+
+    // ── Lot C : deux compteurs, pas un dashboard ────────────────────────────
+
+    public function test_the_global_counter_ignores_every_filter(): void
+    {
+        $this->boucle($this->orgA, 'training');
+        $this->boucle($this->orgA, 'general');
+        $this->boucle($this->orgB, 'general');
+
+        // Filtres au plus serre : le total du parc reste 3, et le total de
+        // l'Organization reste 2 — le filtre Type ne compte pas la page, il
+        // ne change pas la signification des deux chiffres.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['organization_id' => $this->orgA->id, 'type' => 'training']))
+            ->assertOk()
+            ->assertViewHas('totalLoops', 3)
+            ->assertViewHas('organizationLoops', 2);
+    }
+
+    public function test_the_org_counter_follows_the_filter_not_the_request_context(): void
+    {
+        $this->boucle($this->orgA, 'general');
+        $this->boucle($this->orgB, 'general');
+        $this->boucle($this->orgB, 'training');
+
+        // `current_organization` est orgA (setUp) : choisir orgB dans le
+        // filtre doit compter orgB, pas le contexte de la requete.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['organization_id' => $this->orgB->id]))
+            ->assertOk()
+            ->assertViewHas('organizationLoops', 2);
+    }
+
+    public function test_the_org_counter_hides_on_all_organizations(): void
+    {
+        $this->boucle($this->orgA, 'general');
+
+        $this->withSession(['locale' => 'fr']);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops'))
+            ->assertOk()
+            ->assertViewHas('organizationLoops', null)
+            ->assertSee('Boucles au total')
+            ->assertDontSee('Dans '.$this->orgA->name);
+    }
 }

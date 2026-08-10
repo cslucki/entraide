@@ -105,8 +105,18 @@ class AdminLoopController extends Controller
             'loops' => $loops,
             'organizations' => $organizations,
             'selectedOrganizationId' => $selectedOrganizationId,
+            'selectedOrganization' => $selectedOrganization,
             'selectedType' => $selectedType,
             'typeOptions' => $typeOptions,
+            // Deux chiffres, pas un dashboard. Le premier ne bouge jamais :
+            // c'est la reference du parc entier, quels que soient les filtres.
+            // Le second suit l'Organization **choisie dans le filtre** — pas le
+            // contexte de requete — et le filtre Type ne le change pas non
+            // plus : c'est le total de l'Organization, pas celui de la page.
+            'totalLoops' => Loop::query()->count(),
+            'organizationLoops' => $selectedOrganization
+                ? Loop::query()->where('organization_id', $selectedOrganization->id)->count()
+                : null,
             // Only what may be chosen. A Loop still on a withdrawn type keeps
             // it in its own selector — see selectableFor() in the view.
             'loopTypes' => $registry->available(),
