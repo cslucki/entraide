@@ -175,4 +175,133 @@ class TASK1119ConstructorNavigationTest extends TestCase
             ->assertOk()
             ->assertSee('organization_id='.$this->orgA->id.'&amp;type='.$type->key, false);
     }
+
+    // ── Lot B : le filtre Type, combinable avec l'Organization ──────────────
+
+    public function test_the_list_filters_by_type(): void
+    {
+        $formation = $this->boucle($this->orgA, 'training');
+        $generale = $this->boucle($this->orgA, 'general');
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['type' => 'training']))
+            ->assertOk()
+            ->assertSee($formation->name)
+            ->assertDontSee($generale->name);
+    }
+
+    /**
+     * Le contrat central des deux ecrans : la liste ouverte par le lien rend
+     * le compte annonce, alias legacy compris.
+     */
+    public function test_the_type_filter_folds_legacy_aliases(): void
+    {
+        $moderne = $this->boucle($this->orgA, 'general');
+        $ancienne = $this->boucle($this->orgA, 'custom');
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['type' => 'general']))
+            ->assertOk()
+            ->assertSee($moderne->name)
+            ->assertSee($ancienne->name);
+    }
+
+    public function test_both_filters_combine(): void
+    {
+        $viseeA = $this->boucle($this->orgA, 'training');
+        $autreTypeA = $this->boucle($this->orgA, 'general');
+        $autreOrgB = $this->boucle($this->orgB, 'training');
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['organization_id' => $this->orgA->id, 'type' => 'training']))
+            ->assertOk()
+            ->assertSee($viseeA->name)
+            ->assertDontSee($autreTypeA->name)
+            ->assertDontSee($autreOrgB->name);
+    }
+
+    public function test_a_forged_organization_id_is_a_404_not_a_500(): void
+    {
+        // Pas un UUID : PostgreSQL leverait 22P02 sur la colonne `uuid` si la
+        // valeur atteignait la requete.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['organization_id' => 'forge-pas-un-uuid']))
+            ->assertNotFound();
+
+        // UUID bien forme mais inconnu : meme reponse que scope() sur l'ecran
+        // des types.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['organization_id' => (string) \Illuminate\Support\Str::uuid()]))
+            ->assertNotFound();
+    }
+
+    public function test_an_unknown_type_is_silently_dropped(): void
+    {
+        $boucle = $this->boucle($this->orgA, 'general');
+
+        // Un type forge n'est pas un filtre : le selecteur dirait « Tous les
+        // types » au-dessus d'une liste qui ne le serait pas.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['type' => 'inconnu-forge']))
+            ->assertOk()
+            ->assertSee($boucle->name);
+    }
+
+    public function test_an_organization_private_type_is_not_offered_elsewhere(): void
+    {
+        $type = app(LoopTypeCreationService::class)->create(
+            organization: $this->orgA,
+            label: 'Parcours interne',
+            description: null,
+            basedOn: null,
+            author: $this->superAdmin,
+        );
+
+        $boucleB = $this->boucle($this->orgB, 'general');
+
+        // Chez l'Organization voisine : le type prive de A n'est pas propose,
+        // et le parametre forge est ignore — pas de liste incoherente.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['organization_id' => $this->orgB->id, 'type' => $type->key]))
+            ->assertOk()
+            ->assertDontSee('value="'.$type->key.'"', false)
+            ->assertSee($boucleB->name);
+
+        // Chez elle : propose.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['organization_id' => $this->orgA->id]))
+            ->assertOk()
+            ->assertSee('value="'.$type->key.'"', false);
+
+        // « Toutes les organisations » : le SuperAdmin voit le parc entier,
+        // types crees compris.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops'))
+            ->assertOk()
+            ->assertSee('value="'.$type->key.'"', false);
+    }
+
+    public function test_a_created_type_filters_and_renders_in_the_list(): void
+    {
+        $type = app(LoopTypeCreationService::class)->create(
+            organization: $this->orgA,
+            label: 'Parcours interne',
+            description: null,
+            basedOn: null,
+            author: $this->superAdmin,
+        );
+
+        $porteuse = $this->boucle($this->orgA, $type->key);
+        $autre = $this->boucle($this->orgA, 'general');
+
+        // La ligne rendait `__($definition['label_key'])` : un type cree n'en
+        // a pas, la page entiere tombait en 500 des qu'une Boucle en portait
+        // un. Le selecteur passe desormais par le registre.
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops', ['type' => $type->key]))
+            ->assertOk()
+            ->assertSee($porteuse->name)
+            ->assertDontSee($autre->name)
+            ->assertSee('Parcours interne');
+    }
 }

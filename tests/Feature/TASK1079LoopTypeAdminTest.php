@@ -237,7 +237,7 @@ class TASK1079LoopTypeAdminTest extends TestCase
         $this->assertSame('peer_support', $loop->fresh()->type);
     }
 
-    public function test_the_listing_offers_only_the_available_types(): void
+    public function test_an_unavailable_type_is_filterable_but_never_assignable(): void
     {
         Loop::factory()->create(['organization_id' => $this->org->id, 'status' => 'active', 'type' => 'general']);
 
@@ -250,7 +250,12 @@ class TASK1079LoopTypeAdminTest extends TestCase
         // `training` a rejoint les types offerts avec TASK-1101 ; `peer_support`
         // reste retenu, faute de Cards de pair-aidance.
         $this->assertStringContainsString('value="training"', $html);
-        $this->assertStringNotContainsString('value="peer_support"', $html);
+        // Depuis TASK-1119 la page porte aussi un **filtre** Type, qui offre le
+        // catalogue entier : un type retenu reste filtrable — des Boucles le
+        // portent — mais jamais assignable. `peer_support` apparait donc
+        // exactement une fois : dans le filtre, pas dans le selecteur des
+        // lignes.
+        $this->assertSame(1, substr_count($html, 'value="peer_support"'));
     }
 
     // ── Choix du type à la création ─────────────────────────────────────────

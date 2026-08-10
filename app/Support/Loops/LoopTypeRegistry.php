@@ -219,6 +219,48 @@ class LoopTypeRegistry
         $this->customMemo = null;
     }
 
+    /**
+     * Le catalogue entier, toutes portees confondues, ordonne pour l'affichage.
+     *
+     * Pour un ecran SuperAdmin qui regarde « Toutes les organisations » : les
+     * types du fichier, ceux crees par la Plateforme **et** ceux crees par
+     * chaque Organization. `all()` n'en montre jamais autant — elle repond
+     * « que voit cette portee ? », pas « qu'existe-t-il ? ». Le cloisonnement
+     * ne bouge pas : ce que chaque portee peut choisir reste l'affaire
+     * d'`available()` et `selectableFor()`.
+     *
+     * @return array<string, array<string, mixed>> keyed by type
+     */
+    public function fullCatalogue(): array
+    {
+        $types = $this->catalogue();
+
+        uasort($types, fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+
+        return $types;
+    }
+
+    /**
+     * Les valeurs stockees qui designent ce type : lui-meme et ses alias
+     * legacy.
+     *
+     * `loops.type` porte encore `custom` sur les lignes d'avant les types :
+     * compter ou filtrer sur `general` doit les prendre. Le compteur de
+     * `/admin/loop-types` et le filtre de `/admin/loops` lisent **la meme
+     * liste**, faute de quoi le nombre annonce et la liste ouverte divergent.
+     *
+     * @return array<int, string>
+     */
+    public function storedTypeValues(string $type): array
+    {
+        $aliases = array_keys(array_filter(
+            config('loop_types.legacy_aliases', []),
+            fn ($target) => $target === $type,
+        ));
+
+        return array_merge([$type], $aliases);
+    }
+
     /** @return array<int, string> */
     public function keys(): array
     {

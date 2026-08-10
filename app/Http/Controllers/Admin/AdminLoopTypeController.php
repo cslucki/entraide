@@ -318,13 +318,10 @@ class AdminLoopTypeController extends Controller
      */
     private function countLoopsOfType(string $type, ?Organization $scope = null): int
     {
-        $aliases = array_keys(array_filter(
-            config('loop_types.legacy_aliases', []),
-            fn ($target) => $target === $type,
-        ));
-
+        // La meme liste de valeurs que le filtre de /admin/loops : le nombre
+        // affiche ici est un lien vers cette liste, et il doit s'y retrouver.
         return Loop::query()
-            ->whereIn('type', array_merge([$type], $aliases))
+            ->whereIn('type', $this->types->storedTypeValues($type))
             ->when($scope, fn ($q) => $q->where('organization_id', $scope->id))
             ->count();
     }
