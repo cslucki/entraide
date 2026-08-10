@@ -137,6 +137,9 @@ class LoopController extends Controller
                 'loops' => collect(),
                 'canCreate' => false,
                 'noPrimaryLoopWarning' => true,
+                // Meme sans Boucle a lister, la vue construit ses onglets de
+                // type : elle a besoin de la portee pour les nommer.
+                'organization' => $organization,
             ]);
         }
 
@@ -159,7 +162,11 @@ class LoopController extends Controller
         $filterDomains = $loops->pluck('categories')->flatten()->unique('id')
             ->sortBy(fn ($c) => $c->displayName('loops'))->values();
 
-        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops'))->with('canCreate', $canCreate);
+        // `organization` part avec le reste : les onglets de type se nomment
+        // **dans la portee**, et un type cree par cette Organization doit y
+        // avoir son onglet — `all()` sans portee ne le connait pas.
+        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops', 'organization'))
+            ->with('canCreate', $canCreate);
     }
 
     /**

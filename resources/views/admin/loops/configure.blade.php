@@ -164,8 +164,11 @@
                 @csrf
                 <select name="type"
                         class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                    {{-- Le registre, jamais la définition : un type créé n'a pas
+                         de clé de traduction, et le mot se lit dans la portée de
+                         la Boucle. --}}
                     @foreach($types as $key => $definition)
-                        <option value="{{ $key }}" @selected($key === $composition['preset'])>{{ __($definition['label_key']) }}</option>
+                        <option value="{{ $key }}" @selected($key === $composition['preset'])>{{ $typeRegistry->label($key, $organization) }}</option>
                     @endforeach
                 </select>
 

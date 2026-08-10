@@ -253,7 +253,14 @@ class OrgAdminController extends Controller
             // `selectableFor` et non `all()` : l'ecran offrait des types que le
             // serveur refuse desormais, donc un cul-de-sac. Il garde celui que
             // la Boucle porte, meme ferme — l'ecran plateforme fait deja ainsi.
-            'loopTypes' => $registry->selectableFor($loop->type),
+            //
+            // **Dans la portee de l'Organization** : sans elle, un type qu'elle
+            // a cree n'etait pas propose chez elle, et un type qu'elle a renomme
+            // s'affichait sous son nom commun.
+            'loopTypes' => $registry->selectableFor($loop->type, $organization),
+            // La vue nomme les types par le registre, pas par leur definition :
+            // un type cree n'a pas de cle de traduction.
+            'typeRegistry' => $registry,
             'currentType' => $registry->resolve($loop->type),
             // What the type prescribes, so the admin can tell the baseline apart
             // from what this Loop added on its own.

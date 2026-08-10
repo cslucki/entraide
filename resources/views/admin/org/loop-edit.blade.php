@@ -73,9 +73,13 @@
                             <label class="flex cursor-pointer items-start gap-2 rounded-xl border border-gray-200 p-3 transition hover:border-indigo-300 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50/50 dark:border-gray-700 dark:has-[:checked]:bg-indigo-900/20">
                                 <input type="radio" name="type" value="{{ $key }}" @checked(old('type', $currentType) === $key)
                                        class="mt-0.5 text-indigo-600 focus:ring-indigo-500">
+                                {{-- Le registre, jamais la définition : un type
+                                     créé porte un mot écrit et aucune clé de
+                                     traduction. Et le mot est lu dans la portée
+                                     de cette Organization. --}}
                                 <span class="min-w-0">
-                                    <span class="block text-sm font-medium text-gray-800 dark:text-gray-100">{{ __($definition['label_key']) }}</span>
-                                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __($definition['description_key']) }}</span>
+                                    <span class="block text-sm font-medium text-gray-800 dark:text-gray-100">{{ $typeRegistry->label($key, $organization) }}</span>
+                                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $typeRegistry->description($key, $organization) }}</span>
                                 </span>
                             </label>
                         @endforeach
