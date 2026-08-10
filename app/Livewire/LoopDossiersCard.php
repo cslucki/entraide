@@ -105,6 +105,18 @@ class LoopDossiersCard extends Component
             'open' => $base,
             'articles' => $base.'?tab=contenus',
             'files' => $base.'?tab=fichiers',
+            // Les deux gestes rapides restent dans la Boucle : un brouillon
+            // pre-lie (Dossier racine + Boucle) qui ouvre l'editeur Blog, et
+            // le depot vers l'endpoint d'upload existant du Dossier — meme
+            // backend, memes policies, aucun second stockage.
+            'write' => route('organization.loops.dossier.articles.store', [
+                'organization' => $organization,
+                'loop' => $this->loop,
+            ]),
+            'upload' => route('organization.dossiers.files.store', [
+                'organization' => $organization,
+                'dossier' => $dossier,
+            ]),
         ];
     }
 

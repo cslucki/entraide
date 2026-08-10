@@ -47,23 +47,68 @@
                 @endif
             </div>
 
-            {{-- Les deux gestes d'ecriture. Ils ouvrent l'ecran du Dossier, la ou
-                 ils vivent deja : les recopier ici les aurait fait diverger. --}}
+            {{-- Les deux gestes rapides, sans quitter la Boucle. « Ecrire un
+                 article » pose un brouillon deja lie au Dossier racine et a la
+                 Boucle puis ouvre l'editeur Blog existant ; « Deposer un
+                 fichier » envoie vers l'endpoint d'upload existant du Dossier
+                 et rafraichit la Card. Aucun second editeur, aucun second
+                 stockage. --}}
             @if($urls && ($canCreateArticle || $canUploadFile))
-                <div class="mt-3 flex flex-wrap gap-2 border-t border-[var(--bp-border)] pt-3">
+                <div class="mt-3 border-t border-[var(--bp-border)] pt-3"
+                     x-data="{ writing: false, uploading: false, uploadError: '' }">
+                    <div class="flex flex-wrap gap-2">
+                        @if($canCreateArticle)
+                            <button type="button" @click="writing = ! writing; uploadError = ''"
+                                    class="inline-flex items-center gap-1.5 rounded-xl bg-[var(--bp-primary)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487a2.1 2.1 0 1 1 2.97 2.97L8.63 18.66l-4.243.53.53-4.243L16.862 4.487Z"/></svg>
+                                {{ __('loops.cards.dossiers.create_article') }}
+                            </button>
+                        @endif
+                        @if($canUploadFile)
+                            <label class="{{ $quiet }} cursor-pointer" :class="uploading && 'pointer-events-none opacity-50'">
+                                <input type="file" class="hidden" multiple
+                                       @change="
+                                            const fichiers = [...$event.target.files].slice(0, 5);
+                                            if (! fichiers.length) return;
+                                            uploading = true; uploadError = '';
+                                            const fd = new FormData();
+                                            fichiers.forEach(f => fd.append('files[]', f));
+                                            fetch(@js($urls['upload']), {
+                                                method: 'POST',
+                                                headers: { 'X-CSRF-TOKEN': @js(csrf_token()), 'Accept': 'application/json' },
+                                                body: fd,
+                                            }).then(async r => {
+                                                if (r.ok) { $wire.$refresh(); }
+                                                else {
+                                                    const j = await r.json().catch(() => ({}));
+                                                    uploadError = j.message || @js(__('loops.cards.dossiers.upload_failed'));
+                                                }
+                                            }).catch(() => { uploadError = @js(__('loops.cards.dossiers.upload_failed')); })
+                                              .finally(() => { uploading = false; $event.target.value = ''; });
+                                       ">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z"/></svg>
+                                <span x-text="uploading ? @js(__('loops.cards.dossiers.uploading')) : @js(__('loops.cards.dossiers.upload_file'))"></span>
+                            </label>
+                        @endif
+                    </div>
+
                     @if($canCreateArticle)
-                        <a href="{{ $urls['articles'] }}"
-                           class="inline-flex items-center gap-1.5 rounded-xl bg-[var(--bp-primary)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90">
-                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487a2.1 2.1 0 1 1 2.97 2.97L8.63 18.66l-4.243.53.53-4.243L16.862 4.487Z"/></svg>
-                            {{ __('loops.cards.dossiers.create_article') }}
-                        </a>
+                        {{-- Le titre d'abord : c'est la grammaire de tous les
+                             parcours de creation du Blog, et elle evite les
+                             brouillons sans nom. --}}
+                        <form x-show="writing" x-cloak method="POST" action="{{ $urls['write'] }}" class="mt-2 flex flex-wrap gap-2">
+                            @csrf
+                            <input type="text" name="title" required maxlength="255"
+                                   placeholder="{{ __('loops.cards.dossiers.article_title_placeholder') }}"
+                                   class="min-w-0 flex-1 rounded-xl border-[var(--bp-border)] bg-[var(--bp-panel)] px-3 py-1.5 text-xs text-[var(--bp-text)]">
+                            <button type="submit"
+                                    class="inline-flex items-center rounded-xl bg-[var(--bp-primary)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90">
+                                {{ __('loops.cards.dossiers.article_start') }}
+                            </button>
+                        </form>
                     @endif
-                    @if($canUploadFile)
-                        <a href="{{ $urls['files'] }}" class="{{ $quiet }}">
-                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z"/></svg>
-                            {{ __('loops.cards.dossiers.upload_file') }}
-                        </a>
-                    @endif
+
+                    <p x-show="uploadError" x-cloak x-text="uploadError" class="mt-2 text-xs text-red-500" role="alert"></p>
                 </div>
             @elseif($readOnly)
                 <p class="mt-3 border-t border-[var(--bp-border)] pt-3 text-xs text-[var(--bp-muted)]">
