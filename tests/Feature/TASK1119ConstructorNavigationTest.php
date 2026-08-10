@@ -1,0 +1,178 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Loop;
+use App\Models\Organization;
+use App\Models\User;
+use App\Services\Loops\LoopTypeCreationService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * Les deux ecrans du Constructeur fonctionnent **ensemble**.
+ *
+ * `/admin/loop-types` annonce un nombre de Boucles par type ; ce nombre devient
+ * un lien vers `/admin/loops`, filtre sur le meme contexte. Le contrat central
+ * est donc une **egalite** : la liste ouverte par le lien rend exactement le
+ * compte annonce — alias legacy compris (`custom` se lit `general`), portee
+ * comprise (globale -> type seul ; Organization -> Organization + type).
+ *
+ * Le vocabulaire du selecteur de portee change dans **ce contexte UI**
+ * seulement : « Plateforme » y devient « Toutes les organisations », l'heritage
+ * se dit « reglages communs », et l'etat vierge « Non modifie ». Le concept
+ * architectural Platform, lui, ne bouge pas.
+ */
+class TASK1119ConstructorNavigationTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $superAdmin;
+
+    private Organization $orgA;
+
+    private Organization $orgB;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->orgA = Organization::factory()->create(['is_active' => true, 'loops_enabled' => true]);
+        $this->orgB = Organization::factory()->create(['is_active' => true, 'loops_enabled' => true]);
+
+        $this->superAdmin = User::factory()->create(['is_admin' => true, 'organization_id' => $this->orgA->id]);
+
+        app()->instance('current_organization', $this->orgA);
+    }
+
+    private function boucle(Organization $org, string $type): Loop
+    {
+        return Loop::factory()->create([
+            'organization_id' => $org->id,
+            'type' => $type,
+            'created_by' => User::factory()->create(['organization_id' => $org->id])->id,
+        ]);
+    }
+
+    // ── Lot A : pliage ──────────────────────────────────────────────────────
+
+    public function test_each_type_is_a_foldable_block(): void
+    {
+        $reponse = $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-types'))
+            ->assertOk();
+
+        // Un bloc `<details>` par type, en plus de celui du formulaire de
+        // creation qui existait deja : la page entiere se replie.
+        $types = count(app(\App\Support\Loops\LoopTypeRegistry::class)->all());
+
+        $this->assertSame(
+            $types + 1,
+            substr_count($reponse->getContent(), '<details'),
+            'Chaque type doit devenir un bloc pliable, sans toucher au formulaire de creation.',
+        );
+    }
+
+    // ── Lot A : compteur cliquable ──────────────────────────────────────────
+
+    public function test_the_loop_count_links_to_the_list_filtered_by_type(): void
+    {
+        $this->boucle($this->orgA, 'general');
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-types'))
+            ->assertOk()
+            // Portee globale : le lien ne porte que le type.
+            ->assertSee(route('admin.loops', ['type' => 'general']), false);
+    }
+
+    public function test_the_loop_count_link_keeps_the_organization_scope(): void
+    {
+        $this->boucle($this->orgA, 'general');
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-types', ['scope' => $this->orgA->id]))
+            ->assertOk()
+            // Portee Organization : le lien porte l'Organization ET le type.
+            // `&` s'ecrit `&amp;` dans l'attribut : on verifie le HTML reel.
+            ->assertSee('organization_id='.$this->orgA->id.'&amp;type=general', false);
+    }
+
+    // ── Lot A : vocabulaire du scope ────────────────────────────────────────
+
+    public function test_the_scope_selector_speaks_organizations_not_platform(): void
+    {
+        $this->withSession(['locale' => 'fr']);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-types'))
+            ->assertOk()
+            ->assertSee('Toutes les organisations')
+            ->assertDontSee('Plateforme (tous les espaces)')
+            // L'etat vierge se dit « Non modifie », plus « Reglages d'origine ».
+            ->assertSee('Non modifié')
+            ->assertDontSee('Réglages d’origine');
+    }
+
+    public function test_the_inheritance_badge_speaks_shared_settings(): void
+    {
+        $this->withSession(['locale' => 'fr']);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-types', ['scope' => $this->orgA->id]))
+            ->assertOk()
+            ->assertSee('Hérité des réglages communs')
+            ->assertDontSee('Hérité de la Plateforme');
+    }
+
+    public function test_the_english_vocabulary_follows(): void
+    {
+        $this->withSession(['locale' => 'en']);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-types'))
+            ->assertOk()
+            ->assertSee('All organizations')
+            ->assertSee('Unmodified')
+            ->assertDontSee('Platform (all workspaces)');
+    }
+
+    // ── Le compte annonce est celui que le lien ouvre ───────────────────────
+
+    public function test_the_count_folds_legacy_aliases_like_the_list_will(): void
+    {
+        // `custom` est un alias de `general` : le compteur le replie deja.
+        $this->boucle($this->orgA, 'general');
+        $this->boucle($this->orgA, 'custom');
+        $this->boucle($this->orgB, 'general');
+
+        $this->withSession(['locale' => 'fr']);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-types'))
+            ->assertOk()
+            ->assertSee('3 Boucles');
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-types', ['scope' => $this->orgA->id]))
+            ->assertOk()
+            ->assertSee('2 Boucles');
+    }
+
+    /** Un type cree par une Organization garde un lien coherent chez elle. */
+    public function test_a_created_type_gets_a_scoped_link_too(): void
+    {
+        $type = app(LoopTypeCreationService::class)->create(
+            organization: $this->orgA,
+            label: 'Parcours interne',
+            description: null,
+            basedOn: null,
+            author: $this->superAdmin,
+        );
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-types', ['scope' => $this->orgA->id]))
+            ->assertOk()
+            ->assertSee('organization_id='.$this->orgA->id.'&amp;type='.$type->key, false);
+    }
+}
