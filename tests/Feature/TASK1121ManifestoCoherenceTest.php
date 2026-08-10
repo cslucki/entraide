@@ -89,20 +89,40 @@ class TASK1121ManifestoCoherenceTest extends TestCase
         $this->assertTrue($manifeste->loops()->whereKey($this->boucle->id)->exists());
     }
 
-    public function test_an_old_root_document_is_healed_on_the_next_visit(): void
+    public function test_an_old_root_document_is_healed_by_the_service(): void
     {
         $manifeste = $this->racine->rootBlogPost;
 
         // L'etat d'avant TASK-1121 : le lien n'existe pas. 18 des 19 documents
-        // racines du parc de dev sont dans ce cas.
+        // racines du parc de dev etaient dans ce cas.
         $manifeste->loops()->detach($this->boucle->id);
         $this->assertFalse($manifeste->loops()->whereKey($this->boucle->id)->exists());
 
-        // Le premier passage par le service — ce que fait la Card Manifeste a
-        // l'ouverture — repare, sans backfill massif.
+        // Tout passage par le service repare. Attention a la nuance apprise en
+        // recette : la Card Manifeste n'appelle le service que pour **creer**
+        // un document manquant — un vieux Manifeste existant ne repasse jamais
+        // par la. C'est la commande de backfill qui porte le rattrapage.
         app(LoopRootDocumentService::class)->ensureRootDocument($this->boucle);
 
         $this->assertTrue($manifeste->fresh()->loops()->whereKey($this->boucle->id)->exists());
+    }
+
+    public function test_the_backfill_command_repairs_missing_links(): void
+    {
+        $manifeste = $this->racine->rootBlogPost;
+        $manifeste->loops()->detach($this->boucle->id);
+
+        // Avant TASK-1121 la commande **sautait** toute Boucle deja dotee d'un
+        // document (« Deja en place ») : elle ne pouvait pas reparer le parc
+        // qu'elle avait construit. Elle pose desormais le lien manquant.
+        $this->artisan('loops:backfill-root-documents')->assertSuccessful();
+
+        $this->assertTrue($manifeste->fresh()->loops()->whereKey($this->boucle->id)->exists());
+
+        // Et le dry-run n'ecrit rien.
+        $manifeste->loops()->detach($this->boucle->id);
+        $this->artisan('loops:backfill-root-documents', ['--dry-run' => true])->assertSuccessful();
+        $this->assertFalse($manifeste->fresh()->loops()->whereKey($this->boucle->id)->exists());
     }
 
     // ── Les sources viennent du Dossier partage, et de lui seul ─────────────
