@@ -1,7 +1,22 @@
 <x-admin-layout title="Modifier la boucle">
     <div class="max-w-3xl">
         <a href="{{ route('admin.loops') }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">&larr; Retour aux boucles</a>
-        <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100 mt-2 mb-6">{{ $boucle->name }}</h1>
+        <div class="mt-2 mb-6 flex flex-wrap items-center justify-between gap-3">
+            <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ $boucle->name }}</h1>
+            {{-- Le configurateur de composition existait sans aucun lien
+                 entrant : cette action est son point d'entrée depuis l'écran
+                 où l'on administre déjà la Boucle. Il agit sur CETTE Boucle,
+                 jamais sur son type ni sur les autres. Visible seulement si la
+                 capacité est réelle (canConfigure + Boucle non archivée) :
+                 pas de bouton que le serveur refuserait. --}}
+            @if($canConfigureCards)
+            <a href="{{ route('admin.loops.configure', $boucle) }}"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085"/></svg>
+                {{ __('loops.edit_tools_action') }}
+            </a>
+            @endif
+        </div>
 
         @if(session('success'))
         <div class="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg text-sm">{{ session('success') }}</div>

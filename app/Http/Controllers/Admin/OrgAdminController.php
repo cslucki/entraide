@@ -260,8 +260,14 @@ class OrgAdminController extends Controller
             'loopTypes' => $registry->selectableFor($loop->type, $organization),
             'currentType' => $registry->resolve($loop->type),
             // What the type prescribes, so the admin can tell the baseline apart
-            // from what this Loop added on its own.
-            'presetCards' => $registry->cardsFor($loop->type),
+            // from what this Loop added on its own. **Dans la portee de
+            // l'Organization** : c'est son socle surcharge qui fait baseline
+            // ici, pas celui de la Plateforme — la dette laissee par TASK-1120.
+            'presetCards' => $registry->cardsFor($loop->type, $organization),
+            // La capacite reelle : le bouton « Modifier les outils » suit
+            // exactement ce que le configurateur acceptera, jamais plus.
+            'canConfigureCards' => ! $loop->isArchived()
+                && app(\App\Services\Loops\LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop),
             'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
             'candidates' => User::assignable()
                 ->where('organization_id', $organization->id)
