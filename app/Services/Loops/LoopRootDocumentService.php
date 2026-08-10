@@ -55,9 +55,12 @@ class LoopRootDocumentService
                 'owner_id' => null,
                 'loop_id' => $loop->id,
                 'name' => $loop->name,
-                // Held by the Loop, so its confidentiality is the Loop's.
-                // syncVisibility() must never run on this Dossier.
-                'visibility' => Dossier::VISIBILITY_SHARED,
+                // Held by the Loop, so its confidentiality is the Loop's :
+                // effectiveVisibility() court-circuite cette colonne des que
+                // loop_id est renseigne. La valeur stockee est donc inerte —
+                // mais on n'ecrit plus `shared`, valeur historique que la
+                // migration a justement normalisee vers `private` sur le stock.
+                'visibility' => Dossier::VISIBILITY_PRIVATE,
             ]);
         });
     }

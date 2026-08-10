@@ -46,9 +46,23 @@ class DossierController extends Controller
             ->latest('updated_at')
             ->get();
 
+        // Les Dossiers racines de mes Boucles. Ils n'ont ni owner ni lignes
+        // dossier_members — les deux requetes ci-dessus ne peuvent pas les
+        // voir, et un membre ne retrouvait son Dossier de Boucle par aucune
+        // navigation. L'acces derive du meme critere que la policy view() :
+        // membre actif de la Boucle, dans l'Organization courante.
+        $loopDossiers = Dossier::query()
+            ->where('organization_id', $organization->id)
+            ->whereNotNull('loop_id')
+            ->whereHas('loop.activeMembers', fn ($q) => $q->where('user_id', $userId))
+            ->with('loop:id,name,organization_id,status')
+            ->latest('updated_at')
+            ->get();
+
         return view('dossiers.index', [
             'dossiers' => $ownedDossiers,
             'sharedDossiers' => $sharedDossiers,
+            'loopDossiers' => $loopDossiers,
         ]);
     }
 
@@ -67,16 +81,40 @@ class DossierController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('view', $dossier);
 
-        $userId = $request->user()->id;
+        $user = $request->user();
+        $userId = $user->id;
         $isOwner = $dossier->owner_id === $userId;
-        $userRole = $isOwner ? 'owner' : ($dossier->memberRoleFor($userId) ?? 'none');
-        $canManageArticles = $isOwner || $userRole === 'editor';
+
+        // Le role **affiche**. Pour un Dossier racine, il derive de la Boucle :
+        // owner_id est null par doctrine et dossier_members est vide par
+        // construction — les lire rendait `role_none` au proprietaire de la
+        // Boucle. La gouvernance, elle, ne se lit pas ici : elle se demande aux
+        // policies, plus bas.
+        if ($dossier->isLoopDossier()) {
+            $loopRole = app(\App\Support\Loops\LoopRoleRegistry::class)->canonical(
+                $dossier->loop?->activeMembers()->where('user_id', $userId)->value('role'),
+            );
+
+            $userRole = $dossier->loop?->activeMembers()->where('user_id', $userId)->exists()
+                ? 'loop_'.$loopRole
+                : 'none';
+        } else {
+            $userRole = $isOwner ? 'owner' : ($dossier->memberRoleFor($userId) ?? 'none');
+        }
+
+        // Les capacites viennent des policies — la meme verite que le serveur
+        // au moment d'agir. Les recalculer ici depuis owner_id/dossier_members
+        // laissait le Dossier racine sans aucun bouton : la policy autorisait,
+        // l'ecran cachait.
+        $canManageArticles = $user->can('attachArticle', $dossier);
 
         $dossier->load([
             'owner:id,first_name,name,banned_at,organization_id',
             'dossierBlogPosts.blogPost.user:id,first_name,name,email,organization_id,banned_at',
             'dossierBlogPosts.blogPost.coAuthors:id,first_name,name,email,organization_id,banned_at',
             'dossierMembers.user:id,first_name,name,email,organization_id,banned_at',
+            'loop:id,name,organization_id,status',
+            'loop.activeMembers.user:id,first_name,name,email,organization_id,banned_at',
         ]);
 
         // Toutes les Series du Dossier — il peut en porter plusieurs depuis
@@ -126,9 +164,9 @@ class DossierController extends Controller
                 ->get(['blog_posts.id', 'blog_posts.organization_id', 'user_id', 'title', 'slug', 'status', 'blog_posts.updated_at']);
         }
 
-        $canViewFiles = $userRole !== 'none';
-        $canManageFiles = $isOwner || $userRole === 'editor';
-        $canDeleteFiles = $isOwner;
+        $canViewFiles = $user->can('viewFiles', $dossier);
+        $canManageFiles = $user->can('manageFiles', $dossier);
+        $canDeleteFiles = $user->can('deleteFile', $dossier);
 
         $categories = Category::where('organization_id', $organization->id)
             ->orderBy('name_b2c')
@@ -142,7 +180,10 @@ class DossierController extends Controller
             'seriesEligibleArticles' => $seriesEligibleArticles,
             'userRole' => $userRole,
             'canManageArticles' => $canManageArticles,
-            'canManageMembers' => $isOwner,
+            // La policy refuse manageMembers sur un Dossier racine : les acces
+            // s'administrent depuis la Boucle, et l'ecran n'offre donc aucune
+            // gestion parallele. Pour un Dossier personnel : le proprietaire.
+            'canManageMembers' => $user->can('manageMembers', $dossier),
             'canViewFiles' => $canViewFiles,
             'canManageFiles' => $canManageFiles,
             'canDeleteFiles' => $canDeleteFiles,

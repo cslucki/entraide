@@ -119,6 +119,14 @@ class DossierPolicy
 
     public function attachArticle(User $user, Dossier $dossier): bool
     {
+        // Un Dossier racine n'a ni owner ni lignes dossier_members : ses
+        // editeurs sont ceux de la Boucle, comme pour update(). Sans cette
+        // branche, personne — pas meme le proprietaire de la Boucle — ne
+        // pouvait y attacher un article.
+        if ($dossier->isLoopDossier()) {
+            return $this->update($user, $dossier);
+        }
+
         if ($this->isOwner($user, $dossier)) {
             return true;
         }
@@ -158,6 +166,13 @@ class DossierPolicy
 
     public function deleteFile(User $user, Dossier $dossier): bool
     {
+        // Meme delegue que l'ecriture : qui administre la Boucle administre
+        // les fichiers de son Dossier racine. isOwner() seul aurait interdit
+        // toute suppression, owner_id etant null par doctrine.
+        if ($dossier->isLoopDossier()) {
+            return $this->update($user, $dossier);
+        }
+
         return $this->isOwner($user, $dossier);
     }
 
