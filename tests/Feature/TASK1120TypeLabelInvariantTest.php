@@ -189,6 +189,34 @@ class TASK1120TypeLabelInvariantTest extends TestCase
             ->assertSee('Entraide');
     }
 
+    /**
+     * **La seconde porte du configurateur.**
+     *
+     * `admin/loops/configure.blade.php` est rendue par deux controleurs — son
+     * propre en-tete le dit — et n'en tester qu'un laisse l'autre libre de
+     * casser. C'est arrive en ecrivant cette tache : le registre passe par le
+     * controleur plateforme rendait `Undefined variable $typeRegistry` sur le
+     * chemin Organization. Le registre se resout desormais dans la vue, et ce
+     * test garde la porte qui manquait.
+     */
+    public function test_the_organization_scoped_configurator_renders_too(): void
+    {
+        $cle = $this->typePlateforme('Entraide');
+        $adminOrg = User::factory()->create([
+            'organization_id' => $this->orgA->id, 'is_admin' => false,
+        ]);
+        $this->orgA->forceFill(['admin_id' => $adminOrg->id])->save();
+
+        $boucle = $this->boucle($this->orgA, $cle);
+
+        $this->actingAs($adminOrg)
+            ->get(route('organization.admin.loops.configure', [
+                'organization' => $this->orgA->slug, 'loop' => $boucle->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Entraide');
+    }
+
     // ── Type natif, non personnalise ────────────────────────────────────────
 
     public function test_a_native_untouched_type_keeps_its_configured_word(): void

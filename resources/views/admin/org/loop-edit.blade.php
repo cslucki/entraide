@@ -11,6 +11,11 @@
         // those of the layout, and PHP has no block scope — the model would be
         // clobbered. Same convention as loops/show.blade.php.
         $currentLoop = $loop;
+
+        // Resolu ici, comme sur les autres ecrans d'administration : un type se
+        // nomme par le registre, et la vue n'a pas a dependre d'un controleur
+        // qui pense a le lui passer.
+        $typeRegistry = app(\App\Support\Loops\LoopTypeRegistry::class);
     @endphp
     <div class="mx-auto max-w-4xl px-4 py-8">
 

@@ -258,9 +258,6 @@ class OrgAdminController extends Controller
             // a cree n'etait pas propose chez elle, et un type qu'elle a renomme
             // s'affichait sous son nom commun.
             'loopTypes' => $registry->selectableFor($loop->type, $organization),
-            // La vue nomme les types par le registre, pas par leur definition :
-            // un type cree n'a pas de cle de traduction.
-            'typeRegistry' => $registry,
             'currentType' => $registry->resolve($loop->type),
             // What the type prescribes, so the admin can tell the baseline apart
             // from what this Loop added on its own.
@@ -400,7 +397,8 @@ class OrgAdminController extends Controller
         return view('admin.loops.configure', [
             'loop' => $loop,
             'composition' => $configurator->describe($loop),
-            'types' => app(LoopTypeRegistry::class)->selectableFor($loop->type),
+            // Dans la portee de l'Organization, comme le chemin plateforme.
+            'types' => app(LoopTypeRegistry::class)->selectableFor($loop->type, $organization),
             'organization' => $organization,
             'backUrl' => route('organization.admin.loops.edit', [
                 'organization' => $organization->slug, 'loop' => $loop->id,
