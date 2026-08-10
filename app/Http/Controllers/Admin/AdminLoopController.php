@@ -543,7 +543,14 @@ class AdminLoopController extends Controller
 
         $boucle = $loop;
 
-        return view('admin.loops.edit', compact('boucle', 'users'));
+        // La capacite reelle, pas une supposition : le bouton « Modifier les
+        // outils » n'apparait que si le configurateur acceptera — et jamais
+        // sur une archivee, que assertConfigurable() refuserait de toute
+        // facon cote ecriture.
+        $canConfigureCards = ! $loop->isArchived()
+            && app(LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop);
+
+        return view('admin.loops.edit', compact('boucle', 'users', 'canConfigureCards'));
     }
 
     public function update(Request $request, Loop $loop): RedirectResponse

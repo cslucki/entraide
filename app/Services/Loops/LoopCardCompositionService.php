@@ -60,7 +60,11 @@ class LoopCardCompositionService
     public function compositionFor(Loop $loop): array
     {
         $registry = app(LoopCardRegistry::class);
-        $preset = $this->types->cardsFor($loop->type);
+        // Dans la portee de la Boucle : le socle qui fait baseline ici est
+        // celui que son Organization a regle, pas celui de la Plateforme —
+        // sans quoi le badge « socle du type » ment des le premier preset
+        // surcharge. Meme famille de dette que TASK-1120/1121.
+        $preset = $this->types->cardsFor($loop->type, $loop->organization);
         $rows = LoopCard::where('loop_id', $loop->id)->get()->keyBy('card_key');
         $catalogue = config('loop_cards.cards', []);
 

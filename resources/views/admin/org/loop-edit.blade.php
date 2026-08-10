@@ -101,6 +101,18 @@
 
         {{-- Composition locale des Cards, partagee avec l'admin plateforme --}}
         <div class="mb-6">
+            {{-- L'acces au configurateur complet (grille, dependances,
+                 presets), par la route SCOPEE — jamais la route plateforme en
+                 raccourci. Visible seulement si la capacite est reelle. --}}
+            @if($canConfigureCards)
+                <div class="mb-3 flex justify-end">
+                    <a href="{{ route('organization.admin.loops.configure', ['organization' => $organization->slug, 'loop' => $currentLoop->id]) }}"
+                       class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085"/></svg>
+                        {{ __('loops.edit_tools_action') }}
+                    </a>
+                </div>
+            @endif
             <x-loops.card-composition :loop="$currentLoop" :composition="$composition"
                 :action="route('organization.admin.loops.cards.update', ['organization' => $organization->slug, 'loop' => $currentLoop->id])" />
         </div>

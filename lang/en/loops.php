@@ -998,6 +998,7 @@ return [
     'types.writing.label' => 'Writing',
     'types.writing.description' => 'A Loop where people write together: drafts, reviews and publication.',
     'type_label' => 'Type',
+    'edit_tools_action' => "Edit this Loop's tools",
     'admin_loops_filter_all_types' => 'All types',
     'admin_loops_total_label' => 'Loops in total',
     'admin_loops_org_label' => 'In :organization',

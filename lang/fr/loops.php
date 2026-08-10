@@ -1002,6 +1002,7 @@ return [
     'types.writing.label' => 'Rédaction',
     'types.writing.description' => 'Une Boucle où l\'on écrit à plusieurs : brouillons, relectures et publication.',
     'type_label' => 'Type',
+    'edit_tools_action' => 'Modifier les outils de cette Boucle',
     'admin_loops_filter_all_types' => 'Tous les types',
     'admin_loops_total_label' => 'Boucles au total',
     'admin_loops_org_label' => 'Dans :organization',

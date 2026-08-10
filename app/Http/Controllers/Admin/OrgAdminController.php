@@ -260,8 +260,19 @@ class OrgAdminController extends Controller
             'loopTypes' => $registry->selectableFor($loop->type, $organization),
             'currentType' => $registry->resolve($loop->type),
             // What the type prescribes, so the admin can tell the baseline apart
-            // from what this Loop added on its own.
-            'presetCards' => $registry->cardsFor($loop->type),
+            // from what this Loop added on its own. **Dans la portee de
+            // l'Organization** : c'est son socle surcharge qui fait baseline
+            // ici, pas celui de la Plateforme — la dette laissee par TASK-1120.
+            'presetCards' => $registry->cardsFor($loop->type, $organization),
+            // La capacite reelle **de la route visee** : configureLoop() exige
+            // l'appartenance a l'Organization (garde tenant stricte), la ou ce
+            // present ecran laisse passer le SuperAdmin. Sans ce troisieme
+            // terme, un SuperAdmin d'une autre Organization voyait un bouton
+            // qui menait a une 404 — constate en recette. Lui a son ecran
+            // plateforme ; le bouton scope est pour l'admin d'Organization.
+            'canConfigureCards' => ! $loop->isArchived()
+                && auth()->user()?->organization_id === $organization->id
+                && app(\App\Services\Loops\LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop),
             'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
             'candidates' => User::assignable()
                 ->where('organization_id', $organization->id)
