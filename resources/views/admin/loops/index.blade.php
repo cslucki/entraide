@@ -1,4 +1,20 @@
 <x-admin-layout title="Boucles">
+    {{-- Deux repères, pas un dashboard. Le total du parc ne varie jamais avec
+         les filtres ; le second chiffre est le total de l'Organization choisie
+         dans le filtre — le filtre Type ne le change pas. --}}
+    <div class="mb-4 flex flex-wrap gap-8">
+        <div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $totalLoops }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('loops.admin_loops_total_label') }}</div>
+        </div>
+        @if($organizationLoops !== null)
+        <div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $organizationLoops }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('loops.admin_loops_org_label', ['organization' => $selectedOrganization->name]) }}</div>
+        </div>
+        @endif
+    </div>
+
     <div class="flex flex-col gap-4 mb-4 lg:flex-row lg:items-center lg:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">
             Boucles filtrées par organisation. Par défaut : votre organisation.
@@ -11,8 +27,18 @@
                     <option value="{{ $org->id }}" {{ $selectedOrganizationId === $org->id ? 'selected' : '' }}>{{ $org->name }} {{ $org->is_default ? '(par défaut)' : '' }}</option>
                     @endforeach
                 </select>
+                {{-- Le filtre Type se combine au filtre Organization. Les
+                     options viennent du registre, jamais du fichier de
+                     configuration : les types crees s'y trouvent, dans la
+                     portee affichee seulement. --}}
+                <select name="type" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                    <option value="">{{ __('loops.admin_loops_filter_all_types') }}</option>
+                    @foreach($typeOptions as $typeKey => $typeLabel)
+                    <option value="{{ $typeKey }}" @selected($selectedType === $typeKey)>{{ $typeLabel }}</option>
+                    @endforeach
+                </select>
                 <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
-                @if(request()->has('organization_id'))
+                @if(request()->has('organization_id') || request()->filled('type'))
                 <a href="{{ route('admin.loops') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
                 @endif
             </form>
@@ -97,7 +123,10 @@
                                     class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
                                 @foreach($choices as $key => $definition)
                                     <option value="{{ $key }}" @selected($currentType === $key)>
-                                        {{ __($definition['label_key']) }}@unless($registry->isAvailable($key)) — {{ __('loops.types_admin_unavailable') }}@endunless
+                                        {{-- label(), jamais la definition : un type cree n'a
+                                             pas de label_key, et le mot surcharge de
+                                             l'Organization doit se voir ici aussi. --}}
+                                        {{ $registry->label($key, $orgLoop->organization) }}@unless($registry->isAvailable($key)) — {{ __('loops.types_admin_unavailable') }}@endunless
                                     </option>
                                 @endforeach
                             </select>

@@ -109,12 +109,12 @@
 
         <div class="space-y-4">
             @foreach($types as $key => $type)
-                <form method="POST" action="{{ route('admin.loop-types.update', $key) }}"
-                      class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
-                    @csrf @method('PUT')
-                    <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
-
-                    <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+                {{-- Replie par defaut : l'ecran sert d'abord a parcourir les
+                     types, et chaque carte depliee est un formulaire entier.
+                     `<details>` natif, comme le formulaire de creation :
+                     aucune dependance, aucun script. --}}
+                <details class="group rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden">
                         <div class="min-w-0">
                             <h2 class="flex flex-wrap items-center gap-2 text-base font-semibold text-gray-900 dark:text-gray-100">
                                 {{ $type['label'] }}
@@ -133,13 +133,32 @@
                                     </span>
                                 @endif
                             </h2>
-                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $type['description'] }}</p>
                             <p class="mt-1 text-xs text-gray-400">
                                 <code>{{ $type['key'] }}</code>
-                                · {{ trans_choice('loops.types_admin_loops_count', $type['loops'], ['count' => $type['loops']]) }}
+                                ·
+                                {{-- Le meme contexte que l'ecran : portee globale
+                                     -> type seul ; portee Organization ->
+                                     Organization + type. Le chiffre est celui de
+                                     countLoopsOfType(), alias replies — la liste
+                                     ouverte doit rendre exactement ce compte. --}}
+                                <a href="{{ route('admin.loops', array_filter(['organization_id' => $scope?->id, 'type' => $key])) }}"
+                                   class="underline decoration-dotted underline-offset-2 transition hover:text-indigo-600 dark:hover:text-indigo-400">
+                                    {{ trans_choice('loops.types_admin_loops_count', $type['loops'], ['count' => $type['loops']]) }}
+                                </a>
                             </p>
                         </div>
-                    </div>
+                        <svg class="h-5 w-5 shrink-0 text-gray-400 transition-transform group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
+                        </svg>
+                    </summary>
+
+                    <div class="border-t border-gray-100 px-5 pb-5 pt-4 dark:border-gray-700">
+                    @if($type['description'])
+                        <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">{{ $type['description'] }}</p>
+                    @endif
+                    <form method="POST" action="{{ route('admin.loop-types.update', $key) }}">
+                    @csrf @method('PUT')
+                    <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
 
                     {{-- Le mot, jamais la cle.
                          `key = training` reste `training` : c'est elle que
@@ -210,27 +229,31 @@
                             </button>
                         </div>
                     </div>
-                </form>
+                    </form>
 
-                {{-- Outside the card's form: nested forms are invalid HTML. --}}
+                    {{-- Seuls les types crees se suppriment : ceux du fichier
+                         n'existent pas en base. Et le refus, quand une Boucle le
+                         porte, vient du service — pas d'un `confirm()`.
+                         Frere du formulaire d'edition, jamais imbrique. --}}
+                    @if(isset($created[$key]))
+                        <form method="POST" action="{{ route('admin.loop-types.destroy', $created[$key]) }}"
+                              class="mt-3 flex justify-end">
+                            @csrf @method('DELETE')
+                            <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
+                            <button type="submit" class="text-xs text-gray-400 underline underline-offset-2 transition hover:text-red-600 dark:hover:text-red-400">
+                                {{ __('loops.types_admin_delete') }}
+                            </button>
+                        </form>
+                    @endif
+                    </div>
+                </details>
+
+                {{-- Outside the card: nested forms are invalid HTML, and the
+                     submit button reaches this one by its `form` attribute. --}}
                 @if($type['customised'])
                     <form id="reset-{{ $key }}" method="POST" action="{{ route('admin.loop-types.reset', $key) }}" class="hidden">
                         @csrf @method('DELETE')
                         <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
-                    </form>
-                @endif
-
-                {{-- Seuls les types crees se suppriment : ceux du fichier
-                     n'existent pas en base. Et le refus, quand une Boucle le
-                     porte, vient du service — pas d'un `confirm()`. --}}
-                @if(isset($created[$key]))
-                    <form method="POST" action="{{ route('admin.loop-types.destroy', $created[$key]) }}"
-                          class="-mt-2 mb-2 flex justify-end">
-                        @csrf @method('DELETE')
-                        <input type="hidden" name="scope" value="{{ $scope?->id ?? 'platform' }}">
-                        <button type="submit" class="text-xs text-gray-400 underline underline-offset-2 transition hover:text-red-600 dark:hover:text-red-400">
-                            {{ __('loops.types_admin_delete') }}
-                        </button>
                     </form>
                 @endif
             @endforeach

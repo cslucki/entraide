@@ -24,6 +24,7 @@ use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -38,6 +39,42 @@ class AdminLoopController extends Controller
         $organizations = $this->adminOrganizations();
         $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
 
+        // Le parametre arrive de l'URL — forme puis existence, comme scope()
+        // sur l'ecran des types. `organizations.id` est une colonne `uuid` :
+        // PostgreSQL refuse la comparaison avec une chaine forgee et leve
+        // `22P02`, une 500 la ou il faut une 404. SQLite compare comme du
+        // texte : le defaut ne se voyait qu'en production.
+        $selectedOrganization = null;
+
+        if ($selectedOrganizationId !== 'all') {
+            abort_unless(Str::isUuid($selectedOrganizationId), 404);
+
+            $selectedOrganization = $organizations->firstWhere('id', $selectedOrganizationId);
+
+            abort_unless($selectedOrganization !== null, 404);
+        }
+
+        $registry = app(LoopTypeRegistry::class);
+
+        // Le filtre ne propose que ce que la portee affichee connait : chez
+        // une Organization, les types communs et les siens — jamais le type
+        // prive d'une voisine ; sur « Toutes les organisations », le
+        // catalogue entier, types crees compris.
+        $typeOptions = [];
+
+        foreach (array_keys($selectedOrganization ? $registry->all($selectedOrganization) : $registry->fullCatalogue()) as $key) {
+            $typeOptions[$key] = $registry->label($key, $selectedOrganization);
+        }
+
+        // Un type que la portee affichee ne propose pas — forge, ou alias
+        // legacy — n'est pas un filtre : le selecteur afficherait « Tous les
+        // types » au-dessus d'une liste qui ne le serait pas.
+        $selectedType = (string) $request->input('type', '');
+
+        if (! array_key_exists($selectedType, $typeOptions)) {
+            $selectedType = '';
+        }
+
         // Everything the list shows is counted in the query rather than walked
         // per row: members, invitations (total and pending) and cards. `cards`
         // is eager-loaded once for the badges — 25 rows, no N+1.
@@ -50,8 +87,14 @@ class AdminLoopController extends Controller
             ])
             ->latest();
 
-        if ($selectedOrganizationId !== 'all') {
-            $query->where('organization_id', $selectedOrganizationId);
+        if ($selectedOrganization !== null) {
+            $query->where('organization_id', $selectedOrganization->id);
+        }
+
+        if ($selectedType !== '') {
+            // Les memes valeurs stockees que countLoopsOfType() : le lien venu
+            // de /admin/loop-types doit rendre exactement le compte annonce.
+            $query->whereIn('type', $registry->storedTypeValues($selectedType));
         }
 
         $loops = $query->paginate(25)->withQueryString();
@@ -62,9 +105,21 @@ class AdminLoopController extends Controller
             'loops' => $loops,
             'organizations' => $organizations,
             'selectedOrganizationId' => $selectedOrganizationId,
+            'selectedOrganization' => $selectedOrganization,
+            'selectedType' => $selectedType,
+            'typeOptions' => $typeOptions,
+            // Deux chiffres, pas un dashboard. Le premier ne bouge jamais :
+            // c'est la reference du parc entier, quels que soient les filtres.
+            // Le second suit l'Organization **choisie dans le filtre** — pas le
+            // contexte de requete — et le filtre Type ne le change pas non
+            // plus : c'est le total de l'Organization, pas celui de la page.
+            'totalLoops' => Loop::query()->count(),
+            'organizationLoops' => $selectedOrganization
+                ? Loop::query()->where('organization_id', $selectedOrganization->id)->count()
+                : null,
             // Only what may be chosen. A Loop still on a withdrawn type keeps
             // it in its own selector — see selectableFor() in the view.
-            'loopTypes' => app(LoopTypeRegistry::class)->available(),
+            'loopTypes' => $registry->available(),
         ]);
     }
 
