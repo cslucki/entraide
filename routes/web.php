@@ -509,6 +509,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Never per-Loop: there is no loop_id anywhere in this flow (TASK-1079).
     Route::get('/loop-permissions', [AdminLoopPermissionController::class, 'index'])->name('loop-permissions');
     Route::put('/loop-permissions', [AdminLoopPermissionController::class, 'update'])->name('loop-permissions.update');
+    Route::delete('/loop-permissions', [AdminLoopPermissionController::class, 'reset'])->name('loop-permissions.reset');
 
     // Composition des types de Boucles (super-admin). Le contrôleur refuse
     // lui-même tout non super-admin : le groupe admin ne suffit pas.
