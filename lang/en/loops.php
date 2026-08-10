@@ -818,7 +818,7 @@ return [
     'manifesto_sources_cancel' => 'Cancel',
     'manifesto_sources_detach' => 'Detach',
     'manifesto_sources_empty' => 'No related document. Documents stay managed in Dossiers.',
-    'manifesto_sources_no_candidate' => 'No document available in this Organization\'s Dossiers.',
+    'manifesto_sources_no_candidate' => 'No document in this Loop\'s shared Dossier yet. Upload your files there first.',
     'manifesto_source_refused' => 'This document cannot be linked to this Manifesto.',
     // Public presentation
     'manifesto_public_title' => 'Manifesto',

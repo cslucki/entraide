@@ -820,7 +820,7 @@ return [
     'manifesto_sources_cancel' => 'Annuler',
     'manifesto_sources_detach' => 'Détacher',
     'manifesto_sources_empty' => 'Aucun document associé. Les documents restent gérés dans Dossiers.',
-    'manifesto_sources_no_candidate' => 'Aucun document disponible dans les Dossiers de cette Organization.',
+    'manifesto_sources_no_candidate' => 'Aucun document dans le Dossier partagé de cette Boucle. Déposez-y d\'abord vos fichiers.',
     'manifesto_source_refused' => 'Ce document ne peut pas être associé à ce Manifeste.',
     // Présentation publique
     'manifesto_public_title' => 'Manifeste',
