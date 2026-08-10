@@ -204,7 +204,9 @@ class AdminLoopController extends Controller
         return view('admin.loops.configure', [
             'loop' => $loop,
             'composition' => $configurator->describe($loop),
-            'types' => app(LoopTypeRegistry::class)->selectableFor($loop->type),
+            // Dans la portee de la Boucle : elle seule dit quels types existent
+            // ici, et sous quel mot.
+            'types' => app(LoopTypeRegistry::class)->selectableFor($loop->type, $loop->organization),
             'organization' => $loop->organization,
             'backUrl' => route('admin.loops.edit', $loop),
         ]);

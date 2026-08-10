@@ -36,11 +36,17 @@
         $typeRegistry = app(\App\Support\Loops\LoopTypeRegistry::class);
         $countByType = $loops->countBy(fn ($l) => $typeRegistry->resolve($l->type));
 
+        // La portée : les types se nomment et s'offrent **chez cette
+        // Organization**. Sans elle, un type qu'elle a créé n'avait pas
+        // d'onglet, et un type qu'elle a renommé s'affichait sous son nom
+        // commun.
+        $tabOrganization = $organization ?? null;
+
         // Tous les types proposables, plus ceux qu'une Boucle listée porte
         // encore alors qu'ils ont été retirés de l'offre : sinon ces Boucles
         // seraient visibles dans « Toutes » et introuvables ailleurs.
-        $tabTypes = collect($typeRegistry->all())
-            ->filter(fn ($d, $key) => $typeRegistry->isAvailable($key) || ($countByType[$key] ?? 0) > 0);
+        $tabTypes = collect($typeRegistry->all($tabOrganization))
+            ->filter(fn ($d, $key) => $typeRegistry->isAvailable($key, $tabOrganization) || ($countByType[$key] ?? 0) > 0);
 
         $mineByType = $mine->countBy(fn ($l) => $typeRegistry->resolve($l->type));
         $discoverByType = $discover->countBy(fn ($l) => $typeRegistry->resolve($l->type));
@@ -130,7 +136,11 @@
                             <button type="button" @click="type = '{{ $key }}'"
                                     :class="type === '{{ $key }}' ? 'border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
                                     class="px-5 py-3 text-sm font-medium whitespace-nowrap transition">
-                                {{ __($definition['label_key']) }}
+                                {{-- Le registre, jamais la définition : un type
+                                     créé n'a pas de clé de traduction, et le mot
+                                     surchargé par l'Organization doit se lire
+                                     ici comme partout ailleurs. --}}
+                                {{ $typeRegistry->label($key, $tabOrganization) }}
                                 <span class="ml-1 text-xs font-normal opacity-70">{{ $countByType[$key] ?? 0 }}</span>
                             </button>
                         @endforeach

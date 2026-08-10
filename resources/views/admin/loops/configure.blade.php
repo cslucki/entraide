@@ -14,6 +14,11 @@
     // Dupliquer l'ecran aurait garanti qu'ils divergent a la premiere evolution.
     $composeUrl = $scopedRoutes['compose'] ?? route('admin.loops.compose', $loop);
     $presetUrl = $scopedRoutes['preset'] ?? route('admin.loops.preset.apply', $loop);
+
+    // Resolu **ici**, pas recu du controleur : deux controleurs rendent cet
+    // ecran, et une variable attendue de l'un des deux est une 500 en attente
+    // — c'est exactement ce qui est arrive en ecrivant cette tache.
+    $typeRegistry = app(\App\Support\Loops\LoopTypeRegistry::class);
 @endphp
 <x-app-layout :title="__('loops.preset_grid_title')">
     <x-page-container>
@@ -164,8 +169,11 @@
                 @csrf
                 <select name="type"
                         class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+                    {{-- Le registre, jamais la définition : un type créé n'a pas
+                         de clé de traduction, et le mot se lit dans la portée de
+                         la Boucle. --}}
                     @foreach($types as $key => $definition)
-                        <option value="{{ $key }}" @selected($key === $composition['preset'])>{{ __($definition['label_key']) }}</option>
+                        <option value="{{ $key }}" @selected($key === $composition['preset'])>{{ $typeRegistry->label($key, $organization) }}</option>
                     @endforeach
                 </select>
 
