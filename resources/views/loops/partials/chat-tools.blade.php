@@ -5,7 +5,11 @@
 
      L'icone et la teinte d'une Card viennent du composant x-loops.card-icon,
      seul endroit qui les declare. --}}
-<div class="flex items-center gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+{{-- Deux niveaux : la barre qui defile, et — hors d'elle — le depliant
+     « Autres outils ». `overflow-x-auto` cree un contexte de rognage : un
+     panneau absolu place dedans est coupe (constate en recette TASK-1124). --}}
+<div class="flex items-center gap-3">
+<div class="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
     <span class="hidden shrink-0 items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.04em] text-gray-400 dark:text-gray-500 sm:inline-flex" title="{{ __('loops.cards_bar_hint') }}">
         <svg class="h-4 w-4 text-violet-500 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 4V2m0 20v-2M9 4l1 1m4 14 1 1M4 9h2m14 6h2M4 15l1-1m14-4 1-1M6.5 17.5 17 7"/></svg>
         {{ __('loops.cards_bar_launch') }}
@@ -41,30 +45,6 @@
             </button>
         @endforeach
 
-        @if(($secondaryCards ?? collect())->isNotEmpty())
-            {{-- Le plus petit accès possible : un dépliant, pas une nouvelle
-                 navigation. Ces outils sont actifs — seulement pas mis en
-                 avant. --}}
-            <div class="relative shrink-0" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
-                <button type="button" x-on:click="open = ! open" x-bind:aria-expanded="open"
-                        class="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 transition hover:border-violet-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-violet-700">
-                    {{ __('loops.tools_others_title') }}
-                    <span class="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">{{ $secondaryCards->count() }}</span>
-                    <svg class="h-3.5 w-3.5 transition-transform" x-bind:class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
-                </button>
-
-                <div x-show="open" x-cloak x-on:click.outside="open = false"
-                     class="absolute left-0 top-full z-30 mt-1.5 w-60 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                    @foreach($secondaryCards as $card)
-                        <button type="button" x-on:click="openCard(@js($card['key'])); open = false"
-                                class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            <x-loops.card-icon :icon="$card['icon'] ?? null" />
-                            <span class="min-w-0 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{{ app(\App\Support\Loops\LoopCardRegistry::class)->labelFor($currentLoop, $card['key']) }}</span>
-                        </button>
-                    @endforeach
-                </div>
-            </div>
-        @endif
     </div>
 
     {{-- Expand chat (focus) — desktop only, when a panel is open --}}
@@ -81,4 +61,30 @@
         <svg x-show="focus !== 'chat'" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5-5-5m5 5v-4m0 4h-4"/></svg>
         <svg x-show="focus === 'chat'" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V5m0 4H5m4 0L4 4m11 5h4m-4 0V5m0 4 5-5M9 15v4m0-4H5m4 0-5 5m11-5h4m-4 0v4m0-4 5 5"/></svg>
     </button>
+</div>
+
+        @if(($secondaryCards ?? collect())->isNotEmpty())
+        {{-- Le plus petit accès possible : un dépliant, pas une nouvelle
+             navigation. Ces outils sont actifs — seulement pas mis en
+             avant. --}}
+        <div class="relative shrink-0" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+            <button type="button" x-on:click="open = ! open" x-bind:aria-expanded="open"
+                    class="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 transition hover:border-violet-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-violet-700">
+                {{ __('loops.tools_others_title') }}
+                <span class="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">{{ $secondaryCards->count() }}</span>
+                <svg class="h-3.5 w-3.5 transition-transform" x-bind:class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+            </button>
+
+            <div x-show="open" x-cloak x-on:click.outside="open = false"
+                 class="absolute left-0 top-full z-30 mt-1.5 w-60 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                @foreach($secondaryCards as $card)
+                    <button type="button" x-on:click="openCard(@js($card['key'])); open = false"
+                            class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <x-loops.card-icon :icon="$card['icon'] ?? null" />
+                        <span class="min-w-0 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{{ app(\App\Support\Loops\LoopCardRegistry::class)->labelFor($currentLoop, $card['key']) }}</span>
+                    </button>
+                @endforeach
+            </div>
+        </div>
+    @endif
 </div>
