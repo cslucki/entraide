@@ -365,7 +365,7 @@ class TASK1124PrimaryToolsTest extends TestCase
             ->assertDontSee('Cards distinctives');
     }
 
-    public function test_the_workspace_shows_the_other_tools_group(): void
+    public function test_the_workspace_hides_none_of_the_active_tools(): void
     {
         $this->withSession(['locale' => 'fr']);
         $actifs = $this->activerJusqua(5);
@@ -379,15 +379,23 @@ class TASK1124PrimaryToolsTest extends TestCase
             ]))
             ->assertOk();
 
-        $reponse->assertSee(__('loops.tools_others_title'));
+        // **TASK-1128** : la barre montre cinq outils directement. Avec cinq
+        // actifs, il n'y a plus rien a faire deborder — donc plus de groupe
+        // « Autres outils ». Ce test gardait la presence du groupe ; il garde
+        // desormais ce qu'il protegeait vraiment : **aucun outil actif n'est
+        // masque**. C'est mieux servi qu'avant, pas moins.
+        $reponse->assertDontSee(__('loops.tools_others_title'));
 
-        // Les cinq outils actifs sont **tous** presents dans la page : aucun
-        // n'est masque par un plafond d'affichage.
         $registry = $this->registry();
         $rendus = $registry->primaryWorkspaceCardsFor($this->boucle->fresh(), $membre)
             ->merge($registry->secondaryWorkspaceCardsFor($this->boucle->fresh(), $membre))
             ->pluck('key')->sort()->values()->all();
 
         $this->assertSame(collect($actifs)->sort()->values()->all(), $rendus);
+
+        // Et ils sont tous atteignables a l'ecran, sans deplier quoi que ce soit.
+        foreach ($rendus as $cle) {
+            $reponse->assertSee($registry->labelFor($this->boucle->fresh(), $cle));
+        }
     }
 }

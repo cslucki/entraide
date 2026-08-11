@@ -33,6 +33,15 @@ use Illuminate\View\View;
 
 class LoopController extends Controller
 {
+    /**
+     * Combien d'outils la barre de ChatLoop montre directement.
+     *
+     * **Ce n'est pas la regle des outils mis en avant** (trois au plus,
+     * TASK-1124), qui vit dans `LoopCardCompositionService::MAX_PRIMARY` et
+     * n'a pas bouge. Ici on ne parle que de place a l'ecran.
+     */
+    private const TOOLBAR_VISIBLE = 5;
+
     public function __construct(
         private readonly LoopService $loopService,
         private readonly LoopMessageService $loopMessageService,
@@ -545,6 +554,11 @@ class LoopController extends Controller
             // peut apparaitre ici qui ne soit pas dans `workspaceCards`.
             'primaryCards' => $this->workspaceCardsFor($loop, $user, 'primary'),
             'secondaryCards' => $this->workspaceCardsFor($loop, $user, 'secondary'),
+            // La barre : ce qui tient devant, et ce qui deborde. **Aucune
+            // regle metier ici** — `primary_rank` n'est ni lu autrement ni
+            // ecrit. On decoupe simplement la meme liste (mis en avant
+            // d'abord, puis les autres actifs) a la limite d'affichage.
+            ...$this->toolbarSplit($loop, $user),
             // Le cadre permanent et les actions IA de ChatLoop : declares dans
             // le meme registre, mais rendus ailleurs qu'en grille (TASK-1090).
             'frameCards' => $this->placedCardsFor($loop, $user, 'frame'),
@@ -563,6 +577,34 @@ class LoopController extends Controller
             // sur une cle de Card dans le Blade.
             'cardRegistry' => app(LoopCardRegistry::class),
         ]);
+    }
+
+    /**
+     * Ce que la barre d'outils montre, et ce qu'elle renvoie au debordement.
+     *
+     * **Cinq outils accessibles directement** (TASK-1128) : les mis en avant
+     * d'abord, puis les autres outils actifs, dans l'ordre. Au-dela, le reste
+     * passe au debordement — le meme deplie qu'avant, qui n'apparait plus du
+     * tout quand tout tient.
+     *
+     * **Rien de metier ne se decide ici, et c'est le point important.** Cinq
+     * outils *visibles* n'est pas cinq outils *mis en avant* : la regle de
+     * TASK-1124 reste a trois, `primary_rank` n'est ni lu autrement ni ecrit,
+     * et aucune migration n'accompagne ce changement. La limite est un choix
+     * d'affichage, rien d'autre.
+     *
+     * @return array{toolbarCards: \Illuminate\Support\Collection<int, array<string, mixed>>, toolbarOverflow: \Illuminate\Support\Collection<int, array<string, mixed>>}
+     */
+    private function toolbarSplit(Loop $loop, User $user): array
+    {
+        $ordonnes = $this->workspaceCardsFor($loop, $user, 'primary')
+            ->concat($this->workspaceCardsFor($loop, $user, 'secondary'))
+            ->values();
+
+        return [
+            'toolbarCards' => $ordonnes->take(self::TOOLBAR_VISIBLE)->values(),
+            'toolbarOverflow' => $ordonnes->slice(self::TOOLBAR_VISIBLE)->values(),
+        ];
     }
 
     /**
