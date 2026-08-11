@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    CI SQLITE — Regression gate, seconde moitie du filet.
+
+    Miroir de `phpunit.xml` (la suite complete locale) pour GitHub Actions :
+    Unit + Feature, SQLite `:memory:`, **aucune exclusion de groupe**.
+
+    ## Pourquoi un fichier de plus
+
+    Deux differences avec `phpunit.xml`, et elles sont toutes deux
+    indispensables :
+
+    1. **La locale.** `phpunit.xml` ne fixe pas `APP_LOCALE` : en local elle
+       vient de `.env` (`fr`). La CI n'a pas de `.env` et retomberait sur le
+       defaut de `config/app.php`. C'est exactement le piege qui avait produit
+       42 faux echecs « Manifesto » la ou le test attend « Manifeste », avant
+       TASK-1112. Une reference d'echecs capturee sous une autre locale ne
+       decrirait pas la meme suite.
+
+    2. **La cle.** `phpunit.xml` porte une cle locale ; on reprend ici celle
+       des autres configs CI, pour que les trois gates parlent de la meme
+       application.
+
+    ## Pourquoi aucune exclusion
+
+    `phpunit.ci-feature.xml` exclut `ci-known-red` et `sqlite-only` parce que
+    PostgreSQL doit rester **vert**. Ici le contrat est different : le gate ne
+    demande pas zero echec, il demande que **l'ensemble des echecs soit
+    exactement celui de la reference**. Masquer des tests n'aurait donc aucun
+    interet — et `sqlite-only` designe precisement les tests qui ne valent que
+    sous SQLite, c'est-a-dire ici.
+
+    Consequence utile : ce job execute les **43 tests que le gate PostgreSQL
+    n'execute pas**.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI="/>
+        <env name="APP_URL" value="http://localhost"/>
+        <env name="APP_LOCALE" value="fr"/>
+        <env name="APP_FALLBACK_LOCALE" value="fr"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="DB_URL" value=""/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+    </php>
+</phpunit>
