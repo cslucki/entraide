@@ -33,6 +33,15 @@ use Illuminate\View\View;
 
 class LoopController extends Controller
 {
+    /**
+     * Combien d'outils la barre de ChatLoop montre directement.
+     *
+     * **Ce n'est pas la regle des outils mis en avant** (trois au plus,
+     * TASK-1124), qui vit dans `LoopCardCompositionService::MAX_PRIMARY` et
+     * n'a pas bouge. Ici on ne parle que de place a l'ecran.
+     */
+    private const TOOLBAR_VISIBLE = 5;
+
     public function __construct(
         private readonly LoopService $loopService,
         private readonly LoopMessageService $loopMessageService,
@@ -549,10 +558,6 @@ class LoopController extends Controller
             // regle metier ici** — `primary_rank` n'est ni lu autrement ni
             // ecrit. On decoupe simplement la meme liste (mis en avant
             // d'abord, puis les autres actifs) a la limite d'affichage.
-            //
-            // `?outils=5` est le prototype de TASK-1128 : il permet de
-            // comparer 3 et 5 sur la meme Boucle, cote a cote, sans migration
-            // ni changement de stockage. Le defaut reste 3.
             ...$this->toolbarSplit($loop, $user),
             // Le cadre permanent et les actions IA de ChatLoop : declares dans
             // le meme registre, mais rendus ailleurs qu'en grille (TASK-1090).
@@ -577,34 +582,28 @@ class LoopController extends Controller
     /**
      * Ce que la barre d'outils montre, et ce qu'elle renvoie au debordement.
      *
-     * Les outils mis en avant d'abord, puis les autres outils actifs, coupes a
-     * la limite d'affichage. Le reste alimente « Autres outils » — le meme
-     * deplie qu'avant, qui devient le debordement plutot qu'un second rang.
+     * **Cinq outils accessibles directement** (TASK-1128) : les mis en avant
+     * d'abord, puis les autres outils actifs, dans l'ordre. Au-dela, le reste
+     * passe au debordement — le meme deplie qu'avant, qui n'apparait plus du
+     * tout quand tout tient.
      *
-     * **Rien de metier ne se decide ici.** La limite est un choix d'affichage :
-     * `?outils=5` (prototype TASK-1128) contre 3 par defaut. Aucune ecriture,
-     * aucune lecture nouvelle de `primary_rank`.
+     * **Rien de metier ne se decide ici, et c'est le point important.** Cinq
+     * outils *visibles* n'est pas cinq outils *mis en avant* : la regle de
+     * TASK-1124 reste a trois, `primary_rank` n'est ni lu autrement ni ecrit,
+     * et aucune migration n'accompagne ce changement. La limite est un choix
+     * d'affichage, rien d'autre.
      *
-     * @return array{toolbarCards: \Illuminate\Support\Collection<int, array<string, mixed>>, toolbarOverflow: \Illuminate\Support\Collection<int, array<string, mixed>>, toolbarLimit: int}
+     * @return array{toolbarCards: \Illuminate\Support\Collection<int, array<string, mixed>>, toolbarOverflow: \Illuminate\Support\Collection<int, array<string, mixed>>}
      */
     private function toolbarSplit(Loop $loop, User $user): array
     {
-        // `request()` plutot qu'un parametre : `show()` recoit ses arguments du
-        // routage (Loop|Organization), y glisser une Request casserait la
-        // liaison de modele.
-        //
-        // Deux valeurs seulement : ce parametre sert a trancher une question
-        // produit, pas a ouvrir un reglage libre.
-        $limite = request()->query('outils') === '5' ? 5 : 3;
-
         $ordonnes = $this->workspaceCardsFor($loop, $user, 'primary')
             ->concat($this->workspaceCardsFor($loop, $user, 'secondary'))
             ->values();
 
         return [
-            'toolbarCards' => $ordonnes->take($limite)->values(),
-            'toolbarOverflow' => $ordonnes->slice($limite)->values(),
-            'toolbarLimit' => $limite,
+            'toolbarCards' => $ordonnes->take(self::TOOLBAR_VISIBLE)->values(),
+            'toolbarOverflow' => $ordonnes->slice(self::TOOLBAR_VISIBLE)->values(),
         ];
     }
 

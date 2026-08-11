@@ -23,8 +23,10 @@ use Tests\TestCase;
  *   peut reellement faire, avec les gardes qui existaient deja. Un menu qui
  *   proposerait « Modifier » a qui ne le peut pas serait pire que quatre
  *   boutons.
- * - **La barre coupe au bon endroit.** 3 par defaut, 5 avec le prototype, et
- *   ce qui depasse va au debordement — sans qu'aucune regle metier ne bouge.
+ * - **La barre coupe au bon endroit.** Cinq outils directement accessibles,
+ *   les mis en avant d'abord, et ce qui depasse va au debordement — sans
+ *   qu'aucune regle metier ne bouge. Cinq *visibles* n'est pas cinq *mis en
+ *   avant* : `MAX_PRIMARY` reste a trois, et un test le verifie.
  */
 class TASK1128ChatLoopHeaderTest extends TestCase
 {
@@ -156,67 +158,107 @@ class TASK1128ChatLoopHeaderTest extends TestCase
         $this->assertStringContainsString(__('loops.manage_loop'), $html);
     }
 
-    // ── La barre : 3, 5, et le debordement ──────────────────────────────────
+    // ── La barre : cinq visibles, et le debordement ─────────────────────────
 
-    public function test_the_bar_shows_three_tools_by_default(): void
+    public function test_five_tools_are_directly_accessible(): void
     {
         $this->activer('core.roadmap', 'core.decisions', 'core.journal', 'core.article');
 
         $html = $this->workspace();
 
-        // Sept outils actifs, trois devant : le compteur du debordement dit
-        // exactement ce qui reste.
-        $this->assertStringContainsString(__('loops.tools_others_title'), $html);
-        $this->assertStringContainsString('>4</span>', $html);
+        // Sept outils actifs : cinq devant, deux au debordement — et le
+        // compteur le dit en mots, pas en jargon.
+        $this->assertStringContainsString(
+            trans_choice('loops.tools_overflow_count', 2, ['count' => 2]),
+            $html,
+        );
     }
 
-    public function test_the_prototype_shows_five_tools_and_shrinks_the_overflow(): void
+    public function test_the_featured_tools_come_first(): void
     {
         $this->activer('core.roadmap', 'core.decisions', 'core.journal', 'core.article');
 
-        $html = $this->workspace(params: ['outils' => 5]);
+        $composition = app(LoopPresetConfigurator::class)->describe($this->loop);
+        $misEnAvant = array_column($composition['primary'], 'key');
 
-        // Cinq devant, deux derriere. Le meme ensemble, coupe ailleurs.
-        $this->assertStringContainsString(__('loops.tools_others_title'), $html);
-        $this->assertStringContainsString('>2</span>', $html);
+        $this->assertCount(3, $misEnAvant, 'la regle des 3 mis en avant a bouge');
+
+        $html = $this->workspace();
+
+        // Les trois mis en avant apparaissent avant le quatrieme outil de la
+        // barre : cinq visibles ne veut pas dire cinq mis en avant.
+        $positions = array_map(
+            fn (string $cle) => strpos($html, app(\App\Support\Loops\LoopCardRegistry::class)->label($cle)),
+            $misEnAvant,
+        );
+
+        $this->assertSame($positions, array_values(array_filter($positions)), 'un outil mis en avant manque de la barre');
     }
 
     public function test_the_overflow_disappears_when_everything_fits(): void
     {
-        // Cinq outils actifs exactement, variante a cinq : « Autres outils »
-        // n'a plus de raison d'etre.
+        // Cinq outils actifs exactement : plus rien a faire deborder, donc
+        // aucun controle de debordement.
         $this->activer('core.roadmap', 'core.decisions');
 
-        $html = $this->workspace(params: ['outils' => 5]);
+        $html = $this->workspace();
 
+        $this->assertStringNotContainsString(
+            trans_choice('loops.tools_overflow_count', 1, ['count' => 1]),
+            $html,
+        );
         $this->assertStringNotContainsString(__('loops.tools_others_title'), $html);
     }
 
-    public function test_the_prototype_never_writes_anything(): void
+    public function test_showing_five_tools_never_touches_the_stored_ranks(): void
     {
         $this->activer('core.roadmap', 'core.decisions', 'core.journal');
 
         $avant = LoopCard::where('loop_id', $this->loop->id)
             ->orderBy('card_key')->pluck('primary_rank', 'card_key')->all();
 
-        $this->workspace(params: ['outils' => 5]);
+        $this->workspace();
 
         $apres = LoopCard::where('loop_id', $this->loop->id)
             ->orderBy('card_key')->pluck('primary_rank', 'card_key')->all();
 
-        // Le prototype est un choix d'affichage. `primary_rank` ne bouge pas,
-        // la regle des 3 mis en avant non plus.
+        // **Cinq visibles n'est pas cinq mis en avant.** `primary_rank` ne
+        // bouge pas, la regle de TASK-1124 non plus.
         $this->assertSame($avant, $apres);
+        $this->assertSame(3, \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY);
     }
 
-    public function test_an_unknown_value_falls_back_to_three(): void
+    public function test_the_url_no_longer_controls_the_toolbar(): void
     {
         $this->activer('core.roadmap', 'core.decisions', 'core.journal', 'core.article');
 
-        // `?outils=99` ne doit pas ouvrir un reglage libre.
-        $html = $this->workspace(params: ['outils' => '99']);
+        // Le prototype de comparaison a ete retire : une query string ne
+        // pilote plus cette UX.
+        $avecParam = $this->workspace(params: ['outils' => '3']);
+        $sansParam = $this->workspace();
 
-        $this->assertStringContainsString('>4</span>', $html);
+        foreach ([$avecParam, $sansParam] as $html) {
+            $this->assertStringContainsString(
+                trans_choice('loops.tools_overflow_count', 2, ['count' => 2]),
+                $html,
+            );
+        }
+    }
+
+    public function test_the_ai_summary_still_has_its_own_button(): void
+    {
+        // Verification exigee a l'arbitrage : le Resume IA n'a pas disparu
+        // avec le regroupement. Il reste une action de conversation, hors du
+        // menu, avec son bouton propre — il n'etait absent de la recette que
+        // parce que la Boucle QA ne l'avait pas actif.
+        LoopCard::create([
+            'loop_id' => $this->loop->id,
+            'organization_id' => $this->org->id,
+            'card_key' => 'core.ai_summary',
+            'enabled' => true,
+        ]);
+
+        $this->assertStringContainsString(__('loops.cards.ai_summary.label'), $this->workspace());
     }
 
     // ── Tenant ──────────────────────────────────────────────────────────────
