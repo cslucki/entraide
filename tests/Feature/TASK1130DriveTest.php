@@ -94,7 +94,6 @@ class TASK1130DriveTest extends TestCase
 
         $html = $this->page($this->racine);
 
-        $this->assertStringContainsString(__('dossiers.drive_folders_heading'), $html);
         $this->assertStringContainsString('Projet Marseille', $html);
         $this->assertStringContainsString('Budget previsionnel', $html);
     }
@@ -208,7 +207,6 @@ class TASK1130DriveTest extends TestCase
 
         $html = $this->page($this->racine);
 
-        $this->assertStringContainsString(__('dossiers.drive_articles_heading'), $html);
         $this->assertStringContainsString('Compte rendu de la reunion', $html);
         $this->assertStringContainsString(__('dossiers.drive_article_badge'), $html);
     }

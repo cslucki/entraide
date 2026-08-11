@@ -133,7 +133,7 @@
                         <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ __('dossiers.your_role', ['role' => __('dossiers.role_'.$userRole)]) }}</span>
                     @endif
                 </div>
-                <p class="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.show_subtitle') }}</p>
+                <p class="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.drive_subtitle') }}</p>
             </div>
         </div>
 
@@ -149,106 +149,7 @@
             </div>
         @endif
 
-        {{-- ── Le Drive : dossiers, Articles et fichiers, une seule vue ── --}}
-        <section class="mt-8" aria-label="{{ __('dossiers.drive_breadcrumb_root') }}">
-            <nav class="flex flex-wrap items-center gap-1.5 text-sm" aria-label="Breadcrumb">
-                @if($driveRoot)
-                    <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $driveRoot->getKey()]) }}"
-                       class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ __('dossiers.drive_breadcrumb_root') }}</a>
-                    <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
-                    <span class="max-w-[16rem] truncate font-semibold text-gray-900 dark:text-gray-100" aria-current="page">{{ $dossier->name }}</span>
-                @elseif($dossier->isLoopDossier())
-                    <span class="font-semibold text-gray-900 dark:text-gray-100" aria-current="page">{{ __('dossiers.drive_breadcrumb_root') }}</span>
-                @endif
-            </nav>
-
-            {{-- Les dossiers de la Boucle : des Dossiers reellement partages
-                 avec elle. Ils s'ouvrent ; le breadcrumb ramene. --}}
-            @if($dossier->isLoopDossier())
-                <div class="mt-4 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('dossiers.drive_folders_heading') }}</h2>
-                        @can('create', App\Models\Dossier::class)
-                            <button type="button" @click="window.dispatchEvent(new CustomEvent('open-new-folder'))"
-                                    class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-300 px-3.5 text-sm font-semibold text-gray-700 transition hover:border-indigo-300 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-200 dark:hover:border-indigo-600 dark:hover:text-indigo-300">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
-                                {{ __('dossiers.drive_new_folder') }}
-                            </button>
-                        @endcan
-                    </div>
-
-                    @if($driveFolders->isEmpty())
-                        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.drive_empty_desc') }}</p>
-                    @else
-                        <ul class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                            @foreach($driveFolders as $folder)
-                                {{-- `min-w-0` : un item de grille garde sinon
-                                     min-width:auto, et un nom long elargit la
-                                     colonne au lieu de se tronquer. --}}
-                                <li class="min-w-0">
-                                    <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}"
-                                       class="group flex min-h-14 items-center gap-3 rounded-2xl border border-gray-200 px-4 py-3 transition hover:border-amber-300 hover:bg-amber-50/40 dark:border-gray-700 dark:hover:border-amber-600/60 dark:hover:bg-amber-500/5">
-                                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300" aria-hidden="true">
-                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
-                                        </span>
-                                        <span class="min-w-0 flex-1">
-                                            <span class="block truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $folder->name }}</span>
-                                            <span class="block text-xs text-gray-500 dark:text-gray-400">{{ trans_choice('dossiers.drive_folder_items', $folder->files_count + $folder->dossier_blog_posts_count, ['count' => $folder->files_count + $folder->dossier_blog_posts_count]) }}</span>
-                                        </span>
-                                        <svg class="h-4 w-4 shrink-0 text-gray-300 transition group-hover:text-amber-500 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
-                                    </a>
-                                </li>
-                            @endforeach
-                        </ul>
-                    @endif
-                </div>
-            @endif
-
-            {{-- Les Articles : identite editoriale conservee — crayon, titre,
-                 auteur. Ils cohabitent avec les fichiers, ils ne se deguisent
-                 pas en fichiers. --}}
-            @if($dossier->dossierBlogPosts->isNotEmpty())
-                <div class="mt-4 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
-                    <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('dossiers.drive_articles_heading') }}</h2>
-                    <ul class="mt-3 divide-y divide-gray-100 dark:divide-gray-700/60">
-                        @foreach($dossier->dossierBlogPosts as $entry)
-                            @php $post = $entry->blogPost; @endphp
-                            @continue(! $post || ! $canView($post))
-                            <li class="flex min-h-14 items-center gap-3 py-2.5">
-                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
-                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
-                                </span>
-                                <a href="{{ $blogShowRoute($post) }}" class="min-w-0 flex-1">
-                                    <span class="block truncate text-sm font-semibold text-gray-900 hover:text-indigo-600 dark:text-gray-100 dark:hover:text-indigo-300">{{ $post->title }}</span>
-                                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.drive_article_badge') }} · {{ $post->user?->publicDisplayName() }}</span>
-                                </a>
-                                <div class="relative shrink-0" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
-                                    <button type="button" @click="open = !open" x-bind:aria-expanded="open"
-                                            class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                                            aria-label="{{ $post->title }}">
-                                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
-                                    </button>
-                                    <div x-show="open" x-cloak @click.outside="open = false"
-                                         class="absolute right-0 top-full z-30 mt-1 w-48 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                                        <a href="{{ $blogShowRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
-                                        @if($canManageArticles)
-                                            <a href="{{ $blogEditRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_article') }}</a>
-                                            <form method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_remove_article') }}</button>
-                                            </form>
-                                        @endif
-                                    </div>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            {{-- Les fichiers : le bloc existant, upload et menu « + » compris,
-                 remonte au premier plan. --}}
-            <div class="mt-4">
+        {{-- ── Le Drive : une seule surface (TASK-1130, passe 2) ── --}}
                 @if($canViewFiles)
                 <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
                          x-data="dossierFilesCard(@js([
@@ -296,21 +197,46 @@
                                   'searchPlaceholder' => __('dossiers.file_search_placeholder'),
                               ],
                          ]))">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.files_title') }}</h2>
-
-                    <div x-show="message" x-transition
-                         :class="messageType === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-200' : 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-200'"
-                         class="mt-4 rounded-xl border px-4 py-3 text-sm font-medium">
-                        <span x-text="message"></span>
-                    </div>
-
                     @if($canManageFiles)
-                    <div class="mt-5 relative">
-                        <div id="dossier-file-pond" x-ref="filePondContainer" class="hidden"></div>
-                        {{-- Hidden file inputs for media types --}}
-                        <input type="file" x-ref="imageInput" accept="image/*" capture="user" class="hidden" @change="handleMediaFiles($event, 'image')">
-                        <input type="file" x-ref="videoInput" accept="video/*" capture="user" class="hidden" @change="handleMediaFiles($event, 'video')">
-                        <input type="file" x-ref="audioInput" accept="audio/*" multiple class="hidden" @change="handleMediaFiles($event, 'audio')">
+                    {{-- Depot par glisser : la surcouche s'allume au survol d'un
+                         vrai fichier, et le depot part dans l'upload existant —
+                         le meme que les entrees du menu, aucun second moteur. --}}
+                    <div x-data="{ survol: 0 }"
+                         @dragenter.prevent="if (($event.dataTransfer?.types || []).includes('Files')) survol++"
+                         @dragover.prevent
+                         @dragleave.prevent="survol = Math.max(0, survol - 1)"
+                         @drop.prevent="survol = 0; if ($event.dataTransfer?.files?.length) handleMediaFiles({ target: { files: $event.dataTransfer.files, value: '' } }, 'drop')"
+                         class="relative">
+                        <div x-show="survol > 0" x-cloak
+                             class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-indigo-400 bg-indigo-50/90 dark:border-indigo-500 dark:bg-indigo-950/80">
+                            <p class="text-base font-semibold text-indigo-700 dark:text-indigo-200">{{ __('dossiers.drive_drop_here') }}</p>
+                        </div>
+                    @endif
+
+                    {{-- La barre du Drive : ou l'on est, chercher, creer. --}}
+                    <div class="flex flex-wrap items-center gap-3">
+                        <nav class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-sm" aria-label="Breadcrumb">
+                            @if($driveRoot)
+                                <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $driveRoot->getKey()]) }}"
+                                   class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('dossiers.drive_breadcrumb_root') }}</a>
+                                <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                                <span class="max-w-[14rem] truncate font-semibold text-gray-900 dark:text-gray-100" aria-current="page">{{ $dossier->name }}</span>
+                            @else
+                                <span class="font-semibold text-gray-900 dark:text-gray-100" aria-current="page">{{ $dossier->isLoopDossier() ? __('dossiers.drive_breadcrumb_root') : $dossier->name }}</span>
+                            @endif
+                        </nav>
+
+                        <div class="relative w-full sm:w-64">
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                            </div>
+                            <input x-model="searchQuery" @input.debounce.300ms="onSearchInput()" type="search"
+                                   class="block w-full rounded-xl border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
+                                   :placeholder="i18n.searchPlaceholder || 'Search files…'">
+                        </div>
+
+                        @if($canManageFiles)
+                            <div class="relative shrink-0">
                         <button x-ref="fabButton" @click="showImportMenu = !showImportMenu" type="button" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                             {{ __('dossiers.fab_action') }}
@@ -359,7 +285,23 @@
                                 </button>
                             @endif
                         </div>
-                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.file_upload_help') }}</p>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div x-show="message" x-transition
+                         :class="messageType === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-200' : 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-200'"
+                         class="mt-4 rounded-xl border px-4 py-3 text-sm font-medium">
+                        <span x-text="message"></span>
+                    </div>
+
+                    @if($canManageFiles)
+                    <div class="mt-5 relative">
+                        <div id="dossier-file-pond" x-ref="filePondContainer" class="hidden"></div>
+                        {{-- Hidden file inputs for media types --}}
+                        <input type="file" x-ref="imageInput" accept="image/*" capture="user" class="hidden" @change="handleMediaFiles($event, 'image')">
+                        <input type="file" x-ref="videoInput" accept="video/*" capture="user" class="hidden" @change="handleMediaFiles($event, 'video')">
+                        <input type="file" x-ref="audioInput" accept="audio/*" multiple class="hidden" @change="handleMediaFiles($event, 'audio')">
                     </div>
                     @endif
 
@@ -442,38 +384,10 @@
                         </div>
                     </template>
 
-                    <div class="mt-5" x-show="totalFiles > 0 || quota.used_bytes > 0">
-                        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                            <span x-text="quotaLabel"></span>
-                        </div>
-                        <div class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" x-show="quota.limit_bytes !== null">
-                            <div class="h-full rounded-full transition-all duration-300"
-                                 :class="quotaPercent > 90 ? 'bg-red-500' : (quotaPercent > 70 ? 'bg-amber-500' : 'bg-indigo-500')"
-                                 :style="'width:' + quotaPercent + '%'"></div>
-                        </div>
-                    </div>
 
-                    <div class="mt-4" x-show="totalFiles > 0">
-                        <div class="relative">
-                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-                            </div>
-                            <input x-model="searchQuery" @input.debounce.300ms="onSearchInput()" type="search"
-                                   class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
-                                   :placeholder="i18n.searchPlaceholder || 'Search files…'">
-                        </div>
-                    </div>
 
-                    <div class="mt-4 flex items-center justify-end gap-2" x-show="totalFiles > 0">
-                        <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'" class="rounded-lg p-2 transition" title="{{ __('dossiers.file_view_list') }}">
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
-                        </button>
-                        <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'" class="rounded-lg p-2 transition" title="{{ __('dossiers.file_view_grid') }}">
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-                        </button>
-                    </div>
 
-                    <div class="mt-5 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700" x-show="totalFiles > 0 && viewMode === 'list'">
+                    <div class="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700" x-show="totalFiles > 0 || {{ ($driveFolders->count() + $dossier->dossierBlogPosts->count()) > 0 ? 'true' : 'false' }}">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead class="bg-gray-50 dark:bg-gray-900/60">
                                 <tr>
@@ -483,18 +397,18 @@
                                             <svg x-show="sortBy === 'name'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                                         </button>
                                     </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                    <th scope="col" class="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 sm:table-cell dark:text-gray-300">
                                         <span class="inline-flex items-center gap-1">
                                             {{ __('dossiers.file_uploaded_by') }}
                                         </span>
                                     </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                    <th scope="col" class="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 sm:table-cell dark:text-gray-300">
                                         <button @click="toggleSort('size')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
                                             {{ __('dossiers.file_size') }}
                                             <svg x-show="sortBy === 'size'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                                         </button>
                                     </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                    <th scope="col" class="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 sm:table-cell dark:text-gray-300">
                                         <button @click="toggleSort('date')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
                                             {{ __('dossiers.file_date') }}
                                             <svg x-show="sortBy === 'date'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -506,6 +420,76 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
+                                {{-- Les dossiers d'abord, comme dans tout Drive :
+                                     des Dossiers reellement partages avec la
+                                     Boucle, jamais une hierarchie simulee. --}}
+                                @foreach($driveFolders as $folder)
+                                    <tr class="cursor-pointer hover:bg-amber-50/40 dark:hover:bg-amber-500/5"
+                                        @click="window.location = '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}'">
+                                        <td class="px-4 py-3">
+                                            <div class="flex min-w-0 items-center gap-3">
+                                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300" aria-hidden="true">
+                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="block max-w-[26rem] truncate text-sm font-medium text-gray-900 hover:text-amber-700 dark:text-gray-100 dark:hover:text-amber-300" @click.stop>{{ $folder->name }}</a>
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ trans_choice('dossiers.drive_folder_items', $folder->files_count + $folder->dossier_blog_posts_count, ['count' => $folder->files_count + $folder->dossier_blog_posts_count]) }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="hidden whitespace-nowrap px-4 py-3 text-sm text-gray-700 sm:table-cell dark:text-gray-300">{{ $folder->owner?->publicDisplayName() ?? '—' }}</td>
+                                        <td class="hidden whitespace-nowrap px-4 py-3 text-sm text-gray-500 sm:table-cell dark:text-gray-400">—</td>
+                                        <td class="hidden whitespace-nowrap px-4 py-3 text-sm text-gray-700 sm:table-cell dark:text-gray-300">{{ $folder->created_at?->isoFormat('L') }}</td>
+                                        <td class="whitespace-nowrap px-4 py-3 text-right">
+                                            <svg class="ml-auto h-4 w-4 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                                        </td>
+                                    </tr>
+                                @endforeach
+
+                                {{-- Puis les Articles : identite editoriale — le
+                                     crayon, le titre, l'auteur. Une seule
+                                     apparition dans la surface documentaire. --}}
+                                @foreach($dossier->dossierBlogPosts as $entry)
+                                    @php $post = $entry->blogPost; @endphp
+                                    @continue(! $post || ! $canView($post))
+                                    <tr class="hover:bg-rose-50/40 dark:hover:bg-rose-500/5">
+                                        <td class="px-4 py-3">
+                                            <div class="flex min-w-0 items-center gap-3">
+                                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
+                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <a href="{{ $blogShowRoute($post) }}" class="block max-w-[26rem] truncate text-sm font-medium text-gray-900 hover:text-rose-700 dark:text-gray-100 dark:hover:text-rose-300">{{ $post->title }}</a>
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.drive_article_badge') }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="hidden whitespace-nowrap px-4 py-3 text-sm text-gray-700 sm:table-cell dark:text-gray-300">{{ $post->user?->publicDisplayName() ?? '—' }}</td>
+                                        <td class="hidden whitespace-nowrap px-4 py-3 text-sm text-gray-500 sm:table-cell dark:text-gray-400">—</td>
+                                        <td class="hidden whitespace-nowrap px-4 py-3 text-sm text-gray-700 sm:table-cell dark:text-gray-300">{{ $post->updated_at?->isoFormat('L') }}</td>
+                                        <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
+                                            <div class="relative inline-block" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+                                                <button type="button" @click="open = !open" x-bind:aria-expanded="open"
+                                                        class="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                        aria-label="{{ $post->title }}">
+                                                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
+                                                </button>
+                                                <div x-show="open" x-cloak @click.outside="open = false"
+                                                     class="absolute right-0 top-full z-30 mt-1 w-48 rounded-xl border border-gray-200 bg-white p-1 text-left shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                                    <a href="{{ $blogShowRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
+                                                    @if($canManageArticles)
+                                                        <a href="{{ $blogEditRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_article') }}</a>
+                                                        <form method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
+                                                            @csrf @method('DELETE')
+                                                            <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_remove_article') }}</button>
+                                                        </form>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+
                                 <template x-for="file in sortedFiles" :key="file.id">
                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-900/40">
                                         <td class="whitespace-nowrap px-4 py-3">
@@ -534,11 +518,11 @@
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                                        <td class="hidden whitespace-nowrap px-4 py-3 text-sm text-gray-700 sm:table-cell dark:text-gray-300">
                                             <span x-text="file.uploader?.name || '—'"></span>
                                         </td>
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300" x-text="file.sizeFormatted"></td>
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300" x-text="file.uploadedAtFormatted"></td>
+                                        <td class="hidden whitespace-nowrap px-4 py-3 text-sm text-gray-700 sm:table-cell dark:text-gray-300" x-text="file.sizeFormatted"></td>
+                                        <td class="hidden whitespace-nowrap px-4 py-3 text-sm text-gray-700 sm:table-cell dark:text-gray-300" x-text="file.uploadedAtFormatted"></td>
                                         <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
                                             <div class="flex items-center justify-end gap-2">
                                                 @if($canViewFiles)
@@ -569,64 +553,16 @@
                         </table>
                     </div>
 
-                    {{-- Grid view --}}
-                    <div class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" x-show="totalFiles > 0 && viewMode === 'grid'">
-                        <template x-for="file in sortedFiles" :key="file.id">
-                            <div class="group relative overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-                                <div class="aspect-square bg-gray-100 dark:bg-gray-900/40 flex items-center justify-center">
-                                    <template x-if="file.mime_type?.startsWith('image/')">
-                                        <img :src="'{{ route('organization.dossiers.files.preview', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)" :alt="file.display_name || file.original_name" class="h-full w-full object-cover">
-                                    </template>
-                                    <template x-if="!file.mime_type?.startsWith('image/')">
-                                        <span class="flex h-16 w-16 items-center justify-center rounded-2xl"
-                                              :class="{
-                                                  'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
-                                                  'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400': file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml'),
-                                                  'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400': file.mime_type === 'text/csv' || file.mime_type === 'application/vnd.ms-excel' || file.mime_type?.includes('spreadsheetml'),
-                                                  'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400': file.mime_type === 'text/plain',
-                                                  'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400': file.mime_type === 'text/markdown',
-                                                  'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400': file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed',
-                                              }">
-                                            <svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-                                        </span>
-                                    </template>
-                                </div>
-                                <div class="p-3">
-                                    <div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></div>
-                                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-text="file.sizeFormatted"></div>
-                                </div>
-                                <div class="absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
-                                    @if($canViewFiles)
-                                    <button @click="openPreview(file)"
-                                            x-show="file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown'"
-                                            class="rounded-lg bg-white/90 p-1.5 text-gray-700 shadow-sm hover:bg-white dark:bg-gray-800/90 dark:text-gray-200 dark:hover:bg-gray-800">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                    </button>
-                                    @endif
-                                    <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
-                                       class="rounded-lg bg-white/90 p-1.5 text-gray-700 shadow-sm hover:bg-white dark:bg-gray-800/90 dark:text-gray-200 dark:hover:bg-gray-800">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-                                    </a>
-                                    @if($canDeleteFiles)
-                                    <button @click="openDeleteModal(file)" :disabled="saving"
-                                            class="rounded-lg bg-white/90 p-1.5 text-red-600 shadow-sm hover:bg-white disabled:opacity-50 dark:bg-gray-800/90 dark:text-red-400 dark:hover:bg-gray-800">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
-                                    </button>
-                                    @endif
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-
+@if($driveFolders->isEmpty() && $dossier->dossierBlogPosts->isEmpty())
                     <template x-if="files.length === 0 && totalFiles === 0">
-                        <div class="rounded-3xl border-2 border-dashed border-gray-300 bg-gray-50/50 px-5 py-16 text-center dark:border-gray-700 dark:bg-gray-900/20">
-                            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-200 dark:bg-gray-800">
-                                <svg class="h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-                            </div>
-                            <h3 class="mt-6 text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.emptyTitle"></h3>
-                            <p class="mx-auto mt-2 max-w-sm text-sm text-gray-600 dark:text-gray-400" x-text="i18n.emptyBody"></p>
+                        <div class="mt-4 rounded-xl border border-dashed border-gray-300 px-5 py-6 text-center dark:border-gray-700">
+                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.drive_empty_title') }}</p>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.drive_empty_desc') }}</p>
                         </div>
                     </template>
+                    @endif
+
+                    <p class="mt-2 text-right text-xs text-gray-400 dark:text-gray-500" x-show="quota.used_bytes > 0" x-text="quotaLabel"></p>
 
                     <div class="mt-4 flex items-center justify-center gap-2" x-show="lastPage > 1">
                         <button @click="loadFiles(currentPage - 1)" :disabled="currentPage <= 1"
@@ -635,6 +571,9 @@
                         <button @click="loadFiles(currentPage + 1)" :disabled="currentPage >= lastPage"
                                 class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">&raquo;</button>
                     </div>
+                    @if($canManageFiles)
+                    </div>
+                    @endif
 
                     {{-- Delete Confirmation Modal --}}
                     <template x-if="showDeleteModal">
@@ -693,8 +632,6 @@
                     </template>
                 </section>
                 @endif
-            </div>
-        </section>
 
         {{-- Nouveau dossier — un petit formulaire, pas un moteur. Poste sur le
              store() existant, avec la meme regle de partage qu'update(). --}}
@@ -726,21 +663,27 @@
             @endif
         @endcan
 
-        {{-- Le Drive (TASK-1130) : les contenus vivent au premier plan,
-             plus derriere des onglets. Restent en second plan les deux lentilles
-             qui ne sont pas des contenus : l'editorial (Series) et les acces
-             (Membres). --}}
-        <div x-data="dossierTabs('{{ request()->get('tab', 'series') }}')" @hashchange.window="onHashChange()">
-            <div class="mt-10 border-b border-gray-200 dark:border-gray-700" role="tablist" aria-label="{{ __('dossiers.series_tab') }}">
-                <button @click="activate('series')" :aria-selected="active === 'series'" :tabindex="active === 'series' ? '0' : '-1'" role="tab" id="tab-series" aria-controls="tabpanel-series" class="inline-flex px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors" :class="active === 'series' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
+        {{-- Sous le Drive, deux lentilles qui ne sont pas des contenus :
+             l'editorial (Series & gestion des Articles) et les acces
+             (Membres). Fermees par defaut — la page, c'est le Drive. --}}
+        <div x-data="{ panneau: null }" class="mt-8">
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" @click="panneau = panneau === 'series' ? null : 'series'" x-bind:aria-expanded="panneau === 'series'"
+                        class="inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-semibold transition"
+                        :class="panneau === 'series' ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300' : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:border-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
                     {{ __('dossiers.series_tab') }}
+                    <svg class="h-3.5 w-3.5 transition-transform" :class="panneau === 'series' && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
                 </button>
-                <button @click="activate('membres')" :aria-selected="active === 'membres'" :tabindex="active === 'membres' ? '0' : '-1'" role="tab" id="tab-membres" aria-controls="tabpanel-membres" class="inline-flex px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors" :class="active === 'membres' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
+                <button type="button" @click="panneau = panneau === 'membres' ? null : 'membres'" x-bind:aria-expanded="panneau === 'membres'"
+                        class="inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-semibold transition"
+                        :class="panneau === 'membres' ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300' : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:border-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
                     {{ __('dossiers.members_tab') }}
+                    <svg class="h-3.5 w-3.5 transition-transform" :class="panneau === 'membres' && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
                 </button>
             </div>
-            {{-- Tab: Series --}}
-            <div x-show="active === 'series'" x-cloak role="tabpanel" id="tabpanel-series" aria-labelledby="tab-series" class="mt-6">
+
+            {{-- Tab: Series --}}            {{-- Tab: Series --}}
+            <div x-show="panneau === 'series'" x-cloak class="mt-6">
                 <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
                          x-data="dossierContentsCard(@js([
                              'csrfToken' => csrf_token(),
@@ -1276,7 +1219,7 @@
             </div>
 
             {{-- Tab: Members --}}
-            <div x-show="active === 'membres'" x-cloak role="tabpanel" id="tabpanel-membres" aria-labelledby="tab-membres" class="mt-6">
+            <div x-show="panneau === 'membres'" x-cloak class="mt-6">
                 @if($dossier->isLoopDossier())
                     {{-- Dossier racine : les accès sont ceux de la Boucle, en
                          lecture seule. Aucune gestion parallèle ici — la Boucle
