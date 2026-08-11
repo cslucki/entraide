@@ -1,0 +1,101 @@
+name: SQLite CI
+
+# Deuxieme moitie du filet, en parallele du gate PostgreSQL.
+#
+# Deux workflows separes plutot qu'un seul a deux jobs : chacun se lit, se
+# relance et se diagnostique seul, et GitHub les demarre en meme temps sans
+# qu'on ait rien a orchestrer. Le prix est une installation composer/npm payee
+# deux fois — environ 30 s, en parallele, contre une lecture nettement plus
+# simple quand un gate rougit a 2 h du matin.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# **Groupe distinct de celui du workflow PostgreSQL.** Partager le groupe
+# `ci-${{ github.ref }}` ferait s'annuler les deux gates entre eux : le second
+# demarre, `cancel-in-progress` tue le premier, et une PR n'aurait jamais ses
+# deux preuves en meme temps.
+concurrency:
+  group: ci-sqlite-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sqlite-regression-gate:
+    name: SQLite Regression Gate (blocking)
+    runs-on: ubuntu-latest
+
+    # La suite complete dure ~10 min en local. Sans borne, le defaut de GitHub
+    # est 360 minutes : un test qui pend retiendrait un runner six heures.
+    timeout-minutes: 45
+
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI=
+
+    # Aucun service : SQLite est `:memory:`, propre au processus de test. Rien
+    # n'est partage avec le job PostgreSQL, qui tourne sur un autre runner avec
+    # son propre conteneur.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.4
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+          coverage: none
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --no-progress --no-interaction --prefer-dist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci --prefer-offline
+
+      # Les vues passent par `@vite` : sans manifeste, toute la suite Feature
+      # rendrait une exception au lieu d'une page.
+      - name: Build frontend assets
+        run: npm run build
+
+      # Cette etape **ne decide pas** : la suite SQLite rend un code non nul
+      # par construction, puisque des echecs sont attendus. C'est le gate
+      # ci-dessous qui juge, en comparant les identites. Si la suite ne demarre
+      # pas du tout, le rapport sera vide ou absent et le gate rougira — le
+      # `|| true` ne masque donc pas une panne.
+      - name: Run full SQLite suite
+        run: php vendor/bin/phpunit --configuration phpunit.ci-sqlite.xml --log-junit sqlite-report.xml || true
+
+      - name: SQLite regression gate (blocking)
+        run: php .github/scripts/sqlite-regression-gate.php sqlite-report.xml .github/sqlite-known-failures.txt
+
+      # Garde le rapport meme quand le gate rougit : c'est la pour diagnostiquer
+      # sans relancer 4 000 tests.
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-junit-report
+          path: sqlite-report.xml
+          retention-days: 14
