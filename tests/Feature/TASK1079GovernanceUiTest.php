@@ -47,7 +47,12 @@ class TASK1079GovernanceUiTest extends TestCase
         $this->orgAdmin->update(['organization_id' => $this->org->id]);
         $this->superAdmin->update(['organization_id' => $this->org->id]);
 
-        $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
+        // Apostrophe deliberate: the catalogue escapes it, so an assertion
+        // that compares raw HTML to a raw name must escape too. Left to the
+        // faker draw, that defect only surfaced on days it rolled a D'Amore.
+        $this->owner = User::factory()->create([
+            'organization_id' => $this->org->id, 'first_name' => 'Ana', 'name' => "D'Amore",
+        ]);
         $this->loop = Loop::factory()->create([
             'organization_id' => $this->org->id, 'status' => 'active', 'type' => 'general',
             'created_by' => $this->owner->id,
@@ -340,14 +345,17 @@ class TASK1079GovernanceUiTest extends TestCase
         }
         Loop::factory()->create(['organization_id' => $this->org->id, 'status' => 'active']);
 
-        $html = $this->actingAs($this->owner)->get(route('loops.index'))->assertOk()->getContent();
+        $response = $this->actingAs($this->owner)->get(route('loops.index'))->assertOk();
 
         // No owner is presented as the main one.
-        $this->assertStringNotContainsString('propriétaire principal', mb_strtolower($html));
-        $this->assertStringContainsString(
-            __('loops.governance_and_others', ['name' => $this->owner->publicDisplayName(), 'count' => 3]),
-            $html,
-        );
+        $this->assertStringNotContainsString('propriétaire principal', mb_strtolower($response->getContent()));
+
+        // `assertSee` escapes its needle the way Blade escaped the name, so the
+        // contract is stated in business words and the encoding is left to the
+        // framework that performed it.
+        $response->assertSee(__('loops.governance_and_others', [
+            'name' => $this->owner->publicDisplayName(), 'count' => 3,
+        ]));
     }
 
     public function test_the_catalogue_does_not_query_owners_per_row(): void

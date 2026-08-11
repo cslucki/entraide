@@ -553,6 +553,11 @@ class LoopController extends Controller
             // toucherait. Calcule ici pour que la modale annonce des chiffres
             // reels plutot qu'une formule vague.
             'canArchiveLoop' => app(LoopLifecycleService::class)->canArchive($user, $loop),
+            // « Personnaliser ma Boucle » : la capacite **reelle**, celle que
+            // le service appliquera — proprietaire autorise par son
+            // Organization, ou administrateur — et jamais sur une archivee.
+            'canCustomiseTools' => ! $loop->isArchived()
+                && app(\App\Services\Loops\LoopPresetConfigurator::class)->canConfigure($user, $loop),
             'archiveImpact' => app(LoopLifecycleService::class)->impactOf($loop),
             // La vue rend chaque Card depuis le registre : plus aucune condition
             // sur une cle de Card dans le Blade.
