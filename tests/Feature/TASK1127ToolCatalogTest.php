@@ -235,6 +235,62 @@ class TASK1127ToolCatalogTest extends TestCase
         $this->assertSame('Ne plus mettre en avant', __('loops.tools_demote', [], 'fr'));
     }
 
+    public function test_a_refusal_lands_in_the_card_of_the_gesture(): void
+    {
+        $url = route('organization.loops.tools.update', ['organization' => $this->org->slug, 'loop' => $this->loop->id]);
+        $cfg = app(LoopPresetConfigurator::class);
+        $cfg->enable($this->owner, $this->loop, 'core.roadmap');
+        $cfg->enable($this->owner, $this->loop, 'core.journal');
+        // Cinq actifs, trois derives mis en avant : en promouvoir un quatrieme
+        // doit refuser — et le refus doit s'ancrer sur l'outil du geste.
+        $reponse = $this->actingAs($this->owner)->post($url, ['action' => 'promote', 'tool' => 'core.journal']);
+
+        $reponse->assertRedirect()
+            ->assertSessionHas('error')
+            ->assertSessionHas('error_tool', 'core.journal');
+
+        // Et la page le rend en alerte accessible, dans la carte, pas en
+        // banniere anonyme en haut de page.
+        // Le driver `array` des tests ne fait pas survivre la flash au
+        // redirect suivi : on seme la session explicitement pour verifier le
+        // contrat de la vue — l'alerte se rend dans la carte du geste.
+        $html = $this->actingAs($this->owner)
+            ->withSession(['error' => 'Le refus du service', 'error_tool' => 'core.journal'])
+            ->get(route('organization.loops.tools', ['organization' => $this->org->slug, 'loop' => $this->loop->id]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('role="alert"', $html);
+        $this->assertStringContainsString('Le refus du service', $html);
+
+        // Et l'alerte vit bien dans la carte de Journal : dans le fragment
+        // entre son titre et l'article suivant.
+        $position = strpos($html, __('loops.cards.journal.label'));
+        $fragment = substr($html, $position, strpos($html, '</article>', $position) - $position);
+        $this->assertStringContainsString('role="alert"', $fragment);
+    }
+
+    public function test_a_success_signals_the_card_that_changed(): void
+    {
+        $url = route('organization.loops.tools.update', ['organization' => $this->org->slug, 'loop' => $this->loop->id]);
+
+        $reponse = $this->actingAs($this->owner)->post($url, ['action' => 'enable', 'tool' => 'core.journal']);
+
+        $reponse->assertRedirect()
+            ->assertSessionHas('success_tool', 'core.journal')
+            ->assertSessionHas('success_action', 'enable');
+
+        // Le halo emeraude s'attache a la carte arrivee dans sa zone —
+        // session semee explicitement, meme raison que ci-dessus.
+        $html = $this->actingAs($this->owner)
+            ->withSession(['success' => 'ok', 'success_tool' => 'core.journal', 'success_action' => 'enable'])
+            ->get(route('organization.loops.tools', ['organization' => $this->org->slug, 'loop' => $this->loop->id]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('ring-emerald-400', $html);
+    }
+
     // ── Tenant ──────────────────────────────────────────────────────────────
 
     public function test_the_catalogue_of_another_organization_is_out_of_reach(): void

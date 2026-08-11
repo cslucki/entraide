@@ -1109,6 +1109,8 @@ return [
     'tools_catalog_state_blocked' => 'Not available yet',
     'tools_catalog_has_content' => '{1} 1 item is waiting if you bring it back|[2,*] :count items are waiting if you bring it back',
 
+    'tools_add_to_loop' => 'Add to my Loop',
+    'tools_data_kept_note' => 'Its contents are kept.',
     'tool_previews' => [
         'polls_question' => 'Which evening works best?',
         'polls_option_1' => 'Tuesday',

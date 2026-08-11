@@ -1115,6 +1115,8 @@ return [
 
     // Les mots des apercus : de petites silhouettes pedagogiques, jamais des
     // donnees reelles. Chaque outil montre a quoi il ressemble en trois mots.
+    'tools_add_to_loop' => 'Ajouter à ma Boucle',
+    'tools_data_kept_note' => 'Ses contenus sont conservés.',
     'tool_previews' => [
         'polls_question' => 'On se retrouve quel soir ?',
         'polls_option_1' => 'Mardi',

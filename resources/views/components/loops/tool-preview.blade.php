@@ -11,10 +11,17 @@
     reste porte par le titre et la description de la carte, jamais par
     l'apercu seul.
 --}}
-@props(['tool'])
+@props(['tool', 'variant' => 'card'])
 
 @php
     $t = fn (string $suffixe) => __('loops.tool_previews.'.$suffixe);
+
+    // `band` : l'apercu occupe le tiers haut d'une carte de catalogue — plus
+    // grand, sans son propre cadre, centre verticalement. `card` : la vignette
+    // bordee d'origine.
+    $cadre = $variant === 'band'
+        ? 'pointer-events-none flex min-h-[8.5rem] select-none flex-col justify-center text-xs leading-snug'
+        : 'pointer-events-none select-none rounded-xl border border-gray-100 bg-gray-50/80 p-3 text-[11px] leading-tight dark:border-gray-700/60 dark:bg-gray-900/40';
 
     // Une silhouette par outil grid. Un outil sans apercu ne montre rien :
     // pas de cadre vide, la carte se contente de son icone et de son texte.
@@ -27,8 +34,7 @@
 @endphp
 
 @if(in_array($tool, $silhouettes, true))
-    <div aria-hidden="true"
-         {{ $attributes->class(['pointer-events-none select-none rounded-xl border border-gray-100 bg-gray-50/80 p-3 text-[11px] leading-tight dark:border-gray-700/60 dark:bg-gray-900/40']) }}>
+    <div aria-hidden="true" {{ $attributes->class([$cadre]) }}>
 
         @switch($tool)
             @case('core.polls')
