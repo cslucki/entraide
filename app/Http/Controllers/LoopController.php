@@ -545,6 +545,15 @@ class LoopController extends Controller
             // peut apparaitre ici qui ne soit pas dans `workspaceCards`.
             'primaryCards' => $this->workspaceCardsFor($loop, $user, 'primary'),
             'secondaryCards' => $this->workspaceCardsFor($loop, $user, 'secondary'),
+            // La barre : ce qui tient devant, et ce qui deborde. **Aucune
+            // regle metier ici** — `primary_rank` n'est ni lu autrement ni
+            // ecrit. On decoupe simplement la meme liste (mis en avant
+            // d'abord, puis les autres actifs) a la limite d'affichage.
+            //
+            // `?outils=5` est le prototype de TASK-1128 : il permet de
+            // comparer 3 et 5 sur la meme Boucle, cote a cote, sans migration
+            // ni changement de stockage. Le defaut reste 3.
+            ...$this->toolbarSplit($loop, $user),
             // Le cadre permanent et les actions IA de ChatLoop : declares dans
             // le meme registre, mais rendus ailleurs qu'en grille (TASK-1090).
             'frameCards' => $this->placedCardsFor($loop, $user, 'frame'),
@@ -563,6 +572,40 @@ class LoopController extends Controller
             // sur une cle de Card dans le Blade.
             'cardRegistry' => app(LoopCardRegistry::class),
         ]);
+    }
+
+    /**
+     * Ce que la barre d'outils montre, et ce qu'elle renvoie au debordement.
+     *
+     * Les outils mis en avant d'abord, puis les autres outils actifs, coupes a
+     * la limite d'affichage. Le reste alimente « Autres outils » — le meme
+     * deplie qu'avant, qui devient le debordement plutot qu'un second rang.
+     *
+     * **Rien de metier ne se decide ici.** La limite est un choix d'affichage :
+     * `?outils=5` (prototype TASK-1128) contre 3 par defaut. Aucune ecriture,
+     * aucune lecture nouvelle de `primary_rank`.
+     *
+     * @return array{toolbarCards: \Illuminate\Support\Collection<int, array<string, mixed>>, toolbarOverflow: \Illuminate\Support\Collection<int, array<string, mixed>>, toolbarLimit: int}
+     */
+    private function toolbarSplit(Loop $loop, User $user): array
+    {
+        // `request()` plutot qu'un parametre : `show()` recoit ses arguments du
+        // routage (Loop|Organization), y glisser une Request casserait la
+        // liaison de modele.
+        //
+        // Deux valeurs seulement : ce parametre sert a trancher une question
+        // produit, pas a ouvrir un reglage libre.
+        $limite = request()->query('outils') === '5' ? 5 : 3;
+
+        $ordonnes = $this->workspaceCardsFor($loop, $user, 'primary')
+            ->concat($this->workspaceCardsFor($loop, $user, 'secondary'))
+            ->values();
+
+        return [
+            'toolbarCards' => $ordonnes->take($limite)->values(),
+            'toolbarOverflow' => $ordonnes->slice($limite)->values(),
+            'toolbarLimit' => $limite,
+        ];
     }
 
     /**

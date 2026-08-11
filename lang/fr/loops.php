@@ -59,10 +59,8 @@ return [
 
     // Boucle Workspace Cards
     'cards_bar_label' => 'Cards de la Boucle',
-    'cards_bar_hint' => 'Ouvrir un artefact sans quitter ChatLoop',
     'cards_panel_close' => 'Fermer le panneau',
     'cards_panel_back_to_chat' => 'Retour à ChatLoop',
-    'cards_bar_launch' => 'Lancer',
     'cards_bar_expand_chat' => 'Agrandir le fil',
     'cards_panel_expand' => 'Agrandir ou restaurer l\'outil',
     'cards_panel_resize' => 'Redimensionner les panneaux',
@@ -1016,6 +1014,8 @@ return [
     'tools_error_last_primary' => 'Gardez au moins un outil mis en avant.',
     'tools_error_not_active' => 'Cet outil n\'est pas actif dans cette Boucle.',
     'tools_others_title' => 'Autres outils',
+    'manage_loop' => 'Gérer',
+    'manage_loop_title' => 'Gérer cette Boucle',
     'owner_tools_title' => 'Personnaliser ma Boucle',
     'owner_tools_intro' => 'Choisissez les outils de cette Boucle et ceux que vous voulez mettre en avant.',
     'owner_tools_mine_title' => 'Mes outils',

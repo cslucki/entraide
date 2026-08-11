@@ -59,10 +59,8 @@ return [
 
     // Boucle Workspace Cards
     'cards_bar_label' => 'Loop Cards',
-    'cards_bar_hint' => 'Open an artifact without leaving ChatLoop',
     'cards_panel_close' => 'Close panel',
     'cards_panel_back_to_chat' => 'Back to ChatLoop',
-    'cards_bar_launch' => 'Launch',
     'cards_bar_expand_chat' => 'Expand thread',
     'cards_panel_expand' => 'Expand or restore tool',
     'cards_panel_resize' => 'Resize panes',
@@ -1012,6 +1010,8 @@ return [
     'tools_error_last_primary' => 'Keep at least one featured tool.',
     'tools_error_not_active' => 'This tool is not active in this Loop.',
     'tools_others_title' => 'Other tools',
+    'manage_loop' => 'Manage',
+    'manage_loop_title' => 'Manage this Loop',
     'owner_tools_title' => 'Customise my Loop',
     'owner_tools_intro' => 'Choose this Loop\'s tools, and which ones to feature.',
     'owner_tools_mine_title' => 'My tools',
