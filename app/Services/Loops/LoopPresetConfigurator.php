@@ -94,6 +94,7 @@ class LoopPresetConfigurator
                 'key' => $key,
                 'label' => $this->registry->label($key),
                 'description' => $this->registry->description($key),
+                'icon' => $this->registry->iconOf($key),
                 'placement' => $this->registry->placementOf($key),
                 'category' => $this->registry->categoryOf($key),
                 'scope' => $this->registry->scopeOf($key),

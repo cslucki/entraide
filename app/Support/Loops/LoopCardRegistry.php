@@ -330,6 +330,16 @@ class LoopCardRegistry
     }
 
     /**
+     * Le nom d'icone declare par le catalogue — `x-loops.card-icon` sait le
+     * dessiner. Nullable : une Card sans icone tombe sur le dessin par defaut
+     * du composant, jamais sur une erreur.
+     */
+    public function iconOf(string $key): ?string
+    {
+        return $this->get($key)['icon'] ?? null;
+    }
+
+    /**
      * The Cards a given person actually sees in a given Loop, ready to render.
      *
      * **Depuis TASK-1090, seules les Cards `grid` y figurent**, et trois au

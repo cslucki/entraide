@@ -70,10 +70,17 @@ class LoopToolsController extends Controller
                 default => tap(__('loops.tools_demoted'), fn () => $configurator->demote($user, $loop, $data['tool'])),
             };
         } catch (PresetException $e) {
-            return back()->with('error', $e->getMessage());
+            // `error_tool` ancre le refus dans la carte du geste : une
+            // contrainte qui s'affiche a l'autre bout de la page ressemble a
+            // une erreur serveur, pas a une regle du produit.
+            return back()->with('error', $e->getMessage())->with('error_tool', $data['tool']);
         }
 
-        return back()->with('success', $message);
+        // Meme ancrage pour la reussite : la carte qui vient de changer se
+        // signale, au lieu de laisser chercher ce qui a bouge.
+        return back()->with('success', $message)
+            ->with('success_tool', $data['tool'])
+            ->with('success_action', $data['action']);
     }
 
     /**

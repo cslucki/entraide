@@ -92,7 +92,7 @@ class TASK1125OwnerToolsTest extends TestCase
         $this->ecran()
             ->assertOk()
             ->assertSee(__('loops.owner_tools_title'))
-            ->assertSee(__('loops.tools_primary_title'))
+            ->assertSee(__('loops.owner_tools_mine_title')) // TASK-1127 : sections fusionnees en « Mes outils »
             ->assertSee(__('loops.owner_tools_add_title'));
     }
 
