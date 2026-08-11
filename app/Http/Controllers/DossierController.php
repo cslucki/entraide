@@ -172,8 +172,29 @@ class DossierController extends Controller
             ->orderBy('name_b2c')
             ->get(['id', 'name_b2c', 'name_b2b']);
 
+        // ── Le Drive (TASK-1130) ─────────────────────────────────────────
+        // Les dossiers du Drive racine d'une Boucle sont les Dossiers
+        // reellement partages avec elle — objets reels, policies reelles,
+        // aucune hierarchie simulee. Un Dossier partage remonte, lui, vers le
+        // racine de sa Boucle : deux niveaux, parce que le modele n'en a que
+        // deux (l'imbrication reelle exigerait `parent_id` — TASK-1131).
+        $driveFolders = $dossier->isLoopDossier()
+            ? Dossier::where('organization_id', $organization->id)
+                ->where('shared_with_loop_id', $dossier->loop_id)
+                ->where('visibility', Dossier::VISIBILITY_LOOP)
+                ->withCount(['files', 'dossierBlogPosts'])
+                ->orderBy('name')
+                ->get()
+            : collect();
+
+        $driveRoot = (! $dossier->isLoopDossier() && $dossier->shared_with_loop_id)
+            ? Dossier::where('loop_id', $dossier->shared_with_loop_id)->first()
+            : null;
+
         return view('dossiers.show', [
             'dossier' => $dossier,
+            'driveFolders' => $driveFolders,
+            'driveRoot' => $driveRoot,
             'eligibleArticles' => $eligibleArticles,
             'series' => $series,
             'seriesList' => $seriesList,
@@ -201,15 +222,52 @@ class DossierController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'owner_id' => ['prohibited'],
-            'visibility' => ['nullable', Rule::in([Dossier::VISIBILITY_PRIVATE])],
+            // TASK-1130 : le Drive d'une Boucle cree des dossiers partages avec
+            // elle. La regle est **celle d'update()**, a l'identique — pas un
+            // second chemin de partage.
+            'visibility' => ['nullable', Rule::in([Dossier::VISIBILITY_PRIVATE, Dossier::VISIBILITY_LOOP])],
+            'shared_with_loop_id' => ['nullable', 'string'],
         ]);
 
-        Dossier::create([
+        $visibility = $data['visibility'] ?? Dossier::VISIBILITY_PRIVATE;
+        $sharedLoopId = null;
+
+        if ($visibility === Dossier::VISIBILITY_LOOP) {
+            // Sharing with a Loop requires a Loop, and it must belong to the
+            // same Organization — a Dossier never reaches across a tenant.
+            // Same guard as update(), same error, same phrasing.
+            $loop = Loop::where('id', $data['shared_with_loop_id'] ?? null)
+                ->where('organization_id', $organization->id)
+                ->first();
+
+            if (! $loop) {
+                return back()->withErrors(['shared_with_loop_id' => __('dossiers.visibility_loop_required')]);
+            }
+
+            $sharedLoopId = $loop->id;
+        }
+
+        $dossier = Dossier::create([
             'organization_id' => $organization->id,
             'owner_id' => $request->user()->id,
             'name' => $data['name'],
-            'visibility' => Dossier::VISIBILITY_PRIVATE,
+            'visibility' => $visibility,
+            'shared_with_loop_id' => $sharedLoopId,
         ]);
+
+        // Cree depuis le Drive d'une Boucle, on y retourne : c'est la que le
+        // dossier vient d'apparaitre.
+        if ($sharedLoopId !== null && $request->input('return_to_dossier')) {
+            $retour = Dossier::where('id', $request->input('return_to_dossier'))
+                ->where('organization_id', $organization->id)
+                ->first();
+
+            if ($retour) {
+                return redirect()
+                    ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $retour->getKey()])
+                    ->with('success', __('dossiers.created'));
+            }
+        }
 
         return redirect()
             ->route('organization.dossiers.index', ['organization' => $organization])

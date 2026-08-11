@@ -258,7 +258,7 @@ return [
     'content_drag_handle' => 'Drag',
 
     // FAB menu
-    'fab_action' => 'Add',
+    'fab_action' => 'New',
     'fab_section_create' => 'Create',
     'fab_new_article' => 'New article',
     'fab_markdown_note' => 'Markdown note',
@@ -317,4 +317,23 @@ Your Markdown content here...',
     'visibility_warn_narrowing' => 'Some people will lose access to this Dossier, and the current sharing will be removed.',
     'loop_private' => 'Private Loop',
     'loop_wider' => 'More widely visible Loop',
+
+    // ── The Drive (TASK-1130) ────────────────────────────────────────────
+    'drive_breadcrumb_root' => 'Documents',
+    'drive_folders_heading' => 'Folders',
+    'drive_contents_heading' => 'Contents',
+    'drive_folder_items' => '{0} Empty|{1} 1 item|[2,*] :count items',
+    'drive_new_folder' => 'New folder',
+    'drive_new_folder_title' => 'Create a folder in this Loop',
+    'drive_new_folder_desc' => 'The folder will be visible to Loop members, right alongside the documents.',
+    'drive_new_folder_name' => 'Folder name',
+    'drive_new_folder_submit' => 'Create folder',
+    'drive_articles_heading' => 'Articles',
+    'drive_edit_article' => 'Edit',
+    'drive_remove_article' => 'Remove from folder',
+    'drive_cancel' => 'Cancel',
+    'drive_open' => 'Open',
+    'drive_article_badge' => 'Article',
+    'drive_empty_title' => 'Nothing here yet',
+    'drive_empty_desc' => 'Create a folder, upload a file or write an Article: everything lands here.',
 ];
