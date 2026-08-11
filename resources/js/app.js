@@ -3221,6 +3221,9 @@ function registerDossierFilesCard() {
     FilePond.registerPlugin(FilePondPluginFileValidateType, FilePondPluginFileValidateSize);
 
     Alpine.data('dossierFilesCard', (config) => ({
+        // TASK-1130 : la surface a deux angles — Documents (la liste) et
+        // Series (l'editorial). Un etat d'affichage, pas un moteur.
+        vue: 'documents',
         files: [],
         quota: { used_bytes: 0, limit_bytes: null, remaining_bytes: null },
         uploading: false,
