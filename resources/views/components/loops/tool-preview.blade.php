@@ -17,11 +17,15 @@
     $t = fn (string $suffixe) => __('loops.tool_previews.'.$suffixe);
 
     // `band` : l'apercu occupe le tiers haut d'une carte de catalogue — plus
-    // grand, sans son propre cadre, centre verticalement. `card` : la vignette
-    // bordee d'origine.
-    $cadre = $variant === 'band'
-        ? 'pointer-events-none flex min-h-[8.5rem] select-none flex-col justify-center text-xs leading-snug'
-        : 'pointer-events-none select-none rounded-xl border border-gray-100 bg-gray-50/80 p-3 text-[11px] leading-tight dark:border-gray-700/60 dark:bg-gray-900/40';
+    // grand, sans son propre cadre, centre verticalement. `strip` : le meme,
+    // legerement plus compact, pour un outil deja actif — l'identite visuelle
+    // d'un outil ne disparait pas une fois installe. `card` : la vignette
+    // bordee d'origine. Trois habits, une seule silhouette par outil.
+    $cadre = match ($variant) {
+        'band' => 'pointer-events-none flex min-h-[8.5rem] select-none flex-col justify-center text-xs leading-snug',
+        'strip' => 'pointer-events-none flex min-h-[6rem] select-none flex-col justify-center text-xs leading-snug',
+        default => 'pointer-events-none select-none rounded-xl border border-gray-100 bg-gray-50/80 p-3 text-[11px] leading-tight dark:border-gray-700/60 dark:bg-gray-900/40',
+    };
 
     // Une silhouette par outil grid. Un outil sans apercu ne montre rien :
     // pas de cadre vide, la carte se contente de son icone et de son texte.

@@ -130,18 +130,33 @@ class TASK1127ToolCatalogTest extends TestCase
 
     // ── Le catalogue rendu ──────────────────────────────────────────────────
 
-    public function test_the_page_shows_previews_in_the_available_zone(): void
+    public function test_previews_live_in_both_zones(): void
     {
-        // Des outils reellement disponibles dans le preset `general` — les
-        // Sondages, eux, y sont deja actifs et n'ont donc pas d'apercu. Et
+        // Un outil garde son identite visuelle une fois installe : l'apercu
+        // des Sondages (actifs dans le preset `general`) se rend dans « Mes
+        // outils », ceux de Roadmap et Decisions dans « Ajouter des outils ».
         // `assertSee`, pas une comparaison brute : « Lancer l'idee » porte une
         // apostrophe, que Blade echappe (lecon de TASK-1125).
         $this->actingAs($this->owner)
             ->get(route('organization.loops.tools', ['organization' => $this->org->slug, 'loop' => $this->loop->id]))
             ->assertOk()
+            ->assertSee(__('loops.tool_previews.polls_question'))
             ->assertSee(__('loops.tool_previews.roadmap_step_1'))
             ->assertSee(__('loops.tool_previews.decisions_title'))
             ->assertSee(__('loops.tool_previews.quiz_question'));
+    }
+
+    public function test_the_owner_screen_never_says_principal(): void
+    {
+        // Le proprietaire n'a pas a comprendre « principal contre
+        // secondaire » : une seule section « Mes outils », l'etoile porte le
+        // geste, et le mot ne se rend nulle part. Le modele technique de
+        // TASK-1124, lui, continue de parler de primary.
+        $html = $this->pageOutils();
+        $visible = mb_strtolower(preg_replace('/<[^>]+>/', ' ', $html));
+
+        $this->assertStringNotContainsString('principal', $visible);
+        $this->assertStringNotContainsString(mb_strtolower(__('loops.tools_secondary_title')), $visible);
     }
 
     public function test_previews_are_decorative_and_inert(): void

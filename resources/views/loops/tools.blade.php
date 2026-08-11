@@ -1,23 +1,22 @@
 {{--
     « Personnaliser ma Boucle » — le catalogue d'outils du propriétaire.
 
-    Trois zones, et rien d'autre : ce qui est mis en avant, ce qui est actif
-    sans l'être, ce qu'on peut ajouter. Le vocabulaire est celui d'un outil,
-    jamais celui du moteur : ni Card, ni socle, ni preset, ni clé de
-    dépendance — un prérequis se dit en une phrase.
+    Deux zones : « Mes outils » et « Ajouter des outils ». L'utilisateur n'a
+    pas à comprendre « principal contre secondaire » : la phrase d'intro dit
+    tout ce qu'il faut — mettez-en jusqu'à 3 en avant pour qu'ils
+    apparaissent en premier — et l'étoile porte le geste. ★ mis en avant,
+    ☆ actif. Le modèle métier de TASK-1124 est inchangé : `enabled` reste la
+    vérité, trois mis en avant au plus.
 
-    Chaque état a sa surface, pas son badge : une carte mise en avant est
-    teintée d'indigo et porte une étoile pleine ; une carte active est
-    blanche, son étoile est creuse ; une carte disponible s'ouvre sur
-    l'aperçu de l'outil et se termine par « Ajouter à ma Boucle » ; une carte
-    bloquée reste au catalogue, en sourdine, et dit son prérequis en toutes
-    lettres.
+    L'identité visuelle d'un outil ne disparaît pas une fois installé : les
+    cartes actives gardent leur aperçu (le même composant, en plus compact).
+    Le vocabulaire est celui d'un outil, jamais celui du moteur — un
+    prérequis se dit en une phrase.
 
     Le feedback vit dans la carte du geste : un refus s'affiche sous le
     contrôle qui l'a provoqué (`error_tool`), une réussite fait luire la
-    carte arrivée dans sa nouvelle zone (`success_tool`). Le toast global du
-    layout complète, il ne remplace pas. Les formulaires se verrouillent au
-    premier envoi (Alpine, déjà présent partout dans le produit).
+    carte (`success_tool`). Le toast global du layout complète. Les
+    formulaires se verrouillent au premier envoi (Alpine, déjà partout).
 
     Les quatre gestes passent par le service canonique (TASK-1124) : cet
     écran n'a aucune logique métier à lui.
@@ -43,6 +42,12 @@
     $halo = fn (string $cle) => session('success_tool') === $cle
         ? 'x-data="{glow:true}" x-init="setTimeout(() => glow = false, 2200)" :class="glow && \'ring-2 ring-emerald-400/70\'"'
         : '';
+
+    // Une seule grille : les outils mis en avant d'abord, puis les actifs.
+    $mesOutils = array_merge(
+        array_map(fn ($o) => $o + ['featured' => true], $composition['primary']),
+        array_map(fn ($o) => $o + ['featured' => false], $composition['secondary']),
+    );
 @endphp
 
 <x-app-layout>
@@ -57,93 +62,65 @@
             <h1 class="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('loops.owner_tools_title') }}</h1>
             <p class="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-300">{{ __('loops.owner_tools_intro') }}</p>
 
-            {{-- ── Zone 1 : les outils mis en avant ─────────────────────── --}}
+            {{-- ── Mes outils ────────────────────────────────────────────── --}}
             <section class="mt-10">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100">
-                    {{ __('loops.tools_primary_title') }}
-                    <span class="ml-1 text-sm font-normal text-gray-400">{{ count($composition['primary']) }} / {{ $composition['max_primary'] }}</span>
-                </h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('loops.owner_tools_primary_hint') }}</p>
+                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ __('loops.owner_tools_mine_title') }}</h2>
+                    <span class="text-sm text-gray-400 dark:text-gray-500">
+                        {{ trans_choice('loops.owner_tools_featured_count', count($composition['primary']), ['count' => count($composition['primary']), 'max' => $composition['max_primary']]) }}
+                    </span>
+                </div>
+                <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                    {{ __('loops.owner_tools_mine_hint', ['max' => $composition['max_primary']]) }}
+                </p>
 
                 <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    @foreach($composition['primary'] as $outil)
+                    @foreach($mesOutils as $outil)
                         <article {!! $halo($outil['key']) !!}
-                                 class="flex flex-col rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 via-white to-white p-5 shadow-sm transition-shadow duration-700 dark:border-indigo-500/40 dark:from-indigo-950/40 dark:via-gray-800 dark:to-gray-800">
-                            <div class="flex items-start justify-between gap-3">
-                                <x-loops.card-icon :icon="$outil['icon'] ?? null" size="lg" />
+                                 class="flex flex-col overflow-hidden rounded-2xl border transition-shadow duration-700 {{ $outil['featured']
+                                    ? 'border-indigo-200 bg-gradient-to-br from-indigo-50/80 via-white to-white shadow-sm dark:border-indigo-500/40 dark:from-indigo-950/40 dark:via-gray-800 dark:to-gray-800'
+                                    : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800' }}">
 
-                                {{-- L'étoile pleine dit « mis en avant » ; la
-                                     presser retire la mise en avant, rien
-                                     d'autre. --}}
-                                <form method="POST" action="{{ $actionUrl }}" x-data="{ s: false }"
-                                      @submit="if (s) { $event.preventDefault(); return } s = true">
-                                    @csrf
-                                    <input type="hidden" name="action" value="demote">
-                                    <input type="hidden" name="tool" value="{{ $outil['key'] }}">
-                                    <button type="submit" :disabled="s" :class="s && 'opacity-50 cursor-wait'"
-                                            title="{{ __('loops.tools_demote') }}"
-                                            class="group flex h-11 w-11 items-center justify-center rounded-full text-indigo-500 transition hover:bg-indigo-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-300 dark:hover:bg-indigo-500/20">
-                                        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/></svg>
-                                        <span class="sr-only">{{ __('loops.tools_demote') }} — {{ $outil['label'] }}</span>
-                                    </button>
-                                </form>
+                            {{-- L'outil garde son aperçu une fois installé :
+                                 même composant, habit plus compact. --}}
+                            <div class="border-b px-5 pb-3 pt-4 {{ $outil['featured'] ? 'border-indigo-100/70 dark:border-indigo-500/20' : 'border-gray-100 dark:border-gray-700/60' }}">
+                                <x-loops.tool-preview :tool="$outil['key']" variant="strip" />
                             </div>
 
-                            <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-gray-100">{{ $outil['label'] }}</h3>
-                            <p class="mt-1 flex-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $outil['description'] }}</p>
-
-                            @if(session('error_tool') === $outil['key'])
-                                <p role="alert" class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium leading-5 text-red-700 dark:bg-red-900/30 dark:text-red-300">{{ session('error') }}</p>
-                            @endif
-                        </article>
-                    @endforeach
-
-                    @if($composition['primary'] === [])
-                        <p class="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 sm:col-span-2 lg:col-span-3 dark:border-gray-700 dark:text-gray-400">
-                            {{ __('loops.owner_tools_none_primary') }}
-                        </p>
-                    @endif
-                </div>
-            </section>
-
-            {{-- ── Zone 2 : les autres outils actifs ─────────────────────── --}}
-            @if($composition['secondary'] !== [])
-                <section class="mt-10">
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ __('loops.tools_secondary_title') }}</h2>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('loops.owner_tools_secondary_hint') }}</p>
-
-                    <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        @foreach($composition['secondary'] as $outil)
-                            <article {!! $halo($outil['key']) !!}
-                                     class="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 transition-shadow duration-700 dark:border-gray-700 dark:bg-gray-800">
-                                <div class="flex items-start justify-between gap-3">
-                                    <x-loops.card-icon :icon="$outil['icon'] ?? null" size="lg" />
+                            <div class="flex flex-1 flex-col p-5 pt-4">
+                                <div class="flex items-center gap-2.5">
+                                    <x-loops.card-icon :icon="$outil['icon'] ?? null" />
+                                    <h3 class="flex-1 text-base font-bold text-gray-900 dark:text-gray-100">{{ $outil['label'] }}</h3>
 
                                     @if($outil['required'])
                                         <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-500 dark:bg-gray-700 dark:text-gray-300">
                                             {{ __('loops.tools_catalog_state_required') }}
                                         </span>
                                     @else
-                                        {{-- L'étoile creuse : presser pour mettre
-                                             en avant. Le geste miroir de la
-                                             pleine, au même endroit. --}}
+                                        {{-- ★ mis en avant, ☆ actif : presser
+                                             l'étoile bascule, rien d'autre. --}}
                                         <form method="POST" action="{{ $actionUrl }}" x-data="{ s: false }"
                                               @submit="if (s) { $event.preventDefault(); return } s = true">
                                             @csrf
-                                            <input type="hidden" name="action" value="promote">
+                                            <input type="hidden" name="action" value="{{ $outil['featured'] ? 'demote' : 'promote' }}">
                                             <input type="hidden" name="tool" value="{{ $outil['key'] }}">
                                             <button type="submit" :disabled="s" :class="s && 'opacity-50 cursor-wait'"
-                                                    title="{{ __('loops.tools_promote') }}"
-                                                    class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-indigo-50 hover:text-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-gray-500 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-300">
-                                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/></svg>
-                                                <span class="sr-only">{{ __('loops.tools_promote') }} — {{ $outil['label'] }}</span>
+                                                    title="{{ $outil['featured'] ? __('loops.tools_demote') : __('loops.tools_promote') }}"
+                                                    class="flex h-11 w-11 items-center justify-center rounded-full transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 {{ $outil['featured']
+                                                        ? 'text-indigo-500 hover:bg-indigo-100 dark:text-indigo-300 dark:hover:bg-indigo-500/20'
+                                                        : 'text-gray-400 hover:bg-indigo-50 hover:text-indigo-500 dark:text-gray-500 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-300' }}">
+                                                @if($outil['featured'])
+                                                    <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/></svg>
+                                                @else
+                                                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/></svg>
+                                                @endif
+                                                <span class="sr-only">{{ $outil['featured'] ? __('loops.tools_demote') : __('loops.tools_promote') }} — {{ $outil['label'] }}</span>
                                             </button>
                                         </form>
                                     @endif
                                 </div>
 
-                                <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-gray-100">{{ $outil['label'] }}</h3>
-                                <p class="mt-1 flex-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $outil['description'] }}</p>
+                                <p class="mt-2 flex-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $outil['description'] }}</p>
 
                                 @if(session('error_tool') === $outil['key'])
                                     <p role="alert" class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium leading-5 text-red-700 dark:bg-red-900/30 dark:text-red-300">{{ session('error') }}</p>
@@ -154,7 +131,7 @@
                                      outil toujours présent n'en a pas — le
                                      proposer serait mentir. --}}
                                 @unless($outil['required'])
-                                    <div class="mt-4 border-t border-gray-100 pt-3 dark:border-gray-700/60">
+                                    <div class="mt-4 border-t pt-3 {{ $outil['featured'] ? 'border-indigo-100/70 dark:border-indigo-500/20' : 'border-gray-100 dark:border-gray-700/60' }}">
                                         <form method="POST" action="{{ $actionUrl }}" x-data="{ s: false }"
                                               @submit="if (s) { $event.preventDefault(); return } s = true"
                                               class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -169,13 +146,19 @@
                                         </form>
                                     </div>
                                 @endunless
-                            </article>
-                        @endforeach
-                    </div>
-                </section>
-            @endif
+                            </div>
+                        </article>
+                    @endforeach
 
-            {{-- ── Zone 3 : le catalogue de ce qu'on peut ajouter ────────── --}}
+                    @if($mesOutils === [])
+                        <p class="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 sm:col-span-2 lg:col-span-3 dark:border-gray-700 dark:text-gray-400">
+                            {{ __('loops.owner_tools_none_primary') }}
+                        </p>
+                    @endif
+                </div>
+            </section>
+
+            {{-- ── Ajouter des outils ────────────────────────────────────── --}}
             @if($composition['available'] !== [])
                 <section class="mt-10">
                     <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ __('loops.owner_tools_add_title') }}</h2>
