@@ -17,6 +17,8 @@ class AdminAiInteraction extends Model
     protected $fillable = [
         'organization_id',
         'user_id',
+        'correlation_id',
+        'process',
         'scenario_id',
         'provider',
         'model',

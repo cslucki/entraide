@@ -8,6 +8,8 @@ use App\Models\AiInteraction;
 use App\Models\BlogAnalysisNote;
 use App\Models\BlogPost;
 use App\Models\User;
+use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiProcess;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -485,6 +487,8 @@ class BlogExplorerController extends Controller implements HasMiddleware
         AiInteraction::create([
             'user_id' => $user->id,
             'organization_id' => currentOrganization()?->id ?? $user->organization_id,
+            'correlation_id' => AiCorrelation::id(),
+            'process' => AiProcess::fromFeature('blog_explorer'),
             'feature' => 'blog_explorer',
             'model' => $provider.'/'.$model,
             'prompt' => $newMessage,
@@ -598,6 +602,8 @@ class BlogExplorerController extends Controller implements HasMiddleware
         AiInteraction::create([
             'user_id' => $user->id,
             'organization_id' => currentOrganization()?->id ?? $user->organization_id,
+            'correlation_id' => AiCorrelation::id(),
+            'process' => AiProcess::fromFeature($feature),
             'feature' => $feature,
             'model' => $provider.'/'.$model,
             'prompt' => mb_substr($prompt, 0, 2000),

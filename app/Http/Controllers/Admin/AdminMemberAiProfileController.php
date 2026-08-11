@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAiInteraction;
 use App\Models\MemberAiProfile;
 use App\Services\Ai\SupervisionProviderResolver;
+use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiProcess;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -159,6 +161,8 @@ class AdminMemberAiProfileController extends Controller
         AdminAiInteraction::create([
             'organization_id' => $memberAiProfile->organization_id,
             'user_id' => auth()->id(),
+            'correlation_id' => AiCorrelation::id(),
+            'process' => AiProcess::fromScenarioId('member_ai_profile_llm_test'),
             'scenario_id' => 'member_ai_profile_llm_test',
             'provider' => $selectedProvider,
             'model' => $selectedModel,
