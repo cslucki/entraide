@@ -235,8 +235,17 @@ class ResolveUrlOrganization
 
     protected function resolveDefaultOrganization(): ?Organization
     {
-        $org = Organization::where('is_default', true)->first()
-            ?? Organization::where('is_active', true)->first();
+        // `first()` sans `orderBy` laisse le moteur choisir. Sur SQLite le
+        // parcours suit l'ordre d'insertion et la reponse parait stable ; sur
+        // PostgreSQL elle depend du plan, et deux Organizations actives
+        // donnaient tantot l'une tantot l'autre — donc un **tenant arbitraire**
+        // lie a la requete.
+        //
+        // Meme correction que `DefaultOrganizationResolver` (TASK-1121) et que
+        // le departage des proprietaires (TASK-1117) : l'horodatage d'abord,
+        // puis `id` pour trancher, `created_at` etant stocke a la seconde.
+        $org = Organization::where('is_default', true)->orderBy('created_at')->orderBy('id')->first()
+            ?? Organization::where('is_active', true)->orderBy('created_at')->orderBy('id')->first();
 
         if (! $org) {
             Log::warning('Default Organization resolution failed: no active organization with is_default = true in DB.');
