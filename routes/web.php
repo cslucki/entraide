@@ -760,6 +760,12 @@ Route::prefix('/org/{organization}')
                 // l'editeur Blog existant. Contexte Organization seulement,
                 // comme tout le systeme documentaire.
                 Route::post('/loops/{loop}/dossier/articles', [\App\Http\Controllers\LoopDossierArticleController::class, 'store'])->middleware('throttle:10,1')->name('loops.dossier.articles.store');
+                // « Personnaliser ma Boucle » — l'ecran du proprietaire. Meme
+                // service que l'administration (LoopPresetConfigurator), donc
+                // memes gardes ; seul le langage change. Contexte Organization
+                // seulement : la Boucle appartient a un tenant.
+                Route::get('/loops/{loop}/outils', [\App\Http\Controllers\LoopToolsController::class, 'index'])->name('loops.tools');
+                Route::post('/loops/{loop}/outils', [\App\Http\Controllers\LoopToolsController::class, 'update'])->middleware('throttle:30,1')->name('loops.tools.update');
             });
 
             Route::middleware('verified')->group(function () {
