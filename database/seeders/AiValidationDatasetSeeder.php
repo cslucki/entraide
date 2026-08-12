@@ -113,11 +113,13 @@ class AiValidationDatasetSeeder extends Seeder
         ]);
 
         $loopMain->messages()->create([
+            'organization_id' => $organization->id,
             'sender_id' => $member1->id,
             'body' => "{$sentinel} message de bienvenue dans la Loop principale.",
             'type' => 'user',
         ]);
         $loopMain->messages()->create([
+            'organization_id' => $organization->id,
             'sender_id' => $member2->id,
             'body' => "{$sentinel} réponse au message de bienvenue.",
             'type' => 'user',

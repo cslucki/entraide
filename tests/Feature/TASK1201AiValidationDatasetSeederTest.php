@@ -55,6 +55,7 @@ class TASK1201AiValidationDatasetSeederTest extends TestCase
         $this->assertSame(1, User::where('organization_id', $orgA->id)->where('is_admin', true)->count());
         $this->assertSame(2, Loop::where('organization_id', $orgA->id)->count());
         $this->assertGreaterThanOrEqual(2, LoopMessage::whereHas('loop', fn ($q) => $q->where('organization_id', $orgA->id))->count());
+        $this->assertSame(2, LoopMessage::where('organization_id', $orgA->id)->count(), 'organization_id doit être posé directement sur LoopMessage, pas seulement dérivable via la Loop');
         $this->assertSame(1, ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)->where('organization_id', $orgA->id)->count());
         $this->assertSame(1, Service::withoutGlobalScope(BelongsToOrganizationScope::class)->where('organization_id', $orgA->id)->count());
         $this->assertSame(1, Dossier::where('organization_id', $orgA->id)->count());
