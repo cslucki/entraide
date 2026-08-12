@@ -191,18 +191,26 @@ class TASK1131AiTraceSchemaTest extends TestCase
     }
 
     /**
-     * J — cette TASK ne touche pas au coût. Aucune colonne de coût n'a été
-     * ajoutée, retirée ou redéfinie, et `member_ai_profile_interactions`
-     * reste sans coût (c'est P1-2 qui traitera ce sujet).
+     * J — renseigner la corrélation ne recalcule ni n'altère le coût.
+     *
+     * TASK-1132 / IA P1-2 : ce test asserted à l'origine que
+     * `member_ai_profile_interactions` n'avait AUCUNE colonne de coût, en
+     * précisant « c'est P1-2 qui traitera ce sujet ». P1-2 a livré ces colonnes,
+     * donc cette borne temporelle est levée ici.
+     *
+     * L'intention réelle du test est conservée intacte, et c'est elle qui
+     * compte : une écriture qui fournit `correlation_id` et `process` conserve
+     * le coût transmis, au chiffre près.
      */
-    public function test_cost_columns_are_untouched_by_this_task(): void
+    public function test_correlation_does_not_alter_a_supplied_cost(): void
     {
         $this->assertTrue(Schema::hasColumn('ai_interactions', 'cost_usd'));
         $this->assertTrue(Schema::hasColumn('admin_ai_interactions', 'cost_usd'));
 
-        $this->assertFalse(Schema::hasColumn('member_ai_profile_interactions', 'cost_usd'));
-        $this->assertFalse(Schema::hasColumn('member_ai_profile_interactions', 'input_tokens'));
-        $this->assertFalse(Schema::hasColumn('member_ai_profile_interactions', 'output_tokens'));
+        // Livrées par TASK-1132, pas par TASK-1131.
+        $this->assertTrue(Schema::hasColumn('member_ai_profile_interactions', 'cost_usd'));
+        $this->assertTrue(Schema::hasColumn('member_ai_profile_interactions', 'input_tokens'));
+        $this->assertTrue(Schema::hasColumn('member_ai_profile_interactions', 'output_tokens'));
 
         $interaction = AiInteraction::create([
             'user_id' => $this->user->id,

@@ -34,6 +34,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
             'output_tokens' => $result->outputTokens,
             'latency_ms' => $latencyMs,
             'cost_usd' => $result->estimatedCostUsd,
+            'cost_unknown' => $result->costUnknown,
             'content_length' => mb_strlen($content),
             'status' => 'success',
         ]);
@@ -56,11 +57,28 @@ class LoggingSupervisionProvider implements SupervisionProvider
             'output_tokens' => $result->outputTokens,
             'latency_ms' => (int) $latencyMs,
             'cost_usd' => $result->estimatedCostUsd,
+            'cost_unknown' => $result->costUnknown,
         ]);
 
         return $result;
     }
 
+    /**
+     * TASK-1132 — pourquoi le coût est ici structurellement inconnu.
+     *
+     * Le contrat `SupervisionProvider::runScenario()` renvoie uniquement le
+     * payload parsé du scénario : aucun provider n'y expose son bloc `usage`
+     * (vérifié sur OpenAI, OpenRouter et Ollama). Sans usage observé, il n'y a
+     * rien à multiplier par un tarif.
+     *
+     * Les valeurs `'cost_usd' => 0.0` et `'input_tokens' => 0` écrites ici
+     * auparavant n'étaient donc pas des mesures : c'était un coût nul fabriqué,
+     * indiscernable en base d'un appel réellement gratuit. On écrit désormais la
+     * vérité : usage non renseigné et `cost_unknown = true`.
+     *
+     * Exposer l'usage de `runScenario` demanderait de changer le contrat du
+     * provider — c'est le sujet de P1-3, pas de P1-2.
+     */
     public function runScenario(AiScenarioDefinition $scenario, string $content, ?string $model = null): array
     {
         $startedAt = microtime(true) * 1000;
@@ -74,10 +92,11 @@ class LoggingSupervisionProvider implements SupervisionProvider
             'timestamp' => now()->toIso8601String(),
             'scenario_id' => $scenario->id(),
             'model' => $model,
-            'input_tokens' => 0,
-            'output_tokens' => 0,
+            'input_tokens' => null,
+            'output_tokens' => null,
             'latency_ms' => $latencyMs,
-            'cost_usd' => 0.0,
+            'cost_usd' => null,
+            'cost_unknown' => true,
             'content_length' => mb_strlen($content),
             'status' => 'success',
         ]);
@@ -94,10 +113,9 @@ class LoggingSupervisionProvider implements SupervisionProvider
             'metadata' => [
                 'scenario_class' => $scenario::class,
             ],
-            'input_tokens' => 0,
-            'output_tokens' => 0,
             'latency_ms' => (int) $latencyMs,
-            'cost_usd' => 0.0,
+            'cost_usd' => null,
+            'cost_unknown' => true,
         ]);
 
         return $result;

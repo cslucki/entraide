@@ -152,7 +152,8 @@
                                             {{ $interaction->status }}
                                         </span>
                                     </td>
-                                    <td class="px-5 py-3 text-gray-900 dark:text-gray-100">{{ number_format($interaction->cost_usd, 4, ',', ' ') }} €</td>
+                                    {{-- TASK-1132 : cost_usd est nullable. Un coût non mesurable s'affiche « — », jamais 0. --}}
+                                    <td class="px-5 py-3 text-gray-900 dark:text-gray-100">{{ $interaction->cost_usd === null ? '—' : number_format((float) $interaction->cost_usd, 4, ',', ' ').' €' }}</td>
                                     <td class="px-5 py-3 text-gray-500 dark:text-gray-400 text-xs">{{ $interaction->created_at->format('d/m/Y H:i') }}</td>
                                 </tr>
                             @empty

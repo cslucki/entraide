@@ -9,6 +9,8 @@ use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AiSupervisionResult;
 use App\Services\Ai\Exceptions\SupervisionException;
 use App\Services\Ai\JsonResponseParser;
+use App\Support\Ai\AiPricingCatalog;
+use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -83,6 +85,16 @@ PROMPT;
 
         $outputTokens = (int) ($body['eval_count'] ?? 0);
 
+        // TASK-1132 : Ollama s'exécute en local, aucun appel n'est facturé. Ce
+        // zéro est donc une VRAIE mesure de zéro, pas un tarif manquant : le
+        // catalogue déclare le provider `'free' => true` et le coût reste connu,
+        // sans `cost_unknown`. C'est exactement la distinction que P1-2 protège.
+        $cost = AiPricingCatalog::cost(
+            'ollama',
+            (string) ($body['model'] ?? $this->model),
+            AiUsage::of(null, $outputTokens),
+        );
+
         return new AiSupervisionResult(
             summary: $parsed['summary'],
             riskLevel: $parsed['risk_level'],
@@ -97,8 +109,9 @@ PROMPT;
             inputTokens: 0,
             outputTokens: $outputTokens,
             model: (string) ($body['model'] ?? $this->model),
-            estimatedCostUsd: 0.0,
+            estimatedCostUsd: $cost->costUsd,
             latencyMs: $latencyMs,
+            costUnknown: $cost->costUnknown,
         );
     }
 

@@ -316,7 +316,8 @@
                     <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-6 gap-y-1">
                         <span>Modèle : <strong>{{ $result->model }}</strong></span>
                         <span>Tokens : {{ $result->inputTokens }} in / {{ $result->outputTokens }} out</span>
-                        <span>Coût estimé : ${{ number_format($result->estimatedCostUsd, 6) }}</span>
+                        {{-- TASK-1132 : un coût non mesurable s'affiche « — », jamais un 0 trompeur. --}}
+                        <span>Coût estimé : {{ $result->estimatedCostUsd === null ? '—' : '$'.number_format($result->estimatedCostUsd, 6) }}</span>
                         <span>Latence : {{ $result->latencyMs }} ms</span>
                     </div>
                 </div>

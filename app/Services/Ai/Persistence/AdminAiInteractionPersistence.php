@@ -32,7 +32,11 @@ class AdminAiInteractionPersistence
                 'input_tokens' => $data['input_tokens'] ?? 0,
                 'output_tokens' => $data['output_tokens'] ?? 0,
                 'latency_ms' => $data['latency_ms'] ?? null,
-                'cost_usd' => $data['cost_usd'] ?? 0.0,
+                // TASK-1132 : le repli était `?? 0.0`, ce qui fabriquait un coût
+                // nul dès qu'un appelant n'en fournissait aucun. Un coût absent
+                // reste désormais NULL, et `cost_unknown` dit pourquoi.
+                'cost_usd' => $data['cost_usd'] ?? null,
+                'cost_unknown' => $data['cost_unknown'] ?? null,
             ];
 
             AdminAiInteraction::create($record);

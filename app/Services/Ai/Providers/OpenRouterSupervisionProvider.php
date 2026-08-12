@@ -9,6 +9,8 @@ use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AiSupervisionResult;
 use App\Services\Ai\Exceptions\SupervisionException;
 use App\Services\Ai\JsonResponseParser;
+use App\Support\Ai\AiPricingCatalog;
+use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -130,13 +132,16 @@ PROMPT;
         $text = $body['choices'][0]['message']['content'] ?? '';
         $parsed = JsonResponseParser::parseSupervisionResult($text);
 
-        $inputTokens = (int) ($body['usage']['prompt_tokens'] ?? 0);
-        $outputTokens = (int) ($body['usage']['completion_tokens'] ?? 0);
+        // TASK-1132 : le calcul supprimé ici appliquait les tarifs OpenAI
+        // gpt-4o-mini (0.15 / 0.60) EN DUR à n'importe quel modèle OpenRouter,
+        // quel que soit son prix réel. Le coût était donc inventé dès que le
+        // modèle n'était pas gpt-4o-mini. Le catalogue tranche désormais :
+        // tarif connu -> coût calculé, tarif absent -> cost_unknown, jamais 0.
+        $usage = AiUsage::fromChatCompletions($body);
+        $cost = AiPricingCatalog::cost('openrouter', $resolvedModel, $usage);
 
-        $estimatedCostUsd = round(
-            ($inputTokens / 1_000_000) * 0.15 + ($outputTokens / 1_000_000) * 0.60,
-            6
-        );
+        $inputTokens = $usage->inputTokensOrZero();
+        $outputTokens = $usage->outputTokensOrZero();
 
         return new AiSupervisionResult(
             summary: $parsed['summary'],
@@ -152,8 +157,9 @@ PROMPT;
             inputTokens: $inputTokens,
             outputTokens: $outputTokens,
             model: $resolvedModel,
-            estimatedCostUsd: $estimatedCostUsd,
+            estimatedCostUsd: $cost->costUsd,
             latencyMs: $latencyMs,
+            costUnknown: $cost->costUnknown,
         );
     }
 

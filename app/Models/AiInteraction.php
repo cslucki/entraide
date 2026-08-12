@@ -22,6 +22,7 @@ class AiInteraction extends Model
         'input_tokens',
         'output_tokens',
         'cost_usd',
+        'cost_unknown',
         'metadata',
     ];
 
@@ -32,6 +33,10 @@ class AiInteraction extends Model
             'input_tokens' => 'integer',
             'output_tokens' => 'integer',
             'cost_usd' => 'decimal:6',
+            // TASK-1132 : tri-etat. null = statut non evalue (lignes
+            // historiques), false = cout connu (un 0 legitime inclus),
+            // true = cout non mesurable, `cost_usd` valant alors NULL.
+            'cost_unknown' => 'boolean',
         ];
     }
 

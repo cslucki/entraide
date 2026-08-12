@@ -9,7 +9,9 @@ use App\Models\BlogAnalysisNote;
 use App\Models\BlogPost;
 use App\Models\User;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiProcess;
+use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -438,9 +440,10 @@ class BlogExplorerController extends Controller implements HasMiddleware
                 }
 
                 $text = trim((string) ($response->json('response') ?? ''));
-                $inputTokens = 0;
-                $outputTokens = (int) ($response->json('eval_count') ?? 0);
-                $costUsd = 0;
+                // Ollama tourne en local : coût nul réel, déclaré `free` au
+                // catalogue (TASK-1132).
+                $usage = AiUsage::fromOllamaGenerate($response->json());
+                $cost = AiPricingCatalog::cost($provider, $model, $usage);
             } else {
                 $http = Http::timeout($timeout)->acceptJson()->asJson();
 
@@ -468,15 +471,11 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
                 $body = $response->json();
                 $text = trim((string) ($body['choices'][0]['message']['content'] ?? ''));
-                $inputTokens = (int) ($body['usage']['input_tokens'] ?? 0);
-                $outputTokens = (int) ($body['usage']['output_tokens'] ?? 0);
-                $inputPrice = (float) ($config['input_price_per_1m'] ?? 0);
-                $outputPrice = (float) ($config['output_price_per_1m'] ?? 0);
-                $costUsd = round(
-                    ($inputTokens / 1_000_000) * $inputPrice
-                    + ($outputTokens / 1_000_000) * $outputPrice,
-                    6
-                );
+                // TASK-1132 : `$config['input_price_per_1m'] ?? 0` fabriquait un
+                // coût de 0 dès que le provider n'était pas OpenAI, car seul le
+                // bloc `openai` portait un prix. Le catalogue tranche désormais.
+                $usage = AiUsage::fromChatCompletions($body);
+                $cost = AiPricingCatalog::cost($provider, $model, $usage);
             }
         } catch (ConnectionException $e) {
             throw new \RuntimeException('Connexion au service IA impossible.');
@@ -493,9 +492,9 @@ class BlogExplorerController extends Controller implements HasMiddleware
             'model' => $provider.'/'.$model,
             'prompt' => $newMessage,
             'response' => $text,
-            'input_tokens' => $inputTokens,
-            'output_tokens' => $outputTokens,
-            'cost_usd' => $costUsd,
+            'input_tokens' => $usage->inputTokensOrZero(),
+            'output_tokens' => $usage->outputTokensOrZero(),
+            ...$cost->traceAttributes(),
             'metadata' => [
                 'blog_post_id' => $post->id,
                 'latency_ms' => $latencyMs,
@@ -561,6 +560,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
                 }
 
                 $text = trim((string) ($response->json('response') ?? ''));
+                $usage = AiUsage::fromOllamaGenerate($response->json());
             } else {
                 $http = Http::timeout($timeout)->acceptJson()->asJson();
 
@@ -588,6 +588,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
                 $body = $response->json();
                 $text = trim((string) ($body['choices'][0]['message']['content'] ?? ''));
+                $usage = AiUsage::fromChatCompletions($body);
             }
         } catch (ConnectionException $e) {
             throw new \RuntimeException('Connexion au service IA impossible.');
@@ -595,9 +596,10 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         $latencyMs = (int) (microtime(true) * 1000) - $startedAt;
 
-        $inputTokens = 0;
-        $outputTokens = 0;
-        $costUsd = 0;
+        // TASK-1132 : ce site écrasait l'usage réel par `0 / 0 / coût 0`, ce qui
+        // enregistrait un coût nul jamais mesuré. On lit maintenant l'usage
+        // rapporté et on laisse le catalogue trancher.
+        $cost = AiPricingCatalog::cost($provider, $model, $usage);
 
         AiInteraction::create([
             'user_id' => $user->id,
@@ -608,9 +610,9 @@ class BlogExplorerController extends Controller implements HasMiddleware
             'model' => $provider.'/'.$model,
             'prompt' => mb_substr($prompt, 0, 2000),
             'response' => $text,
-            'input_tokens' => $inputTokens,
-            'output_tokens' => $outputTokens,
-            'cost_usd' => $costUsd,
+            'input_tokens' => $usage->inputTokensOrZero(),
+            'output_tokens' => $usage->outputTokensOrZero(),
+            ...$cost->traceAttributes(),
             'metadata' => [
                 'blog_post_id' => $post->id,
                 'latency_ms' => $latencyMs,
