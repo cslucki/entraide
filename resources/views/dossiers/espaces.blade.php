@@ -159,8 +159,12 @@
                                     </a>
 
                                     @if($boucle)
+                                        {{-- Sur mobile l'action secondaire prend sa
+                                             propre ligne, alignee sous le nom : la
+                                             mettre a cote ecrasait le nom de la
+                                             Boucle et sa date d'activite. --}}
                                         <a href="{{ route('organization.loops.show', ['organization' => $orgParam, 'loop' => $boucle->slug ?? $boucle->getKey()]) }}"
-                                           class="ml-[3.875rem] inline-flex min-h-11 items-center gap-1.5 rounded-lg text-sm font-medium text-indigo-600 transition hover:underline dark:text-indigo-400 sm:ml-0">
+                                           class="ml-[3.875rem] inline-flex min-h-11 w-full items-center gap-1.5 rounded-lg text-sm font-medium text-indigo-600 transition hover:underline dark:text-indigo-400 sm:ml-0 sm:w-auto">
                                             {{ __('dossiers.loop_visit') }}
                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                                 <path d="M7 17 17 7M9 7h8v8" />
