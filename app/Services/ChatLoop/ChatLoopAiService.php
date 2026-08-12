@@ -10,7 +10,9 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\User;
+use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiMarkdownSanitizer;
+use App\Support\Ai\AiProcess;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -598,6 +600,8 @@ class ChatLoopAiService
         $interaction = AiInteraction::create([
             'user_id' => $user->id,
             'organization_id' => currentOrganization()?->id ?? $user->organization_id,
+            'correlation_id' => AiCorrelation::id(),
+            'process' => AiProcess::fromFeature($scenarioId),
             'feature' => $scenarioId,
             'model' => $provider.'/'.$model,
             'prompt' => $context,

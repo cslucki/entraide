@@ -3,6 +3,8 @@
 namespace App\Services\Ai\Persistence;
 
 use App\Models\AdminAiInteraction;
+use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiProcess;
 use Illuminate\Support\Facades\Log;
 
 class AdminAiInteractionPersistence
@@ -10,10 +12,14 @@ class AdminAiInteractionPersistence
     public function persist(array $data): void
     {
         try {
+            $scenarioId = $data['scenario_id'] ?? 'unknown';
+
             $record = [
                 'organization_id' => $this->resolveOrganizationId(),
                 'user_id' => $this->resolveUserId(),
-                'scenario_id' => $data['scenario_id'] ?? 'unknown',
+                'correlation_id' => AiCorrelation::id(),
+                'process' => $data['process'] ?? AiProcess::fromScenarioId($scenarioId),
+                'scenario_id' => $scenarioId,
                 'provider' => $data['provider'] ?? null,
                 'model' => $data['model'] ?? null,
                 'status' => $data['status'] ?? 'success',

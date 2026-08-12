@@ -8,6 +8,8 @@ use App\Models\AiInteraction;
 use App\Models\BlogAiConfig;
 use App\Models\BlogPost;
 use App\Models\User;
+use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiProcess;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -259,6 +261,8 @@ class BlogAiService
         $interaction = AiInteraction::create([
             'user_id' => $user->id,
             'organization_id' => $organizationId,
+            'correlation_id' => AiCorrelation::id(),
+            'process' => AiProcess::fromFeature($feature),
             'feature' => $feature,
             'model' => $provider.'/'.$model,
             'prompt' => $prompt,

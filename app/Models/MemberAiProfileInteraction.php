@@ -14,6 +14,8 @@ class MemberAiProfileInteraction extends Model
 
     protected $fillable = [
         'organization_id',
+        'correlation_id',
+        'process',
         'member_ai_profile_id',
         'profile_owner_user_id',
         'visitor_user_id',

@@ -6,6 +6,8 @@ use App\Models\AdminAiInteraction;
 use App\Models\MemberAiProfile;
 use App\Models\MemberAiProfileInteraction;
 use App\Models\User;
+use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiProcess;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -211,9 +213,15 @@ class InlineMemberAgent extends Component
             ?? $this->targetUser?->organization
             ?? DefaultOrganizationResolver::resolve();
 
+        // Une seule operation utilisateur -> une seule correlation partagee par
+        // les deux ecritures de trace ci-dessous (TASK-1131).
+        $correlationId = AiCorrelation::id();
+
         AdminAiInteraction::create([
             'organization_id' => $organization?->id,
             'user_id' => auth()->id(),
+            'correlation_id' => $correlationId,
+            'process' => AiProcess::fromScenarioId('inline_member_presentation'),
             'scenario_id' => 'inline_member_presentation',
             'provider' => 'rule_based',
             'status' => 'success',
@@ -230,6 +238,8 @@ class InlineMemberAgent extends Component
 
         MemberAiProfileInteraction::create([
             'organization_id' => $organization?->id ?? $this->profile?->organization_id,
+            'correlation_id' => $correlationId,
+            'process' => AiProcess::MEMBER_PROFILE_INLINE_PRESENTATION,
             'member_ai_profile_id' => $this->profile?->id,
             'profile_owner_user_id' => $this->targetUser->id,
             'visitor_user_id' => auth()->id(),

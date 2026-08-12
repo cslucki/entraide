@@ -13,6 +13,8 @@ class AiInteraction extends Model
     protected $fillable = [
         'user_id',
         'organization_id',
+        'correlation_id',
+        'process',
         'feature',
         'model',
         'prompt',
