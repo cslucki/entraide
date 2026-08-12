@@ -203,22 +203,26 @@ class DossierArticleIndexingDispatchTest extends TestCase
         Queue::assertNothingPushed();
     }
 
-    public function test_dossier_destroy_controller_dispatches_captured_articles_after_pivots_are_deleted(): void
+    public function test_dossier_destroy_controller_refuses_and_dispatches_nothing_when_an_article_is_attached(): void
     {
+        // TASK-1130 (etape A) : un Dossier avec un Article rattache n'est
+        // plus supprimable. Le pivot n'est plus detache silencieusement, et
+        // il n'y a donc plus rien a reindexer apres coup — le dispatch de
+        // ce cas a disparu avec la promotion/detachement automatiques.
         [$organization, $user, $dossier, $post] = $this->fixture();
         $this->actAsOrganizationUser($organization, $user);
         Queue::fake();
 
-        $this->delete(route('organization.dossiers.destroy', [$organization, $dossier]))
-            ->assertRedirect();
+        $this->deleteJson(route('organization.dossiers.destroy', [$organization, $dossier]))
+            ->assertStatus(422);
 
-        $this->assertSoftDeleted('dossiers', ['id' => $dossier->id]);
-        $this->assertDatabaseMissing('dossier_blog_posts', [
+        $this->assertDatabaseHas('dossiers', ['id' => $dossier->id, 'deleted_at' => null]);
+        $this->assertDatabaseHas('dossier_blog_posts', [
             'organization_id' => $organization->id,
             'dossier_id' => $dossier->id,
             'blog_post_id' => $post->id,
         ]);
-        $this->assertIndexJobPushed($organization->id, $dossier->id, $post->id);
+        Queue::assertNothingPushed();
     }
 
     public function test_dossier_destroy_controller_without_articles_does_not_dispatch(): void

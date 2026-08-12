@@ -101,6 +101,11 @@ class DossierFileTest extends TestCase
         return route('organization.dossiers.files.preview', ['organization' => $this->orgA, 'dossier' => $dossier, 'file' => $file]);
     }
 
+    private function moveRoute(Dossier $dossier, DossierFile $file): string
+    {
+        return route('organization.dossiers.files.move', ['organization' => $this->orgA, 'dossier' => $dossier, 'file' => $file]);
+    }
+
     private function createFile(Dossier $dossier, User $uploader, string $name = 'doc.pdf', string $mimeType = 'application/pdf'): DossierFile
     {
         $path = 'dossier-files/'.$dossier->id.'/'.$name;
@@ -557,22 +562,26 @@ class DossierFileTest extends TestCase
 
     // --- Dossier soft-delete nullifies file.dossier_id ---
 
-    public function test_soft_deleting_dossier_nullifies_file_dossier_id(): void
+    public function test_a_dossier_with_a_file_refuses_deletion_instead_of_orphaning_it(): void
     {
+        // TASK-1130 (etape A) : un Dossier ne se supprime plus que vide —
+        // avant, un fichier restant etait detache silencieusement
+        // (dossier_id => null). Desormais la suppression est refusee et rien
+        // ne bouge.
         $file = $this->createFile($this->dossier, $this->ownerA);
 
         $this->actingAs($this->ownerA)->deleteJson(route('organization.dossiers.destroy', [
             'organization' => $this->orgA,
             'dossier' => $this->dossier,
-        ]))->assertOk();
+        ]))->assertStatus(422);
 
         $this->assertDatabaseHas('dossier_files', [
             'id' => $file->id,
-            'dossier_id' => null,
-        ]);
-        $this->assertDatabaseMissing('dossier_files', [
-            'id' => $file->id,
             'dossier_id' => $this->dossier->id,
+        ]);
+        $this->assertDatabaseHas('dossiers', [
+            'id' => $this->dossier->id,
+            'deleted_at' => null,
         ]);
     }
 
@@ -654,5 +663,116 @@ class DossierFileTest extends TestCase
         $response = $this->actingAs($this->ownerA)->get($this->showRoute($dossier2, $file));
 
         $response->assertStatus(404);
+    }
+
+    // --- Move a file to another dossier (TASK-1130 passe 4) ---
+
+    public function test_owner_can_move_a_file_to_a_child_folder(): void
+    {
+        $sousDossier = Dossier::create([
+            'organization_id' => $this->orgA->id, 'parent_id' => $this->dossier->getKey(), 'name' => 'Sous-dossier',
+        ]);
+        $file = $this->createFile($this->dossier, $this->ownerA);
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->moveRoute($this->dossier, $file), ['target_dossier_id' => $sousDossier->getKey()])
+            ->assertOk();
+
+        $this->assertDatabaseHas('dossier_files', ['id' => $file->id, 'dossier_id' => $sousDossier->getKey()]);
+    }
+
+    public function test_owner_can_move_a_file_up_to_the_parent(): void
+    {
+        $sousDossier = Dossier::create([
+            'organization_id' => $this->orgA->id, 'parent_id' => $this->dossier->getKey(), 'name' => 'Sous-dossier',
+        ]);
+        $file = $this->createFile($sousDossier, $this->ownerA);
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->moveRoute($sousDossier, $file), ['target_dossier_id' => $this->dossier->getKey()])
+            ->assertOk();
+
+        $this->assertDatabaseHas('dossier_files', ['id' => $file->id, 'dossier_id' => $this->dossier->getKey()]);
+    }
+
+    public function test_editor_cannot_move_a_file(): void
+    {
+        // deleteFile (retirer d'ici) est le meme droit que supprimer : seul le
+        // proprietaire l'a sur un Dossier personnel, pas un editeur.
+        $sousDossier = Dossier::create([
+            'organization_id' => $this->orgA->id, 'parent_id' => $this->dossier->getKey(), 'name' => 'Sous-dossier',
+        ]);
+        $file = $this->createFile($this->dossier, $this->ownerA);
+
+        $this->actingAs($this->editorA)
+            ->patchJson($this->moveRoute($this->dossier, $file), ['target_dossier_id' => $sousDossier->getKey()])
+            ->assertStatus(403);
+
+        $this->assertDatabaseHas('dossier_files', ['id' => $file->id, 'dossier_id' => $this->dossier->getKey()]);
+    }
+
+    public function test_moving_into_a_folder_without_write_access_is_refused(): void
+    {
+        $dossierEtranger = Dossier::create([
+            'organization_id' => $this->orgA->id, 'owner_id' => $this->strangerA->id,
+            'name' => 'Pas le mien', 'visibility' => Dossier::VISIBILITY_PRIVATE,
+        ]);
+        $file = $this->createFile($this->dossier, $this->ownerA);
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->moveRoute($this->dossier, $file), ['target_dossier_id' => $dossierEtranger->getKey()])
+            ->assertStatus(403);
+
+        $this->assertDatabaseHas('dossier_files', ['id' => $file->id, 'dossier_id' => $this->dossier->getKey()]);
+    }
+
+    public function test_moving_to_a_dossier_of_another_organization_is_refused(): void
+    {
+        $dossierAilleurs = Dossier::create([
+            'organization_id' => $this->orgB->id, 'owner_id' => $this->userB->id,
+            'name' => 'Ailleurs', 'visibility' => Dossier::VISIBILITY_PRIVATE,
+        ]);
+        $file = $this->createFile($this->dossier, $this->ownerA);
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->moveRoute($this->dossier, $file), ['target_dossier_id' => $dossierAilleurs->getKey()])
+            ->assertStatus(404);
+
+        $this->assertDatabaseHas('dossier_files', ['id' => $file->id, 'dossier_id' => $this->dossier->getKey()]);
+    }
+
+    public function test_moving_refuses_a_duplicate_name_in_the_target(): void
+    {
+        $sousDossier = Dossier::create([
+            'organization_id' => $this->orgA->id, 'parent_id' => $this->dossier->getKey(), 'name' => 'Sous-dossier',
+        ]);
+        $this->createFile($sousDossier, $this->ownerA, 'doc.pdf');
+        $file = $this->createFile($this->dossier, $this->ownerA, 'doc.pdf');
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->moveRoute($this->dossier, $file), ['target_dossier_id' => $sousDossier->getKey()])
+            ->assertStatus(422)
+            ->assertJson(['message' => __('dossiers.file_duplicate_name')]);
+
+        $this->assertDatabaseHas('dossier_files', ['id' => $file->id, 'dossier_id' => $this->dossier->getKey()]);
+    }
+
+    public function test_moving_to_the_same_dossier_is_a_no_op_refused(): void
+    {
+        $file = $this->createFile($this->dossier, $this->ownerA);
+
+        $this->actingAs($this->ownerA)
+            ->patchJson($this->moveRoute($this->dossier, $file), ['target_dossier_id' => $this->dossier->getKey()])
+            ->assertStatus(422)
+            ->assertJson(['message' => __('dossiers.file_move_same_dossier')]);
+    }
+
+    public function test_cross_tenant_cannot_move_a_file(): void
+    {
+        $file = $this->createFile($this->dossier, $this->ownerA);
+
+        $this->actingAs($this->userB)
+            ->patchJson($this->moveRoute($this->dossier, $file), ['target_dossier_id' => $this->dossier->getKey()])
+            ->assertStatus(404);
     }
 }

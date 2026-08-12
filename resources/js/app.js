@@ -3224,6 +3224,51 @@ function registerDossierFilesCard() {
         // TASK-1130 : la surface a deux angles — Documents (la liste) et
         // Series (l'editorial). Un etat d'affichage, pas un moteur.
         vue: 'documents',
+        // Compteur du survol de depot : sur LE MEME composant que le reste,
+        // jamais dans un x-data imbrique — un scope enfant rendrait
+        // filePondContainer invisible a $refs du composant parent (bug trouve
+        // en recette, TASK-1130 passe 4).
+        survol: 0,
+        // Les fichiers arrivent par fetch APRES les dossiers/Articles rendus
+        // cote serveur : sans cet etat, l'ecran affirmait « pas de fichier »
+        // pendant 2-3 s — un fichier deplace semblait avoir disparu (constate
+        // en audit, TASK-1130 UX finale). Le squelette remplace ce mensonge.
+        filesLoading: true,
+        // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
+        // le PATCH — retirer un partage n'est pas supprimer, le ton du modal
+        // n'est pas celui d'une destruction.
+        showUnshareFolderModal: false,
+        unshareFolderTarget: null,
+        // ── Mode Serie (TASK-1130, addendum) ────────────────────────────
+        // Une Serie = organisation SEQUENTIELLE : elle ajoute une position et
+        // une numerotation calculee, elle ne deplace, ne renomme et ne
+        // duplique jamais rien. Meme URL, meme surface : `vue` passe a
+        // 'serie' et la projection ordonnee remplace la liste spatiale.
+        // Moteur : les routes /series existantes (store, annexes, reorder,
+        // destroy), toutes multi-Series via `series_id` — rien de recree.
+        seriesMode: config.seriesMode || [],
+        serieArticles: config.serieArticles || [],
+        canManageSeries: config.canManageSeries || false,
+        serieActive: null,
+        showSerieSelect: false,
+        showCreateSerieModal: false,
+        // « + Nouveau » -> « Ajouter un article existant » : le rattachement
+        // au DOSSIER (pas a une Serie) — l'ancien modal de la carte Contenus,
+        // rehoberge dans le flux de creation. Moteur inchange (articles.store
+        // + articles/search).
+        showAttachArticleModal: false,
+        attachSearchQuery: '',
+        attachSearchResults: [],
+        attachSearching: false,
+        attachSaving: false,
+        newSerieName: '',
+        showSerieAddModal: false,
+        showSerieDeleteModal: false,
+        serieSaving: false,
+        serieDragArmedId: null,
+        serieDragItemId: null,
+        serieDragOverId: null,
+        serieAnnouncement: '',
         files: [],
         quota: { used_bytes: 0, limit_bytes: null, remaining_bytes: null },
         uploading: false,
@@ -3246,6 +3291,22 @@ function registerDossierFilesCard() {
         _pond: null,
         showDeleteModal: false,
         deleteTarget: null,
+        // Supprimer un Dossier (TASK-1130 passe 4, CAS A/B) : les lignes de
+        // dossier sont rendues cote serveur (pas reactives comme `files`),
+        // donc un succes recharge la page plutot que de retirer la ligne a
+        // la main — geste rare et deja confirme, la recharge reste honnete.
+        showDeleteFolderModal: false,
+        deleteFolderTarget: null,
+        deletingFolder: false,
+        // Deplacer un fichier (TASK-1130 passe 4) : `moveTargets` vient du
+        // serveur (sous-dossiers + parent reel, deja filtres au droit
+        // manageFiles) — jamais recalcule cote client, qui n'a pas les
+        // permissions des AUTRES dossiers sous la main.
+        moveTargets: config.moveTargets || [],
+        showMoveModal: false,
+        moveTarget: null,
+        draggingFileId: null,
+        dragOverFolderId: null,
         showPreviewModal: false,
         previewFile: null,
         showImportMenu: false,
@@ -3521,6 +3582,15 @@ function registerDossierFilesCard() {
         },
 
         init() {
+            // Preference d'affichage (TASK-1130 passe 4) : localStorage
+            // uniquement, jamais une colonne pour ce seul detail — la meme
+            // cle sert le Dossier prive et le Dossier de Boucle, un seul
+            // reglage pour tout le Drive.
+            try {
+                const stored = window.localStorage.getItem('bp-dossier-view-mode');
+                if (stored === 'list' || stored === 'grid') this.viewMode = stored;
+            } catch (e) { /* localStorage indisponible (navigation privee, quota) : reste sur 'list' */ }
+
             this.loadFiles();
             document.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') {
@@ -3627,7 +3697,8 @@ function registerDossierFilesCard() {
                     this.lastPage = data.files.last_page || 1;
                     this.totalFiles = data.files.total || 0;
                 })
-                .catch(() => this.showMessage(this.i18n.uploadFailed, 'error'));
+                .catch(() => this.showMessage(this.i18n.uploadFailed, 'error'))
+                .finally(() => { this.filesLoading = false; });
         },
 
         formatBytes(bytes) {
@@ -3638,10 +3709,17 @@ function registerDossierFilesCard() {
         },
 
         normalizeFile(file) {
+            // Les dates suivent la langue de la PAGE, pas celle du navigateur :
+            // `toLocaleDateString()` sans argument rendait « 8/12/2026 » a cote
+            // des « 11/08/2026 » du serveur, dans la meme colonne.
+            const langue = document.documentElement.lang || undefined;
+            const jour = (valeur) => valeur ? new Date(valeur).toLocaleDateString(langue) : '';
+
             return {
                 ...file,
                 sizeFormatted: this.formatBytes(file.size_bytes),
-                uploadedAtFormatted: file.created_at ? new Date(file.created_at).toLocaleDateString() : '',
+                uploadedAtFormatted: jour(file.created_at),
+                updatedAtFormatted: jour(file.updated_at || file.created_at),
             };
         },
 
@@ -3702,6 +3780,46 @@ function registerDossierFilesCard() {
             this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-file-title"]'); });
         },
 
+        openDeleteFolderModal(id, name) {
+            this._trapTrigger = document.activeElement;
+            this.deleteFolderTarget = { id, name };
+            this.showDeleteFolderModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-folder-title"]'); });
+        },
+
+        closeDeleteFolderModal() {
+            this.showDeleteFolderModal = false;
+            this.deleteFolderTarget = null;
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-folder-title"]'); });
+        },
+
+        async confirmDeleteFolder() {
+            if (!this.deleteFolderTarget) return;
+            const id = this.deleteFolderTarget.id;
+            this.deletingFolder = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                if (response.ok) {
+                    window.location.reload();
+                    return;
+                }
+                const data = await response.json().catch(() => ({}));
+                this.showMessage(data.message || this.i18n.deleteFailed, 'error');
+            } catch (error) {
+                this.showMessage(this.i18n.deleteFailed, 'error');
+            } finally {
+                this.deletingFolder = false;
+                this.closeDeleteFolderModal();
+            }
+        },
+
         async confirmDeleteFile() {
             if (!this.deleteTarget) return;
             const file = this.deleteTarget;
@@ -3709,6 +3827,471 @@ function registerDossierFilesCard() {
             this.deleteTarget = null;
             this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); });
             await this.deleteFile(file);
+        },
+
+        // ── Deplacer un fichier (TASK-1130 passe 4) : menu "Deplacer vers..."
+        //    et glisser-deposer partagent ce meme point d'entree unique, pour
+        //    ne jamais faire diverger les deux gestes. ─────────────────────
+
+        setViewMode(mode) {
+            this.viewMode = mode;
+            // Liste et Grille sont aussi la sortie du mode Serie : trois modes,
+            // une seule bascule.
+            if (this.vue === 'serie') this.quitSerieMode();
+            try { window.localStorage.setItem('bp-dossier-view-mode', mode); } catch (e) { /* meme garde qu'a la lecture */ }
+        },
+
+        // Le troisieme mode de la bascule. 0 Serie : etat vide + creer ;
+        // exactement 1 : on l'ouvre directement ; plusieurs : le choix est
+        // explicite (« Serie : Choisir… ▾ »), jamais arbitraire. Jamais
+        // persiste : c'est une interaction, pas une preference d'affichage.
+        enterSerieToggle() {
+            if (this.vue === 'serie') return;
+            this.vue = 'serie';
+            this.serieActive = null;
+            if (this.seriesMode.length === 1) this.enterSerieMode(this.seriesMode[0].id);
+        },
+
+        // Apres un deplacement reussi, le compteur « N elements » du dossier
+        // cible est rafraichi depuis l'etat deja disponible (data-count porte
+        // par le serveur au rendu) — pas de rechargement, pas de requete.
+        bumpFolderCount(folderId) {
+            document.querySelectorAll(`[data-folder-count="${folderId}"]`).forEach((el) => {
+                const count = (parseInt(el.dataset.count, 10) || 0) + 1;
+                el.dataset.count = String(count);
+                el.textContent = count === 1
+                    ? (this.i18n.folderItemsOne || '1')
+                    : (this.i18n.folderItemsMany || ':count').replace(':count', String(count));
+            });
+        },
+
+        // ── Mode Serie : entrer, sortir, classer ─────────────────────────
+
+        enterSerieMode(id) {
+            const serie = this.seriesMode.find(s => s.id === id);
+            if (!serie) return;
+            // Copie de travail : l'optimisme s'applique dessus, le revert
+            // revient a l'etat serveur garde dans seriesMode.
+            this.serieActive = { id: serie.id, name: serie.name, items: serie.items.map(i => ({ ...i })) };
+            this.vue = 'serie';
+            this.showSerieSelect = false;
+        },
+
+        quitSerieMode() {
+            this.serieActive = null;
+            this.serieDragArmedId = null;
+            this.serieDragItemId = null;
+            this.serieDragOverId = null;
+            this.vue = 'documents';
+        },
+
+        // L'etat serveur de reference, mis a jour apres chaque succes.
+        _syncSerieBack() {
+            const serie = this.seriesMode.find(s => s.id === this.serieActive?.id);
+            if (serie) serie.items = this.serieActive.items.map(i => ({ ...i }));
+        },
+
+        // Un contenu n'appartient qu'a UNE Serie (regle MVP du moteur) : les
+        // candidats a l'ajout excluent tout ce qui vit deja dans une Serie.
+        _serieUsedKeys() {
+            const used = new Set();
+            this.seriesMode.forEach(s => s.items.forEach(i => { if (i.key) used.add(i.key); }));
+            return used;
+        },
+
+        get serieArticleCandidates() {
+            const used = this._serieUsedKeys();
+            return this.serieArticles.filter(a => !used.has('blog:' + a.id));
+        },
+
+        get serieFileCandidates() {
+            const used = this._serieUsedKeys();
+            return this.files.filter(f => !used.has('file:' + f.id));
+        },
+
+        async serieAdd(kind, id, name) {
+            if (!this.serieActive || this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify(kind === 'article'
+                        ? { blog_post_id: id, series_id: this.serieActive.id }
+                        : { dossier_file_id: id, series_id: this.serieActive.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                this.serieActive.items.push({
+                    itemId: data.item?.id,
+                    type: kind,
+                    name,
+                    key: (kind === 'article' ? 'blog:' : 'file:') + id,
+                });
+                this._syncSerieBack();
+                this.showMessage(data.message || this.i18n.serieAdded, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        async serieRemove(item) {
+            if (!this.serieActive || !item.itemId || this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/${item.itemId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ series_id: this.serieActive.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                this.serieActive.items = this.serieActive.items.filter(i => i.itemId !== item.itemId);
+                this._syncSerieBack();
+                this.showMessage(data.message || this.i18n.serieRemoved, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        // Le premier ne monte pas, le dernier ne descend pas — la racine
+        // (itemId null) n'entre jamais dans le classement.
+        serieCanMoveUp(itemId) {
+            const movable = this.serieActive?.items.filter(i => i.itemId) || [];
+            return movable.findIndex(i => i.itemId === itemId) > 0;
+        },
+
+        serieCanMoveDown(itemId) {
+            const movable = this.serieActive?.items.filter(i => i.itemId) || [];
+            const idx = movable.findIndex(i => i.itemId === itemId);
+            return idx !== -1 && idx < movable.length - 1;
+        },
+
+        // Monter / Descendre : premiere classe, clavier et mobile — le drag
+        // les complete, il ne les remplace jamais. La racine (itemId null)
+        // reste en tete : elle ne se classe pas, elle se remplace.
+        async serieMove(itemId, delta) {
+            if (!this.serieActive || this.serieSaving) return;
+            const items = this.serieActive.items;
+            const fixed = items.filter(i => !i.itemId);
+            const movable = items.filter(i => i.itemId);
+            const from = movable.findIndex(i => i.itemId === itemId);
+            const to = from + delta;
+            if (from === -1 || to < 0 || to >= movable.length) return;
+            const avant = items.map(i => ({ ...i }));
+            movable.splice(to, 0, movable.splice(from, 1)[0]);
+            this.serieActive.items = [...fixed, ...movable];
+            await this.persistSerieOrder(avant, itemId);
+        },
+
+        serieDropOn(targetItemId) {
+            const dragged = this.serieDragItemId;
+            this.serieDragOverId = null;
+            if (!this.serieActive || !dragged || dragged === targetItemId) return;
+            const items = this.serieActive.items;
+            const fixed = items.filter(i => !i.itemId);
+            const movable = items.filter(i => i.itemId);
+            const from = movable.findIndex(i => i.itemId === dragged);
+            const to = movable.findIndex(i => i.itemId === targetItemId);
+            if (from === -1 || to === -1) return;
+            const avant = items.map(i => ({ ...i }));
+            movable.splice(to, 0, movable.splice(from, 1)[0]);
+            this.serieActive.items = [...fixed, ...movable];
+            this.persistSerieOrder(avant, dragged);
+        },
+
+        // Le seul endroit qui persiste un ordre : l'interface a deja bouge,
+        // le serveur reste source de verite. Echec = retour a l'ordre
+        // d'avant + message — jamais un ordre non persiste a l'ecran.
+        async persistSerieOrder(avant, movedItemId) {
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/reorder`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({
+                        items: this.serieActive.items.filter(i => i.itemId).map(i => i.itemId),
+                        series_id: this.serieActive.id,
+                    }),
+                });
+                if (!response.ok) throw new Error(String(response.status));
+                this._syncSerieBack();
+                const rang = this.serieActive.items.findIndex(i => i.itemId === movedItemId);
+                if (rang !== -1) {
+                    const item = this.serieActive.items[rang];
+                    this.serieAnnouncement = `${String(rang + 1).padStart(2, '0')} — ${item.name}`;
+                }
+            } catch (e) {
+                this.serieActive.items = avant;
+                this.showMessage(this.i18n.serieReorderFailed, 'error');
+            } finally {
+                this.serieSaving = false;
+                this.serieDragArmedId = null;
+                this.serieDragItemId = null;
+            }
+        },
+
+        async createSerie() {
+            const name = this.newSerieName.trim();
+            if (!name || this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ name }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                const serie = { id: data.series.id, name: data.series.name || name, items: [] };
+                this.seriesMode.push(serie);
+                this.showCreateSerieModal = false;
+                this.newSerieName = '';
+                this.showMessage(data.message || this.i18n.serieCreated, 'success');
+                this.enterSerieMode(serie.id);
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        // Dissoudre la classification sequentielle — aucun Article, aucun
+        // fichier, aucun contenu du Dossier n'est supprime.
+        async deleteSerieActive() {
+            if (!this.serieActive || this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ series_id: this.serieActive.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                this.seriesMode = this.seriesMode.filter(s => s.id !== this.serieActive.id);
+                this.showSerieDeleteModal = false;
+                this.quitSerieMode();
+                this.showMessage(data.message || this.i18n.serieDeleted, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        // Definir un Article de la Serie comme racine : le moteur existant
+        // (update + series_id) replace l'ancienne racine en premiere annexe
+        // et renumerote — la reponse porte l'etat complet, on l'applique.
+        async serieSetRoot(item) {
+            if (!this.serieActive || this.serieSaving || item.type !== 'article' || !item.key) return;
+            const blogPostId = item.key.split(':')[1];
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ root_blog_post_id: blogPostId, series_id: this.serieActive.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                // Reconstruire la projection depuis la verite serveur.
+                const s = data.series;
+                const items = [];
+                if (s.root_blog_post) items.push({ itemId: null, type: 'root', name: s.root_blog_post.title, key: 'blog:' + s.root_blog_post.id });
+                (s.items || []).forEach(i => {
+                    if (i.blog_post) items.push({ itemId: i.id, type: 'article', name: i.blog_post.title, key: 'blog:' + i.blog_post.id });
+                    else if (i.dossier_file) items.push({ itemId: i.id, type: 'file', name: i.dossier_file.display_name || i.dossier_file.original_name, key: 'file:' + i.dossier_file.id });
+                });
+                this.serieActive.items = items;
+                this._syncSerieBack();
+                this.showMessage(data.message || this.i18n.serieCreated, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        // ── « Ajouter un article existant » (fonction DOSSIER, via + Nouveau) ──
+
+        openAttachArticleModal() {
+            this._trapTrigger = this.$refs.fabButton || document.activeElement;
+            this.attachSearchQuery = '';
+            this.attachSearchResults = [];
+            this.showAttachArticleModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="attach-article-title"]'); });
+        },
+
+        closeAttachArticleModal() {
+            this.showAttachArticleModal = false;
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="attach-article-title"]'); });
+        },
+
+        async searchAttachArticles() {
+            if (this.attachSearchQuery.trim().length < 2) { this.attachSearchResults = []; return; }
+            this.attachSearching = true;
+            try {
+                const res = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/articles/search?q=` + encodeURIComponent(this.attachSearchQuery.trim()), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                this.attachSearchResults = data.articles || [];
+            } catch (e) {
+                this.attachSearchResults = [];
+            } finally {
+                this.attachSearching = false;
+            }
+        },
+
+        async attachExistingArticle(article) {
+            if (this.attachSaving) return;
+            this.attachSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/articles`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ blog_post_id: article.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.networkError, 'error');
+                    return;
+                }
+                // Les lignes Articles sont rendues cote serveur : recharger est
+                // le geste honnete, comme pour la suppression de dossier.
+                window.location.reload();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.attachSaving = false;
+            }
+        },
+
+        // « Retirer de cette Boucle » (CAS B) : confirmation legere, ton
+        // non destructif — le PATCH part du <form> du modal, pas d'ici.
+        openUnshareFolderModal(id, name, action) {
+            this._trapTrigger = document.activeElement;
+            this.unshareFolderTarget = { id, name, action };
+            this.showUnshareFolderModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="unshare-folder-title"]'); });
+        },
+
+        closeUnshareFolderModal() {
+            this.showUnshareFolderModal = false;
+            this.unshareFolderTarget = null;
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="unshare-folder-title"]'); });
+        },
+
+        openMoveModal(file) {
+            if (!this.moveTargets.length) return;
+            this._trapTrigger = document.activeElement;
+            this.moveTarget = file;
+            this.showMoveModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="move-file-title"]'); });
+        },
+
+        closeMoveModal() {
+            this.showMoveModal = false;
+            this.moveTarget = null;
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="move-file-title"]'); });
+        },
+
+        async moveFileTo(file, targetDossierId) {
+            if (!file || !targetDossierId || targetDossierId === this.dossierId) return;
+
+            this.saving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}/move`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ target_dossier_id: targetDossierId }),
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Le fichier a quitte ce Dossier : il quitte aussi cette vue,
+                    // exactement comme apres une suppression.
+                    this.files = this.files.filter(f => f.id !== file.id);
+                    this.totalFiles = Math.max(0, this.totalFiles - 1);
+                    // La destination est nommee (TASK-1130 UX finale) :
+                    // « Fichier deplace. » sans dire vers ou laissait le geste
+                    // muet. moveTargets porte deja le nom, filtre au droit reel.
+                    const cible = this.moveTargets.find(t => t.id === targetDossierId);
+                    this.showMessage(cible?.name && this.i18n.movedTo
+                        ? this.i18n.movedTo.replace(':name', cible.name)
+                        : (data.message || this.i18n.moved), 'success');
+                    this.bumpFolderCount(targetDossierId);
+                } else {
+                    this.showMessage(data.message || this.i18n.moveFailed, 'error');
+                }
+            } catch (error) {
+                this.showMessage(this.i18n.moveFailed, 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async confirmMoveFile(targetDossierId) {
+            if (!this.moveTarget) return;
+            const file = this.moveTarget;
+            this.closeMoveModal();
+            await this.moveFileTo(file, targetDossierId);
+        },
+
+        // Glisser une ligne de fichier : un simple marqueur d'etat, propre a
+        // cette page — pas de dataTransfer custom necessaire pour un geste qui
+        // ne quitte jamais l'onglet.
+        onFileDragStart(file) {
+            this.draggingFileId = file.id;
+        },
+
+        onFileDragEnd() {
+            this.draggingFileId = null;
+            this.dragOverFolderId = null;
+        },
+
+        onFolderDragOver(folderId) {
+            if (!this.draggingFileId) return;
+            this.dragOverFolderId = folderId;
+        },
+
+        onFolderDragLeave(folderId) {
+            if (this.dragOverFolderId === folderId) this.dragOverFolderId = null;
+        },
+
+        async onFolderDrop(folderId) {
+            const fileId = this.draggingFileId;
+            this.dragOverFolderId = null;
+            this.draggingFileId = null;
+            if (!fileId) return;
+            const file = this.files.find(f => f.id === fileId);
+            if (!file) return;
+            await this.moveFileTo(file, folderId);
         },
 
         openPreview(file) {

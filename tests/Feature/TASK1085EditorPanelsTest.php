@@ -276,6 +276,9 @@ class TASK1085EditorPanelsTest extends TestCase
 
     public function test_the_dossier_screen_offers_creating_a_series(): void
     {
+        // TASK-1130 (doctrine finale) : la creation vit dans le mode Serie
+        // (selecteur « Serie : … ▾ » et etat vide), et la racine se designe
+        // ligne par ligne — plus de panneau Contenus ni de modal dedie.
         $dossier = $this->dossier();
 
         $this->actingAs($this->author)
@@ -283,8 +286,8 @@ class TASK1085EditorPanelsTest extends TestCase
                 'organization' => $this->org->slug, 'dossier' => $dossier->id,
             ]))
             ->assertOk()
-            ->assertSee(__('dossiers.series_create'))
-            ->assertSee(__('dossiers.series_choose_root_title'));
+            ->assertSee(e(__('dossiers.series_mode_create')), false)
+            ->assertSee(e(__('dossiers.content_set_root')), false);
     }
 
     public function test_no_native_confirmation_is_used_for_the_panels(): void

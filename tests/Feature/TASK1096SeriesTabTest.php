@@ -125,19 +125,19 @@ class TASK1096SeriesTabTest extends TestCase
             ->assertOk();
     }
 
-    // ── L'onglet existe ─────────────────────────────────────────────────────
+    // ── Le point d'entree Series existe ──────────────────────────────────────
 
-    public function test_the_dossier_page_offers_a_fourth_tab(): void
+    public function test_the_dossier_page_offers_a_series_entry_point(): void
     {
+        // TASK-1130 (doctrine finale) : Liste | Grille | Serie sont trois
+        // MODES de la meme surface — le point d'entree est le troisieme
+        // bouton de la bascule, la sortie est de revenir a Liste ou Grille.
+        // Un gestionnaire peut creer une Serie depuis le selecteur du mode.
         $page = $this->page();
 
-        $page->assertSee('id="tab-series"', false);
-        $page->assertSee('id="tabpanel-series"', false);
-        $page->assertSee(e(__('dossiers.series_tab')), false);
-        // Les trois autres sont intacts : cette tache ajoute, elle ne remplace pas.
-        foreach (['tab-contenus', 'tab-fichiers', 'tab-membres'] as $onglet) {
-            $page->assertSee('id="'.$onglet.'"', false);
-        }
+        $page->assertSee(e(__('dossiers.series_mode_label')), false);
+        $page->assertSee(e(__('dossiers.series_mode_create')), false);
+        $page->assertSee(e(__('dossiers.series_mode_pick')), false);
     }
 
     public function test_an_empty_dossier_explains_what_a_series_is(): void
@@ -175,13 +175,20 @@ class TASK1096SeriesTabTest extends TestCase
 
         $page = $this->page();
 
-        // Les numeros sont rendus, cote a cote avec des noms intacts.
-        $page->assertSee('data-series-number', false);
-        $page->assertSee('>01<', false);
-        $page->assertSee('>02<', false);
-        $page->assertSee('>03<', false);
+        // TASK-1130 (addendum) : la numerotation 01/02/03 est desormais
+        // calculee a l'ecran depuis la projection embarquee (mode Serie) —
+        // le rang, jamais une copie. La page porte la projection avec des
+        // noms intacts, et l'API rend l'ordre qui produit ces numeros.
+        $page->assertSee('seriesMode', false);
         $page->assertSee('piece.pdf', false);
         $page->assertSee('La racine', false);
+
+        $reponse = $this->actingAs($this->owner)->getJson($this->route('dossiers.series.show'))->assertOk();
+        $items = $reponse->json('series_list.0.items');
+        $this->assertCount(2, $items);
+        $this->assertSame('Une annexe', $items[0]['blog_post']['title']);
+        $this->assertSame('piece.pdf', $items[1]['dossier_file']['original_name']);
+        $this->assertSame('La racine', $reponse->json('series_list.0.root_blog_post.title'));
 
         // Et aucun nom n'a ete prefixe d'un numero.
         $this->assertDatabaseHas('blog_posts', ['title' => 'La racine']);
@@ -203,10 +210,12 @@ class TASK1096SeriesTabTest extends TestCase
 
         $page = $this->page();
 
-        // Des boutons nommes, pas seulement une poignee de glissement.
-        $page->assertSee(e(__('dossiers.series_move_up_label', ['name' => 'Un'])), false);
-        $page->assertSee(e(__('dossiers.series_move_down_label', ['name' => 'Un'])), false);
-        $page->assertSee('dossierSeriesReorder', false);
+        // Des boutons nommes (Monter/Descendre), pas seulement une poignee de
+        // glissement — TASK-1130 addendum : ils vivent dans le mode Serie,
+        // gates cote SERVEUR par manageSeries (un lecteur ne recoit pas ce
+        // markup, voir le test suivant).
+        $page->assertSee(e(__('dossiers.move_up')).' — ', false);
+        $page->assertSee(e(__('dossiers.move_down')).' — ', false);
         // Une region polie annonce le nouvel ordre sans interrompre.
         $page->assertSee('aria-live="polite"', false);
     }
@@ -224,10 +233,16 @@ class TASK1096SeriesTabTest extends TestCase
 
         $page->assertSee('La racine', false);
         $page->assertSee('Une annexe', false);
-        // Lire, oui ; classer, non — et pas seulement en apparence : la route
-        // le refuserait aussi, ce que verifie DossierSeriesTest.
-        $page->assertDontSee('dossierSeriesReorder', false);
-        $page->assertDontSee(e(__('dossiers.series_move_up_label', ['name' => 'Une annexe'])), false);
+        // Lire, oui ; classer, non — et pas seulement en apparence : le
+        // markup des controles (Monter/Descendre, poignee, Ajouter a la
+        // serie) est gate cote serveur par manageSeries, et la route le
+        // refuserait aussi, ce que verifie DossierSeriesTest.
+        $page->assertDontSee(e(__('dossiers.move_up')).' — ', false);
+        // La banniere du mode Serie ne lui propose ni l'ajout ni l'aide au
+        // classement (le volet heritage « Gestion avancee » garde ses libelles
+        // dans sa config, mais aucun declencheur n'existe pour un lecteur).
+        $page->assertDontSee(e(__('dossiers.series_mode_hint')), false);
+        $page->assertDontSee(e(__('dossiers.series_mode_no_candidates')), false);
     }
 
     public function test_the_keyboard_reorder_uses_the_same_route_as_the_drag(): void

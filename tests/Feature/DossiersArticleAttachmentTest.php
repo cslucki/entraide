@@ -244,18 +244,21 @@ class DossiersArticleAttachmentTest extends TestCase
         $this->assertDatabaseHas('blog_posts', ['id' => $post->id, 'deleted_at' => null]);
     }
 
-    public function test_logical_dossier_delete_detaches_pivots_and_keeps_articles(): void
+    public function test_deleting_a_dossier_with_an_attached_article_is_refused(): void
     {
+        // TASK-1130 (etape A) : un Dossier ne se supprime que vide. Avant
+        // cette regle, le pivot dossier_blog_posts etait detache
+        // silencieusement et le Dossier supprime quand meme.
         $dossier = $this->dossier($this->orgA, $this->authorA, 'Private folder');
         $post = $this->blogPost($this->orgA, $this->authorA, 'Owned article');
         $this->attach($dossier, $post, $this->authorA, 1);
 
         $this->actingAs($this->authorA)
-            ->delete(route('organization.dossiers.destroy', ['organization' => $this->orgA, 'dossier' => $dossier->id]))
-            ->assertRedirect(route('organization.dossiers.index', $this->orgA));
+            ->deleteJson(route('organization.dossiers.destroy', ['organization' => $this->orgA, 'dossier' => $dossier->id]))
+            ->assertStatus(422);
 
-        $this->assertSoftDeleted('dossiers', ['id' => $dossier->id]);
-        $this->assertDatabaseMissing('dossier_blog_posts', ['dossier_id' => $dossier->id]);
+        $this->assertDatabaseHas('dossiers', ['id' => $dossier->id, 'deleted_at' => null]);
+        $this->assertDatabaseHas('dossier_blog_posts', ['dossier_id' => $dossier->id, 'blog_post_id' => $post->id]);
         $this->assertDatabaseHas('blog_posts', ['id' => $post->id, 'deleted_at' => null]);
     }
 

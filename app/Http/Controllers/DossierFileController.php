@@ -297,6 +297,67 @@ class DossierFileController extends Controller
         ]);
     }
 
+    /**
+     * Deplacer un fichier vers un autre Dossier (TASK-1130 passe 4).
+     *
+     * Deux droits distincts, pas un seul : `deleteFile` sur la source (retirer
+     * le fichier d'ici est le meme geste que le supprimer d'ici) et
+     * `manageFiles` sur la cible (y deposer un fichier est le meme geste que
+     * l'y importer). Un utilisateur qui peut vider un Dossier mais pas
+     * remplir l'autre ne doit reussir qu'a moitie le geste, jamais silencieusement.
+     */
+    public function move(Request $request): JsonResponse
+    {
+        $dossier = $this->resolveDossier($request->route('dossier'));
+        $file = $this->resolveFile($request->route('file'));
+        $organization = $this->currentOrganizationOrFail();
+        $this->ensureCurrentUserBelongsToCurrentOrganization();
+        $this->ensureDossierBelongsToCurrentOrganization($dossier);
+
+        if ($file->dossier_id !== $dossier->id || $file->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('deleteFile', $dossier);
+
+        $data = $request->validate([
+            'target_dossier_id' => ['required', 'string'],
+        ]);
+
+        $target = Dossier::where('id', $data['target_dossier_id'])
+            ->where('organization_id', $organization->id)
+            ->first();
+
+        if (! $target) {
+            // Hors du tenant courant ou inexistant : meme reponse, aucune fuite
+            // d'information sur ce qui existe ailleurs.
+            return response()->json(['message' => __('dossiers.move_cross_organization_refused')], 404);
+        }
+
+        $this->authorize('manageFiles', $target);
+
+        if ($target->id === $dossier->id) {
+            return response()->json(['message' => __('dossiers.file_move_same_dossier')], 422);
+        }
+
+        $duplicate = DossierFile::query()
+            ->where('organization_id', $organization->id)
+            ->where('dossier_id', $target->id)
+            ->where('original_name', $file->original_name)
+            ->exists();
+
+        if ($duplicate) {
+            return response()->json(['message' => __('dossiers.file_duplicate_name')], 422);
+        }
+
+        $file->update(['dossier_id' => $target->id]);
+
+        return response()->json([
+            'message' => __('dossiers.file_moved'),
+            'file' => ['id' => $file->id, 'dossier_id' => $target->id],
+        ]);
+    }
+
     private function resolveDossier(string $dossier): Dossier
     {
         return Dossier::query()->whereKey($dossier)->firstOrFail();

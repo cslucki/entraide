@@ -593,10 +593,15 @@ class DossierSharingTest extends TestCase
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
+        // TASK-1130 passe 4 : « Membres » est devenu « Partager » — l'ancienne
+        // cle `members_title` n'etait deja plus rendue nulle part ; cette
+        // assertion passait par coincidence (meme texte "Membres" produit par
+        // `members_tab`, qui a lui aussi ete renomme). Le vrai marqueur de
+        // panneau reste `share_tab`, et `add_member` pour la gestion owner.
         $this->actingAs($this->ownerA)
             ->get($this->orgRoute('dossiers.show', $dossier))
             ->assertOk()
-            ->assertSee(__('dossiers.members_title'))
+            ->assertSee(__('dossiers.share_tab'))
             ->assertSee(__('dossiers.add_member'));
     }
 
@@ -614,28 +619,36 @@ class DossierSharingTest extends TestCase
 
     public function test_editor_can_see_attach_form(): void
     {
+        // TASK-1130 (doctrine finale) : la carte Contenus n'existe plus —
+        // rattacher un Article existant est une fonction Dossier, dans le
+        // flux « + Nouveau », avec sa recherche. L'editeur y a droit.
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->editorA, DossierMember::ROLE_EDITOR);
 
         $this->actingAs($this->editorA)
             ->get($this->orgRoute('dossiers.show', $dossier))
             ->assertOk()
-            ->assertSee(__('dossiers.contents_tab'))
-            ->assertSee('dossierContentsCard');
+            ->assertSee(e(__('dossiers.fab_attach_article')), false)
+            ->assertSee(e(__('dossiers.attach_article')), false);
     }
 
     // --- Shared dossiers index ---
 
     public function test_reader_sees_shared_dossiers_in_index(): void
     {
+        // TASK-1130 (decision finale) : « Partages » est une VUE d'agregation
+        // a deux sous-vues — Avec moi / Par moi. Ce qui compte : le dossier
+        // recu est visible dans « Avec moi », et son proprietaire est dit.
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'Shared Folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
         $this->actingAs($this->readerA)
-            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug]))
+            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug, 'espace' => 'partages']))
             ->assertOk()
             ->assertSee(__('dossiers.shared_with_me'))
-            ->assertSee('Shared Folder');
+            ->assertSee(__('dossiers.shared_by_me'))
+            ->assertSee('Shared Folder')
+            ->assertSee(e($this->ownerA->publicDisplayName()), false);
     }
 
     public function test_owner_sees_shared_badge_when_dossier_has_members(): void
@@ -643,9 +656,12 @@ class DossierSharingTest extends TestCase
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'Shared Folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
+        // Depuis « Partages par moi » : le dossier que j'ai partage, et avec
+        // combien de personnes.
         $this->actingAs($this->ownerA)
-            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug]))
+            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug, 'espace' => 'partages', 'vue' => 'par-moi']))
             ->assertOk()
-            ->assertSee(__('dossiers.shared_badge'));
+            ->assertSee('Shared Folder')
+            ->assertSee(e(trans_choice('dossiers.shared_with_people', 1, ['count' => 1])), false);
     }
 }

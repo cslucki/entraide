@@ -18,7 +18,7 @@ return [
     'invitations' => 'Invitations',
     'favorites' => 'Mes favoris',
     'my_articles' => 'Mes articles',
-    'my_dossiers' => 'Mes dossiers',
+    'my_dossiers' => 'Dossiers',
     'settings' => 'Profil et paramètres',
     'administration' => 'Administration',
     'logout' => 'Déconnexion',

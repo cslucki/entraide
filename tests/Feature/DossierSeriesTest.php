@@ -632,8 +632,13 @@ class DossierSeriesTest extends TestCase
 
     // --- Dossier soft-delete cleans series ---
 
-    public function test_deleting_dossier_cleans_series_metadata(): void
+    public function test_deleting_a_dossier_with_a_series_root_article_is_refused(): void
     {
+        // TASK-1130 (etape A) : un Dossier ne se supprime que vide. La
+        // racine d'une Serie est toujours un Article deja attache au
+        // Dossier (dossier_blog_posts) — le Dossier n'est donc jamais vide
+        // tant que la Serie a une racine. Avant cette regle, la suppression
+        // reussissait quand meme et dissolvait la Serie silencieusement.
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $root = $this->blogPost($this->orgA, $this->ownerA, 'Root');
         $this->attach($dossier, $root, $this->ownerA, 1);
@@ -648,9 +653,34 @@ class DossierSeriesTest extends TestCase
             route('organization.dossiers.destroy', ['organization' => $this->orgA->slug, 'dossier' => $dossier->id])
         );
 
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('article_series', ['id' => $series->id]);
+        $this->assertDatabaseHas('blog_posts', ['id' => $root->id]);
+        $this->assertDatabaseHas('dossiers', ['id' => $dossier->id, 'deleted_at' => null]);
+    }
+
+    public function test_deleting_an_empty_dossier_dissolves_a_root_less_series(): void
+    {
+        // Une Serie sans racine ni item (nom seul) est deja "coquille vide" :
+        // aucun Article ni fichier ne l'empeche d'exister sur un Dossier
+        // sinon vide. La dissoudre en meme temps que le Dossier ne perd
+        // aucun contenu.
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
+
+        $series = ArticleSeries::create([
+            'organization_id' => $this->orgA->id,
+            'dossier_id' => $dossier->id,
+            'root_blog_post_id' => null,
+            'name' => 'Serie vide',
+        ]);
+
+        $response = $this->actingAs($this->ownerA)->deleteJson(
+            route('organization.dossiers.destroy', ['organization' => $this->orgA->slug, 'dossier' => $dossier->id])
+        );
+
         $response->assertOk();
         $this->assertDatabaseMissing('article_series', ['id' => $series->id]);
-        $this->assertDatabaseHas('blog_posts', ['id' => $root->id]);
+        $this->assertSoftDeleted('dossiers', ['id' => $dossier->id]);
     }
 
     // --- Stranger / cross-tenant ---

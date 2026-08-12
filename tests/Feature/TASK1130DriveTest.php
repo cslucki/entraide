@@ -118,9 +118,11 @@ class TASK1130DriveTest extends TestCase
 
         $html = $this->page($partage);
 
-        // Le fil remonte : « Documents » est un lien vers le racine, le nom
-        // du dossier courant est la position.
-        $this->assertStringContainsString(__('dossiers.drive_breadcrumb_root'), $html);
+        // Le fil remonte : la premiere miette est l'ESPACE d'ou l'on vient
+        // (« Boucles » pour un Drive de Boucle, TASK-1130 decision finale),
+        // puis le Drive lui-meme, puis la position courante.
+        $this->assertStringContainsString(__('dossiers.space_loops'), $html);
+        $this->assertStringContainsString($this->loop->name, $html);
         $this->assertStringContainsString(
             route('organization.dossiers.show', ['organization' => $this->org->slug, 'dossier' => $this->racine->getKey()]),
             $html,

@@ -109,15 +109,17 @@ class TASK1121RootDossierGovernanceTest extends TestCase
             ->assertSee(__('dossiers.role_loop_member'));
     }
 
-    // ── L'onglet Membres represente la Boucle, en lecture seule ─────────────
+    // ── L'onglet Partager represente la Boucle, en lecture seule ────────────
+    // TASK-1130 passe 4 : « Membres » est devenu « Partager » — le contenu du
+    // panneau (source de verite = la Boucle, en lecture seule) n'a pas change.
 
-    public function test_the_members_tab_lists_the_loop_members(): void
+    public function test_the_share_panel_lists_the_loop_members(): void
     {
         $this->withSession(['locale' => 'fr']);
 
         $this->voirDossier($this->proprietaire)
             ->assertOk()
-            ->assertSee(__('dossiers.members_managed_by_loop'))
+            ->assertSee(__('dossiers.share_loop_body'))
             ->assertSee($this->proprietaire->publicDisplayName())
             ->assertSee($this->membre->publicDisplayName());
     }
@@ -156,12 +158,17 @@ class TASK1121RootDossierGovernanceTest extends TestCase
     {
         $this->withSession(['locale' => 'fr']);
 
+        // TASK-1130 (decision finale) : le module a trois espaces, et les
+        // Drives de Boucle vivent dans « Boucles » — une VUE, jamais un
+        // Dossier physique. La ligne parle de la Boucle : son nom, mon role,
+        // et une sortie explicite vers elle.
         $this->actingAs($this->membre)
-            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug]))
+            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug, 'espace' => 'boucles']))
             ->assertOk()
-            ->assertSee($this->racine->name)
-            ->assertSee(__('dossiers.loop_dossier_badge'))
-            // Le badge dit la Boucle — plus de proprietaire fantome.
+            ->assertSee(e($this->boucle->name), false)
+            ->assertSee(e(__('dossiers.space_loops')), false)
+            ->assertSee(e(__('dossiers.loop_visit')), false)
+            // Le nom de la Boucle dit le detenteur — plus de proprietaire fantome.
             ->assertDontSee(__('profile.deactivated_user'));
     }
 
@@ -170,9 +177,9 @@ class TASK1121RootDossierGovernanceTest extends TestCase
         $sansBoucle = User::factory()->create(['organization_id' => $this->orgA->id]);
 
         $this->actingAs($sansBoucle)
-            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug]))
+            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug, 'espace' => 'boucles']))
             ->assertOk()
-            ->assertDontSee($this->racine->name);
+            ->assertDontSee(e($this->boucle->name), false);
     }
 
     public function test_the_index_never_crosses_the_organization(): void

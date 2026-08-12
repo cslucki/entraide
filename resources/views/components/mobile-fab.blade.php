@@ -1,4 +1,11 @@
 @auth
+{{-- TASK-1130 : sur le module Documents, la creation a sa propre source —
+     « + Nouveau » dans la barre du Drive, et « Creer un dossier » a l'index.
+     Afficher en plus le FAB global y donnerait deux boutons primaires
+     simultanes sur un ecran de 390px, et son cercle masquait la derniere
+     ligne et son menu « ... ». Il est donc neutralise ICI seulement : le FAB
+     du reste de l'application n'est pas touche. --}}
+@unless(request()->routeIs('organization.dossiers.*'))
 @php
     $_fabOrgSlug = request()->route('organization');
     $_fabRequestsHref = $_fabOrgSlug && Route::has('organization.requests.create') ? route('organization.requests.create', ['organization' => $_fabOrgSlug]) : route('requests.create');
@@ -37,4 +44,5 @@
         </a>
     </div>
 </div>
+@endunless
 @endauth
