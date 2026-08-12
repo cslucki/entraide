@@ -30,7 +30,7 @@ final class AiProcess
 
     /**
      * Écritures `admin_ai_interactions` pour les invocations Laravel AI SDK
-     * (TASK-1133 / IA P1-3). Seul usage réel du SDK à ce jour : les
+     * (TASK-1200 / IA P1-3). Seul usage réel du SDK à ce jour : les
      * embeddings Dossiers. Ces `scenario_id` sont ceux posés par les call
      * sites (`DossierArticleIndexer`, `DossierSemanticSearchService`).
      */

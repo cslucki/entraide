@@ -18,7 +18,7 @@ class IndexDossierArticleChunks implements ShouldQueue
     public int $timeout = 120;
 
     /**
-     * TASK-1133 — propagation asynchrone de la corrélation, meme patron que
+     * TASK-1200 — propagation asynchrone de la corrélation, meme patron que
      * `GenerateAiAgentResponse` (TASK-1131) : figee au DISPATCH, serialisee
      * avec le job, jamais recreee a l'execution.
      */

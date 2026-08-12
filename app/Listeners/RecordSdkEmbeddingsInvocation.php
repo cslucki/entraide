@@ -15,7 +15,7 @@ use Laravel\Ai\Events\GeneratingEmbeddings;
 
 /**
  * Instrumentation des invocations Embeddings du Laravel AI SDK
- * (TASK-1133 / IA P1-3).
+ * (TASK-1200 / IA P1-3).
  *
  * Seul couple d'événements avec un call site réel dans le produit
  * (`DossierChunkEmbeddingService::embed()`), voir le TASK pour l'audit complet

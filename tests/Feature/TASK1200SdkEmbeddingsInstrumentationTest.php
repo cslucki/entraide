@@ -22,10 +22,10 @@ use RuntimeException;
 use Tests\TestCase;
 
 /**
- * TASK-1133 / IA P1-3 — instrumentation des invocations Embeddings du Laravel
+ * TASK-1200 / IA P1-3 — instrumentation des invocations Embeddings du Laravel
  * AI SDK. Preuve d'intégration : le chemin Dossiers, seul usage réel du SDK.
  */
-class TASK1133SdkEmbeddingsInstrumentationTest extends TestCase
+class TASK1200SdkEmbeddingsInstrumentationTest extends TestCase
 {
     public function test_an_operation_keeps_its_correlation_id_through_the_write(): void
     {
@@ -61,8 +61,8 @@ class TASK1133SdkEmbeddingsInstrumentationTest extends TestCase
         $secondPost = BlogPost::create([
             'organization_id' => $organization->id,
             'user_id' => $owner->id,
-            'title' => 'TASK1133 second article '.Str::uuid(),
-            'slug' => 'task1133-second-article-'.Str::uuid(),
+            'title' => 'TASK1200 second article '.Str::uuid(),
+            'slug' => 'task1200-second-article-'.Str::uuid(),
             'content' => '<p>second searchable article content</p>',
             'status' => 'published',
             'published_at' => now()->subMinute(),
@@ -230,7 +230,7 @@ class TASK1133SdkEmbeddingsInstrumentationTest extends TestCase
         // Pgvector*Test) : sous SQLite, le service leve toujours son
         // exception explicite documentee, avant que l'instrumentation
         // n'intervienne (elle est posee juste apres cette garde). Prouver ici
-        // que ce comportement reste EXACTEMENT le meme qu'avant TASK-1133.
+        // que ce comportement reste EXACTEMENT le meme qu'avant TASK-1200.
         if (config('database.default') === 'pgsql') {
             $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
             $this->assertIsArray($results);
@@ -277,14 +277,14 @@ class TASK1133SdkEmbeddingsInstrumentationTest extends TestCase
         $dossier = Dossier::create([
             'organization_id' => $organization->id,
             'owner_id' => $owner->id,
-            'name' => 'TASK1133 dossier '.($sentinel !== '' ? $sentinel : Str::uuid()),
+            'name' => 'TASK1200 dossier '.($sentinel !== '' ? $sentinel : Str::uuid()),
             'visibility' => Dossier::VISIBILITY_PRIVATE,
         ]);
         $post = BlogPost::create([
             'organization_id' => $organization->id,
             'user_id' => $owner->id,
-            'title' => 'TASK1133 article '.Str::uuid(),
-            'slug' => 'task1133-article-'.Str::uuid(),
+            'title' => 'TASK1200 article '.Str::uuid(),
+            'slug' => 'task1200-article-'.Str::uuid(),
             'content' => $content,
             'status' => 'published',
             'published_at' => now()->subMinute(),

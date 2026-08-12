@@ -38,7 +38,7 @@ class DossierChunkEmbeddingService
                 ->dimensions($dimensions)
                 ->generate($provider, $model);
         } catch (Throwable $exception) {
-            // TASK-1133 : le SDK ne dispatche aucun événement d'échec (voir
+            // TASK-1200 : le SDK ne dispatche aucun événement d'échec (voir
             // RecordSdkEmbeddingsInvocation). C'est le seul endroit qui peut
             // observer un échec réel, donc le seul qui peut l'enregistrer —
             // sans jamais changer le comportement fonctionnel : on relance
