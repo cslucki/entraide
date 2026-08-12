@@ -29,6 +29,16 @@ final class AiProcess
     public const MEMBER_PROFILE_LOOP_AGENT_REPLY = 'member_profile.loop_agent_reply';
 
     /**
+     * Écritures `admin_ai_interactions` pour les invocations Laravel AI SDK
+     * (TASK-1200 / IA P1-3). Seul usage réel du SDK à ce jour : les
+     * embeddings Dossiers. Ces `scenario_id` sont ceux posés par les call
+     * sites (`DossierArticleIndexer`, `DossierSemanticSearchService`).
+     */
+    public const DOSSIER_EMBEDDINGS_INDEX = 'dossier.embeddings_index';
+
+    public const DOSSIER_EMBEDDINGS_SEARCH = 'dossier.embeddings_search';
+
+    /**
      * `ai_interactions.feature` → process (correspondance exacte).
      *
      * @var array<string, string>
@@ -74,6 +84,8 @@ final class AiProcess
         'profile_agent_setup' => 'member_profile.agent_setup',
         'profile_agent_visitor_chat' => 'member_profile.agent_visitor_chat',
         'profile_agent_master' => 'member_profile.agent_master',
+        'dossier_embeddings_index' => self::DOSSIER_EMBEDDINGS_INDEX,
+        'dossier_embeddings_search' => self::DOSSIER_EMBEDDINGS_SEARCH,
     ];
 
     private function __construct() {}
