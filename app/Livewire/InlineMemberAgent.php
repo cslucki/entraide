@@ -7,7 +7,9 @@ use App\Models\MemberAiProfile;
 use App\Models\MemberAiProfileInteraction;
 use App\Models\User;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiProcess;
+use App\Support\Ai\AiUsage;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -217,6 +219,12 @@ class InlineMemberAgent extends Component
         // les deux ecritures de trace ci-dessous (TASK-1131).
         $correlationId = AiCorrelation::id();
 
+        // TASK-1132 : reponse produite sans aucun appel LLM. Le cout est donc
+        // reellement nul et CONNU -> `cost_usd = 0` avec `cost_unknown = false`.
+        // C'est le cas legitime de zero que P1-2 doit distinguer d'un tarif
+        // inconnu. Les deux ecritures partagent le meme verdict economique.
+        $cost = AiPricingCatalog::cost('rule_based', null, AiUsage::notObserved());
+
         AdminAiInteraction::create([
             'organization_id' => $organization?->id,
             'user_id' => auth()->id(),
@@ -234,6 +242,7 @@ class InlineMemberAgent extends Component
                 'matched_fields' => $matchedFields,
             ],
             'metadata' => ['scenario' => 'inline_member_presentation'],
+            ...$cost->traceAttributes(),
         ]);
 
         MemberAiProfileInteraction::create([
@@ -250,6 +259,7 @@ class InlineMemberAgent extends Component
             'response' => $response,
             'matched_fields' => $matchedFields,
             'metadata' => ['scenario' => 'inline_member_presentation'],
+            ...$cost->traceAttributes(),
         ]);
     }
 

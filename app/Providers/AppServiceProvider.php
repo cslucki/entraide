@@ -53,9 +53,9 @@ use App\Services\Ai\Scenarios\ServiceOfferMasterScenario;
 use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\LoopTypeSettingsService;
-use App\Support\Loops\LoopTypeRegistry;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -100,14 +100,16 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(SupervisionProvider::class, function ($app) {
             $config = $app['config']->get('ai.openai');
 
+            // TASK-1132 : les tarifs ne sont plus injectés ici. Les défauts
+            // `?? 0.15` / `?? 0.60` dupliquaient config/ai.php et masquaient
+            // l'absence de tarif. Le provider interroge désormais le catalogue
+            // versionné (config/ai_pricing.php).
             $inner = new OpenAiSupervisionProvider(
                 apiKey: (string) ($config['api_key'] ?? ''),
                 baseUrl: (string) ($config['base_url'] ?? 'https://api.openai.com/v1'),
                 model: (string) ($config['model'] ?? ''),
                 maxOutputTokens: (int) ($config['max_output_tokens'] ?? 900),
                 timeout: (int) ($config['timeout'] ?? 15),
-                inputPricePer1M: (float) ($config['input_price_per_1m'] ?? 0.15),
-                outputPricePer1M: (float) ($config['output_price_per_1m'] ?? 0.60),
             );
 
             return new LoggingSupervisionProvider(

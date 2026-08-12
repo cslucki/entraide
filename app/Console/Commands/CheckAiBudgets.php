@@ -21,11 +21,29 @@ class CheckAiBudgets extends Command
         $alerted = false;
 
         foreach ($budgets as $scenarioId => $limit) {
-            $currentCost = AdminAiInteraction::query()
+            $scoped = fn () => AdminAiInteraction::query()
                 ->where('scenario_id', $scenarioId)
                 ->where('created_at', '>=', now()->startOfMonth())
-                ->where('status', 'success')
-                ->sum('cost_usd');
+                ->where('status', 'success');
+
+            // Arithmetique inchangee par TASK-1132 : SUM() ignore les NULL, et
+            // les appels sans tarif connu contribuaient deja 0 auparavant. Le
+            // total, les seuils et le declenchement des alertes sont identiques.
+            $currentCost = $scoped()->sum('cost_usd');
+
+            // Ce que P1-2 ajoute : rendre visible qu'un total est PARTIEL des
+            // qu'un appel echappe a la mesure. Sans cela, `cost_unknown` ferait
+            // silencieusement passer des appels pour gratuits dans un budget.
+            $unmeasured = $scoped()->where('cost_unknown', true)->count();
+
+            if ($unmeasured > 0) {
+                $this->warn(sprintf(
+                    'Scenario %s: %d interaction(s) with an unmeasurable cost this month. Total %s is a floor, not the full spend.',
+                    $scenarioId,
+                    $unmeasured,
+                    $currentCost,
+                ));
+            }
 
             if ($currentCost <= $limit) {
                 continue;

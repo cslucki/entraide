@@ -28,6 +28,10 @@ class MemberAiProfileInteraction extends Model
         'matched_fields',
         'metadata',
         'latency_ms',
+        'input_tokens',
+        'output_tokens',
+        'cost_usd',
+        'cost_unknown',
     ];
 
     protected function casts(): array
@@ -36,6 +40,12 @@ class MemberAiProfileInteraction extends Model
             'matched_fields' => 'array',
             'metadata' => 'array',
             'latency_ms' => 'integer',
+            // TASK-1132 : nullable des l'origine ici, pour que « aucun usage
+            // rapporte » reste distinct de « 0 token ».
+            'input_tokens' => 'integer',
+            'output_tokens' => 'integer',
+            'cost_usd' => 'decimal:8',
+            'cost_unknown' => 'boolean',
         ];
     }
 

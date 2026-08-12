@@ -33,6 +33,7 @@ class AdminAiInteraction extends Model
         'output_tokens',
         'latency_ms',
         'cost_usd',
+        'cost_unknown',
         'review_status',
         'reviewed_by',
         'reviewed_at',
@@ -49,6 +50,8 @@ class AdminAiInteraction extends Model
             'input_length' => 'integer',
             'latency_ms' => 'integer',
             'cost_usd' => 'decimal:8',
+            // TASK-1132 : meme tri-etat que sur `ai_interactions`.
+            'cost_unknown' => 'boolean',
             'reviewed_at' => 'datetime',
         ];
     }

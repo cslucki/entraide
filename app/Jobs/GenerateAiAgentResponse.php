@@ -8,7 +8,9 @@ use App\Models\LoopMessage;
 use App\Models\MemberAiProfileInteraction;
 use App\Services\Ai\MemberProfileAgentResponder;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiProcess;
+use App\Support\Ai\AiUsage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -74,6 +76,18 @@ class GenerateAiAgentResponse implements ShouldQueue
 
         $this->loop->touch();
 
+        // TASK-1132 : `MemberProfileAgentResponder` ne remonte aucun usage
+        // (`response` / `provider` / `model` / `latency_ms` seulement), donc il
+        // n'y a rien à multiplier par un tarif. Le catalogue produit alors :
+        // - `rule_based` ou `ollama` -> coût réellement nul et CONNU ;
+        // - vrai provider distant    -> `cost_unknown = true` et coût NULL.
+        // Jamais un zéro fabriqué dans le second cas.
+        $cost = AiPricingCatalog::cost(
+            $result['provider'] ?? null,
+            $result['model'] ?? null,
+            AiUsage::notObserved(),
+        );
+
         MemberAiProfileInteraction::create([
             'organization_id' => $this->loop->organization_id,
             'correlation_id' => AiCorrelation::id(),
@@ -89,6 +103,7 @@ class GenerateAiAgentResponse implements ShouldQueue
             'response' => $result['response'],
             'matched_fields' => $result['fields'] ?? [],
             'latency_ms' => $result['latency_ms'] ?? null,
+            ...$cost->traceAttributes(),
         ]);
     }
 }
