@@ -7,6 +7,7 @@
 !.env.example
 !.env.sqlite.example
 !.env.pgsql.example
+!.env.ai-validation.example
 
 # Local operational notes
 migration/
