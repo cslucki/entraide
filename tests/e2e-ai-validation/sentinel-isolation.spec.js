@@ -22,9 +22,13 @@ const ORG_A_ADMIN = process.env.AI_VALIDATION_ORG_A_ADMIN_LOGIN
     || 'admin@ai-validation-org-a.ai-validation.test';
 const ORG_A_MEMBER1 = process.env.AI_VALIDATION_ORG_A_MEMBER1_LOGIN
     || 'member1@ai-validation-org-a.ai-validation.test';
+const ORG_A_MEMBER2 = process.env.AI_VALIDATION_ORG_A_MEMBER2_LOGIN
+    || 'member2@ai-validation-org-a.ai-validation.test';
 
 const ORG_B_ADMIN = process.env.AI_VALIDATION_ORG_B_ADMIN_LOGIN
     || 'admin@ai-validation-org-b.ai-validation.test';
+
+const ORG_A_SLUG = 'ai-validation-org-a';
 
 const SENTINEL_A = 'SENTINEL-A';
 const SENTINEL_B = 'SENTINEL-B';
@@ -78,7 +82,10 @@ test.describe('AI validation — isolation cross-tenant (TASK-1201)', () => {
         await login(page, ORG_A_MEMBER1);
         await page.goto('/loops');
 
-        await expect(page.getByText(SENTINEL_A, { exact: false }).first()).toBeVisible();
+        // Scopé à <main> : le premier match brut sur toute la page tombe sur
+        // le nom de l'utilisateur connecté dans le panneau "Menu utilisateur"
+        // (fermé par défaut, donc hidden) — pas une donnée du dataset.
+        await expect(page.locator('main').getByText(SENTINEL_A, { exact: false }).first()).toBeVisible();
     });
 
     test('4. aucune donnée sentinelle B n\'est jamais visible depuis Organization A', async ({ page }) => {
@@ -95,31 +102,52 @@ test.describe('AI validation — isolation cross-tenant (TASK-1201)', () => {
         await expect(page.getByText(`${SENTINEL_A} Loop Principale`, { exact: false })).toBeVisible();
     });
 
-    test('6. la demande d\'aide et la proposition d\'aide de validation sont visibles', async ({ page }) => {
-        // Route exacte non re-vérifiée en conditions réelles (suite jamais
-        // exécutée, DB indisponible) : /dashboard/services est confirmée par
-        // routes/web.php (DashboardController::services) ; la demande d'aide
-        // (ServiceRequest) n'a pas de route d'index dédiée identifiée à
-        // l'audit, /dashboard est le point d'entrée le plus sûr en attendant
-        // vérification.
-        await login(page, ORG_A_ADMIN);
+    test('6a. la demande d\'aide de validation est visible par son auteur (member1)', async ({ page }) => {
+        // /dashboard/requests ("Mes demandes d'aide") est scopé à
+        // l'utilisateur connecté, pas à l'Organization entière —
+        // AiValidationDatasetSeeder attribue la ServiceRequest à member1.
+        await login(page, ORG_A_MEMBER1);
+        await page.goto('/dashboard/requests');
+
+        await expect(page.getByText(`${SENTINEL_A} demande d'aide de validation`, { exact: false })).toBeVisible();
+    });
+
+    test('6b. la proposition d\'aide de validation est visible par son auteur (member2)', async ({ page }) => {
+        // /dashboard/services ("Mes propositions d'aide") est scopé à
+        // l'utilisateur connecté — le Service seedé appartient à member2, pas
+        // à l'admin (constaté en conditions réelles : la page admin affichait
+        // "Aucune proposition pour le moment").
+        await login(page, ORG_A_MEMBER2);
         await page.goto('/dashboard/services');
 
         await expect(page.getByText(`${SENTINEL_A} proposition d'aide de validation`, { exact: false })).toBeVisible();
     });
 
     test('7. Article et Dossier de validation sont accessibles', async ({ page }) => {
+        // /dossiers (sans préfixe) n'existe pas : la route réelle est
+        // namespacée par Organization (routes/web.php: dossiers.index sous
+        // le groupe /org/{organization}), constaté en conditions réelles
+        // (404 "cette boucle semble partie en vacances").
         await login(page, ORG_A_ADMIN);
-        await page.goto('/dossiers');
+        await page.goto(`/org/${ORG_A_SLUG}/dossiers`);
 
         await expect(page.getByText(`${SENTINEL_A} Dossier de validation`, { exact: false })).toBeVisible();
     });
 
-    test('8. [BLOQUÉ SANS POSTGRESQL] recherche sémantique Dossiers retourne le contenu sentinelle', async ({ page }) => {
-        test.skip(true, 'Nécessite bouclepro_ai_validation + pgvector — GO DB requis (voir TASK-1201).');
+    test('8. [BLOQUÉ SANS EMBEDDINGS RÉELS] recherche sémantique Dossiers retourne le contenu sentinelle', async ({ page }) => {
+        // bouclepro_ai_validation existe et l'extension vector est active
+        // (GO PostgreSQL du 2026-08-12, voir TASK-1201) — le blocage n'est
+        // plus la base. dossier_chunks est vide : AiValidationDatasetSeeder
+        // crée le BlogPost/Dossier directement, sans passer par le pipeline
+        // d'indexation SDK (AI_SUPERVISION_ENABLED=false dans
+        // .env.ai-validation.example par design). Générer de vrais embeddings
+        // exigerait d'activer un provider IA réel avec des identifiants —
+        // hors du GO actuel, strictement borné à la création de la base et
+        // de l'extension.
+        test.skip(true, 'Nécessite des embeddings réels (dossier_chunks vide) — activation provider IA hors du GO actuel (voir TASK-1201).');
 
         await login(page, ORG_A_ADMIN);
-        // Une fois débloqué : naviguer vers /dossiers/{dossier}/semantic-search
+        // Une fois débloqué : naviguer vers /org/{slug}/dossiers/{dossier}/semantic-search
         // et vérifier que seul le contenu SENTINEL-A ressort, jamais SENTINEL-B.
     });
 
@@ -128,7 +156,7 @@ test.describe('AI validation — isolation cross-tenant (TASK-1201)', () => {
 
         await login(page, ORG_A_ADMIN);
         await page.goto('/loops');
-        await page.goto('/dossiers');
+        await page.goto(`/org/${ORG_A_SLUG}/dossiers`);
 
         expect(errors, `Erreurs console inattendues : ${errors.join(' | ')}`).toHaveLength(0);
     });
