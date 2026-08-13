@@ -21,6 +21,9 @@
         $grilleDrive = 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3'
             .' lg:grid-cols-[minmax(0,3fr)_9rem_6.5rem_6.5rem_6.5rem_2.75rem]';
         $celluleLgDrive = 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
+        // L'element designe : un fond calme et un liséré, jamais une couleur
+        // d'alerte — designer n'est pas agir.
+        $classeSelection = 'bg-indigo-50 ring-1 ring-inset ring-indigo-300 dark:bg-indigo-950/40 dark:ring-indigo-700';
         // « Prive » est le cas dominant : explicite, mais rendu le plus discret
         // des trois etats (reference canonique drive-v2).
         // Dans un Drive de Boucle, « Partage » repete la meme valeur sur chaque
@@ -173,6 +176,12 @@
                                   'viewList' => __('dossiers.file_view_list'),
                                   'viewGrid' => __('dossiers.file_view_grid'),
                                   'ownerMe' => __('dossiers.owner_me'),
+                                  'selectionClear' => __('dossiers.selection_clear'),
+                                  'open' => __('dossiers.drive_open'),
+                                  'share' => __('dossiers.share_tab'),
+                                  'rename' => __('dossiers.rename'),
+                                  'editArticle' => __('dossiers.drive_edit_article'),
+                                  'removeArticle' => __('dossiers.drive_remove_article'),
                                   'renameTitle' => __('dossiers.file_rename_title'),
                                   'renameLabel' => __('dossiers.file_rename_label'),
                                   'searchNoResults' => __('dossiers.search_no_results'),
@@ -312,11 +321,67 @@
                             @endif
                         </nav>
 
+                        {{-- Un element est designe : la ligne d'outils cede la
+                             place a ses actions, et revient des qu'on le
+                             relache. Le geste vient du banc d'essai des cinq
+                             Drives : la barre se transforme, elle ne s'ajoute
+                             pas. --}}
+                        <div x-show="selection" x-cloak
+                             class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 rounded-xl bg-indigo-50 px-2 py-1.5 dark:bg-indigo-950/40">
+                            <button type="button" @click="viderSelection()"
+                                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-indigo-700 transition hover:bg-indigo-100 dark:text-indigo-200 dark:hover:bg-indigo-900/60"
+                                    :aria-label="i18n.selectionClear" :title="i18n.selectionClear">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                            </button>
+                            <span class="min-w-0 max-w-[14rem] truncate text-sm font-semibold text-indigo-900 dark:text-indigo-100" x-text="selection?.name"></span>
+
+                            <span class="mx-1 h-5 w-px shrink-0 bg-indigo-200 dark:bg-indigo-800" aria-hidden="true"></span>
+
+                            <button type="button" @click="ouvrir(selection)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60">
+                                <span x-text="selection?.type === 'file' ? i18n.preview : i18n.open"></span>
+                            </button>
+
+                            {{-- Dossier : partager, renommer, supprimer. --}}
+                            <template x-if="selection?.type === 'folder'">
+                                <span class="contents">
+                                    <a :href="selection.urlPartage" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.share"></a>
+                                    <a x-show="selection.urlRenommer" :href="selection.urlRenommer" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.rename"></a>
+                                    <button x-show="selection.peutSupprimer" type="button" @click="openDeleteFolderModal(selection.id, selection.name)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
+                                </span>
+                            </template>
+
+                            {{-- Article : le modifier, ou le retirer du dossier
+                                 (le formulaire existe deja dans la ligne). --}}
+                            <template x-if="selection?.type === 'article'">
+                                <span class="contents">
+                                    <a x-show="selection.urlEditer" :href="selection.urlEditer" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.editArticle"></a>
+                                    @if($canManageArticles)
+                                        <button type="button" @click="document.getElementById(selection.formulaireRetrait)?.submit()" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.removeArticle"></button>
+                                    @endif
+                                </span>
+                            </template>
+
+                            {{-- Fichier : renommer, deplacer, supprimer. --}}
+                            <template x-if="selection?.type === 'file'">
+                                <span class="contents">
+                                    @if($canManageFiles)
+                                        <button type="button" @click="openRenameModal(selection.file)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.rename"></button>
+                                    @endif
+                                    @if($canDeleteFiles && $moveTargets->isNotEmpty())
+                                        <button type="button" @click="openMoveModal(selection.file)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.move"></button>
+                                    @endif
+                                    @if($canDeleteFiles)
+                                        <button type="button" @click="openDeleteModal(selection.file)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
+                                    @endif
+                                </span>
+                            </template>
+                        </div>
+
                         {{-- La recherche filtre la vue spatiale ; en mode Serie
                              l'ordre est la question, pas le filtre — un
                              reordonnancement sur une projection filtree a deja
                              produit un bug ici, on ne le reinvite pas. --}}
-                        <div class="relative w-full min-w-0 flex-1 sm:w-72 sm:flex-none" x-show="vue !== 'serie'">
+                        <div class="relative w-full min-w-0 flex-1 sm:w-72 sm:flex-none" x-show="vue !== 'serie' && !selection">
                             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                 <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                             </div>
@@ -324,7 +389,7 @@
                                    class="block w-full rounded-xl border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
                                    :placeholder="i18n.searchPlaceholder || 'Search files…'">
                         </div>
-                        <div class="flex shrink-0 gap-0.5 rounded-lg border border-gray-200 p-0.5 dark:border-gray-700 max-sm:order-3 max-sm:basis-full">
+                        <div x-show="!selection" class="flex shrink-0 gap-0.5 rounded-lg border border-gray-200 p-0.5 dark:border-gray-700 max-sm:order-3 max-sm:basis-full">
                             <button type="button" @click="setViewMode('list')" :aria-pressed="vue === 'documents' && viewMode === 'list'"
                                     class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
                                     :class="vue === 'documents' && viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
@@ -627,8 +692,10 @@
                     <div class="mt-5 relative">
                         <div id="dossier-file-pond" x-ref="filePondContainer" class="hidden"></div>
                         {{-- Hidden file inputs for media types --}}
-                        <input type="file" x-ref="imageInput" accept="image/*" capture="user" class="hidden" @change="handleMediaFiles($event, 'image')">
-                        <input type="file" x-ref="videoInput" accept="video/*" capture="user" class="hidden" @change="handleMediaFiles($event, 'video')">
+                        {{-- `multiple` : on prend plusieurs photos d'un chantier
+                             en une fois, comme on choisit plusieurs fichiers. --}}
+                        <input type="file" x-ref="imageInput" accept="image/*" capture="user" multiple class="hidden" @change="handleMediaFiles($event, 'image')">
+                        <input type="file" x-ref="videoInput" accept="video/*" capture="user" multiple class="hidden" @change="handleMediaFiles($event, 'video')">
                         <input type="file" x-ref="audioInput" accept="audio/*" multiple class="hidden" @change="handleMediaFiles($event, 'audio')">
                     </div>
                     @endif
@@ -643,7 +710,7 @@
                                 <p class="truncate text-sm font-semibold text-indigo-950 dark:text-indigo-100">
                                     <span x-text="uploadFileName ? i18n.uploadingFile.replace(':name', uploadFileName) : i18n.uploading"></span>
                                     <span x-show="uploadTotal > 1" class="ml-1 font-normal opacity-80"
-                                          x-text="'(' + (uploadFait + 1) + '/' + uploadTotal + ')'"></span>
+                                          x-text="'(' + Math.min(uploadFait + 1, uploadTotal) + '/' + uploadTotal + ')'"></span>
                                 </p>
                                 <p class="shrink-0 text-xs font-bold tabular-nums text-indigo-700 dark:text-indigo-200" x-text="i18n.uploadProgress.replace(':percent', uploadProgress)"></p>
                             </div>
@@ -773,7 +840,9 @@
                                     @drop.prevent="onFolderDrop('{{ $folder->getKey() }}')"
                                     :class="dragOverFolderId === '{{ $folder->getKey() }}'
                                         ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30'
-                                        : (draggingFileId ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : '')"
+                                        : (draggingFileId ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : (estSelectionne('folder', '{{ $folder->getKey() }}') ? '{{ $classeSelection }}' : ''))"
+                                    @else
+                                    :class="estSelectionne('folder', '{{ $folder->getKey() }}') && '{{ $classeSelection }}'"
                                     @endif
                                     >
                                     @php
@@ -817,7 +886,9 @@
                                                 </span>
                                             @endif
                                         </span>
-                                        <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
+                                        <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}"
+                                           @click="clicElement($event, { type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @dblclick="ouvrir({ type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @touchstart="debutAppui({ type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @touchend="finAppui()" @touchmove="finAppui()"
+                                           class="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
                                             <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $folder->name }}</span>
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageDuDossier }} · <span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span>@if($estDunAutre) · {{ __('dossiers.drive_shared_by', ['name' => $nomProprietaire]) }}@endif</span>
                                         </a>
@@ -884,6 +955,7 @@
                                 @php $post = $entry->blogPost; @endphp
                                 @continue(! $post || ! $canView($post))
                                 <li class="{{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-rose-50/40 dark:hover:bg-rose-500/5"
+                                    :class="estSelectionne('article', '{{ $post->id }}') && '{{ $classeSelection }}'"
                                     x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
                                     @php
                                         $auteurArticle = $post->user?->isDisplayableIn(currentOrganization()) ? $post->user->publicDisplayName() : __('profile.deactivated_user');
@@ -896,7 +968,9 @@
                                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
                                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
                                         </span>
-                                        <a href="{{ $blogShowRoute($post) }}" class="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
+                                        <a href="{{ $blogShowRoute($post) }}"
+                                           @click="clicElement($event, { type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @dblclick="ouvrir({ type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @touchstart="debutAppui({ type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @touchend="finAppui()" @touchmove="finAppui()"
+                                           class="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
                                             <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $post->title }}</span>
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageHerite }} · {{ __('dossiers.drive_article_badge') }} · {{ $post->updated_at?->isoFormat('L') }}</span>
                                         </a>
@@ -929,7 +1003,7 @@
                                                 @unless($dossier->isPersonalDocumentsRoot())
                                                     <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
                                                 @endunless
-                                                <form method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
+                                                <form id="retirer-article-{{ $post->id }}" method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_remove_article') }}</button>
                                                 </form>
@@ -946,7 +1020,9 @@
                                     draggable="true"
                                     @dragstart="onFileDragStart(file)"
                                     @dragend="onFileDragEnd()"
-                                    :class="draggingFileId === file.id ? 'opacity-40' : ''"
+                                    :class="draggingFileId === file.id ? 'opacity-40' : (estSelectionne('file', file.id) ? '{{ $classeSelection }}' : '')"
+                                    @else
+                                    :class="estSelectionne('file', file.id) && '{{ $classeSelection }}'"
                                     @endif
                                     >
                                     <div class="flex min-w-0 items-center gap-3">
@@ -974,7 +1050,7 @@
                                                     <svg x-show="file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                                                 </span>
                                     <button type="button" class="flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left"
-                                            @click="(file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown') ? openPreview(file) : window.location = '{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)">
+                                            @click="clicElement($event, { type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @dblclick="ouvrir({ type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @touchstart="debutAppui({ type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @touchend="finAppui()" @touchmove="finAppui()">
                                         <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></span>
                                         <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="@js($partageHerite) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
                                     </button>
@@ -1056,7 +1132,9 @@
                                  @drop.prevent="onFolderDrop('{{ $folder->getKey() }}')"
                                  :class="dragOverFolderId === '{{ $folder->getKey() }}'
                                      ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30'
-                                     : (draggingFileId ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : '')"
+                                     : (draggingFileId ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : (estSelectionne('folder', '{{ $folder->getKey() }}') ? '{{ $classeSelection }}' : ''))"
+                                 @else
+                                 :class="estSelectionne('folder', '{{ $folder->getKey() }}') && '{{ $classeSelection }}'"
                                  @endif
                                  >
                                 @php
@@ -1068,7 +1146,9 @@
                                         : null;
                                     $nbElements = $folder->files_count + $folder->dossier_blog_posts_count;
                                 @endphp
-                                <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="flex w-full flex-col items-center gap-2">
+                                <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}"
+                                   @click="clicElement($event, { type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @dblclick="ouvrir({ type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @touchstart="debutAppui({ type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @touchend="finAppui()" @touchmove="finAppui()"
+                                   class="flex w-full flex-col items-center gap-2">
                                     <span class="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300" aria-hidden="true">
                                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
                                         @if($estDunAutre)
@@ -1125,8 +1205,11 @@
                             @php $post = $entry->blogPost; @endphp
                             @continue(! $post || ! $canView($post))
                             <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-rose-300 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                                 :class="estSelectionne('article', '{{ $post->id }}') && '{{ $classeSelection }}'"
                                  x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
-                                <a href="{{ $blogShowRoute($post) }}" class="flex w-full flex-col items-center gap-2">
+                                <a href="{{ $blogShowRoute($post) }}"
+                                   @click="clicElement($event, { type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @dblclick="ouvrir({ type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @touchstart="debutAppui({ type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @touchend="finAppui()" @touchmove="finAppui()"
+                                   class="flex w-full flex-col items-center gap-2">
                                     <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
                                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
                                     </span>
@@ -1145,7 +1228,7 @@
                                         <a href="{{ $blogShowRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
                                         @if($canManageArticles)
                                             <a href="{{ $blogEditRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_article') }}</a>
-                                            <form method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
+                                            <form id="retirer-article-grille-{{ $post->id }}" method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
                                                 @csrf @method('DELETE')
                                                 <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_remove_article') }}</button>
                                             </form>
@@ -1161,11 +1244,13 @@
                                  draggable="true"
                                  @dragstart="onFileDragStart(file)"
                                  @dragend="onFileDragEnd()"
-                                 :class="draggingFileId === file.id ? 'opacity-40' : ''"
+                                 :class="draggingFileId === file.id ? 'opacity-40' : (estSelectionne('file', file.id) ? '{{ $classeSelection }}' : '')"
+                                 @else
+                                 :class="estSelectionne('file', file.id) && '{{ $classeSelection }}'"
                                  @endif
                                  >
                                 <button type="button" class="flex w-full flex-col items-center gap-2"
-                                        @click="(file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown') ? openPreview(file) : window.location = '{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)">
+                                        @click="clicElement($event, { type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @dblclick="ouvrir({ type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @touchstart="debutAppui({ type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @touchend="finAppui()" @touchmove="finAppui()">
                                     <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
                                           :class="{
                                               'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',

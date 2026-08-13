@@ -3240,6 +3240,21 @@ function registerDossierFilesCard() {
         nomsSpatiaux: config.nomsSpatiaux || [],
         // Le nom du Dossier : celui que prend sa sequence, sans le demander.
         dossierName: config.dossierName || '',
+        // ── Selection (TASK-1130, doctrine Cyril du 13/08) ──────────────
+        // Un Drive se manipule en deux temps : on designe, puis on agit. Un
+        // seul element a la fois — la multi-selection et les actions de masse
+        // appartiennent a une tache ulterieure.
+        //
+        // Les dossiers et les Articles sont rendus par Blade et n'existent pas
+        // dans l'etat JS : la selection porte donc tout ce dont la barre
+        // contextuelle a besoin (type, identite, libelle, adresses).
+        selection: null,
+        // Vrai sur un ecran tactile : le tap y ouvre et l'appui long
+        // selectionne, comme dans les applications Drive, Files et Photos. Le
+        // double-tap, lui, appartient au zoom du systeme.
+        tactile: false,
+        _appuiTimer: null,
+        _appuiLong: false,
         // La file d'envoi : un fichier a la fois, dans l'ordre choisi.
         _fileQueue: [],
         uploadEnCours: false,
@@ -3623,12 +3638,18 @@ function registerDossierFilesCard() {
             } catch (e) { /* localStorage indisponible (navigation privee, quota) : reste sur 'list' */ }
 
             this.loadFiles();
+            // Ecran tactile : `hover: none` distingue un doigt d'une souris
+            // mieux que la largeur de la fenetre.
+            this.tactile = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
             document.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') {
                     if (this.showPreviewModal) { this.showPreviewModal = false; this.previewFile = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="preview-title"]'); }); }
                     else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); }); }
                     else if (this.showArticleModal) { this.showArticleModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="create-article-title"]'); }); }
                     else if (this.showMdModal) { this.showMdModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="markdown-note-title"]'); }); }
+                    // En dernier : aucune modale ouverte, Echap libere la
+                    // selection. Jamais avant — sortir d'une modale prime.
+                    else if (this.selection) { this.viderSelection(); }
                 }
             });
             if (this.canManageFiles && this.$refs.filePondContainer) {
@@ -3652,10 +3673,44 @@ function registerDossierFilesCard() {
                     // `multiple`, donc le selecteur du systeme n'autorisait
                     // qu'UN fichier a la fois (signale par Cyril).
                     allowMultiple: true,
-                    maxFiles: 5,
+                    // Au-dela de `maxFiles`, FilePond ne refuse pas le fichier
+                    // en trop : sur le chemin « parcourir » il jette la
+                    // SELECTION ENTIERE sans jamais appeler `onaddfile`
+                    // (filepond.js, `exceedsMaxFiles`). A 5, choisir 6 fichiers
+                    // ne produisait donc ni requete, ni message, ni ligne —
+                    // l'ecran restait muet. La limite suit desormais celle du
+                    // serveur.
+                    maxFiles: 20,
                     maxFileSize: '50MB',
                     acceptedFileTypes: acceptedTypes,
+                    // Le navigateur ne connait pas toujours l'extension : il
+                    // rend alors un type vide, et le fichier etait refuse avant
+                    // meme d'etre propose. Le serveur, lui, lit le contenu — on
+                    // le laisse trancher.
+                    fileValidateTypeDetectType: (source, type) => new Promise((resolve, reject) => {
+                        if (type) { resolve(type); return; }
+                        const extension = (source?.name || '').split('.').pop().toLowerCase();
+                        const parExtension = {
+                            md: 'text/markdown', markdown: 'text/markdown', txt: 'text/plain',
+                            csv: 'text/csv', xls: 'application/vnd.ms-excel',
+                            xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            doc: 'application/msword',
+                            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            pdf: 'application/pdf', zip: 'application/zip',
+                        }[extension];
+
+                        return parExtension ? resolve(parExtension) : reject(type);
+                    }),
                     labelIdle: labelIdle,
+                    // Les refus de FilePond sortent par ici. Sans ces deux
+                    // rappels, un lot ecarte disparaissait en silence : c'est ce
+                    // qui a rendu la panne si difficile a voir.
+                    onwarning(err, file) {
+                        self.refuserFichier(file, err);
+                    },
+                    onerror(err, file) {
+                        self.refuserFichier(file, err);
+                    },
                     // Chaque fichier choisi passe par ici. On ne lance PAS son
                     // envoi tout de suite : plusieurs envois simultanes se
                     // disputaient la meme barre de progression et le meme
@@ -3808,9 +3863,16 @@ function registerDossierFilesCard() {
 
                 try {
                     const { ok, data } = await this.uploadFormData(formData, [file.file], true);
-                    if (ok) { reussis++; } else { echecs.push(data?.message || file.file.name); }
+                    if (ok) {
+                        reussis++;
+                    } else {
+                        // Reponse non-JSON (413 du serveur web, 500 en HTML) :
+                        // `data` est vide. Dire « echec de l'envoi » vaut mieux
+                        // que reafficher le nom du fichier en guise de raison.
+                        echecs.push({ name: file.file.name, reason: data?.message || this.i18n.uploadFailed });
+                    }
                 } catch (e) {
-                    echecs.push(file.file.name);
+                    echecs.push({ name: file.file.name, reason: this.i18n.networkError });
                 } finally {
                     this.uploadFait++;
                     // FilePond peut avoir deja retire le fichier de sa propre
@@ -3821,7 +3883,6 @@ function registerDossierFilesCard() {
                 }
             }
 
-            this.uploadEnCours = false;
             this.uploading = false;
             this.uploadProgress = 0;
             this.uploadFileName = '';
@@ -3841,6 +3902,11 @@ function registerDossierFilesCard() {
                 console.error('[dossiers] rechargement apres import', e);
             }
 
+            // La file ne se rouvre qu'ici : tant que la relecture n'est pas
+            // faite, une nouvelle selection rejoint la file en cours au lieu
+            // d'en demarrer une seconde en parallele.
+            this.uploadEnCours = false;
+
             if (reussis > 0) {
                 const modele = reussis === 1 ? (this.i18n.uploaded || '') : (this.i18n.filesBatchResult || '');
                 this.showMessage(
@@ -3851,9 +3917,81 @@ function registerDossierFilesCard() {
                 );
             }
             if (echecs.length) {
-                this.uploadRejects = this.uploadRejects.concat(echecs.map((raison) => ({ name: '', reason: raison })));
+                this.uploadRejects = this.uploadRejects.concat(echecs);
                 this.showUploadRejectModal = true;
             }
+        },
+
+        /** L'element designe est-il celui-ci ? */
+        estSelectionne(type, id) {
+            return this.selection?.type === type && this.selection?.id === id;
+        },
+
+        selectionner(item) {
+            this.selection = item;
+        },
+
+        viderSelection() {
+            this.selection = null;
+        },
+
+        /**
+         * Le clic simple designe ; il n'ouvre pas.
+         *
+         * Sauf trois gestes qui appartiennent au navigateur et qu'on ne vole
+         * pas : Ctrl/Cmd+clic, Maj+clic et clic milieu ouvrent un onglet.
+         */
+        clicElement(evenement, item) {
+            if (evenement.metaKey || evenement.ctrlKey || evenement.shiftKey || evenement.button === 1) return;
+
+            evenement.preventDefault();
+
+            // Un appui long vient de selectionner : le `click` qui le suit sur
+            // mobile ne doit pas ouvrir par-dessus.
+            if (this._appuiLong) { this._appuiLong = false; return; }
+
+            if (this.tactile) { this.ouvrir(item); return; }
+
+            this.selectionner(item);
+        },
+
+        /** Le double-clic ouvre : dossier, Article ou fichier. */
+        ouvrir(item) {
+            if (!item) return;
+            if (item.type === 'file') { this.ouvrirFichier(item.file); return; }
+            if (item.url) window.location.href = item.url;
+        },
+
+        /**
+         * Ouvrir un fichier : l'apercu quand il est lisible dans la page, le
+         * telechargement sinon. Une seule definition, partagee par la liste, la
+         * grille et la barre contextuelle.
+         */
+        ouvrirFichier(file) {
+            if (!file) return;
+            const apercu = file.mime_type?.startsWith('image/')
+                || file.mime_type === 'application/pdf'
+                || file.mime_type === 'text/plain'
+                || file.mime_type === 'text/markdown';
+
+            if (apercu) { this.openPreview(file); return; }
+
+            window.location = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
+        },
+
+        /** Appui long tactile : 500 ms sans bouger designent l'element. */
+        debutAppui(item) {
+            this._appuiLong = false;
+            clearTimeout(this._appuiTimer);
+            this._appuiTimer = setTimeout(() => {
+                this._appuiLong = true;
+                this.selectionner(item);
+                if (navigator.vibrate) navigator.vibrate(10);
+            }, 500);
+        },
+
+        finAppui() {
+            clearTimeout(this._appuiTimer);
         },
 
         openRenameModal(file) {
@@ -4493,6 +4631,7 @@ function registerDossierFilesCard() {
         // cette page — pas de dataTransfer custom necessaire pour un geste qui
         // ne quitte jamais l'onglet.
         onFileDragStart(file) {
+            if (!this.estSelectionne('file', file.id)) this.selectionner({ type: 'file', id: file.id, name: file.display_name || file.original_name, file });
             this.draggingFileId = file.id;
         },
 

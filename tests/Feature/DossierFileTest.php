@@ -301,15 +301,74 @@ class DossierFileTest extends TestCase
         $response->assertStatus(422);
     }
 
-    public function test_upload_rejects_more_than_five_files(): void
+    public function test_upload_accepts_a_batch_of_six_files(): void
     {
+        // La limite serveur suit desormais celle du client (20) : refuser six
+        // fichiers contredisait ce que l'interface propose. Le lot de six est
+        // exactement le cas signale par Cyril.
         $files = array_map(fn ($i) => $this->fakeFile('doc'.$i.'.pdf', 'application/pdf', 1024 + $i * 100), range(1, 6));
 
-        $response = $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+        $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
             'files' => $files,
-        ]);
+        ])->assertStatus(201);
 
-        $response->assertStatus(422);
+        $this->assertSame(6, DossierFile::where('dossier_id', $this->dossier->id)->count());
+    }
+
+    public function test_upload_rejects_more_than_twenty_files(): void
+    {
+        $files = array_map(fn ($i) => $this->fakeFile('doc'.$i.'.pdf', 'application/pdf', 1024 + $i), range(1, 21));
+
+        $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+            'files' => $files,
+        ])->assertStatus(422);
+    }
+
+    /**
+     * Le parcours REEL de l'interface : la file d'envoi poste un fichier par
+     * requete. Rien ne le couvrait — la seule preuve « six fichiers » qui
+     * existait affirmait l'inverse, sur un lot unique.
+     */
+    public function test_six_files_uploaded_one_request_at_a_time_all_land(): void
+    {
+        $lot = [
+            ['rapport.pdf', 'application/pdf'],
+            ['notes.txt', 'text/plain'],
+            ['contrat.pdf', 'application/pdf'],
+            ['evaluation.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            ['support.pdf', 'application/pdf'],
+            ['facture.xls', 'application/vnd.ms-excel'],
+        ];
+
+        foreach ($lot as $index => [$nom, $mime]) {
+            $this->actingAs($this->ownerA)->postJson($this->storeRoute($this->dossier), [
+                // Contenus distincts : le controleur refuse deux fichiers
+                // identiques, et c'est voulu.
+                'files' => [$this->fakeFile($nom, $mime, 512 + $index * 64)],
+            ])->assertStatus(201);
+        }
+
+        $this->assertSame(6, DossierFile::where('dossier_id', $this->dossier->id)->count());
+        $this->assertSame(
+            collect($lot)->pluck(0)->sort()->values()->all(),
+            DossierFile::where('dossier_id', $this->dossier->id)->pluck('display_name')->sort()->values()->all(),
+        );
+    }
+
+    /**
+     * Un .xls ancien est un conteneur OLE2 : selon la version de libmagic, le
+     * serveur le voit `application/vnd.ms-excel`, `application/x-ole-storage`
+     * ou `application/CDFV2`. Les trois doivent passer — c'est le fichier qui
+     * echouait seul au milieu d'un import.
+     */
+    public function test_an_old_xls_container_is_accepted_whatever_libmagic_says(): void
+    {
+        $regles = (new \App\Http\Requests\StoreDossierFileRequest)->rules()['files.*'];
+        $mimes = collect($regles)->first(fn ($regle) => is_string($regle) && str_starts_with($regle, 'mimetypes:'));
+
+        foreach (['application/vnd.ms-excel', 'application/x-ole-storage', 'application/CDFV2'] as $type) {
+            $this->assertStringContainsString($type, $mimes, "Le type {$type} doit etre accepte pour un .xls.");
+        }
     }
 
     public function test_upload_creates_database_records(): void
