@@ -1885,11 +1885,23 @@
                 @else
                 <section x-data="dossierMembersCard(@js([
                              'csrfToken' => csrf_token(),
-                             // La racine gouvernante, toujours — un enfant n'a
-                             // ni owner_id ni dossier_members a lui : y ajouter
-                             // quelqu'un depuis un sous-dossier doit ecrire au
-                             // meme endroit que depuis la racine (TASK-1130).
-                             'dossierId' => $gouvernant->getKey(),
+                             // Le dossier OUVERT, pas la racine gouvernante.
+                             //
+                             // Les cinq endpoints membres remontent deja au
+                             // gouvernant apres avoir autorise (`$dossier =
+                             // $dossier->governingDossier();`) : l'ecriture
+                             // atterrit donc au meme endroit qu'avant. Ce qui
+                             // change, c'est le dossier SUR LEQUEL on demande
+                             // l'autorisation.
+                             //
+                             // Adresser la racine la faisait echouer des que
+                             // celle-ci etait « Mes documents » : `manageMembers`
+                             // refuse la racine systeme — partager tout l'espace
+                             // personnel d'un coup n'a pas de sens — et le
+                             // panneau recevait 403 sur `members/search`, donc
+                             // aucun resultat. L'interface promettait un geste
+                             // que le serveur refusait.
+                             'dossierId' => $dossier->getKey(),
                              'orgParam' => $orgParam,
                              'ownerId' => $gouvernant->owner_id,
                               'ownerName' => $gouvernant->owner?->publicDisplayName() ?? __('profile.deactivated_user'),
