@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Support\AiValidation\AiValidationDatabaseGuard;
 use Database\Seeders\AiValidationDatasetSeeder;
+use Database\Seeders\ArtSciLabScenarioSeeder;
 use Illuminate\Console\Command;
 
 /**
@@ -23,7 +24,7 @@ class AiValidationResetCommand extends Command
 {
     protected $signature = 'ai-validation:reset {--yes : Ignore la confirmation interactive}';
 
-    protected $description = 'Réinitialise et ensemence bouclepro_ai_validation avec le dataset TASK-1201 (jamais bouclepro/bouclepro_test)';
+    protected $description = 'Réinitialise et ensemence bouclepro_ai_validation avec TASK-1201 et le scénario ArtSciLab (jamais bouclepro/bouclepro_test)';
 
     public function handle(): int
     {
@@ -48,6 +49,12 @@ class AiValidationResetCommand extends Command
 
         $this->call('db:seed', [
             '--class' => AiValidationDatasetSeeder::class,
+            '--database' => AiValidationDatabaseGuard::ALLOWED_CONNECTION,
+            '--force' => true,
+        ]);
+
+        $this->call('db:seed', [
+            '--class' => ArtSciLabScenarioSeeder::class,
             '--database' => AiValidationDatabaseGuard::ALLOWED_CONNECTION,
             '--force' => true,
         ]);
