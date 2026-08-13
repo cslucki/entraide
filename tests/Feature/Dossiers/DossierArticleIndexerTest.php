@@ -118,7 +118,17 @@ class DossierArticleIndexerTest extends TestCase
     {
         [$organization, , $dossier, $post] = $this->eligibleFixture(content: $this->words(620));
         $this->enableGate($organization);
-        $this->fakeEmbeddings();
+        $sdkInvocations = 0;
+        $dimensions = $this->fakeEmbeddingDimensions();
+        $this->configureEmbeddings($dimensions);
+        Embeddings::fake(function (EmbeddingsPrompt $prompt) use (&$sdkInvocations): array {
+            $sdkInvocations++;
+
+            return array_map(
+                fn (int $index): array => array_fill(0, $prompt->dimensions, ($index + 1) / 10),
+                array_keys($prompt->inputs),
+            );
+        })->preventStrayEmbeddings();
 
         $first = $this->indexer()->synchronize($organization->id, $dossier->id, $post->id);
         $second = $this->indexer()->synchronize($organization->id, $dossier->id, $post->id);
@@ -126,6 +136,7 @@ class DossierArticleIndexerTest extends TestCase
         $this->assertSame(2, $first);
         $this->assertSame(2, $second);
         $this->assertSame(2, DossierChunk::query()->where('dossier_id', $dossier->id)->where('blog_post_id', $post->id)->count());
+        $this->assertSame(1, $sdkInvocations);
     }
 
     public function test_modified_content_replaces_old_chunks(): void
@@ -377,11 +388,7 @@ class DossierArticleIndexerTest extends TestCase
     private function fakeEmbeddings(): void
     {
         $dimensions = $this->fakeEmbeddingDimensions();
-
-        config()->set('ai.default_for_embeddings', 'openai');
-        config()->set('ai.caching.embeddings.cache', false);
-        config()->set('ai.providers.openai.models.embeddings.default', 'text-embedding-3-small');
-        config()->set('ai.providers.openai.models.embeddings.dimensions', $dimensions);
+        $this->configureEmbeddings($dimensions);
 
         Embeddings::fake(function (EmbeddingsPrompt $prompt): array {
             return array_map(
@@ -389,6 +396,14 @@ class DossierArticleIndexerTest extends TestCase
                 array_keys($prompt->inputs),
             );
         })->preventStrayEmbeddings();
+    }
+
+    private function configureEmbeddings(int $dimensions): void
+    {
+        config()->set('ai.default_for_embeddings', 'openai');
+        config()->set('ai.caching.embeddings.cache', false);
+        config()->set('ai.providers.openai.models.embeddings.default', 'text-embedding-3-small');
+        config()->set('ai.providers.openai.models.embeddings.dimensions', $dimensions);
     }
 
     private function fakeEmbeddingDimensions(): int

@@ -435,6 +435,20 @@ class ArtSciLabScenarioSeeder extends Seeder
             'A touring installation that fits in one case', 'Human checkpoints for adaptive systems',
             'Budget narratives are design documents', 'Emergence log: what we decided not to build',
         ];
+        $topicParagraphs = [
+            'Mutual aid works when each member pairs a concrete offer with a real request. LaunchPals keeps human relationships, consent and reciprocity ahead of automation.',
+            'The low-bandwidth exhibition guide supports collaborative publishing across unstable connections. Editors preserve contributor voice and always leave final publication approval with people.',
+            'Generated media requires plain-language consent, a withdrawal route and a named human reviewer before publication. Participants can refuse derivatives without losing access.',
+            'An honest prototype review records uncertainty, invites disagreement and identifies who has authority to stop deployment. Evidence matters more than confident recommendations.',
+            'Collaborative essays need developmental editing that protects distinct voices. The newsletter and printable edition publish the process without flattening disagreement.',
+            'A European project succeeds when every partner owns a work package, dissemination has accountable resources and the consortium budgets access needs from the start.',
+            'A better open studio welcomes newcomers through mutual help: one useful offer, one concrete request and a rotating human host make LaunchPals sustainable.',
+            'Evaluation belongs inside the artwork when participants can contest interpretations. Reflection prompts capture changed assumptions without turning experience into a score.',
+            'A touring installation should fit one case, include a repair kit and document its material constraints. Local partners need enough information to adapt it responsibly.',
+            'Adaptive systems need cognitive autonomy for participants and durable human oversight. A named reviewer owns the final decision, records model limits and can stop publication.',
+            'A budget narrative connects partner responsibilities, travel, access support and dissemination to credible European project outcomes rather than hiding delivery work.',
+            'The Emergence group rejected an automated recommendation layer because affected people could not meaningfully contest it. The draft records what evidence would reopen that decision.',
+        ];
         $userValues = array_values($users);
         $posts = [];
         foreach ($titles as $i => $title) {
@@ -447,7 +461,7 @@ class ArtSciLabScenarioSeeder extends Seeder
                     'category_id' => $categories[$i % count($categories)]->id,
                     'title' => $title,
                     'summary' => 'A practical ArtSciLab note grounded in current collaborative work.',
-                    'content' => '<h2>'.$title.'</h2><p>At ArtSciLab we document the conditions around an experiment, not only its result. This note records the people involved, the constraint we accepted, and the evidence we still need.</p><p>The useful next step is deliberately small: one named person, one review date, and one way for participants to disagree. That keeps the work accountable while leaving room for discovery.</p>',
+                    'content' => '<h2>'.$title.'</h2><p>'.$topicParagraphs[$i].'</p><p>At ArtSciLab we document the people involved, the constraint we accepted, the evidence still needed, one review date and a clear route to disagree.</p>',
                     'status' => $i === 11 ? 'draft' : 'published',
                     'published_at' => $i === 11 ? null : $this->base->addDays(35 + $i),
                     'audience' => $i % 5 === 0 ? 'organization' : 'public',
@@ -516,10 +530,12 @@ class ArtSciLabScenarioSeeder extends Seeder
             $dossiers[] = $dossier;
         }
 
+        $dossierIndexesByPost = [0, 7, 9, 3, 8, 12, 1, 4, 5, 10, 13, 11];
+
         foreach ($posts as $i => $post) {
             DossierBlogPost::updateOrCreate(
                 ['blog_post_id' => $post->id],
-                ['organization_id' => $organization->id, 'dossier_id' => $dossiers[$i % count($dossiers)]->id, 'added_by' => $post->user_id, 'position' => $i + 1],
+                ['organization_id' => $organization->id, 'dossier_id' => $dossiers[$dossierIndexesByPost[$i]]->id, 'added_by' => $post->user_id, 'position' => $i + 1],
             );
         }
 

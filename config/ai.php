@@ -26,6 +26,16 @@ return [
                 ],
             ],
         ],
+        'openrouter' => [
+            'driver' => 'openrouter',
+            'key' => env('OPENROUTER_API_KEY'),
+            'models' => [
+                'embeddings' => [
+                    'default' => env('AI_EMBEDDING_MODEL', 'openai/text-embedding-3-small'),
+                    'dimensions' => (int) env('AI_EMBEDDING_DIMENSIONS', 1536),
+                ],
+            ],
+        ],
     ],
 
     'dossiers' => [
@@ -34,6 +44,10 @@ return [
             'organization_ids' => array_values(array_filter(array_map(
                 'trim',
                 explode(',', (string) env('DOSSIER_SEMANTIC_SEARCH_ORGANIZATION_IDS', '')),
+            ))),
+            'organization_slugs' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('DOSSIER_SEMANTIC_SEARCH_ORGANIZATION_SLUGS', '')),
             ))),
             'limit' => 5,
         ],

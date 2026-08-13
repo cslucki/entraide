@@ -293,7 +293,7 @@ test.describe('AI validation - ArtSciLab scenario (TASK-1203)', () => {
         ]) {
             await gotoTenantPage(page, `/blog/${slug}`);
             await expect(page.getByRole('heading', { name: title, exact: true }).first()).toBeVisible();
-            await expect(page.locator('main')).toContainText('At ArtSciLab we document the conditions around an experiment');
+            await expect(page.locator('main')).toContainText('At ArtSciLab we document the people involved');
         }
     });
 
@@ -339,6 +339,31 @@ test.describe('AI validation - ArtSciLab scenario (TASK-1203)', () => {
             'Access Travel Plan',
             'access-travel-plan.txt',
         );
+    });
+
+    test('real semantic search retrieves the tenant-local human oversight article', async ({ page }) => {
+        await login(page);
+        await gotoTenantPage(page, '/dossiers');
+
+        const dossierLink = page.getByRole('link', { name: 'AI Ethics — Papers', exact: true }).first();
+        await expect(dossierLink).toBeVisible();
+        await dossierLink.click();
+        await expect(page.getByRole('heading', { name: 'AI Ethics — Papers', exact: true })).toBeVisible();
+
+        await page.locator('#dossier-semantic-search-query').fill('Where did we discuss cognitive autonomy and human oversight?');
+        await page.getByRole('button', { name: 'Search', exact: true }).click();
+
+        const result = page.locator('ol li').first();
+        await expect(result).toContainText('Human checkpoints for adaptive systems');
+        await expect(result).toContainText(/named reviewer|final decision|model limits/i);
+        await expectTenantIsolation(page);
+
+        const articleLink = result.getByRole('link', { name: 'Read article', exact: true });
+        const href = await articleLink.getAttribute('href');
+        expectTenantPath(href, '/blog/');
+        await articleLink.click();
+        await expect(page.getByRole('heading', { name: 'Human checkpoints for adaptive systems', exact: true }).first()).toBeVisible();
+        await expectTenantIsolation(page);
     });
 
     test('mobile principal navigation reaches core ArtSciLab surfaces', async ({ page }) => {

@@ -27,6 +27,8 @@ const ORG_A_MEMBER2 = process.env.AI_VALIDATION_ORG_A_MEMBER2_LOGIN
 
 const ORG_B_ADMIN = process.env.AI_VALIDATION_ORG_B_ADMIN_LOGIN
     || 'admin@ai-validation-org-b.ai-validation.test';
+const ORG_B_MEMBER1 = process.env.AI_VALIDATION_ORG_B_MEMBER1_LOGIN
+    || 'member1@ai-validation-org-b.ai-validation.test';
 
 const ORG_A_SLUG = 'ai-validation-org-a';
 
@@ -134,23 +136,6 @@ test.describe('AI validation — isolation cross-tenant (TASK-1201)', () => {
         await expect(page.getByText(`${SENTINEL_A} Dossier de validation`, { exact: false })).toBeVisible();
     });
 
-    test('8. [BLOQUÉ SANS EMBEDDINGS RÉELS] recherche sémantique Dossiers retourne le contenu sentinelle', async ({ page }) => {
-        // bouclepro_ai_validation existe et l'extension vector est active
-        // (GO PostgreSQL du 2026-08-12, voir TASK-1201) — le blocage n'est
-        // plus la base. dossier_chunks est vide : AiValidationDatasetSeeder
-        // crée le BlogPost/Dossier directement, sans passer par le pipeline
-        // d'indexation SDK (AI_SUPERVISION_ENABLED=false dans
-        // .env.ai-validation.example par design). Générer de vrais embeddings
-        // exigerait d'activer un provider IA réel avec des identifiants —
-        // hors du GO actuel, strictement borné à la création de la base et
-        // de l'extension.
-        test.skip(true, 'Nécessite des embeddings réels (dossier_chunks vide) — activation provider IA hors du GO actuel (voir TASK-1201).');
-
-        await login(page, ORG_A_ADMIN);
-        // Une fois débloqué : naviguer vers /org/{slug}/dossiers/{dossier}/semantic-search
-        // et vérifier que seul le contenu SENTINEL-A ressort, jamais SENTINEL-B.
-    });
-
     test('9. console navigateur sans erreur critique après navigation', async ({ page }) => {
         const errors = captureConsoleErrors(page);
 
@@ -163,6 +148,19 @@ test.describe('AI validation — isolation cross-tenant (TASK-1201)', () => {
 });
 
 test.describe('AI validation — Organization B (contrôle symétrique)', () => {
+    test('login Organization B réussit pour admin et membre', async ({ page }) => {
+        await login(page, ORG_B_ADMIN);
+        await page.goto('/loops');
+        expect(page.url()).not.toContain('/login');
+        await expect(page.getByText(SENTINEL_A, { exact: false })).toHaveCount(0);
+
+        await page.context().clearCookies();
+        await login(page, ORG_B_MEMBER1);
+        await page.goto('/dashboard/requests');
+        await expect(page.getByText(`${SENTINEL_B} demande d'aide de validation`, { exact: false })).toBeVisible();
+        await expect(page.getByText(SENTINEL_A, { exact: false })).toHaveCount(0);
+    });
+
     test('les données sentinelles A ne sont jamais visibles depuis Organization B', async ({ page }) => {
         await login(page, ORG_B_ADMIN);
         await page.goto('/loops');
