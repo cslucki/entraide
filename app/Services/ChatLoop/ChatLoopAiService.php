@@ -11,8 +11,8 @@ use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\User;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
-use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiProcess;
 use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\Http;
 
 class ChatLoopAiService
 {
+    public function __construct(private readonly AiEconomicGuard $economicGuard) {}
+
     public function answer(Loop $loop, User $requester): LoopMessage
     {
         $this->assertCanRequest($loop, $requester);
@@ -118,7 +120,31 @@ class ChatLoopAiService
 
             [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop, $locale);
 
-            $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $context);
+            [$provider, $model] = $this->resolveProviderAndModel();
+            $verdict = $this->economicGuard->authorize(
+                $loop->organization()->firstOrFail(),
+                AiProcess::fromFeature($scenarioId),
+                $provider,
+                $model,
+                (float) config('ai.chatloop.summary_economic_guard.monthly_budget_usd', 2.00),
+                (int) config('ai.chatloop.summary_economic_guard.monthly_unknown_limit', 10),
+            );
+
+            if (! $verdict->allowed) {
+                throw new \RuntimeException($verdict->reason === AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED
+                    ? __('loops.ai_summary_monthly_budget_reached')
+                    : __('loops.ai_summary_temporarily_unavailable'));
+            }
+
+            $ai = $this->callAi(
+                $loop,
+                $requester,
+                $scenarioId,
+                $systemPrompt,
+                $context,
+                $provider,
+                $model,
+            );
 
             $answer = AiMarkdownSanitizer::sanitize(
                 $ai['content'],
@@ -506,15 +532,18 @@ class ChatLoopAiService
             .'ou sensible.';
     }
 
-    private function callAi(Loop $loop, User $user, string $scenarioId, string $systemPrompt, string $context): array
-    {
-        $provider = AiConfig::get('default_provider') ?: config('ai.default_provider', 'openai');
-
-        $model = AiConfig::get('default_model') ?? config('ai.default_model') ?? match ($provider) {
-            'openrouter' => config('ai.openrouter.model'),
-            'ollama' => config('ai.ollama.model'),
-            default => config('ai.openai.model'),
-        };
+    private function callAi(
+        Loop $loop,
+        User $user,
+        string $scenarioId,
+        string $systemPrompt,
+        string $context,
+        ?string $resolvedProvider = null,
+        ?string $resolvedModel = null,
+    ): array {
+        [$provider, $model] = $resolvedProvider !== null && $resolvedModel !== null
+            ? [$resolvedProvider, $resolvedModel]
+            : $this->resolveProviderAndModel();
 
         $config = match ($provider) {
             'ollama' => config('ai.ollama'),
@@ -562,7 +591,7 @@ class ChatLoopAiService
                 // Ollama tourne en local : ce coût nul est une vraie mesure,
                 // déclarée `free` au catalogue (TASK-1132).
                 $usage = AiUsage::fromOllamaGenerate($response->json());
-                $cost = AiPricingCatalog::cost($provider, $model, $usage);
+                $cost = $this->economicGuard->finalize($provider, $model, $usage);
             } else {
                 $http = Http::timeout($timeout)->acceptJson()->asJson();
 
@@ -592,7 +621,14 @@ class ChatLoopAiService
                 // coût de 0 dès que le provider n'était pas OpenAI, car seul le
                 // bloc `openai` portait un prix. Le catalogue tranche désormais.
                 $usage = AiUsage::fromChatCompletions($body);
-                $cost = AiPricingCatalog::cost($provider, $model, $usage);
+                $cost = $this->economicGuard->finalize(
+                    $provider,
+                    $model,
+                    $usage,
+                    $provider === 'openrouter' && $scenarioId === config('ai.chatloop.summarize_scenario')
+                        ? data_get($body, 'usage.cost')
+                        : null,
+                );
             }
         } catch (ConnectionException) {
             throw new \RuntimeException(__('loops.ai_error'));
@@ -626,6 +662,21 @@ class ChatLoopAiService
             'model' => $model,
             'ai_interaction_id' => $interaction->id,
         ];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function resolveProviderAndModel(): array
+    {
+        $provider = (string) (AiConfig::get('default_provider') ?: config('ai.default_provider', 'openai'));
+        $model = (string) (AiConfig::get('default_model') ?? config('ai.default_model') ?? match ($provider) {
+            'openrouter' => config('ai.openrouter.model'),
+            'ollama' => config('ai.ollama.model'),
+            default => config('ai.openai.model'),
+        });
+
+        return [$provider, $model];
     }
 
     private function plainText(string $text): string

@@ -225,6 +225,10 @@ return [
         'temperature' => (float) env('CHATLOOP_AI_TEMPERATURE', 0.7),
         'max_simultaneous' => (int) env('CHATLOOP_AI_MAX_SIMULTANEOUS', 1),
         'lock_ttl' => (int) env('CHATLOOP_AI_LOCK_TTL', 90),
+        'summary_economic_guard' => [
+            'monthly_budget_usd' => (float) env('CHATLOOP_AI_SUMMARY_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('CHATLOOP_AI_SUMMARY_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
     ],
 
 ];

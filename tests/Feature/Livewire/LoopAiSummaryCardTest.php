@@ -3,6 +3,7 @@
 namespace Tests\Feature\Livewire;
 
 use App\Livewire\LoopAiSummaryCard;
+use App\Models\AiInteraction;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
@@ -103,6 +104,33 @@ class LoopAiSummaryCardTest extends TestCase
         Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
             ->assertSet('hasSummary', true)
             ->assertSee('Résumé déjà présent.');
+    }
+
+    public function test_monthly_budget_refusal_uses_the_existing_non_blocking_error_surface(): void
+    {
+        AiInteraction::create([
+            'user_id' => $this->member->id,
+            'organization_id' => $this->organization->id,
+            'process' => 'chatloop.summarize',
+            'feature' => 'chatloop_ai_summarize',
+            'model' => 'openai/gpt-4o-mini',
+            'prompt' => 'prompt',
+            'response' => 'response',
+            'input_tokens' => 1,
+            'output_tokens' => 1,
+            'cost_usd' => 2.00,
+            'cost_unknown' => false,
+        ]);
+
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->call('generate')
+            ->assertSet('hasSummary', false)
+            ->assertSet('errorMessage', __('loops.ai_summary_monthly_budget_reached'))
+            ->assertSee(__('loops.ai_summary_monthly_budget_reached'));
+
+        Http::assertNothingSent();
     }
 
     public function test_non_member_cannot_generate(): void
