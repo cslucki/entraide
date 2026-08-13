@@ -90,7 +90,9 @@ class DossierArticleController extends Controller
                 'user_id' => $request->user()->id,
                 'organization_id' => $organization->id,
                 'title' => $data['title'],
-                'slug' => Str::slug($data['title']),
+                // Le slug appartient au modele : lui seul sait le rendre
+                // unique, et tous les chemins de creation passent par lui.
+                'slug' => null,
                 'content' => '<p></p>',
                 'status' => 'draft',
                 'category_id' => $data['category_id'] ?? null,
@@ -118,7 +120,13 @@ class DossierArticleController extends Controller
                     'title' => $post->title,
                 ],
                 'entry' => $entry,
-                'redirect_url' => "/org/{$organization->slug}/blog/{$post->slug}/edit",
+                // L'URL vient du routeur, jamais d'une chaine ecrite a la
+                // main : la route d'edition est `/blog/rediger/{slug}/modifier`,
+                // et l'URL fabriquee ici envoyait tout le monde sur un 404.
+                'redirect_url' => route('organization.blog.edit', [
+                    'organization' => $organization->slug,
+                    'post' => $post->slug,
+                ]),
             ], 201);
         });
     }

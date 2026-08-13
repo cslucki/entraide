@@ -120,29 +120,30 @@ class TASK1130DossierDeletionTest extends TestCase
         $this->assertDatabaseHas('dossiers', ['id' => $this->racineBoucle->getKey(), 'deleted_at' => null]);
     }
 
-    public function test_a_folder_with_an_active_child_refuses_deletion_without_touching_it(): void
+    public function test_deleting_a_folder_takes_its_whole_branch(): void
     {
-        // TASK-1130 (etape A) : plus de promotion automatique. Avant cette
-        // regle, cette meme situation ecrivait sur PostgreSQL une ligne
-        // parent_id=NULL, owner_id=NULL, loop_id=NULL — rejetee par la
-        // contrainte dossiers_holder_xor (confirme empiriquement sur
-        // bouclepro_test, SQLSTATE 23514). Le Dossier non vide doit
-        // desormais refuser la suppression, sans rien deplacer.
+        // Decision Cyril du 13/08 : un Dossier se supprime avec ce qu'il
+        // contient, comme dans n'importe quel Drive. Elle remplace la regle
+        // « vide seulement » de l'etape A. La suppression reste DOUCE :
+        // `deleted_at`, jamais d'effacement sur le disque.
         $enfant = Dossier::create([
             'organization_id' => $this->org->id, 'parent_id' => $this->racineBoucle->getKey(), 'name' => 'Communication',
         ]);
         $petitEnfant = Dossier::create([
             'organization_id' => $this->org->id, 'parent_id' => $enfant->getKey(), 'name' => 'Presse',
         ]);
+        $fichier = \App\Models\DossierFile::factory()->create([
+            'organization_id' => $this->org->id, 'dossier_id' => $petitEnfant->getKey(), 'uploaded_by' => $this->owner->id,
+        ]);
 
-        $this->actingAs($this->owner)->deleteJson($this->destroyRoute($enfant))->assertStatus(422);
+        $this->actingAs($this->owner)->deleteJson($this->destroyRoute($enfant))->assertOk();
 
-        $this->assertDatabaseHas('dossiers', ['id' => $enfant->getKey(), 'parent_id' => $this->racineBoucle->getKey(), 'deleted_at' => null]);
-        // Aucune promotion : le petit-enfant reste attache a son parent reel.
-        $this->assertDatabaseHas('dossiers', ['id' => $petitEnfant->getKey(), 'parent_id' => $enfant->getKey(), 'deleted_at' => null]);
+        $this->assertSoftDeleted('dossiers', ['id' => $enfant->getKey()]);
+        $this->assertSoftDeleted('dossiers', ['id' => $petitEnfant->getKey()]);
+        $this->assertSoftDeleted('dossier_files', ['id' => $fichier->getKey()]);
     }
 
-    public function test_a_folder_with_a_file_refuses_deletion(): void
+    public function test_deleting_a_folder_deletes_its_files(): void
     {
         $enfant = Dossier::create([
             'organization_id' => $this->org->id, 'parent_id' => $this->racineBoucle->getKey(), 'name' => 'Communication',
@@ -151,16 +152,16 @@ class TASK1130DossierDeletionTest extends TestCase
             'organization_id' => $this->org->id, 'dossier_id' => $enfant->getKey(), 'uploaded_by' => $this->owner->id,
         ]);
 
-        $response = $this->actingAs($this->owner)->deleteJson($this->destroyRoute($enfant));
+        $this->actingAs($this->owner)->deleteJson($this->destroyRoute($enfant))->assertOk();
 
-        $response->assertStatus(422);
-        $response->assertJsonPath('message', __('dossiers.delete_not_empty'));
-        $this->assertDatabaseHas('dossiers', ['id' => $enfant->getKey(), 'deleted_at' => null]);
-        $this->assertDatabaseHas('dossier_files', ['id' => $fichier->getKey(), 'dossier_id' => $enfant->getKey(), 'deleted_at' => null]);
+        $this->assertSoftDeleted('dossiers', ['id' => $enfant->getKey()]);
+        $this->assertSoftDeleted('dossier_files', ['id' => $fichier->getKey()]);
     }
 
-    public function test_a_folder_with_an_attached_article_refuses_deletion(): void
+    public function test_deleting_a_folder_detaches_articles_but_never_destroys_them(): void
     {
+        // La seule difference avec un Drive de fichiers : un Article est un
+        // objet du blog, avec sa page publique. Le lien part, l'Article reste.
         $enfant = Dossier::create([
             'organization_id' => $this->org->id, 'parent_id' => $this->racineBoucle->getKey(), 'name' => 'Communication',
         ]);
@@ -173,10 +174,11 @@ class TASK1130DossierDeletionTest extends TestCase
             'added_by' => $this->owner->id, 'position' => 0,
         ]);
 
-        $this->actingAs($this->owner)->deleteJson($this->destroyRoute($enfant))->assertStatus(422);
+        $this->actingAs($this->owner)->deleteJson($this->destroyRoute($enfant))->assertOk();
 
-        $this->assertDatabaseHas('dossiers', ['id' => $enfant->getKey(), 'deleted_at' => null]);
-        $this->assertDatabaseHas('dossier_blog_posts', ['dossier_id' => $enfant->getKey(), 'blog_post_id' => $article->getKey()]);
+        $this->assertSoftDeleted('dossiers', ['id' => $enfant->getKey()]);
+        $this->assertDatabaseMissing('dossier_blog_posts', ['dossier_id' => $enfant->getKey(), 'blog_post_id' => $article->getKey()]);
+        $this->assertDatabaseHas('blog_posts', ['id' => $article->getKey(), 'deleted_at' => null]);
     }
 
     public function test_an_empty_folder_still_deletes_normally(): void
@@ -292,18 +294,17 @@ class TASK1130DossierDeletionTest extends TestCase
         $this->assertSoftDeleted('dossiers', ['id' => $partage->getKey()]);
     }
 
-    public function test_the_real_owner_cannot_delete_their_shared_dossier_definitively_when_it_has_content(): void
+    public function test_the_real_owner_deletes_their_shared_dossier_with_its_content(): void
     {
         $partage = $this->dossierPartage();
-        \App\Models\DossierFile::create([
+        $fichier = \App\Models\DossierFile::factory()->create([
             'organization_id' => $this->org->id, 'dossier_id' => $partage->getKey(), 'uploaded_by' => $this->owner->id,
-            'disk' => 'local', 'path' => 'dossiers/x/z.pdf', 'original_name' => 'z.pdf', 'display_name' => 'z.pdf',
-            'mime_type' => 'application/pdf', 'size_bytes' => 10, 'checksum_sha256' => hash('sha256', 'z'), 'source' => 'upload',
         ]);
 
-        $this->actingAs($this->owner)->deleteJson($this->destroyRoute($partage))->assertStatus(422);
+        $this->actingAs($this->owner)->deleteJson($this->destroyRoute($partage))->assertOk();
 
-        $this->assertDatabaseHas('dossiers', ['id' => $partage->getKey(), 'deleted_at' => null]);
+        $this->assertSoftDeleted('dossiers', ['id' => $partage->getKey()]);
+        $this->assertSoftDeleted('dossier_files', ['id' => $fichier->getKey()]);
     }
 
     public function test_the_loop_owner_cannot_unshare_someone_elses_personal_dossier(): void

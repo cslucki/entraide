@@ -6,7 +6,7 @@
         // Memes colonnes calmes que le Drive, contextuelles a la vue
         // (reference canonique drive-v2) : jamais de colonne « Type », l'icone
         // la porte deja.
-        $grille = 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3 lg:grid-cols-[minmax(0,2.4fr)_9rem_7rem_7rem_2.75rem]';
+        $grille = 'grid grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-x-3 lg:grid-cols-[minmax(0,2.2fr)_13rem_6rem_7rem_6rem]';
         $cellule = 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
     @endphp
 
@@ -93,10 +93,10 @@
                                         : trans_choice('dossiers.shared_with_people', $ligne->dossier_members_count, ['count' => $ligne->dossier_members_count]);
                                     $contenu = $ligne->files_count + $ligne->dossier_blog_posts_count + $ligne->children_count;
                                 @endphp
-                                <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $ligne->getKey()]) }}"
-                                   x-show="q === '' || @js(mb_strtolower($ligne->name)).includes(q.toLowerCase())"
-                                   class="{{ $grille }} min-h-[3.25rem] border-b border-[var(--bp-border)]/60 px-2.5 transition hover:bg-[var(--bp-panel)]">
-                                    <span class="flex min-w-0 items-center gap-3">
+                                <div x-show="q === '' || @js(mb_strtolower($ligne->name)).includes(q.toLowerCase())"
+                                     class="{{ $grille }} min-h-[3.25rem] border-b border-[var(--bp-border)]/60 px-2.5 transition hover:bg-[var(--bp-panel)]">
+                                    <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $ligne->getKey()]) }}"
+                                       class="flex min-h-11 min-w-0 items-center gap-3">
                                         <svg class="h-5 w-5 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                             <path d="M3.5 7.5v11a1.5 1.5 0 0 0 1.5 1.5h14a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 19 8h-8L9 5.5H5a1.5 1.5 0 0 0-1.5 1.5Z" />
                                         </svg>
@@ -106,16 +106,52 @@
                                                 <span class="lg:hidden">{{ $vue === 'avec-moi' ? $proprio : $partageAvec }} · </span>{{ trans_choice('dossiers.drive_folder_items', $contenu, ['count' => $contenu]) }} · {{ $ligne->updated_at?->translatedFormat('j M') }}
                                             </span>
                                         </span>
+                                    </a>
+
+                                    {{-- Avec qui : des visages, pas un compte.
+                                         Trois au plus, puis le reste en nombre —
+                                         la colonne dit « qui », elle ne devient
+                                         pas une liste. --}}
+                                    <span class="{{ $cellule }} !flex items-center gap-1.5">
+                                        @if($vue === 'avec-moi')
+                                            <x-user-avatar :user="$ligne->owner" size="xs" />
+                                            <span class="min-w-0 truncate">{{ $proprio }}</span>
+                                        @elseif($ligne->shared_with_loop_id)
+                                            <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
+                                            <span class="min-w-0 truncate">{{ $ligne->sharedWithLoop?->name ?? __('dossiers.share_loop') }}</span>
+                                        @elseif($ligne->dossierMembers->isNotEmpty())
+                                            <span class="flex shrink-0 -space-x-1.5">
+                                                @foreach($ligne->dossierMembers->take(3) as $membre)
+                                                    <x-user-avatar :user="$membre->user" size="xs" class="ring-2 ring-[var(--bp-surface)]" />
+                                                @endforeach
+                                            </span>
+                                            <span class="min-w-0 truncate">
+                                                {{ $ligne->dossierMembers->take(2)->map(fn ($m) => $m->user?->isDisplayableIn(currentOrganization()) ? $m->user->publicDisplayName() : __('profile.deactivated_user'))->implode(', ') }}@if($ligne->dossier_members_count > 2) +{{ $ligne->dossier_members_count - 2 }}@endif
+                                            </span>
+                                        @else
+                                            <span class="truncate">{{ __('dossiers.shared_with_nobody') }}</span>
+                                        @endif
                                     </span>
-                                    <span class="{{ $cellule }}">{{ $vue === 'avec-moi' ? $proprio : $partageAvec }}</span>
                                     <span class="{{ $cellule }}">{{ $role ?? '' }}</span>
                                     <span class="{{ $cellule }}">{{ $ligne->updated_at?->translatedFormat('j M Y') }}</span>
                                     <span class="flex justify-end">
-                                        <svg class="h-4 w-4 text-[var(--bp-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                            <path d="m9 6 6 6-6 6" />
-                                        </svg>
+                                        @if($vue === 'par-moi')
+                                            {{-- Du constat au geste sans detour : le
+                                                 panneau de partage s'ouvre a
+                                                 l'arrivee sur le dossier. --}}
+                                            <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $ligne->getKey(), 'partage' => 1]) }}"
+                                               class="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-indigo-600 transition hover:bg-[var(--bp-panel)] dark:text-indigo-400"
+                                               title="{{ __('dossiers.share_manage') }}">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"/></svg>
+                                                <span class="max-lg:sr-only">{{ __('dossiers.share_manage_short') }}</span>
+                                            </a>
+                                        @else
+                                            <svg class="h-4 w-4 text-[var(--bp-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                <path d="m9 6 6 6-6 6" />
+                                            </svg>
+                                        @endif
                                     </span>
-                                </a>
+                                </div>
                             @endforeach
                         @endif
                     </div>

@@ -37,7 +37,10 @@
          Boucles ; « Corbeille » et la jauge de stockage en bas de colonne. --}}
     <aside class="hidden w-[198px] shrink-0 self-stretch border-r border-[var(--bp-border)] bg-[var(--bp-surface)] px-2.5 py-4 md:block"
            aria-label="{{ __('dossiers.module_navigation') }}">
-        <div class="sticky top-4">
+        {{-- `z-40` : `position: sticky` cree un contexte d'empilement, et sans
+             cote explicite la surface — placee apres dans le DOM — recouvrait
+             le menu deroulant de « + Nouveau ». --}}
+        <div class="sticky top-4 z-40">
             {{ $nouveau ?? '' }}
 
             <nav class="mt-3 flex flex-col gap-0.5">

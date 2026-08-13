@@ -23,6 +23,10 @@
         $celluleLgDrive = 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
         // « Prive » est le cas dominant : explicite, mais rendu le plus discret
         // des trois etats (reference canonique drive-v2).
+        // Dans un Drive de Boucle, « Partage » repete la meme valeur sur chaque
+        // ligne — et le fil d'Ariane la dit deja. La colonne devient « Type »,
+        // qui, la, distingue reellement les lignes.
+        $colonneEstType = $governingDossier->isLoopDossier();
         $classePartage = fn (string $etat) => $etat === __('dossiers.share_private')
             ? 'hidden lg:block min-w-0 truncate text-xs text-gray-400 dark:text-gray-500'
             : 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
@@ -99,6 +103,7 @@
                              'seriesMode' => $seriesModeData,
                              'serieArticles' => $serieArticlesData,
                              'canManageSeries' => $canManageSeries,
+                             'dossierName' => $dossier->displayName(),
                              'activeTab' => 'fichiers',
                              'nomsSpatiaux' => $driveFolders->pluck('name')
                                  ->merge($dossier->dossierBlogPosts->map(fn ($e) => $e->blogPost?->title))
@@ -168,6 +173,8 @@
                                   'viewList' => __('dossiers.file_view_list'),
                                   'viewGrid' => __('dossiers.file_view_grid'),
                                   'ownerMe' => __('dossiers.owner_me'),
+                                  'renameTitle' => __('dossiers.file_rename_title'),
+                                  'renameLabel' => __('dossiers.file_rename_label'),
                                   'searchNoResults' => __('dossiers.search_no_results'),
                               ],
                          ]))">
@@ -236,6 +243,10 @@
                                 <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
                             @endunless
                             @foreach($breadcrumbAncestors as $ancetre)
+                                {{-- La racine personnelle est deja la premiere
+                                     miette : la repeter donnait « Mes documents ›
+                                     Mes documents › ... ». --}}
+                                @continue($ancetre->isPersonalDocumentsRoot())
                                 {{-- Le dernier maillon est le parent reel : glisser
                                      un fichier ici le remonte d'un niveau, meme
                                      action que "Deplacer vers... > Dossier parent". --}}
@@ -273,6 +284,22 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                     </svg>
                                 </a>
+                                {{-- Le partage est un geste d'IDENTITE, comme le
+                                     renommage : il vit a cote de lui, pas a
+                                     l'autre bout de la barre parmi les outils de
+                                     la surface. L'icone dit aussi l'etat — teintee
+                                     des que le dossier est partage. --}}
+                                @php
+                                    $dejaPartage = $dossier->shared_with_loop_id !== null || $dossier->dossierMembers->isNotEmpty();
+                                @endphp
+                                <button type="button" @click="window.dispatchEvent(new CustomEvent('open-share-panel'))"
+                                        class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition {{ $dejaPartage
+                                            ? 'text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40'
+                                            : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200' }}"
+                                        title="{{ $dejaPartage ? __('dossiers.share_manage') : __('dossiers.share_tab') }}"
+                                        aria-label="{{ $dejaPartage ? __('dossiers.share_manage') : __('dossiers.share_tab') }}">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"/></svg>
+                                </button>
                             @else
                                 <span class="shrink-0 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/60 dark:text-amber-200">{{ __('dossiers.shared_badge') }}</span>
                                 {{-- Lecture seule pour un membre lecteur COMME
@@ -328,22 +355,6 @@
                             </div>
                         @endif
 
-                        {{-- Partager, dans la barre d'actions du Drive (TASK-1130
-                             UX finale) — plus de bouton orphelin sous le cadre.
-                             Le panneau (contenu fonctionnel inchange) s'ouvre en
-                             modal, via le meme pont d'evenement que « Nouveau
-                             dossier ». --}}
-                        {{-- On partage un dossier RANGE dans « Mes documents »,
-                             jamais l'espace personnel lui-meme : le geste
-                             disparait sur la racine systeme, ou la policy
-                             `manageMembers` le refuse deja. --}}
-                        @unless($dossier->isPersonalDocumentsRoot())
-                        <button type="button" @click="window.dispatchEvent(new CustomEvent('open-share-panel'))"
-                                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-gray-300 px-3.5 max-sm:order-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
-                            <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/></svg>
-                            {{ __('dossiers.share_tab') }}
-                        </button>
-                        @endunless
 
                     </div>
 
@@ -629,7 +640,11 @@
                             </div>
                             <div class="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
                             <div class="flex items-center justify-between gap-3">
-                                <p class="truncate text-sm font-semibold text-indigo-950 dark:text-indigo-100" x-text="uploadFileName ? i18n.uploadingFile.replace(':name', uploadFileName) : i18n.uploading"></p>
+                                <p class="truncate text-sm font-semibold text-indigo-950 dark:text-indigo-100">
+                                    <span x-text="uploadFileName ? i18n.uploadingFile.replace(':name', uploadFileName) : i18n.uploading"></span>
+                                    <span x-show="uploadTotal > 1" class="ml-1 font-normal opacity-80"
+                                          x-text="'(' + (uploadFait + 1) + '/' + uploadTotal + ')'"></span>
+                                </p>
                                 <p class="shrink-0 text-xs font-bold tabular-nums text-indigo-700 dark:text-indigo-200" x-text="i18n.uploadProgress.replace(':percent', uploadProgress)"></p>
                             </div>
                             <p class="mt-1 text-xs font-medium text-indigo-600/80 dark:text-indigo-300/80" x-show="uploadBatchTotal > 1" x-text="uploadBatchCurrent + ' / ' + uploadBatchTotal + ' ' + i18n.filesUploaded.toLowerCase()"></p>
@@ -687,7 +702,13 @@
                                 </div>
                                 <div class="mt-4">
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('dossiers.modal_markdown_content_label') }}</label>
-                                    <textarea x-model="mdContent" rows="8" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" placeholder="{{ __('dossiers.modal_markdown_content_placeholder') }}"></textarea>
+                                    {{-- Le meme editeur que la description d'un
+                                         service : on ecrit du texte, pas de la
+                                         syntaxe. Il s'initialise a l'ouverture,
+                                         la modale n'existant pas au chargement. --}}
+                                    <div class="mt-1" x-init="$nextTick(() => document.dispatchEvent(new CustomEvent('bp:markdown-editor:init')))">
+                                        <x-markdown-wysiwyg-editor name="dossier-md-content" :value="''" rows="8" :placeholder="__('dossiers.modal_markdown_content_placeholder')" />
+                                    </div>
                                 </div>
                                 <div class="mt-6 flex justify-end gap-3">
                                     <button @click="showMdModal = false" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
@@ -730,7 +751,7 @@
                             <div class="{{ $grilleDrive }} border-b border-gray-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500">
                                 <div>{{ __('dossiers.col_name') }}</div>
                                 <div>{{ __('dossiers.col_owner') }}</div>
-                                <div>{{ __('dossiers.col_share') }}</div>
+                                <div>{{ $colonneEstType ? __('dossiers.col_type') : __('dossiers.col_share') }}</div>
                                 <div>{{ __('dossiers.col_modified') }}</div>
                                 <div>{{ __('dossiers.col_size') }}</div>
                                 <div><span class="sr-only">{{ __('dossiers.col_name') }}</span></div>
@@ -750,7 +771,9 @@
                                     @dragover.prevent="onFolderDragOver('{{ $folder->getKey() }}')"
                                     @dragleave="onFolderDragLeave('{{ $folder->getKey() }}')"
                                     @drop.prevent="onFolderDrop('{{ $folder->getKey() }}')"
-                                    :class="dragOverFolderId === '{{ $folder->getKey() }}' ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30' : ''"
+                                    :class="dragOverFolderId === '{{ $folder->getKey() }}'
+                                        ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30'
+                                        : (draggingFileId ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : '')"
                                     @endif
                                     >
                                     @php
@@ -803,7 +826,7 @@
                                         <x-user-avatar :user="$proprietaireDuDossier" size="xs" />
                                         <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $proprietaireLibelle }}</span>
                                     </div>
-                                    <div class="{{ $classePartage($partageDuDossier) }}">{{ $partageDuDossier }}</div>
+                                    <div class="{{ $colonneEstType ? $celluleLgDrive : $classePartage($partageDuDossier) }}">{{ $colonneEstType ? __('dossiers.drive_type_folder') : $partageDuDossier }}</div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums">{{ $folder->updated_at?->isoFormat('L') }}</div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums"><span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span></div>
                                     <div class="relative justify-self-end" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
@@ -820,6 +843,9 @@
                                                      (Boucle ou personnel) — pas seulement vu en passant. --}}
                                                 @can('update', $folder)
                                                     <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.rename') }}</a>
+                                                @endcan
+                                                @can('manageMembers', $folder)
+                                                    <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_tab') }}</a>
                                                 @endcan
                                                 @can('delete', $folder)
                                                     <button type="button" @click="open = false; openDeleteFolderModal('{{ $folder->getKey() }}', @js($folder->name))"
@@ -862,6 +888,9 @@
                                     @php
                                         $auteurArticle = $post->user?->isDisplayableIn(currentOrganization()) ? $post->user->publicDisplayName() : __('profile.deactivated_user');
                                         $motsArticle = str_word_count(strip_tags((string) $post->content));
+                                        // La Serie dont CET Article est la racine, s'il y en a une.
+                                        $serieDeLArticle = $seriesList->firstWhere('root_blog_post_id', $post->getKey());
+                                        $elementsDeSerie = $serieDeLArticle ? $serieDeLArticle->items->count() + 1 : null;
                                     @endphp
                                     <div class="flex min-w-0 items-center gap-3">
                                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
@@ -876,10 +905,14 @@
                                         <x-user-avatar :user="$post->user" size="xs" />
                                         <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $post->user_id === auth()->id() ? __('dossiers.owner_me') : $auteurArticle }}</span>
                                     </div>
-                                    <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
+                                    <div class="{{ $colonneEstType ? $celluleLgDrive : $classePartage($partageHerite) }}">{{ $colonneEstType ? __('dossiers.drive_article_badge') : $partageHerite }}</div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums">{{ $post->updated_at?->isoFormat('L') }}</div>
-                                    {{-- Un Article n'a pas d'octets : sa taille est son texte. --}}
-                                    <div class="{{ $celluleLgDrive }} tabular-nums">{{ trans_choice('dossiers.article_words', $motsArticle, ['count' => number_format($motsArticle, 0, ',', ' ')]) }}</div>
+                                    {{-- La taille d'un Article : le nombre d'elements
+                                         quand il ouvre une Serie — c'est ce qu'on
+                                         vient y lire —, son texte sinon. --}}
+                                    <div class="{{ $celluleLgDrive }} tabular-nums">{{ $elementsDeSerie !== null
+                                        ? trans_choice('dossiers.drive_folder_items', $elementsDeSerie, ['count' => $elementsDeSerie])
+                                        : trans_choice('dossiers.article_words', $motsArticle, ['count' => number_format($motsArticle, 0, ',', ' ')]) }}</div>
                                     <div class="relative justify-self-end" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
                                         <button type="button" @click="open = !open" x-bind:aria-expanded="open"
                                                 class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
@@ -891,6 +924,11 @@
                                             <a href="{{ $blogShowRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
                                             @if($canManageArticles)
                                                 <a href="{{ $blogEditRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_article') }}</a>
+                                                {{-- Un Article ne se partage pas seul : le partage vit sur
+                                                     le Dossier qui le contient, et l'entree le dit. --}}
+                                                @unless($dossier->isPersonalDocumentsRoot())
+                                                    <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
+                                                @endunless
                                                 <form method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_remove_article') }}</button>
@@ -903,7 +941,7 @@
 
                             {{-- Les fichiers : donnees JS, meme anatomie de ligne. --}}
                             <template x-for="file in sortedFiles" :key="file.id">
-                                <li class="{{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 dark:hover:bg-gray-900/40"
+                                <li class="group/ligne {{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 dark:hover:bg-gray-900/40 @if($canDeleteFiles && $moveTargets->isNotEmpty()) cursor-grab active:cursor-grabbing @endif"
                                     @if($canDeleteFiles && $moveTargets->isNotEmpty())
                                     draggable="true"
                                     @dragstart="onFileDragStart(file)"
@@ -912,6 +950,11 @@
                                     @endif
                                     >
                                     <div class="flex min-w-0 items-center gap-3">
+                                    @if($canDeleteFiles && $moveTargets->isNotEmpty())
+                                        <span class="-ml-2 hidden shrink-0 text-gray-300 group-hover/ligne:block dark:text-gray-600" aria-hidden="true" title="{{ __('dossiers.drive_drag_hint') }}">
+                                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+                                        </span>
+                                    @endif
                                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
                                                       :class="{
                                                           'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
@@ -937,11 +980,18 @@
                                     </button>
                                     </div>
                                     <div class="hidden min-w-0 items-center gap-2 lg:flex">
-                                        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[9px] font-semibold uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                        <img x-show="file.uploader?.avatar_url" :src="file.uploader?.avatar_url" alt="" aria-hidden="true"
+                                             class="h-6 w-6 shrink-0 rounded-full object-cover">
+                                        <span x-show="!file.uploader?.avatar_url"
+                                              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[9px] font-semibold uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300"
                                               x-text="uploaderInitiales(file)"></span>
                                         <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400" x-text="uploaderLibelle(file)"></span>
                                     </div>
-                                    <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
+                                    @if($colonneEstType)
+                                        <div class="{{ $celluleLgDrive }}" x-text="fileTypeLabel(file.mime_type)"></div>
+                                    @else
+                                        <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
+                                    @endif
                                     <div class="{{ $celluleLgDrive }} tabular-nums" x-text="file.updatedAtFormatted"></div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums" x-text="file.sizeFormatted"></div>
                                     <div class="relative justify-self-end" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
@@ -957,10 +1007,18 @@
                                                     class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_preview') }}</button>
                                             <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
                                                class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_download') }}</a>
+                                            @if($canManageFiles)
+                                                <button type="button" @click="open = false; openRenameModal(file)"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_rename') }}</button>
+                                            @endif
                                             @if($canDeleteFiles && $moveTargets->isNotEmpty())
                                                 <button type="button" @click="open = false; openMoveModal(file)"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                             @endif
+                                            @unless($dossier->isPersonalDocumentsRoot())
+                                                <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
+                                            @endunless
                                             @if($canDeleteFiles)
                                                 <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>
@@ -996,7 +1054,9 @@
                                  @dragover.prevent="onFolderDragOver('{{ $folder->getKey() }}')"
                                  @dragleave="onFolderDragLeave('{{ $folder->getKey() }}')"
                                  @drop.prevent="onFolderDrop('{{ $folder->getKey() }}')"
-                                 :class="dragOverFolderId === '{{ $folder->getKey() }}' ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30' : ''"
+                                 :class="dragOverFolderId === '{{ $folder->getKey() }}'
+                                     ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30'
+                                     : (draggingFileId ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : '')"
                                  @endif
                                  >
                                 @php
@@ -1033,6 +1093,9 @@
                                         @if($folder->parent_id !== null)
                                             @can('update', $folder)
                                                 <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.rename') }}</a>
+                                            @endcan
+                                            @can('manageMembers', $folder)
+                                                <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_tab') }}</a>
                                             @endcan
                                             @can('delete', $folder)
                                                 <button type="button" @click="open = false; openDeleteFolderModal('{{ $folder->getKey() }}', @js($folder->name))"
@@ -1093,7 +1156,7 @@
                         @endforeach
 
                         <template x-for="file in sortedFiles" :key="file.id">
-                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-gray-300 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-gray-300 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 @if($canDeleteFiles && $moveTargets->isNotEmpty()) cursor-grab active:cursor-grabbing @endif"
                                  @if($canDeleteFiles && $moveTargets->isNotEmpty())
                                  draggable="true"
                                  @dragstart="onFileDragStart(file)"
@@ -1171,6 +1234,56 @@
                                 class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">&raquo;</button>
                     </div>
 
+
+                    {{-- Fichiers refuses avant meme l'envoi (poids, format,
+                         doublon) : une reponse claire plutot qu'un silence. --}}
+                    <template x-if="showUploadRejectModal && uploadRejects.length">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showUploadRejectModal = false; uploadRejects = []" @keydown.escape.window="showUploadRejectModal = false; uploadRejects = []" role="dialog" aria-modal="true" aria-labelledby="upload-reject-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <div class="flex items-start gap-3">
+                                    <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300" aria-hidden="true">
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <h3 id="upload-reject-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.upload_rejected_title') }}</h3>
+                                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.upload_rejected_body') }}</p>
+                                        <ul class="mt-3 max-h-56 space-y-1.5 overflow-y-auto">
+                                            <template x-for="(refus, i) in uploadRejects" :key="i">
+                                                <li class="rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-gray-900/50">
+                                                    <span class="block truncate font-medium text-gray-900 dark:text-gray-100" x-text="refus.name"></span>
+                                                    <span class="block text-xs text-gray-500 dark:text-gray-400" x-text="refus.reason"></span>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="mt-6 flex justify-end">
+                                    <button type="button" @click="showUploadRejectModal = false; uploadRejects = []" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">{{ __('dossiers.upload_rejected_ok') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Renommer un fichier : le libelle lu par les gens, pas
+                         le fichier sur le disque. L'extension d'origine est
+                         conservee par le serveur. --}}
+                    <template x-if="showRenameModal && renameTarget">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRenameModal = false" @keydown.escape.window="showRenameModal = false" role="dialog" aria-modal="true" aria-labelledby="rename-file-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 id="rename-file-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+                                    x-text="(i18n.renameTitle || '').replace(':name', renameTarget.display_name || renameTarget.original_name)"></h3>
+                                <div class="mt-4">
+                                    <label for="rename-file-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300" x-text="i18n.renameLabel"></label>
+                                    <input id="rename-file-input" type="text" x-model="renameValue" maxlength="255" @keydown.enter="confirmRename()"
+                                           class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                </div>
+                                <div class="mt-6 flex justify-end gap-3">
+                                    <button type="button" @click="showRenameModal = false" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.drive_cancel') }}</button>
+                                    <button type="button" @click="confirmRename()" :disabled="!renameValue.trim() || saving" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">{{ __('dossiers.file_rename') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
 
                     {{-- Move Modal (TASK-1130 passe 4) : le fallback accessible du
                          glisser-deposer, meme point d'entree (confirmMoveFile). --}}
@@ -1456,7 +1569,10 @@
         @php
             $gouvernant = $governingDossier;
         @endphp
-        <div x-data="{ open: false }" @open-share-panel.window="open = true" x-on:keydown.escape.window="open = false">
+        {{-- `?partage=1` ouvre le panneau a l'arrivee : c'est le lien que porte
+             « Gerer » depuis la vue Partages, pour aller du constat au geste
+             sans chercher. --}}
+        <div x-data="{ open: {{ request()->boolean('partage') ? 'true' : 'false' }} }" @open-share-panel.window="open = true" x-on:keydown.escape.window="open = false">
             <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
                  @click.self="open = false" role="dialog" aria-modal="true" aria-labelledby="share-panel-title">
                 <div class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">

@@ -244,21 +244,21 @@ class DossiersArticleAttachmentTest extends TestCase
         $this->assertDatabaseHas('blog_posts', ['id' => $post->id, 'deleted_at' => null]);
     }
 
-    public function test_deleting_a_dossier_with_an_attached_article_is_refused(): void
+    public function test_deleting_a_dossier_detaches_its_articles_without_destroying_them(): void
     {
-        // TASK-1130 (etape A) : un Dossier ne se supprime que vide. Avant
-        // cette regle, le pivot dossier_blog_posts etait detache
-        // silencieusement et le Dossier supprime quand meme.
+        // Decision Cyril du 13/08 : supprimer un Dossier emporte son contenu,
+        // comme dans un Drive. Un Article fait exception — c'est un objet du
+        // blog, avec sa page publique : le lien part, l'Article reste.
         $dossier = $this->dossier($this->orgA, $this->authorA, 'Private folder');
         $post = $this->blogPost($this->orgA, $this->authorA, 'Owned article');
         $this->attach($dossier, $post, $this->authorA, 1);
 
         $this->actingAs($this->authorA)
             ->deleteJson(route('organization.dossiers.destroy', ['organization' => $this->orgA, 'dossier' => $dossier->id]))
-            ->assertStatus(422);
+            ->assertOk();
 
-        $this->assertDatabaseHas('dossiers', ['id' => $dossier->id, 'deleted_at' => null]);
-        $this->assertDatabaseHas('dossier_blog_posts', ['dossier_id' => $dossier->id, 'blog_post_id' => $post->id]);
+        $this->assertSoftDeleted('dossiers', ['id' => $dossier->id]);
+        $this->assertDatabaseMissing('dossier_blog_posts', ['dossier_id' => $dossier->id, 'blog_post_id' => $post->id]);
         $this->assertDatabaseHas('blog_posts', ['id' => $post->id, 'deleted_at' => null]);
     }
 
@@ -402,9 +402,11 @@ class DossiersArticleAttachmentTest extends TestCase
             ])
             ->assertCreated();
 
+        // L'URL vient du routeur : c'est la vraie route d'edition, pas une
+        // chaine fabriquee a la main (qui pointait sur un 404).
         $redirectUrl = $response->json('redirect_url');
-        $this->assertStringStartsWith("/org/{$this->orgA->slug}/blog/", $redirectUrl);
-        $this->assertStringEndsWith('/edit', $redirectUrl);
+        $this->assertStringContainsString("/org/{$this->orgA->slug}/blog/rediger/", $redirectUrl);
+        $this->assertStringEndsWith('/modifier', $redirectUrl);
     }
 
     // ── existing tests ──────────────────────────────────────────────

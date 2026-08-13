@@ -60,7 +60,7 @@ class DossierController extends Controller
                 // `owner` : la colonne Proprietaire montre un visage, et une
                 // racine porte le sien — sans cet eager-load, la ligne restait
                 // sans avatar (et declenchait une requete par ligne).
-                ->with(['sharedWithLoop:id,name,organization_id', 'owner:id,first_name,name,email,banned_at,organization_id'])
+                ->with(['sharedWithLoop:id,name,organization_id', 'owner:id,first_name,avatar,name,email,banned_at,organization_id'])
                 ->withCount(['dossierMembers', 'files', 'dossierBlogPosts', 'children'])
                 ->orderBy('name')
                 ->get();
@@ -91,7 +91,7 @@ class DossierController extends Controller
                 ->where('organization_id', $organization->id)
                 ->where('owner_id', '!=', $userId)
                 ->whereHas('dossierMembers', fn ($q) => $q->where('user_id', $userId))
-                ->with(['owner:id,first_name,name,email,banned_at,organization_id', 'dossierMembers' => fn ($q) => $q->where('user_id', $userId)])
+                ->with(['owner:id,first_name,avatar,name,email,banned_at,organization_id', 'dossierMembers' => fn ($q) => $q->where('user_id', $userId)])
                 ->withCount(['files', 'dossierBlogPosts', 'children'])
                 ->latest('updated_at')
                 ->get();
@@ -107,7 +107,13 @@ class DossierController extends Controller
                 ->where(fn ($q) => $q
                     ->whereHas('dossierMembers')
                     ->orWhereNotNull('shared_with_loop_id'))
-                ->with(['sharedWithLoop:id,name,organization_id', 'dossierMembers'])
+                // Les personnes, pas seulement leur nombre : « Par moi » doit
+                // montrer AVEC QUI on partage, sinon la vue n'apprend rien que
+                // le proprietaire ne sache deja.
+                ->with([
+                    'sharedWithLoop:id,name,organization_id',
+                    'dossierMembers.user:id,first_name,avatar,name,email,banned_at,organization_id',
+                ])
                 ->withCount(['dossierMembers', 'files', 'dossierBlogPosts', 'children'])
                 ->latest('updated_at')
                 ->get();
@@ -214,12 +220,12 @@ class DossierController extends Controller
         $canManageArticles = $user->can('attachArticle', $dossier);
 
         $dossier->load([
-            'owner:id,first_name,name,banned_at,organization_id',
-            'dossierBlogPosts.blogPost.user:id,first_name,name,email,organization_id,banned_at',
-            'dossierBlogPosts.blogPost.coAuthors:id,first_name,name,email,organization_id,banned_at',
-            'dossierMembers.user:id,first_name,name,email,organization_id,banned_at',
+            'owner:id,first_name,avatar,name,banned_at,organization_id',
+            'dossierBlogPosts.blogPost.user:id,first_name,avatar,name,email,organization_id,banned_at',
+            'dossierBlogPosts.blogPost.coAuthors:id,first_name,avatar,name,email,organization_id,banned_at',
+            'dossierMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
             'loop:id,name,organization_id,status',
-            'loop.activeMembers.user:id,first_name,name,email,organization_id,banned_at',
+            'loop.activeMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
         ]);
 
         // Le panneau « Partager » lit toujours la racine gouvernante (owner,
@@ -229,10 +235,10 @@ class DossierController extends Controller
         // affichage du panneau.
         if ($governingDossier->isNot($dossier)) {
             $governingDossier->load([
-                'owner:id,first_name,name,banned_at,organization_id',
-                'dossierMembers.user:id,first_name,name,email,organization_id,banned_at',
+                'owner:id,first_name,avatar,name,banned_at,organization_id',
+                'dossierMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
                 'loop:id,name,organization_id,status',
-                'loop.activeMembers.user:id,first_name,name,email,organization_id,banned_at',
+                'loop.activeMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
             ]);
         }
 
@@ -244,11 +250,11 @@ class DossierController extends Controller
             ->where('organization_id', $organization->id)
             ->with([
                 'rootBlogPost:id,organization_id,user_id,title,slug,status,updated_at,published_at',
-                'rootBlogPost.user:id,first_name,name,email,organization_id,banned_at',
-                'rootBlogPost.coAuthors:id,first_name,name,email,organization_id,banned_at',
+                'rootBlogPost.user:id,first_name,avatar,name,email,organization_id,banned_at',
+                'rootBlogPost.coAuthors:id,first_name,avatar,name,email,organization_id,banned_at',
                 'items.blogPost:id,organization_id,user_id,title,slug,status,updated_at,published_at',
-                'items.blogPost.user:id,first_name,name,email,organization_id,banned_at',
-                'items.blogPost.coAuthors:id,first_name,name,email,organization_id,banned_at',
+                'items.blogPost.user:id,first_name,avatar,name,email,organization_id,banned_at',
+                'items.blogPost.coAuthors:id,first_name,avatar,name,email,organization_id,banned_at',
                 'items.dossierFile:id,organization_id,dossier_id,original_name,display_name,mime_type,size_bytes,updated_at',
             ])
             ->orderBy('created_at')
@@ -262,7 +268,7 @@ class DossierController extends Controller
         $eligibleArticles = collect();
         if ($canManageArticles) {
             $eligibleArticles = BlogPost::query()
-                ->with('user:id,first_name,name,email,organization_id')
+                ->with('user:id,first_name,avatar,name,email,organization_id')
                 ->where('organization_id', $organization->id)
                 ->where('user_id', $userId)
                 ->whereDoesntHave('dossierEntry')
@@ -313,7 +319,7 @@ class DossierController extends Controller
                     // (TASK-1130 UX finale) : sans lui, un CAS B est
                     // indiscernable d'un vrai sous-dossier a l'ecran alors que
                     // ses menus different.
-                    ->with('owner:id,first_name,name,email,banned_at,organization_id')
+                    ->with('owner:id,first_name,avatar,name,email,banned_at,organization_id')
                     // `dossierMembers` : l'etat de partage affiche sur une
                     // ligne qui porte le sien (une racine) se lit sur elle,
                     // pas sur la gouvernance heritee du Dossier ouvert.
@@ -600,24 +606,22 @@ class DossierController extends Controller
     }
 
     /**
-     * TASK-1130 (etape A) : un Dossier ne se supprime que vide.
+     * Supprimer un Dossier emporte ce qu'il contient — comme n'importe quel
+     * Drive (decision Cyril du 13/08, qui remplace la regle « vide seulement »
+     * de l'etape A).
      *
-     * Avant cette etape, un Dossier non vide etait « nettoye » a la volee —
-     * ses enfants promus racines, ses fichiers detaches, ses Articles
-     * retires, ses Series dissoutes — puis supprime. Sur un vrai
-     * sous-dossier (`parent_id` non nul, `owner_id`/`loop_id` NULL par
-     * contrat), la promotion d'un petit-enfant ecrivait une ligne
-     * `parent_id = NULL, owner_id = NULL, loop_id = NULL` : ni un enfant, ni
-     * une racine valide. Confirme empiriquement sur `bouclepro_test`
-     * (PostgreSQL) : la contrainte `dossiers_holder_xor` refuse cette ligne
-     * avec un 500 (`SQLSTATE[23514]`) des qu'un dossier a supprimer avait
-     * lui-meme un enfant. Sur SQLite (pas de CHECK constraint), la meme
-     * ecriture passait silencieusement et produisait un orphelin que plus
-     * aucune policy ne reconnaissait — gouvernance perdue en pratique,
-     * jamais promue.
+     * Ce qui part : le Dossier, ses sous-dossiers a toute profondeur, leurs
+     * fichiers, leurs Series. Tout en suppression douce — `deleted_at` — donc
+     * rien n'est efface du disque et une restauration reste possible en base.
      *
-     * Plus aucun deplacement ni suppression implicite de contenu : un
-     * Dossier non vide refuse la suppression avec un message actionnable.
+     * Ce qui ne part PAS : les **Articles**. Un Article est un objet du blog,
+     * avec sa page et son adresse publique ; le ranger dans un dossier ne le
+     * rend pas proprietaire de son existence. Le lien est retire, l'Article
+     * reste. C'est la seule difference avec un Drive de fichiers, et elle est
+     * dite a l'utilisateur dans la confirmation.
+     *
+     * La racine d'une Boucle et « Mes documents » restent hors de portee :
+     * la policy `delete` les refuse avant meme d'arriver ici.
      */
     public function destroy(Request $request): RedirectResponse|JsonResponse
     {
@@ -627,36 +631,24 @@ class DossierController extends Controller
         $this->authorize('delete', $dossier);
 
         DB::transaction(function () use ($dossier) {
-            // Verrou + re-verification dans la transaction : sans lui, un
-            // upload ou une creation de sous-dossier simultanee entre le
-            // controle et l'ecriture pourrait rendre du contenu inaccessible
-            // sans jamais avoir ete compte. `dossier_files.dossier_id`,
-            // `dossier_blog_posts.dossier_id` et `dossiers.parent_id`
-            // pointent tous vers cette ligne par contrainte FK : PostgreSQL
-            // prend deja un verrou de partage sur la ligne parente a chaque
-            // ecriture qui la reference, donc ce seul verrou suffit a fermer
-            // la fenetre — inutile de verrouiller chaque relation separement.
-            $locked = Dossier::whereKey($dossier->getKey())->lockForUpdate()->firstOrFail();
+            // Verrou sur la ligne visee : `dossier_files.dossier_id`,
+            // `dossier_blog_posts.dossier_id` et `dossiers.parent_id` la
+            // referencent tous par FK, donc PostgreSQL prend deja un verrou
+            // de partage a chaque ecriture qui l'accroche — celui-ci ferme la
+            // fenetre entre le recensement et la suppression.
+            $verrouille = Dossier::whereKey($dossier->getKey())->lockForUpdate()->firstOrFail();
 
-            if ($locked->hasContent()) {
-                throw ValidationException::withMessages([
-                    'dossier' => __('dossiers.delete_not_empty'),
-                ]);
+            foreach ($this->brancheDe($verrouille) as $noeud) {
+                $seriesIds = $noeud->articleSeries()->pluck('id');
+                ArticleSeriesItem::whereIn('article_series_id', $seriesIds)->delete();
+                ArticleSeries::whereIn('id', $seriesIds)->delete();
+
+                // Les Articles sont detaches, jamais detruits.
+                $noeud->dossierBlogPosts()->delete();
+                $noeud->files()->delete();
+                $noeud->dossierMembers()->delete();
+                $noeud->delete();
             }
-
-            // Une Serie ne peut exister sur ce Dossier qu'a partir d'un
-            // Article ou d'un fichier deja attache ici
-            // (DossierSeriesService::assertBelongsToDossier) : hasContent()
-            // etant faux, toute Serie presente est necessairement sans
-            // racine ni item — la dissoudre ne perd aucun contenu, comme
-            // DossierSeriesService::delete() le fait deja pour un geste
-            // manuel.
-            $seriesIds = $locked->articleSeries()->pluck('id');
-            ArticleSeriesItem::whereIn('article_series_id', $seriesIds)->delete();
-            ArticleSeries::whereIn('id', $seriesIds)->delete();
-
-            $locked->dossierMembers()->delete();
-            $locked->delete();
         });
 
         if ($request->expectsJson()) {
@@ -666,6 +658,36 @@ class DossierController extends Controller
         return redirect()
             ->route('organization.dossiers.index', ['organization' => $organization])
             ->with('success', __('dossiers.deleted'));
+    }
+
+    /**
+     * Le Dossier et toute sa descendance, les feuilles d'abord.
+     *
+     * L'ordre compte : un enfant se supprime avant son parent, sinon la
+     * contrainte `dossiers_holder_xor` verrait passer des lignes orphelines.
+     * La profondeur est bornee par `Dossier::MAX_DEPTH`, comme partout
+     * ailleurs ou l'on remonte ou descend l'arbre.
+     *
+     * @return \Illuminate\Support\Collection<int, Dossier>
+     */
+    private function brancheDe(Dossier $racine): \Illuminate\Support\Collection
+    {
+        $noeuds = collect([$racine]);
+        $frontiere = collect([$racine]);
+        $profondeur = 0;
+
+        while ($frontiere->isNotEmpty() && $profondeur < Dossier::MAX_DEPTH) {
+            $frontiere = Dossier::query()
+                ->whereIn('parent_id', $frontiere->pluck('id'))
+                ->lockForUpdate()
+                ->get();
+
+            $noeuds = $noeuds->concat($frontiere);
+            $profondeur++;
+        }
+
+        // Les feuilles d'abord : on remonte la liste construite en descendant.
+        return $noeuds->reverse()->values();
     }
 
     private function currentOrganizationOrFail()

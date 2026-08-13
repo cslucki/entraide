@@ -632,13 +632,11 @@ class DossierSeriesTest extends TestCase
 
     // --- Dossier soft-delete cleans series ---
 
-    public function test_deleting_a_dossier_with_a_series_root_article_is_refused(): void
+    public function test_deleting_a_dossier_dissolves_its_series_and_keeps_the_root_article(): void
     {
-        // TASK-1130 (etape A) : un Dossier ne se supprime que vide. La
-        // racine d'une Serie est toujours un Article deja attache au
-        // Dossier (dossier_blog_posts) — le Dossier n'est donc jamais vide
-        // tant que la Serie a une racine. Avant cette regle, la suppression
-        // reussissait quand meme et dissolvait la Serie silencieusement.
+        // Decision Cyril du 13/08 : le Dossier part avec son contenu. Une
+        // Serie n'est qu'une classification : elle se dissout. L'Article qui
+        // lui servait de racine, lui, survit — il vit dans le blog.
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $root = $this->blogPost($this->orgA, $this->ownerA, 'Root');
         $this->attach($dossier, $root, $this->ownerA, 1);
@@ -649,14 +647,13 @@ class DossierSeriesTest extends TestCase
             'root_blog_post_id' => $root->id,
         ]);
 
-        $response = $this->actingAs($this->ownerA)->deleteJson(
+        $this->actingAs($this->ownerA)->deleteJson(
             route('organization.dossiers.destroy', ['organization' => $this->orgA->slug, 'dossier' => $dossier->id])
-        );
+        )->assertOk();
 
-        $response->assertStatus(422);
-        $this->assertDatabaseHas('article_series', ['id' => $series->id]);
-        $this->assertDatabaseHas('blog_posts', ['id' => $root->id]);
-        $this->assertDatabaseHas('dossiers', ['id' => $dossier->id, 'deleted_at' => null]);
+        $this->assertDatabaseMissing('article_series', ['id' => $series->id]);
+        $this->assertDatabaseHas('blog_posts', ['id' => $root->id, 'deleted_at' => null]);
+        $this->assertSoftDeleted('dossiers', ['id' => $dossier->id]);
     }
 
     public function test_deleting_an_empty_dossier_dissolves_a_root_less_series(): void

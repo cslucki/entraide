@@ -562,27 +562,21 @@ class DossierFileTest extends TestCase
 
     // --- Dossier soft-delete nullifies file.dossier_id ---
 
-    public function test_a_dossier_with_a_file_refuses_deletion_instead_of_orphaning_it(): void
+    public function test_deleting_a_dossier_deletes_its_files_instead_of_orphaning_them(): void
     {
-        // TASK-1130 (etape A) : un Dossier ne se supprime plus que vide —
-        // avant, un fichier restant etait detache silencieusement
-        // (dossier_id => null). Desormais la suppression est refusee et rien
-        // ne bouge.
+        // Decision Cyril du 13/08 : le Dossier part avec son contenu. Le
+        // fichier est SOFT-supprime — jamais detache (`dossier_id => null`),
+        // ce qui l'aurait rendu invisible et pourtant bien present.
         $file = $this->createFile($this->dossier, $this->ownerA);
 
         $this->actingAs($this->ownerA)->deleteJson(route('organization.dossiers.destroy', [
             'organization' => $this->orgA,
             'dossier' => $this->dossier,
-        ]))->assertStatus(422);
+        ]))->assertOk();
 
-        $this->assertDatabaseHas('dossier_files', [
-            'id' => $file->id,
-            'dossier_id' => $this->dossier->id,
-        ]);
-        $this->assertDatabaseHas('dossiers', [
-            'id' => $this->dossier->id,
-            'deleted_at' => null,
-        ]);
+        $this->assertSoftDeleted('dossier_files', ['id' => $file->id]);
+        $this->assertDatabaseHas('dossier_files', ['id' => $file->id, 'dossier_id' => $this->dossier->id]);
+        $this->assertSoftDeleted('dossiers', ['id' => $this->dossier->id]);
     }
 
     // =======================================================================

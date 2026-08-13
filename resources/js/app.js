@@ -3238,6 +3238,21 @@ function registerDossierFilesCard() {
         // serveur : ils disent si une recherche ne trouve VRAIMENT rien, la
         // ou `totalFiles` ne parle que des fichiers.
         nomsSpatiaux: config.nomsSpatiaux || [],
+        // Le nom du Dossier : celui que prend sa sequence, sans le demander.
+        dossierName: config.dossierName || '',
+        // La file d'envoi : un fichier a la fois, dans l'ordre choisi.
+        _fileQueue: [],
+        uploadEnCours: false,
+        uploadFait: 0,
+        uploadTotal: 0,
+        // Ce que le navigateur a refuse avant meme d'essayer (poids, format) :
+        // il faut le dire, et le dire calmement.
+        showUploadRejectModal: false,
+        uploadRejects: [],
+        // Renommer un fichier : son libelle, pas son fichier sur le disque.
+        showRenameModal: false,
+        renameTarget: null,
+        renameValue: '',
         // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
         // le PATCH — retirer un partage n'est pas supprimer, le ton du modal
         // n'est pas celui d'une destruction.
@@ -3414,6 +3429,11 @@ function registerDossierFilesCard() {
                 .filter(f => missingIds.includes(f.id))
                 .map(f => this.normalizeFile(f));
             this.files = [...missingFiles, ...this.files];
+            // `totalFiles` vient du serveur et ne bougeait qu'a la suppression :
+            // apres un import dans un dossier VIDE il restait a 0, et la liste
+            // entiere — dont le fichier tout juste depose — restait masquee
+            // jusqu'au rechargement. Le compte suit desormais ce qu'on voit.
+            this.totalFiles = Math.max(this.totalFiles, this.files.length);
         },
 
         async createArticle() {
@@ -3441,7 +3461,10 @@ function registerDossierFilesCard() {
                     this.showArticleModal = false;
                     this.showMessage(this.i18n.articleCreated, 'success');
                     // Redirect to edit the new article
-                    window.location.href = data.redirect_url || `/org/${this.orgParam}/blog/${data.post.slug}/edit`;
+                    // Le repli fabriquait la meme URL fausse que le serveur :
+                    // sans `redirect_url`, on reste sur le Drive plutot que
+                    // d'envoyer la personne sur un 404.
+                    if (data.redirect_url) window.location.href = data.redirect_url;
                 } else {
                     this.showMessage(data.message || this.i18n.articleCreateFailed, 'error');
                 }
@@ -3454,11 +3477,15 @@ function registerDossierFilesCard() {
 
         async createMarkdownNote() {
             if (!this.mdFileName.trim()) return;
-            
+
             this.saving = true;
             try {
                 const fileName = this.mdFileName.endsWith('.md') ? this.mdFileName : `${this.mdFileName}.md`;
-                const blob = new Blob([this.mdContent], { type: 'text/markdown' });
+                // L'editeur ecrit dans son textarea : c'est lui qui porte le
+                // Markdown reel (titres, listes, liens), pas `mdContent`.
+                const champ = document.querySelector('textarea[name="dossier-md-content"][data-tiptap-target]');
+                const contenu = champ ? champ.value : this.mdContent;
+                const blob = new Blob([contenu], { type: 'text/markdown' });
                 const file = new File([blob], fileName, { type: 'text/markdown' });
                 
                 const formData = new FormData();
@@ -3619,37 +3646,37 @@ function registerDossierFilesCard() {
                 const labelIdle = this.i18n.uploadHelp || 'Drag & drop files or <span class="filepond--label-action">browse</span>';
 
                 this._pond = FilePond.create(this.$refs.filePondContainer, Object.assign(Object.create(null), {
-                    multiple: true,
+                    // FilePond ne connait pas `multiple` : son option s'appelle
+                    // `allowMultiple`. Ecrite a cote, elle etait ignoree — et
+                    // l'`<input type=file>` sous-jacent restait sans l'attribut
+                    // `multiple`, donc le selecteur du systeme n'autorisait
+                    // qu'UN fichier a la fois (signale par Cyril).
+                    allowMultiple: true,
                     maxFiles: 5,
                     maxFileSize: '50MB',
                     acceptedFileTypes: acceptedTypes,
                     labelIdle: labelIdle,
+                    // Chaque fichier choisi passe par ici. On ne lance PAS son
+                    // envoi tout de suite : plusieurs envois simultanes se
+                    // disputaient la meme barre de progression et le meme
+                    // rechargement de liste — resultat, un seul fichier
+                    // survivait a l'ecran. Les fichiers font la queue, et la
+                    // file part une fois.
                     onaddfile(err, file) {
-                        if (err) { console.warn('[FilePond] addfile error', err); return; }
-                        const duplicate = self.files.some((existingFile) => existingFile.original_name === file.file.name || existingFile.display_name === file.file.name);
-                        if (duplicate) {
-                            self.showMessage(self.i18n.duplicateName, 'error');
-                            self._pond.removeFile(file.id);
+                        if (err) {
+                            self.refuserFichier(file, err);
+
                             return;
                         }
-                        const formData = new FormData();
-                        formData.append('files[]', file.file, file.file.name);
+                        const duplicate = self.files.some((existingFile) => existingFile.original_name === file.file.name || existingFile.display_name === file.file.name);
+                        if (duplicate) {
+                            self.refuserFichier(file, { main: self.i18n.duplicateName });
 
-                        self.uploadFormData(formData, [file.file])
-                            .then(({ ok, data }) => {
-                                if (ok) {
-                                    self.showMessage(data.message || self.i18n.uploaded, 'success');
-                                    self._pond.removeFile(file.id);
-                                    self.loadFiles(1).then(() => self.mergeMissingUploads(data.files));
-                                } else {
-                                    self.showMessage(data.message || self.i18n.uploadFailed, 'error');
-                                    self._pond.removeFile(file.id);
-                                }
-                            })
-                            .catch(() => {
-                                self.showMessage(self.i18n.uploadFailed, 'error');
-                                self._pond.removeFile(file.id);
-                            });
+                            return;
+                        }
+
+                        self._fileQueue.push(file);
+                        self.demarrerLaFile();
                     },
                 }));
             }
@@ -3744,6 +3771,125 @@ function registerDossierFilesCard() {
             if (this.totalFiles > 0) return false;
 
             return !(this.nomsSpatiaux || []).some(nom => nom.includes(q));
+        },
+
+        /**
+         * Refuser un fichier sans le perdre de vue : il quitte la zone de
+         * depot, et son motif rejoint la liste montree a la fin.
+         */
+        refuserFichier(file, err) {
+            const nom = file?.file?.name || '';
+            const tropLourd = file?.file?.size > 50 * 1024 * 1024;
+            this.uploadRejects.push({
+                name: nom,
+                reason: tropLourd ? (this.i18n.fileTooLarge || '') : (err?.main || err?.body || this.i18n.uploadFailed || ''),
+            });
+            this.showUploadRejectModal = true;
+            if (this._pond && file?.id) this._pond.removeFile(file.id);
+        },
+
+        /** Vide la file, un fichier apres l'autre. */
+        async demarrerLaFile() {
+            if (this.uploadEnCours) return;
+            this.uploadEnCours = true;
+            this.uploadFait = 0;
+            this.uploadTotal = this._fileQueue.length;
+
+            let reussis = 0;
+            const echecs = [];
+
+            while (this._fileQueue.length) {
+                // Un fichier ajoute pendant l'envoi rejoint le compte affiche.
+                this.uploadTotal = Math.max(this.uploadTotal, this.uploadFait + this._fileQueue.length);
+
+                const file = this._fileQueue.shift();
+                const formData = new FormData();
+                formData.append('files[]', file.file, file.file.name);
+
+                try {
+                    const { ok, data } = await this.uploadFormData(formData, [file.file], true);
+                    if (ok) { reussis++; } else { echecs.push(data?.message || file.file.name); }
+                } catch (e) {
+                    echecs.push(file.file.name);
+                } finally {
+                    this.uploadFait++;
+                    // FilePond peut avoir deja retire le fichier de sa propre
+                    // liste : lever ici ferait sauter TOUT ce qui suit la
+                    // boucle — dont le rechargement final, qui est justement
+                    // ce qui fait apparaitre les fichiers a l'ecran.
+                    try { this._pond?.removeFile(file.id); } catch (e) { /* deja retire */ }
+                }
+            }
+
+            this.uploadEnCours = false;
+            this.uploading = false;
+            this.uploadProgress = 0;
+            this.uploadFileName = '';
+
+            // Un seul rechargement, a la fin : la liste ne clignote pas a
+            // chaque fichier et aucune reponse n'en ecrase une autre.
+            try {
+                await this.loadFiles(1);
+                // Un envoi peut etre acquitte avant que la ligne soit visible
+                // par la requete suivante : si la liste revient vide alors
+                // qu'on vient d'ajouter, on redemande une fois.
+                if (reussis > 0 && this.totalFiles === 0) {
+                    await new Promise((r) => setTimeout(r, 600));
+                    await this.loadFiles(1);
+                }
+            } catch (e) {
+                console.error('[dossiers] rechargement apres import', e);
+            }
+
+            if (reussis > 0) {
+                const modele = reussis === 1 ? (this.i18n.uploaded || '') : (this.i18n.filesBatchResult || '');
+                this.showMessage(
+                    reussis === 1
+                        ? modele
+                        : modele.replace(':success', reussis).replace(':total', reussis + echecs.length).replace(':errors', ''),
+                    'success',
+                );
+            }
+            if (echecs.length) {
+                this.uploadRejects = this.uploadRejects.concat(echecs.map((raison) => ({ name: '', reason: raison })));
+                this.showUploadRejectModal = true;
+            }
+        },
+
+        openRenameModal(file) {
+            this.renameTarget = file;
+            this.renameValue = file.display_name || file.original_name || '';
+            this.showRenameModal = true;
+        },
+
+        async confirmRename() {
+            const nom = (this.renameValue || '').trim();
+            if (!this.renameTarget || !nom || this.saving) return;
+            this.saving = true;
+            try {
+                const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${this.renameTarget.id}/rename`;
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ display_name: nom }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || this.i18n.networkError, 'error');
+                    return;
+                }
+                // Le nom rendu par le serveur, pas celui tape : c'est lui qui
+                // garde l'extension d'origine.
+                const cible = this.files.find(f => f.id === this.renameTarget.id);
+                if (cible) cible.display_name = data.file.display_name;
+                this.showRenameModal = false;
+                this.renameTarget = null;
+                this.showMessage(data.message, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.saving = false;
+            }
         },
 
         uploaderLibelle(file) {
@@ -3887,7 +4033,49 @@ function registerDossierFilesCard() {
             if (this.vue === 'serie') return;
             this.vue = 'serie';
             this.serieActive = null;
-            if (this.seriesMode.length === 1) this.enterSerieMode(this.seriesMode[0].id);
+            if (this.seriesMode.length === 1) { this.enterSerieMode(this.seriesMode[0].id); return; }
+            // Aucune sequence encore : on n'ouvre pas un formulaire, on ouvre la
+            // sequence. Elle prend le nom du Dossier et son contenu — c'est ce
+            // qu'on venait voir. Renommer ou retirer reste possible ensuite.
+            if (this.seriesMode.length === 0 && this.canManageSeries) this.creerSerieDuDossier();
+        },
+
+        /**
+         * La Serie evidente : celle du Dossier, avec ce qu'il contient.
+         */
+        async creerSerieDuDossier() {
+            if (this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ name: this.dossierName, remplir: true }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                const items = (data.series.items || []).map((item) => {
+                    const article = item.blog_post || item.blogPost;
+                    const fichier = item.dossier_file || item.dossierFile;
+
+                    return {
+                        itemId: item.id,
+                        type: article ? 'article' : 'file',
+                        name: article ? article.title : (fichier?.display_name || fichier?.original_name || ''),
+                        key: article ? `blog:${article.id}` : `file:${fichier?.id}`,
+                    };
+                });
+                const serie = { id: data.series.id, name: data.series.name || this.dossierName, items };
+                this.seriesMode.push(serie);
+                this.enterSerieMode(serie.id);
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
         },
 
         // Apres un deplacement reussi, le compteur « N elements » du dossier

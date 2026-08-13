@@ -315,6 +315,37 @@ class TASK1130MesDocumentsTest extends TestCase
         $this->assertTrue($racine->articleSeries()->exists());
     }
 
+    /**
+     * Regression : creer un Article dont le titre existe deja renvoyait un
+     * 23505 brut (`blog_posts_slug_unique`) affiche tel quel a l'ecran.
+     * L'unicite du slug appartient desormais au modele, donc a tous les
+     * chemins de creation.
+     */
+    public function test_two_articles_with_the_same_title_get_distinct_slugs(): void
+    {
+        $racine = $this->racine();
+
+        $categorie = \App\Models\Category::create([
+            'organization_id' => $this->org->id,
+            'name_b2c' => 'Actualites',
+            'name_b2b' => 'Actualites',
+            'slug' => 'actualites-'.uniqid(),
+        ]);
+
+        $creer = fn () => $this->actingAs($this->user)->postJson(
+            route('organization.dossiers.articles.create-and-attach', ['organization' => $this->org->slug, 'dossier' => $racine->getKey()]),
+            ['title' => 'Test', 'category_id' => $categorie->getKey()],
+        );
+
+        $creer()->assertSuccessful();
+        $creer()->assertSuccessful();
+
+        $slugs = BlogPost::where('organization_id', $this->org->id)->where('title', 'Test')->pluck('slug');
+
+        $this->assertCount(2, $slugs);
+        $this->assertCount(2, $slugs->unique(), 'Deux Articles homonymes doivent porter deux slugs distincts.');
+    }
+
     // ── Les vues d'agregation ───────────────────────────────────────────────
 
     public function test_shared_is_a_view_with_two_sub_views_and_never_a_folder(): void
