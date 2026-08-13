@@ -57,7 +57,10 @@ class DossierController extends Controller
                 ->where('owner_id', $userId)
                 ->whereNull('parent_id')
                 ->whereKeyNot($racine->getKey())
-                ->with(['sharedWithLoop:id,name,organization_id'])
+                // `owner` : la colonne Proprietaire montre un visage, et une
+                // racine porte le sien — sans cet eager-load, la ligne restait
+                // sans avatar (et declenchait une requete par ligne).
+                ->with(['sharedWithLoop:id,name,organization_id', 'owner:id,first_name,name,email,banned_at,organization_id'])
                 ->withCount(['dossierMembers', 'files', 'dossierBlogPosts', 'children'])
                 ->orderBy('name')
                 ->get();
@@ -500,7 +503,13 @@ class DossierController extends Controller
                 ->where('organization_id', $dossier->organization_id)
                 ->where('status', 'active')
                 ->orderBy('name')
-                ->get(['id', 'name', 'visibility'])
+                // `organization_id` est indispensable : `viewWorkspace` compare
+                // le tenant de la Boucle a celui de l'utilisateur. Absent du
+                // SELECT, il valait NULL sur chaque modele hydrate — la
+                // comparaison echouait donc toujours et le filtre ci-dessous
+                // vidait la liste entiere. C'est ce qui rendait « Boucle de
+                // destination » vide pour tout le monde.
+                ->get(['id', 'organization_id', 'name', 'visibility'])
                 ->filter(fn ($loop) => $request->user()->can('viewWorkspace', $loop))
                 ->values(),
         ]);

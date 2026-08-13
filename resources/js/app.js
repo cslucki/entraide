@@ -3234,6 +3234,10 @@ function registerDossierFilesCard() {
         // pendant 2-3 s — un fichier deplace semblait avoir disparu (constate
         // en audit, TASK-1130 UX finale). Le squelette remplace ce mensonge.
         filesLoading: true,
+        // Les noms de la surface spatiale (dossiers + Articles), rendus par le
+        // serveur : ils disent si une recherche ne trouve VRAIMENT rien, la
+        // ou `totalFiles` ne parle que des fichiers.
+        nomsSpatiaux: config.nomsSpatiaux || [],
         // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
         // le PATCH — retirer un partage n'est pas supprimer, le ton du modal
         // n'est pas celui d'une destruction.
@@ -3721,6 +3725,40 @@ function registerDossierFilesCard() {
                 uploadedAtFormatted: jour(file.created_at),
                 updatedAtFormatted: jour(file.updated_at || file.created_at),
             };
+        },
+
+        /**
+         * Le proprietaire d'un fichier, dit comme dans le reste de la liste :
+         * « moi » pour soi-meme, le nom public sinon. L'identite de la personne
+         * connectee vient de la balise <meta name="user-id">, deja posee par le
+         * gabarit — aucune requete supplementaire.
+         */
+        /**
+         * Vrai quand la recherche en cours ne rend rien du tout : ni fichier
+         * (le serveur a repondu 0), ni dossier, ni Article (les noms sont
+         * connus du client, la surface spatiale etant rendue en entier).
+         */
+        get aucunResultat() {
+            const q = (this.searchQuery || '').trim().toLowerCase();
+            if (!q) return false;
+            if (this.totalFiles > 0) return false;
+
+            return !(this.nomsSpatiaux || []).some(nom => nom.includes(q));
+        },
+
+        uploaderLibelle(file) {
+            const moi = document.querySelector('meta[name="user-id"]')?.content;
+            if (file?.uploader?.id && moi && file.uploader.id === moi) return this.i18n.ownerMe || 'moi';
+
+            return file?.uploader?.name || '—';
+        },
+
+        /** Les initiales, dessinees ici : aucun appel a un service d'avatars. */
+        uploaderInitiales(file) {
+            const nom = (file?.uploader?.name || '').trim();
+            if (!nom) return '?';
+
+            return nom.split(/\s+/).slice(0, 2).map(m => m.charAt(0)).join('').toUpperCase();
         },
 
         formatQuota(bytes) {

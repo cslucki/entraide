@@ -45,6 +45,7 @@ return [
     'col_share' => 'Sharing',
     'col_created' => 'Created',
     'col_modified' => 'Modified',
+    'article_words' => '{0}Empty|{1}:count word|[2,*]:count words',
     'col_size' => 'Size',
     'owner_me' => 'Me',
     'share_private' => 'Private',

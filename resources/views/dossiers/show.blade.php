@@ -19,7 +19,7 @@
         // masquees sortant du flux grid. Sous `lg`, la ligne redevient un
         // resume compact ; le nom reste la donnee principale.
         $grilleDrive = 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3'
-            .' lg:grid-cols-[minmax(0,3fr)_7rem_7rem_7rem_2.75rem]';
+            .' lg:grid-cols-[minmax(0,3fr)_9rem_6.5rem_6.5rem_6.5rem_2.75rem]';
         $celluleLgDrive = 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
         // « Prive » est le cas dominant : explicite, mais rendu le plus discret
         // des trois etats (reference canonique drive-v2).
@@ -100,6 +100,9 @@
                              'serieArticles' => $serieArticlesData,
                              'canManageSeries' => $canManageSeries,
                              'activeTab' => 'fichiers',
+                             'nomsSpatiaux' => $driveFolders->pluck('name')
+                                 ->merge($dossier->dossierBlogPosts->map(fn ($e) => $e->blogPost?->title))
+                                 ->filter()->map(fn ($n) => mb_strtolower($n))->values(),
                               'i18n' => [
                                   'title' => __('dossiers.files_title'),
                                   'emptyTitle' => __('dossiers.files_empty_title'),
@@ -135,7 +138,12 @@
                                   'networkError' => __('dossiers.network_error'),
                                   'duplicateName' => __('dossiers.file_duplicate_name'),
                                   'previewNotAvailable' => __('dossiers.file_preview_not_available'),
-                                  'searchPlaceholder' => __('dossiers.file_search_placeholder'),
+                                  // La portee est dite par le champ lui-meme :
+                                  // « ce dossier » ne nomme rien quand on est
+                                  // dans l'espace personnel, qui a un nom.
+                                  'searchPlaceholder' => $dossier->isPersonalDocumentsRoot()
+                                      ? __('dossiers.search_in_my_documents')
+                                      : __('dossiers.file_search_placeholder'),
                                   'move' => __('dossiers.file_move'),
                                   'moved' => __('dossiers.file_moved'),
                                   'movedTo' => __('dossiers.file_moved_to'),
@@ -159,6 +167,8 @@
                                   'folderDeleteConfirm' => __('dossiers.dossier_confirm_delete_confirm'),
                                   'viewList' => __('dossiers.file_view_list'),
                                   'viewGrid' => __('dossiers.file_view_grid'),
+                                  'ownerMe' => __('dossiers.owner_me'),
+                                  'searchNoResults' => __('dossiers.search_no_results'),
                               ],
                          ]))">
                 <x-dossiers.module :espace="$espace">
@@ -279,7 +289,7 @@
                              l'ordre est la question, pas le filtre — un
                              reordonnancement sur une projection filtree a deja
                              produit un bug ici, on ne le reinvite pas. --}}
-                        <div class="relative w-full min-w-0 flex-1 sm:w-64 sm:flex-none" x-show="vue !== 'serie'">
+                        <div class="relative w-full min-w-0 flex-1 sm:w-72 sm:flex-none" x-show="vue !== 'serie'">
                             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                 <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                             </div>
@@ -287,13 +297,33 @@
                                    class="block w-full rounded-xl border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
                                    :placeholder="i18n.searchPlaceholder || 'Search files…'">
                         </div>
+                        <div class="flex shrink-0 gap-0.5 rounded-lg border border-gray-200 p-0.5 dark:border-gray-700 max-sm:order-3 max-sm:basis-full">
+                            <button type="button" @click="setViewMode('list')" :aria-pressed="vue === 'documents' && viewMode === 'list'"
+                                    class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
+                                    :class="vue === 'documents' && viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
+                                    :aria-label="i18n.viewList" :title="i18n.viewList">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
+                            </button>
+                            <button type="button" @click="setViewMode('grid')" :aria-pressed="vue === 'documents' && viewMode === 'grid'"
+                                    class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
+                                    :class="vue === 'documents' && viewMode === 'grid' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
+                                    :aria-label="i18n.viewGrid" :title="i18n.viewGrid">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6a2.25 2.25 0 0 1 2.25-2.25h.75A2.25 2.25 0 0 1 9 6v.75a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 6.75V6Zm0 11.25A2.25 2.25 0 0 1 6 15h.75a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-.75ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25h.75A2.25 2.25 0 0 1 18.75 6v.75a2.25 2.25 0 0 1-2.25 2.25h-.75a2.25 2.25 0 0 1-2.25-2.25V6Zm0 11.25A2.25 2.25 0 0 1 15.75 15h.75a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25h-.75A2.25 2.25 0 0 1 13.5 18v-.75Z"/></svg>
+                            </button>
+                            <button type="button" @click="enterSerieToggle()" :aria-pressed="vue === 'serie'"
+                                    class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
+                                    :class="vue === 'serie' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
+                                    aria-label="{{ __('dossiers.series_mode_label') }}" title="{{ __('dossiers.series_mode_label') }}">
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.362 1.093a.75.75 0 00-.724 0L2.523 5.018 10 9.143l7.477-4.125-7.115-3.925zM18 6.443l-7.25 4v8.25l6.862-3.786A.75.75 0 0018 14.25V6.443zm-8.75 12.25v-8.25l-7.25-4v7.807a.75.75 0 00.388.657l6.862 3.786z"/></svg>
+                            </button>
+                        </div>
 
                         {{-- Mobile : « + Nouveau » vit dans la ligne d'outils,
                              a cote de la recherche — la sidebar qui le porte au
                              bureau n'existe pas ici. Meme partial, meme etat,
                              aucun second moteur. --}}
                         @if($canManageFiles)
-                            <div class="shrink-0 md:hidden">
+                            <div class="shrink-0 md:hidden max-sm:order-2">
                                 @include('dossiers.partials.nouveau', ['avecRef' => false, 'classesBouton' => '', 'ancrageMenu' => 'left-0 sm:right-0 sm:left-auto'])
                             </div>
                         @endif
@@ -309,7 +339,7 @@
                              `manageMembers` le refuse deja. --}}
                         @unless($dossier->isPersonalDocumentsRoot())
                         <button type="button" @click="window.dispatchEvent(new CustomEvent('open-share-panel'))"
-                                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-gray-300 px-3.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-gray-300 px-3.5 max-sm:order-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
                             <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/></svg>
                             {{ __('dossiers.share_tab') }}
                         </button>
@@ -377,26 +407,6 @@
                                     </div>
                                 </template>
                             @endif
-                        </div>
-                        <div class="ml-auto flex shrink-0 gap-0.5 rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
-                            <button type="button" @click="setViewMode('list')" :aria-pressed="vue === 'documents' && viewMode === 'list'"
-                                    class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
-                                    :class="vue === 'documents' && viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
-                                    :aria-label="i18n.viewList" :title="i18n.viewList">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
-                            </button>
-                            <button type="button" @click="setViewMode('grid')" :aria-pressed="vue === 'documents' && viewMode === 'grid'"
-                                    class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
-                                    :class="vue === 'documents' && viewMode === 'grid' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
-                                    :aria-label="i18n.viewGrid" :title="i18n.viewGrid">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6a2.25 2.25 0 0 1 2.25-2.25h.75A2.25 2.25 0 0 1 9 6v.75a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 6.75V6Zm0 11.25A2.25 2.25 0 0 1 6 15h.75a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-.75ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25h.75A2.25 2.25 0 0 1 18.75 6v.75a2.25 2.25 0 0 1-2.25 2.25h-.75a2.25 2.25 0 0 1-2.25-2.25V6Zm0 11.25A2.25 2.25 0 0 1 15.75 15h.75a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25h-.75A2.25 2.25 0 0 1 13.5 18v-.75Z"/></svg>
-                            </button>
-                            <button type="button" @click="enterSerieToggle()" :aria-pressed="vue === 'serie'"
-                                    class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
-                                    :class="vue === 'serie' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
-                                    aria-label="{{ __('dossiers.series_mode_label') }}" title="{{ __('dossiers.series_mode_label') }}">
-                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.362 1.093a.75.75 0 00-.724 0L2.523 5.018 10 9.143l7.477-4.125-7.115-3.925zM18 6.443l-7.25 4v8.25l6.862-3.786A.75.75 0 0018 14.25V6.443zm-8.75 12.25v-8.25l-7.25-4v7.807a.75.75 0 00.388.657l6.862 3.786z"/></svg>
-                            </button>
                         </div>
                     </div>
 
@@ -719,6 +729,7 @@
                         <div class="hidden lg:block">
                             <div class="{{ $grilleDrive }} border-b border-gray-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500">
                                 <div>{{ __('dossiers.col_name') }}</div>
+                                <div>{{ __('dossiers.col_owner') }}</div>
                                 <div>{{ __('dossiers.col_share') }}</div>
                                 <div>{{ __('dossiers.col_modified') }}</div>
                                 <div>{{ __('dossiers.col_size') }}</div>
@@ -761,6 +772,13 @@
                                         // Une ligne qui porte sa propre gouvernance (une racine)
                                         // dit SON etat ; une ligne gouvernee par le Dossier
                                         // ouvert herite du sien.
+                                        // Le proprietaire REEL de la ligne : le sien si elle
+                                        // porte sa propre gouvernance (une racine), celui du
+                                        // Dossier ouvert sinon.
+                                        $proprietaireDuDossier = $estPartageIci ? $folder->owner : $governingDossier->owner;
+                                        $proprietaireLibelle = $estPartageIci
+                                            ? ($folder->owner_id === auth()->id() ? __('dossiers.owner_me') : ($nomProprietaire ?? '—'))
+                                            : $proprietaireHerite;
                                         $partageDuDossier = ! $estPartageIci
                                             ? $partageHerite
                                             : ($folder->shared_with_loop_id
@@ -780,6 +798,10 @@
                                             <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $folder->name }}</span>
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageDuDossier }} · <span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span>@if($estDunAutre) · {{ __('dossiers.drive_shared_by', ['name' => $nomProprietaire]) }}@endif</span>
                                         </a>
+                                    </div>
+                                    <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                        <x-user-avatar :user="$proprietaireDuDossier" size="xs" />
+                                        <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $proprietaireLibelle }}</span>
                                     </div>
                                     <div class="{{ $classePartage($partageDuDossier) }}">{{ $partageDuDossier }}</div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums">{{ $folder->updated_at?->isoFormat('L') }}</div>
@@ -837,7 +859,10 @@
                                 @continue(! $post || ! $canView($post))
                                 <li class="{{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-rose-50/40 dark:hover:bg-rose-500/5"
                                     x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
-                                    @php $auteurArticle = $post->user?->publicDisplayName() ?? '—'; @endphp
+                                    @php
+                                        $auteurArticle = $post->user?->isDisplayableIn(currentOrganization()) ? $post->user->publicDisplayName() : __('profile.deactivated_user');
+                                        $motsArticle = str_word_count(strip_tags((string) $post->content));
+                                    @endphp
                                     <div class="flex min-w-0 items-center gap-3">
                                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
                                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
@@ -847,9 +872,14 @@
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageHerite }} · {{ __('dossiers.drive_article_badge') }} · {{ $post->updated_at?->isoFormat('L') }}</span>
                                         </a>
                                     </div>
+                                    <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                        <x-user-avatar :user="$post->user" size="xs" />
+                                        <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $post->user_id === auth()->id() ? __('dossiers.owner_me') : $auteurArticle }}</span>
+                                    </div>
                                     <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums">{{ $post->updated_at?->isoFormat('L') }}</div>
-                                    <div class="{{ $celluleLgDrive }} tabular-nums">—</div>
+                                    {{-- Un Article n'a pas d'octets : sa taille est son texte. --}}
+                                    <div class="{{ $celluleLgDrive }} tabular-nums">{{ trans_choice('dossiers.article_words', $motsArticle, ['count' => number_format($motsArticle, 0, ',', ' ')]) }}</div>
                                     <div class="relative justify-self-end" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
                                         <button type="button" @click="open = !open" x-bind:aria-expanded="open"
                                                 class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
@@ -906,6 +936,11 @@
                                         <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="@js($partageHerite) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
                                     </button>
                                     </div>
+                                    <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[9px] font-semibold uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                              x-text="uploaderInitiales(file)"></span>
+                                        <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400" x-text="uploaderLibelle(file)"></span>
+                                    </div>
                                     <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums" x-text="file.updatedAtFormatted"></div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums" x-text="file.sizeFormatted"></div>
@@ -935,6 +970,13 @@
                                 </li>
                             </template>
                         </ul>
+                    </div>
+
+                    {{-- Une recherche qui ne trouve rien le dit : sans cet
+                         etat, la surface vide se lisait comme un dossier vide. --}}
+                    <div x-show="vue === 'documents' && aucunResultat" x-cloak class="py-14 text-center">
+                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="i18n.searchNoResults"></p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400" x-text="searchQuery"></p>
                     </div>
 
                     {{-- Grille (TASK-1130 passe 4) : memes trois boucles que la

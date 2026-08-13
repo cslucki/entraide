@@ -45,6 +45,7 @@ return [
     'col_share' => 'Partage',
     'col_created' => 'Créé le',
     'col_modified' => 'Modifié le',
+    'article_words' => '{0}Vide|{1}:count mot|[2,*]:count mots',
     'col_size' => 'Taille',
     'owner_me' => 'Moi',
     'share_private' => 'Privé',

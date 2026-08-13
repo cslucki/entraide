@@ -634,6 +634,38 @@ class DossierSharingTest extends TestCase
 
     // --- Shared dossiers index ---
 
+    /**
+     * Regression : « Boucle de destination » etait vide pour tout le monde.
+     *
+     * L'ecran d'edition ne listait que les Boucles que l'utilisateur peut
+     * ouvrir — mais les modeles etaient hydrates sans `organization_id`, la
+     * colonne que `viewWorkspace` compare. Le filtre rejetait donc TOUTES les
+     * Boucles, et le partage avec une Boucle etait impossible depuis cet ecran.
+     */
+    public function test_the_edit_screen_offers_the_loops_i_can_actually_open(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'A partager');
+
+        $boucle = \App\Models\Loop::factory()->create([
+            'organization_id' => $this->orgA->id,
+            'status' => 'active',
+            'type' => 'general',
+            'name' => 'Boucle Centre-ville',
+        ]);
+        $boucle->members()->create([
+            'organization_id' => $this->orgA->id,
+            'user_id' => $this->ownerA->id,
+            'role' => 'owner',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->ownerA)
+            ->get(route('organization.dossiers.edit', ['organization' => $this->orgA->slug, 'dossier' => $dossier->getKey()]))
+            ->assertOk()
+            ->assertSee('Boucle Centre-ville')
+            ->assertViewHas('shareableLoops', fn ($loops) => $loops->contains('id', $boucle->getKey()));
+    }
+
     public function test_reader_sees_shared_dossiers_in_index(): void
     {
         // TASK-1130 (decision finale) : « Partages » est une VUE d'agregation
