@@ -63,6 +63,28 @@ final class AiUsage
     }
 
     /**
+     * Usage rapporte par l'API texte du Laravel AI SDK (TASK-1207).
+     *
+     * `Laravel\Ai\Responses\Data\Usage` type ses compteurs `int` avec un
+     * defaut a 0 : ses passerelles ecrivent `$usage['prompt_tokens'] ?? 0`, si
+     * bien qu'un bloc `usage` absent devient indiscernable d'un vrai zero DANS
+     * l'objet du SDK.
+     *
+     * On retablit la distinction au seul endroit ou elle est encore decidable :
+     * une generation de texte reelle ne consomme jamais 0 token d'entree ET 0
+     * token de sortie. Ce couple signe donc un usage non rapporte, et doit
+     * rester UNKNOWN plutot que de produire un cout de 0 (invariant P1-2).
+     */
+    public static function fromSdkTextTokens(int $promptTokens, int $completionTokens): self
+    {
+        if ($promptTokens <= 0 && $completionTokens <= 0) {
+            return self::notObserved();
+        }
+
+        return self::of($promptTokens, $completionTokens);
+    }
+
+    /**
      * Usage d'une reponse Ollama `api/generate` : seul `eval_count` (tokens
      * produits) est rapporte, l'usage d'entree n'existe pas dans la reponse.
      */
