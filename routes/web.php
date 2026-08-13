@@ -806,6 +806,8 @@ Route::prefix('/org/{organization}')
                 Route::delete('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'destroy'])->name('dossiers.files.destroy');
                 Route::patch('/dossiers/{dossier}/files/{file}/move', [DossierFileController::class, 'move'])->name('dossiers.files.move');
                 Route::patch('/dossiers/{dossier}/files/{file}/rename', [DossierFileController::class, 'rename'])->name('dossiers.files.rename');
+                Route::get('/dossiers/{dossier}/files/{file}/markdown', [DossierFileController::class, 'markdown'])->name('dossiers.files.markdown');
+                Route::patch('/dossiers/{dossier}/files/{file}/markdown', [DossierFileController::class, 'updateMarkdown'])->name('dossiers.files.markdown.update');
 
                 // Blog (org-scoped)
                 Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->name('blog.create');

@@ -3367,6 +3367,10 @@ function registerDossierFilesCard() {
         articleTitle: '',
         articleCategoryId: '',
         showMdModal: false,
+        // Le fichier en cours de modification. Nul = on cree une note ; non nul
+        // = on reecrit celle-la, dans la meme ligne `dossier_files`.
+        mdTarget: null,
+        mdLoading: false,
         mdFileName: '',
         mdContent: '',
         _trapTrigger: null,
@@ -3505,6 +3509,118 @@ function registerDossierFilesCard() {
             }
         },
 
+        /** Ce fichier est-il une note Markdown modifiable ? */
+        estMarkdown(file) {
+            if (!file) return false;
+            const nom = (file.original_name || file.display_name || '').toLowerCase();
+
+            return file.mime_type === 'text/markdown' || nom.endsWith('.md') || nom.endsWith('.markdown');
+        },
+
+        /**
+         * Rouvrir une note dans l'editeur qui a servi a l'ecrire.
+         *
+         * Le contenu vient du serveur, pas d'un cache local : une note peut
+         * avoir ete modifiee ailleurs depuis l'affichage de la liste.
+         */
+        async openMarkdownEdit(file) {
+            if (!this.estMarkdown(file)) return;
+
+            this.mdTarget = file;
+            this.mdFileName = (file.display_name || file.original_name || '').replace(/\.(md|markdown)$/i, '');
+            this.mdContent = '';
+            this.mdLoading = true;
+            this.showMdModal = true;
+
+            try {
+                const reponse = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}/markdown`, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await reponse.json().catch(() => ({}));
+
+                if (!reponse.ok) {
+                    this.showMessage(data.message || this.i18n.markdownUpdateFailed, 'error');
+                    this.closeMdModal();
+
+                    return;
+                }
+
+                this.mdContent = data.content || '';
+                // L'editeur s'initialise UNE fois par conteneur : redemander
+                // `init` apres coup ne fait rien, et la modale s'ouvrait donc
+                // vide — enregistrer sans retaper aurait efface la note.
+                // `set-content` est l'API prevue pour cela ; on la laisse
+                // precedee d'`init`, la modale n'existant pas au chargement.
+                this.$nextTick(() => {
+                    document.dispatchEvent(new CustomEvent('bp:markdown-editor:init'));
+                    document.dispatchEvent(new CustomEvent('bp:markdown-editor:set-content', {
+                        detail: { name: 'dossier-md-content', markdown: this.mdContent },
+                    }));
+                });
+            } catch (error) {
+                this.showMessage(this.i18n.networkError, 'error');
+                this.closeMdModal();
+            } finally {
+                this.mdLoading = false;
+            }
+        },
+
+        closeMdModal() {
+            this.showMdModal = false;
+            this.mdTarget = null;
+            this.mdContent = '';
+        },
+
+        /** Enregistrer une note : creation ou reecriture, selon `mdTarget`. */
+        async enregistrerMarkdown() {
+            if (this.mdTarget) { await this.updateMarkdownNote(); return; }
+
+            await this.createMarkdownNote();
+        },
+
+        /**
+         * Reecrire le MEME fichier. Aucun nouveau `DossierFile` : le serveur
+         * met a jour la ligne, son chemin, sa taille et son empreinte.
+         */
+        async updateMarkdownNote() {
+            const file = this.mdTarget;
+            if (!file) return;
+
+            this.saving = true;
+            try {
+                const champ = document.querySelector('textarea[name="dossier-md-content"][data-tiptap-target]');
+                const contenu = champ ? champ.value : this.mdContent;
+
+                const reponse = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}/markdown`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ content: contenu }),
+                });
+                const data = await reponse.json().catch(() => ({}));
+
+                if (reponse.ok) {
+                    // La ligne existe deja : on la remplace sur place plutot
+                    // que de recharger, pour ne pas faire clignoter la liste.
+                    if (data.file) {
+                        this.files = this.files.map(f => f.id === file.id ? this.normalizeFile(data.file) : f);
+                    }
+                    this.closeMdModal();
+                    this.showMessage(data.message || this.i18n.markdownUpdated, 'success');
+                } else {
+                    this.showMessage(data.message || this.i18n.markdownUpdateFailed, 'error');
+                }
+            } catch (error) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
         async createMarkdownNote() {
             if (!this.mdFileName.trim()) return;
 
@@ -3524,7 +3640,7 @@ function registerDossierFilesCard() {
                 const { ok, data } = await this.uploadFormData(formData, [file]);
 
                 if (ok) {
-                    this.showMdModal = false;
+                    this.closeMdModal();
                     await this.loadFiles(1);
                     this.mergeMissingUploads(data.files);
                     this.showMessage(this.i18n.markdownCreated, 'success');

@@ -780,11 +780,13 @@
 
                     {{-- Markdown Note Modal --}}
                     <template x-if="showMdModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showMdModal = false" role="dialog" aria-modal="true" aria-labelledby="markdown-note-title">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="closeMdModal()" role="dialog" aria-modal="true" aria-labelledby="markdown-note-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
-                                <h3 id="markdown-note-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.modal_new_markdown_title') }}</h3>
-                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.modal_new_markdown_desc') }}</p>
-                                <div class="mt-4">
+                                <h3 id="markdown-note-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+                                    x-text="mdTarget ? @js(__('dossiers.modal_edit_markdown_title')) : @js(__('dossiers.modal_new_markdown_title'))"></h3>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300"
+                                   x-text="mdTarget ? @js(__('dossiers.modal_edit_markdown_desc')) : @js(__('dossiers.modal_new_markdown_desc'))"></p>
+                                <div class="mt-4" x-show="!mdTarget">
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('dossiers.modal_markdown_name_label') }}</label>
                                     <div class="mt-1 flex items-center gap-2">
                                         <input type="text" x-model="mdFileName" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" placeholder="{{ __('dossiers.modal_markdown_name_placeholder') }}">
@@ -802,12 +804,12 @@
                                     </div>
                                 </div>
                                 <div class="mt-6 flex justify-end gap-3">
-                                    <button @click="showMdModal = false" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                    <button @click="closeMdModal()" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
                                         {{ __('dossiers.modal_cancel') }}
                                     </button>
-                                    <button @click="createMarkdownNote()" :disabled="!mdFileName.trim()" type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">
-                                        {{ __('dossiers.modal_create') }}
-                                    </button>
+                                    <button @click="enregistrerMarkdown()" :disabled="!mdFileName.trim() || saving || mdLoading" type="button"
+                                            x-text="mdTarget ? @js(__('dossiers.modal_save')) : @js(__('dossiers.modal_create'))"
+                                            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"></button>
                                 </div>
                             </div>
                         </div>
@@ -827,7 +829,19 @@
                          `sticky` : sur une longue liste, les actions restent
                          atteignables sans remonter. Elle se pose AU-DESSUS du
                          contenu, jamais par-dessus. --}}
-                    <div x-show="selectionCount" x-cloak
+                    {{-- La bande d'actions groupees : a partir de DEUX elements
+                         seulement (doctrine Cyril, TASK-1204).
+
+                         A un seul element, la ligne est designee — fond teinte
+                         et lisere — et ses actions se prennent dans son menu
+                         « ... », la ou on va naturellement les chercher. Une
+                         bande qui s'ouvre au premier clic deplace le regard
+                         pour proposer ce que la ligne offre deja.
+
+                         Elle garde sa propre bande, juste au-dessus de la liste
+                         sur laquelle elle agit, et reste atteignable en
+                         `sticky` sur une longue liste. --}}
+                    <div x-show="selectionCount > 1" x-cloak
                          x-transition:enter="transition ease-out duration-150 motion-reduce:transition-none"
                          x-transition:enter-start="opacity-0 -translate-y-1"
                          x-transition:enter-end="opacity-100 translate-y-0"
@@ -836,72 +850,27 @@
                          x-transition:leave-end="opacity-0"
                          class="sticky top-2 z-30 mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-xl border border-indigo-200 bg-indigo-50/95 px-2 py-1.5 shadow-sm backdrop-blur-sm dark:border-indigo-800/70 dark:bg-indigo-950/90"
                          role="region" :aria-label="i18n.selectionCount.replace(':count', selectionCount)">
-<button type="button" @click="viderSelection()"
+                        <button type="button" @click="viderSelection()"
                                     class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-indigo-700 sm:h-9 sm:w-9 transition hover:bg-indigo-100 dark:text-indigo-200 dark:hover:bg-indigo-900/60"
                                     :aria-label="i18n.selectionClear" :title="i18n.selectionClear">
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
                             </button>
                             <span class="min-w-0 max-w-[14rem] truncate text-sm font-semibold text-indigo-900 dark:text-indigo-100"
                               aria-live="polite"
-                              x-text="selection ? selection.name : i18n.selectionCount.replace(':count', selectionCount)"></span>
+                              x-text="i18n.selectionCount.replace(':count', selectionCount)"></span>
 
+                        {{-- Seulement ce qui vaut pour TOUS les elements
+                             designes. Deplacer et supprimer se disent au
+                             pluriel ; ouvrir, renommer et partager ne se disent
+                             pas du tout — ils appartiennent au menu d'UNE
+                             ligne. --}}
                         <div class="flex flex-wrap items-center justify-end gap-1.5 max-sm:basis-full sm:ml-auto">
-                            <button type="button" x-show="selection" @click="ouvrir(selection)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60">
-                                <span x-text="selection?.type === 'file' ? i18n.preview : i18n.open"></span>
-                            </button>
-
-                            {{-- Dossier : partager, renommer, supprimer. --}}
-                            <template x-if="selection?.type === 'folder'">
-                                <span class="contents">
-                                    <a :href="selection.urlPartage" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.share"></a>
-                                    <a x-show="selection.urlRenommer" :href="selection.urlRenommer" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.rename"></a>
-                                    <button x-show="selection.peutSupprimer" type="button" @click="openDeleteFolderModal(selection.id, selection.name)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
-                                </span>
-                            </template>
-
-                            {{-- Article : le modifier, ou le retirer du dossier
-                                 (le formulaire existe deja dans la ligne). --}}
-                            <template x-if="selection?.type === 'article'">
-                                <span class="contents">
-                                    <a x-show="selection.urlEditer" :href="selection.urlEditer" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.editArticle"></a>
-                                    @if($canManageArticles && $moveTargets->isNotEmpty())
-                                        <button type="button" @click="openMoveLot()" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.move"></button>
-                                    @endif
-                                    @if($canManageArticles)
-                                        <button type="button" @click="document.getElementById(selection.formulaireRetrait)?.submit()" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.removeArticle"></button>
-                                    @endif
-                                </span>
-                            </template>
-
-                            {{-- Plusieurs elements : seulement ce qui vaut pour
-                                 TOUS. Deplacer et supprimer se disent au
-                                 pluriel ; ouvrir, renommer et partager ne se
-                                 disent pas du tout. --}}
-                            <template x-if="selectionCount > 1">
-                                <span class="contents">
                                     <button type="button" x-show="lotDeplacable" @click="openMoveLot()"
                                             class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.move"></button>
                                     <button type="button" x-show="lotSupprimable" @click="openDeleteLot()"
                                             class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
                                     <button type="button" x-show="lotRetirable" @click="retirerLot()"
                                             class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.removeArticle"></button>
-                                </span>
-                            </template>
-
-                            {{-- Fichier : renommer, deplacer, supprimer. --}}
-                            <template x-if="selection?.type === 'file'">
-                                <span class="contents">
-                                    @if($canManageFiles)
-                                        <button type="button" @click="openRenameModal(selection.file)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.rename"></button>
-                                    @endif
-                                    @if($canDeleteFiles && $moveTargets->isNotEmpty())
-                                        <button type="button" @click="openMoveModal(selection.file)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.move"></button>
-                                    @endif
-                                    @if($canDeleteFiles)
-                                        <button type="button" @click="openDeleteModal(selection.file)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
-                                    @endif
-                                </span>
-                            </template>
                         </div>
                     </div>
 
@@ -1220,6 +1189,8 @@
                                             <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
                                                class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_download') }}</a>
                                             @if($canManageFiles)
+                                                <button type="button" x-show="estMarkdown(file)" @click="open = false; openMarkdownEdit(file)"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_markdown') }}</button>
                                                 <button type="button" @click="open = false; openRenameModal(file)"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_rename') }}</button>
                                             @endif
@@ -1433,10 +1404,20 @@
                                                 class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_preview') }}</button>
                                         <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
                                            class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_download') }}</a>
+                                        @if($canManageFiles)
+                                            <button type="button" x-show="estMarkdown(file)" @click="open = false; openMarkdownEdit(file)"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_markdown') }}</button>
+                                            <button type="button" @click="open = false; openRenameModal(file)"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.rename') }}</button>
+                                        @endif
                                         @if($canDeleteFiles && $moveTargets->isNotEmpty())
                                             <button type="button" @click="open = false; openMoveModal(file)"
                                                     class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                         @endif
+                                        @unless($dossier->isPersonalDocumentsRoot())
+                                            <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
+                                        @endunless
                                         @if($canDeleteFiles)
                                             <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
                                                     class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>
