@@ -204,6 +204,8 @@ return [
     'ai_summary_updated_at' => 'Updated on :date',
     'ai_summary_requested_by' => 'Requested by :name',
     'ai_summary_rate_limited' => 'Too many summary requests. Try again in a minute.',
+    'ai_summary_monthly_budget_reached' => 'This organization has reached its monthly AI budget.',
+    'ai_summary_temporarily_unavailable' => 'AI summaries are temporarily unavailable for this organization.',
     'cards' => [
         'events' => [
             'label' => 'Events',

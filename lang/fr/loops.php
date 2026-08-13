@@ -204,6 +204,8 @@ return [
     'ai_summary_updated_at' => 'Mis à jour le :date',
     'ai_summary_requested_by' => 'Demandé par :name',
     'ai_summary_rate_limited' => 'Trop de demandes de résumé. Réessaie dans une minute.',
+    'ai_summary_monthly_budget_reached' => 'Le budget IA mensuel de cette organisation est atteint.',
+    'ai_summary_temporarily_unavailable' => 'Le résumé IA est temporairement indisponible pour cette organisation.',
     'cards' => [
         'events' => [
             'label' => 'Événements',
