@@ -64,6 +64,15 @@ class DossierFileController extends Controller
             ->whereNull('deleted_at')
             ->sum('size_bytes');
 
+        // `no-store`, et pas seulement le `no-cache, private` par defaut de
+        // Laravel : cette liste change a chaque import, deplacement ou
+        // suppression, et `no-cache` autorise le navigateur a CONSERVER la
+        // reponse. Chromium la resservait telle quelle a la relecture qui suit
+        // une ecriture — meme URL, meme en-tete `Date` — et l'ecran affichait
+        // l'etat d'avant : les fichiers importes restaient invisibles jusqu'a
+        // un rafraichissement, et ceux qu'on venait de deplacer revenaient.
+        // L'option `cache: 'no-store'` posee cote client ne suffisait pas ; la
+        // regle appartient a la reponse, qui seule sait qu'elle est perissable.
         return response()->json([
             'files' => $files,
             'quota' => [
@@ -71,7 +80,7 @@ class DossierFileController extends Controller
                 'limit_bytes' => $organization->dossierStorageQuotaBytes(),
                 'remaining_bytes' => $organization->dossierStorageRemainingBytes(),
             ],
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     public function store(StoreDossierFileRequest $request): JsonResponse

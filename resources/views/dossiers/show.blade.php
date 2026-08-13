@@ -14,22 +14,90 @@
         // un enfant n'a pas d'owner_id a lui (TASK-1130 passe 4).
         $ownerDisplayable = $governingDossier->owner?->isDisplayableIn(currentOrganization()) ?? false;
 
+        // ── L'identite d'une ligne, ecrite UNE fois ──────────────────────
+        // Chaque ligne la donne a quatre endroits : au catalogue de selection,
+        // au clic, au double-clic et a l'appui long. Recopier ce litteral a
+        // quatre reprises par ligne, dans six gabarits, garantissait qu'une
+        // correction en oublierait un.
+        $js = fn ($valeur) => \Illuminate\Support\Js::from($valeur)->toHtml();
+        $itemDossier = function ($folder) use ($orgParam, $js) {
+            $adresse = fn (array $extra = []) => route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()] + $extra);
+
+            return '{ type: \'folder\''
+                .', id: '.$js($folder->getKey())
+                .', name: '.$js($folder->name)
+                .', url: '.$js($adresse())
+                .', urlPartage: '.$js($adresse(['partage' => 1]))
+                .', urlRenommer: '.$js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null)
+                .', peutSupprimer: '.$js(auth()->user()->can('delete', $folder))
+                .' }';
+        };
+        $itemArticle = fn ($post) => '{ type: \'article\''
+            .', id: '.$js($post->id)
+            .', name: '.$js($post->title)
+            .', url: '.$js($blogShowRoute($post))
+            .', urlEditer: '.$js($blogEditRoute($post))
+            .', formulaireRetrait: '.$js('retirer-article-'.$post->id)
+            .' }';
+        // ── La gouttiere de tete d'une ligne ────────────────────────────
+        // Toutes les lignes de la liste la portent, a la MEME largeur, pour que
+        // les noms s'alignent. Depuis que la poignee de glissement reserve sa
+        // place au lieu d'apparaitre au survol (sinon la ligne sautait), elle
+        // n'existait que sur les fichiers : ils se retrouvaient decales de
+        // 18 px vers la droite, dossiers et Articles restant a gauche.
+        //
+        // Elle porte la poignee quand la ligne se glisse, et reste vide sinon —
+        // un dossier ne se deplace pas, mais sa ligne s'aligne quand meme.
+        $gouttiereDrive = function (bool $glissable) {
+            $base = '-ml-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center text-gray-300 dark:text-gray-600';
+
+            if (! $glissable) {
+                return '<span class="'.$base.'" aria-hidden="true"></span>';
+            }
+
+            return '<span class="'.$base.' opacity-0 transition-opacity group-hover/ligne:opacity-100" aria-hidden="true" title="'
+                .e(__('dossiers.drive_drag_hint')).'">'
+                .'<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>'
+                .'</span>';
+        };
+
+        // Un fichier vit dans l'etat JS : son identite s'ecrit en JavaScript,
+        // pas en PHP — mais elle obeit a la meme regle d'unicite.
+        $itemFichier = '{ type: \'file\', id: file.id, name: file.display_name || file.original_name, file }';
+
         // Colonnes du Drive (TASK-1130, doctrine Cyril) : memes colonnes et
         // meme gabarit qu'a l'index — revelees progressivement, les cellules
         // masquees sortant du flux grid. Sous `lg`, la ligne redevient un
         // resume compact ; le nom reste la donnee principale.
-        $grilleDrive = 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3'
-            .' lg:grid-cols-[minmax(0,3fr)_9rem_6.5rem_6.5rem_6.5rem_2.75rem]';
+        // Trois colonnes contextuelles, chacune justifiee par ce qui VARIE ici :
+        //
+        // - « Type » est toujours utile : une icone ne dit pas si l'on regarde
+        //   un PDF, un classeur ou un Article. Elle est donc permanente.
+        // - « Proprietaire » ne varie que dans un Drive de Boucle, ou plusieurs
+        //   personnes deposent. Dans l'espace personnel, tout appartient a la
+        //   meme personne — et ce qu'on a recu se lit dans « Partages ».
+        // - « Partage » ne varie que hors Boucle : dans une Boucle, chaque
+        //   ligne repeterait « Boucle », ce que le fil d'Ariane dit deja.
+        $estDriveDeBoucle = $governingDossier->isLoopDossier();
+        $colonneProprietaire = $estDriveDeBoucle;
+        $colonnePartage = ! $estDriveDeBoucle;
+
+        // Les deux gabarits s'ecrivent EN ENTIER, et non autour d'un ternaire.
+        // Tailwind cherche ses classes comme du TEXTE dans les fichiers : une
+        // classe assemblee par concatenation (`...3fr)_'.($x?'9rem':'6rem').'_...`)
+        // n'existe nulle part telle quelle, n'est donc jamais generee, et la
+        // grille retombait sur ses deux colonnes de base — chaque cellule sur
+        // sa propre ligne. Deux lignes redondantes valent mieux qu'une elegante
+        // qui ne produit aucun CSS.
+        $grilleDrive = $estDriveDeBoucle
+            ? 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3 lg:grid-cols-[minmax(0,3fr)_9rem_6.5rem_6.5rem_6.5rem_2.75rem]'
+            : 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3 lg:grid-cols-[minmax(0,3fr)_6rem_6.5rem_6.5rem_6.5rem_2.75rem]';
         $celluleLgDrive = 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
         // L'element designe : un fond calme et un liséré, jamais une couleur
         // d'alerte — designer n'est pas agir.
         $classeSelection = 'bg-indigo-50 ring-1 ring-inset ring-indigo-300 dark:bg-indigo-950/40 dark:ring-indigo-700';
         // « Prive » est le cas dominant : explicite, mais rendu le plus discret
         // des trois etats (reference canonique drive-v2).
-        // Dans un Drive de Boucle, « Partage » repete la meme valeur sur chaque
-        // ligne — et le fil d'Ariane la dit deja. La colonne devient « Type »,
-        // qui, la, distingue reellement les lignes.
-        $colonneEstType = $governingDossier->isLoopDossier();
         $classePartage = fn (string $etat) => $etat === __('dossiers.share_private')
             ? 'hidden lg:block min-w-0 truncate text-xs text-gray-400 dark:text-gray-500'
             : 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
@@ -165,8 +233,17 @@
                                   'dragHandle' => __('dossiers.content_drag_handle'),
                                   'moveFailed' => __('dossiers.file_move_failed'),
                                   'moveModalTitle' => __('dossiers.drive_move_modal_title'),
+                                  'moveModalTitleLot' => __('dossiers.drive_move_modal_title_lot'),
                                   'moveToParent' => __('dossiers.drive_move_to_parent'),
                                   'moveNoTargets' => __('dossiers.drive_move_no_targets'),
+                                  // Agir sur plusieurs elements : le compte est
+                                  // toujours dit, et le rapport ne ment pas.
+                                  'confirmDeleteBodyLot' => __('dossiers.drive_lot_delete_body'),
+                                  'lotMoved' => trans_choice('dossiers.drive_lot_moved', 2, ['count' => ':count']),
+                                  'lotDeleted' => trans_choice('dossiers.drive_lot_deleted', 2, ['count' => ':count']),
+                                  'lotMoveReportTitle' => __('dossiers.drive_lot_move_report'),
+                                  'lotDeleteReportTitle' => __('dossiers.drive_lot_delete_report'),
+                                  'lotReportSummary' => __('dossiers.drive_lot_report_summary'),
                                   'moveConfirm' => __('dossiers.drive_move_confirm'),
                                   'moveCancel' => __('dossiers.drive_move_cancel'),
                                   'folderDeleteTitle' => __('dossiers.drive_folder_confirm_delete_title'),
@@ -177,6 +254,9 @@
                                   'viewGrid' => __('dossiers.file_view_grid'),
                                   'ownerMe' => __('dossiers.owner_me'),
                                   'selectionClear' => __('dossiers.selection_clear'),
+                                  // Le compte ne s'affiche qu'a partir de deux
+                                  // elements : en dessous, la barre dit le nom.
+                                  'selectionCount' => trans_choice('dossiers.drive_lot_selected', 2, ['count' => ':count']),
                                   'open' => __('dossiers.drive_open'),
                                   'share' => __('dossiers.share_tab'),
                                   'rename' => __('dossiers.rename'),
@@ -321,67 +401,11 @@
                             @endif
                         </nav>
 
-                        {{-- Un element est designe : la ligne d'outils cede la
-                             place a ses actions, et revient des qu'on le
-                             relache. Le geste vient du banc d'essai des cinq
-                             Drives : la barre se transforme, elle ne s'ajoute
-                             pas. --}}
-                        <div x-show="selection" x-cloak
-                             class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 rounded-xl bg-indigo-50 px-2 py-1.5 dark:bg-indigo-950/40">
-                            <button type="button" @click="viderSelection()"
-                                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-indigo-700 transition hover:bg-indigo-100 dark:text-indigo-200 dark:hover:bg-indigo-900/60"
-                                    :aria-label="i18n.selectionClear" :title="i18n.selectionClear">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                            </button>
-                            <span class="min-w-0 max-w-[14rem] truncate text-sm font-semibold text-indigo-900 dark:text-indigo-100" x-text="selection?.name"></span>
-
-                            <span class="mx-1 h-5 w-px shrink-0 bg-indigo-200 dark:bg-indigo-800" aria-hidden="true"></span>
-
-                            <button type="button" @click="ouvrir(selection)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60">
-                                <span x-text="selection?.type === 'file' ? i18n.preview : i18n.open"></span>
-                            </button>
-
-                            {{-- Dossier : partager, renommer, supprimer. --}}
-                            <template x-if="selection?.type === 'folder'">
-                                <span class="contents">
-                                    <a :href="selection.urlPartage" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.share"></a>
-                                    <a x-show="selection.urlRenommer" :href="selection.urlRenommer" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.rename"></a>
-                                    <button x-show="selection.peutSupprimer" type="button" @click="openDeleteFolderModal(selection.id, selection.name)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
-                                </span>
-                            </template>
-
-                            {{-- Article : le modifier, ou le retirer du dossier
-                                 (le formulaire existe deja dans la ligne). --}}
-                            <template x-if="selection?.type === 'article'">
-                                <span class="contents">
-                                    <a x-show="selection.urlEditer" :href="selection.urlEditer" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.editArticle"></a>
-                                    @if($canManageArticles)
-                                        <button type="button" @click="document.getElementById(selection.formulaireRetrait)?.submit()" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.removeArticle"></button>
-                                    @endif
-                                </span>
-                            </template>
-
-                            {{-- Fichier : renommer, deplacer, supprimer. --}}
-                            <template x-if="selection?.type === 'file'">
-                                <span class="contents">
-                                    @if($canManageFiles)
-                                        <button type="button" @click="openRenameModal(selection.file)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.rename"></button>
-                                    @endif
-                                    @if($canDeleteFiles && $moveTargets->isNotEmpty())
-                                        <button type="button" @click="openMoveModal(selection.file)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.move"></button>
-                                    @endif
-                                    @if($canDeleteFiles)
-                                        <button type="button" @click="openDeleteModal(selection.file)" class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
-                                    @endif
-                                </span>
-                            </template>
-                        </div>
-
                         {{-- La recherche filtre la vue spatiale ; en mode Serie
                              l'ordre est la question, pas le filtre — un
                              reordonnancement sur une projection filtree a deja
                              produit un bug ici, on ne le reinvite pas. --}}
-                        <div class="relative w-full min-w-0 flex-1 sm:w-72 sm:flex-none" x-show="vue !== 'serie' && !selection">
+                        <div class="relative w-full min-w-0 flex-1 sm:w-72 sm:flex-none" x-show="vue !== 'serie'">
                             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                 <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                             </div>
@@ -389,7 +413,7 @@
                                    class="block w-full rounded-xl border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
                                    :placeholder="i18n.searchPlaceholder || 'Search files…'">
                         </div>
-                        <div x-show="!selection" class="flex shrink-0 gap-0.5 rounded-lg border border-gray-200 p-0.5 dark:border-gray-700 max-sm:order-3 max-sm:basis-full">
+                        <div class="flex shrink-0 gap-0.5 rounded-lg border border-gray-200 p-0.5 dark:border-gray-700 max-sm:order-3 max-sm:basis-full">
                             <button type="button" @click="setViewMode('list')" :aria-pressed="vue === 'documents' && viewMode === 'list'"
                                     class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
                                     :class="vue === 'documents' && viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
@@ -792,6 +816,95 @@
 
 
 
+                    {{-- La barre de selection : sa PROPRE bande, juste au-dessus
+                         de la liste sur laquelle elle agit. Logee dans la ligne
+                         d'outils, elle en chassait la recherche et repoussait
+                         les gestes d'identite du fil d'Ariane sur une seconde
+                         ligne — la page sautait a chaque clic. Ici elle
+                         s'ajoute, ne deplace rien, et designe sans ambiguite ce
+                         sur quoi elle porte.
+
+                         `sticky` : sur une longue liste, les actions restent
+                         atteignables sans remonter. Elle se pose AU-DESSUS du
+                         contenu, jamais par-dessus. --}}
+                    <div x-show="selectionCount" x-cloak
+                         x-transition:enter="transition ease-out duration-150 motion-reduce:transition-none"
+                         x-transition:enter-start="opacity-0 -translate-y-1"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-100 motion-reduce:transition-none"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         class="sticky top-2 z-30 mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-xl border border-indigo-200 bg-indigo-50/95 px-2 py-1.5 shadow-sm backdrop-blur-sm dark:border-indigo-800/70 dark:bg-indigo-950/90"
+                         role="region" :aria-label="i18n.selectionCount.replace(':count', selectionCount)">
+<button type="button" @click="viderSelection()"
+                                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-indigo-700 sm:h-9 sm:w-9 transition hover:bg-indigo-100 dark:text-indigo-200 dark:hover:bg-indigo-900/60"
+                                    :aria-label="i18n.selectionClear" :title="i18n.selectionClear">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                            </button>
+                            <span class="min-w-0 max-w-[14rem] truncate text-sm font-semibold text-indigo-900 dark:text-indigo-100"
+                              aria-live="polite"
+                              x-text="selection ? selection.name : i18n.selectionCount.replace(':count', selectionCount)"></span>
+
+                        <div class="flex flex-wrap items-center justify-end gap-1.5 max-sm:basis-full sm:ml-auto">
+                            <button type="button" x-show="selection" @click="ouvrir(selection)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60">
+                                <span x-text="selection?.type === 'file' ? i18n.preview : i18n.open"></span>
+                            </button>
+
+                            {{-- Dossier : partager, renommer, supprimer. --}}
+                            <template x-if="selection?.type === 'folder'">
+                                <span class="contents">
+                                    <a :href="selection.urlPartage" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.share"></a>
+                                    <a x-show="selection.urlRenommer" :href="selection.urlRenommer" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.rename"></a>
+                                    <button x-show="selection.peutSupprimer" type="button" @click="openDeleteFolderModal(selection.id, selection.name)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
+                                </span>
+                            </template>
+
+                            {{-- Article : le modifier, ou le retirer du dossier
+                                 (le formulaire existe deja dans la ligne). --}}
+                            <template x-if="selection?.type === 'article'">
+                                <span class="contents">
+                                    <a x-show="selection.urlEditer" :href="selection.urlEditer" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.editArticle"></a>
+                                    @if($canManageArticles && $moveTargets->isNotEmpty())
+                                        <button type="button" @click="openMoveLot()" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.move"></button>
+                                    @endif
+                                    @if($canManageArticles)
+                                        <button type="button" @click="document.getElementById(selection.formulaireRetrait)?.submit()" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.removeArticle"></button>
+                                    @endif
+                                </span>
+                            </template>
+
+                            {{-- Plusieurs elements : seulement ce qui vaut pour
+                                 TOUS. Deplacer et supprimer se disent au
+                                 pluriel ; ouvrir, renommer et partager ne se
+                                 disent pas du tout. --}}
+                            <template x-if="selectionCount > 1">
+                                <span class="contents">
+                                    <button type="button" x-show="lotDeplacable" @click="openMoveLot()"
+                                            class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.move"></button>
+                                    <button type="button" x-show="lotSupprimable" @click="openDeleteLot()"
+                                            class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
+                                    <button type="button" x-show="lotRetirable" @click="retirerLot()"
+                                            class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.removeArticle"></button>
+                                </span>
+                            </template>
+
+                            {{-- Fichier : renommer, deplacer, supprimer. --}}
+                            <template x-if="selection?.type === 'file'">
+                                <span class="contents">
+                                    @if($canManageFiles)
+                                        <button type="button" @click="openRenameModal(selection.file)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.rename"></button>
+                                    @endif
+                                    @if($canDeleteFiles && $moveTargets->isNotEmpty())
+                                        <button type="button" @click="openMoveModal(selection.file)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.move"></button>
+                                    @endif
+                                    @if($canDeleteFiles)
+                                        <button type="button" @click="openDeleteModal(selection.file)" class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
+                                    @endif
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+
                     {{-- Squelette (TASK-1130 UX finale) : les fichiers arrivent
                          en asynchrone apres les dossiers/Articles rendus cote
                          serveur — sans lui, l'ecran affirmait « rien ici »
@@ -817,8 +930,9 @@
                         <div class="hidden lg:block">
                             <div class="{{ $grilleDrive }} border-b border-gray-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500">
                                 <div>{{ __('dossiers.col_name') }}</div>
-                                <div>{{ __('dossiers.col_owner') }}</div>
-                                <div>{{ $colonneEstType ? __('dossiers.col_type') : __('dossiers.col_share') }}</div>
+                                @if($colonneProprietaire)<div>{{ __('dossiers.col_owner') }}</div>@endif
+                                <div>{{ __('dossiers.col_type') }}</div>
+                                @if($colonnePartage)<div>{{ __('dossiers.col_share') }}</div>@endif
                                 <div>{{ __('dossiers.col_modified') }}</div>
                                 <div>{{ __('dossiers.col_size') }}</div>
                                 <div><span class="sr-only">{{ __('dossiers.col_name') }}</span></div>
@@ -832,7 +946,8 @@
                                 @php
                                     $estCibleDeplacement = $moveTargets->contains('id', $folder->getKey());
                                 @endphp
-                                <li class="{{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-amber-50/40 dark:hover:bg-amber-500/5"
+                                <li class="group/ligne {{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-amber-50/40 dark:hover:bg-amber-500/5"
+                                    data-selection-key="folder:{{ $folder->getKey() }}" x-init="enregistrer({!! $itemDossier($folder) !!})"
                                     x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($folder->name)) }}.includes(searchQuery.toLowerCase())"
                                     @if($estCibleDeplacement)
                                     @dragover.prevent="onFolderDragOver('{{ $folder->getKey() }}')"
@@ -840,7 +955,7 @@
                                     @drop.prevent="onFolderDrop('{{ $folder->getKey() }}')"
                                     :class="dragOverFolderId === '{{ $folder->getKey() }}'
                                         ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30'
-                                        : (draggingFileId ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : (estSelectionne('folder', '{{ $folder->getKey() }}') ? '{{ $classeSelection }}' : ''))"
+                                        : (draggingKeys.length ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : (estSelectionne('folder', '{{ $folder->getKey() }}') ? '{{ $classeSelection }}' : ''))"
                                     @else
                                     :class="estSelectionne('folder', '{{ $folder->getKey() }}') && '{{ $classeSelection }}'"
                                     @endif
@@ -878,6 +993,7 @@
                                                 : (($folder->dossier_members_count ?? 0) > 0 ? __('dossiers.share_shared') : __('dossiers.share_private')));
                                     @endphp
                                     <div class="flex min-w-0 items-center gap-3">
+                                        {!! $gouttiereDrive(false) !!}
                                         <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300" aria-hidden="true">
                                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
                                             @if($estDunAutre)
@@ -887,17 +1003,22 @@
                                             @endif
                                         </span>
                                         <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}"
-                                           @click="clicElement($event, { type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @dblclick="ouvrir({ type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @touchstart="debutAppui({ type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @touchend="finAppui()" @touchmove="finAppui()"
-                                           class="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
+                                           @click="clicElement($event, {!! $itemDossier($folder) !!})" @dblclick="ouvrir({!! $itemDossier($folder) !!})" @touchstart="debutAppui({!! $itemDossier($folder) !!})" @touchend="finAppui()" @touchmove="finAppui()"
+                                           class="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800">
                                             <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $folder->name }}</span>
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageDuDossier }} · <span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span>@if($estDunAutre) · {{ __('dossiers.drive_shared_by', ['name' => $nomProprietaire]) }}@endif</span>
                                         </a>
                                     </div>
-                                    <div class="hidden min-w-0 items-center gap-2 lg:flex">
-                                        <x-user-avatar :user="$proprietaireDuDossier" size="xs" />
-                                        <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $proprietaireLibelle }}</span>
-                                    </div>
-                                    <div class="{{ $colonneEstType ? $celluleLgDrive : $classePartage($partageDuDossier) }}">{{ $colonneEstType ? __('dossiers.drive_type_folder') : $partageDuDossier }}</div>
+                                    @if($colonneProprietaire)
+                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                            <x-user-avatar :user="$proprietaireDuDossier" size="xs" />
+                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $proprietaireLibelle }}</span>
+                                        </div>
+                                    @endif
+                                    <div class="{{ $celluleLgDrive }}">{{ __('dossiers.drive_type_folder') }}</div>
+                                    @if($colonnePartage)
+                                        <div class="{{ $classePartage($partageDuDossier) }}">{{ $partageDuDossier }}</div>
+                                    @endif
                                     <div class="{{ $celluleLgDrive }} tabular-nums">{{ $folder->updated_at?->isoFormat('L') }}</div>
                                     <div class="{{ $celluleLgDrive }} tabular-nums"><span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span></div>
                                     <div class="relative justify-self-end" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
@@ -954,8 +1075,14 @@
                             @foreach($dossier->dossierBlogPosts as $entry)
                                 @php $post = $entry->blogPost; @endphp
                                 @continue(! $post || ! $canView($post))
-                                <li class="{{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-rose-50/40 dark:hover:bg-rose-500/5"
-                                    :class="estSelectionne('article', '{{ $post->id }}') && '{{ $classeSelection }}'"
+                                <li class="group/ligne {{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-rose-50/40 dark:hover:bg-rose-500/5"
+                                    data-selection-key="article:{{ $post->id }}" x-init="enregistrer({!! $itemArticle($post) !!})"
+                                    @if($moveTargets->isNotEmpty() && $canManageArticles)
+                                    draggable="true"
+                                    @dragstart="onArticleDragStart($event, {!! $itemArticle($post) !!})"
+                                    @dragend="onFileDragEnd()"
+                                    @endif
+                                    :class="estEnDeplacement('article', '{{ $post->id }}') ? 'opacity-40' : (estSelectionne('article', '{{ $post->id }}') ? '{{ $classeSelection }}' : '')"
                                     x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
                                     @php
                                         $auteurArticle = $post->user?->isDisplayableIn(currentOrganization()) ? $post->user->publicDisplayName() : __('profile.deactivated_user');
@@ -965,21 +1092,27 @@
                                         $elementsDeSerie = $serieDeLArticle ? $serieDeLArticle->items->count() + 1 : null;
                                     @endphp
                                     <div class="flex min-w-0 items-center gap-3">
+                                        {!! $gouttiereDrive($moveTargets->isNotEmpty() && $canManageArticles) !!}
                                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
                                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
                                         </span>
-                                        <a href="{{ $blogShowRoute($post) }}"
-                                           @click="clicElement($event, { type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @dblclick="ouvrir({ type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @touchstart="debutAppui({ type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @touchend="finAppui()" @touchmove="finAppui()"
-                                           class="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
+                                        <a href="{{ $blogShowRoute($post) }}" draggable="false"
+                                           @click="clicElement($event, {!! $itemArticle($post) !!})" @dblclick="ouvrir({!! $itemArticle($post) !!})" @touchstart="debutAppui({!! $itemArticle($post) !!})" @touchend="finAppui()" @touchmove="finAppui()"
+                                           class="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800">
                                             <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $post->title }}</span>
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageHerite }} · {{ __('dossiers.drive_article_badge') }} · {{ $post->updated_at?->isoFormat('L') }}</span>
                                         </a>
                                     </div>
-                                    <div class="hidden min-w-0 items-center gap-2 lg:flex">
-                                        <x-user-avatar :user="$post->user" size="xs" />
-                                        <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $post->user_id === auth()->id() ? __('dossiers.owner_me') : $auteurArticle }}</span>
-                                    </div>
-                                    <div class="{{ $colonneEstType ? $celluleLgDrive : $classePartage($partageHerite) }}">{{ $colonneEstType ? __('dossiers.drive_article_badge') : $partageHerite }}</div>
+                                    @if($colonneProprietaire)
+                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                            <x-user-avatar :user="$post->user" size="xs" />
+                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $post->user_id === auth()->id() ? __('dossiers.owner_me') : $auteurArticle }}</span>
+                                        </div>
+                                    @endif
+                                    <div class="{{ $celluleLgDrive }}">{{ __('dossiers.drive_article_badge') }}</div>
+                                    @if($colonnePartage)
+                                        <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
+                                    @endif
                                     <div class="{{ $celluleLgDrive }} tabular-nums">{{ $post->updated_at?->isoFormat('L') }}</div>
                                     {{-- La taille d'un Article : le nombre d'elements
                                          quand il ouvre une Serie — c'est ce qu'on
@@ -1003,6 +1136,9 @@
                                                 @unless($dossier->isPersonalDocumentsRoot())
                                                     <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
                                                 @endunless
+                                                @if($moveTargets->isNotEmpty())
+                                                    <button type="button" @click="open = false; selectionner({!! $itemArticle($post) !!}); openMoveLot()" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
+                                                @endif
                                                 <form id="retirer-article-{{ $post->id }}" method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_remove_article') }}</button>
@@ -1016,21 +1152,18 @@
                             {{-- Les fichiers : donnees JS, meme anatomie de ligne. --}}
                             <template x-for="file in sortedFiles" :key="file.id">
                                 <li class="group/ligne {{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 dark:hover:bg-gray-900/40 @if($canDeleteFiles && $moveTargets->isNotEmpty()) cursor-grab active:cursor-grabbing @endif"
+                                    :data-selection-key="'file:' + file.id" x-init="enregistrer({{ $itemFichier }})"
                                     @if($canDeleteFiles && $moveTargets->isNotEmpty())
                                     draggable="true"
-                                    @dragstart="onFileDragStart(file)"
+                                    @dragstart="onFileDragStart($event, file)"
                                     @dragend="onFileDragEnd()"
-                                    :class="draggingFileId === file.id ? 'opacity-40' : (estSelectionne('file', file.id) ? '{{ $classeSelection }}' : '')"
+                                    :class="estEnDeplacement('file', file.id) ? 'opacity-40' : (estSelectionne('file', file.id) ? '{{ $classeSelection }}' : '')"
                                     @else
                                     :class="estSelectionne('file', file.id) && '{{ $classeSelection }}'"
                                     @endif
                                     >
                                     <div class="flex min-w-0 items-center gap-3">
-                                    @if($canDeleteFiles && $moveTargets->isNotEmpty())
-                                        <span class="-ml-2 hidden shrink-0 text-gray-300 group-hover/ligne:block dark:text-gray-600" aria-hidden="true" title="{{ __('dossiers.drive_drag_hint') }}">
-                                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
-                                        </span>
-                                    @endif
+                                        {!! $gouttiereDrive($canDeleteFiles && $moveTargets->isNotEmpty()) !!}
                                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
                                                       :class="{
                                                           'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
@@ -1049,23 +1182,26 @@
                                                     <svg x-show="file.mime_type === 'text/markdown'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
                                                     <svg x-show="file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                                                 </span>
-                                    <button type="button" class="flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left"
-                                            @click="clicElement($event, { type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @dblclick="ouvrir({ type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @touchstart="debutAppui({ type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @touchend="finAppui()" @touchmove="finAppui()">
+                                    <button type="button" class="flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
+                                            @click="clicElement($event, {{ $itemFichier }})" @dblclick="ouvrir({{ $itemFichier }})" @touchstart="debutAppui({{ $itemFichier }})" @touchend="finAppui()" @touchmove="finAppui()">
                                         <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></span>
                                         <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="@js($partageHerite) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
                                     </button>
                                     </div>
-                                    <div class="hidden min-w-0 items-center gap-2 lg:flex">
-                                        <img x-show="file.uploader?.avatar_url" :src="file.uploader?.avatar_url" alt="" aria-hidden="true"
-                                             class="h-6 w-6 shrink-0 rounded-full object-cover">
-                                        <span x-show="!file.uploader?.avatar_url"
-                                              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[9px] font-semibold uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-                                              x-text="uploaderInitiales(file)"></span>
-                                        <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400" x-text="uploaderLibelle(file)"></span>
-                                    </div>
-                                    @if($colonneEstType)
-                                        <div class="{{ $celluleLgDrive }}" x-text="fileTypeLabel(file.mime_type)"></div>
-                                    @else
+                                    @if($colonneProprietaire)
+                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                            <img x-show="file.uploader?.avatar_url" :src="file.uploader?.avatar_url" alt="" aria-hidden="true"
+                                                 class="h-6 w-6 shrink-0 rounded-full object-cover">
+                                            <span x-show="!file.uploader?.avatar_url"
+                                                  class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[9px] font-semibold uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                                  x-text="uploaderInitiales(file)"></span>
+                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400" x-text="uploaderLibelle(file)"></span>
+                                        </div>
+                                    @endif
+                                    {{-- L'extension, comme dans un explorateur : PDF, DOCX, XLS —
+                                         elle distingue ce que le type MIME confond. --}}
+                                    <div class="{{ $celluleLgDrive }} uppercase" x-text="typeDeFichier(file)"></div>
+                                    @if($colonnePartage)
                                         <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
                                     @endif
                                     <div class="{{ $celluleLgDrive }} tabular-nums" x-text="file.updatedAtFormatted"></div>
@@ -1124,7 +1260,8 @@
                             @php
                                 $estCibleDeplacement = $moveTargets->contains('id', $folder->getKey());
                             @endphp
-                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-amber-300 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-amber-300 dark:border-gray-700 dark:bg-gray-800"
+                                 data-selection-key="folder:{{ $folder->getKey() }}" x-init="enregistrer({!! $itemDossier($folder) !!})"
                                  x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($folder->name)) }}.includes(searchQuery.toLowerCase())"
                                  @if($estCibleDeplacement)
                                  @dragover.prevent="onFolderDragOver('{{ $folder->getKey() }}')"
@@ -1132,7 +1269,7 @@
                                  @drop.prevent="onFolderDrop('{{ $folder->getKey() }}')"
                                  :class="dragOverFolderId === '{{ $folder->getKey() }}'
                                      ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30'
-                                     : (draggingFileId ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : (estSelectionne('folder', '{{ $folder->getKey() }}') ? '{{ $classeSelection }}' : ''))"
+                                     : (draggingKeys.length ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : (estSelectionne('folder', '{{ $folder->getKey() }}') ? '{{ $classeSelection }}' : ''))"
                                  @else
                                  :class="estSelectionne('folder', '{{ $folder->getKey() }}') && '{{ $classeSelection }}'"
                                  @endif
@@ -1147,8 +1284,8 @@
                                     $nbElements = $folder->files_count + $folder->dossier_blog_posts_count;
                                 @endphp
                                 <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}"
-                                   @click="clicElement($event, { type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @dblclick="ouvrir({ type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @touchstart="debutAppui({ type: 'folder', id: '{{ $folder->getKey() }}', name: @js($folder->name), url: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}', urlPartage: '{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}', urlRenommer: @js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null), peutSupprimer: @js(auth()->user()->can('delete', $folder)) })" @touchend="finAppui()" @touchmove="finAppui()"
-                                   class="flex w-full flex-col items-center gap-2">
+                                   @click="clicElement($event, {!! $itemDossier($folder) !!})" @dblclick="ouvrir({!! $itemDossier($folder) !!})" @touchstart="debutAppui({!! $itemDossier($folder) !!})" @touchend="finAppui()" @touchmove="finAppui()"
+                                   class="flex w-full flex-col items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800">
                                     <span class="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300" aria-hidden="true">
                                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
                                         @if($estDunAutre)
@@ -1204,12 +1341,18 @@
                         @foreach($dossier->dossierBlogPosts as $entry)
                             @php $post = $entry->blogPost; @endphp
                             @continue(! $post || ! $canView($post))
-                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-rose-300 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800"
-                                 :class="estSelectionne('article', '{{ $post->id }}') && '{{ $classeSelection }}'"
+                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-rose-300 dark:border-gray-700 dark:bg-gray-800"
+                                 data-selection-key="article:{{ $post->id }}" x-init="enregistrer({!! $itemArticle($post) !!})"
+                                 @if($moveTargets->isNotEmpty() && $canManageArticles)
+                                 draggable="true"
+                                 @dragstart="onArticleDragStart($event, {!! $itemArticle($post) !!})"
+                                 @dragend="onFileDragEnd()"
+                                 @endif
+                                 :class="estEnDeplacement('article', '{{ $post->id }}') ? 'opacity-40' : (estSelectionne('article', '{{ $post->id }}') ? '{{ $classeSelection }}' : '')"
                                  x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
-                                <a href="{{ $blogShowRoute($post) }}"
-                                   @click="clicElement($event, { type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @dblclick="ouvrir({ type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @touchstart="debutAppui({ type: 'article', id: '{{ $post->id }}', name: @js($post->title), url: @js($blogShowRoute($post)), urlEditer: @js($blogEditRoute($post)), formulaireRetrait: 'retirer-article-{{ $post->id }}' })" @touchend="finAppui()" @touchmove="finAppui()"
-                                   class="flex w-full flex-col items-center gap-2">
+                                <a href="{{ $blogShowRoute($post) }}" draggable="false"
+                                   @click="clicElement($event, {!! $itemArticle($post) !!})" @dblclick="ouvrir({!! $itemArticle($post) !!})" @touchstart="debutAppui({!! $itemArticle($post) !!})" @touchend="finAppui()" @touchmove="finAppui()"
+                                   class="flex w-full flex-col items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800">
                                     <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
                                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
                                     </span>
@@ -1228,6 +1371,9 @@
                                         <a href="{{ $blogShowRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
                                         @if($canManageArticles)
                                             <a href="{{ $blogEditRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_article') }}</a>
+                                            @if($moveTargets->isNotEmpty())
+                                                <button type="button" @click="open = false; selectionner({!! $itemArticle($post) !!}); openMoveLot()" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
+                                            @endif
                                             <form id="retirer-article-grille-{{ $post->id }}" method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
                                                 @csrf @method('DELETE')
                                                 <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_remove_article') }}</button>
@@ -1239,18 +1385,19 @@
                         @endforeach
 
                         <template x-for="file in sortedFiles" :key="file.id">
-                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-gray-300 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 @if($canDeleteFiles && $moveTargets->isNotEmpty()) cursor-grab active:cursor-grabbing @endif"
+                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 @if($canDeleteFiles && $moveTargets->isNotEmpty()) cursor-grab active:cursor-grabbing @endif"
+                                 :data-selection-key="'file:' + file.id" x-init="enregistrer({{ $itemFichier }})"
                                  @if($canDeleteFiles && $moveTargets->isNotEmpty())
                                  draggable="true"
-                                 @dragstart="onFileDragStart(file)"
+                                 @dragstart="onFileDragStart($event, file)"
                                  @dragend="onFileDragEnd()"
-                                 :class="draggingFileId === file.id ? 'opacity-40' : (estSelectionne('file', file.id) ? '{{ $classeSelection }}' : '')"
+                                 :class="estEnDeplacement('file', file.id) ? 'opacity-40' : (estSelectionne('file', file.id) ? '{{ $classeSelection }}' : '')"
                                  @else
                                  :class="estSelectionne('file', file.id) && '{{ $classeSelection }}'"
                                  @endif
                                  >
-                                <button type="button" class="flex w-full flex-col items-center gap-2"
-                                        @click="clicElement($event, { type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @dblclick="ouvrir({ type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @touchstart="debutAppui({ type: 'file', id: file.id, name: file.display_name || file.original_name, file })" @touchend="finAppui()" @touchmove="finAppui()">
+                                <button type="button" class="flex w-full flex-col items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
+                                        @click="clicElement($event, {{ $itemFichier }})" @dblclick="ouvrir({{ $itemFichier }})" @touchstart="debutAppui({{ $itemFichier }})" @touchend="finAppui()" @touchmove="finAppui()">
                                     <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
                                           :class="{
                                               'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
@@ -1349,6 +1496,37 @@
                         </div>
                     </template>
 
+                    {{-- Le rapport d'un lot : « 5 sur 6 » et le motif de chaque
+                         refus. Distinct du refus d'import, car il ne parle pas
+                         du meme moment : ici les elements sont PARTIS, sauf
+                         ceux qu'on nomme. --}}
+                    <template x-if="showLotModal && lotRapport">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showLotModal = false; lotRapport = null" @keydown.escape.window="showLotModal = false; lotRapport = null" role="dialog" aria-modal="true" aria-labelledby="lot-report-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <div class="flex items-start gap-3">
+                                    <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300" aria-hidden="true">
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <h3 id="lot-report-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="lotRapport.titre"></h3>
+                                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-300" x-text="lotRapport.resume"></p>
+                                        <ul class="mt-3 max-h-56 space-y-1.5 overflow-y-auto">
+                                            <template x-for="(refus, i) in lotRapport.echecs" :key="i">
+                                                <li class="rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-gray-900/50">
+                                                    <span class="block truncate font-medium text-gray-900 dark:text-gray-100" x-text="refus.name"></span>
+                                                    <span class="block text-xs text-gray-500 dark:text-gray-400" x-text="refus.reason"></span>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="mt-6 flex justify-end">
+                                    <button type="button" @click="showLotModal = false; lotRapport = null" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">{{ __('dossiers.drive_lot_close') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
                     {{-- Renommer un fichier : le libelle lu par les gens, pas
                          le fichier sur le disque. L'extension d'origine est
                          conservee par le serveur. --}}
@@ -1375,7 +1553,9 @@
                     <template x-if="showMoveModal">
                         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="closeMoveModal()" @keydown.escape.window="closeMoveModal()" role="dialog" aria-modal="true" aria-labelledby="move-file-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
-                                <h3 id="move-file-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.moveModalTitle.replace(':name', moveTarget?.display_name || moveTarget?.original_name || '')"></h3>
+                                <h3 id="move-file-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="moveLot.length > 1
+                                        ? i18n.moveModalTitleLot.replace(':count', moveLot.length)
+                                        : i18n.moveModalTitle.replace(':name', moveLot.length ? moveLot[0].name : (moveTarget?.display_name || moveTarget?.original_name || ''))"></h3>
                                 <ul class="mt-4 max-h-72 space-y-1 overflow-y-auto">
                                     <template x-for="target in moveTargets" :key="target.id">
                                         <li>
@@ -1550,12 +1730,13 @@
 
                     {{-- Delete Confirmation Modal --}}
                     <template x-if="showDeleteModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showDeleteModal = false; deleteTarget = null" role="dialog" aria-modal="true" aria-labelledby="delete-file-title">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showDeleteModal = false; deleteTarget = null; deleteLot = []" role="dialog" aria-modal="true" aria-labelledby="delete-file-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
                                 <h3 id="delete-file-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.confirmDeleteTitle"></h3>
-                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300" x-text="i18n.confirmDeleteBody"></p>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300"
+                                   x-text="deleteLot.length > 1 ? i18n.confirmDeleteBodyLot.replace(':count', deleteLot.length) : i18n.confirmDeleteBody"></p>
                                 <div class="mt-6 flex justify-end gap-3">
-                                    <button @click="showDeleteModal = false; deleteTarget = null" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.confirmDeleteCancel"></button>
+                                    <button @click="showDeleteModal = false; deleteTarget = null; deleteLot = []" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.confirmDeleteCancel"></button>
                                     <button @click="confirmDeleteFile()" :disabled="saving" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50" x-text="i18n.confirmDeleteConfirm"></button>
                                 </div>
                             </div>

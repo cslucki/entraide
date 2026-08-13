@@ -3240,15 +3240,20 @@ function registerDossierFilesCard() {
         nomsSpatiaux: config.nomsSpatiaux || [],
         // Le nom du Dossier : celui que prend sa sequence, sans le demander.
         dossierName: config.dossierName || '',
-        // ── Selection (TASK-1130, doctrine Cyril du 13/08) ──────────────
-        // Un Drive se manipule en deux temps : on designe, puis on agit. Un
-        // seul element a la fois — la multi-selection et les actions de masse
-        // appartiennent a une tache ulterieure.
+        // ── Selection (TASK-1130, doctrine Cyril des 13 et 14/08) ───────
+        // Un Drive se manipule en deux temps : on designe, puis on agit. Et la
+        // designation est PLURIELLE : deplacer six fichiers d'un coup est le
+        // geste utile ; un par un ne l'est pas.
         //
-        // Les dossiers et les Articles sont rendus par Blade et n'existent pas
-        // dans l'etat JS : la selection porte donc tout ce dont la barre
-        // contextuelle a besoin (type, identite, libelle, adresses).
-        selection: null,
+        // Les cles « type:id » sont la source de verite, dans l'ordre des
+        // clics. Le catalogue, lui, garde le contenu de chaque ligne : les
+        // dossiers et les Articles sont rendus par Blade et n'existent nulle
+        // part ailleurs dans l'etat JS, et une plage Maj+clic prend des lignes
+        // sur lesquelles personne n'a clique.
+        selectionKeys: [],
+        _catalogue: {},
+        // L'ancre de la plage Maj+clic : le dernier element designe seul.
+        _ancre: null,
         // Vrai sur un ecran tactile : le tap y ouvre et l'appui long
         // selectionne, comme dans les applications Drive, Files et Photos. Le
         // double-tap, lui, appartient au zoom du systeme.
@@ -3339,8 +3344,18 @@ function registerDossierFilesCard() {
         moveTargets: config.moveTargets || [],
         showMoveModal: false,
         moveTarget: null,
-        draggingFileId: null,
+        moveLot: [],
+        // Les cles en cours de glissement : toute la selection, pas la seule
+        // ligne saisie.
+        draggingKeys: [],
         dragOverFolderId: null,
+        // Le lot en attente de confirmation de suppression : le meme modal
+        // sert l'element seul et le lot, avec un texte qui compte.
+        deleteLot: [],
+        // Le rapport d'un lot partiellement passe — jamais un « fait » qui
+        // recouvrirait un refus.
+        showLotModal: false,
+        lotRapport: null,
         showPreviewModal: false,
         previewFile: null,
         showImportMenu: false,
@@ -3644,12 +3659,12 @@ function registerDossierFilesCard() {
             document.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') {
                     if (this.showPreviewModal) { this.showPreviewModal = false; this.previewFile = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="preview-title"]'); }); }
-                    else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); }); }
+                    else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; this.deleteLot = []; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); }); }
                     else if (this.showArticleModal) { this.showArticleModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="create-article-title"]'); }); }
                     else if (this.showMdModal) { this.showMdModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="markdown-note-title"]'); }); }
                     // En dernier : aucune modale ouverte, Echap libere la
                     // selection. Jamais avant — sortir d'une modale prime.
-                    else if (this.selection) { this.viderSelection(); }
+                    else if (this.selectionCount) { this.viderSelection(); }
                 }
             });
             if (this.canManageFiles && this.$refs.filePondContainer) {
@@ -3889,15 +3904,12 @@ function registerDossierFilesCard() {
 
             // Un seul rechargement, a la fin : la liste ne clignote pas a
             // chaque fichier et aucune reponse n'en ecrase une autre.
+            // Une seule lecture suffit desormais. La seconde, tentee 600 ms
+            // plus tard quand la liste revenait vide, compensait un symptome
+            // dont on ignorait la cause : le service worker servait sa copie
+            // d'avant l'import (`stale-while-revalidate`, corrige dans sw.js).
             try {
                 await this.loadFiles(1);
-                // Un envoi peut etre acquitte avant que la ligne soit visible
-                // par la requete suivante : si la liste revient vide alors
-                // qu'on vient d'ajouter, on redemande une fois.
-                if (reussis > 0 && this.totalFiles === 0) {
-                    await new Promise((r) => setTimeout(r, 600));
-                    await this.loadFiles(1);
-                }
             } catch (e) {
                 console.error('[dossiers] rechargement apres import', e);
             }
@@ -3922,27 +3934,141 @@ function registerDossierFilesCard() {
             }
         },
 
-        /** L'element designe est-il celui-ci ? */
-        estSelectionne(type, id) {
-            return this.selection?.type === type && this.selection?.id === id;
+        /**
+         * L'element designe quand il n'y en a QU'UN.
+         *
+         * Volontairement nul des qu'il y en a plusieurs : la barre d'un seul
+         * element propose Ouvrir, Partager et Renommer, qui n'ont pas de sens
+         * en lot. Ce getter les eteint toutes d'un coup, sans qu'aucune de ces
+         * conditions ait a connaitre l'existence du lot.
+         */
+        get selection() {
+            return this.selectionKeys.length === 1
+                ? (this._catalogue[this.selectionKeys[0]] || null)
+                : null;
         },
 
+        get selectionCount() {
+            return this.selectionKeys.length;
+        },
+
+        get selectionElements() {
+            return this.selectionKeys.map(cle => this._catalogue[cle]).filter(Boolean);
+        },
+
+        /**
+         * Les actions du lot : proposees seulement si TOUS les elements les
+         * supportent. Une action a moitie applicable est un piege — on la
+         * masque plutot que de la faire echouer sur la moitie du lot.
+         */
+        get lotDeplacable() {
+            const lot = this.selectionElements;
+
+            return this.moveTargets.length > 0 && lot.length > 1
+                && lot.every(i => i.type === 'file' || i.type === 'article');
+        },
+
+        get lotSupprimable() {
+            const lot = this.selectionElements;
+
+            return this.canDeleteFiles && lot.length > 1 && lot.every(i => i.type === 'file');
+        },
+
+        get lotRetirable() {
+            const lot = this.selectionElements;
+
+            return lot.length > 1 && lot.every(i => i.type === 'article' && i.formulaireRetrait);
+        },
+
+        cleSelection(item) {
+            return `${item.type}:${item.id}`;
+        },
+
+        /**
+         * Memoriser une ligne rendue, qu'elle soit designee ou non.
+         *
+         * La plage Maj+clic prend des lignes que personne n'a touchees : sans
+         * ce catalogue on connaitrait leur cle sans rien savoir d'elles, et la
+         * barre d'actions serait vide.
+         */
+        enregistrer(item) {
+            if (!item) return;
+            this._catalogue[this.cleSelection(item)] = item;
+        },
+
+        estSelectionne(type, id) {
+            return this.selectionKeys.includes(`${type}:${id}`);
+        },
+
+        /** Clic simple : cet element REMPLACE la selection. */
         selectionner(item) {
-            this.selection = item;
+            if (!item) return;
+            this.enregistrer(item);
+            const cle = this.cleSelection(item);
+            this.selectionKeys = [cle];
+            this._ancre = cle;
+        },
+
+        /** Ctrl/Cmd+clic : cet element rejoint ou quitte la selection. */
+        basculerSelection(item) {
+            if (!item) return;
+            this.enregistrer(item);
+            const cle = this.cleSelection(item);
+            this.selectionKeys = this.selectionKeys.includes(cle)
+                ? this.selectionKeys.filter(c => c !== cle)
+                : this.selectionKeys.concat(cle);
+            this._ancre = cle;
+        },
+
+        /**
+         * Maj+clic : toute la plage entre l'ancre et cet element.
+         *
+         * L'ordre vient du DOM, seule source qui connaisse l'ordre VISUEL : les
+         * lignes ont trois origines (dossiers et Articles rendus par Blade,
+         * fichiers rendus par `x-for`), les deux modes coexistent dans la page
+         * et la recherche en masque. Le filtre sur `offsetParent` ne garde donc
+         * que ce qui est reellement a l'ecran.
+         */
+        etendreSelection(item) {
+            if (!item) return;
+            this.enregistrer(item);
+            const cle = this.cleSelection(item);
+            const cles = this.clesVisibles();
+            const depart = cles.indexOf(this._ancre);
+            const arrivee = cles.indexOf(cle);
+
+            if (depart === -1 || arrivee === -1) { this.selectionner(item); return; }
+
+            const [a, b] = depart <= arrivee ? [depart, arrivee] : [arrivee, depart];
+            this.selectionKeys = cles.slice(a, b + 1);
+            // Maj+clic surligne aussi du texte : le geste doit designer des
+            // lignes, pas laisser une trainee de selection bleue derriere lui.
+            window.getSelection()?.removeAllRanges();
+        },
+
+        clesVisibles() {
+            const racine = this.$root || document;
+
+            return [...racine.querySelectorAll('[data-selection-key]')]
+                .filter(element => element.offsetParent !== null)
+                .map(element => element.dataset.selectionKey);
         },
 
         viderSelection() {
-            this.selection = null;
+            this.selectionKeys = [];
+            this._ancre = null;
         },
 
         /**
          * Le clic simple designe ; il n'ouvre pas.
          *
-         * Sauf trois gestes qui appartiennent au navigateur et qu'on ne vole
-         * pas : Ctrl/Cmd+clic, Maj+clic et clic milieu ouvrent un onglet.
+         * Ctrl/Cmd+clic et Maj+clic n'ouvrent donc plus d'onglet sur une ligne :
+         * c'est le compromis de Drive et de l'explorateur de fichiers, ou ces
+         * deux gestes appartiennent a la selection. Le clic milieu, lui, reste
+         * au navigateur pour qui veut un onglet.
          */
         clicElement(evenement, item) {
-            if (evenement.metaKey || evenement.ctrlKey || evenement.shiftKey || evenement.button === 1) return;
+            if (evenement.button === 1) return;
 
             evenement.preventDefault();
 
@@ -3950,7 +4076,17 @@ function registerDossierFilesCard() {
             // mobile ne doit pas ouvrir par-dessus.
             if (this._appuiLong) { this._appuiLong = false; return; }
 
-            if (this.tactile) { this.ouvrir(item); return; }
+            // Tactile : le tap ouvre, sauf quand une selection est deja en
+            // cours — il l'enrichit alors, comme dans Files et Photos.
+            if (this.tactile) {
+                if (this.selectionCount > 0) { this.basculerSelection(item); return; }
+                this.ouvrir(item);
+
+                return;
+            }
+
+            if (evenement.shiftKey) { this.etendreSelection(item); return; }
+            if (evenement.metaKey || evenement.ctrlKey) { this.basculerSelection(item); return; }
 
             this.selectionner(item);
         },
@@ -3958,6 +4094,7 @@ function registerDossierFilesCard() {
         /** Le double-clic ouvre : dossier, Article ou fichier. */
         ouvrir(item) {
             if (!item) return;
+            this.viderSelection();
             if (item.type === 'file') { this.ouvrirFichier(item.file); return; }
             if (item.url) window.location.href = item.url;
         },
@@ -4060,6 +4197,21 @@ function registerDossierFilesCard() {
             return mime || '—';
         },
 
+        /**
+         * Le type tel qu'on le lit dans un explorateur : l'extension du nom,
+         * qui distingue un .docx d'un .doc et un .xlsx d'un .xls la ou le type
+         * MIME les confond. On retombe sur la famille quand le nom n'a pas
+         * d'extension (une note creee ici, par exemple).
+         */
+        typeDeFichier(file) {
+            const nom = file?.display_name || file?.original_name || '';
+            const extension = nom.includes('.') ? nom.split('.').pop() : '';
+
+            return extension.length && extension.length <= 5
+                ? extension.toUpperCase()
+                : this.fileTypeLabel(file?.mime_type);
+        },
+
         async deleteFile(file) {
             this.saving = true;
             this.files = this.files.filter(f => f.id !== file.id);
@@ -4143,11 +4295,16 @@ function registerDossierFilesCard() {
         },
 
         async confirmDeleteFile() {
-            if (!this.deleteTarget) return;
+            const lot = this.deleteLot.slice();
             const file = this.deleteTarget;
             this.showDeleteModal = false;
             this.deleteTarget = null;
+            this.deleteLot = [];
             this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); });
+
+            if (lot.length) { await this.supprimerLot(lot); return; }
+            if (!file) return;
+
             await this.deleteFile(file);
         },
 
@@ -4570,6 +4727,19 @@ function registerDossierFilesCard() {
             if (!this.moveTargets.length) return;
             this._trapTrigger = document.activeElement;
             this.moveTarget = file;
+            this.moveLot = [];
+            this.showMoveModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="move-file-title"]'); });
+        },
+
+        /** Le meme choix de destination, pour toute la selection. */
+        openMoveLot() {
+            if (!this.moveTargets.length) return;
+            const lot = this.selectionElements.filter(i => i.type === 'file' || i.type === 'article');
+            if (!lot.length) return;
+            this._trapTrigger = document.activeElement;
+            this.moveTarget = null;
+            this.moveLot = lot;
             this.showMoveModal = true;
             this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="move-file-title"]'); });
         },
@@ -4577,6 +4747,7 @@ function registerDossierFilesCard() {
         closeMoveModal() {
             this.showMoveModal = false;
             this.moveTarget = null;
+            this.moveLot = [];
             this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="move-file-title"]'); });
         },
 
@@ -4621,27 +4792,54 @@ function registerDossierFilesCard() {
         },
 
         async confirmMoveFile(targetDossierId) {
-            if (!this.moveTarget) return;
+            const lot = this.moveLot.slice();
             const file = this.moveTarget;
             this.closeMoveModal();
+
+            if (lot.length) { await this.deplacerVers(targetDossierId, lot); return; }
+            if (!file) return;
+
             await this.moveFileTo(file, targetDossierId);
         },
 
-        // Glisser une ligne de fichier : un simple marqueur d'etat, propre a
-        // cette page — pas de dataTransfer custom necessaire pour un geste qui
-        // ne quitte jamais l'onglet.
-        onFileDragStart(file) {
-            if (!this.estSelectionne('file', file.id)) this.selectionner({ type: 'file', id: file.id, name: file.display_name || file.original_name, file });
-            this.draggingFileId = file.id;
+        // Glisser des lignes : un marqueur d'etat propre a cette page — le
+        // geste ne quitte jamais l'onglet. `draggingKeys` porte TOUT ce qui est
+        // tire, et pas seulement la ligne sous le curseur.
+        onFileDragStart(evenement, file) {
+            this.demarrerGlissement(evenement, { type: 'file', id: file.id, name: file.display_name || file.original_name, file });
+        },
+
+        onArticleDragStart(evenement, item) {
+            this.demarrerGlissement(evenement, item);
+        },
+
+        /**
+         * Tirer un element HORS de la selection la remplace d'abord ; tirer un
+         * element DE la selection emporte toute la selection. C'est le geste de
+         * Drive et de l'explorateur : on ne deplace jamais a l'insu de la
+         * personne des lignes qu'elle ne voit pas designees.
+         */
+        demarrerGlissement(evenement, item) {
+            if (!this.estSelectionne(item.type, item.id)) this.selectionner(item);
+            else this.enregistrer(item);
+
+            this.draggingKeys = this.selectionKeys.slice();
+            // Firefox n'emet aucun `drop` si le glissement ne porte pas de
+            // donnee : ce texte n'est jamais lu, il rend le geste possible.
+            try { evenement?.dataTransfer?.setData('text/plain', this.draggingKeys.join(',')); } catch (e) { /* navigateur qui refuse : le geste marche sans */ }
+        },
+
+        estEnDeplacement(type, id) {
+            return this.draggingKeys.includes(`${type}:${id}`);
         },
 
         onFileDragEnd() {
-            this.draggingFileId = null;
+            this.draggingKeys = [];
             this.dragOverFolderId = null;
         },
 
         onFolderDragOver(folderId) {
-            if (!this.draggingFileId) return;
+            if (!this.draggingKeys.length) return;
             this.dragOverFolderId = folderId;
         },
 
@@ -4650,13 +4848,193 @@ function registerDossierFilesCard() {
         },
 
         async onFolderDrop(folderId) {
-            const fileId = this.draggingFileId;
+            const cles = this.draggingKeys.slice();
             this.dragOverFolderId = null;
-            this.draggingFileId = null;
-            if (!fileId) return;
-            const file = this.files.find(f => f.id === fileId);
-            if (!file) return;
-            await this.moveFileTo(file, folderId);
+            this.draggingKeys = [];
+            if (!cles.length) return;
+
+            await this.deplacerVers(folderId, cles.map(cle => this._catalogue[cle]).filter(Boolean));
+        },
+
+        // ── Agir sur un lot ──────────────────────────────────────────────
+        //
+        // Une requete par element, sur les endpoints qui existent deja. Un
+        // endpoint « en masse » aurait fait perdre deux choses : l'examen des
+        // droits element par element (source ET cible sont verifiees a chaque
+        // deplacement) et le detail des refus — un doublon de nom n'a aucune
+        // raison d'empecher les cinq autres de partir.
+
+        async deplacerVers(cibleId, elements = null) {
+            const lot = (elements || this.selectionElements).filter(i => i.type === 'file' || i.type === 'article');
+            if (!cibleId || !lot.length || cibleId === this.dossierId) return;
+
+            this.saving = true;
+            const echecs = [];
+            let reussis = 0;
+            let articleDeplace = false;
+
+            for (const item of lot) {
+                const url = item.type === 'file'
+                    ? `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${item.id}/move`
+                    : `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/${item.id}/move`;
+
+                try {
+                    const reponse = await fetch(url, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ target_dossier_id: cibleId }),
+                    });
+                    const data = await reponse.json().catch(() => ({}));
+
+                    if (reponse.ok) {
+                        reussis++;
+                        if (item.type === 'file') {
+                            this.files = this.files.filter(f => f.id !== item.id);
+                            this.totalFiles = Math.max(0, this.totalFiles - 1);
+                        } else {
+                            articleDeplace = true;
+                        }
+                        this.bumpFolderCount(cibleId);
+                    } else {
+                        echecs.push({ name: item.name, reason: data.message || this.i18n.moveFailed });
+                    }
+                } catch (error) {
+                    echecs.push({ name: item.name, reason: this.i18n.moveFailed });
+                }
+            }
+
+            this.saving = false;
+            this.viderSelection();
+            this.rapporterLot(reussis, lot.length, echecs, 'move', cibleId);
+
+            // Les lignes d'Article viennent du serveur : elles ne peuvent pas
+            // disparaitre sans une recharge, contrairement aux fichiers.
+            if (articleDeplace && !echecs.length) setTimeout(() => window.location.reload(), 900);
+        },
+
+        /** Le lot part sur le meme modal de confirmation que l'element seul. */
+        openDeleteLot() {
+            const lot = this.selectionElements.filter(i => i.type === 'file');
+            if (!lot.length) return;
+            this._trapTrigger = document.activeElement;
+            this.deleteLot = lot;
+            this.deleteTarget = null;
+            this.showDeleteModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-file-title"]'); });
+        },
+
+        async supprimerLot(lot) {
+            this.saving = true;
+            const echecs = [];
+            let reussis = 0;
+
+            for (const item of lot) {
+                try {
+                    const reponse = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files/${item.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    const data = await reponse.json().catch(() => ({}));
+
+                    if (reponse.ok) {
+                        reussis++;
+                        this.files = this.files.filter(f => f.id !== item.id);
+                        this.totalFiles = Math.max(0, this.totalFiles - 1);
+                    } else {
+                        echecs.push({ name: item.name, reason: data.message || this.i18n.deleteFailed });
+                    }
+                } catch (error) {
+                    echecs.push({ name: item.name, reason: this.i18n.deleteFailed });
+                }
+            }
+
+            this.saving = false;
+            this.viderSelection();
+            this.rapporterLot(reussis, lot.length, echecs, 'delete');
+            await this.loadFiles(this.currentPage);
+        },
+
+        /**
+         * Retirer des Articles du Dossier — ils ne sont pas supprimes, d'ou un
+         * verbe different de celui des fichiers et aucune confirmation : le
+         * geste se refait en un rattachement.
+         */
+        async retirerLot() {
+            const lot = this.selectionElements.filter(i => i.type === 'article');
+            if (!lot.length) return;
+
+            this.saving = true;
+            const echecs = [];
+            let reussis = 0;
+
+            for (const item of lot) {
+                try {
+                    const reponse = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/articles/${item.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    const data = await reponse.json().catch(() => ({}));
+
+                    if (reponse.ok) reussis++;
+                    else echecs.push({ name: item.name, reason: data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.deleteFailed });
+                } catch (error) {
+                    echecs.push({ name: item.name, reason: this.i18n.deleteFailed });
+                }
+            }
+
+            this.saving = false;
+            this.viderSelection();
+
+            if (echecs.length) {
+                this.rapporterLot(reussis, lot.length, echecs, 'delete');
+
+                return;
+            }
+
+            // Les lignes d'Article sont rendues par le serveur.
+            window.location.reload();
+        },
+
+        /**
+         * Dire ce qui s'est VRAIMENT passe : « 5 sur 6 » et la liste des refus,
+         * jamais un « fait » qui recouvrirait un echec. Le lot sans faute se
+         * contente du bandeau habituel.
+         */
+        rapporterLot(reussis, total, echecs, action, cibleId = null) {
+            if (!echecs.length) {
+                if (!reussis) return;
+                const cible = cibleId ? this.moveTargets.find(t => t.id === cibleId) : null;
+                const message = action === 'move'
+                    ? (total === 1 && cible?.name && this.i18n.movedTo
+                        ? this.i18n.movedTo.replace(':name', cible.name)
+                        : (this.i18n.lotMoved || '').replace(':count', String(reussis)).replace(':name', cible?.name || ''))
+                    : (total === 1 ? this.i18n.deleted : (this.i18n.lotDeleted || '').replace(':count', String(reussis)));
+                this.showMessage(message || this.i18n.moved, 'success');
+
+                return;
+            }
+
+            this.lotRapport = {
+                titre: action === 'move' ? this.i18n.lotMoveReportTitle : this.i18n.lotDeleteReportTitle,
+                resume: (this.i18n.lotReportSummary || ':done/:total')
+                    .replace(':done', String(reussis))
+                    .replace(':total', String(total)),
+                echecs,
+            };
+            this.showLotModal = true;
         },
 
         openPreview(file) {
