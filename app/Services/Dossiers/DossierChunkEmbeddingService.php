@@ -2,9 +2,11 @@
 
 namespace App\Services\Dossiers;
 
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use InvalidArgumentException;
 use Laravel\Ai\Embeddings;
 use RuntimeException;
+use Throwable;
 
 class DossierChunkEmbeddingService
 {
@@ -31,9 +33,20 @@ class DossierChunkEmbeddingService
             ];
         }
 
-        $response = Embeddings::for($texts)
-            ->dimensions($dimensions)
-            ->generate($provider, $model);
+        try {
+            $response = Embeddings::for($texts)
+                ->dimensions($dimensions)
+                ->generate($provider, $model);
+        } catch (Throwable $exception) {
+            // TASK-1200 : le SDK ne dispatche aucun événement d'échec (voir
+            // RecordSdkEmbeddingsInvocation). C'est le seul endroit qui peut
+            // observer un échec réel, donc le seul qui peut l'enregistrer —
+            // sans jamais changer le comportement fonctionnel : on relance
+            // exactement l'exception d'origine, inchangée.
+            RecordSdkEmbeddingsInvocation::recordFailure($provider, $model);
+
+            throw $exception;
+        }
 
         $embeddings = $response->embeddings;
 

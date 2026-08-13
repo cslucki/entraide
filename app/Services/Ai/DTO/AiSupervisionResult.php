@@ -24,8 +24,18 @@ final class AiSupervisionResult
         public readonly int $inputTokens,
         public readonly int $outputTokens,
         public readonly string $model,
-        public readonly float $estimatedCostUsd,
+        /**
+         * TASK-1132 : nullable. `null` signifie « coût non mesurable » et se lit
+         * toujours avec `$costUnknown`. Un 0 ici est une VRAIE mesure de zéro
+         * (exécution locale, aucun appel facturé), jamais un tarif manquant.
+         */
+        public readonly ?float $estimatedCostUsd,
         public readonly int $latencyMs,
+        /**
+         * Paramètre optionnel en dernière position : les appelants existants
+         * qui passent un coût mesuré restent valides sans modification.
+         */
+        public readonly bool $costUnknown = false,
     ) {}
 
     public function isHighRisk(): bool
@@ -55,6 +65,7 @@ final class AiSupervisionResult
             'output_tokens' => $this->outputTokens,
             'model' => $this->model,
             'estimated_cost_usd' => $this->estimatedCostUsd,
+            'cost_unknown' => $this->costUnknown,
             'latency_ms' => $this->latencyMs,
         ];
     }

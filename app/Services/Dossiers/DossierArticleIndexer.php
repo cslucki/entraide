@@ -2,11 +2,13 @@
 
 namespace App\Services\Dossiers;
 
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
 use App\Models\Organization;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -40,7 +42,21 @@ class DossierArticleIndexer
                 return $this->deleteChunks($organizationId, $dossierId, $blogPostId);
             }
 
-            $embeddingResult = $this->embeddings->embed(array_column($chunks, 'content'));
+            Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
+                'organization_id' => $organizationId,
+                'scenario_id' => 'dossier_embeddings_index',
+                'metadata' => [
+                    'dossier_id' => $dossierId,
+                    'blog_post_id' => $blogPostId,
+                    'chunk_count' => count($chunks),
+                ],
+            ]);
+
+            try {
+                $embeddingResult = $this->embeddings->embed(array_column($chunks, 'content'));
+            } finally {
+                Context::forget(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY);
+            }
 
             if (count($embeddingResult['embeddings']) !== count($chunks)) {
                 throw new RuntimeException('Embedding count does not match generated chunk count.');

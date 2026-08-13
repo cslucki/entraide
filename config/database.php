@@ -99,6 +99,28 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
+        // TASK-1201 : environnement de validation IA autonome. Le nom de
+        // base est un LITTÉRAL, jamais lu depuis une variable d'environnement
+        // générique : `AiValidationDatabaseGuard` s'appuie sur cette valeur
+        // figée pour garantir qu'aucune variable d'env parasite ne peut
+        // faire pointer cette connexion ailleurs que sur
+        // `bouclepro_ai_validation`. Identifiants de connexion seuls
+        // configurables, jamais la base cible.
+        'bouclepro_ai_validation' => [
+            'driver' => 'pgsql',
+            'url' => null,
+            'host' => env('AI_VALIDATION_DB_HOST', '127.0.0.1'),
+            'port' => env('AI_VALIDATION_DB_PORT', '5432'),
+            'database' => 'bouclepro_ai_validation',
+            'username' => env('AI_VALIDATION_DB_USERNAME', 'bouclepro'),
+            'password' => env('AI_VALIDATION_DB_PASSWORD', ''),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),
