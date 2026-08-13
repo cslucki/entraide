@@ -1,7 +1,8 @@
 // BouclePro — Service Worker (PWA shell offline)
-// La version doit changer a chaque modification des regles : `activate` purge
-// les caches des versions precedentes, seule facon de retirer aux navigateurs
-// deja installes les reponses stockees sous l'ancienne strategie.
+// Le bump reste necessaire : `activate` purge les caches des versions
+// precedentes, seule facon de retirer aux navigateurs deja installes les
+// reponses du Drive stockees sous l'ancienne strategie — sans quoi elles
+// resserviraient de repli hors ligne avec un contenu faux.
 const CACHE_NAME = 'bouclepro-v4';
 
 const SHELL_ASSETS = [
@@ -77,29 +78,55 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for everything else — served from cache ONLY when the
-  // network fails.
+  // ── Donnees du module Dossiers/Drive : network-first, repli sur le cache ──
   //
-  // Cette regle etait « stale-while-revalidate » : la copie en cache repartait
-  // immediatement et le reseau ne rafraichissait que la fois suivante. Sur des
-  // donnees applicatives, c'est un mensonge a retardement — un fichier importe
-  // restait invisible jusqu'au rafraichissement, et un fichier deplace
-  // reapparaissait a la lecture suivante (TASK-1130). Ni `Cache-Control:
-  // no-store` cote serveur ni `cache: 'no-store'` cote fetch n'y pouvaient
-  // rien : le Cache Storage d'un service worker n'obeit pas au cache HTTP.
+  // Ces listes changent a chaque import, deplacement ou suppression. Servies
+  // depuis le Cache Storage, elles rendaient l'etat d'AVANT l'ecriture qu'on
+  // venait de faire : un fichier importe restait invisible jusqu'au
+  // rafraichissement, un fichier deplace reapparaissait (TASK-1130). Ni
+  // `Cache-Control: no-store` cote serveur ni `cache: 'no-store'` cote fetch
+  // n'y peuvent rien — le Cache Storage d'un service worker n'obeit pas au
+  // cache HTTP, il faut le dire ICI.
   //
-  // La liste d'exceptions par chemin (`/annotations`, `/co-authors`,
-  // `/snapshots`) essayait de nommer un a un les endpoints qui ne supportent
-  // pas d'etre perimes. Elle ne pouvait que rester incomplete : c'est
-  // l'inverse qui est vrai — aucune donnee applicative ne gagne a etre servie
-  // perimee tant que le reseau repond. Le repli hors ligne, lui, est conserve.
+  // La regle est volontairement bornee a ce module : le reste de BouclePro
+  // garde sa strategie. Les navigations vers ces memes URLs sont deja traitees
+  // plus haut (`destination === 'document'`) : seules les requetes de donnees
+  // arrivent ici. `/org/{x}/blog/dossiers` n'est pas concerne, le motif exige
+  // `dossiers` juste apres l'organisation.
+  if (/^\/org\/[^/]+\/dossiers(\/|$)/.test(url.pathname)) {
+    event.respondWith(
+      fetch(request).then((response) => {
+        // Seul le JSON est conserve : un telechargement de fichier n'a rien a
+        // faire dans le Cache Storage, et un blob perime encore moins.
+        if (response.ok && (response.headers.get('content-type') || '').includes('application/json')) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Bypass cache for blog API endpoints (annotations, co-authors, snapshots)
+  if (url.pathname.includes('/annotations') ||
+      url.pathname.includes('/co-authors') ||
+      url.pathname.includes('/snapshots')) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  // Stale-while-revalidate for other requests
   event.respondWith(
-    fetch(request).then((response) => {
-      if (response.status === 200) {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-      }
-      return response;
-    }).catch(() => caches.match(request))
+    caches.match(request).then((cached) => {
+      const fetchPromise = fetch(request).then((response) => {
+        if (response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => cached);
+      return cached || fetchPromise;
+    })
   );
 });
