@@ -368,6 +368,157 @@ class DossierFileController extends Controller
         ]);
     }
 
+    /**
+     * Lire le contenu d'une note Markdown, pour le rouvrir dans l'editeur.
+     *
+     * Distinct de `preview`, qui renvoie un telechargement `inline` : ici on
+     * rend du JSON, et **seulement** pour du Markdown. Le reste du Drive n'a
+     * pas a devenir lisible en texte par un endpoint generique.
+     */
+    public function markdown(Request $request): JsonResponse
+    {
+        [$dossier, $file] = $this->resolveMarkdownFile($request);
+
+        $this->authorize('viewFiles', $dossier);
+
+        try {
+            $contenu = Storage::disk($file->disk)->get($file->path);
+        } catch (\Exception $e) {
+            abort(404);
+        }
+
+        return response()->json([
+            'content' => $contenu ?? '',
+            'display_name' => $file->display_name,
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * Reecrire le contenu d'une note Markdown, dans le MEME DossierFile.
+     *
+     * Ce que cet endpoint ne fait pas, et qui est tout l'enjeu : il ne cree
+     * aucune seconde ligne, ne touche ni `dossier_id`, ni `id`, ni le nom, ni
+     * l'appartenance a une Serie, ni le tenant. Il ecrit sur le meme `path`,
+     * puis recalcule ce qui decrit le contenu — taille, empreinte — sans quoi
+     * la ligne mentirait sur le fichier qu'elle designe.
+     *
+     * Borne au Markdown : `resolveMarkdownFile()` refuse tout autre type. Un
+     * endpoint generique d'ecriture de contenu serait une autre decision.
+     */
+    public function updateMarkdown(Request $request): JsonResponse
+    {
+        [$dossier, $file, $organization] = $this->resolveMarkdownFile($request, avecOrganisation: true);
+
+        $this->authorize('manageFiles', $dossier);
+
+        $data = $request->validate([
+            // Une note peut legitimement etre videe. `present` plutot que
+            // `required`, qui refuserait le vide — et `nullable` parce que
+            // `ConvertEmptyStringsToNull`, actif sur toute l'application,
+            // transforme la chaine vide en null avant d'arriver ici.
+            'content' => ['present', 'nullable', 'string', 'max:1048576'],
+        ]);
+
+        $contenu = (string) ($data['content'] ?? '');
+        $taille = strlen($contenu);
+        $empreinte = hash('sha256', $contenu);
+
+        if ($empreinte === $file->checksum_sha256) {
+            // Rien n'a change : ne pas reecrire le disque ni toucher
+            // `updated_at`, qui ferait mentir la colonne « Modifie le ».
+            return response()->json([
+                'file' => $this->publicFilePayload($file, $organization),
+                'message' => __('dossiers.markdown_updated'),
+            ]);
+        }
+
+        // Le meme garde que l'import : deux fichiers de contenu identique dans
+        // un meme Dossier n'ont pas de raison d'exister.
+        $doublon = DossierFile::query()
+            ->where('organization_id', $organization->id)
+            ->where('dossier_id', $dossier->id)
+            ->where('checksum_sha256', $empreinte)
+            ->whereKeyNot($file->getKey())
+            ->exists();
+
+        if ($doublon) {
+            return response()->json(['message' => __('dossiers.file_duplicate_content')], 422);
+        }
+
+        // Le quota ne compte que le DELTA : une note qui maigrit ne doit pas
+        // pouvoir etre refusee parce que l'Organization est pleine.
+        $quota = $organization->dossierStorageQuotaBytes();
+        $delta = $taille - (int) $file->size_bytes;
+
+        if ($quota !== null && $delta > 0) {
+            $utilise = (int) DossierFile::query()
+                ->where('organization_id', $organization->id)
+                ->whereNull('deleted_at')
+                ->sum('size_bytes');
+
+            if ($utilise + $delta > $quota) {
+                return response()->json(['message' => __('dossiers.storage_quota_exceeded')], 422);
+            }
+        }
+
+        try {
+            Storage::disk($file->disk)->put($file->path, $contenu);
+        } catch (\Exception $e) {
+            return response()->json(['message' => __('dossiers.markdown_update_failed')], 500);
+        }
+
+        $file->update([
+            'size_bytes' => $taille,
+            'checksum_sha256' => $empreinte,
+        ]);
+
+        return response()->json([
+            'file' => $this->publicFilePayload($file->fresh(), $organization),
+            'message' => __('dossiers.markdown_updated'),
+        ]);
+    }
+
+    /**
+     * Le Dossier, le fichier, et la garantie que ce fichier est du Markdown
+     * de CE Dossier dans CE tenant. Les deux endpoints Markdown partagent
+     * exactement les memes refus.
+     *
+     * @return array{0: Dossier, 1: DossierFile, 2?: mixed}
+     */
+    private function resolveMarkdownFile(Request $request, bool $avecOrganisation = false): array
+    {
+        $dossier = $this->resolveDossier($request->route('dossier'));
+        $file = $this->resolveFile($request->route('file'));
+        $organization = $this->currentOrganizationOrFail();
+        $this->ensureCurrentUserBelongsToCurrentOrganization();
+        $this->ensureDossierBelongsToCurrentOrganization($dossier);
+
+        if ($file->dossier_id !== $dossier->id || $file->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        // Le type se lit sur le MIME et sur l'extension : un fichier importe
+        // depuis un poste Windows arrive parfois en `text/plain`, et l'ecran
+        // le presente pourtant comme une note.
+        $extension = Str::lower(pathinfo((string) $file->original_name, PATHINFO_EXTENSION));
+
+        if ($file->mime_type !== 'text/markdown' && ! in_array($extension, ['md', 'markdown'], true)) {
+            abort(404);
+        }
+
+        return $avecOrganisation ? [$dossier, $file, $organization] : [$dossier, $file];
+    }
+
+    private function publicFilePayload(DossierFile $file, $organization): array
+    {
+        $file->loadMissing('uploader:id,organization_id,first_name,avatar,name,email,banned_at');
+
+        return array_merge(
+            $file->toArray(),
+            ['uploader' => $this->publicUserPayload($file->uploader, $organization->id)]
+        );
+    }
+
     public function move(Request $request): JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
